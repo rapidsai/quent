@@ -1,0 +1,17 @@
+[package]
+name = "quenthree"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+opentelemetry_sdk = "0.31.0"
+opentelemetry = "0.31.0"
+opentelemetry-stdout = "0.31.0"
+opentelemetry-semantic-conventions = "0.31.0"
+opentelemetry-appender-log = "0.31.0"
+opentelemetry-otlp = {version="0.31.0", features = ["grpc-tonic"] }
+uuid = "1.18.1"
+tracing = { version = "0.1.41", features = ["std"]}
+tracing-subscriber = { version = "0.3.2", features = ["env-filter","registry", "std", "fmt"] }
+log = "0.4.28"
+tokio = {version = "1.48.0", features = ["rt", "macros"]}
