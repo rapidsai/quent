@@ -1,0 +1,9 @@
+[package]
+name = "quent-collector"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+quent-proto = { path = "../proto" }
+tonic.workspace = true
+tokio = {workspace = true, features=["rt-multi-thread"]}

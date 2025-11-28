@@ -1,0 +1,12 @@
+[package]
+name = "quent-proto"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+tonic.workspace = true
+tonic-prost.workspace = true
+prost.workspace  =true
+
+[build-dependencies]
+tonic-prost-build = "0.14.2"

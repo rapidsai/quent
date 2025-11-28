@@ -1,0 +1,9 @@
+[package]
+name = "quent-events"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+uuid = { workspace = true, features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145" # for now :tm: during debugging

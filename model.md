@@ -3,6 +3,7 @@
 ## Terms
 - WCT: Wall-Clock Time, nanoseconds passed since the Unix epoch
 - *For Now*: clear sources of technical debt, mostly implementation-driven limitations, but decided as such due to implementation workload constraints
+- Meta: a model of things that help construct an engine model.
 
 ## Entity (meta)
 
@@ -45,7 +46,7 @@ FSM:
 Must have:
 - Engine ID
 
-## Query (FSM)
+## Query
 
 A Query represents the top-level unit of work executed on a Coordinator.
 
@@ -97,12 +98,12 @@ FSM:
 ```
 ⊙ → initializing → waiting for inputs
 
-waiting for inputs → waiting for inputs
-waiting for inputs → executing
-executing → waiting for inputs
+waiting for inputs  → waiting for inputs
+waiting for inputs  → executing
+executing           → waiting for inputs
 
-executing → blocked
-blocked → executing
+executing           → blocked
+blocked             → executing
 
 executing → idle → finalizing → ⊗
 ```
@@ -153,15 +154,36 @@ FSM:
 ⊙ → initializing → operating → finalizing → ⊗
 ```
 
+## Data (meta)
+
+A Data is an Entity representing a worker-local chunk of data.
+
+Example:
+- An Arrow RecordBatch
+- An Arrow Table
+- An Arrow IPC message
+
 ## Resource (meta)
-A Resource is an Entity with at least one bounded quantity.
-The quantity and bounds can change over time.
+
+A Resource is an Entity with at least one bounded quantity expressing the utilization of something.
+The utilization and bounds may change over time.
 
 ## Use (meta)
-A Use of a Resource
 
-## Memory
+A Use of a Resource.
+
+Must have (within at least on state if it is also an FSM):
+- The amount of effective usage of a Resource.
+- The amount of true usage of a Resource.
+- The span of time in which this amount was exclusively owned by this Use.
+
+## Memory (meta)
 A spatial resource holding bytes.
+
+FSM:
+```
+⊙ → initializing → operating → finalizing → ⊗
+```
 
 Examples:
 - Memory Pool
@@ -171,10 +193,23 @@ Has:
 - capacity (the maximum amount that could be stored).
 - utilization (the number of stored bytes)
 
-## Allocation
-A reservation
+## Allocation (meta)
 
-## Interface
+A Use of a Memory Resource.
+
+FSM:
+```
+⊙ → allocating → idle → releasing → ⊗
+```
+
+Must have:
+- Data ID
+
+Note:
+- This isn't necessarily tied to e.g. a single `malloc`. For example, in a columnar query engine working with Arrow, each underlying Arrow buffer would be a single `malloc`, yet in the model, an Allocation can be tied to an entire worker-local "Table" (Data), capturing the sum of all Arrow data and metadata buffer sizes. Note that here the effective part (see Use) of the Allocation is the size of the buffers, and the true part is the capacity of the buffers (which includes unused bytes and padding). 
+
+## Interface (meta)
+
 Any type of resource transferring bytes over time.
 
 Examples:

@@ -1,0 +1,12 @@
+syntax = "proto3";
+package quent;
+
+service Collector {
+    rpc SendEventBatch (SendEventBatchRequest) returns (SendEventBatchReply);
+}
+
+message SendEventBatchRequest {
+    bytes records = 1;
+}
+
+message SendEventBatchReply {}

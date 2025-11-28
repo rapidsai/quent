@@ -12,7 +12,7 @@ TODO, super rudimentary, simple, easy and quick to duct-tape together poor man's
   - Will write this in Rust with C-style API so it will be easy to generate bindings to anything (e.g. Python, C, C++, Java, Go).
   - We should aim  to define this in a way that makes it easy to re-use later when we rip out the entire rest of the stuff below.
 - [ ]: Distributed transport and collection layer
-  - To be able to do this within a VERY short amount of time, we will use OTel logging for now, seem like it has matured enough to be useful.
+  - To be able to do this within a VERY short amount of time, we will just get the client API to send simple gRPC messages to a single server that dumps the output to a file. This is not decentralized / scalable. The messages will just be serialized records.
   - This is absolutely the first thing that should be replaced later.
   - [ ]: Figure out the state of OTel collectors, probably sink logs to a file (hopefully something more efficient than JSON but if that's our only choice, so be it)
 - [ ]: Post-processing
