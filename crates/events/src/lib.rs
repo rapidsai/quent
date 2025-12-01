@@ -5,45 +5,205 @@ use uuid::Uuid;
 
 pub type Timestamp = u64;
 
-pub mod engine {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Event<T> {
+    id: Uuid,
+    timestamp: Timestamp,
+    data: T,
+}
 
+impl<T> Event<T> {
+    pub fn new(id: Uuid, timestamp: Timestamp, data: T) -> Self {
+        Self {
+            id,
+            timestamp,
+            data,
+        }
+    }
+}
+
+pub mod engine {
+    use super::*;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Init {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Operating {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Finalizing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Exit {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum EngineEvent {
+        Init(Init),
+        Operating(Operating),
+        Finalizing(Finalizing),
+        Exit(Exit),
+    }
+}
+
+pub mod coordinator {
     use super::*;
 
     #[derive(Debug, Deserialize, Serialize)]
     pub struct Init {
-        pub id: Uuid,
-        pub t: Timestamp,
+        pub engine_id: Uuid,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct Operating {
-        id: Uuid,
-        t: Timestamp,
-    }
+    pub struct Operating {}
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct Finalizing {
-        id: Uuid,
-        t: Timestamp,
-    }
+    pub struct Finalizing {}
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct Done {
-        id: Uuid,
-        t: Timestamp,
-    }
+    pub struct Exit {}
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub enum Event {
+    pub enum CoordinatorEvent {
         Init(Init),
         Operating(Operating),
         Finalizing(Finalizing),
-        Done(Done),
+        Exit(Exit),
+    }
+}
+
+pub mod query {
+    use super::*;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Init {
+        pub coordinator_id: Uuid,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Planning {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Executing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Idle {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Finalizing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Exit {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum QueryEvent {
+        Init(Init),
+        Planning(Planning),
+        Executing(Executing),
+        Idle(Idle),
+        Finalizing(Finalizing),
+        Exit(Exit),
+    }
+}
+
+pub mod plan {
+    use super::*;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Init {
+        pub query_id: Uuid,
+        pub worker_id: Option<Uuid>,
+        pub parent_id: Option<Uuid>,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Executing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Idle {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Finalizing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Exit {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum PlanEvent {
+        Init(Init),
+        Executing(Executing),
+        Finalizing(Finalizing),
+        Exit(Exit),
+    }
+}
+
+pub mod operator {
+    use super::*;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Init {
+        pub plan_id: Uuid,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct WaitingForInputs {
+        pub ports: Vec<Uuid>,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Executing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Blocked {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Finalizing {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Exit {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum OperatorEvent {
+        Init(Init),
+        WaitingForInputs(WaitingForInputs),
+        Executing(Executing),
+        Blocked(Blocked),
+        Finalizing(Finalizing),
+        Exit(Exit),
     }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum Event {
-    Engine(engine::Event),
-    Flush,
+pub enum EventData {
+    Engine(engine::EngineEvent),
+    Coordinator(coordinator::CoordinatorEvent),
+    Query(query::QueryEvent),
+    Plan(plan::PlanEvent),
+    Operator(operator::OperatorEvent),
+}
+
+impl From<engine::EngineEvent> for EventData {
+    fn from(value: engine::EngineEvent) -> Self {
+        Self::Engine(value)
+    }
+}
+impl From<coordinator::CoordinatorEvent> for EventData {
+    fn from(value: coordinator::CoordinatorEvent) -> Self {
+        Self::Coordinator(value)
+    }
+}
+impl From<query::QueryEvent> for EventData {
+    fn from(value: query::QueryEvent) -> Self {
+        Self::Query(value)
+    }
+}
+impl From<plan::PlanEvent> for EventData {
+    fn from(value: plan::PlanEvent) -> Self {
+        Self::Plan(value)
+    }
+}
+impl From<operator::OperatorEvent> for EventData {
+    fn from(value: operator::OperatorEvent) -> Self {
+        Self::Operator(value)
+    }
 }
