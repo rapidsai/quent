@@ -3,12 +3,21 @@ name = "quent-collector"
 edition.workspace = true
 version.workspace = true
 
+[features]
+default = ["client", "server"]
+client = []
+server = []
+
 [dependencies]
-quent-proto = { path = "../proto" }
-tonic.workspace = true
-tokio = {workspace = true, features=["rt-multi-thread", "sync"]}
-tokio-stream.workspace = true
-thiserror.workspace = true
+prost.workspace = true
+quent-events = { path = "../events"}
 serde.workspace = true
 serde_json.workspace = true
-quent-events = { path = "../events" }
+thiserror.workspace = true
+tokio = {workspace = true, features=["rt-multi-thread"]}
+tokio-stream.workspace = true
+tonic-prost.workspace = true
+tonic.workspace = true
+
+[build-dependencies]
+tonic-prost-build = "0.14.2"

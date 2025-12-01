@@ -1,11 +1,8 @@
-use std::{mem::ManuallyDrop, sync::LazyLock};
+use std::sync::{LazyLock, Mutex, RwLock};
 
+use quent_collector::client::Client;
 use quent_events::{Event, Timestamp, engine};
-use tokio::{
-    runtime::{Handle, Runtime},
-    sync::mpsc::{Receiver, Sender},
-    task::JoinHandle,
-};
+use tokio::runtime::{Handle, Runtime};
 use uuid::Uuid;
 
 #[inline]
@@ -22,65 +19,57 @@ fn timestamp() -> Timestamp {
 }
 
 struct Context {
-    runtime_handle: Handle,
-    control_thread_handle: JoinHandle<()>,
-    event_sender: ManuallyDrop<Sender<Event>>,
+    collector_client: Client,
 }
 
-static CONTEXT: LazyLock<Option<Context>> = LazyLock::new(|| Context::new().ok());
+// this is probably best moved to some ffi layer depending on the target lang
+static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
 
 impl Context {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        dbg!("Initializing Context");
-
-        let handle = if let Ok(handle) = Handle::try_current() {
-            handle
-        } else {
-            let runtime = Runtime::new()?;
-            runtime.handle().clone()
-        };
-
-        let (tx, mut rx): (Sender<Event>, Receiver<Event>) =
-            tokio::sync::mpsc::channel(1024 * 1024);
-
-        // TODO: context main thread spawning goes here
-
-        let thread = handle.spawn_blocking(move || {
-            loop {
-                if let Some(event) = rx.blocking_recv() {
-                    println!("{event:?}")
-                    // TODO: batching and sending over gRPC logic goes here
-                } else {
-                    break;
-                }
-            }
-        });
+    async fn try_new() -> Result<Self, Box<dyn std::error::Error>> {
+        let client = Client::new().await?;
 
         Ok(Context {
-            runtime_handle: handle,
-            control_thread_handle: thread,
-            event_sender: ManuallyDrop::new(tx),
+            collector_client: client,
         })
-    }
-}
-
-impl Drop for Context {
-    fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.event_sender) }
     }
 }
 
 // TODO: expose these through FFI:
 
+pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
+    let handle = if let Ok(handle) = Handle::try_current() {
+        eprintln!("using existing async runtime");
+        handle
+    } else {
+        eprintln!("spawning new async runtime");
+        if let Ok(runtime) = Runtime::new() {
+            runtime.handle().clone()
+        } else {
+            eprintln!("unable to spawn async runtime");
+            panic!("for now :tm:");
+        }
+    };
+
+    let mut lock = CONTEXT.write()?;
+    let context = handle.block_on(Context::try_new())?;
+    *lock = Some(context);
+    Ok(())
+}
+
 pub fn engine_init(id: Uuid) {
-    if let Some(ctx) = CONTEXT.as_ref() {
-        if let Ok(_) = ctx
-            .event_sender
-            .try_send(Event::Engine(engine::Event::Init(engine::Init {
-                id: id,
-                t: timestamp(),
-            })))
-        {}
+    let read = CONTEXT.read().unwrap();
+    if let Some(ctx) = read.as_ref() {
+        let handle = tokio::runtime::Handle::current();
+        let client = &ctx.collector_client;
+        if let Ok(_) = handle.block_on(async move {
+            client
+                .send(Event::Engine(engine::Event::Init(engine::Init {
+                    id,
+                    t: timestamp(),
+                })))
+                .await
+        }) {}
     }
 }
 

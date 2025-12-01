@@ -1,0 +1,7 @@
+[package]
+name = "quent-exporter"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+quent-events = {path = "../events" }

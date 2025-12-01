@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/collector", "crates/proto", "crates/events", "crates/client"]
+members = ["crates/collector", "crates/events", "crates/exporter"]
 
 [workspace.package]
 version = "0.1.0"
@@ -26,14 +26,11 @@ serde_json = "1.0.145" # For now :tm: during debugging / PoC
 [dependencies]
 uuid.workspace = true
 quent-events = { path = "crates/events" }
-quent-proto =  { path = "crates/proto" }
+quent-collector = { path = "crates/collector" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 thiserror.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
-quent-client = { path = "crates/client" }
-quent-collector = { path = "crates/collector" }
-quent-events = { path = "crates/events" }
 tonic.workspace = true
 tokio-stream.workspace = true

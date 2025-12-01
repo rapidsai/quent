@@ -570,10 +570,8 @@ dependencies = [
 name = "quent"
 version = "0.1.0"
 dependencies = [
- "quent-client",
  "quent-collector",
  "quent-events",
- "quent-proto",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -582,31 +580,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-client"
-version = "0.1.0"
-dependencies = [
- "quent-events",
- "quent-proto",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tonic",
-]
-
-[[package]]
 name = "quent-collector"
 version = "0.1.0"
 dependencies = [
+ "prost",
  "quent-events",
- "quent-proto",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",
  "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
 ]
 
 [[package]]
@@ -620,13 +606,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-proto"
+name = "quent-exporter"
 version = "0.1.0"
 dependencies = [
- "prost",
- "tonic",
- "tonic-prost",
- "tonic-prost-build",
+ "quent-events",
 ]
 
 [[package]]

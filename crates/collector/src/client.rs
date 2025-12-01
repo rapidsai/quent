@@ -1,5 +1,7 @@
+//! A gRPC-base client that can send [`Event`]s to a collector.
+
+use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 use quent_events::Event;
-use quent_proto::{CollectEventRequest, collector_client::CollectorClient};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Status, transport::Channel};
@@ -78,7 +80,7 @@ impl Client {
     }
 
     /// Send an event to the collector.
-    pub async fn send(&mut self, event: Event) -> Result<()> {
+    pub async fn send(&self, event: Event) -> Result<()> {
         // Convert the event into a gRPC message and stream it to the collector.
         self.event_sender
             .send(event)

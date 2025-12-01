@@ -1,3 +1,5 @@
+//! Event type definitions
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
