@@ -570,10 +570,14 @@ dependencies = [
 name = "quent"
 version = "0.1.0"
 dependencies = [
+ "quent-client",
+ "quent-collector",
  "quent-events",
  "quent-proto",
  "thiserror",
  "tokio",
+ "tokio-stream",
+ "tonic",
  "uuid",
 ]
 
@@ -595,7 +599,10 @@ dependencies = [
 name = "quent-collector"
 version = "0.1.0"
 dependencies = [
+ "quent-events",
  "quent-proto",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",

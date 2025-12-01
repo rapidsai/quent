@@ -18,14 +18,11 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-// Trivial implementation of a gRPC client that bgatche
+// Trivial implementation of a gRPC client that sends events to a centralized collector
 pub struct Client {
     _client: CollectorClient<Channel>,
     event_sender: Sender<Event>,
 }
-
-// #[tonic::async_trait]
-// impl quent_proto::collector_client::CollectorClient<Channel> for Client {}
 
 impl Client {
     pub async fn new() -> Result<Client> {

@@ -32,3 +32,8 @@ thiserror.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
+quent-client = { path = "crates/client" }
+quent-collector = { path = "crates/collector" }
+quent-events = { path = "crates/events" }
+tonic.workspace = true
+tokio-stream.workspace = true
