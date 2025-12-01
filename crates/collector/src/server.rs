@@ -1,6 +1,6 @@
 //! A gRPC-based server that collects [`Event`]s from multiple sources and exports them.
 
-use quent_events::Event;
+use quent_events::{Event, EventData};
 use tokio_stream::StreamExt;
 use tonic::{Response, Status, Streaming};
 
@@ -21,10 +21,12 @@ impl Collector for CollectorService {
         tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 match item {
-                    Ok(request) => match serde_json::from_slice::<Event>(&request.payload) {
-                        Ok(event) => println!("collector: received event: {event:?}"),
-                        Err(e) => eprintln!("collector: deserialization error: {e}"),
-                    },
+                    Ok(request) => {
+                        match serde_json::from_slice::<Event<EventData>>(&request.payload) {
+                            Ok(event) => println!("collector: received event: {event:?}"),
+                            Err(e) => eprintln!("collector: deserialization error: {e}"),
+                        }
+                    }
                     Err(err) => {
                         eprintln!("collector: collect events stream error: {err:?}");
                         break;

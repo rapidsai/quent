@@ -1,10 +1,6 @@
 use std::net::ToSocketAddrs;
 
-use quent_collector::{
-    client::Client, proto::collector_server::CollectorServer, server::CollectorService,
-};
-use quent_events::Event;
-use tokio::task::JoinHandle;
+use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
 use tonic::transport::Server;
 
 #[tokio::main]
@@ -18,7 +14,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         let _ = quent::initialize();
-        quent::engine_init(uuid::Uuid::now_v7());
+
+        let engine = uuid::Uuid::now_v7();
+
+        quent::engine::init(engine);
+        quent::engine::operating(engine);
+
+        let coordinator_futures: Vec<_> = std::iter::repeat_with(|| uuid::Uuid::now_v7())
+            .take(2)
+            .map(|coordinator| {
+                std::thread::spawn({
+                    let engine = engine.clone();
+                    move || {
+                        quent::coordinator::init(coordinator, engine);
+                        quent::coordinator::operating(coordinator);
+
+                        let query_futures: Vec<_> = std::iter::repeat_with(|| uuid::Uuid::now_v7())
+                            .take(3)
+                            .map(|query| {
+                                std::thread::spawn({
+                                    let coordinator = coordinator.clone();
+                                    move || {
+                                        quent::query::init(query, coordinator);
+                                        quent::query::planning(query);
+                                        quent::query::executing(query);
+                                        quent::query::idle(query);
+                                        quent::query::finalizing(query);
+                                        quent::query::exit(query);
+                                    }
+                                })
+                            })
+                            .collect();
+
+                        for query_future in query_futures {
+                            query_future.join().unwrap();
+                        }
+
+                        quent::coordinator::finalizing(coordinator);
+                        quent::coordinator::exit(coordinator);
+                    }
+                })
+            })
+            .collect();
+
+        for coordinator_future in coordinator_futures {
+            coordinator_future.join().unwrap();
+        }
+
+        quent::engine::finalizing(engine);
+        quent::engine::exit(engine);
     });
 
     let _server = Server::builder()

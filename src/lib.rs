@@ -1,7 +1,9 @@
-use std::sync::{LazyLock, Mutex, RwLock};
+//! Quent Instrumentation API
+//!
+use std::sync::RwLock;
 
 use quent_collector::client::Client;
-use quent_events::{Event, Timestamp, engine};
+use quent_events::{Event, EventData, Timestamp};
 use tokio::runtime::{Handle, Runtime};
 use uuid::Uuid;
 
@@ -19,6 +21,7 @@ fn timestamp() -> Timestamp {
 }
 
 struct Context {
+    runtime: Handle,
     collector_client: Client,
 }
 
@@ -26,17 +29,34 @@ struct Context {
 static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
 
 impl Context {
-    async fn try_new() -> Result<Self, Box<dyn std::error::Error>> {
+    async fn try_new(runtime_handle: Handle) -> Result<Self, Box<dyn std::error::Error>> {
         let client = Client::new().await?;
 
         Ok(Context {
+            runtime: runtime_handle,
             collector_client: client,
         })
     }
 }
 
+// TODO(johanpel): minimize latency
+fn push_event(event: Event<EventData>) {
+    let read = CONTEXT.read().unwrap();
+    if let Some(ctx) = read.as_ref() {
+        let handle = &ctx.runtime;
+        let client = &ctx.collector_client;
+        match handle.block_on(async move { client.send(event).await }) {
+            Ok(_) => (),
+            Err(e) => eprintln!("unable to send telemetry: {e}"),
+        }
+    }
+}
+
 // TODO: expose these through FFI:
 
+/// Initialize the Quent Instrumentation API.
+///
+/// This must be called before anything else.
 pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     let handle = if let Ok(handle) = Handle::try_current() {
         eprintln!("using existing async runtime");
@@ -52,28 +72,142 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut lock = CONTEXT.write()?;
-    let context = handle.block_on(Context::try_new())?;
+    let context = handle.block_on(Context::try_new(handle.clone()))?;
     *lock = Some(context);
     Ok(())
 }
 
-pub fn engine_init(id: Uuid) {
-    let read = CONTEXT.read().unwrap();
-    if let Some(ctx) = read.as_ref() {
-        let handle = tokio::runtime::Handle::current();
-        let client = &ctx.collector_client;
-        if let Ok(_) = handle.block_on(async move {
-            client
-                .send(Event::Engine(engine::Event::Init(engine::Init {
-                    id,
-                    t: timestamp(),
-                })))
-                .await
-        }) {}
+// TODO(johanpel): boilerplate stuff below is to be filled in with more attribs
+pub mod engine {
+    use quent_events::engine;
+
+    use super::*;
+
+    pub fn init(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            engine::EngineEvent::Init(engine::Init {}).into(),
+        ))
+    }
+
+    pub fn operating(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            engine::EngineEvent::Operating(engine::Operating {}).into(),
+        ))
+    }
+
+    pub fn finalizing(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            engine::EngineEvent::Finalizing(engine::Finalizing {}).into(),
+        ))
+    }
+
+    pub fn exit(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            engine::EngineEvent::Exit(engine::Exit {}).into(),
+        ))
     }
 }
 
-// pub fn engine_operating(id: Uuid) {}
+pub mod coordinator {
+    use quent_events::coordinator;
+
+    use super::*;
+
+    pub fn init(id: Uuid, engine_id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            coordinator::CoordinatorEvent::Init(coordinator::Init { engine_id }).into(),
+        ))
+    }
+
+    pub fn operating(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            coordinator::CoordinatorEvent::Operating(coordinator::Operating {}).into(),
+        ))
+    }
+
+    pub fn finalizing(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            coordinator::CoordinatorEvent::Finalizing(coordinator::Finalizing {}).into(),
+        ))
+    }
+
+    pub fn exit(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            coordinator::CoordinatorEvent::Exit(coordinator::Exit {}).into(),
+        ))
+    }
+}
+
+pub mod query {
+    use quent_events::query;
+
+    use super::*;
+
+    pub fn init(id: Uuid, coordinator_id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            query::QueryEvent::Init(query::Init { coordinator_id }).into(),
+        ))
+    }
+
+    pub fn planning(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            query::QueryEvent::Planning(query::Planning {}).into(),
+        ))
+    }
+
+    pub fn executing(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            query::QueryEvent::Executing(query::Executing {}).into(),
+        ));
+    }
+
+    pub fn idle(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            query::QueryEvent::Idle(query::Idle {}).into(),
+        ));
+    }
+
+    pub fn finalizing(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            query::QueryEvent::Finalizing(query::Finalizing {}).into(),
+        ))
+    }
+
+    pub fn exit(id: Uuid) {
+        push_event(Event::new(
+            id,
+            timestamp(),
+            query::QueryEvent::Exit(query::Exit {}).into(),
+        ))
+    }
+}
+
 // pub fn engine_finalizing(id: Uuid) {}
 // pub fn engine_exit(id: Uuid) {}
 
