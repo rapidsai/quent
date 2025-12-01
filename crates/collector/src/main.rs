@@ -1,21 +1,40 @@
-use tonic::{Request, Response, Status, transport::Server};
+use std::pin::Pin;
+
+use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
+use tonic::{IntoStreamingRequest, Request, Response, Status, Streaming, transport::Server};
 
 use quent_proto::{
+    CollectEventRequest, CollectEventResponse,
     collector_server::{Collector, CollectorServer},
-    {SendEventBatchReply, SendEventBatchRequest},
 };
 
+// Simple service to centralize telemetry from distributed clients
 #[derive(Debug, Default)]
 pub struct CollectorService {}
 
 #[tonic::async_trait]
 impl Collector for CollectorService {
-    async fn send_event_batch(
+    async fn collect_events(
         &self,
-        request: Request<SendEventBatchRequest>,
-    ) -> Result<Response<SendEventBatchReply>, Status> {
-        println!("Event batch: {request:?}");
-        Ok(Response::new(SendEventBatchReply {}))
+        request: tonic::Request<Streaming<CollectEventRequest>>,
+    ) -> Result<tonic::Response<CollectEventResponse>, Status> {
+        let mut stream = request.into_inner();
+        // let (tx, rx) = tokio::sync::mpsc::channel(128);
+        tokio::spawn(async move {
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(v) => {
+                        println!("{v:?}");
+                    }
+                    Err(err) => {
+                        eprintln!("collect events stream error: {err:?}");
+                        break;
+                    }
+                }
+            }
+        });
+        Ok(Response::new(CollectEventResponse {}))
     }
 }
 

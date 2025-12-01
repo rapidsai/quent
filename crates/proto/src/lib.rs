@@ -1,1 +1,1 @@
-tonic::include_proto!("quent");
+tonic::include_proto!("quent.collector.v1");

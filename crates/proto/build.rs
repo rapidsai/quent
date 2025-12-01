@@ -1,4 +1,5 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tonic_prost_build::compile_protos("proto/quent/v1/quent/collector.proto")?;
+    println!("cargo::rerun-if-changed=proto");
+    tonic_prost_build::compile_protos("proto/quent/collector/v1/collector.proto")?;
     Ok(())
 }

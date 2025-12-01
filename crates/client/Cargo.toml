@@ -1,11 +1,14 @@
 [package]
-name = "quent-collector"
+name = "quent-client"
 edition.workspace = true
 version.workspace = true
 
 [dependencies]
 quent-proto = { path = "../proto" }
+quent-events = { path = "../events"}
 tonic.workspace = true
-tokio = {workspace = true, features=["rt-multi-thread", "sync"]}
+tokio = {workspace = true, features=["rt-multi-thread"]}
 tokio-stream.workspace = true
 thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true

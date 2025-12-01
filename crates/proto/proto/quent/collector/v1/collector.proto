@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package quent.collector.v1;
+
+service Collector {
+    rpc CollectEvents (stream CollectEventRequest) returns (CollectEventResponse);
+}
+
+message CollectEventRequest {
+    // Fow now, don't bother with laying out the entire model in a Protobuf type definition.
+    // We're mainly just using Tonic to generate a quick client/server implementation for us.
+    bytes payload = 1;
+}
+
+message CollectEventResponse {}

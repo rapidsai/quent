@@ -2,7 +2,7 @@ use std::{mem::ManuallyDrop, sync::LazyLock};
 
 use quent_events::{Event, Timestamp, engine};
 use tokio::{
-    runtime::Runtime,
+    runtime::{Handle, Runtime},
     sync::mpsc::{Receiver, Sender},
     task::JoinHandle,
 };
@@ -22,9 +22,9 @@ fn timestamp() -> Timestamp {
 }
 
 struct Context {
-    _runtime: Runtime,
-    thread: JoinHandle<()>,
-    tx: ManuallyDrop<Sender<Event>>,
+    runtime_handle: Handle,
+    control_thread_handle: JoinHandle<()>,
+    event_sender: ManuallyDrop<Sender<Event>>,
 }
 
 static CONTEXT: LazyLock<Option<Context>> = LazyLock::new(|| Context::new().ok());
@@ -33,14 +33,19 @@ impl Context {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         dbg!("Initializing Context");
 
-        let _runtime = tokio::runtime::Runtime::new()?;
+        let handle = if let Ok(handle) = Handle::try_current() {
+            handle
+        } else {
+            let runtime = Runtime::new()?;
+            runtime.handle().clone()
+        };
 
         let (tx, mut rx): (Sender<Event>, Receiver<Event>) =
             tokio::sync::mpsc::channel(1024 * 1024);
 
         // TODO: context main thread spawning goes here
 
-        let thread = _runtime.spawn_blocking(move || {
+        let thread = handle.spawn_blocking(move || {
             loop {
                 if let Some(event) = rx.blocking_recv() {
                     println!("{event:?}")
@@ -52,16 +57,16 @@ impl Context {
         });
 
         Ok(Context {
-            _runtime,
-            thread,
-            tx: ManuallyDrop::new(tx),
+            runtime_handle: handle,
+            control_thread_handle: thread,
+            event_sender: ManuallyDrop::new(tx),
         })
     }
 }
 
 impl Drop for Context {
     fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.tx) }
+        unsafe { ManuallyDrop::drop(&mut self.event_sender) }
     }
 }
 
@@ -70,7 +75,7 @@ impl Drop for Context {
 pub fn engine_init(id: Uuid) {
     if let Some(ctx) = CONTEXT.as_ref() {
         if let Ok(_) = ctx
-            .tx
+            .event_sender
             .try_send(Event::Engine(engine::Event::Init(engine::Init {
                 id: id,
                 t: timestamp(),
