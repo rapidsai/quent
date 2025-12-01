@@ -27,7 +27,7 @@ impl Collector for CollectorService {
                         eprintln!("collector: collect events stream error: {err:?}");
                         break;
                     }
-                }ßß
+                }
             }
         });
         Ok(Response::new(CollectEventResponse {}))
