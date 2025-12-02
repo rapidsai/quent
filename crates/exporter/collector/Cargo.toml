@@ -9,3 +9,4 @@ quent-collector = { path = "../../collector", features = ["client"] }
 quent-events = { path = "../../events" }
 quent-exporter = { path = "../" }
 tokio.workspace = true
+uuid.workspace = true

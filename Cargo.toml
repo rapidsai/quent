@@ -40,6 +40,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 quent-collector = { path = "crates/collector", features = ["server"] }
+quent-exporter-ndjson = { path = "crates/exporter/ndjson" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tonic.workspace = true
 tokio-stream.workspace = true

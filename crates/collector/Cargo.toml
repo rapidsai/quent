@@ -11,6 +11,7 @@ server = []
 [dependencies]
 prost.workspace = true
 quent-events = { path = "../events" }
+quent-exporter = { path = "../exporter" }
 quent-exporter-ndjson = { path = "../exporter/ndjson" }
 serde.workspace = true
 serde_json.workspace = true
@@ -19,6 +20,8 @@ tokio = {workspace = true, features=["rt-multi-thread"]}
 tokio-stream.workspace = true
 tonic-prost.workspace = true
 tonic.workspace = true
+uuid.workspace = true
+dashmap = "6.1.0"
 
 [build-dependencies]
 tonic-prost-build = "0.14.2"

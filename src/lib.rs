@@ -30,8 +30,11 @@ struct Context {
 static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
 
 impl Context {
-    async fn try_new(runtime_handle: Handle) -> Result<Self, Box<dyn std::error::Error>> {
-        let exporter = Box::new(CollectorExporter::new().await?);
+    async fn try_new(
+        runtime_handle: Handle,
+        engine_id: Uuid,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let exporter = Box::new(CollectorExporter::new(engine_id).await?);
 
         Ok(Context {
             runtime: runtime_handle,
@@ -40,7 +43,7 @@ impl Context {
     }
 }
 
-// TODO(johanpel): minimize latency
+// TODO(johanpel): minimize latency of this function
 fn push_event(event: Event<EventData>) {
     let read = CONTEXT.read().unwrap();
     if let Some(ctx) = read.as_ref() {
@@ -58,7 +61,7 @@ fn push_event(event: Event<EventData>) {
 /// Initialize the Quent Instrumentation API.
 ///
 /// This must be called before anything else.
-pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
+pub fn initialize(engine_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
     let handle = if let Ok(handle) = Handle::try_current() {
         eprintln!("using existing async runtime");
         handle
@@ -73,7 +76,9 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut lock = CONTEXT.write()?;
-    let context = handle.block_on(Context::try_new(handle.clone()))?;
+    eprintln!("constructing and installing context");
+    let context = handle.block_on(Context::try_new(handle.clone(), engine_id))?;
+
     *lock = Some(context);
     Ok(())
 }

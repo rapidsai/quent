@@ -7,6 +7,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Status, transport::Channel};
 
 use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -29,7 +30,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new() -> Result<Client> {
+    pub async fn new(engine_id: Uuid) -> Result<Client> {
         let mut client = CollectorClient::connect("http://[::1]:50051").await?;
 
         // TODO(johanpel): consider unbounded
@@ -48,7 +49,10 @@ impl Client {
                     let payload = serde_json::to_vec(&event);
                     match payload {
                         Ok(payload) => {
-                            let event = CollectEventRequest { payload };
+                            let event = CollectEventRequest {
+                                engine_id: engine_id.to_string(),
+                                payload,
+                            };
                             match grpc_sender.send(event).await {
                                 Ok(_) => {
                                     // succesfully sent event
