@@ -13,9 +13,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // we should give the client a means to retry a bunch of times
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        let _ = quent::initialize();
-
         let engine = uuid::Uuid::now_v7();
+
+        let _ = quent::initialize(engine);
 
         quent::engine::init(engine);
         quent::engine::operating(engine);

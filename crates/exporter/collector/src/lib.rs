@@ -3,14 +3,15 @@
 use quent_collector::client::Client;
 use quent_events::{Event, EventData};
 use quent_exporter::Exporter;
+use uuid::Uuid;
 
 pub struct CollectorExporter {
     client: Client,
 }
 
 impl CollectorExporter {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new().await?;
+    pub async fn new(engine_id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        let client = Client::new(engine_id).await?;
         Ok(Self { client })
     }
 }

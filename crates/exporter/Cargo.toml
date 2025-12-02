@@ -7,3 +7,4 @@ edition.workspace =  true
 quent-events = {path = "../events" }
 tokio = { workspace = true, features = ["sync"] }
 async-trait.workspace = true
+uuid.workspace = true
