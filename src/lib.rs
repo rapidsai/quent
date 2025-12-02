@@ -35,7 +35,7 @@ impl Context {
 
         Ok(Context {
             runtime: runtime_handle,
-            exporter: exporter,
+            exporter,
         })
     }
 }

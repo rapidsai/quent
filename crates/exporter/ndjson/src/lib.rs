@@ -7,7 +7,7 @@ pub struct NdjsonExporter {}
 impl Exporter for NdjsonExporter {
     async fn push(
         &self,
-        event: quent_events::Event<quent_events::EventData>,
+        _event: quent_events::Event<quent_events::EventData>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
