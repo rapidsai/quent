@@ -1,9 +1,7 @@
 [package]
-name = "quent-exporter"
+name = "quent-analyzer"
 version.workspace = true
 edition.workspace =  true
 
 [dependencies]
 quent-events = {path = "../events" }
-tokio = { workspace = true, features = ["sync"] }
-async-trait.workspace = true

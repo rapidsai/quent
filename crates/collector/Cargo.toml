@@ -4,13 +4,14 @@ edition.workspace = true
 version.workspace = true
 
 [features]
-default = ["client", "server"]
+default = []
 client = []
 server = []
 
 [dependencies]
 prost.workspace = true
-quent-events = { path = "../events"}
+quent-events = { path = "../events" }
+quent-exporter-ndjson = { path = "../exporter/ndjson" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

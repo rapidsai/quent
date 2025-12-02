@@ -24,7 +24,7 @@ type Event = quent_events::Event<EventData>;
 
 // Trivial implementation of a gRPC client that sends events to a centralized collector
 pub struct Client {
-    _client: CollectorClient<Channel>,
+    _grpc_client: CollectorClient<Channel>,
     event_sender: Sender<Event>,
 }
 
@@ -76,7 +76,7 @@ impl Client {
             .await?;
 
         Ok(Client {
-            _client: client,
+            _grpc_client: client,
             event_sender,
         })
     }

@@ -2,8 +2,9 @@
 //!
 use std::sync::RwLock;
 
-use quent_collector::client::Client;
 use quent_events::{Event, EventData, Timestamp};
+use quent_exporter::Exporter;
+use quent_exporter_collector::CollectorExporter;
 use tokio::runtime::{Handle, Runtime};
 use uuid::Uuid;
 
@@ -22,7 +23,7 @@ fn timestamp() -> Timestamp {
 
 struct Context {
     runtime: Handle,
-    collector_client: Client,
+    exporter: Box<dyn Exporter>,
 }
 
 // this is probably best moved to some ffi layer depending on the target lang
@@ -30,11 +31,11 @@ static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
 
 impl Context {
     async fn try_new(runtime_handle: Handle) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new().await?;
+        let exporter = Box::new(CollectorExporter::new().await?);
 
         Ok(Context {
             runtime: runtime_handle,
-            collector_client: client,
+            exporter: exporter,
         })
     }
 }
@@ -44,8 +45,8 @@ fn push_event(event: Event<EventData>) {
     let read = CONTEXT.read().unwrap();
     if let Some(ctx) = read.as_ref() {
         let handle = &ctx.runtime;
-        let client = &ctx.collector_client;
-        match handle.block_on(async move { client.send(event).await }) {
+        let exporter = &ctx.exporter;
+        match handle.block_on(async move { exporter.push(event).await }) {
             Ok(_) => (),
             Err(e) => eprintln!("unable to send telemetry: {e}"),
         }
@@ -205,18 +206,5 @@ pub mod query {
             timestamp(),
             query::QueryEvent::Exit(query::Exit {}).into(),
         ))
-    }
-}
-
-// pub fn engine_finalizing(id: Uuid) {}
-// pub fn engine_exit(id: Uuid) {}
-
-#[cfg(test)]
-mod test {
-    use crate::engine_init;
-
-    #[test]
-    pub fn client() {
-        engine_init(uuid::Uuid::now_v7());
     }
 }

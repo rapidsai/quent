@@ -1,0 +1,11 @@
+[package]
+name = "quent-exporter-collector"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+async-trait.workspace = true
+quent-collector = { path = "../../collector", features = ["client"] }
+quent-events = { path = "../../events" }
+quent-exporter = { path = "../" }
+tokio.workspace = true

@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/collector", "crates/events", "crates/exporter"]
+members = [
+    "crates/collector",
+    "crates/events",
+    "crates/exporter",
+    "crates/exporter/ndjson",
+    "crates/exporter/collector"
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,25 +18,28 @@ version.workspace = true
 edition.workspace = true
 
 [workspace.dependencies]
-uuid = {version = "1.18.1", features = ["v7"]}
+async-trait = "0.1.89"
 log = {version = "0.4.28", features = ["kv"]}
-tokio = "1.48.0"
-tonic = "0.14.2"
 prost = "0.14.1"
-tonic-prost = "0.14.2"
-thiserror = "2.0.17"
-tokio-stream = "0.1.17"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145" # For now :tm: during debugging / PoC
+serde_json = "1.0.145"
+thiserror = "2.0.17"
+tokio = "1.48.0"
+tokio-stream = "0.1.17"
+tonic = "0.14.2"
+tonic-prost = "0.14.2"
+uuid = {version = "1.18.1", features = ["v7"]}
 
 [dependencies]
 uuid.workspace = true
 quent-events = { path = "crates/events" }
-quent-collector = { path = "crates/collector" }
+quent-exporter = { path = "crates/exporter" }
+quent-exporter-collector = { path = "crates/exporter/collector" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 thiserror.workspace = true
 
 [dev-dependencies]
+quent-collector = { path = "crates/collector", features = ["server"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tonic.workspace = true
 tokio-stream.workspace = true

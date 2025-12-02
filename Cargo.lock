@@ -572,6 +572,8 @@ version = "0.1.0"
 dependencies = [
  "quent-collector",
  "quent-events",
+ "quent-exporter",
+ "quent-exporter-collector",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -585,6 +587,7 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "quent-events",
+ "quent-exporter-ndjson",
  "serde",
  "serde_json",
  "thiserror",
@@ -609,7 +612,31 @@ dependencies = [
 name = "quent-exporter"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "quent-events",
+ "tokio",
+]
+
+[[package]]
+name = "quent-exporter-collector"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-collector",
+ "quent-events",
+ "quent-exporter",
+ "tokio",
+]
+
+[[package]]
+name = "quent-exporter-ndjson"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-exporter",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

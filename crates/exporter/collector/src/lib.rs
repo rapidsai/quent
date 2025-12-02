@@ -1,0 +1,23 @@
+//! Exporter sending events to a Collector service
+
+use quent_collector::client::Client;
+use quent_events::{Event, EventData};
+use quent_exporter::Exporter;
+
+pub struct CollectorExporter {
+    client: Client,
+}
+
+impl CollectorExporter {
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let client = Client::new().await?;
+        Ok(Self { client })
+    }
+}
+
+#[async_trait::async_trait]
+impl Exporter for CollectorExporter {
+    async fn push(&self, event: Event<EventData>) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(self.client.send(event).await?)
+    }
+}
