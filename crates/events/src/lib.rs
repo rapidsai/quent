@@ -1,4 +1,4 @@
-//! Event type definitions
+//! Type definitions of entity events.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -7,9 +7,9 @@ pub type Timestamp = u64;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event<T> {
-    id: Uuid,
-    timestamp: Timestamp,
-    data: T,
+    pub id: Uuid,
+    pub timestamp: Timestamp,
+    pub data: T,
 }
 
 impl<T> Event<T> {

@@ -1,4 +1,10 @@
 //! Exporter dumping events as newline-delimited JSON objects into a file.
+use std::{
+    io::{BufRead, BufReader},
+    path::Path,
+};
+
+use quent_events::{Event, EventData};
 use quent_exporter::Exporter;
 use tokio::{
     fs::{File, OpenOptions},
@@ -48,6 +54,44 @@ impl Exporter for NdjsonExporter {
             Err(e) => {
                 error!("unable to flush ndjson exporter: {e}");
                 Err(Box::new(e))
+            }
+        }
+    }
+}
+
+pub struct NdjsonImporter {
+    reader: BufReader<std::fs::File>,
+}
+
+impl NdjsonImporter {
+    pub fn try_new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+        let file = std::fs::File::open(path)?;
+        Ok(Self {
+            reader: BufReader::new(file),
+        })
+    }
+}
+
+impl Iterator for NdjsonImporter {
+    type Item = Event<EventData>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut line = String::new();
+        match self.reader.read_line(&mut line) {
+            Ok(0) => None,
+            Ok(_) => {
+                let trimmed = line.trim_end();
+                match serde_json::from_str::<Event<EventData>>(trimmed) {
+                    Ok(event) => Some(event),
+                    Err(e) => {
+                        error!("failed to parse ndjson line: {e}");
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                error!("failed to read ndjson: {e}");
+                None
             }
         }
     }

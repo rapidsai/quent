@@ -1,7 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/analyzer",
     "crates/collector",
+    "crates/entities",
     "crates/events",
     "crates/exporter",
     "crates/exporter/ndjson",
