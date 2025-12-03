@@ -12,7 +12,7 @@ fn initialize_tracing() {
     };
 
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
         .with(fmt::layer().with_target(true).with_writer(std::io::stderr))
         .init();
 }

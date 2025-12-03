@@ -3,16 +3,15 @@ syntax = "proto3";
 package quent.collector.v1;
 
 service Collector {
-    // Open a stream of events to collect.
+    // Request to set up an event stream.
+    //
+    // Must include metadata key "engine-id": "<uuid string>".
     rpc CollectEvents (stream CollectEventRequest) returns (CollectEventResponse);
 }
 
 message CollectEventRequest {
-    // The UUID of the engine this event belongs to.
-    // TODO: figure out of this can be done once through gPRC custom metadata instead
-    string engine_id = 1;
     // Fow now, don't bother with laying out the entire model in a Protobuf type definition.
     // We're mainly just using Tonic to generate a quick client/server implementation for us.
-    bytes payload = 2;
+    bytes payload = 1;
 }
 message CollectEventResponse {}

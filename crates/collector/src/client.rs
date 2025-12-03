@@ -4,7 +4,7 @@ use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 use quent_events::EventData;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Status, transport::Channel};
+use tonic::{Request, Status, transport::Channel};
 
 use thiserror::Error;
 use tracing::{debug, error, info};
@@ -53,10 +53,7 @@ impl Client {
                     let payload = serde_json::to_vec(&event);
                     match payload {
                         Ok(payload) => {
-                            let event = CollectEventRequest {
-                                engine_id: engine_id.to_string(),
-                                payload,
-                            };
+                            let event = CollectEventRequest { payload };
                             match grpc_sender.send(event).await {
                                 Ok(_) => {
                                     // succesfully sent event
@@ -80,11 +77,14 @@ impl Client {
 
         debug!("opening stream ...");
 
-        // Request setting up the stream
-        let _resp = client
-            .collect_events(ReceiverStream::new(grpc_receiver))
-            .await?;
+        // Add the engine id to the metadata of the request, so the collector knows which engine id this all belongs to.
+        let mut req = Request::new(ReceiverStream::new(grpc_receiver));
+        req.metadata_mut().insert(
+            "engine-id",
+            engine_id.to_string().parse().expect("valid metadata value"),
+        );
 
+        let _resp = client.collect_events(req).await?;
         debug!("client ready to send events");
 
         Ok(Client {

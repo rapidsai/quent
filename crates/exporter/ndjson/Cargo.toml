@@ -8,5 +8,6 @@ async-trait.workspace = true
 quent-events = { path = "../../events" }
 quent-exporter = { path = "../" }
 serde_json.workspace = true
-tokio = { workspace = true, features = ["sync"]}
+tokio = { workspace = true, features = ["sync", "fs"]}
 uuid.workspace = true
+tracing.workspace = true

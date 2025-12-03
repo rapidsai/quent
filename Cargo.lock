@@ -718,6 +718,7 @@ dependencies = [
  "quent-exporter",
  "serde_json",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
