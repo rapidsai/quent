@@ -1,6 +1,6 @@
 //! A gRPC-based server that collects [`Event`]s from multiple sources and exports them.
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use dashmap::DashMap;
 use quent_events::{Event, EventData};
@@ -28,46 +28,71 @@ impl proto::collector_server::Collector for CollectorService {
         &self,
         request: Request<Streaming<proto::CollectEventRequest>>,
     ) -> Result<Response<proto::CollectEventResponse>, Status> {
+        // Grab the engine id from the request metadata.
+        let engine_id_str = request
+            .metadata()
+            .get("engine-id")
+            .ok_or_else(|| {
+                Status::invalid_argument("metadata key \"engine-id\" is not present in request")
+            })?
+            .to_str()
+            .map_err(|e| {
+                Status::invalid_argument(format!(
+                    "metadata value for \"engine-id\" holds invalid string data: {e}"
+                ))
+            })?;
+
+        let engine_id = Uuid::from_str(engine_id_str).map_err(|e| {
+            Status::invalid_argument(format!(
+                "metadata value for key \"engine-id\" is not a UUID: {e}"
+            ))
+        })?;
+
         let mut stream = request.into_inner();
         let exporters = Arc::clone(&self.exporters);
         tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(request) => {
-                        match Uuid::parse_str(&request.engine_id) {
-                            Ok(engine_id) => {
-                                match exporters.entry(engine_id).or_try_insert_with(|| {
-                                    // TODO(johanpel): exporter configuration
-                                    Ok::<Arc<dyn Exporter>, Box<dyn std::error::Error + Send>>(
-                                        Arc::new(NdjsonExporter::new(engine_id)),
-                                    )
-                                }) {
-                                    Ok(exporter) => {
-                                        match serde_json::from_slice::<Event<EventData>>(
-                                            &request.payload,
-                                        ) {
-                                            Ok(event) => match exporter.push(event).await {
-                                                Ok(_) => (), // successfully exported
-                                                Err(e) => {
-                                                    warn!("collector: unable to export: {e}")
-                                                }
-                                            },
-                                            Err(e) => {
-                                                warn!("collector: deserialization error: {e}")
-                                            }
-                                        }
-                                    }
-                                    Err(e) => error!("collector: unable to spawn exporter: {e}"),
+                        // Get an exporter from the DashMap, or insert it if it doesn't exist.
+                        let exporter = if exporters.contains_key(&engine_id) {
+                            Arc::clone(&exporters.get(&engine_id).unwrap())
+                        } else {
+                            let exporter = match NdjsonExporter::try_new(engine_id).await {
+                                Ok(exporter) => exporter,
+                                Err(e) => {
+                                    error!("unable to construct exporter: {e}");
+                                    break;
                                 }
-                            }
+                            };
+                            let exporter: Arc<dyn Exporter> = Arc::new(exporter);
+                            exporters.insert(engine_id, Arc::clone(&exporter));
+                            exporter
+                        };
+
+                        match serde_json::from_slice::<Event<EventData>>(&request.payload) {
+                            Ok(event) => match exporter.push(event).await {
+                                Ok(_) => (), // successfully exported
+                                Err(e) => {
+                                    warn!("collector: unable to export: {e}")
+                                }
+                            },
                             Err(e) => {
-                                warn!("collector: received event with invalid engine id: {e}")
+                                warn!("collector: deserialization error: {e}")
                             }
                         }
                     }
                     Err(err) => {
-                        // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch. We should clean up here.
                         warn!("collector: stream error: {err:?}");
+                        // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch.
+                        // We should clean up here, but the todo is to figure out what else can go wrong.
+                        if let Some(exporter) = exporters.get(&engine_id) {
+                            match exporter.force_flush().await {
+                                Ok(_) => (),
+                                Err(e) => warn!("unable to flush exporter: {e}"),
+                            }
+                            exporters.remove(&engine_id);
+                        }
                         break;
                     }
                 }

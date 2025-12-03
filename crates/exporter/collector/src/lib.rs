@@ -19,6 +19,11 @@ impl CollectorExporter {
 #[async_trait::async_trait]
 impl Exporter for CollectorExporter {
     async fn push(&self, event: Event<EventData>) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self.client.send(event).await?)
+        self.client.send(event).await?;
+        Ok(())
+    }
+    async fn force_flush(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO(johanpel): figure this out, it may be that we don't need this trait fn
+        Ok(())
     }
 }
