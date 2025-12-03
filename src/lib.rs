@@ -6,6 +6,7 @@ use quent_events::{Event, EventData, Timestamp};
 use quent_exporter::Exporter;
 use quent_exporter_collector::CollectorExporter;
 use tokio::runtime::{Handle, Runtime};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 #[inline]
@@ -18,69 +19,72 @@ fn timestamp() -> Timestamp {
         .duration_since(UNIX_EPOCH)
         .map(|v| v.as_nanos() as u64)
         .unwrap_or_default()
-    // TODO: consider to do something else instead of unwrap_or_default
+    // TODO(johanpel): consider to do something else instead of unwrap_or_default, perhaps using Instant as described in the duration_since docs.
 }
 
 struct Context {
-    runtime: Handle,
+    _runtime: Option<Runtime>,
+    runtime_handle: Handle,
     exporter: Box<dyn Exporter>,
 }
 
-// this is probably best moved to some ffi layer depending on the target lang
+// TODO(johanpel): this is probably best moved to some ffi layer depending on the target lang
 static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
 
 impl Context {
     async fn try_new(
+        runtime: Option<Runtime>,
         runtime_handle: Handle,
         engine_id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        debug!("spawning collector exporter");
         let exporter = Box::new(CollectorExporter::new(engine_id).await?);
 
         Ok(Context {
-            runtime: runtime_handle,
+            _runtime: runtime,
+            runtime_handle,
             exporter,
         })
     }
+}
+
+/// Initialize the Quent Instrumentation API.
+///
+/// This must be called before anything else.
+pub fn initialize(engine_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
+    let (maybe_runtime, handle) = if let Ok(handle) = Handle::try_current() {
+        debug!("using existing async runtime");
+        (None, handle)
+    } else {
+        debug!("spawning new async runtime");
+        if let Ok(runtime) = Runtime::new() {
+            let handle = runtime.handle().clone();
+            (Some(runtime), handle)
+        } else {
+            return Err("unable to spawn async runtime")?;
+        }
+    };
+
+    debug!("constructing and installing context");
+    let context = handle.block_on(Context::try_new(maybe_runtime, handle.clone(), engine_id))?;
+
+    let mut lock = CONTEXT.write()?;
+    *lock = Some(context);
+    Ok(())
 }
 
 // TODO(johanpel): minimize latency of this function
 fn push_event(event: Event<EventData>) {
     let read = CONTEXT.read().unwrap();
     if let Some(ctx) = read.as_ref() {
-        let handle = &ctx.runtime;
+        let handle = &ctx.runtime_handle;
         let exporter = &ctx.exporter;
+        // TODO(johanpel): consider inserting an mpsc channel here
         match handle.block_on(async move { exporter.push(event).await }) {
             Ok(_) => (),
-            Err(e) => eprintln!("unable to send telemetry: {e}"),
+            Err(e) => warn!("unable to send event: {e}"),
         }
     }
-}
-
-// TODO: expose these through FFI:
-
-/// Initialize the Quent Instrumentation API.
-///
-/// This must be called before anything else.
-pub fn initialize(engine_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
-    let handle = if let Ok(handle) = Handle::try_current() {
-        eprintln!("using existing async runtime");
-        handle
-    } else {
-        eprintln!("spawning new async runtime");
-        if let Ok(runtime) = Runtime::new() {
-            runtime.handle().clone()
-        } else {
-            eprintln!("unable to spawn async runtime");
-            panic!("for now :tm:");
-        }
-    };
-
-    let mut lock = CONTEXT.write()?;
-    eprintln!("constructing and installing context");
-    let context = handle.block_on(Context::try_new(handle.clone(), engine_id))?;
-
-    *lock = Some(context);
-    Ok(())
 }
 
 // TODO(johanpel): boilerplate stuff below is to be filled in with more attribs

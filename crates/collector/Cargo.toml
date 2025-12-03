@@ -9,10 +9,12 @@ client = []
 server = []
 
 [dependencies]
+dashmap = "6.1.0"
 prost.workspace = true
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-ndjson = { path = "../exporter/ndjson" }
+tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -21,7 +23,6 @@ tokio-stream.workspace = true
 tonic-prost.workspace = true
 tonic.workspace = true
 uuid.workspace = true
-dashmap = "6.1.0"
 
 [build-dependencies]
 tonic-prost-build = "0.14.2"
