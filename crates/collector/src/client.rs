@@ -1,6 +1,9 @@
 //! A gRPC-base client that can send [`Event`]s to a collector.
 
-use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
+use crate::{
+    QUENT_COLLECTOR_PORT_DEFAULT,
+    proto::{CollectEventRequest, collector_client::CollectorClient},
+};
 use quent_events::EventData;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
@@ -32,7 +35,7 @@ pub struct Client {
 
 impl Client {
     pub async fn new(engine_id: Uuid) -> Result<Client> {
-        let addr = "http://[::1]:50051";
+        let addr = format!("http://[::]:{}", QUENT_COLLECTOR_PORT_DEFAULT);
         debug!("connecting to {addr}");
         let mut client = CollectorClient::connect(addr).await?;
 

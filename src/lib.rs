@@ -23,17 +23,16 @@ fn timestamp() -> Timestamp {
 }
 
 struct Context {
-    _runtime: Option<Runtime>,
     runtime_handle: Handle,
     exporter: Box<dyn Exporter>,
 }
 
 // TODO(johanpel): this is probably best moved to some ffi layer depending on the target lang
 static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
+static RUNTIME: RwLock<Option<Runtime>> = RwLock::new(None);
 
 impl Context {
     async fn try_new(
-        runtime: Option<Runtime>,
         runtime_handle: Handle,
         engine_id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -41,7 +40,6 @@ impl Context {
         let exporter = Box::new(CollectorExporter::new(engine_id).await?);
 
         Ok(Context {
-            _runtime: runtime,
             runtime_handle,
             exporter,
         })
@@ -52,21 +50,24 @@ impl Context {
 ///
 /// This must be called before anything else.
 pub fn initialize(engine_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
-    let (maybe_runtime, handle) = if let Ok(handle) = Handle::try_current() {
+    let handle = if let Ok(handle) = Handle::try_current() {
         debug!("using existing async runtime");
-        (None, handle)
+        handle
     } else {
         debug!("spawning new async runtime");
         if let Ok(runtime) = Runtime::new() {
             let handle = runtime.handle().clone();
-            (Some(runtime), handle)
+            let mut lock = RUNTIME.write()?;
+            *lock = Some(runtime);
+            handle
         } else {
             return Err("unable to spawn async runtime")?;
         }
     };
 
     debug!("constructing and installing context");
-    let context = handle.block_on(Context::try_new(maybe_runtime, handle.clone(), engine_id))?;
+
+    let context = handle.block_on(Context::try_new(handle.clone(), engine_id))?;
 
     let mut lock = CONTEXT.write()?;
     *lock = Some(context);
