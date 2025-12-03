@@ -10,6 +10,8 @@ use tonic::transport::Server as GrpcServer;
 use tracing::info;
 use uuid::Uuid;
 
+const QUENT_ANALYZER_PORT_DEFAULT: u16 = 8080;
+
 fn initialize_tracing() {
     use tracing_subscriber::{
         layer::SubscriberExt,
@@ -20,6 +22,34 @@ fn initialize_tracing() {
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
         .with(fmt::layer().with_target(true).with_writer(std::io::stderr))
         .init();
+}
+
+#[tracing::instrument]
+async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
+    let entries = std::fs::read_dir("data").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut ids = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let path = entry.path();
+
+        if !path.is_file() {
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("ndjson") {
+            continue;
+        }
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+            match Uuid::parse_str(stem) {
+                Ok(uuid) => ids.push(uuid),
+                Err(_) => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    Ok(Json(ids))
 }
 
 #[tracing::instrument]
@@ -37,7 +67,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
     // Collector service
-    let collector_addr = "[::1]:50051".to_socket_addrs()?.next().unwrap();
+    let collector_addr = format!("[::]:{}", quent_collector::QUENT_COLLECTOR_PORT_DEFAULT)
+        .to_socket_addrs()?
+        .next()
+        .unwrap();
     let collector = CollectorService::default();
     let collector_service = async {
         GrpcServer::builder()
@@ -49,10 +82,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("collector listening on {collector_addr}");
 
     // Analyzer service
-    let analyzer_addr = "[::1]:8080".to_socket_addrs()?.next().unwrap();
+    let analyzer_addr = format!("[::]:{QUENT_ANALYZER_PORT_DEFAULT}")
+        .to_socket_addrs()?
+        .next()
+        .unwrap();
     let analyzer_listener = TcpListener::bind(analyzer_addr).await?;
 
-    let analyzer_routes = Router::new().route("/{engine_id}/engine", get(engine));
+    let analyzer_routes = Router::new()
+        .route("/{engine_id}/engine", get(engine))
+        .route("/list_engines", get(list_engines));
     let analyzer_app = Router::new().nest("/analyzer", analyzer_routes);
     let analyzer_service = async {
         axum::serve(analyzer_listener, analyzer_app.into_make_service()).await?;
