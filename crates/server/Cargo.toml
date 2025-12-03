@@ -1,0 +1,15 @@
+[package]
+name = "quent-server"
+version.workspace = true
+edition.workspace =  true
+
+# TODO(johanpel): move this to a sensible bin place
+
+[dependencies]
+quent-collector = { path = "../collector", features = ["server"] }
+quent-exporter-ndjson = { path = "../exporter/ndjson" }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
+tokio-stream.workspace = true
+tonic.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true

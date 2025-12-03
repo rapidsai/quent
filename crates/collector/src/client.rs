@@ -7,6 +7,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Status, transport::Channel};
 
 use thiserror::Error;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
@@ -31,8 +32,11 @@ pub struct Client {
 
 impl Client {
     pub async fn new(engine_id: Uuid) -> Result<Client> {
-        let mut client = CollectorClient::connect("http://[::1]:50051").await?;
+        let addr = "http://[::1]:50051";
+        debug!("connecting to {addr}");
+        let mut client = CollectorClient::connect(addr).await?;
 
+        debug!("connected, preparing channels and spawning control thread ...");
         // TODO(johanpel): consider unbounded
         let (event_sender, mut event_receiver): (Sender<Event>, Receiver<Event>) =
             mpsc::channel(1024);
@@ -58,26 +62,30 @@ impl Client {
                                     // succesfully sent event
                                 }
                                 Err(_item) => {
-                                    eprintln!("server disconnected");
+                                    error!("server disconnected");
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("error serializing: {e}")
+                            error!("error serializing: {e}")
                         }
                     };
                 } else {
-                    eprintln!("client shutting down");
+                    info!("client shutting down");
                     break;
                 }
             }
         });
 
+        debug!("opening stream ...");
+
         // Request setting up the stream
         let _resp = client
             .collect_events(ReceiverStream::new(grpc_receiver))
             .await?;
+
+        debug!("client ready to send events");
 
         Ok(Client {
             _grpc_client: client,
