@@ -4,4 +4,9 @@ version.workspace = true
 edition.workspace =  true
 
 [dependencies]
-quent-events = {path = "../events" }
+quent-events = { path = "../events" }
+quent-entities = { path = "../entities" }
+quent-exporter-ndjson = { path = "../exporter/ndjson" }
+uuid.workspace = true
+tracing.workspace = true
+thiserror.workspace = true

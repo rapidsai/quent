@@ -1,8 +1,14 @@
 use std::net::ToSocketAddrs;
 
+use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
+use quent_analyzer::Analyzer;
 use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
-use tonic::transport::Server;
+use quent_entities::engine::Engine;
+use quent_exporter_ndjson::NdjsonImporter;
+use tokio::net::TcpListener;
+use tonic::transport::Server as GrpcServer;
 use tracing::info;
+use uuid::Uuid;
 
 fn initialize_tracing() {
     use tracing_subscriber::{
@@ -10,26 +16,53 @@ fn initialize_tracing() {
         util::SubscriberInitExt,
         {EnvFilter, fmt},
     };
-
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
         .with(fmt::layer().with_target(true).with_writer(std::io::stderr))
         .init();
 }
 
+#[tracing::instrument]
+async fn engine(Path(engine_id): Path<String>) -> Result<Json<Engine>, StatusCode> {
+    let engine_id = Uuid::parse_str(&engine_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let analyzer =
+        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(analyzer.engine().clone()))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
-    // TODO(johanpel): configuruation
-    let addr = "[::1]:50051".to_socket_addrs().unwrap().next().unwrap();
+    // Collector service
+    let collector_addr = "[::1]:50051".to_socket_addrs()?.next().unwrap();
     let collector = CollectorService::default();
+    let collector_service = async {
+        GrpcServer::builder()
+            .add_service(CollectorServer::new(collector))
+            .serve(collector_addr)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+    };
+    info!("collector listening on {collector_addr}");
 
-    info!("spawning collector service on {addr}, send SIGINT (e.g. ctrl+c) to exit");
-    let _server = Server::builder()
-        .add_service(CollectorServer::new(collector))
-        .serve(addr)
-        .await?;
+    // Analyzer service
+    let analyzer_addr = "[::1]:8080".to_socket_addrs()?.next().unwrap();
+    let analyzer_listener = TcpListener::bind(analyzer_addr).await?;
+
+    let analyzer_routes = Router::new().route("/{engine_id}/engine", get(engine));
+    let analyzer_app = Router::new().nest("/analyzer", analyzer_routes);
+    let analyzer_service = async {
+        axum::serve(analyzer_listener, analyzer_app.into_make_service()).await?;
+        Ok::<(), Box<dyn std::error::Error>>(())
+    };
+    info!("analyzer listening on {analyzer_addr}");
+
+    info!("send SIGINT (e.g. ctrl+c) to exit");
+
+    tokio::try_join!(collector_service, analyzer_service)?;
 
     Ok(())
 }

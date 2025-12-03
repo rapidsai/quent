@@ -1,0 +1,9 @@
+[package]
+name = "quent-entities"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+quent-events = { path = "../events" }
+uuid.workspace = true
+serde.workspace = true
