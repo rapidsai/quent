@@ -8,6 +8,7 @@ use quent_exporter::Exporter;
 use quent_exporter_ndjson::NdjsonExporter;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::proto;
@@ -48,24 +49,25 @@ impl proto::collector_server::Collector for CollectorService {
                                             Ok(event) => match exporter.push(event).await {
                                                 Ok(_) => (), // successfully exported
                                                 Err(e) => {
-                                                    eprintln!("collector: unable to export: {e}")
+                                                    warn!("collector: unable to export: {e}")
                                                 }
                                             },
                                             Err(e) => {
-                                                eprintln!("collector: deserialization error: {e}")
+                                                warn!("collector: deserialization error: {e}")
                                             }
                                         }
                                     }
-                                    Err(e) => eprintln!("collector: unable to spawn exporter: {e}"),
+                                    Err(e) => error!("collector: unable to spawn exporter: {e}"),
                                 }
                             }
                             Err(e) => {
-                                eprintln!("collector: received event with invalid engine id: {e}")
+                                warn!("collector: received event with invalid engine id: {e}")
                             }
                         }
                     }
                     Err(err) => {
-                        eprintln!("collector: collect events stream error: {err:?}");
+                        // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch. We should clean up here.
+                        warn!("collector: stream error: {err:?}");
                         break;
                     }
                 }
