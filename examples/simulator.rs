@@ -16,6 +16,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let engine = uuid::Uuid::now_v7();
 
+    info!("simulating an engine with id: {engine}");
+
     let _ = quent::initialize(engine);
 
     quent::engine::init(engine);
