@@ -7,10 +7,12 @@ use quent_entities::engine::Engine;
 use quent_exporter_ndjson::NdjsonImporter;
 use tokio::net::TcpListener;
 use tonic::transport::Server as GrpcServer;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
-const QUENT_ANALYZER_PORT_DEFAULT: u16 = 8080;
+mod defaults {
+    pub(crate) const QUENT_ANALYZER_PORT: u16 = 8080;
+}
 
 fn initialize_tracing() {
     use tracing_subscriber::{
@@ -38,11 +40,23 @@ fn initialize_tracing() {
 
 #[tracing::instrument]
 async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
-    let entries = std::fs::read_dir("data").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let entries = match std::fs::read_dir("data") {
+        Ok(entries) => entries,
+        Err(e) => {
+            error!("unable read directory: {e}");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
 
     let mut ids = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                error!("entry error: {e}");
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
         let path = entry.path();
 
         if !path.is_file() {
@@ -79,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
     // Collector service
-    let collector_addr = format!("[::]:{}", quent_collector::QUENT_COLLECTOR_PORT_DEFAULT)
+    let collector_addr = format!("[::]:{}", quent_collector::default::QUENT_COLLECTOR_PORT)
         .to_socket_addrs()?
         .next()
         .unwrap();
@@ -94,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("collector listening on {collector_addr}");
 
     // Analyzer service
-    let analyzer_addr = format!("[::]:{QUENT_ANALYZER_PORT_DEFAULT}")
+    let analyzer_addr = format!("[::]:{}", defaults::QUENT_ANALYZER_PORT)
         .to_socket_addrs()?
         .next()
         .unwrap();

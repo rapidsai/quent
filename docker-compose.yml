@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: quent
+    container_name: quent-server
+    ports:
+      - "8080:8080"
+      - "7836:7836"
+    restart: unless-stopped
+    volumes:
+      - ./data:/quent/data
+    command: /quent/quent-server
+
+  simulator:
+    image: quent
+    container_name: quent-simulator
+    depends_on:
+      - server
+    restart: "no"
+    environment:
+      QUENT_COLLECTOR_ADDRESS: "http://server:7836"
+    command: /quent/simulator
