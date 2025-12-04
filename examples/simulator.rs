@@ -14,36 +14,40 @@ fn initialize_tracing() {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
-    let engine = uuid::Uuid::now_v7();
+    let engine_id = uuid::Uuid::now_v7();
 
-    info!("simulating an engine with id: {engine}");
+    info!("simulating an engine with id: {engine_id}");
 
-    let _ = quent::initialize(engine);
+    let context = quent::Context::try_new(engine_id)?;
 
-    quent::engine::init(engine);
-    quent::engine::operating(engine);
+    let engine_obs = context.engine_observer();
+
+    engine_obs.init(engine_id);
+    engine_obs.operating(engine_id);
 
     let coordinator_futures: Vec<_> = std::iter::repeat_with(|| uuid::Uuid::now_v7())
         .take(2)
         .map(|coordinator| {
             std::thread::spawn({
-                let engine = engine.clone();
+                let engine_id = engine_id.clone();
+                let coordinator_obs = context.coordinator_observer();
+                let query_obs = context.query_observer();
                 move || {
-                    quent::coordinator::init(coordinator, engine);
-                    quent::coordinator::operating(coordinator);
+                    coordinator_obs.init(coordinator, engine_id);
+                    coordinator_obs.operating(coordinator);
 
                     let query_futures: Vec<_> = std::iter::repeat_with(|| uuid::Uuid::now_v7())
                         .take(3)
                         .map(|query| {
                             std::thread::spawn({
-                                let coordinator = coordinator.clone();
+                                let query_obs = query_obs.clone();
                                 move || {
-                                    quent::query::init(query, coordinator);
-                                    quent::query::planning(query);
-                                    quent::query::executing(query);
-                                    quent::query::idle(query);
-                                    quent::query::finalizing(query);
-                                    quent::query::exit(query);
+                                    query_obs.init(query, coordinator);
+                                    query_obs.planning(query);
+                                    query_obs.executing(query);
+                                    query_obs.idle(query);
+                                    query_obs.finalizing(query);
+                                    query_obs.exit(query);
                                 }
                             })
                         })
@@ -53,8 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         query_future.join().unwrap();
                     }
 
-                    quent::coordinator::finalizing(coordinator);
-                    quent::coordinator::exit(coordinator);
+                    coordinator_obs.finalizing(coordinator);
+                    coordinator_obs.exit(coordinator);
                 }
             })
         })
@@ -64,8 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         coordinator_future.join().unwrap();
     }
 
-    quent::engine::finalizing(engine);
-    quent::engine::exit(engine);
+    engine_obs.finalizing(engine_id);
+    engine_obs.exit(engine_id);
 
     info!("events pushed, waiting 1s to flush (for now :tm:)");
     // TODO(johanpel): ensure the channels are flushed on drop

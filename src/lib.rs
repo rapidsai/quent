@@ -1,220 +1,230 @@
 //! Quent Instrumentation API
 //!
-use std::sync::RwLock;
+use std::sync::Arc;
 
-use quent_events::{Event, EventData, Timestamp};
+use quent_events::{Event, EventData, coordinator, engine, query};
 use quent_exporter::Exporter;
 use quent_exporter_collector::CollectorExporter;
 use tokio::runtime::{Handle, Runtime};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-#[inline]
-fn timestamp() -> Timestamp {
-    use std::time::SystemTime;
-    use std::time::UNIX_EPOCH;
-    // Narrowing conversion to u64 limits this to Unix timestamp in seconds: 18446744073709551617
-    // Which is in the 26th century
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|v| v.as_nanos() as u64)
-        .unwrap_or_default()
-    // TODO(johanpel): consider to do something else instead of unwrap_or_default, perhaps using Instant as described in the duration_since docs.
+fn push_event(
+    sender: &tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+    event: Event<EventData>,
+) {
+    match sender.send(event) {
+        Ok(_) => (),
+        Err(e) => warn!("unable to send event: {e}"),
+    }
 }
 
-struct Context {
-    runtime_handle: Handle,
-    exporter: Box<dyn Exporter>,
+pub struct Context {
+    _runtime: Option<tokio::runtime::Runtime>,
+    events_sender: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+    _exporter: Arc<dyn Exporter>,
 }
-
-// TODO(johanpel): this is probably best moved to some ffi layer depending on the target lang
-static CONTEXT: RwLock<Option<Context>> = RwLock::new(None);
-static RUNTIME: RwLock<Option<Runtime>> = RwLock::new(None);
 
 impl Context {
-    async fn try_new(
-        runtime_handle: Handle,
-        engine_id: Uuid,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(engine_id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        let (runtime, handle) = if let Ok(handle) = Handle::try_current() {
+            debug!("using existing async runtime");
+            (None, handle)
+        } else {
+            debug!("spawning new async runtime");
+            if let Ok(runtime) = Runtime::new() {
+                let handle = runtime.handle().clone();
+                (Some(runtime), handle)
+            } else {
+                return Err("unable to spawn async runtime")?;
+            }
+        };
+
+        let (events_sender, mut events_receiver) = tokio::sync::mpsc::unbounded_channel();
+
         debug!("spawning collector exporter");
-        let exporter = Box::new(CollectorExporter::new(engine_id).await?);
+        let exporter = Arc::new(handle.block_on(CollectorExporter::new(engine_id))?);
+
+        let _ = handle.spawn({
+            let exporter = Arc::clone(&exporter);
+            async move {
+                loop {
+                    if let Some(event) = events_receiver.recv().await {
+                        match exporter.push(event).await {
+                            Ok(_) => (), // successfully pushed to exporter,
+                            Err(e) => warn!("unable to export event: {e}"),
+                        }
+                    } else {
+                        // no more events will ever arrive
+                        break;
+                    }
+                }
+            }
+        });
 
         Ok(Context {
-            runtime_handle,
-            exporter,
+            _runtime: runtime,
+            events_sender,
+            _exporter: exporter,
         })
     }
-}
 
-/// Initialize the Quent Instrumentation API.
-///
-/// This must be called before anything else.
-pub fn initialize(engine_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
-    let handle = if let Ok(handle) = Handle::try_current() {
-        debug!("using existing async runtime");
-        handle
-    } else {
-        debug!("spawning new async runtime");
-        if let Ok(runtime) = Runtime::new() {
-            let handle = runtime.handle().clone();
-            let mut lock = RUNTIME.write()?;
-            *lock = Some(runtime);
-            handle
-        } else {
-            return Err("unable to spawn async runtime")?;
+    pub fn engine_observer(&self) -> EngineObserver {
+        EngineObserver {
+            tx: self.events_sender.clone(),
         }
-    };
-
-    debug!("constructing and installing context");
-
-    let context = handle.block_on(Context::try_new(handle.clone(), engine_id))?;
-
-    let mut lock = CONTEXT.write()?;
-    *lock = Some(context);
-    Ok(())
-}
-
-// TODO(johanpel): minimize latency of this function
-fn push_event(event: Event<EventData>) {
-    let read = CONTEXT.read().unwrap();
-    if let Some(ctx) = read.as_ref() {
-        let handle = &ctx.runtime_handle;
-        let exporter = &ctx.exporter;
-        // TODO(johanpel): consider inserting an mpsc channel here
-        match handle.block_on(async move { exporter.push(event).await }) {
-            Ok(_) => (),
-            Err(e) => warn!("unable to send event: {e}"),
+    }
+    pub fn coordinator_observer(&self) -> CoordinatorObserver {
+        CoordinatorObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn query_observer(&self) -> QueryObserver {
+        QueryObserver {
+            tx: self.events_sender.clone(),
         }
     }
 }
 
-// TODO(johanpel): boilerplate stuff below is to be filled in with more attribs
-pub mod engine {
-    use quent_events::engine;
+#[derive(Clone)]
+pub struct EngineObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
 
-    use super::*;
-
-    pub fn init(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            engine::EngineEvent::Init(engine::Init {}).into(),
-        ))
+impl EngineObserver {
+    pub fn init(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(id, engine::EngineEvent::Init(engine::Init {}).into()),
+        )
     }
 
-    pub fn operating(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            engine::EngineEvent::Operating(engine::Operating {}).into(),
-        ))
+    pub fn operating(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                engine::EngineEvent::Operating(engine::Operating {}).into(),
+            ),
+        )
     }
 
-    pub fn finalizing(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            engine::EngineEvent::Finalizing(engine::Finalizing {}).into(),
-        ))
+    pub fn finalizing(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                engine::EngineEvent::Finalizing(engine::Finalizing {}).into(),
+            ),
+        )
     }
 
-    pub fn exit(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            engine::EngineEvent::Exit(engine::Exit {}).into(),
-        ))
+    pub fn exit(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(id, engine::EngineEvent::Exit(engine::Exit {}).into()),
+        )
     }
 }
 
-pub mod coordinator {
-    use quent_events::coordinator;
+#[derive(Clone)]
+pub struct CoordinatorObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
 
-    use super::*;
-
-    pub fn init(id: Uuid, engine_id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            coordinator::CoordinatorEvent::Init(coordinator::Init { engine_id }).into(),
-        ))
+impl CoordinatorObserver {
+    pub fn init(&self, id: Uuid, engine_id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                coordinator::CoordinatorEvent::Init(coordinator::Init { engine_id }).into(),
+            ),
+        )
     }
 
-    pub fn operating(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            coordinator::CoordinatorEvent::Operating(coordinator::Operating {}).into(),
-        ))
+    pub fn operating(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                coordinator::CoordinatorEvent::Operating(coordinator::Operating {}).into(),
+            ),
+        )
     }
 
-    pub fn finalizing(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            coordinator::CoordinatorEvent::Finalizing(coordinator::Finalizing {}).into(),
-        ))
+    pub fn finalizing(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                coordinator::CoordinatorEvent::Finalizing(coordinator::Finalizing {}).into(),
+            ),
+        )
     }
 
-    pub fn exit(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            coordinator::CoordinatorEvent::Exit(coordinator::Exit {}).into(),
-        ))
+    pub fn exit(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                coordinator::CoordinatorEvent::Exit(coordinator::Exit {}).into(),
+            ),
+        )
     }
 }
 
-pub mod query {
-    use quent_events::query;
+#[derive(Clone)]
+pub struct QueryObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
 
-    use super::*;
-
-    pub fn init(id: Uuid, coordinator_id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            query::QueryEvent::Init(query::Init { coordinator_id }).into(),
-        ))
+impl QueryObserver {
+    pub fn init(&self, id: Uuid, coordinator_id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                query::QueryEvent::Init(query::Init { coordinator_id }).into(),
+            ),
+        )
     }
 
-    pub fn planning(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            query::QueryEvent::Planning(query::Planning {}).into(),
-        ))
+    pub fn planning(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(id, query::QueryEvent::Planning(query::Planning {}).into()),
+        )
     }
 
-    pub fn executing(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            query::QueryEvent::Executing(query::Executing {}).into(),
-        ));
+    pub fn executing(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(id, query::QueryEvent::Executing(query::Executing {}).into()),
+        );
     }
 
-    pub fn idle(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            query::QueryEvent::Idle(query::Idle {}).into(),
-        ));
+    pub fn idle(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(id, query::QueryEvent::Idle(query::Idle {}).into()),
+        );
     }
 
-    pub fn finalizing(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            query::QueryEvent::Finalizing(query::Finalizing {}).into(),
-        ))
+    pub fn finalizing(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                query::QueryEvent::Finalizing(query::Finalizing {}).into(),
+            ),
+        )
     }
 
-    pub fn exit(id: Uuid) {
-        push_event(Event::new(
-            id,
-            timestamp(),
-            query::QueryEvent::Exit(query::Exit {}).into(),
-        ))
+    pub fn exit(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new(id, query::QueryEvent::Exit(query::Exit {}).into()),
+        )
     }
 }

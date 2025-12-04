@@ -17,13 +17,14 @@ use crate::proto;
 //
 // TODO(johanpel): clean up exporter after timeout or engine end.
 // TODO(johanpel): exporter config
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct CollectorService {
     exporters: Arc<DashMap<Uuid, Arc<dyn Exporter>>>,
 }
 
 #[tonic::async_trait]
 impl proto::collector_server::Collector for CollectorService {
+    #[tracing::instrument]
     async fn collect_events(
         &self,
         request: Request<Streaming<proto::CollectEventRequest>>,
