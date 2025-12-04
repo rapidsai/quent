@@ -2,6 +2,7 @@
 
 use quent_events::Timestamp;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 // n.b. top level options represent missing telemetry
@@ -9,7 +10,7 @@ use uuid::Uuid;
 pub mod engine {
     use super::*;
 
-    #[derive(Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Default, Deserialize, Serialize)]
     pub struct Engine {
         pub id: Uuid,
         pub init: Option<Timestamp>,
