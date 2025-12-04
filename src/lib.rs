@@ -45,18 +45,13 @@ impl Context {
         debug!("spawning collector exporter");
         let exporter = Arc::new(handle.block_on(CollectorExporter::new(engine_id))?);
 
-        let _ = handle.spawn({
+        handle.spawn({
             let exporter = Arc::clone(&exporter);
             async move {
-                loop {
-                    if let Some(event) = events_receiver.recv().await {
-                        match exporter.push(event).await {
-                            Ok(_) => (), // successfully pushed to exporter,
-                            Err(e) => warn!("unable to export event: {e}"),
-                        }
-                    } else {
-                        // no more events will ever arrive
-                        break;
+                while let Some(event) = events_receiver.recv().await {
+                    match exporter.push(event).await {
+                        Ok(_) => (), // successfully pushed to exporter,
+                        Err(e) => warn!("unable to export event: {e}"),
                     }
                 }
             }
