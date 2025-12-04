@@ -10,4 +10,10 @@ pub mod proto {
     tonic::include_proto!("quent.collector.v1");
 }
 
-pub const QUENT_COLLECTOR_PORT_DEFAULT: u16 = 7836;
+pub mod env {
+    pub const QUENT_COLLECTOR_ADDRESS: &str = "QUENT_COLLECTOR_ADDRESS";
+}
+
+pub mod default {
+    pub const QUENT_COLLECTOR_PORT: u16 = 7836;
+}

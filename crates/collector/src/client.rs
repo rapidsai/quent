@@ -1,20 +1,21 @@
 //! A gRPC-base client that can send [`Event`]s to a collector.
 
-use crate::{
-    QUENT_COLLECTOR_PORT_DEFAULT,
-    proto::{CollectEventRequest, collector_client::CollectorClient},
-};
+use std::{env, time::Duration};
+
+use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 use quent_events::EventData;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Status, transport::Channel};
 
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("Unable to connect: {0}")]
+    Connect(String),
     #[error("Send error: {0}")]
     SendError(String),
     #[error("Transport error: {0}")]
@@ -36,9 +37,29 @@ pub struct Client {
 
 impl Client {
     pub async fn new(engine_id: Uuid) -> Result<Client> {
-        let addr = format!("http://[::]:{}", QUENT_COLLECTOR_PORT_DEFAULT);
+        let addr = env::var(crate::env::QUENT_COLLECTOR_ADDRESS)
+            .unwrap_or_else(|_| format!("http://[::]:{}", crate::default::QUENT_COLLECTOR_PORT));
         debug!("connecting to {addr}");
-        let mut client = CollectorClient::connect(addr).await?;
+
+        // Try to connect.
+        // TODO(johanpel): figure out whether this can also go through health check
+        const MAX_RETRIES: usize = 42;
+        let mut client = Err(Error::Connect(format!(
+            "failed to connect after {MAX_RETRIES} attempts..."
+        )));
+        for retry in 1..MAX_RETRIES + 1 {
+            match CollectorClient::connect(addr.clone()).await {
+                Ok(c) => {
+                    client = Ok(c);
+                    break;
+                }
+                Err(e) => {
+                    warn!("unable to connect: {e}, retrying in 1s... {retry}/{MAX_RETRIES}");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            };
+        }
+        let mut client = client?;
 
         debug!("connected, preparing channels and spawning control thread ...");
         // TODO(johanpel): consider unbounded
