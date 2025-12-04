@@ -1,0 +1,53 @@
+stages:
+  - format
+  - lint
+  - build
+
+variables:
+  CARGO_HOME: ".cargo"
+
+.setup-rust: &setup-rust
+  image: rust:1.91-trixie
+  tags:
+    - os/linux
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends protobuf-compiler ca-certificates
+    - mkdir -p "${CARGO_HOME}"
+    - protoc --version
+  cache:
+    key: "cargo-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - target
+      - .cargo/registry
+      - .cargo/git
+
+format:
+  stage: format
+  <<: *setup-rust
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+
+check:
+  stage: lint
+  <<: *setup-rust
+  script:
+    - cargo check --all --locked
+
+clippy:
+  stage: lint
+  <<: *setup-rust
+  script:
+    - rustup component add clippy
+    - cargo clippy --all --locked -- -D warnings
+
+build:
+  stage: build
+  <<: *setup-rust
+  needs:
+    - format
+    - check
+    - clippy
+  script:
+    - cargo build --all --locked --release
