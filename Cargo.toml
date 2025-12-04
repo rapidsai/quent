@@ -34,6 +34,7 @@ tonic-prost = "0.14.2"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 uuid = {version = "1.18.1", features = ["v7"]}
+ts-rs = "11.1.0"
 
 [dependencies]
 quent-events = { path = "crates/events" }
