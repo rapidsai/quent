@@ -1,51 +1,79 @@
 # Quent: Query Engine Telemetry
 
-A PoC for (distributed) query engine telemetry.
-The current goal is to write up a thin vertical slice of the technology stack shown below.
+A PoC for (distributed) query engine telemetry. The current goal is to write up
+a thin vertical slice of the technology stack shown below.
 
 ## Model
 
-Quent provides a query engine model onto which engine implementers need to map the constructs of their engine.
-The model aims to be generic enough such that it supports various execution paradigms, including but not limited to:
+Quent provides a query engine model onto which engine implementers need to map
+the constructs of their engine. The model aims to be generic enough such that it
+supports various execution paradigms, including but not limited to:
 
 - local and distributed execution
 - sequential and concurrent query execution
 - engines operating on asynchronous runtimes
 - engines running on heterogeneous systems with non-CPU based compute
 
-For more details, please refer to the model specification: [model.md](./model.md)
+For more details, please refer to the model specification:
+[model.md](./model.md)
 
 ## Technology stack
 
-Quent consists of various composable components, according to the following layers:
+Quent consists of various composable components, according to the following
+layers:
 
-1. **Engine**: the (distributed) query engine to be profiled. Anything for which the top-level query can be expressed as a data-flow system processing a Directed Acyclic Graph (DAG) is a potential candidate.
-2. **Instrumentation**: libraries used by target engines to produce telemetry events in the engine's native language.
-- The API provided by such a library will be used by engine developers to instrument their engine.
-- Typically wraps around a thin efficient minimal-latency Rust-based layer which orchestrastes exporting events.
+1. **Engine**: the (distributed) query engine to be profiled. Anything for which
+   the top-level query can be expressed as a data-flow system processing a
+   Directed Acyclic Graph (DAG) is a potential candidate.
+2. **Instrumentation**: libraries used by target engines to produce telemetry
+   events in the engine's native language.
+
+- The API provided by such a library will be used by engine developers to
+  instrument their engine.
+- Typically wraps around a thin efficient minimal-latency Rust-based layer which
+  orchestrastes exporting events.
 - May (but not required to) perform (partial) model validation.
-3. **Exporter**: provides the means to export telemetry events captured by the instrumentation library.
-  - Exporter implementations would typically exist to export telemetry events in arbitrary ways.
-  - Examples include: a local log file, layered on top of OpenTelemetry logs, as Parquet files to a cloud-based object store, or to a database.
-  - One exporter will be a collector-exporter, which sends telemetry to a centralized collector, see below.
-4. **(Collector)**: service that collects telemetry events into a single process and exports them using arbitrary exporters.
-  - This is optional because a scalable system may choose to export everything in a decentralized manner for performance reasons.
-  - A less obvious argument for making this optional is that in typical use-cases like continuous benchmarking and production, MOST telemetry is never accessed, especially if no performance anomalies occur. Therefore, spending cycles on collection can be very wasteful.
-5. **Analzer**: service that reads raw events, validates the model, and performs useful aggregations of bulk events used in visualization.
-6. **Web Server**: service that interacts with the analyzer and performs final data wrangling for UI interactions.
-7. **User Interface**: application facing developers and data engineers using the query engine, helps to quickly gain performance insights about queries.
+
+1. **Exporter**: provides the means to export telemetry events captured by the
+   instrumentation library.
+
+- Exporter implementations would typically exist to export telemetry events in
+  arbitrary ways.
+- Examples include: a local log file, layered on top of OpenTelemetry logs, as
+  Parquet files to a cloud-based object store, or to a database.
+- One exporter will be a collector-exporter, which sends telemetry to a
+  centralized collector, see below.
+
+1. **(Collector)**: service that collects telemetry events into a single process
+   and exports them using arbitrary exporters.
+
+- This is optional because a scalable system may choose to export everything in
+  a decentralized manner for performance reasons.
+- A less obvious argument for making this optional is that in typical use-cases
+  like continuous benchmarking and production, MOST telemetry is never accessed,
+  especially if no performance anomalies occur. Therefore, spending cycles on
+  collection can be very wasteful.
+
+1. **Analzer**: service that reads raw events, validates the model, and performs
+   useful aggregations of bulk events used in visualization.
+2. **Web Server**: service that interacts with the analyzer and performs final
+   data wrangling for UI interactions.
+3. **User Interface**: application facing developers and data engineers using
+   the query engine, helps to quickly gain performance insights about queries.
 
 ## Running the Quent Server & Simulator
 
 ### Docker Compose (recommended)
 
 #### Requirements
+
 - Docker + Docker Compose (or [Podman](https://podman.io/) + [Podman Compose](https://docs.podman.io/en/v5.6.2/markdown/podman-compose.1.html))
 
 #### Steps
 
-Assuming you are running this from the repo root, this will spawn a server and run the simulator to spam some events at the server.
-For now :tm:, the server will store event data in `./data` in `<engine id>.ndjson` format.
+Assuming you are running this from the repo root, this will spawn a server and
+run the simulator to spam some events at the server. For now :tm:, the server
+will store event data in `./data` in `<engine id>.ndjson` format.
 
 1. Build the images:
 
@@ -53,42 +81,53 @@ For now :tm:, the server will store event data in `./data` in `<engine id>.ndjso
 docker compose build
 ```
 
-2. Spawn the containers:
+1. Spawn the containers:
 
 ```bash
 docker compose up
 ```
 
-3. Use the server, e.g.: 
+1. Use the server, e.g.:
 
 ```bash
-curl http://localhost:8080/analyzer/list_engines -H "Accept: application/json"
+curl http://localhost:8080/analyzer/engine/list -H "Accept: application/json"
 ```
+
 This should return a list of valid engine UUIDs:
-```
+
+```text
 ["019ae957-6af3-71a3-b7a9-5b351a83a2b1"]%
 ```
 
-4. Shut everything down:
+1. Shut everything down:
 
 ```bash
 docker compose down
 ```
 
-For quickly iterating, you can merge step 1 + 2 using `docker compose up --build`.
+For quickly iterating, you can merge step 1 + 2 using
+`docker compose up --build`.
 
 ## Analyzer Service API
 
-The Analyzer Service (which for now :tm: runs as part of the `quent-server` executable) provides HTTP endpoints that trigger analysis of raw event files and delivers information that is validated and easy-to-digest (as in small enough for snappy interactions through web technologies).
+The Analyzer Service (which for now :tm: runs as part of the `quent-server`
+executable) provides HTTP endpoints that trigger analysis of raw event files and
+delivers information that is validated and easy-to-digest (as in small enough
+for snappy interactions through web technologies).
 
-Typically, interactions with the Analyzer start by listing engines it knows, by hitting: `/analyzer/list_engines`, which returns a JSON array with strings that represent engine UUIDs.
+Typically, interactions with the Analyzer start by listing engines it knows, by
+hitting: `/analyzer/engine/list`, which returns a JSON array with strings that
+represent engine UUIDs.
 
-From there, various other HTTP endpoints (will) exist to continue to explore the profile of a query engine.
-(For now this can be figured out from a very nasty looking [source file](crates/server/src/main.rs) but I will clean this up soon :tm:).
+From there, various other HTTP endpoints (will) exist to continue to explore the
+profile of a query engine. (For now this can be figured out from a very nasty
+looking [source file](crates/server/src/main.rs) but I will clean this up soon
+:tm:).
 
-Type definitions for `application/JSON` type data delivered by those routes can be generated by running:
+Type definitions for `application/JSON` type data delivered by those routes can
+be generated by running:
 
-```
+```text
 cargo build -p quent-server
 ```
 
@@ -97,16 +136,32 @@ For now, these are checked in to the repository under [this folder](crates/serve
 ### Example
 
 After obtaining an engine ID, like so:
-```
-curl http://localhost:8080/analyzer/list_engines -H "Accept: application/json"
+
+```text
+curl http://localhost:8080/analyzer/engine/list -H "Accept: application/json"
 ["019ae97c-6874-7a40-b6f7-c42d21bb8372","019ae957-6af3-71a3-b7a9-5b351a83a2b1","019ae95f-2240-7583-8965-53e9625b58e6","019ae99d-a054-7bf2-bf1d-6123b57b84c4","019ae95a-25e8-73a0-ba65-1606afbbb2bf"]%
 ```
 
 one may hit the endpoint providing high-level information about an engine:
 
-```
-curl http://localhost:8080/analyzer/019ae97c-6874-7a40-b6f7-c42d21bb8372/engine -H "Accept: application/json"
+```text
+curl http://localhost:8080/analyzer/engine/019ae97c-6874-7a40-b6f7-c42d21bb8372 -H "Accept: application/json"
 {"id":"019ae97c-6874-7a40-b6f7-c42d21bb8372","init":1764853835895938512,"operating":1764853835895938762,"finalizing":1764853835896768761,"exit":1764853835896769345}%
 ```
 
-This JSON object matches the definition of the `Engine` type in [this generated source](crates/server/bindings/Engine.ts).
+and then continue down to find all coordinators of said engine:
+
+```text
+curl http://localhost:8080/analyzer/engine/019ae97c-6874-7a40-b6f7-c42d21bb8372/coordinator/list -H "Accept: application/json"
+["019aea29-c371-7d62-a168-b46a4e3b6204","019aea29-c371-7d62-a168-b4533ade4f4b"]%
+```
+
+... and so forth.
+
+N.B. that the above is a latency-sensitive pattern that will end at some point.
+This going back-and-forth with the analyzer is only necessary at these higher
+levels because Engines and Coordinators are assumed to be able to run for very
+long periods of time. Eventually we want to paginate these endpoints.
+
+This JSON object matches the definition of the `Engine` type in
+[this generated source](crates/server/bindings/Engine.ts).
