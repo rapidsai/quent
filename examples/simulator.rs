@@ -20,6 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let context = quent::Context::try_new(engine_id)?;
 
+    info!("context created, creating events...");
+
     let engine_obs = context.engine_observer();
 
     engine_obs.init(engine_id);
