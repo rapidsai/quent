@@ -33,13 +33,14 @@ tonic = "0.14.2"
 tonic-prost = "0.14.2"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-uuid = {version = "1.18.1", features = ["v7"]}
 ts-rs = "11.1.0"
+uuid = {version = "1.18.1", features = ["v7"]}
 
 [dependencies]
 quent-events = { path = "crates/events" }
 quent-exporter = { path = "crates/exporter" }
 quent-exporter-collector = { path = "crates/exporter/collector" }
+serde.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
@@ -49,6 +50,6 @@ uuid.workspace = true
 quent-collector = { path = "crates/collector", features = ["server"] }
 quent-exporter-ndjson = { path = "crates/exporter/ndjson" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
-tonic.workspace = true
 tokio-stream.workspace = true
+tonic.workspace = true
 tracing-subscriber.workspace = true

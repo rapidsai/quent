@@ -1,18 +1,16 @@
 use std::net::ToSocketAddrs;
 
-use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
-use quent_analyzer::Analyzer;
+use axum::Router;
 use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
-use quent_entities::engine::Engine;
-use quent_exporter_ndjson::NdjsonImporter;
 use tokio::net::TcpListener;
 use tonic::transport::Server as GrpcServer;
-use tracing::{error, info};
-use uuid::Uuid;
+use tracing::info;
 
 mod defaults {
     pub(crate) const QUENT_ANALYZER_PORT: u16 = 8080;
 }
+
+mod analyzer;
 
 fn initialize_tracing() {
     use tracing_subscriber::{
@@ -38,95 +36,48 @@ fn initialize_tracing() {
         .init();
 }
 
-#[tracing::instrument]
-async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
-    let entries = match std::fs::read_dir("data") {
-        Ok(entries) => entries,
-        Err(e) => {
-            error!("unable read directory: {e}");
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let mut ids = Vec::new();
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(e) => {
-                error!("entry error: {e}");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-        let path = entry.path();
-
-        if !path.is_file() {
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some("ndjson") {
-            continue;
-        }
-        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-            match Uuid::parse_str(stem) {
-                Ok(uuid) => ids.push(uuid),
-                Err(_) => {
-                    continue;
-                }
-            }
-        }
-    }
-
-    Ok(Json(ids))
-}
-
-#[tracing::instrument]
-async fn engine(Path(engine_id): Path<String>) -> Result<Json<Engine>, StatusCode> {
-    let engine_id = Uuid::parse_str(&engine_id).map_err(|_| StatusCode::BAD_REQUEST)?;
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(analyzer.engine().clone()))
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
-    // Collector service
-    let collector_addr = format!("[::]:{}", quent_collector::default::QUENT_COLLECTOR_PORT)
+    // Spawn gRPC services
+    let grpc_address = format!("[::]:{}", quent_collector::default::QUENT_COLLECTOR_PORT)
         .to_socket_addrs()?
         .next()
         .unwrap();
+
     let collector = CollectorService::default();
-    let collector_service = async {
+
+    let grpc_server = async {
         GrpcServer::builder()
             .add_service(CollectorServer::new(collector))
-            .serve(collector_addr)
+            .serve(grpc_address)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
     };
-    info!("collector listening on {collector_addr}");
+    info!("gRPC server listening on {grpc_address}");
 
-    // Analyzer service
-    let analyzer_addr = format!("[::]:{}", defaults::QUENT_ANALYZER_PORT)
+    // HTTP services
+    let http_addr = format!("[::]:{}", defaults::QUENT_ANALYZER_PORT)
         .to_socket_addrs()?
         .next()
         .unwrap();
-    let analyzer_listener = TcpListener::bind(analyzer_addr).await?;
 
-    let analyzer_routes = Router::new()
-        .route("/{engine_id}/engine", get(engine))
-        .route("/list_engines", get(list_engines));
-    let analyzer_app = Router::new().nest("/analyzer", analyzer_routes);
-    let analyzer_service = async {
-        axum::serve(analyzer_listener, analyzer_app.into_make_service()).await?;
+    let http_routes = Router::new().nest("/analyzer", analyzer::routes());
+    let http_server = async {
+        axum::serve(
+            TcpListener::bind(http_addr).await?,
+            http_routes.into_make_service(),
+        )
+        .await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     };
-    info!("analyzer listening on {analyzer_addr}");
+    info!("HTTP server listening on {http_addr}");
 
     info!("send SIGINT (e.g. ctrl+c) to exit");
 
-    tokio::try_join!(collector_service, analyzer_service)?;
+    tokio::try_join!(grpc_server, http_server)?;
+    info!("shutting down...");
 
     Ok(())
 }
