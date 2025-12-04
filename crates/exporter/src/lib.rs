@@ -3,7 +3,7 @@
 use quent_events::{Event, EventData};
 
 #[async_trait::async_trait]
-pub trait Exporter: Send + Sync {
+pub trait Exporter: Send + Sync + std::fmt::Debug {
     async fn push(&self, event: Event<EventData>) -> Result<(), Box<dyn std::error::Error>>;
     async fn force_flush(&self) -> Result<(), Box<dyn std::error::Error>>;
 }
