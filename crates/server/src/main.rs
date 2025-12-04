@@ -15,12 +15,24 @@ const QUENT_ANALYZER_PORT_DEFAULT: u16 = 8080;
 fn initialize_tracing() {
     use tracing_subscriber::{
         layer::SubscriberExt,
+        registry,
         util::SubscriberInitExt,
-        {EnvFilter, fmt},
+        {
+            EnvFilter,
+            fmt::{self, format::FmtSpan},
+        },
     };
-    tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
-        .with(fmt::layer().with_target(true).with_writer(std::io::stderr))
+    registry()
+        .with(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("debug,h2=off,tonic=off")),
+        )
+        .with(
+            fmt::layer()
+                .with_target(true)
+                .with_span_events(FmtSpan::ENTER)
+                .with_writer(std::io::stderr),
+        )
         .init();
 }
 

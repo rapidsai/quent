@@ -5,6 +5,7 @@ use quent_events::{Event, EventData};
 use quent_exporter::Exporter;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct CollectorExporter {
     client: Client,
 }

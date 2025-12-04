@@ -14,6 +14,7 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct NdjsonExporter {
     writer: Mutex<BufWriter<File>>,
 }
