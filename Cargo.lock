@@ -665,6 +665,7 @@ dependencies = [
  "quent-exporter",
  "quent-exporter-collector",
  "quent-exporter-ndjson",
+ "serde",
  "thiserror",
  "tokio",
  "tokio-stream",

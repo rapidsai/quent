@@ -10,23 +10,111 @@ use uuid::Uuid;
 pub mod engine {
     use super::*;
 
+    /// Timestamps (nanoseconds since Unix epoch) of state transitions of an Engine.
     #[derive(TS, Clone, Default, Deserialize, Serialize)]
-    pub struct Engine {
-        pub id: Uuid,
+    pub struct EngineTimestamps {
+        /// The time at which the Engine started initialization.
         pub init: Option<Timestamp>,
+        /// The time at which the Engine started accepting queries.
         pub operating: Option<Timestamp>,
+        /// The time at which the Engine started shutting down and cleaning up its resources.
         pub finalizing: Option<Timestamp>,
+        /// The time at which the Engine was completely destructed and all resources were freed.
         pub exit: Option<Timestamp>,
     }
 
+    /// An Engine represents the top-level entity of the model.
+    ///
+    /// Engines accept Queries that they pass to Coordinators which in turn orchestrate their execution.
+    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    pub struct Engine {
+        /// The ID of this Engine
+        pub id: Uuid,
+        /// Timestamps of state transitions throughout the lifetime of the Engine.
+        pub timestamps: EngineTimestamps,
+    }
+
     impl Engine {
-        pub fn new(engine_id: Uuid) -> Self {
+        pub fn new(id: Uuid) -> Self {
             Self {
-                id: engine_id,
-                init: None,
-                operating: None,
-                finalizing: None,
-                exit: None,
+                id,
+                ..Default::default()
+            }
+        }
+    }
+}
+
+pub mod coordinator {
+    use super::*;
+
+    /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Coordinator.
+    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    pub struct CoordinatorTimestamps {
+        /// The time at which the Coordinator started initialization.
+        pub init: Option<Timestamp>,
+        /// The time at which the Coordinator started accepting queries.
+        pub operating: Option<Timestamp>,
+        /// The time at which the Coordinator started shutting down and cleaning up its resources.
+        pub finalizing: Option<Timestamp>,
+        /// The time at which the Coordinator was completely destructed and all resources were freed.
+        pub exit: Option<Timestamp>,
+    }
+
+    /// A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
+    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    pub struct Coordinator {
+        /// The ID of this Coordinator
+        pub id: Uuid,
+        /// The ID of the Engine this Coordinator was spawned in
+        pub engine_id: Uuid,
+        /// Timestamps of state transitions throughout the lifetime of the Coordinator.
+        pub timestamps: CoordinatorTimestamps,
+    }
+
+    impl Coordinator {
+        pub fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
+            }
+        }
+    }
+}
+
+pub mod query {
+    use super::*;
+
+    /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
+    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    pub struct QueryTimestamps {
+        /// The time at which the Query started initialization.
+        pub init: Option<Timestamp>,
+        /// The time at which the Query started planning.
+        pub planning: Option<Timestamp>,
+        /// The time at which the Query started executing.
+        pub executing: Option<Timestamp>,
+        /// The time at which the Query was idle.
+        pub idle: Option<Timestamp>,
+        /// The time at which the Query started shutting down and cleaning up its resources.
+        pub finalizing: Option<Timestamp>,
+        /// The time at which the Query was completely destructed and all resources were freed.
+        pub exit: Option<Timestamp>,
+    }
+
+    /// A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
+    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    pub struct Query {
+        /// The ID of this Coordinator
+        pub id: Uuid,
+        /// Timestamps of state transitions throughout the lifetime of the Query.
+        pub timestamps: QueryTimestamps,
+    }
+
+    impl Query {
+        pub fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
             }
         }
     }
