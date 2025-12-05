@@ -1,4 +1,9 @@
-use quent_events::{coordinator, engine, query};
+use quent_events::{
+    coordinator,
+    engine::{self, EngineImplementationAttributes},
+    query, worker,
+};
+use rand::{Rng, rng};
 use tracing::info;
 
 fn initialize_tracing() {
@@ -23,9 +28,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("context created, creating events...");
 
+    // Spawn engine
     let engine_obs = context.engine_observer();
+    engine_obs.init(
+        engine_id,
+        engine::Init {
+            name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
+            implementation: Some(EngineImplementationAttributes {
+                name: Some("Simulator".into()),
+                version: Some("0.0.0-PoC".into()),
+            }),
+        },
+    );
 
-    engine_obs.init(engine_id, engine::Init {});
+    // Spawn workers
+    let worker_obs = context.worker_observer();
+    let worker_ids = std::iter::repeat_with(|| uuid::Uuid::now_v7())
+        .take(4)
+        .collect::<Vec<_>>();
+    for (worker_index, worker_id) in worker_ids.iter().enumerate() {
+        worker_obs.init(
+            *worker_id,
+            worker::Init {
+                engine_id,
+                name: Some(format!("worker-{worker_index}")),
+            },
+        );
+    }
+    for worker_id in worker_ids.iter() {
+        worker_obs.operating(*worker_id, worker::Operating {});
+    }
+
     engine_obs.operating(engine_id, engine::Operating {});
 
     let coordinator_futures: Vec<_> = std::iter::repeat_with(|| uuid::Uuid::now_v7())
@@ -36,7 +69,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let coordinator_obs = context.coordinator_observer();
                 let query_obs = context.query_observer();
                 move || {
-                    coordinator_obs.init(coordinator_id, coordinator::Init { engine_id });
+                    coordinator_obs.init(
+                        coordinator_id,
+                        coordinator::Init {
+                            engine_id,
+                            name: Some(format!("coordinator-{:04x}", rng().random::<u32>())),
+                        },
+                    );
                     coordinator_obs.operating(coordinator_id, coordinator::Operating {});
 
                     let query_futures: Vec<_> = std::iter::repeat_with(|| uuid::Uuid::now_v7())
@@ -45,7 +84,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             std::thread::spawn({
                                 let query_obs = query_obs.clone();
                                 move || {
-                                    query_obs.init(query_id, query::Init { coordinator_id });
+                                    query_obs.init(
+                                        query_id,
+                                        query::Init {
+                                            coordinator_id,
+                                            name: Some(format!("query-{}", rng().random::<u32>())),
+                                        },
+                                    );
                                     query_obs.planning(query_id, query::Planning {});
                                     query_obs.executing(query_id, query::Executing {});
                                     query_obs.idle(query_id, query::Idle {});
@@ -72,6 +117,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     engine_obs.finalizing(engine_id, engine::Finalizing {});
+
+    // Shut down workers.
+    for worker_id in worker_ids.iter() {
+        worker_obs.finalizing(*worker_id, worker::Finalizing {});
+        worker_obs.exit(*worker_id, worker::Exit {});
+    }
+
     engine_obs.exit(engine_id, engine::Exit {});
 
     info!("events pushed, waiting 1s to flush (for now :tm:)");

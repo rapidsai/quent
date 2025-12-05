@@ -3,6 +3,9 @@ import type { CoordinatorTimestamps } from "./CoordinatorTimestamps";
 
 /**
  * A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
+ *
+ * For example, a session in a long-lived multi-user engine could be modeled as a Coordinator.
+ * TODO(johanpel): perhaps this isn't a great name for this concept, consider naming this something else.
  */
 export type Coordinator = { 
 /**
@@ -16,4 +19,8 @@ engine_id: string,
 /**
  * Timestamps of state transitions throughout the lifetime of the Coordinator.
  */
-timestamps: CoordinatorTimestamps, };
+timestamps: CoordinatorTimestamps, 
+/**
+ * A name for this Coordinator instance
+ */
+name: string | null, };
