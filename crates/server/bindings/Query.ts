@@ -16,4 +16,8 @@ coordinator_id: string,
 /**
  * Timestamps of state transitions throughout the lifetime of the Query.
  */
-timestamps: QueryTimestamps, };
+timestamps: QueryTimestamps, 
+/**
+ * A name for this Query instance
+ */
+name: string | null, };

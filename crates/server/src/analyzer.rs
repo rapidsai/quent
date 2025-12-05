@@ -1,6 +1,6 @@
 use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
 use quent_analyzer::Analyzer;
-use quent_entities::{coordinator::Coordinator, engine::Engine, query::Query};
+use quent_entities::{coordinator::Coordinator, engine::Engine, query::Query, worker::Worker};
 use quent_exporter_ndjson::NdjsonImporter;
 use tracing::error;
 use uuid::Uuid;
@@ -57,6 +57,27 @@ async fn engine(Path(engine_id): Path<Uuid>) -> Result<Json<Engine>, StatusCode>
 
 // TODO(johanpel): pagination
 #[tracing::instrument]
+async fn list_workers(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, StatusCode> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let analyzer =
+        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(analyzer.worker_ids()))
+}
+
+#[tracing::instrument]
+async fn worker(
+    Path((engine_id, worker_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Option<Worker>>, StatusCode> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let analyzer =
+        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(analyzer.worker(worker_id).cloned()))
+}
+
+// TODO(johanpel): pagination
+#[tracing::instrument]
 async fn list_coordinators(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, StatusCode> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -104,6 +125,8 @@ pub fn routes() -> Router<()> {
     Router::new()
         .route("/list_engines", get(list_engines))
         .route("/engine/{engine_id}", get(engine))
+        .route("/engine/{engine_id}/list_workers", get(list_workers))
+        .route("/engine/{engine_id}/worker/{worker_id}", get(worker))
         .route(
             "/engine/{engine_id}/list_coordinators",
             get(list_coordinators),

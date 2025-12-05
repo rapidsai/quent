@@ -1,6 +1,7 @@
 //! Type definitions of entity events.
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 pub type Timestamp = u64;
@@ -39,16 +40,29 @@ impl<T> Event<T> {
 pub mod engine {
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Init {}
+    /// Attributes describing details about the implementation of this Engine
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct EngineImplementationAttributes {
+        /// The name of this Engine implementation, e.g. "SiriusDB", "Velox", "DataFusion", etc.
+        pub name: Option<String>,
+        /// The version of this Engine implementation, e.g. "13.3.7"
+        pub version: Option<String>,
+        // TODO(johanpel): much more
+    }
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Init {
+        pub implementation: Option<EngineImplementationAttributes>,
+        pub name: Option<String>,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Operating {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Exit {}
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -63,15 +77,16 @@ pub mod engine {
 pub mod coordinator {
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Init {
         pub engine_id: Uuid,
+        pub name: Option<String>,
     }
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Operating {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -86,27 +101,55 @@ pub mod coordinator {
     }
 }
 
-pub mod query {
+pub mod worker {
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Init {
-        pub coordinator_id: Uuid,
+        pub engine_id: Uuid,
+        pub name: Option<String>,
     }
 
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Planning {}
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Operating {}
 
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Executing {}
-
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Idle {}
-
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}
 
     #[derive(Debug, Deserialize, Serialize)]
+    pub struct Exit {}
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum WorkerEvent {
+        Init(Init),
+        Operating(Operating),
+        Finalizing(Finalizing),
+        Exit(Exit),
+    }
+}
+
+pub mod query {
+    use super::*;
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Init {
+        pub coordinator_id: Uuid,
+        pub name: Option<String>,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Planning {}
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Executing {}
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Idle {}
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct Finalizing {}
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Exit {}
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -191,6 +234,7 @@ pub mod operator {
 pub enum EventData {
     Engine(engine::EngineEvent),
     Coordinator(coordinator::CoordinatorEvent),
+    Worker(worker::WorkerEvent),
     Query(query::QueryEvent),
     Plan(plan::PlanEvent),
     Operator(operator::OperatorEvent),
@@ -204,6 +248,11 @@ impl From<engine::EngineEvent> for EventData {
 impl From<coordinator::CoordinatorEvent> for EventData {
     fn from(value: coordinator::CoordinatorEvent) -> Self {
         Self::Coordinator(value)
+    }
+}
+impl From<worker::WorkerEvent> for EventData {
+    fn from(value: worker::WorkerEvent) -> Self {
+        Self::Worker(value)
     }
 }
 impl From<query::QueryEvent> for EventData {

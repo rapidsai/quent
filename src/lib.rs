@@ -2,7 +2,7 @@
 //!
 use std::sync::Arc;
 
-use quent_events::{Event, EventData, coordinator, engine, query};
+use quent_events::{Event, EventData, coordinator, engine, query, worker};
 use quent_exporter::Exporter;
 use quent_exporter_collector::CollectorExporter;
 use tokio::runtime::{Handle, Runtime};
@@ -71,6 +71,11 @@ impl Context {
     }
     pub fn coordinator_observer(&self) -> CoordinatorObserver {
         CoordinatorObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn worker_observer(&self) -> WorkerObserver {
+        WorkerObserver {
             tx: self.events_sender.clone(),
         }
     }
@@ -153,6 +158,41 @@ impl CoordinatorObserver {
         push_event(
             &self.tx,
             Event::new(id, coordinator::CoordinatorEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct WorkerObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+
+impl WorkerObserver {
+    pub fn init(&self, id: Uuid, init: worker::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, worker::WorkerEvent::Init(init).into()),
+        )
+    }
+
+    pub fn operating(&self, id: Uuid, operating: worker::Operating) {
+        push_event(
+            &self.tx,
+            Event::new(id, worker::WorkerEvent::Operating(operating).into()),
+        )
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: worker::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(id, worker::WorkerEvent::Finalizing(finalizing).into()),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: worker::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, worker::WorkerEvent::Exit(exit).into()),
         )
     }
 }
