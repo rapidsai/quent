@@ -6,9 +6,13 @@ import type { QueryTimestamps } from "./QueryTimestamps";
  */
 export type Query = { 
 /**
- * The ID of this Coordinator
+ * The ID of this Query
  */
 id: string, 
+/**
+ * The ID of the Coordinator orchestrating this query
+ */
+coordinator_id: string, 
 /**
  * Timestamps of state transitions throughout the lifetime of the Query.
  */

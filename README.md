@@ -90,7 +90,7 @@ docker compose up
 1. Use the server, e.g.:
 
 ```bash
-curl http://localhost:8080/analyzer/engine/list -H "Accept: application/json"
+curl http://localhost:8080/analyzer/list_engines -H "Accept: application/json"
 ```
 
 This should return a list of valid engine UUIDs:
@@ -138,22 +138,36 @@ For now, these are checked in to the repository under [this folder](crates/serve
 After obtaining an engine ID, like so:
 
 ```text
-curl http://localhost:8080/analyzer/engine/list -H "Accept: application/json"
-["019ae97c-6874-7a40-b6f7-c42d21bb8372","019ae957-6af3-71a3-b7a9-5b351a83a2b1","019ae95f-2240-7583-8965-53e9625b58e6","019ae99d-a054-7bf2-bf1d-6123b57b84c4","019ae95a-25e8-73a0-ba65-1606afbbb2bf"]%
+curl http://localhost:8080/analyzer/list_engines -H "Accept: application/json"
+["019aee29-42a6-79b3-be5f-903f041b4e95"]%
 ```
 
 one may hit the endpoint providing high-level information about an engine:
 
 ```text
-curl http://localhost:8080/analyzer/engine/019ae97c-6874-7a40-b6f7-c42d21bb8372 -H "Accept: application/json"
-{"id":"019ae97c-6874-7a40-b6f7-c42d21bb8372","init":1764853835895938512,"operating":1764853835895938762,"finalizing":1764853835896768761,"exit":1764853835896769345}%
+curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95 -H "Accept: application/json"
+{"id":"019aee29-42a6-79b3-be5f-903f041b4e95","timestamps":{"init":1764932277849433000,"operating":1764932277849439000,"finalizing":1764932277850016000,"exit":1764932277850022000}}%
 ```
 
 and then continue down to find all coordinators of said engine:
 
 ```text
-curl http://localhost:8080/analyzer/engine/019ae97c-6874-7a40-b6f7-c42d21bb8372/coordinator/list -H "Accept: application/json"
-["019aea29-c371-7d62-a168-b46a4e3b6204","019aea29-c371-7d62-a168-b4533ade4f4b"]%
+curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/list_coordinators -H "Accept: application/json"
+["019aee29-5659-7f81-80e9-924b55dd3756","019aee29-5659-7f81-80e9-925e254fb669"]%
+```
+
+and then continue down to find all queries of said engine:
+
+```text
+curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/coordinator/019aee29-5659-7f81-80e9-924b55dd3756/list_queries -H "Accept: application/json"
+["019aee29-5659-7f81-80e9-924b55dd3756","019aee29-5659-7f81-80e9-925e254fb669"]%
+```
+
+and finally arrive at a query:
+
+```text
+curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/query/019aee29-5659-7f81-80e9-9271ce782180 -H "Accept: application/json"
+{"id":"019aee29-5659-7f81-80e9-9271ce782180","coordinator_id":"019aee29-5659-7f81-80e9-924b55dd3756","timestamps":{"init":1764932277849695000,"planning":1764932277849696000,"executing":1764932277849697000,"idle":1764932277849697000,"finalizing":1764932277849697000,"exit":1764932277849697000}}%
 ```
 
 ... and so forth.
