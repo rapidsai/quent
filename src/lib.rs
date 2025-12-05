@@ -87,37 +87,31 @@ pub struct EngineObserver {
 }
 
 impl EngineObserver {
-    pub fn init(&self, id: Uuid) {
+    pub fn init(&self, id: Uuid, init: engine::Init) {
         push_event(
             &self.tx,
-            Event::new(id, engine::EngineEvent::Init(engine::Init {}).into()),
+            Event::new(id, engine::EngineEvent::Init(init).into()),
         )
     }
 
-    pub fn operating(&self, id: Uuid) {
+    pub fn operating(&self, id: Uuid, operating: engine::Operating) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                engine::EngineEvent::Operating(engine::Operating {}).into(),
-            ),
+            Event::new(id, engine::EngineEvent::Operating(operating).into()),
         )
     }
 
-    pub fn finalizing(&self, id: Uuid) {
+    pub fn finalizing(&self, id: Uuid, finalizing: engine::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                engine::EngineEvent::Finalizing(engine::Finalizing {}).into(),
-            ),
+            Event::new(id, engine::EngineEvent::Finalizing(finalizing).into()),
         )
     }
 
-    pub fn exit(&self, id: Uuid) {
+    pub fn exit(&self, id: Uuid, exit: engine::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, engine::EngineEvent::Exit(engine::Exit {}).into()),
+            Event::new(id, engine::EngineEvent::Exit(exit).into()),
         )
     }
 }
@@ -128,43 +122,37 @@ pub struct CoordinatorObserver {
 }
 
 impl CoordinatorObserver {
-    pub fn init(&self, id: Uuid, engine_id: Uuid) {
+    pub fn init(&self, id: Uuid, init: coordinator::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, coordinator::CoordinatorEvent::Init(init).into()),
+        )
+    }
+
+    pub fn operating(&self, id: Uuid, operating: coordinator::Operating) {
         push_event(
             &self.tx,
             Event::new(
                 id,
-                coordinator::CoordinatorEvent::Init(coordinator::Init { engine_id }).into(),
+                coordinator::CoordinatorEvent::Operating(operating).into(),
             ),
         )
     }
 
-    pub fn operating(&self, id: Uuid) {
+    pub fn finalizing(&self, id: Uuid, finalizing: coordinator::Finalizing) {
         push_event(
             &self.tx,
             Event::new(
                 id,
-                coordinator::CoordinatorEvent::Operating(coordinator::Operating {}).into(),
+                coordinator::CoordinatorEvent::Finalizing(finalizing).into(),
             ),
         )
     }
 
-    pub fn finalizing(&self, id: Uuid) {
+    pub fn exit(&self, id: Uuid, exit: coordinator::Exit) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                coordinator::CoordinatorEvent::Finalizing(coordinator::Finalizing {}).into(),
-            ),
-        )
-    }
-
-    pub fn exit(&self, id: Uuid) {
-        push_event(
-            &self.tx,
-            Event::new(
-                id,
-                coordinator::CoordinatorEvent::Exit(coordinator::Exit {}).into(),
-            ),
+            Event::new(id, coordinator::CoordinatorEvent::Exit(exit).into()),
         )
     }
 }
@@ -175,51 +163,45 @@ pub struct QueryObserver {
 }
 
 impl QueryObserver {
-    pub fn init(&self, id: Uuid, coordinator_id: Uuid) {
+    pub fn init(&self, id: Uuid, init: query::Init) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                query::QueryEvent::Init(query::Init { coordinator_id }).into(),
-            ),
+            Event::new(id, query::QueryEvent::Init(init).into()),
         )
     }
 
-    pub fn planning(&self, id: Uuid) {
+    pub fn planning(&self, id: Uuid, planning: query::Planning) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Planning(query::Planning {}).into()),
+            Event::new(id, query::QueryEvent::Planning(planning).into()),
         )
     }
 
-    pub fn executing(&self, id: Uuid) {
+    pub fn executing(&self, id: Uuid, executing: query::Executing) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Executing(query::Executing {}).into()),
+            Event::new(id, query::QueryEvent::Executing(executing).into()),
         );
     }
 
-    pub fn idle(&self, id: Uuid) {
+    pub fn idle(&self, id: Uuid, idle: query::Idle) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Idle(query::Idle {}).into()),
+            Event::new(id, query::QueryEvent::Idle(idle).into()),
         );
     }
 
-    pub fn finalizing(&self, id: Uuid) {
+    pub fn finalizing(&self, id: Uuid, finalizing: query::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                query::QueryEvent::Finalizing(query::Finalizing {}).into(),
-            ),
+            Event::new(id, query::QueryEvent::Finalizing(finalizing).into()),
         )
     }
 
-    pub fn exit(&self, id: Uuid) {
+    pub fn exit(&self, id: Uuid, exit: query::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Exit(query::Exit {}).into()),
+            Event::new(id, query::QueryEvent::Exit(exit).into()),
         )
     }
 }
