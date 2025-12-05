@@ -11,7 +11,7 @@ pub mod engine {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of an Engine.
-    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct EngineTimestamps {
         /// The time at which the Engine started initialization.
         pub init: Option<Timestamp>,
@@ -26,7 +26,7 @@ pub mod engine {
     /// An Engine represents the top-level entity of the model.
     ///
     /// Engines accept Queries that they pass to Coordinators which in turn orchestrate their execution.
-    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Engine {
         /// The ID of this Engine
         pub id: Uuid,
@@ -48,7 +48,7 @@ pub mod coordinator {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Coordinator.
-    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct CoordinatorTimestamps {
         /// The time at which the Coordinator started initialization.
         pub init: Option<Timestamp>,
@@ -61,7 +61,7 @@ pub mod coordinator {
     }
 
     /// A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
-    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Coordinator {
         /// The ID of this Coordinator
         pub id: Uuid,
@@ -85,7 +85,7 @@ pub mod query {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
-    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct QueryTimestamps {
         /// The time at which the Query started initialization.
         pub init: Option<Timestamp>,
@@ -94,6 +94,10 @@ pub mod query {
         /// The time at which the Query started executing.
         pub executing: Option<Timestamp>,
         /// The time at which the Query was idle.
+        ///
+        /// In this state, the Query has been processed, but it still potentially occupies
+        /// resources of the engine to hold a result which is yet to be delivered to the query
+        /// client.
         pub idle: Option<Timestamp>,
         /// The time at which the Query started shutting down and cleaning up its resources.
         pub finalizing: Option<Timestamp>,
@@ -102,10 +106,12 @@ pub mod query {
     }
 
     /// A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
-    #[derive(TS, Clone, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Query {
-        /// The ID of this Coordinator
+        /// The ID of this Query
         pub id: Uuid,
+        /// The ID of the Coordinator orchestrating this query
+        pub coordinator_id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the Query.
         pub timestamps: QueryTimestamps,
     }

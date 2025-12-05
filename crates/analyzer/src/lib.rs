@@ -2,8 +2,11 @@
 
 use std::collections::HashMap;
 
-use quent_entities::{coordinator::Coordinator, engine::Engine};
-use quent_events::{Event as RawEvent, EventData, engine::EngineEvent};
+use quent_entities::{coordinator::Coordinator, engine::Engine, query::Query};
+use quent_events::{
+    Event as RawEvent, EventData, coordinator::CoordinatorEvent, engine::EngineEvent,
+    query::QueryEvent,
+};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -21,6 +24,15 @@ pub type Event = RawEvent<EventData>;
 pub struct Analyzer {
     engine: Engine,
     coordinators: HashMap<Uuid, Coordinator>,
+    queries: HashMap<Uuid, Query>,
+}
+
+// Just a slightly shorter way to get entry or insert default
+fn entry<T>(map: &mut HashMap<Uuid, T>, id: Uuid) -> &mut T
+where
+    T: Default,
+{
+    map.entry(id).or_default()
 }
 
 impl Analyzer {
@@ -30,6 +42,7 @@ impl Analyzer {
         //                 to make it work. This is known to get pretty intense.
         let mut engine = Engine::new(engine_id);
         let mut coordinators: HashMap<Uuid, Coordinator> = HashMap::new();
+        let mut queries: HashMap<Uuid, Query> = HashMap::new();
 
         events.try_for_each(|event| {
             let event: Event = event;
@@ -43,30 +56,34 @@ impl Analyzer {
                     EngineEvent::Finalizing(_) => engine.timestamps.finalizing = Some(ts),
                     EngineEvent::Exit(_) => engine.timestamps.exit = Some(ts),
                 },
-                EventData::Coordinator(coordinator_event) => match coordinator_event {
-                    quent_events::coordinator::CoordinatorEvent::Init(init) => {
-                        let entry = coordinators.entry(event.id).or_default();
-                        entry.engine_id = init.engine_id;
-                        entry.timestamps.init = Some(ts);
+                EventData::Coordinator(coordinator_event) => {
+                    let entry = entry(&mut coordinators, event.id);
+                    match coordinator_event {
+                        CoordinatorEvent::Init(init) => {
+                            entry.id = event.id;
+                            entry.engine_id = init.engine_id;
+                            entry.timestamps.init = Some(ts);
+                        }
+                        CoordinatorEvent::Operating(_) => entry.timestamps.operating = Some(ts),
+                        CoordinatorEvent::Finalizing(_) => entry.timestamps.finalizing = Some(ts),
+                        CoordinatorEvent::Exit(_) => entry.timestamps.exit = Some(ts),
                     }
-                    quent_events::coordinator::CoordinatorEvent::Operating(_) => {
-                        coordinators
-                            .entry(event.id)
-                            .or_default()
-                            .timestamps
-                            .operating = Some(ts)
+                }
+                EventData::Query(query_event) => {
+                    let entry = entry(&mut queries, event.id);
+                    match query_event {
+                        QueryEvent::Init(init) => {
+                            entry.id = event.id;
+                            entry.coordinator_id = init.coordinator_id;
+                            entry.timestamps.init = Some(ts);
+                        }
+                        QueryEvent::Planning(_) => entry.timestamps.planning = Some(ts),
+                        QueryEvent::Executing(_) => entry.timestamps.executing = Some(ts),
+                        QueryEvent::Idle(_) => entry.timestamps.idle = Some(ts),
+                        QueryEvent::Finalizing(_) => entry.timestamps.finalizing = Some(ts),
+                        QueryEvent::Exit(_) => entry.timestamps.exit = Some(ts),
                     }
-                    quent_events::coordinator::CoordinatorEvent::Finalizing(_) => {
-                        coordinators
-                            .entry(event.id)
-                            .or_default()
-                            .timestamps
-                            .finalizing = Some(ts)
-                    }
-                    quent_events::coordinator::CoordinatorEvent::Exit(_) => {
-                        coordinators.entry(event.id).or_default().timestamps.exit = Some(ts)
-                    }
-                },
+                }
                 x => warn!("analysis of event type not implemented: {x:?}"),
             }
             Ok(())
@@ -78,10 +95,20 @@ impl Analyzer {
                 coordinators.remove(&key);
             }
         }
+        for key in queries.keys().cloned().collect::<Vec<_>>() {
+            if !coordinators.contains_key(&queries.get(&key).unwrap().coordinator_id) {
+                queries.remove(&key);
+            }
+        }
+
+        dbg!(&engine);
+        dbg!(&coordinators);
+        dbg!(&queries);
 
         Ok(Self {
             engine,
             coordinators,
+            queries,
         })
     }
 
@@ -94,5 +121,21 @@ impl Analyzer {
     //                 which case we may want to implement pagination for this.
     pub fn coordinator_ids(&self) -> Vec<Uuid> {
         self.coordinators.keys().cloned().collect()
+    }
+
+    pub fn coordinator(&self, id: Uuid) -> Option<&Coordinator> {
+        self.coordinators.get(&id)
+    }
+
+    // TODO(johanpel): pagination
+    pub fn query_ids(&self, coordinator_id: Uuid) -> Vec<Uuid> {
+        self.queries
+            .iter()
+            .filter_map(|(k, v)| (v.coordinator_id == coordinator_id).then_some(*k))
+            .collect()
+    }
+
+    pub fn query(&self, id: Uuid) -> Option<&Query> {
+        self.queries.get(&id)
     }
 }

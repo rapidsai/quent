@@ -18,6 +18,10 @@ planning: bigint | null,
 executing: bigint | null, 
 /**
  * The time at which the Query was idle.
+ *
+ * In this state, the Query has been processed, but it still potentially occupies
+ * resources of the engine to hold a result which is yet to be delivered to the query
+ * client.
  */
 idle: bigint | null, 
 /**
