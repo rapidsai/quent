@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 
-use quent_entities::{coordinator::Coordinator, engine::Engine, query::Query};
+use quent_entities::{coordinator::Coordinator, engine::Engine, query::Query, worker::Worker};
 use quent_events::{
     Event as RawEvent, EventData, coordinator::CoordinatorEvent, engine::EngineEvent,
-    query::QueryEvent,
+    query::QueryEvent, worker::WorkerEvent,
 };
 use tracing::warn;
 use uuid::Uuid;
@@ -23,6 +23,7 @@ pub type Event = RawEvent<EventData>;
 // TODO(johanpel): make it fast
 pub struct Analyzer {
     engine: Engine,
+    workers: HashMap<Uuid, Worker>,
     coordinators: HashMap<Uuid, Coordinator>,
     queries: HashMap<Uuid, Query>,
 }
@@ -42,6 +43,7 @@ impl Analyzer {
         //                 to make it work. This is known to get pretty intense.
         let mut engine = Engine::new(engine_id);
         let mut coordinators: HashMap<Uuid, Coordinator> = HashMap::new();
+        let mut workers: HashMap<Uuid, Worker> = HashMap::new();
         let mut queries: HashMap<Uuid, Query> = HashMap::new();
 
         events.try_for_each(|event| {
@@ -51,7 +53,11 @@ impl Analyzer {
             match event.data {
                 // TODO(johanpel): validation logic
                 EventData::Engine(engine_event) => match engine_event {
-                    EngineEvent::Init(_) => engine.timestamps.init = Some(ts), // TODO(johanpel): validate engine id matches
+                    EngineEvent::Init(init) => {
+                        engine.name = init.name;
+                        engine.implementation = init.implementation;
+                        engine.timestamps.init = Some(ts); // TODO(johanpel): validate engine id matches
+                    }
                     EngineEvent::Operating(_) => engine.timestamps.operating = Some(ts),
                     EngineEvent::Finalizing(_) => engine.timestamps.finalizing = Some(ts),
                     EngineEvent::Exit(_) => engine.timestamps.exit = Some(ts),
@@ -61,12 +67,27 @@ impl Analyzer {
                     match coordinator_event {
                         CoordinatorEvent::Init(init) => {
                             entry.id = event.id;
+                            entry.name = init.name;
                             entry.engine_id = init.engine_id;
                             entry.timestamps.init = Some(ts);
                         }
                         CoordinatorEvent::Operating(_) => entry.timestamps.operating = Some(ts),
                         CoordinatorEvent::Finalizing(_) => entry.timestamps.finalizing = Some(ts),
                         CoordinatorEvent::Exit(_) => entry.timestamps.exit = Some(ts),
+                    }
+                }
+                EventData::Worker(worker_event) => {
+                    let entry = entry(&mut workers, event.id);
+                    match worker_event {
+                        WorkerEvent::Init(init) => {
+                            entry.id = event.id;
+                            entry.name = init.name;
+                            entry.engine_id = init.engine_id;
+                            entry.timestamps.init = Some(ts);
+                        }
+                        WorkerEvent::Operating(_) => entry.timestamps.operating = Some(ts),
+                        WorkerEvent::Finalizing(_) => entry.timestamps.finalizing = Some(ts),
+                        WorkerEvent::Exit(_) => entry.timestamps.exit = Some(ts),
                     }
                 }
                 EventData::Query(query_event) => {
@@ -95,19 +116,21 @@ impl Analyzer {
                 coordinators.remove(&key);
             }
         }
+        for key in workers.keys().cloned().collect::<Vec<_>>() {
+            if workers.get(&key).unwrap().engine_id != engine_id {
+                workers.remove(&key);
+            }
+        }
         for key in queries.keys().cloned().collect::<Vec<_>>() {
             if !coordinators.contains_key(&queries.get(&key).unwrap().coordinator_id) {
                 queries.remove(&key);
             }
         }
 
-        dbg!(&engine);
-        dbg!(&coordinators);
-        dbg!(&queries);
-
         Ok(Self {
             engine,
             coordinators,
+            workers,
             queries,
         })
     }
@@ -119,14 +142,19 @@ impl Analyzer {
     // TODO(johanpel): this is separated from an engine, since we assume engines can have
     //                 immense lifetimes so they could be running lots of coordinators, in
     //                 which case we may want to implement pagination for this.
+    pub fn worker_ids(&self) -> Vec<Uuid> {
+        self.workers.keys().cloned().collect()
+    }
+    pub fn worker(&self, id: Uuid) -> Option<&Worker> {
+        self.workers.get(&id)
+    }
+    // TODO(johanpel): pagination
     pub fn coordinator_ids(&self) -> Vec<Uuid> {
         self.coordinators.keys().cloned().collect()
     }
-
     pub fn coordinator(&self, id: Uuid) -> Option<&Coordinator> {
         self.coordinators.get(&id)
     }
-
     // TODO(johanpel): pagination
     pub fn query_ids(&self, coordinator_id: Uuid) -> Vec<Uuid> {
         self.queries
