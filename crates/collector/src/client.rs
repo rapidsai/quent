@@ -1,6 +1,6 @@
 //! A gRPC-base client that can send [`Event`]s to a collector.
 
-use std::{env, time::Duration};
+use std::time::Duration;
 
 use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 use quent_events::EventData;
@@ -36,11 +36,8 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new(engine_id: Uuid) -> Result<Client> {
-        let addr = env::var(crate::env::QUENT_COLLECTOR_ADDRESS)
-            .unwrap_or_else(|_| format!("http://[::]:{}", crate::default::QUENT_COLLECTOR_PORT));
-        debug!("connecting to {addr}");
-
+    pub async fn new(engine_id: Uuid, address: String) -> Result<Client> {
+        debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
         const MAX_RETRIES: usize = 42;
@@ -48,7 +45,7 @@ impl Client {
             "failed to connect after {MAX_RETRIES} attempts..."
         )));
         for retry in 1..MAX_RETRIES + 1 {
-            match CollectorClient::connect(addr.clone()).await {
+            match CollectorClient::connect(address.clone()).await {
                 Ok(c) => {
                     client = Ok(c);
                     break;
@@ -75,24 +72,22 @@ impl Client {
             // TODO: probably want to use recv_many + batch if gRPC doesnt do this already
             loop {
                 if let Some(event) = event_receiver.recv().await {
-                    let payload = serde_json::to_vec(&event);
-                    match payload {
-                        Ok(payload) => {
-                            let event = CollectEventRequest { payload };
-                            match grpc_sender.send(event).await {
-                                Ok(_) => {
-                                    // succesfully sent event
-                                }
-                                Err(_item) => {
-                                    error!("server disconnected");
-                                    break;
-                                }
-                            }
+                    let mut payload: Vec<u8> = Vec::with_capacity(4096);
+                    if let Err(e) = ciborium::into_writer(&event, &mut payload) {
+                        error!("unable to serialize event: {e}");
+                        continue;
+                    }
+
+                    let event = CollectEventRequest { payload };
+                    match grpc_sender.send(event).await {
+                        Ok(_) => {
+                            // succesfully sent event
                         }
-                        Err(e) => {
-                            error!("error serializing: {e}")
+                        Err(_item) => {
+                            error!("server disconnected");
+                            break;
                         }
-                    };
+                    }
                 } else {
                     info!("client shutting down");
                     break;

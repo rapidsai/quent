@@ -2,21 +2,24 @@
 
 use std::collections::HashMap;
 
-use quent_entities::{coordinator::Coordinator, engine::Engine, query::Query, worker::Worker};
+use quent_entities::{
+    coordinator::Coordinator,
+    engine::Engine,
+    operator::{Operator, OperatorState, Port, WaitingForInputs},
+    plan::{self, Plan},
+    query::Query,
+    worker::Worker,
+};
 use quent_events::{
     Event as RawEvent, EventData, coordinator::CoordinatorEvent, engine::EngineEvent,
-    query::QueryEvent, worker::WorkerEvent,
+    operator::OperatorEvent, query::QueryEvent, worker::WorkerEvent,
 };
-use tracing::warn;
+use tracing::trace;
 use uuid::Uuid;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("validation error: {0}")]
-    Validation(String),
-}
+pub mod error;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, error::Error>;
 
 pub type Event = RawEvent<EventData>;
 
@@ -45,6 +48,8 @@ impl Analyzer {
         let mut coordinators: HashMap<Uuid, Coordinator> = HashMap::new();
         let mut workers: HashMap<Uuid, Worker> = HashMap::new();
         let mut queries: HashMap<Uuid, Query> = HashMap::new();
+        let mut plans: HashMap<Uuid, Plan> = HashMap::new();
+        let mut operators: HashMap<Uuid, Operator> = HashMap::new();
 
         events.try_for_each(|event| {
             let event: Event = event;
@@ -56,7 +61,7 @@ impl Analyzer {
                     EngineEvent::Init(init) => {
                         engine.name = init.name;
                         engine.implementation = init.implementation;
-                        engine.timestamps.init = Some(ts); // TODO(johanpel): validate engine id matches
+                        engine.timestamps.init = Some(ts);
                     }
                     EngineEvent::Operating(_) => engine.timestamps.operating = Some(ts),
                     EngineEvent::Finalizing(_) => engine.timestamps.finalizing = Some(ts),
@@ -105,7 +110,77 @@ impl Analyzer {
                         QueryEvent::Exit(_) => entry.timestamps.exit = Some(ts),
                     }
                 }
-                x => warn!("analysis of event type not implemented: {x:?}"),
+                EventData::Plan(plan_event) => {
+                    let entry = entry(&mut plans, event.id);
+                    match plan_event {
+                        quent_events::plan::PlanEvent::Init(init) => {
+                            // TODO(johanpel): validate edges have ids of existing operator ports.
+                            entry.id = event.id;
+                            entry.query_id = init.query_id;
+                            entry.edges = init
+                                .edges
+                                .into_iter()
+                                .map(|(source, target)| plan::Edge { source, target })
+                                .collect();
+                            entry.timestamps.init = Some(event.timestamp);
+                        }
+                        quent_events::plan::PlanEvent::Executing(_) => {
+                            entry.timestamps.executing = Some(event.timestamp)
+                        }
+                        quent_events::plan::PlanEvent::Idle(_) => {
+                            entry.timestamps.idle = Some(event.timestamp)
+                        }
+                        quent_events::plan::PlanEvent::Finalizing(_) => {
+                            entry.timestamps.finalizing = Some(event.timestamp)
+                        }
+                        quent_events::plan::PlanEvent::Exit(_) => {
+                            entry.timestamps.exit = Some(event.timestamp)
+                        }
+                    }
+                }
+                EventData::Operator(operator_event) => {
+                    let entry = entry(&mut operators, event.id);
+                    // TODO(johanpel): sequence numbers
+                    match operator_event {
+                        OperatorEvent::Init(init) => {
+                            entry.id = event.id;
+                            entry.name = init.name;
+                            entry.plan_id = init.plan_id;
+                            entry
+                                .state_sequence
+                                .push(OperatorState::Init(event.timestamp));
+                            entry.ports = init
+                                .ports
+                                .into_iter()
+                                .map(|ep| Port {
+                                    id: ep.id,
+                                    is_input: ep.is_input,
+                                    name: ep.name,
+                                })
+                                .collect();
+                        }
+                        OperatorEvent::WaitingForInputs(_) => {
+                            entry.state_sequence.push(OperatorState::WaitingForInputs(
+                                WaitingForInputs {
+                                    timestamp: event.timestamp,
+                                    ports: vec![], // TODO(johanpel)
+                                },
+                            ));
+                        }
+                        OperatorEvent::Executing(_) => entry
+                            .state_sequence
+                            .push(OperatorState::Executing(event.timestamp)),
+                        OperatorEvent::Blocked(_) => entry
+                            .state_sequence
+                            .push(OperatorState::Blocked(event.timestamp)),
+                        OperatorEvent::Finalizing(_) => entry
+                            .state_sequence
+                            .push(OperatorState::Finalizing(event.timestamp)),
+                        OperatorEvent::Exit(_) => entry
+                            .state_sequence
+                            .push(OperatorState::Exit(event.timestamp)),
+                    }
+                }
             }
             Ok(())
         })?;
@@ -124,6 +199,25 @@ impl Analyzer {
         for key in queries.keys().cloned().collect::<Vec<_>>() {
             if !coordinators.contains_key(&queries.get(&key).unwrap().coordinator_id) {
                 queries.remove(&key);
+            }
+        }
+        for key in operators.keys().cloned().collect::<Vec<_>>() {
+            let op = operators.get_mut(&key).unwrap();
+            if let Some(plan) = plans.get_mut(&op.plan_id) {
+                trace!("plan {} -> operator {}", plan.id, op.id);
+                op.state_sequence.sort_by_key(|a| a.timestamp());
+                plan.operators.push(op.clone());
+            } else {
+                operators.remove(&key);
+            }
+        }
+        for key in plans.keys().cloned().collect::<Vec<_>>() {
+            let plan = plans.get_mut(&key).unwrap();
+            if let Some(query) = queries.get_mut(&plan.query_id) {
+                trace!("query {} <- plan {}", query.id, plan.id);
+                query.plans.push(plan.clone());
+            } else {
+                plans.remove(&key);
             }
         }
 
