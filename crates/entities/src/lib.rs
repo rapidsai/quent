@@ -1,11 +1,9 @@
 //! Type definitions for entities of the model.
-
 use quent_events::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-// n.b. top level options represent missing telemetry
 // TODO(johanpel): figure out if we can stop being so verbose in prefixing type names with their
 //                 namespace. This appears a limitation of ts_rs where you can't have two types
 //                 of the same name in a different namespace.
@@ -175,8 +173,10 @@ pub mod query {
         pub coordinator_id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the Query.
         pub timestamps: QueryTimestamps,
-        /// A name for this Query instance
+        /// A name for this Query.
         pub name: Option<String>,
+        /// The plans of this Query.
+        pub plans: Vec<plan::Plan>,
     }
 
     impl Query {
@@ -186,5 +186,109 @@ pub mod query {
                 ..Default::default()
             }
         }
+    }
+}
+
+pub mod operator {
+    use super::*;
+
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    pub struct WaitingForInputs {
+        pub timestamp: Timestamp,
+        pub ports: Vec<Uuid>,
+    }
+
+    /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    pub enum OperatorState {
+        Init(Timestamp),
+        /// The Operator is waiting for inputs.
+        WaitingForInputs(WaitingForInputs),
+        Executing(Timestamp),
+        Blocked(Timestamp),
+        Finalizing(Timestamp),
+        Exit(Timestamp),
+    }
+
+    impl OperatorState {
+        pub fn timestamp(&self) -> Timestamp {
+            match self {
+                OperatorState::Init(ts) => *ts,
+                OperatorState::WaitingForInputs(waiting_for_inputs) => waiting_for_inputs.timestamp,
+                OperatorState::Executing(ts) => *ts,
+                OperatorState::Blocked(ts) => *ts,
+                OperatorState::Finalizing(ts) => *ts,
+                OperatorState::Exit(ts) => *ts,
+            }
+        }
+    }
+
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    pub struct Port {
+        pub id: Uuid,
+        pub is_input: bool,
+        pub name: Option<String>,
+    }
+
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct Operator {
+        pub id: Uuid,
+        pub plan_id: Uuid,
+        pub name: Option<String>,
+        pub ports: Vec<Port>,
+        pub state_sequence: Vec<OperatorState>,
+    }
+}
+
+pub mod plan {
+    use super::*;
+
+    /// A Plan edge.
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct Edge {
+        /// The source port id.
+        pub source: Uuid,
+        /// The target port id.
+        pub target: Uuid,
+    }
+
+    /// Timestamps of plan state transitions.
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct PlanTimestamps {
+        /// The time at which the Plan started initialization.
+        pub init: Option<Timestamp>,
+        /// The time at which the Plan started execution.
+        pub executing: Option<Timestamp>,
+        /// The time at which Plan execution was completed.
+        pub idle: Option<Timestamp>,
+        /// The time at which the Plan started cleaning up its resources.
+        pub finalizing: Option<Timestamp>,
+        /// The time at which the Worker was completely destructed and all resources
+        /// were freed.
+        pub exit: Option<Timestamp>,
+    }
+
+    /// A Query Plan.
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct Plan {
+        /// The ID of this Query Plan.
+        pub id: Uuid,
+        /// The ID of the Query this Plan is part of.
+        pub query_id: Uuid,
+        /// The timestamps of various state transitions during the lifetime of this plan.
+        pub timestamps: PlanTimestamps,
+        /// The optional parent Plan ID. This is useful if an Engine constructs various
+        /// types of Plans before execution, sometimes referred to as "lowering".
+        /// Examples include a logical and physical plan.
+        pub parent_id: Option<Uuid>,
+        /// The optional Worker ID of the Worker that executed this Plan.
+        ///
+        /// If this Plan was not directly executed on a worker, but merely some level
+        /// plan in a sequence of lowering stages, then this may be  set to None.
+        pub worker_id: Option<Uuid>,
+        /// The Operators of this Plan.
+        pub operators: Vec<operator::Operator>,
+        /// The Edges of this Plan.
+        pub edges: Vec<Edge>,
     }
 }

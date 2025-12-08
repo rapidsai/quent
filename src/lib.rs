@@ -2,9 +2,10 @@
 //!
 use std::sync::Arc;
 
-use quent_events::{Event, EventData, coordinator, engine, query, worker};
+use quent_events::{Event, EventData, coordinator, engine, operator, plan, query, worker};
 use quent_exporter::Exporter;
-use quent_exporter_collector::CollectorExporter;
+use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
+use quent_exporter_ndjson::NdjsonExporter;
 use tokio::runtime::{Handle, Runtime};
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -19,6 +20,11 @@ fn push_event(
     }
 }
 
+pub enum ExporterOptions {
+    Collector(CollectorExporterOptions),
+    Ndjson,
+}
+
 pub struct Context {
     _runtime: Option<tokio::runtime::Runtime>,
     events_sender: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
@@ -26,7 +32,10 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn try_new(engine_id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(
+        exporter: ExporterOptions,
+        engine_id: Uuid,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let (runtime, handle) = if let Ok(handle) = Handle::try_current() {
             debug!("using existing async runtime");
             (None, handle)
@@ -42,11 +51,18 @@ impl Context {
 
         let (events_sender, mut events_receiver) = tokio::sync::mpsc::unbounded_channel();
 
-        debug!("spawning collector exporter");
-        let exporter = Arc::new(handle.block_on(CollectorExporter::new(engine_id))?);
+        debug!("constructing exporter");
+        let exporter: Arc<dyn Exporter> = match exporter {
+            ExporterOptions::Collector(opts) => {
+                Arc::new(handle.block_on(CollectorExporter::new(engine_id, opts))?)
+            }
+            ExporterOptions::Ndjson => {
+                Arc::new(handle.block_on(NdjsonExporter::try_new(engine_id))?)
+            }
+        };
 
         handle.spawn({
-            let exporter = Arc::clone(&exporter);
+            let exporter: Arc<dyn Exporter> = Arc::clone(&exporter);
             async move {
                 while let Some(event) = events_receiver.recv().await {
                     match exporter.push(event).await {
@@ -63,6 +79,10 @@ impl Context {
             _exporter: exporter,
         })
     }
+
+    // This is a lot of repetition but some FFIs don't allow generics so either
+    // we need to do macros or just keep it spelled out like this.
+    // Or move this burden to the FFI layer itself.
 
     pub fn engine_observer(&self) -> EngineObserver {
         EngineObserver {
@@ -81,6 +101,16 @@ impl Context {
     }
     pub fn query_observer(&self) -> QueryObserver {
         QueryObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn plan_observer(&self) -> PlanObserver {
+        PlanObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn operator_observer(&self) -> OperatorObserver {
+        OperatorObserver {
             tx: self.events_sender.clone(),
         }
     }
@@ -242,6 +272,91 @@ impl QueryObserver {
         push_event(
             &self.tx,
             Event::new(id, query::QueryEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct PlanObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+
+impl PlanObserver {
+    pub fn init(&self, id: Uuid, init: plan::Init) {
+        push_event(&self.tx, Event::new(id, plan::PlanEvent::Init(init).into()))
+    }
+
+    pub fn executing(&self, id: Uuid, executing: plan::Executing) {
+        push_event(
+            &self.tx,
+            Event::new(id, plan::PlanEvent::Executing(executing).into()),
+        );
+    }
+
+    pub fn idle(&self, id: Uuid, idle: plan::Idle) {
+        push_event(&self.tx, Event::new(id, plan::PlanEvent::Idle(idle).into()));
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: plan::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(id, plan::PlanEvent::Finalizing(finalizing).into()),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: plan::Exit) {
+        push_event(&self.tx, Event::new(id, plan::PlanEvent::Exit(exit).into()))
+    }
+}
+
+#[derive(Clone)]
+pub struct OperatorObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+
+impl OperatorObserver {
+    pub fn init(&self, id: Uuid, init: operator::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, operator::OperatorEvent::Init(init).into()),
+        )
+    }
+
+    pub fn waiting_for_inputs(&self, id: Uuid, waiting_for_inputs: operator::WaitingForInputs) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                operator::OperatorEvent::WaitingForInputs(waiting_for_inputs).into(),
+            ),
+        );
+    }
+
+    pub fn executing(&self, id: Uuid, executing: operator::Executing) {
+        push_event(
+            &self.tx,
+            Event::new(id, operator::OperatorEvent::Executing(executing).into()),
+        );
+    }
+
+    pub fn blocked(&self, id: Uuid, blocked: operator::Blocked) {
+        push_event(
+            &self.tx,
+            Event::new(id, operator::OperatorEvent::Blocked(blocked).into()),
+        )
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: operator::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(id, operator::OperatorEvent::Finalizing(finalizing).into()),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: operator::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, operator::OperatorEvent::Exit(exit).into()),
         )
     }
 }

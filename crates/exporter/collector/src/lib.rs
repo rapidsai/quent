@@ -1,9 +1,16 @@
 //! Exporter sending events to a Collector service
 
-use quent_collector::client::Client;
+use quent_collector::{
+    client::Client, default::QUENT_COLLECTOR_PORT, env::QUENT_COLLECTOR_ADDRESS,
+};
 use quent_events::{Event, EventData};
 use quent_exporter::Exporter;
 use uuid::Uuid;
+
+#[derive(Debug, Default)]
+pub struct CollectorExporterOptions {
+    address: Option<String>,
+}
 
 #[derive(Debug)]
 pub struct CollectorExporter {
@@ -11,8 +18,15 @@ pub struct CollectorExporter {
 }
 
 impl CollectorExporter {
-    pub async fn new(engine_id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(engine_id).await?;
+    pub async fn new(
+        engine_id: Uuid,
+        options: CollectorExporterOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let address = options.address.unwrap_or(
+            std::env::var(QUENT_COLLECTOR_ADDRESS)
+                .unwrap_or_else(|_| format!("http://[::]:{}", QUENT_COLLECTOR_PORT)),
+        );
+        let client = Client::new(engine_id, address).await?;
         Ok(Self { client })
     }
 }

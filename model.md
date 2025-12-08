@@ -1,4 +1,27 @@
-# Query Engine Model for Profiling (WORK IN PROGRESS)
+# Query Engine Model for Profiling
+
+## 🚧 WORK IN PROGRESS 🚧
+
+This specification is work in progress, very incomplete, and may contain various
+inconsistencies.
+
+## Telemetry style
+
+Traditionally, there are three ways to produce telemetry:
+
+- logs: captures single events associated with a timestamp
+- metrics: captures a sequence of values associated with a timestamp
+- traces: captures a tree of of spans of time, typically following the call
+  stack of a program
+
+This project adds a fourth way:
+
+- finite state machines (FSM): captures the state of things, and transitions
+  between those states associated with a timestamp
+
+The idea of adding a fourth type is that it makes it easier to track the state
+and evolution of resources that come into and go out of existence during the
+lifetime of a program.
 
 ## Terms
 

@@ -3,7 +3,6 @@
 use std::{str::FromStr, sync::Arc};
 
 use dashmap::DashMap;
-use quent_events::{Event, EventData};
 use quent_exporter::Exporter;
 use quent_exporter_ndjson::NdjsonExporter;
 use tokio_stream::StreamExt;
@@ -71,7 +70,7 @@ impl proto::collector_server::Collector for CollectorService {
                             exporter
                         };
 
-                        match serde_json::from_slice::<Event<EventData>>(&request.payload) {
+                        match ciborium::from_reader(std::io::Cursor::new(request.payload)) {
                             Ok(event) => match exporter.push(event).await {
                                 Ok(_) => (), // successfully exported
                                 Err(e) => {

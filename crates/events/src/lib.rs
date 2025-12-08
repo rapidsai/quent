@@ -171,24 +171,27 @@ pub mod plan {
         pub query_id: Uuid,
         pub worker_id: Option<Uuid>,
         pub parent_id: Option<Uuid>,
+        /// A list of plan edges defined as (source port id, sink port id)
+        pub edges: Vec<(Uuid, Uuid)>,
     }
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Executing {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Idle {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Exit {}
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum PlanEvent {
         Init(Init),
         Executing(Executing),
+        Idle(Idle),
         Finalizing(Finalizing),
         Exit(Exit),
     }
@@ -198,25 +201,34 @@ pub mod operator {
     use super::*;
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct Init {
-        pub plan_id: Uuid,
+    pub struct Port {
+        pub id: Uuid,
+        pub is_input: bool,
+        pub name: Option<String>,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
+    pub struct Init {
+        pub plan_id: Uuid,
+        pub name: Option<String>,
+        pub ports: Vec<Port>,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct WaitingForInputs {
         pub ports: Vec<Uuid>,
     }
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Executing {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Blocked {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Exit {}
 
     #[derive(Debug, Deserialize, Serialize)]
