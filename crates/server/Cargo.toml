@@ -14,6 +14,7 @@ quent-entities = { path = "../entities" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tokio-stream.workspace = true
 tonic.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
 tracing-subscriber.workspace = true
 tracing.workspace = true
 uuid.workspace = true

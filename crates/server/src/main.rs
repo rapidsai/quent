@@ -4,6 +4,7 @@ use axum::Router;
 use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
 use tokio::net::TcpListener;
 use tonic::transport::Server as GrpcServer;
+use tower_http::cors::CorsLayer;
 use tracing::info;
 
 mod defaults {
@@ -63,7 +64,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .unwrap();
 
-    let http_routes = Router::new().nest("/analyzer", analyzer::routes());
+    let cors = CorsLayer::new()
+        .allow_origin(
+            "http://localhost:5173"
+                .parse::<axum::http::HeaderValue>()
+                .unwrap(),
+        )
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([axum::http::header::CONTENT_TYPE]);
+
+    let http_routes = Router::new()
+        .nest("/analyzer", analyzer::routes())
+        .layer(cors);
     let http_server = async {
         axum::serve(
             TcpListener::bind(http_addr).await?,
