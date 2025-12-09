@@ -192,21 +192,29 @@ pub mod query {
 pub mod operator {
     use super::*;
 
+    /// A state transition where an Operator is blocked from progressing beceause it is waiting for inputs to arrive.
     #[derive(TS, Clone, Debug, Deserialize, Serialize)]
     pub struct WaitingForInputs {
+        /// The timestamp of this transition.
         pub timestamp: Timestamp,
+        /// The IDs of the Ports this Operator was blocked on.
         pub ports: Vec<Uuid>,
     }
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
     #[derive(TS, Clone, Debug, Deserialize, Serialize)]
     pub enum OperatorState {
+        /// The Operator is initializing, allocating its resources.
         Init(Timestamp),
         /// The Operator is waiting for inputs.
         WaitingForInputs(WaitingForInputs),
+        /// The Operator is actively processing.
         Executing(Timestamp),
+        /// The Operator is blocked.
         Blocked(Timestamp),
+        /// The Operator is finalizing, cleaning up its resources.
         Finalizing(Timestamp),
+        /// The Operator is completely finalized, and no longer holds any resources.
         Exit(Timestamp),
     }
 
@@ -223,19 +231,31 @@ pub mod operator {
         }
     }
 
+    /// A Port of an Operator in a Plan DAG.
     #[derive(TS, Clone, Debug, Deserialize, Serialize)]
     pub struct Port {
+        /// The ID of this Port.
         pub id: Uuid,
+        /// Whether this port is an input (or an output).
         pub is_input: bool,
+        /// The name of this Port.
         pub name: Option<String>,
     }
 
+    /// An Operator in a Plan DAG.
     #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Operator {
+        /// The ID of this Operator.
         pub id: Uuid,
+        /// The ID of the Plan this Operator belongs to.
         pub plan_id: Uuid,
+        /// A list of Operator IDs in a parent plan (if any) from which this Operator was derived.
+        pub parent_plan_ids: Vec<Uuid>,
+        /// The name of this Operator.
         pub name: Option<String>,
+        /// The Ports of this operator.
         pub ports: Vec<Port>,
+        /// The sequence of states through which this Operator has been executed.
         pub state_sequence: Vec<OperatorState>,
     }
 }

@@ -210,6 +210,7 @@ pub mod operator {
     #[derive(Debug, Deserialize, Serialize)]
     pub struct Init {
         pub plan_id: Uuid,
+        pub parent_plan_ids: Vec<Uuid>,
         pub name: Option<String>,
         pub ports: Vec<Port>,
     }

@@ -146,6 +146,7 @@ impl Analyzer {
                             entry.id = event.id;
                             entry.name = init.name;
                             entry.plan_id = init.plan_id;
+                            entry.parent_plan_ids = init.parent_plan_ids;
                             entry
                                 .state_sequence
                                 .push(OperatorState::Init(event.timestamp));

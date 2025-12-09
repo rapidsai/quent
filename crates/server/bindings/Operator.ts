@@ -2,4 +2,31 @@
 import type { OperatorState } from "./OperatorState";
 import type { Port } from "./Port";
 
-export type Operator = { id: string, plan_id: string, name: string | null, ports: Array<Port>, state_sequence: Array<OperatorState>, };
+/**
+ * An Operator in a Plan DAG.
+ */
+export type Operator = { 
+/**
+ * The ID of this Operator.
+ */
+id: string, 
+/**
+ * The ID of the Plan this Operator belongs to.
+ */
+plan_id: string, 
+/**
+ * A list of Operator IDs in a parent plan (if any) from which this Operator was derived.
+ */
+parent_plan_ids: Array<string>, 
+/**
+ * The name of this Operator.
+ */
+name: string | null, 
+/**
+ * The Ports of this operator.
+ */
+ports: Array<Port>, 
+/**
+ * The sequence of states through which this Operator has been executed.
+ */
+state_sequence: Array<OperatorState>, };

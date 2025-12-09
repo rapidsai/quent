@@ -73,12 +73,14 @@ layers:
    distributed engines. These abstractions make it easier to build query
    engines. Examples include:
 
+
    - control flow through asynchronous executors
    - execution on non-CPU computational devices such as GPUs
    - spill memory to storage automatically in out-of-memory scenarios,
    - interfaces that simplify reading from myriad storage interfaces, including
-     cloud-based object stores, OS-based file systems, or DMA-capable storage
-     systems.
+
+   cloud-based object stores, OS-based file systems, or DMA-capable storage
+   systems.
 
 3. Hardware - the abstractions ultimately perform work on hardware including:
    - Loading data from storage devices
@@ -163,8 +165,8 @@ layers:
      use-cases like continuous benchmarking and production, MOST telemetry is
      never accessed, especially if no performance anomalies occur. Therefore,
      spending cycles on collection can be very wasteful.
-5. **Analzer**: service that reads raw events, validates the model, and performs
-   useful aggregations of bulk events used in visualization.
+5. **Analyzer**: service that reads raw events, validates the model, and
+   performs useful aggregations of bulk events used in visualization.
 6. **Web Server**: service that interacts with the analyzer and performs final
    data wrangling for UI interactions.
 7. **User Interface**: application facing developers and data engineers using

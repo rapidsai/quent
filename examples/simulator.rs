@@ -1,4 +1,6 @@
-use petgraph::{Directed, Graph, graph::NodeIndex};
+use std::fmt::{Debug, Display};
+
+use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent::{ExporterOptions, OperatorObserver, PlanObserver};
 use quent_events::{
     coordinator,
@@ -18,19 +20,54 @@ fn initialize_tracing() {
         .init();
 }
 
-struct Operator {
+struct Operator<T: Debug> {
     id: Uuid,
-    name: &'static str,
+    parents: Vec<Uuid>,
+    kind: T,
 }
 
+impl<T> Operator<T>
+where
+    T: Debug,
+{
+    fn name(&self) -> String {
+        format!("{:?}", self.kind)
+    }
+
+    fn new(kind: T, parents: Vec<Uuid>) -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            parents,
+            kind,
+        }
+    }
+}
+
+impl<T> Display for Operator<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+#[derive(Debug)]
 struct Port {
     id: Uuid,
     name: &'static str,
 }
 
+#[derive(Debug)]
 struct Edge {
     source: Port,
     target: Port,
+}
+
+impl Display for Edge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
 }
 
 impl Edge {
@@ -48,7 +85,36 @@ impl Edge {
     }
 }
 
-type LogicalPlan = Graph<Operator, Edge, Directed>;
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Logical {
+    Scan,
+    Project,
+    Join,
+    Sort,
+    Limit,
+    Output,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Physical {
+    FileSystemScan,
+    JoinPartition,
+    JoinLocal,
+    Sort,
+    Limit,
+    Output,
+}
+
+type LogicalOp = Operator<Logical>;
+type LogicalPlan = Graph<LogicalOp, Edge, Directed>;
+
+type PhysicalOp = Operator<Physical>;
+type PhysicalPlan = Graph<PhysicalOp, Edge, Directed>;
+
+fn dump_plan_to_graphviz<T: Debug>(plan: &Graph<Operator<T>, Edge, Directed>, path: &str) {
+    let dot = petgraph::dot::Dot::with_config(&plan, &[petgraph::dot::Config::EdgeNoLabel]);
+    std::fs::write(path, format!("{}", dot)).unwrap();
+}
 
 // Create the following logical plan:
 // Scan -> Project \
@@ -57,14 +123,8 @@ type LogicalPlan = Graph<Operator, Edge, Directed>;
 fn logical_plan() -> LogicalPlan {
     // Add a scan --> project branch and return the (project, project output port) Uuids.
     fn add_scan_project_branch(plan: &mut LogicalPlan) -> NodeIndex {
-        let scan = plan.add_node(Operator {
-            id: Uuid::now_v7(),
-            name: "Scan",
-        });
-        let project = plan.add_node(Operator {
-            id: Uuid::now_v7(),
-            name: "Project",
-        });
+        let scan = plan.add_node(LogicalOp::new(Logical::Scan, vec![]));
+        let project = plan.add_node(LogicalOp::new(Logical::Project, vec![]));
         plan.add_edge(scan, project, Edge::new("out", "in"));
 
         project
@@ -75,42 +135,163 @@ fn logical_plan() -> LogicalPlan {
     let project_a = add_scan_project_branch(&mut plan);
     let project_b = add_scan_project_branch(&mut plan);
 
-    let join = plan.add_node(Operator {
-        id: Uuid::now_v7(),
-        name: "Join",
-    });
+    let join = plan.add_node(LogicalOp::new(Logical::Join, vec![]));
     plan.add_edge(project_a, join, Edge::new("out", "left"));
     plan.add_edge(project_b, join, Edge::new("out", "right"));
 
-    let sort = plan.add_node(Operator {
-        id: Uuid::now_v7(),
-        name: "Sort",
-    });
+    let sort = plan.add_node(LogicalOp::new(Logical::Sort, vec![]));
     plan.add_edge(join, sort, Edge::new("out", "in"));
 
-    let limit = plan.add_node(Operator {
-        id: Uuid::now_v7(),
-        name: "Limit",
-    });
+    let limit = plan.add_node(LogicalOp::new(Logical::Limit, vec![]));
     plan.add_edge(sort, limit, Edge::new("out", "in"));
 
-    let output = plan.add_node(Operator {
-        id: Uuid::now_v7(),
-        name: "Output",
-    });
+    let output = plan.add_node(LogicalOp::new(Logical::Output, vec![]));
     plan.add_edge(limit, output, Edge::new("out", "in"));
 
     plan
 }
 
-// TODO(johanpel): plan lowering to physical
+fn make_physical_plan(logical: &LogicalPlan) -> PhysicalPlan {
+    // Find the output node
+    let output = logical
+        .node_indices()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .find(|n| logical[*n].kind == Logical::Output)
+        .unwrap();
 
-fn create_plan_events(
+    // Build a physical plan
+    let mut physical = PhysicalPlan::new();
+
+    lower_logical(logical, &mut physical, output, None);
+
+    physical
+}
+
+fn lower_logical(
+    logical: &LogicalPlan,
+    physical: &mut PhysicalPlan,
+    logical_current_idx: NodeIndex,
+    physical_target_idx_port: Option<(NodeIndex, &'static str)>,
+) {
+    let current_logical_op = &logical[logical_current_idx];
+
+    match current_logical_op.kind {
+        Logical::Scan => {
+            unimplemented!("this shouldn't happen in this simulator, yet")
+        }
+        Logical::Project => {
+            // Check whether this project has an incoming scan source to simulate predicate pushdown
+            if let Some(scan_edge) = logical
+                .edges_directed(logical_current_idx, Direction::Incoming)
+                .find(|edge| logical[edge.source()].kind == Logical::Scan)
+            {
+                let scan_op = &logical[scan_edge.source()];
+                let source = physical.add_node(PhysicalOp::new(
+                    Physical::FileSystemScan,
+                    vec![current_logical_op.id, scan_op.id],
+                ));
+                if let Some((target_node, target_port)) = physical_target_idx_port {
+                    physical.add_edge(source, target_node, Edge::new(target_port, "in"));
+                }
+            } else {
+                unimplemented!("this shouldn't happen in this simulator, yet");
+            }
+        }
+        Logical::Join => {
+            // split up in a partition stage and join stage
+            let partition = physical.add_node(PhysicalOp::new(
+                Physical::JoinPartition,
+                vec![current_logical_op.id],
+            ));
+            let local = physical.add_node(PhysicalOp::new(
+                Physical::JoinLocal,
+                vec![current_logical_op.id],
+            ));
+            physical.add_edge(partition, local, Edge::new("build_out", "build_in"));
+            physical.add_edge(partition, local, Edge::new("probe_out", "probe_in"));
+
+            if let Some((target_node, target_port)) = physical_target_idx_port {
+                physical.add_edge(local, target_node, Edge::new("out", target_port));
+            }
+
+            // Recurse up both branches
+            for input_edge in logical.edges_directed(logical_current_idx, Direction::Incoming) {
+                lower_logical(
+                    logical,
+                    physical,
+                    input_edge.source(),
+                    Some((partition, input_edge.weight().target.name)),
+                );
+            }
+        }
+        Logical::Sort => {
+            let sort =
+                physical.add_node(PhysicalOp::new(Physical::Sort, vec![current_logical_op.id]));
+            if let Some((target_node, target_port)) = physical_target_idx_port {
+                physical.add_edge(sort, target_node, Edge::new("out", target_port));
+            }
+            let input_edge = logical
+                .edges_directed(logical_current_idx, Direction::Incoming)
+                .next()
+                .unwrap();
+            lower_logical(
+                logical,
+                physical,
+                input_edge.source(),
+                Some((sort, input_edge.weight().target.name)),
+            );
+        }
+        Logical::Limit => {
+            let limit = physical.add_node(PhysicalOp::new(
+                Physical::Limit,
+                vec![current_logical_op.id],
+            ));
+            if let Some((target_node, target_port)) = physical_target_idx_port {
+                physical.add_edge(limit, target_node, Edge::new("out", target_port));
+            }
+            let input_edge = logical
+                .edges_directed(logical_current_idx, Direction::Incoming)
+                .next()
+                .unwrap();
+            lower_logical(
+                logical,
+                physical,
+                input_edge.source(),
+                Some((limit, input_edge.weight().target.name)),
+            );
+        }
+        Logical::Output => {
+            let output = physical.add_node(PhysicalOp::new(
+                Physical::Output,
+                vec![current_logical_op.id],
+            ));
+            if let Some((target_node, target_port)) = physical_target_idx_port {
+                physical.add_edge(output, target_node, Edge::new("out", target_port));
+            }
+            let input_edge = logical
+                .edges_directed(logical_current_idx, Direction::Incoming)
+                .next()
+                .unwrap();
+            lower_logical(
+                logical,
+                physical,
+                input_edge.source(),
+                Some((output, input_edge.weight().target.name)),
+            );
+        }
+    }
+}
+
+fn create_plan_events<T>(
     query_id: Uuid,
     plan_obs: &PlanObserver,
     op_obs: &OperatorObserver,
-    plan: LogicalPlan,
-) {
+    plan: &Graph<Operator<T>, Edge, Directed>,
+) -> Uuid
+where
+    T: Debug,
+{
     let plan_id = Uuid::now_v7();
 
     plan_obs.init(
@@ -137,7 +318,8 @@ fn create_plan_events(
             op.id,
             operator::Init {
                 plan_id,
-                name: Some(op.name.to_string()),
+                parent_plan_ids: op.parents.clone(),
+                name: Some(op.name()),
                 ports: plan
                     .edges_directed(node_idx, petgraph::Direction::Incoming)
                     .map(|edge| operator::Port {
@@ -169,6 +351,8 @@ fn create_plan_events(
     plan_obs.idle(plan_id, Default::default());
     plan_obs.finalizing(plan_id, Default::default());
     plan_obs.exit(plan_id, Default::default());
+
+    plan_id
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -238,7 +422,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     coordinator_obs.operating(coordinator_id, coordinator::Operating {});
 
                     let query_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
-                        .take(3)
+                        .take(2)
                         .map(|query_id| {
                             std::thread::spawn({
                                 let query_obs = query_obs.clone();
@@ -254,10 +438,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         },
                                     );
                                     query_obs.planning(query_id, query::Planning {});
+                                    let l_plan = logical_plan();
+                                    let p_plan = make_physical_plan(&l_plan);
                                     query_obs.executing(query_id, query::Executing {});
 
-                                    let l_plan = logical_plan();
-                                    create_plan_events(query_id, &plan_obs, &operator_obs, l_plan);
+                                    create_plan_events(query_id, &plan_obs, &operator_obs, &l_plan);
+                                    // TODO(johanpel): properly nest this
+                                    create_plan_events(query_id, &plan_obs, &operator_obs, &p_plan);
+
+                                    dump_plan_to_graphviz(&l_plan, format!("data/{query_id}_logical.dot").as_str());
+                                    dump_plan_to_graphviz(&p_plan, format!("data/{query_id}_physical.dot").as_str());
 
                                     query_obs.idle(query_id, query::Idle {});
                                     query_obs.finalizing(query_id, query::Finalizing {});
