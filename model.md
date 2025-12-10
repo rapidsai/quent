@@ -26,7 +26,8 @@ This document consits of three main sections:
 ### Document conventions
 
 Names of constructs that are defined by this specification are intentionally
-capitalized, e.g. Entity, Timestamp, Resource, etc.
+capitalized, e.g. [Entity](#entity), [Timestamp](#timestamp),
+[Resource](#resource), etc.
 
 ## General definitions
 
@@ -174,8 +175,8 @@ Must have:
 
 ### Finite State Machine
 
-A Finite State Machine (FSM) is an [Entity](#entity) modeled by a set of States
-and Transitions.
+A Finite State Machine (FSM) is an [Entity](#entity) modeled by a set of
+[States](#state) and [Transitions](#transition).
 
 #### State
 
@@ -188,19 +189,21 @@ The Exit State is a special State into which a transition means the
 
 #### Transition
 
-A Transition is an [Event](#event) conveying the new State of the Entity.
+A Transition is an [Event](#event) conveying the new [State](#state) of the
+[Entity](#entity).
 
 #### Requirements
 
 An FSM must have an Exit transition.
 Implementations must name the Exit transition `exit`.
 
-An FSM must have at least one State, excluding the Exit state.
+An FSM must have at least one [State](#state), excluding the Exit
+[State](#state).
 
 #### Notation
 
-In the remainder of this document, specifying States and their Transitions is
-done as follows:
+In the remainder of this document, specifying [States](#state) and their
+[Transitions](#transition) is done as follows:
 
 - `⊙ -> a`: transition into existence, with a initial state named `a`.
 - `a -> b`: transition from state `a` to state `b`
@@ -217,8 +220,9 @@ operating     -> finalizing
 finalizing    -> ⊗
 ```
 
-Note that in this example, while multiple Transitions mention the same State,
-States have unique names. Therefore, these Transitions refer to the same State.
+Note that in this example, while multiple [Transitions](#transition) mention the
+same [State](#state), [States](#state) have unique names. Therefore, these
+[Transitions](#transition) refer to the same [State](#state).
 
 For brevity, when state transitions must follow a fixed sequence, this is
 simplified as:
@@ -229,7 +233,7 @@ simplified as:
 
 ### Resource
 
-A Resource is an FSM with at least one or more associated Capacity.
+A Resource is an FSM with at least one or more associated [Capacity](#capacity).
 
 A Resource must have:
 
@@ -290,11 +294,11 @@ can change during the Resource's lifetime, the FSM is:
 
 ### Use
 
-A Use represents an exclusive assignment of capacities of a
+A Use is an Entity representing an exclusive assignment of capacities of a
 [Resource](#resource).
 
 A Use must not outlive the `operating` (and `resizing` if applicable) states of
-the associated Resource.
+the associated [Resource](#resource).
 
 Must have:
 
@@ -310,21 +314,22 @@ May have:
 - `used_<capacity>_effective`: the amount usage of the [Resource](#resource)'s
   capacity minus any overhead.
 
-Any concrete Use must be combined with Timestamps from which at least
-one [Span](#span) may be derived. In other words, timing information about Uses
-can be added by combining a Use with a Span or FSM. In case it is combined with
-an FSM, the required [Attributes](#attributes) must be captured by the
-[Transition](#transition) into the [State](#state) which represents the active
-Use of a [Resource](#resource).
+Any concrete Use must be combined with [Timestamps](#timestamp) such that
+exactly one [Span](#span) may be derived representing the duration of the Use.
 
-Any concrete Use must be combined with timing information from which at least
-one [Span](#span) may be derived. In other words, timing information about Uses
-can be added by combining a Use with a [Span](#span) or
-[FSM](#finite-state-machine). In case it is combined with an
-[FSM](#finite-state-machine), the required [Attributes](#attributes) of a Use
-must be captured by the [Transition](#transition) into the [State](#state) which
-represents the active Use of a [Resource](#resource). This may span multiple
-[States](#state).
+In other words, timing information about Uses
+can be added by combining the Use with [Span](#span) attributes.
+
+Another way of deriving the [Span](#span) of the Use is by by encapsulating it
+in one or multiple [FSM](#finite-state-machine) [States](#state). In this case,
+the required [Attributes](#attributes) must be captured by the
+[Transition](#transition) into the [State](#state) which represents the active
+Use of a [Resource](#resource). This must be done in at least one
+[State](#state). This may be done in multiple [States](#state) if the same Use
+outlives a single [State](#state). In case the Use spans multiple states, the
+sequence of [States](#state) must not be interrupted by [States](#state) in
+which the Use's claim of the [Resource](#resource) associated
+[Capcity](#capacity) is released.
 
 Notes:
 
@@ -333,32 +338,33 @@ Notes:
   resource.
 - Concrete Uses are recommended to also include an attribute that relates to
   entities causing the Use, typically capturing the control flow of an engine.
-  For example, the Use of a thread resource, say in a thread pool resource, may
-  be performed on behalf of an asynchronous task entity related to an Operator
-  related to a Plan related to a Query related to a Coordinator related to an
-  Engine. This way, resource utilization can ultimately be related and
-  aggregated over certain levels/layers of control flow captured by the model.
+  For example, the Use of a thread, say in a thread pool [Resource](#resource),
+  may be performed on behalf of an asynchronous task entity related to an
+  [Operator](#operator) related to a [Plan](#plan) related to a [Query](#query)
+  related to a [Coordinator](#coordinator) related to an [Engine](#engine). This
+  way, Uses of a [Resource](#resource) can ultimately be related and aggregated
+  over certain levels/layers of control flow captured by the model.
 
 ### Memory
 
-A (fixed- or dynamically) bounded Resource with a Capacity of bytes of type
-`u64`.
+A (fixed- or dynamically) bounded [Resource](#resource) with a
+[Capacity](#capacity) of bytes of type `u64`.
 
-Any transition into the `operating` state must have:
+Any [Transition](#transition) into the `operating` state must have:
 
 - `capacity_bytes: u64`: the maximum amount of bytes that can be stored
 
 ### Allocation
 
-A Use of a Memory Resource.
+A [Use](#use) of a [Memory](#memory) [Resource](#resource).
 
 ```text
 ⊙ -> allocating -> idle -> releasing -> ⊗
 ```
 
-The Transition into the `idle` state must have:
+The [Transition](#transition) into the `idle` state must have:
 
-`used_bytes: u64`: the number of bytes used by the resource
+`used_bytes: u64`: the number of bytes used from the [Memory](#memory).
 
 Note:
 
@@ -373,8 +379,8 @@ Note:
 
 ### Channel
 
-A Channel is a Resource responsible for transferring a Datum between other
-Resources.
+A Channel is a [Resource](#resource) responsible for transferring data between
+two other [Resources](#resource). A Channel is unidirectional.
 
 Must have:
 
@@ -383,15 +389,15 @@ Must have:
 
 ### Transfer
 
-A Transfer is a Use and a Span associated with a Channel Resource.
+A Transfer is a [Use](#use) of a [Channel](#channel).
 
 ### Processor
 
-A Processor is a Unit Resource.
+A Processor is a [Unit Resource](#unit-resource) responsible for computation.
 
 ### Computation
 
-A Computation is a Use of a Processor Resource.
+A Computation is a [Use](#use) of a [Processor](#processor).
 
 ## Concrete Model Requirements
 
