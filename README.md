@@ -71,16 +71,11 @@ layers:
 2. Orchestration - the query is executed through various abstractions that
    manage I/O, computation and memory resources, as well as communication in
    distributed engines. These abstractions make it easier to build query
-   engines. Examples include:
-
-
-   - control flow through asynchronous executors
-   - execution on non-CPU computational devices such as GPUs
-   - spill memory to storage automatically in out-of-memory scenarios,
-   - interfaces that simplify reading from myriad storage interfaces, including
-
-   cloud-based object stores, OS-based file systems, or DMA-capable storage
-   systems.
+   engines. Examples include control flow through asynchronous executors,
+   execution on non-CPU computational devices such as GPUs, spill memory to
+   storage automatically in out-of-memory scenarios, and interfaces that
+   simplify reading from myriad storage interfaces, including cloud-based object
+   stores OS-based file systems, or DMA-capable storage systems.
 
 3. Hardware - the abstractions ultimately perform work on hardware including:
    - Loading data from storage devices
