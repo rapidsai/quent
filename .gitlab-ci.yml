@@ -13,8 +13,11 @@ variables:
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends protobuf-compiler ca-certificates
-    - mkdir -p "${CARGO_HOME}"
     - protoc --version
+    - mkdir -p "${CARGO_HOME}"
+    - export PATH="${CARGO_HOME}/bin:${PATH}"
+    - rustup component add rustfmt clippy
+    - cargo install rumdl --locked
   cache:
     key: "cargo-${CI_COMMIT_REF_SLUG}"
     paths:
@@ -26,8 +29,13 @@ format:
   stage: format
   <<: *setup-rust
   script:
-    - rustup component add rustfmt
     - cargo fmt --all -- --check
+
+markdown:
+  stage: lint
+  <<: *setup-rust
+  script:
+    - rumdl check --exclude .cargo
 
 check:
   stage: lint
@@ -39,7 +47,6 @@ clippy:
   stage: lint
   <<: *setup-rust
   script:
-    - rustup component add clippy
     - cargo clippy --all --locked -- -D warnings
 
 build:
