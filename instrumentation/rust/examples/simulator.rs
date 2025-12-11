@@ -111,11 +111,6 @@ type LogicalPlan = Graph<LogicalOp, Edge, Directed>;
 type PhysicalOp = Operator<Physical>;
 type PhysicalPlan = Graph<PhysicalOp, Edge, Directed>;
 
-fn dump_plan_to_graphviz<T: Debug>(plan: &Graph<Operator<T>, Edge, Directed>, path: &str) {
-    let dot = petgraph::dot::Dot::with_config(&plan, &[petgraph::dot::Config::EdgeNoLabel]);
-    std::fs::write(path, format!("{}", dot)).unwrap();
-}
-
 // Create the following logical plan:
 // Scan -> Project \
 //                  -> Join -> Sort -> Limit -> Output
@@ -310,9 +305,16 @@ where
     plan_obs.executing(plan_id, Default::default());
 
     // Nonsensically create all operator events.
-    let nodes = plan.node_indices();
+    let nodes = petgraph::algo::toposort(plan, None).unwrap();
+    info!(
+        "Topological order: {:?}",
+        nodes
+            .iter()
+            .map(|node| format!("{:?}: {:?}", node, plan[node.clone()].kind))
+            .collect::<Vec<_>>()
+    );
 
-    for node_idx in nodes.clone() {
+    for node_idx in nodes.into_iter() {
         let op = &plan[node_idx];
         op_obs.init(
             op.id,
@@ -445,9 +447,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     create_plan_events(query_id, &plan_obs, &operator_obs, &l_plan);
                                     // TODO(johanpel): properly nest this
                                     create_plan_events(query_id, &plan_obs, &operator_obs, &p_plan);
-
-                                    dump_plan_to_graphviz(&l_plan, format!("data/{query_id}_logical.dot").as_str());
-                                    dump_plan_to_graphviz(&p_plan, format!("data/{query_id}_physical.dot").as_str());
 
                                     query_obs.idle(query_id, query::Idle {});
                                     query_obs.finalizing(query_id, query::Finalizing {});

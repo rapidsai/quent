@@ -144,6 +144,7 @@ layers:
    - Typically wraps around a thin efficient minimal-latency Rust-based layer
      which orchestrastes exporting events.
    - May (but not required to) perform (partial) model validation.
+   - Implementations live in [instrumentation/](instrumentation/).
 3. **Exporter**: provides the means to export telemetry events captured by the
    instrumentation library.
    - Exporter implementations would typically exist to export telemetry events
@@ -152,6 +153,7 @@ layers:
      as Parquet files to a cloud-based object store, or to a database.
    - One exporter will be a collector-exporter, which sends telemetry to a
      centralized collector, see below.
+   - Implementations live in [crates/exporter/](crates/exporter).
 4. **(Collector)**: service that collects telemetry events into a single process
    and exports them using arbitrary exporters.
    - This is optional because a scalable system may choose to export everything
@@ -159,11 +161,16 @@ layers:
    - A less obvious argument for making this optional is that in typical
      use-cases like continuous benchmarking and production, MOST telemetry is
      never accessed, especially if no performance anomalies occur. Therefore,
-     spending cycles on collection can be very wasteful.
+     spending cycles on collection can be very wasteful if it can be lazily
+     retrieved afterwards instead.
+
+   - Implementations live in [crates/collector/](crates/collector).
 5. **Analyzer**: service that reads raw events, validates the model, and
    performs useful aggregations of bulk events used in visualization.
+   - The reference implementation lives in [crates/analyzer/](crates/analyzer).
 6. **Web Server**: service that interacts with the analyzer and performs final
    data wrangling for UI interactions.
+   - The reference implementation lives in [webserver/](webserver).
 7. **User Interface**: application facing developers and data engineers using
    the query engine, helps to quickly gain performance insights about queries.
 
