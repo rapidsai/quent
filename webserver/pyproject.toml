@@ -1,0 +1,19 @@
+[project]
+name = "webserver"
+version = "0.1.0"
+description = "Quent webserver proxy layer between rust backend and react frontend"
+authors = [
+    {name = "Chris Matzenbach",email = "cmatzenbach@nvidia.com"},
+    {name = "Joe O'Hallaron", email = "johallaron@nvidia.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi (>=0.124.2,<0.125.0)",
+    "uvicorn (>=0.38.0,<0.39.0)",
+    "requests (>=2.32.5,<3.0.0)"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
