@@ -235,17 +235,22 @@ simplified as:
 
 A Resource is an FSM with at least one or more associated [Capacity](#capacity).
 
-A Resource must have:
+Must have:
 
 - `name: string`: the name of the Resource
 
-#### Capacity
+May have exactly one related [Entity](#entity) ID of the following
+[Entities](#entity) to convey how the Resource is shared:
 
-A Capacity of a Resource is a named quantity that can be exclusively claimed
-during some [Span](#span) via a [Use](#use).
-
-A Capacity may have bounds (minimum and/or maximum). Bounds can be fixed for
-the lifetime of the Resource or change over time.
+- `group_id: uuid`: when it is part of a [Resource Group](#resource-group)
+- `engine_id: uuid`: when it is shared within the entire [Engine](#engine)
+- `query_group_id: uuid`: when it is shared within a [Query Group](#query-group)
+- `worker_id: uuid`: when it is shared within a [Worker](#worker)
+- `query_id: uuid`: the ID of the Query, when it is shared within a
+  [Query](#query)
+- `plan_id: uuid`: the ID of the Query, when it is shared within a [Plan](#plan)
+- `operator_id: uuid`: the ID of the Query, when it is shared within an
+  [Operator](#operator)
 
 There are four types of Resources:
 
@@ -254,17 +259,31 @@ There are four types of Resources:
 - Dynamic-Bounds
 - Unbounded
 
+#### Capacity
+
+A Capacity of a [Resource](#resource) is a named quantity that can be
+exclusively claimed during some uninterrupted period of time via a [Use](#use).
+
+A Capacity may have bounds (minimum and/or maximum). Bounds can be fixed for
+the lifetime of the [Resource](#resource) or change over time.
+
+Must have:
+
+- `name: string`
+- a primitive numeric type to represent the amount of Capacity claimed by a
+  [Use](#use).
+
 #### Unit Resource
 
-A Unit Resource has one unnamed dimensionless Capacity with bounds $`[0, 1]`$.
-In other words, there can only be one Use of the entire Resource during some
-Span.
+A Unit Resource has one unnamed dimensionless [Capacity](#capacity) with bounds
+$`[0, 1]`$. In other words, there can only be one Use of the entire Resource
+during some period of time.
 
 #### Fixed-Bounds Resource
 
-If a Resource provides at least one bounded Capacity whose bounds may not change
-during its lifetime, it is a Fixed-Bounds Resource (unless there is a
-dynamically bounded Capacity, see
+If a Resource provides at least one bounded [Capacity](#capacity) whose bounds
+may not change during its lifetime, it is a Fixed-Bounds Resource (unless there
+is a dynamically bounded Capacity, see
 [Dynamic Bounds Resource](#dynamic-bounds-resource)).
 
 #### Dynamic Bounds Resource
@@ -341,9 +360,25 @@ Notes:
   For example, the Use of a thread, say in a thread pool [Resource](#resource),
   may be performed on behalf of an asynchronous task entity related to an
   [Operator](#operator) related to a [Plan](#plan) related to a [Query](#query)
-  related to a [Coordinator](#coordinator) related to an [Engine](#engine). This
+  related to a [Query Group](#query-group) related to an [Engine](#engine). This
   way, Uses of a [Resource](#resource) can ultimately be related and aggregated
   over certain levels/layers of control flow captured by the model.
+
+### Resource Group
+
+A Resource Group is a Resource that represents a hierarchical grouping over a
+set of other Resources. The [Capacities](#capacity) of the Resource Group are a
+linear combination of the [Capacities](#capacity) of its constituents.
+
+FSM:
+
+```text
+⊙ -> initializing -> operating -> finalizing -> ⊗
+```
+
+Notes:
+
+- A Resource Group of a finite set of Unit Resources is a Fixed-Bounds Resource.
 
 ### Memory
 
@@ -401,7 +436,7 @@ A Computation is a [Use](#use) of a [Processor](#processor).
 
 ## Concrete Model Requirements
 
-This section described mandatory requirements, mostly in the form of entities
+This section describes mandatory requirements, mostly in the form of entities
 that must exist for any specific engine model.
 
 Rationale:
@@ -413,7 +448,8 @@ furthermore be used to compare engines.
 
 ### Engine
 
-An Engine is an FSM that holds Coordinators that execute Queries.
+An Engine is an [FSM](#finite-state-machine) that holds
+[Query Groups](#query-group)that execute [Queries](#query).
 
 FSM:
 
@@ -434,10 +470,11 @@ Notes:
   initializing and finalizing state, respectively, can take significant amounts
   of time, and are thus potential candidates for performance optimizations.
 
-### Coordinator
+### Query Group
 
-A Coordinator is an FSM responsible for the high-level orchestration of a set of
-Queries on an Engine.
+A Query Group is an [FSM](#finite-state-machine) encapsulates a set of
+[Queries](#query) and potentially orchestrates the high-level orchestration of
+their execution on an [Engine](#engine).
 
 FSM:
 
@@ -447,21 +484,19 @@ FSM:
 
 Must have:
 
-- `engine_id: uuid`: the name of the Engine this Coordinator orchestrates
-  Queries for.
+- `engine_id: uuid`: the name of the [Engine](#engine) this
+  [Query Group](#query-group) belongs to.
 
 Notes:
 
-- A Coordinator groups sets of Queries. It can be used to e.g. represent
-  sessions of multiple users running concurrent queries on the same engine
-  instance.
-
-> TODO(johanpel): this could also be named something like "session" or "query group", or something else that makes sense to group queries under.
+- A Query Group can be used to e.g. represent sessions of a users running
+  concurrent queries on multi-user engine instance, or a set of queries of a
+  benchmark.
 
 ## Query
 
-A Query is an FSM representing the top-level unit of work executed by an Engine,
-orchestrated through a Coordinator.
+A Query is an [FSM](#finite-state-machine) representing the top-level unit of
+work executed by an Engine, orchestrated through a Query Group.
 
 FSM:
 
@@ -471,7 +506,7 @@ FSM:
 
 Must have:
 
-- `coordinator_id: uuid`: the ID of the Coordinator this Query is executed on
+- `query_group_id: uuid`: the ID of the Query Group this Query belongs to
 
 Optional attributes:
 
@@ -480,14 +515,19 @@ Optional attributes:
   binary Protobuf message, or some serialized form of a Polars or DataFusion
   dataframe that is to be lazily evaluated.
 
+> TODO(johanpel): probably make this statement attribute stricter- maybe there
+> should at least be some human-readable form of a statement so the ui can display
+> that without having to implement renderers for different engines
+
 ## Plan
 
-A Plan is a directed acyclic graph (DAG) where vertices are Operators and Edges
-represent data flowing between Operators. Operators sink or source data, or
-transform it. A Plan may have a child Plans, where the Operators of a child Plan
-may be logically encapsulated by Operators of a parent Plan. One Plan at the
-lowest level of a potential lineage of plans is executed by one Worker on behalf
-of one Query.
+A Plan is a directed acyclic graph (DAG) where vertices are
+[Operators](#operator) and edges represent data flowing between [Ports](#port)
+of [Operators](#operator). [Operators](#operator) sink or source data, or
+transform it. A Plan may have a child Plans, where the [Operators](#operator) of
+a child Plan may be logically encapsulated by [Operators](#operator) of a parent
+Plan, or vice versa. One Plan at the lowest level of a potential lineage of
+plans is executed by one [Worker](#worker) on behalf of one [Query](#query).
 
 FSM:
 
@@ -497,45 +537,46 @@ FSM:
 
 Must have:
 
-- name
-- a query ID
-- a worker ID, if it is a lowest-level Plan
+- `name: string`: The name of the Plan
+- `query_id: uuid`: the ID of the [Query](#query) this is a Plan for
+- `edges: list< struct{ source: uuid, target: uuid } >`: a list of edges where
+  `source` is the ID of the Port producing data and `target` is the ID of the
+  Port consuming data.
 
 May have:
 
-- a worker ID
-- a parent plan
+- `worker_id: uuid`: the ID of the [Worker](#worker) this Plan has specifically
+  executed on
+- `parent_plan_id: uuid`: the ID of the parent Plan, if this Plan is a
+  derivation or "lowering" of another Plan
 
 Notes:
 
-- The model does not explicitly make a distinction between logical plan,
-  physical plan, etc. because definitions can differ between engine
-  implementations. There can be an arbitrary number of plan transformations
-  before arriving to the lowest-level plan.
+- The model does not explicitly make a distinction between a "logical" Plan, a
+  physical "Plan", etc. because definitions and stages of lowering can differ
+  wildly between engine implementations. Thus, there can be an arbitrary number
+  of Plan transformations before arriving to an executable the lowest-level
+  Plan.
+- Engines that, at the same level of how it expresses and/or implements the
+  plan, mix regular Operators with sequences of Plan Operators, e.g. to form
+  "pipelines" or "stages", can potentially introduce a virtual Plan level to
+  encapsulate such groupings in their model.
 - There is no rule to restrict that multiple Plans with differing topologies may
-  relate to a Query and may be executed by different Workers. This is done in
-  order to allow different types of workers to execute different types of plans.
-- The main purpose of the Plan in the Model is to capture metrics. Thus, even if
-  at some level or instrumentation of an engine implementation there is no
-  explicit DAG-like datastructure, the instrumentation must capture metrics
-  adhering to this model by e.g. piggybacking the necessary information on top
-  of the existing control flow information. Yet, it does intend to force any
-  type of implementation of a DAG-like datastructure if this doesn't make sense
-  for the control mechanism of a specific engine. To further clarify: one can
-  imagine Workers being so simple that they just load data, perform a _single_
-  Operator's work, and store their output, without being aware of the entire
-  Plan. The Orchestrator must pass the necessary identifiers relating back to
-  the Plan and Operators in the plan down to a Worker in order for it to capture
-  its context when emitting telemetry.
+  ultimately relate to a Query and may be executed by e.g. different Workers.
+  This allows different types of Workers to execute different types of Plans.
+- If at some level of data/control flow of an engine there is no explicit
+  precense of a Plan, the instrumentation must still capture metrics that can be
+  related back to the Plan. It is up to the implementation to ensure the proper
+  contextual information is propagated (also known as context propagation).
 
 ## Operator
 
-An Operator is an Entity that sinks, sources, or transforms data.
+An Operator is an [FSM](#finite-state-machine) that sinks, sources, or transforms data.
 
 FSM:
 
 ```text
-⊙ -> initializing -> waiting for inputs
+⊙ -> initializing   -> waiting for inputs
 
 waiting for inputs  -> waiting for inputs
 waiting for inputs  -> executing
@@ -547,62 +588,55 @@ blocked             -> executing
 executing -> idle -> finalizing -> ⊗
 ```
 
-States:
+State definitions:
 
-- waiting for inputs:
+- `waiting for inputs`:
   - work on this operator cannot progress because it is waiting for input data.
   - has:
     - Port ID
-- blocked:
+- `blocked`:
   - work on this operator cannot progress because it is blocked internally or at
     the output, e.g. by backpressure in a push-based execution mechanism
-  - todo: define data for this state, we could capture various reasons
 
 Must have:
 
-- A parent Plan
+- `plan_id: uuid`: The ID of the Plan that this Operator belongs to
 
 May have:
 
-- A parent Plan Operator: in case it is e.g. a hierarchical lowering or
-  expansion of such a parent Operator.
+- `parent_operator_ids: list<uuid>`: The IDs of parent Plan Operators from which
+  this Operator was derived.
 
-Notes:
+At least one Edge (and thus one port) must be associated with an Operator.
 
-- At least one Edge (and thus one port) must be associated with an Operator.
-- The definition of the FSM of this Entity is likely very sensitive to
-  implementation details of engines. Multiple engines should be studied to
-  understand whether it can generally match. There are various alternatives such
-  as deferring the detection of waiting for inputs and blocked states to
-  post-processing / analysis.
+> TODO(johanpel): The definition of attributes of the FSM transitions are
+> likely very sensitive to implementation details of engines. Multiple
+> engines should be studied to understand whether a generic set of
+> attributes can be specified.
+>
+> TODO(johanpel): We could simply have one blocking state and have some
+> enumeration of reasons, including waiting for inputs with data conveying
+> which inputs.
 
-## Port
+### Port
 
-A Port is an Entity that represents either an input or output of an Operator.
+A Port is an [Entity](#entity) that represents either an input or output of an
+[Operator](#operator).
 
 Must have:
 
-- A parent Operator
-- Whether it is a source or sink
-- Source or sink port ID
+- `operator_id: uuid`: The ID of the [Operator](#operator) that this Port
+  belongs to
+- `name: string`: The name of the Port.
+- `is_source: bool`: Whether this port is a source (it produces data) or a sink
+  (it consumes data)
 
-Metrics:
-
-- Input rows
-- Input bytes
-- Output rows
-- Output bytes
-
-Note:
-
-- Port telemetry can piggyback onto Operator state transitions telemetry. E.g.
-  the metrics would typically be propagated with the `executing --> idle`
-  transition.
+> TODO(johanpel): `is_source` is redundant with the Plan `edges`, maybe remove it?
 
 ## Worker
 
-A worker is an Entity responsible for the execution of a Plan at the lowest
-level.
+A Worker is an FSM responsible for the execution of a [Plan](#plan) at the
+lowest level.
 
 FSM:
 
@@ -626,12 +660,174 @@ possibly through several layers of indirection, related to an Engine.
 
 ## Concrete Model Example
 
-> TODO(johanpel): provide a minimal example of a concrete model, ideally
-> one that is consistent with the simulator
+This section will describe an example of a model of a contrived distributed
+query engine called "Q".
 
-## Telemetry
+### High-level description
 
-> TODO(johanpel): find a good place for this section. It's probably more useful
+Q can have multiple [Workers](#worker). Q defines two
+[Plan](#plan) levels: a "logical" [Plan](#plan) and a "physical" [Plan](#plan).
+Each [Worker](#worker) has an instance of a "physical" [Plan](#plan) with the
+exact same topology.
+
+Q is very simple. After performing a topological sort of the physical
+[Plan](#plan), its scheduling thread visits every physical [Operator
+[(#operator)] of the [Plan](#plan) and enqueues a single Task to a Thread Pool
+that runs on a Thread until all work of that single Operator is completed.
+
+While the Task is running on the Thread, it can load a RecordBatch from the
+Filesystem, which represents a [Worker](#worker)-local partition of a table, and
+spill any of its input to the Filesystem if it cannot get an Allocation for both
+its inputs and worst-case sized outputs, while it keeps trying to
+[Allocate](#allocation) [Memory](#memory) to write the output of some
+[Computation](#computation). As such, Tasks running in Q can make room for other
+concurrent Tasks, but if the sizes of their input and output RecordBatches
+together would exceed total memory capacity, it will simply fail the query. It
+may be best to not perform full outer joins on Q.
+
+While the Task is running on the Thread, it can also split up a RecordBatch and
+send it to [Memory](#memory) of another [Worker](#worker).
+
+### Entities
+
+#### Resources
+
+##### Worker-scoped
+
+- Filesystem: [Rsource](#resource) with a bytes [Capacity](#capacity)
+- FilesystemIO: [Channel](#channel) between a Filesystem and Memory
+- Memory: [Memory](#memory)
+- Task Thread: [Processor](#processor)
+- Thread Pool: [Resource Group](#resource-group) of Task Threads
+
+##### Engine-scoped
+
+- Link: [Channel](#channel) between two Memories of a Worker
+- Network: [Resource Group](#resource-group) of Links
+
+#### Control flow
+
+##### Required by the model
+
+- [Engine](#engine)
+- [Query Group](#query-group)
+- [Worker](#worker)
+- [Query](#query)
+- [Plan](#plan)
+- [Operator](#operator)
+
+#### Engine-specific
+
+- RecordBatch (FSM)
+  - Relates to:
+    - Operator
+  - The `idle` state claims an [Allocation](#allocation) in either Filesystem or
+    Memory.
+  - State transitions:
+    ```text
+    ⊙             -> initializing
+    initializing  -> idle
+    idle          -> moving
+    moving        -> idle
+    idle          -> finalizing
+    finalizing    -> ⊗
+    ```
+
+- Task (FSM)
+  - Relates to:
+    - Operator
+  - All states except `initializing`, `queueing`, and `finalizing` claim a
+    [Computation](#computation) of one and the same Task Thread.
+  - The `sending` state claims a [Transfer](#transfer) of a Link
+  - The `loading` state claims a [Transfer](#transfer) of a FilesystemIO
+  - State transitions:
+    ```text
+    ⊙             -> initializing
+    initializing  -> queueing
+    queueing      -> computing
+    computing     -> allocating memory  -> computing
+    computing     -> loading            -> computing
+    computing     -> allocating storage -> spilling   -> computing
+    computing     -> sending            -> computing
+    computing     -> finalizing
+    finalizing    -> ⊗
+    ```
+
+### Model relations
+
+The lowest-level Entities of the model of Q are the Task and the RecordBatch.
+A consistent model is able to relate any Entity all the way back to an Engine.
+
+- For Task and RecordBatch, this can be done as follows:
+
+```text
+Task/RecordBatch -> Operator -> Plan (physical) -> Plan (logical) -> Query -> Query Group -> Engine
+```
+
+Note the above is not some FSM definition, but merely describes how construct
+are related through their [Attributes](#attributes).
+
+A consistent model also ensures all defined [Resources](#resource) have a
+[Use](#use) somewhere, which in the case of the concrete model of Q:
+
+```text
+Task (computing, allocating memory/storage, loading, sending) -> Computation -> Task Thread -> Thread Pool -> Worker -> Engine
+Task (loading) -> Transfer -> FilesystemIO -> Filesystem -> Worker -> Engine
+Task (sending) -> Transfer -> Link -> Network -> Engine
+RecordBatch (idle, moving) -> Allocation -> Memory / Storage -> Worker -> Engine
+```
+
+Because all Entities in the concrete model of Q can be related back to the
+Engine, a relation graph virtually exists that connects all Engine concepts.
+
+### Notes on Analysis
+
+The concrete model of Q, when combined with telemetry capturing events that
+provide data according to the model of Q, will allow answering many questions or
+provide the means to visualize performance. Here are some examples provided in
+the order in which an analyst may traverse through an interactive performance
+analysis tool.
+
+- Given an engine id, list all query groups named "tpc-h benchmark"
+- Given the query grouyp id, list all queries named "21"
+
+- Given a query id, show a DAG of the logical and physical [Plan](#plan)
+- In the DAG of the logical [Plan](#plan), show the number of input and output
+  rows for each [Port](#port) of an [Operator](#operator).
+- In the DAG of the logical [Plan](#plan), show the average throughput of a Task
+  sending data through the Network.
+- In the DAG of the logical [Plan](#plan), color the [Operators](#operator) with
+  colors from a colorblindness-friendly heatmap that corresponds to the number
+  of bytes transfered trough the Network.
+- In the DAG of the physical [Plan](#plan), color the [Operators](#operator)
+  with colors from a colorblindness-friendly heatmap that corresponds to total
+  amount of time spent in a Task Thread.
+- In the DAG of the physical [Plan](#plan), show the maximum number of bytes
+  claimed Memory Allocations.
+
+- Given a query id, show a timeline of Tasks running on Thread Pool Threads,
+  giving each Task state a unique colorblindness-friendly color.
+- Given a query id, show a timeline with a Memory usage graph based on
+  Allocations.
+- etc.
+
+Herein lies the power of a generic model for query engines - rather than N
+engines implementing N performance analysis tools that roughly do the same
+thing, there can be a much smaller set of performance analysis tools.
+
+## Non-goals for this document
+
+While the questions below are relevant for the project, they are not relevant
+for this document because its sole purpose is to define how to construct a
+performance model of query engines.
+
+- How can lower-level profiling tools deliver low-level value under the semantic
+  layer that a concrete model (and its telemetry) provides? Examples include
+  CUPTI, AON, perf, etc.
+
+### Telemetry
+
+> TODO(johanpel): find a good place for this section too. It's probably more useful
 > in a place where the reference implementation is described versus in the model
 > spec.
 
@@ -653,3 +849,7 @@ The idea of adding a fourth type is that it makes it easier to track the state
 and evolution of resources that come into and go out of existence during the
 lifetime of a program, without having to necessarily trace the call stack
 related to these things.
+
+```text
+
+```
