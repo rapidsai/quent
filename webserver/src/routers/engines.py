@@ -1,9 +1,11 @@
 """
 Engine-related API routes.
-Handles all endpoints related to engines, workers, coordinators, and queries.
+Handles all endpoints related to engines, workers, query groups, and queries.
 """
+
+from typing import Any
+
 from fastapi import APIRouter, Path
-from typing import Any, Dict
 
 from client import rust_client
 
@@ -49,39 +51,37 @@ async def get_worker(
     return rust_client.get(f"/analyzer/engine/{engine_id}/worker/{worker_id}")
 
 
-@router.get("/{engine_id}/coordinators")
-async def list_coordinators(
+@router.get("/{engine_id}/query_groups")
+async def list_query_groups(
     engine_id: str = Path(..., description="The engine ID"),
 ) -> Any:
     """
-    List all coordinators for a given engine.
+    List all query_groups for a given engine.
     """
-    return rust_client.get(f"/analyzer/engine/{engine_id}/list_coordinators")
+    return rust_client.get(f"/analyzer/engine/{engine_id}/list_query_groups")
 
 
-@router.get("/{engine_id}/coordinators/{coordinator_id}")
-async def get_coordinator(
+@router.get("/{engine_id}/query_groups/{query_group_id}")
+async def get_query_group(
     engine_id: str = Path(..., description="The engine ID"),
-    coordinator_id: str = Path(..., description="The coordinator ID"),
+    query_group_id: str = Path(..., description="The query_group ID"),
 ) -> Any:
     """
-    Get details for a specific coordinator.
+    Get details for a specific query_group.
+    """
+    return rust_client.get(f"/analyzer/engine/{engine_id}/query_group/{query_group_id}")
+
+
+@router.get("/{engine_id}/query_groups/{query_group_id}/list_queries")
+async def list_query_group_queries(
+    engine_id: str = Path(..., description="The engine ID"),
+    query_group_id: str = Path(..., description="The query_group ID"),
+) -> Any:
+    """
+    List all queries for a specific query_group.
     """
     return rust_client.get(
-        f"/analyzer/engine/{engine_id}/coordinator/{coordinator_id}"
-    )
-
-
-@router.get("/{engine_id}/coordinators/{coordinator_id}/queries")
-async def list_coordinator_queries(
-    engine_id: str = Path(..., description="The engine ID"),
-    coordinator_id: str = Path(..., description="The coordinator ID"),
-) -> Any:
-    """
-    List all queries for a specific coordinator.
-    """
-    return rust_client.get(
-        f"/analyzer/engine/{engine_id}/coordinator/{coordinator_id}/list_queries"
+        f"/analyzer/engine/{engine_id}/query_group/{query_group_id}/list_queries"
     )
 
 

@@ -17,7 +17,7 @@ plan_id: string,
 /**
  * A list of Operator IDs in a parent plan (if any) from which this Operator was derived.
  */
-parent_plan_ids: Array<string>, 
+parent_operator_ids: Array<string>, 
 /**
  * The name of this Operator.
  */

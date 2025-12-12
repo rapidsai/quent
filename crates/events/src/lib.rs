@@ -91,6 +91,8 @@ pub mod attributes {
 }
 
 pub mod engine {
+    use crate::attributes::Attribute;
+
     use super::*;
 
     /// Attributes describing details about the implementation of this Engine
@@ -100,7 +102,8 @@ pub mod engine {
         pub name: Option<String>,
         /// The version of this Engine implementation, e.g. "13.3.7"
         pub version: Option<String>,
-        // TODO(johanpel): much more
+        /// Arbitrary attributes defined at run time.
+        pub custom_attributes: Vec<Attribute>,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -127,7 +130,7 @@ pub mod engine {
     }
 }
 
-pub mod coordinator {
+pub mod query_group {
     use super::*;
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -146,7 +149,7 @@ pub mod coordinator {
     pub struct Exit {}
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub enum CoordinatorEvent {
+    pub enum QueryGroupEvent {
         Init(Init),
         Operating(Operating),
         Finalizing(Finalizing),
@@ -186,7 +189,7 @@ pub mod query {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Init {
-        pub coordinator_id: Uuid,
+        pub query_group_id: Uuid,
         pub name: Option<String>,
     }
 
@@ -219,13 +222,23 @@ pub mod query {
 pub mod plan {
     use super::*;
 
+    /// A directed edge of a Plan DAG.
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    pub struct Edge {
+        /// The ID of the port sourcing data.
+        pub source: Uuid,
+        /// The ID of the port sinking data.
+        pub target: Uuid,
+    }
+
     #[derive(Debug, Deserialize, Serialize)]
     pub struct Init {
+        pub name: String,
         pub query_id: Uuid,
+        pub edges: Vec<Edge>,
+
         pub worker_id: Option<Uuid>,
-        pub parent_id: Option<Uuid>,
-        /// A list of plan edges defined as (source port id, sink port id)
-        pub edges: Vec<(Uuid, Uuid)>,
+        pub parent_plan_id: Option<Uuid>,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -253,17 +266,16 @@ pub mod plan {
 pub mod operator {
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
     pub struct Port {
         pub id: Uuid,
-        pub is_input: bool,
-        pub name: Option<String>,
+        pub name: String,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
     pub struct Init {
         pub plan_id: Uuid,
-        pub parent_plan_ids: Vec<Uuid>,
+        pub parent_operator_ids: Vec<Uuid>,
         pub name: Option<String>,
         pub ports: Vec<Port>,
     }
@@ -296,14 +308,135 @@ pub mod operator {
     }
 }
 
+pub mod resource {
+    use super::*;
+
+    pub mod memory {
+        use super::*;
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Init {
+            name: String,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Operating {
+            capacity_bytes: u64,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Resizing {
+            requested_bytes: u64,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Finalizing {
+            unreclaimed_bytes: u64,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Exit {}
+
+        #[derive(Debug, Deserialize, Serialize)]
+        pub enum MemoryResourceEvent {
+            Init(Init),
+            Operating(Operating),
+            Resizing(Resizing),
+            Finalizing(Finalizing),
+            Exit(Exit),
+        }
+    }
+
+    pub mod processor {
+
+        use super::*;
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Init {
+            name: String,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Operating {}
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Finalizing {}
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Exit {}
+
+        #[derive(Debug, Deserialize, Serialize)]
+        pub enum ProcessorResourceEvent {
+            Init(Init),
+            Operating(Operating),
+            Finalizing(Finalizing),
+            Exit(Exit),
+        }
+    }
+
+    pub mod channel {
+        use super::*;
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Init {
+            name: String,
+            source_id: Uuid,
+            target_id: Uuid,
+            theoretical_peak_bandwidth_bytes_per_second: Option<u64>,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Operating {}
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Finalizing {}
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Exit {}
+
+        #[derive(Debug, Deserialize, Serialize)]
+        pub enum ChannelResourceEvent {
+            Init(Init),
+            Operating(Operating),
+            Finalizing(Finalizing),
+            Exit(Exit),
+        }
+    }
+
+    use crate::resource::{
+        channel::ChannelResourceEvent, memory::MemoryResourceEvent,
+        processor::ProcessorResourceEvent,
+    };
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum ResourceEvent {
+        Memory(MemoryResourceEvent),
+        Processor(ProcessorResourceEvent),
+        Channel(ChannelResourceEvent),
+    }
+
+    pub mod r#use {
+        pub struct Allocation {
+            pub used_bytes: u64,
+        }
+
+        pub struct Transfer {
+            pub transferred_bytes: u64,
+        }
+
+        pub struct Computation {}
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub enum EventData {
     Engine(engine::EngineEvent),
-    Coordinator(coordinator::CoordinatorEvent),
+    QueryGroup(query_group::QueryGroupEvent),
     Worker(worker::WorkerEvent),
     Query(query::QueryEvent),
     Plan(plan::PlanEvent),
     Operator(operator::OperatorEvent),
+    Resource(resource::ResourceEvent),
 }
 
 impl From<engine::EngineEvent> for EventData {
@@ -311,9 +444,9 @@ impl From<engine::EngineEvent> for EventData {
         Self::Engine(value)
     }
 }
-impl From<coordinator::CoordinatorEvent> for EventData {
-    fn from(value: coordinator::CoordinatorEvent) -> Self {
-        Self::Coordinator(value)
+impl From<query_group::QueryGroupEvent> for EventData {
+    fn from(value: query_group::QueryGroupEvent) -> Self {
+        Self::QueryGroup(value)
     }
 }
 impl From<worker::WorkerEvent> for EventData {

@@ -5,7 +5,7 @@ import type { EngineTimestamps } from "./EngineTimestamps";
 /**
  * An Engine represents the top-level entity of the model.
  *
- * Engines accept Queries that they pass to Coordinators which in turn orchestrates
+ * Engines accept Queries that they pass to Query Groups which in turn orchestrate
  * execution through Plans submitted to Workers.
  *
  * Nothing can outlive the lifetime of an Engine.

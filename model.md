@@ -473,8 +473,7 @@ Notes:
 ### Query Group
 
 A Query Group is an [FSM](#finite-state-machine) encapsulates a set of
-[Queries](#query) and potentially orchestrates the high-level orchestration of
-their execution on an [Engine](#engine).
+[Queries](#query).
 
 FSM:
 
@@ -543,6 +542,10 @@ Must have:
   `source` is the ID of the Port producing data and `target` is the ID of the
   Port consuming data.
 
+To form a valid Plan, at least one [Edge](#edge) must exist for every
+[Operator](#operator) of the Plan. Thus, a Plan always has at least two
+[Operators](#operator).
+
 May have:
 
 - `worker_id: uuid`: the ID of the [Worker](#worker) this Plan has specifically
@@ -593,21 +596,23 @@ State definitions:
 - `waiting for inputs`:
   - work on this operator cannot progress because it is waiting for input data.
   - has:
-    - Port ID
+    - `ports: list<uuid>`: The IDs of the [Port](#port)s that this Operator is
+      blocked on.
 - `blocked`:
   - work on this operator cannot progress because it is blocked internally or at
-    the output, e.g. by backpressure in a push-based execution mechanism
+    the output, e.g. by backpressure from another Operator consuming the output
+    of this Operator.
 
 Must have:
 
-- `plan_id: uuid`: The ID of the Plan that this Operator belongs to
+- `plan_id: uuid`: The ID of the [Plan](#plan) that this Operator belongs to.
+- `ports: list<Port>`: A non-empty list of [Ports](#port) that this Operator
+  has, where every `name` of each [Port](#port) is unique.
 
 May have:
 
-- `parent_operator_ids: list<uuid>`: The IDs of parent Plan Operators from which
-  this Operator was derived.
-
-At least one Edge (and thus one port) must be associated with an Operator.
+- `parent_operator_ids: list<uuid>`: The IDs of parent [Plan](#plan) Operators
+  from which this Operator was derived.
 
 > TODO(johanpel): The definition of attributes of the FSM transitions are
 > likely very sensitive to implementation details of engines. Multiple
@@ -625,13 +630,7 @@ A Port is an [Entity](#entity) that represents either an input or output of an
 
 Must have:
 
-- `operator_id: uuid`: The ID of the [Operator](#operator) that this Port
-  belongs to
 - `name: string`: The name of the Port.
-- `is_source: bool`: Whether this port is a source (it produces data) or a sink
-  (it consumes data)
-
-> TODO(johanpel): `is_source` is redundant with the Plan `edges`, maybe remove it?
 
 ## Worker
 
@@ -695,14 +694,15 @@ send it to [Memory](#memory) of another [Worker](#worker).
 ##### Worker-scoped
 
 - Filesystem: [Rsource](#resource) with a bytes [Capacity](#capacity)
-- FilesystemIO: [Channel](#channel) between a Filesystem and Memory
-- Memory: [Memory](#memory)
+- MainMemory: [Memory](#memory)
+- FsToMem: [Channel](#channel) between Filesystem and MainMemory
+- MemToFs: [Channel](#channel) between MainMemory and Filesystem
 - Task Thread: [Processor](#processor)
 - Thread Pool: [Resource Group](#resource-group) of Task Threads
 
 ##### Engine-scoped
 
-- Link: [Channel](#channel) between two Memories of a Worker
+- Link: [Channel](#channel) between the MainMemory of two different Workers
 - Network: [Resource Group](#resource-group) of Links
 
 #### Control flow
@@ -722,7 +722,7 @@ send it to [Memory](#memory) of another [Worker](#worker).
   - Relates to:
     - Operator
   - The `idle` state claims an [Allocation](#allocation) in either Filesystem or
-    Memory.
+    MainMemory.
   - State transitions:
     ```text
     ⊙             -> initializing
