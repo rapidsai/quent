@@ -165,6 +165,7 @@ layers:
      retrieved afterwards instead.
 
    - Implementations live in [crates/collector/](crates/collector).
+
 5. **Analyzer**: service that reads raw events, validates the model, and
    performs useful aggregations of bulk events used in visualization.
    - The reference implementation lives in [crates/analyzer/](crates/analyzer).
@@ -262,17 +263,17 @@ curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95 
 {"id":"019aee29-42a6-79b3-be5f-903f041b4e95","timestamps":{"init":1764932277849433000,"operating":1764932277849439000,"finalizing":1764932277850016000,"exit":1764932277850022000}}%
 ```
 
-and then continue down to find all coordinators of said engine:
+and then continue down to find all query groups of said engine:
 
 ```text
-curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/list_coordinators -H "Accept: application/json"
+curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/list_query_groups -H "Accept: application/json"
 ["019aee29-5659-7f81-80e9-924b55dd3756","019aee29-5659-7f81-80e9-925e254fb669"]%
 ```
 
 and then continue down to find all queries of said engine:
 
 ```text
-curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/coordinator/019aee29-5659-7f81-80e9-924b55dd3756/list_queries -H "Accept: application/json"
+curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/query_group/019aee29-5659-7f81-80e9-924b55dd3756/list_queries -H "Accept: application/json"
 ["019aee29-5659-7f81-80e9-924b55dd3756","019aee29-5659-7f81-80e9-925e254fb669"]%
 ```
 
@@ -280,7 +281,7 @@ and finally arrive at a query:
 
 ```text
 curl http://localhost:8080/analyzer/engine/019aee29-42a6-79b3-be5f-903f041b4e95/query/019aee29-5659-7f81-80e9-9271ce782180 -H "Accept: application/json"
-{"id":"019aee29-5659-7f81-80e9-9271ce782180","coordinator_id":"019aee29-5659-7f81-80e9-924b55dd3756","timestamps":{"init":1764932277849695000,"planning":1764932277849696000,"executing":1764932277849697000,"idle":1764932277849697000,"finalizing":1764932277849697000,"exit":1764932277849697000}}%
+{"id":"019aee29-5659-7f81-80e9-9271ce782180","query_group_id":"019aee29-5659-7f81-80e9-924b55dd3756","timestamps":{"init":1764932277849695000,"planning":1764932277849696000,"executing":1764932277849697000,"idle":1764932277849697000,"finalizing":1764932277849697000,"exit":1764932277849697000}}%
 ```
 
 ... and so forth.

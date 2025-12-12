@@ -542,7 +542,7 @@ Must have:
   `source` is the ID of the Port producing data and `target` is the ID of the
   Port consuming data.
 
-To form a valid Plan, at least one [Edge](#edge) must exist for every
+To form a valid Plan, at least one edge must exist for every
 [Operator](#operator) of the Plan. Thus, a Plan always has at least two
 [Operators](#operator).
 
