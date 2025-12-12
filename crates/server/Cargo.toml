@@ -22,4 +22,5 @@ serde_json.workspace = true
 
 [build-dependencies]
 quent-entities = { path = "../entities" }
+quent-events =  { path = "../events" }
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

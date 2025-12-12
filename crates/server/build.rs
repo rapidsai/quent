@@ -6,5 +6,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     quent_entities::coordinator::Coordinator::export_all()?;
     quent_entities::worker::Worker::export_all()?;
     quent_entities::query::Query::export_all()?;
+    quent_events::attributes::Attribute::export_all()?;
     Ok(())
 }
