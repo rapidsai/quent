@@ -3,7 +3,7 @@ import type { Plan } from "./Plan";
 import type { QueryTimestamps } from "./QueryTimestamps";
 
 /**
- * A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
+ * A Query.
  */
 export type Query = { 
 /**
@@ -11,9 +11,9 @@ export type Query = {
  */
 id: string, 
 /**
- * The ID of the Coordinator orchestrating this query
+ * The ID of the QueryGroup orchestrating this query
  */
-coordinator_id: string, 
+query_group_id: string, 
 /**
  * Timestamps of state transitions throughout the lifetime of the Query.
  */

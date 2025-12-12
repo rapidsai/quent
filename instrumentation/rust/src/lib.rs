@@ -2,7 +2,7 @@
 //!
 use std::sync::Arc;
 
-use quent_events::{Event, EventData, coordinator, engine, operator, plan, query, worker};
+use quent_events::{Event, EventData, engine, operator, plan, query, query_group, worker};
 use quent_exporter::Exporter;
 use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
 use quent_exporter_ndjson::NdjsonExporter;
@@ -89,8 +89,8 @@ impl Context {
             tx: self.events_sender.clone(),
         }
     }
-    pub fn coordinator_observer(&self) -> CoordinatorObserver {
-        CoordinatorObserver {
+    pub fn query_group_observer(&self) -> QueryGroupObserver {
+        QueryGroupObserver {
             tx: self.events_sender.clone(),
         }
     }
@@ -152,42 +152,42 @@ impl EngineObserver {
 }
 
 #[derive(Clone)]
-pub struct CoordinatorObserver {
+pub struct QueryGroupObserver {
     tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
 }
 
-impl CoordinatorObserver {
-    pub fn init(&self, id: Uuid, init: coordinator::Init) {
+impl QueryGroupObserver {
+    pub fn init(&self, id: Uuid, init: query_group::Init) {
         push_event(
             &self.tx,
-            Event::new(id, coordinator::CoordinatorEvent::Init(init).into()),
+            Event::new(id, query_group::QueryGroupEvent::Init(init).into()),
         )
     }
 
-    pub fn operating(&self, id: Uuid, operating: coordinator::Operating) {
+    pub fn operating(&self, id: Uuid, operating: query_group::Operating) {
         push_event(
             &self.tx,
             Event::new(
                 id,
-                coordinator::CoordinatorEvent::Operating(operating).into(),
+                query_group::QueryGroupEvent::Operating(operating).into(),
             ),
         )
     }
 
-    pub fn finalizing(&self, id: Uuid, finalizing: coordinator::Finalizing) {
+    pub fn finalizing(&self, id: Uuid, finalizing: query_group::Finalizing) {
         push_event(
             &self.tx,
             Event::new(
                 id,
-                coordinator::CoordinatorEvent::Finalizing(finalizing).into(),
+                query_group::QueryGroupEvent::Finalizing(finalizing).into(),
             ),
         )
     }
 
-    pub fn exit(&self, id: Uuid, exit: coordinator::Exit) {
+    pub fn exit(&self, id: Uuid, exit: query_group::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, coordinator::CoordinatorEvent::Exit(exit).into()),
+            Event::new(id, query_group::QueryGroupEvent::Exit(exit).into()),
         )
     }
 }

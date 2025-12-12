@@ -3,16 +3,16 @@
 use std::collections::HashMap;
 
 use quent_entities::{
-    coordinator::Coordinator,
     engine::Engine,
-    operator::{Operator, OperatorState, Port, WaitingForInputs},
-    plan::{self, Plan},
+    operator::{Operator, OperatorState, WaitingForInputs},
+    plan::Plan,
     query::Query,
+    query_group::QueryGroup,
     worker::Worker,
 };
 use quent_events::{
-    Event as RawEvent, EventData, coordinator::CoordinatorEvent, engine::EngineEvent,
-    operator::OperatorEvent, query::QueryEvent, worker::WorkerEvent,
+    Event as RawEvent, EventData, engine::EngineEvent, operator::OperatorEvent, query::QueryEvent,
+    query_group::QueryGroupEvent, worker::WorkerEvent,
 };
 use tracing::trace;
 use uuid::Uuid;
@@ -27,7 +27,7 @@ pub type Event = RawEvent<EventData>;
 pub struct Analyzer {
     engine: Engine,
     workers: HashMap<Uuid, Worker>,
-    coordinators: HashMap<Uuid, Coordinator>,
+    query_groups: HashMap<Uuid, QueryGroup>,
     queries: HashMap<Uuid, Query>,
 }
 
@@ -45,7 +45,7 @@ impl Analyzer {
         //                 possible for larger datasets, this is just a trivial implementation
         //                 to make it work. This is known to get pretty intense.
         let mut engine = Engine::new(engine_id);
-        let mut coordinators: HashMap<Uuid, Coordinator> = HashMap::new();
+        let mut query_groups: HashMap<Uuid, QueryGroup> = HashMap::new();
         let mut workers: HashMap<Uuid, Worker> = HashMap::new();
         let mut queries: HashMap<Uuid, Query> = HashMap::new();
         let mut plans: HashMap<Uuid, Plan> = HashMap::new();
@@ -67,18 +67,18 @@ impl Analyzer {
                     EngineEvent::Finalizing(_) => engine.timestamps.finalizing = Some(ts),
                     EngineEvent::Exit(_) => engine.timestamps.exit = Some(ts),
                 },
-                EventData::Coordinator(coordinator_event) => {
-                    let entry = entry(&mut coordinators, event.id);
-                    match coordinator_event {
-                        CoordinatorEvent::Init(init) => {
+                EventData::QueryGroup(query_group_event) => {
+                    let entry = entry(&mut query_groups, event.id);
+                    match query_group_event {
+                        QueryGroupEvent::Init(init) => {
                             entry.id = event.id;
                             entry.name = init.name;
                             entry.engine_id = init.engine_id;
                             entry.timestamps.init = Some(ts);
                         }
-                        CoordinatorEvent::Operating(_) => entry.timestamps.operating = Some(ts),
-                        CoordinatorEvent::Finalizing(_) => entry.timestamps.finalizing = Some(ts),
-                        CoordinatorEvent::Exit(_) => entry.timestamps.exit = Some(ts),
+                        QueryGroupEvent::Operating(_) => entry.timestamps.operating = Some(ts),
+                        QueryGroupEvent::Finalizing(_) => entry.timestamps.finalizing = Some(ts),
+                        QueryGroupEvent::Exit(_) => entry.timestamps.exit = Some(ts),
                     }
                 }
                 EventData::Worker(worker_event) => {
@@ -100,7 +100,7 @@ impl Analyzer {
                     match query_event {
                         QueryEvent::Init(init) => {
                             entry.id = event.id;
-                            entry.coordinator_id = init.coordinator_id;
+                            entry.query_group_id = init.query_group_id;
                             entry.timestamps.init = Some(ts);
                         }
                         QueryEvent::Planning(_) => entry.timestamps.planning = Some(ts),
@@ -117,11 +117,7 @@ impl Analyzer {
                             // TODO(johanpel): validate edges have ids of existing operator ports.
                             entry.id = event.id;
                             entry.query_id = init.query_id;
-                            entry.edges = init
-                                .edges
-                                .into_iter()
-                                .map(|(source, target)| plan::Edge { source, target })
-                                .collect();
+                            entry.edges = init.edges;
                             entry.timestamps.init = Some(event.timestamp);
                         }
                         quent_events::plan::PlanEvent::Executing(_) => {
@@ -146,25 +142,17 @@ impl Analyzer {
                             entry.id = event.id;
                             entry.name = init.name;
                             entry.plan_id = init.plan_id;
-                            entry.parent_plan_ids = init.parent_plan_ids;
+                            entry.parent_operator_ids = init.parent_operator_ids;
                             entry
                                 .state_sequence
                                 .push(OperatorState::Init(event.timestamp));
-                            entry.ports = init
-                                .ports
-                                .into_iter()
-                                .map(|ep| Port {
-                                    id: ep.id,
-                                    is_input: ep.is_input,
-                                    name: ep.name,
-                                })
-                                .collect();
+                            entry.ports = init.ports;
                         }
-                        OperatorEvent::WaitingForInputs(_) => {
+                        OperatorEvent::WaitingForInputs(waiting) => {
                             entry.state_sequence.push(OperatorState::WaitingForInputs(
                                 WaitingForInputs {
                                     timestamp: event.timestamp,
-                                    ports: vec![], // TODO(johanpel)
+                                    ports: waiting.ports,
                                 },
                             ));
                         }
@@ -182,14 +170,15 @@ impl Analyzer {
                             .push(OperatorState::Exit(event.timestamp)),
                     }
                 }
+                _ => unimplemented!(),
             }
             Ok(())
         })?;
 
         // All events are transformed into entities. Filter out parentless entities.
-        for key in coordinators.keys().cloned().collect::<Vec<_>>() {
-            if coordinators.get(&key).unwrap().engine_id != engine_id {
-                coordinators.remove(&key);
+        for key in query_groups.keys().cloned().collect::<Vec<_>>() {
+            if query_groups.get(&key).unwrap().engine_id != engine_id {
+                query_groups.remove(&key);
             }
         }
         for key in workers.keys().cloned().collect::<Vec<_>>() {
@@ -198,7 +187,7 @@ impl Analyzer {
             }
         }
         for key in queries.keys().cloned().collect::<Vec<_>>() {
-            if !coordinators.contains_key(&queries.get(&key).unwrap().coordinator_id) {
+            if !query_groups.contains_key(&queries.get(&key).unwrap().query_group_id) {
                 queries.remove(&key);
             }
         }
@@ -224,7 +213,7 @@ impl Analyzer {
 
         Ok(Self {
             engine,
-            coordinators,
+            query_groups,
             workers,
             queries,
         })
@@ -235,7 +224,7 @@ impl Analyzer {
     }
 
     // TODO(johanpel): this is separated from an engine, since we assume engines can have
-    //                 immense lifetimes so they could be running lots of coordinators, in
+    //                 immense lifetimes so they could be running lots of query_groups, in
     //                 which case we may want to implement pagination for this.
     pub fn worker_ids(&self) -> Vec<Uuid> {
         self.workers.keys().cloned().collect()
@@ -244,17 +233,17 @@ impl Analyzer {
         self.workers.get(&id)
     }
     // TODO(johanpel): pagination
-    pub fn coordinator_ids(&self) -> Vec<Uuid> {
-        self.coordinators.keys().cloned().collect()
+    pub fn query_group_ids(&self) -> Vec<Uuid> {
+        self.query_groups.keys().cloned().collect()
     }
-    pub fn coordinator(&self, id: Uuid) -> Option<&Coordinator> {
-        self.coordinators.get(&id)
+    pub fn query_group(&self, id: Uuid) -> Option<&QueryGroup> {
+        self.query_groups.get(&id)
     }
     // TODO(johanpel): pagination
-    pub fn query_ids(&self, coordinator_id: Uuid) -> Vec<Uuid> {
+    pub fn query_ids(&self, query_group_id: Uuid) -> Vec<Uuid> {
         self.queries
             .iter()
-            .filter_map(|(k, v)| (v.coordinator_id == coordinator_id).then_some(*k))
+            .filter_map(|(k, v)| (v.query_group_id == query_group_id).then_some(*k))
             .collect()
     }
 

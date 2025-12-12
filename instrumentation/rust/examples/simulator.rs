@@ -3,9 +3,8 @@ use std::fmt::{Debug, Display};
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent::{ExporterOptions, OperatorObserver, PlanObserver};
 use quent_events::{
-    coordinator,
     engine::{self, EngineImplementationAttributes},
-    operator, plan, query, worker,
+    operator, plan, query, query_group, worker,
 };
 
 use rand::{Rng, rng};
@@ -283,6 +282,8 @@ fn create_plan_events<T>(
     plan_obs: &PlanObserver,
     op_obs: &OperatorObserver,
     plan: &Graph<Operator<T>, Edge, Directed>,
+    plan_name: String,
+    parent_plan_id: Option<Uuid>,
 ) -> Uuid
 where
     T: Debug,
@@ -292,12 +293,16 @@ where
     plan_obs.init(
         plan_id,
         plan::Init {
+            name: plan_name,
             query_id,
+            parent_plan_id,
             worker_id: None,
-            parent_id: None,
             edges: plan
                 .edge_references()
-                .map(|edge| (edge.weight().source.id, edge.weight().target.id))
+                .map(|edge| plan::Edge {
+                    source: edge.weight().source.id,
+                    target: edge.weight().target.id,
+                })
                 .collect(),
         },
     );
@@ -320,21 +325,19 @@ where
             op.id,
             operator::Init {
                 plan_id,
-                parent_plan_ids: op.parents.clone(),
+                parent_operator_ids: op.parents.clone(),
                 name: Some(op.name()),
                 ports: plan
                     .edges_directed(node_idx, petgraph::Direction::Incoming)
                     .map(|edge| operator::Port {
                         id: edge.weight().target.id,
-                        is_input: true,
-                        name: Some(edge.weight().target.name.to_string()),
+                        name: edge.weight().target.name.to_string(),
                     })
                     .chain(
                         plan.edges_directed(node_idx, petgraph::Direction::Outgoing)
                             .map(|edge| operator::Port {
                                 id: edge.weight().source.id,
-                                is_input: false,
-                                name: Some(edge.weight().source.name.to_string()),
+                                name: edge.weight().source.name.to_string(),
                             }),
                     )
                     .collect(),
@@ -378,6 +381,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             implementation: Some(EngineImplementationAttributes {
                 name: Some("Simulator".into()),
                 version: Some("0.0.0-PoC".into()),
+                custom_attributes: vec![],
             }),
         },
     );
@@ -402,26 +406,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     engine_obs.operating(engine_id, engine::Operating {});
 
-    let coordinator_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
+    let query_group_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
         .take(2)
-        .map(|coordinator_id| {
-            info!("simulating coordinator - http://localhost:8080/analyzer/engine/{engine_id}/coordinator/{coordinator_id}");
+        .map(|query_group_id| {
+            info!("simulating query_group - http://localhost:8080/analyzer/engine/{engine_id}/query_group/{query_group_id}");
             std::thread::spawn({
                 let engine_id = engine_id.clone();
-                let coordinator_obs = context.coordinator_observer();
+                let query_group_obs = context.query_group_observer();
                 let query_obs = context.query_observer();
                 let plan_obs = context.plan_observer();
                 let operator_obs = context.operator_observer();
 
                 move || {
-                    coordinator_obs.init(
-                        coordinator_id,
-                        coordinator::Init {
+                    query_group_obs.init(
+                        query_group_id,
+                        query_group::Init {
                             engine_id,
-                            name: Some(format!("coordinator-{:04x}", rng().random::<u32>())),
+                            name: Some(format!("query_group-{:04x}", rng().random::<u32>())),
                         },
                     );
-                    coordinator_obs.operating(coordinator_id, coordinator::Operating {});
+                    query_group_obs.operating(query_group_id, query_group::Operating {});
 
                     let query_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
                         .take(2)
@@ -435,7 +439,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     query_obs.init(
                                         query_id,
                                         query::Init {
-                                            coordinator_id,
+                                            query_group_id,
                                             name: Some(format!("query-{}", rng().random::<u32>())),
                                         },
                                     );
@@ -444,9 +448,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let p_plan = make_physical_plan(&l_plan);
                                     query_obs.executing(query_id, query::Executing {});
 
-                                    create_plan_events(query_id, &plan_obs, &operator_obs, &l_plan);
+                                    let logical_plan_id = create_plan_events(query_id, &plan_obs, &operator_obs, &l_plan, "logical".to_string(), None);
                                     // TODO(johanpel): properly nest this
-                                    create_plan_events(query_id, &plan_obs, &operator_obs, &p_plan);
+                                    let _physical_plan_id = create_plan_events(query_id, &plan_obs, &operator_obs, &p_plan, "physical".to_string(), Some(logical_plan_id));
 
                                     query_obs.idle(query_id, query::Idle {});
                                     query_obs.finalizing(query_id, query::Finalizing {});
@@ -460,15 +464,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         query_future.join().unwrap();
                     }
 
-                    coordinator_obs.finalizing(coordinator_id, coordinator::Finalizing {});
-                    coordinator_obs.exit(coordinator_id, coordinator::Exit {});
+                    query_group_obs.finalizing(query_group_id, query_group::Finalizing {});
+                    query_group_obs.exit(query_group_id, query_group::Exit {});
                 }
             })
         })
         .collect();
 
-    for coordinator_future in coordinator_futures {
-        coordinator_future.join().unwrap();
+    for query_group_future in query_group_futures {
+        query_group_future.join().unwrap();
     }
 
     engine_obs.finalizing(engine_id, engine::Finalizing {});

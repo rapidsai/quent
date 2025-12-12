@@ -28,7 +28,7 @@ pub mod engine {
 
     /// An Engine represents the top-level entity of the model.
     ///
-    /// Engines accept Queries that they pass to Coordinators which in turn orchestrates
+    /// Engines accept Queries that they pass to Query Groups which in turn orchestrate
     /// execution through Plans submitted to Workers.
     ///
     /// Nothing can outlive the lifetime of an Engine.
@@ -56,39 +56,39 @@ pub mod engine {
     }
 }
 
-pub mod coordinator {
+pub mod query_group {
     use super::*;
 
-    /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Coordinator.
+    /// Timestamps (nanoseconds since Unix epoch) of state transitions of a QueryGroup.
     #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
-    pub struct CoordinatorTimestamps {
-        /// The time at which the Coordinator started initialization.
+    pub struct QueryGroupTimestamps {
+        /// The time at which the QueryGroup started initialization.
         pub init: Option<Timestamp>,
-        /// The time at which the Coordinator started accepting queries.
+        /// The time at which the QueryGroup started accepting queries.
         pub operating: Option<Timestamp>,
-        /// The time at which the Coordinator started shutting down and cleaning up its resources.
+        /// The time at which the QueryGroup started shutting down and cleaning up its resources.
         pub finalizing: Option<Timestamp>,
-        /// The time at which the Coordinator was completely destructed and all resources were freed.
+        /// The time at which the QueryGroup was completely destructed and all resources were freed.
         pub exit: Option<Timestamp>,
     }
 
-    /// A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
+    /// A QueryGroup is an entity that orchestrates the execution of a distinct set of queries.
     ///
-    /// For example, a session in a long-lived multi-user engine could be modeled as a Coordinator.
+    /// For example, a session in a long-lived multi-user engine could be modeled as a QueryGroup.
     /// TODO(johanpel): perhaps this isn't a great name for this concept, consider naming this something else.
     #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
-    pub struct Coordinator {
-        /// The ID of this Coordinator
+    pub struct QueryGroup {
+        /// The ID of this QueryGroup
         pub id: Uuid,
-        /// The ID of the Engine this Coordinator was spawned in
+        /// The ID of the Engine this QueryGroup was spawned in
         pub engine_id: Uuid,
-        /// Timestamps of state transitions throughout the lifetime of the Coordinator.
-        pub timestamps: CoordinatorTimestamps,
-        /// A name for this Coordinator instance
+        /// Timestamps of state transitions throughout the lifetime of the QueryGroup.
+        pub timestamps: QueryGroupTimestamps,
+        /// A name for this QueryGroup instance
         pub name: Option<String>,
     }
 
-    impl Coordinator {
+    impl QueryGroup {
         pub fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -164,13 +164,13 @@ pub mod query {
         pub exit: Option<Timestamp>,
     }
 
-    /// A Coordinator is an entity that orchestrates the execution of a distinct set of queries.
+    /// A Query.
     #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Query {
         /// The ID of this Query
         pub id: Uuid,
-        /// The ID of the Coordinator orchestrating this query
-        pub coordinator_id: Uuid,
+        /// The ID of the QueryGroup orchestrating this query
+        pub query_group_id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the Query.
         pub timestamps: QueryTimestamps,
         /// A name for this Query.
@@ -190,6 +190,8 @@ pub mod query {
 }
 
 pub mod operator {
+    use quent_events::operator::Port;
+
     use super::*;
 
     /// A state transition where an Operator is blocked from progressing beceause it is waiting for inputs to arrive.
@@ -231,17 +233,6 @@ pub mod operator {
         }
     }
 
-    /// A Port of an Operator in a Plan DAG.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
-    pub struct Port {
-        /// The ID of this Port.
-        pub id: Uuid,
-        /// Whether this port is an input (or an output).
-        pub is_input: bool,
-        /// The name of this Port.
-        pub name: Option<String>,
-    }
-
     /// An Operator in a Plan DAG.
     #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Operator {
@@ -250,7 +241,7 @@ pub mod operator {
         /// The ID of the Plan this Operator belongs to.
         pub plan_id: Uuid,
         /// A list of Operator IDs in a parent plan (if any) from which this Operator was derived.
-        pub parent_plan_ids: Vec<Uuid>,
+        pub parent_operator_ids: Vec<Uuid>,
         /// The name of this Operator.
         pub name: Option<String>,
         /// The Ports of this operator.
@@ -261,16 +252,9 @@ pub mod operator {
 }
 
 pub mod plan {
-    use super::*;
+    use quent_events::plan::Edge;
 
-    /// A Plan edge.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
-    pub struct Edge {
-        /// The source port id.
-        pub source: Uuid,
-        /// The target port id.
-        pub target: Uuid,
-    }
+    use super::*;
 
     /// Timestamps of plan state transitions.
     #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
