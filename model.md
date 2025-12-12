@@ -406,10 +406,10 @@ Note:
 - Concrete engine models don't necessarily need to tie an Allocation to e.g. a
   single `malloc`. For example, in a columnar query engine working with Arrow,
   each underlying Arrow buffer would be a single `malloc`, yet in the model, an
-  Allocation can be tied to an entire worker-local "Table" (Datum), capturing
-  the sum of all Arrow data and metadata buffer capacities. Note that here the
-  effective part of the Allocation is the bytes of useful information within
-  these buffers, but the true use is the capacity of the buffers (which includes
+  Allocation can be tied to an entire worker-local "Table", capturing the sum of
+  all Arrow data and metadata buffer capacities. Note that here the effective
+  part of the Allocation is the bytes of useful information within these
+  buffers, but the true use is the capacity of the buffers (which includes
   unused bytes and padding).
 
 ### Channel

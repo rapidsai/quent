@@ -855,6 +855,7 @@ dependencies = [
  "quent-analyzer",
  "quent-collector",
  "quent-entities",
+ "quent-events",
  "quent-exporter-ndjson",
  "serde_json",
  "tokio",

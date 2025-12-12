@@ -37,6 +37,59 @@ impl<T> Event<T> {
     }
 }
 
+/// Support for custom attributes defined at run-time.
+pub mod attributes {
+    use super::*;
+
+    /// A group of [`Attribute`]s.
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    pub struct Struct(Vec<Attribute>);
+
+    /// A sequence of [`Value`]s.
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[ts(untagged)]
+    pub enum List {
+        U8(Vec<u8>),
+        U16(Vec<u16>),
+        U32(Vec<u32>),
+        U64(Vec<u64>),
+        I8(Vec<i8>),
+        I16(Vec<i16>),
+        I32(Vec<i32>),
+        I64(Vec<i64>),
+        F32(Vec<f32>),
+        F64(Vec<f64>),
+        String(Vec<String>),
+        Struct(Vec<Struct>),
+    }
+
+    /// An [`Attribute`] value.
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[ts(untagged)]
+    pub enum Value {
+        U8(u8),
+        U16(u16),
+        U32(u32),
+        U64(u64),
+        I8(u8),
+        I16(i16),
+        I32(i32),
+        I64(i64),
+        F32(f32),
+        F64(f64),
+        String(String),
+        Struct(Struct),
+        List(List),
+    }
+
+    /// A key-value pair.
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    pub struct Attribute {
+        pub key: String,
+        pub value: Value,
+    }
+}
+
 pub mod engine {
     use super::*;
 
