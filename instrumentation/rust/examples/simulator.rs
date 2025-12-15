@@ -1,10 +1,15 @@
-use std::fmt::{Debug, Display};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+};
 
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent::{ExporterOptions, OperatorObserver, PlanObserver};
 use quent_events::{
     engine::{self, EngineImplementationAttributes},
-    operator, plan, query, query_group, worker,
+    operator, plan, query, query_group,
+    resource::{self, channel, memory},
+    worker,
 };
 
 use rand::{Rng, rng};
@@ -386,8 +391,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
-    // Spawn workers
+    // Create some observers
     let worker_obs = context.worker_observer();
+    let resource_group_obs = context.resource_group_observer();
+    let memory_obs = context.memory_resource_observer();
+    let channel_obs = context.channel_resource_observer();
+    let processor_obs = context.processor_resource_observer();
+
+    // Engine resources.
+    let network_id = Uuid::now_v7();
+    resource_group_obs.init(
+        network_id,
+        resource::group::Init {
+            resource: resource::Resource {
+                name: "Network".to_string(),
+                scope: resource::Scope::Worker(engine_id),
+            },
+        },
+    );
+    let mut network_links: HashMap<(Uuid, Uuid), (Uuid, Uuid)> = HashMap::new();
+
+    // Worker resources.
+    type ResourceMap = HashMap<Uuid, Uuid>;
+    let mut worker_filesystem = ResourceMap::new();
+    let mut worker_main_memory = ResourceMap::new();
+    let mut worker_fs_to_mem = ResourceMap::new();
+    let mut worker_mem_to_fs = ResourceMap::new();
+    let mut worker_thread_pool = ResourceMap::new();
+    let mut worker_task_thread: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+
     let worker_ids = std::iter::repeat_with(|| Uuid::now_v7())
         .take(4)
         .collect::<Vec<_>>();
@@ -399,7 +431,127 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name: Some(format!("worker-{worker_index}")),
             },
         );
+
+        // Spawn resources in workers
+        let filesystem_id = Uuid::now_v7();
+        memory_obs.init(
+            filesystem_id,
+            memory::Init {
+                resource: resource::Resource {
+                    name: "Filesystem".to_string(),
+                    scope: resource::Scope::Worker(*worker_id),
+                },
+            },
+        );
+        memory_obs.operating(filesystem_id, Default::default());
+        worker_filesystem.insert(*worker_id, filesystem_id);
+
+        let main_memory_id = Uuid::now_v7();
+        memory_obs.init(
+            main_memory_id,
+            memory::Init {
+                resource: resource::Resource {
+                    name: "Filesystem".to_string(),
+                    scope: resource::Scope::Worker(*worker_id),
+                },
+            },
+        );
+        memory_obs.operating(main_memory_id, Default::default());
+        worker_main_memory.insert(*worker_id, main_memory_id);
+
+        let fs_to_mem_id = Uuid::now_v7();
+        channel_obs.init(
+            fs_to_mem_id,
+            channel::Init {
+                resource: resource::Resource {
+                    name: "FsToMem".to_string(),
+                    scope: resource::Scope::Worker(*worker_id),
+                },
+                source_id: filesystem_id,
+                target_id: main_memory_id,
+            },
+        );
+        channel_obs.operating(fs_to_mem_id, Default::default());
+        worker_fs_to_mem.insert(*worker_id, fs_to_mem_id);
+
+        let mem_to_fs_id = Uuid::now_v7();
+        channel_obs.init(
+            mem_to_fs_id,
+            channel::Init {
+                resource: resource::Resource {
+                    name: "MemToFs".to_string(),
+                    scope: resource::Scope::Worker(*worker_id),
+                },
+                source_id: main_memory_id,
+                target_id: filesystem_id,
+            },
+        );
+        channel_obs.operating(mem_to_fs_id, Default::default());
+        worker_mem_to_fs.insert(*worker_id, mem_to_fs_id);
+
+        let thread_pool_id = Uuid::now_v7();
+        resource_group_obs.init(
+            thread_pool_id,
+            resource::group::Init {
+                resource: resource::Resource {
+                    name: "ThreadPool".to_string(),
+                    scope: resource::Scope::Worker(*worker_id),
+                },
+            },
+        );
+        worker_thread_pool.insert(*worker_id, thread_pool_id);
+        {
+            let thread_ids: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7()).take(4).collect();
+            for (index, thread_id) in thread_ids.iter().enumerate() {
+                processor_obs.init(
+                    *thread_id,
+                    resource::processor::Init {
+                        resource: resource::Resource {
+                            name: format!("TaskThread-{index}"),
+                            scope: resource::Scope::ResourceGroup(thread_pool_id),
+                        },
+                    },
+                );
+                processor_obs.operating(*thread_id, Default::default());
+            }
+            worker_task_thread.insert(*worker_id, thread_ids);
+        }
+        resource_group_obs.operating(thread_pool_id, Default::default());
     }
+
+    // Create a fully connected bidirectional network of workers
+    for worker_index in 0..worker_ids.len() {
+        for other_worker_index in worker_index + 1..worker_ids.len() {
+            let worker_id = worker_ids[worker_index];
+            let other_worker_id = worker_ids[other_worker_index];
+            let up_link_id = Uuid::now_v7();
+            channel_obs.init(
+                up_link_id,
+                channel::Init {
+                    resource: resource::Resource {
+                        name: format!("link-{worker_index}-to-{other_worker_index}"),
+                        scope: resource::Scope::ResourceGroup(network_id),
+                    },
+                    source_id: *worker_main_memory.get(&worker_id).unwrap(),
+                    target_id: *worker_main_memory.get(&other_worker_id).unwrap(),
+                },
+            );
+            let down_link_id = Uuid::now_v7();
+            channel_obs.init(
+                down_link_id,
+                channel::Init {
+                    resource: resource::Resource {
+                        name: format!("link-{other_worker_index}-to-{worker_index}"),
+                        scope: resource::Scope::ResourceGroup(network_id),
+                    },
+                    source_id: *worker_main_memory.get(&other_worker_id).unwrap(),
+                    target_id: *worker_main_memory.get(&worker_id).unwrap(),
+                },
+            );
+            network_links.insert((worker_id, other_worker_id), (up_link_id, down_link_id));
+        }
+    }
+
     for worker_id in worker_ids.iter() {
         worker_obs.operating(*worker_id, worker::Operating {});
     }
@@ -479,9 +631,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Shut down workers.
     for worker_id in worker_ids.iter() {
+        let filesystem = *worker_filesystem.get(worker_id).unwrap();
+        memory_obs.finalizing(filesystem, Default::default());
+        memory_obs.exit(filesystem, Default::default());
+
+        let main_memory = *worker_main_memory.get(worker_id).unwrap();
+        memory_obs.finalizing(main_memory, Default::default());
+        memory_obs.exit(main_memory, Default::default());
+
+        let fs_to_mem = *worker_fs_to_mem.get(worker_id).unwrap();
+        channel_obs.finalizing(fs_to_mem, Default::default());
+        channel_obs.exit(fs_to_mem, Default::default());
+
+        let mem_to_fs = *worker_mem_to_fs.get(worker_id).unwrap();
+        channel_obs.finalizing(mem_to_fs, Default::default());
+        channel_obs.exit(mem_to_fs, Default::default());
+
+        for task_thread in worker_task_thread.get(worker_id).unwrap() {
+            processor_obs.finalizing(*task_thread, Default::default());
+            processor_obs.exit(*task_thread, Default::default());
+        }
+
+        let thread_pool = *worker_thread_pool.get(worker_id).unwrap();
+        resource_group_obs.finalizing(thread_pool, Default::default());
+        resource_group_obs.exit(thread_pool, Default::default());
+
         worker_obs.finalizing(*worker_id, worker::Finalizing {});
         worker_obs.exit(*worker_id, worker::Exit {});
     }
+
+    for (up_link, down_link) in network_links.values().cloned() {
+        channel_obs.finalizing(up_link, Default::default());
+        channel_obs.exit(down_link, Default::default());
+    }
+    resource_group_obs.finalizing(network_id, Default::default());
+    resource_group_obs.exit(network_id, Default::default());
 
     engine_obs.exit(engine_id, engine::Exit {});
 

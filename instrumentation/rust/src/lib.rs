@@ -2,7 +2,11 @@
 //!
 use std::sync::Arc;
 
-use quent_events::{Event, EventData, engine, operator, plan, query, query_group, worker};
+use quent_events::{
+    Event, EventData, engine, operator, plan, query, query_group,
+    resource::{channel, group, memory, processor},
+    worker,
+};
 use quent_exporter::Exporter;
 use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
 use quent_exporter_ndjson::NdjsonExporter;
@@ -111,6 +115,26 @@ impl Context {
     }
     pub fn operator_observer(&self) -> OperatorObserver {
         OperatorObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn memory_resource_observer(&self) -> MemoryResourceObserver {
+        MemoryResourceObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn processor_resource_observer(&self) -> ProcessorResourceObserver {
+        ProcessorResourceObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn channel_resource_observer(&self) -> ChannelResourceObserver {
+        ChannelResourceObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    pub fn resource_group_observer(&self) -> ResourceGroupObserver {
+        ResourceGroupObserver {
             tx: self.events_sender.clone(),
         }
     }
@@ -357,6 +381,164 @@ impl OperatorObserver {
         push_event(
             &self.tx,
             Event::new(id, operator::OperatorEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct MemoryResourceObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+impl MemoryResourceObserver {
+    pub fn init(&self, id: Uuid, init: memory::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, memory::MemoryResourceEvent::Init(init).into()),
+        )
+    }
+
+    pub fn operating(&self, id: Uuid, operating: memory::Operating) {
+        push_event(
+            &self.tx,
+            Event::new(id, memory::MemoryResourceEvent::Operating(operating).into()),
+        )
+    }
+
+    pub fn resizing(&self, id: Uuid, resizing: memory::Resizing) {
+        push_event(
+            &self.tx,
+            Event::new(id, memory::MemoryResourceEvent::Resizing(resizing).into()),
+        )
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: memory::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                memory::MemoryResourceEvent::Finalizing(finalizing).into(),
+            ),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: memory::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, memory::MemoryResourceEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct ProcessorResourceObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+impl ProcessorResourceObserver {
+    pub fn init(&self, id: Uuid, init: processor::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, processor::ProcessorResourceEvent::Init(init).into()),
+        )
+    }
+
+    pub fn operating(&self, id: Uuid, operating: processor::Operating) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                processor::ProcessorResourceEvent::Operating(operating).into(),
+            ),
+        )
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: processor::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                processor::ProcessorResourceEvent::Finalizing(finalizing).into(),
+            ),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: processor::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, processor::ProcessorResourceEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct ChannelResourceObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+impl ChannelResourceObserver {
+    pub fn init(&self, id: Uuid, init: channel::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, channel::ChannelResourceEvent::Init(init).into()),
+        )
+    }
+
+    pub fn operating(&self, id: Uuid, operating: channel::Operating) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                channel::ChannelResourceEvent::Operating(operating).into(),
+            ),
+        )
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: channel::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                channel::ChannelResourceEvent::Finalizing(finalizing).into(),
+            ),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: channel::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, channel::ChannelResourceEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct ResourceGroupObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+impl ResourceGroupObserver {
+    pub fn init(&self, id: Uuid, init: group::Init) {
+        push_event(
+            &self.tx,
+            Event::new(id, group::ResourceGroupEvent::Init(init).into()),
+        )
+    }
+
+    pub fn operating(&self, id: Uuid, operating: group::Operating) {
+        push_event(
+            &self.tx,
+            Event::new(id, group::ResourceGroupEvent::Operating(operating).into()),
+        )
+    }
+
+    pub fn finalizing(&self, id: Uuid, finalizing: group::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(id, group::ResourceGroupEvent::Finalizing(finalizing).into()),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid, exit: group::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, group::ResourceGroupEvent::Exit(exit).into()),
         )
     }
 }

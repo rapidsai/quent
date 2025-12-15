@@ -173,6 +173,8 @@ Must have:
 - `id`: the ID of the [Entity](#entity) producing this Event.
 - `timstamp`: the [Timestamp](#timestamp) of this Event.
 
+> TODO(johanpel): this is telemetry related, we can move this to a chapter 2.
+
 ### Finite State Machine
 
 A Finite State Machine (FSM) is an [Entity](#entity) modeled by a set of
@@ -379,6 +381,9 @@ FSM:
 Notes:
 
 - A Resource Group of a finite set of Unit Resources is a Fixed-Bounds Resource.
+
+> TODO(johanpel): engine, query group, query, plan, worker, should probably
+> also be considered nested resource groups.
 
 ### Memory
 
@@ -693,7 +698,7 @@ send it to [Memory](#memory) of another [Worker](#worker).
 
 ##### Worker-scoped
 
-- Filesystem: [Rsource](#resource) with a bytes [Capacity](#capacity)
+- Filesystem: [Memory](#memory)
 - MainMemory: [Memory](#memory)
 - FsToMem: [Channel](#channel) between Filesystem and MainMemory
 - MemToFs: [Channel](#channel) between MainMemory and Filesystem

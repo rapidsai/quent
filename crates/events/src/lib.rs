@@ -311,27 +311,46 @@ pub mod operator {
 pub mod resource {
     use super::*;
 
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum Scope {
+        Engine(Uuid),
+        QueryGroup(Uuid),
+        Query(Uuid),
+        Plan(Uuid),
+        Worker(Uuid),
+        Operator(Uuid),
+        Port(Uuid),
+        ResourceGroup(Uuid),
+        Any(Uuid),
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Resource {
+        pub name: String,
+        pub scope: Scope,
+    }
+
     pub mod memory {
         use super::*;
 
-        #[derive(Debug, Default, Deserialize, Serialize)]
+        #[derive(Debug, Deserialize, Serialize)]
         pub struct Init {
-            name: String,
+            pub resource: Resource,
         }
 
         #[derive(Debug, Default, Deserialize, Serialize)]
         pub struct Operating {
-            capacity_bytes: u64,
+            pub capacity_bytes: u64,
         }
 
         #[derive(Debug, Default, Deserialize, Serialize)]
         pub struct Resizing {
-            requested_bytes: u64,
+            pub requested_bytes: u64,
         }
 
         #[derive(Debug, Default, Deserialize, Serialize)]
         pub struct Finalizing {
-            unreclaimed_bytes: u64,
+            pub unreclaimed_bytes: u64,
         }
 
         #[derive(Debug, Default, Deserialize, Serialize)]
@@ -351,9 +370,9 @@ pub mod resource {
 
         use super::*;
 
-        #[derive(Debug, Default, Deserialize, Serialize)]
+        #[derive(Debug, Deserialize, Serialize)]
         pub struct Init {
-            name: String,
+            pub resource: Resource,
         }
 
         #[derive(Debug, Default, Deserialize, Serialize)]
@@ -377,12 +396,11 @@ pub mod resource {
     pub mod channel {
         use super::*;
 
-        #[derive(Debug, Default, Deserialize, Serialize)]
+        #[derive(Debug, Deserialize, Serialize)]
         pub struct Init {
-            name: String,
-            source_id: Uuid,
-            target_id: Uuid,
-            theoretical_peak_bandwidth_bytes_per_second: Option<u64>,
+            pub resource: Resource,
+            pub source_id: Uuid,
+            pub target_id: Uuid,
         }
 
         #[derive(Debug, Default, Deserialize, Serialize)]
@@ -403,6 +421,32 @@ pub mod resource {
         }
     }
 
+    pub mod group {
+        use super::*;
+
+        #[derive(Debug, Deserialize, Serialize)]
+        pub struct Init {
+            pub resource: Resource,
+        }
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Operating {}
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Finalizing {}
+
+        #[derive(Debug, Default, Deserialize, Serialize)]
+        pub struct Exit {}
+
+        #[derive(Debug, Deserialize, Serialize)]
+        pub enum ResourceGroupEvent {
+            Init(Init),
+            Operating(Operating),
+            Finalizing(Finalizing),
+            Exit(Exit),
+        }
+    }
+
     use crate::resource::{
         channel::ChannelResourceEvent, memory::MemoryResourceEvent,
         processor::ProcessorResourceEvent,
@@ -416,15 +460,24 @@ pub mod resource {
     }
 
     pub mod r#use {
+        use super::*;
+
+        #[derive(Debug, Deserialize, Serialize)]
         pub struct Allocation {
+            pub resource_id: Uuid,
             pub used_bytes: u64,
         }
 
+        #[derive(Debug, Deserialize, Serialize)]
         pub struct Transfer {
+            pub resource_id: Uuid,
             pub transferred_bytes: u64,
         }
 
-        pub struct Computation {}
+        #[derive(Debug, Deserialize, Serialize)]
+        pub struct Computation {
+            pub resource_id: Uuid,
+        }
     }
 }
 
@@ -437,6 +490,7 @@ pub enum EventData {
     Plan(plan::PlanEvent),
     Operator(operator::OperatorEvent),
     Resource(resource::ResourceEvent),
+    ResourceGroup(resource::group::ResourceGroupEvent),
 }
 
 impl From<engine::EngineEvent> for EventData {
@@ -467,5 +521,31 @@ impl From<plan::PlanEvent> for EventData {
 impl From<operator::OperatorEvent> for EventData {
     fn from(value: operator::OperatorEvent) -> Self {
         Self::Operator(value)
+    }
+}
+impl From<resource::group::ResourceGroupEvent> for EventData {
+    fn from(value: resource::group::ResourceGroupEvent) -> Self {
+        Self::ResourceGroup(value)
+    }
+}
+
+impl From<resource::ResourceEvent> for EventData {
+    fn from(value: resource::ResourceEvent) -> Self {
+        Self::Resource(value)
+    }
+}
+impl From<resource::memory::MemoryResourceEvent> for EventData {
+    fn from(value: resource::memory::MemoryResourceEvent) -> Self {
+        Self::Resource(resource::ResourceEvent::Memory(value))
+    }
+}
+impl From<resource::channel::ChannelResourceEvent> for EventData {
+    fn from(value: resource::channel::ChannelResourceEvent) -> Self {
+        Self::Resource(resource::ResourceEvent::Channel(value))
+    }
+}
+impl From<resource::processor::ProcessorResourceEvent> for EventData {
+    fn from(value: resource::processor::ProcessorResourceEvent) -> Self {
+        Self::Resource(resource::ResourceEvent::Processor(value))
     }
 }
