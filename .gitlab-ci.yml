@@ -35,7 +35,7 @@ markdown:
   stage: lint
   <<: *setup-rust
   script:
-    - rumdl check --exclude .cargo
+    - rumdl check --diff --exclude .cargo
 
 check:
   stage: lint
