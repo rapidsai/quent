@@ -24,3 +24,17 @@ services:
     environment:
       QUENT_COLLECTOR_ADDRESS: "http://server:7836"
     command: /quent/simulator
+
+  webserver:
+    build:
+      context: ./webserver
+      dockerfile: Dockerfile
+    image: quent-webserver
+    container_name: quent-webserver
+    depends_on:
+      - server
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    environment:
+      RUST_BACKEND_URL: "http://server:8080"

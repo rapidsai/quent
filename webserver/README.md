@@ -17,7 +17,7 @@ The webserver provides a clean HTTP API layer that:
 ## Prerequisites
 
 - Python 3.12 or higher
-- [Poetry](https://python-poetry.org/docs/#installation) for dependency management
+- [uv](https://docs.astral.sh/uv/) for dependency management
 - Rust backend services running (by default running on `localhost:8080`)
 
 ## Installation
@@ -28,16 +28,23 @@ The webserver provides a clean HTTP API layer that:
    cd ~/Projects/quent/webserver
    ```
 
-2. **Install dependencies using Poetry**:
+2. **Install dependencies using uv**:
 
    ```bash
-   poetry install
+   uv sync
    ```
 
    This will create a virtual environment and install all required dependencies:
    - FastAPI (web framework)
    - Uvicorn (ASGI server)
    - Requests (HTTP client)
+   - httpx (HTTP client for testing)
+
+3. **Install development dependencies** (for testing):
+
+   ```bash
+   uv sync --all-extras
+   ```
 
 ## Running the Server
 
@@ -54,7 +61,7 @@ This will start the webserver on `http://localhost:8000` with auto-reload enable
 If you prefer to run manually:
 
 ```bash
-PYTHONPATH=src poetry run uvicorn src.main:app --reload --port 8000
+uv run uvicorn webserver.main:app --reload --port 8000
 ```
 
 ### Verify It's Running
@@ -73,15 +80,20 @@ Visit `http://localhost:8000` in your browser. You should see:
 
 ```text
 webserver/
-  src/
+  webserver/
     config.py         # Centralized configuration
     client.py         # HTTP client for Rust backend
     main.py           # FastAPI app entry point
     routers/
       __init__.py
       engines.py      # Engine-related routes
-  tests/              # Test suite (future)
+  tests/              # Test suite
+    conftest.py       # Pytest fixtures
+    test_main.py      # Tests for main endpoints
+    test_engines.py   # Tests for engine routes
+    test_client.py    # Tests for backend client
   pyproject.toml      # Project dependencies
+  uv.lock             # Locked dependencies
   start.sh            # Convenience script to start server
   README.md           # This file
 ```
@@ -102,8 +114,8 @@ FastAPI automatically generates interactive API documentation:
 
 ## Configuration
 
-Configuration is centralized in `src/config.py`. You can override settings using
-environment variables:
+Configuration is centralized in `webserver/config.py`. You can override settings
+using environment variables:
 
 ### Environment Variables
 
@@ -119,7 +131,7 @@ RUST_BACKEND_URL=http://backend.example.com:9000 ./start.sh
 
 ### CORS Configuration
 
-CORS is configured in `src/config.py` to allow the following origins:
+CORS is configured in `webserver/config.py` to allow the following origins:
 
 - `http://localhost:5173` (Vite dev server)
 - `http://127.0.0.1:5173`
@@ -132,12 +144,12 @@ Add additional origins to the `CORS_ORIGINS` list as needed.
 
 ### Adding New Routes
 
-1. **Create or update a router** in `src/routers/`:
+1. **Create or update a router** in `webserver/routers/`:
 
    ```python
-   # src/routers/my_router.py
+   # webserver/routers/my_router.py
    from fastapi import APIRouter
-   from client import rust_client
+   from ..client import rust_client
 
    router = APIRouter(prefix="/my-resource", tags=["my-resource"])
 
@@ -146,10 +158,10 @@ Add additional origins to the `CORS_ORIGINS` list as needed.
        return rust_client.get(f"/analyzer/my-resource/{id}")
    ```
 
-2. **Register the router** in `src/main.py`:
+2. **Register the router** in `webserver/main.py`:
 
    ```python
-   from routers import engines, my_router
+   from .routers import engines, my_router
 
    app.include_router(engines.router, prefix=settings.API_PREFIX)
    app.include_router(my_router.router, prefix=settings.API_PREFIX)
@@ -157,7 +169,7 @@ Add additional origins to the `CORS_ORIGINS` list as needed.
 
 ### Error Handling
 
-The HTTP client (`src/client.py`) automatically handles common errors:
+The HTTP client (`webserver/client.py`) automatically handles common errors:
 
 - **Timeout**  504 Gateway Timeout
 - **Connection Error**  503 Service Unavailable
@@ -166,7 +178,7 @@ The HTTP client (`src/client.py`) automatically handles common errors:
 
 ### Debugging
 
-To see detailed logs, configure logging in `src/main.py`:
+To see detailed logs, configure logging in `webserver/main.py`:
 
 ```python
 import logging
@@ -185,12 +197,67 @@ print(f"Debug: {variable}")  # Will show in terminal
 
 ## Testing
 
-```bash
-# Run tests (once implemented)
-poetry run pytest
+The project uses pytest for testing with comprehensive test coverage.
 
-# Run with coverage
-poetry run pytest --cov=src
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_main.py
+
+# Run tests matching a pattern
+uv run pytest -k "test_engine"
+
+# Run only unit tests
+uv run pytest -m unit
+
+# Run with coverage report
+uv run pytest --cov=webserver --cov-report=html
+
+# Run tests in parallel (if you install pytest-xdist)
+uv run pytest -n auto
+```
+
+### Writing Tests
+
+Tests use pytest fixtures from `conftest.py`:
+
+```python
+def test_my_endpoint(client, mock_rust_client):
+    """Test example using fixtures."""
+    # Configure mock response
+    mock_rust_client.get.return_value = {"data": "test"}
+
+    # Make request
+    response = client.get("/api/engine/list")
+
+    # Assert results
+    assert response.status_code == 200
+    assert response.json() == {"data": "test"}
+    mock_rust_client.get.assert_called_once()
+```
+
+### Test Markers
+
+- `@pytest.mark.unit` - Fast unit tests (default)
+- `@pytest.mark.integration` - Integration tests requiring external services
+- `@pytest.mark.slow` - Slow-running tests
+
+### Coverage Reports
+
+After running tests with `--cov`, view the HTML coverage report:
+
+```bash
+# Generate and open coverage report
+uv run pytest --cov=webserver --cov-report=html
+xdg-open htmlcov/index.html  # Linux
+open htmlcov/index.html  # macOS
 ```
 
 ## License

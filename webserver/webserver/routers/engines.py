@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Path
 
-from client import rust_client
+from ..client import rust_client
 
 router = APIRouter(prefix="/engine", tags=["engines"])
 
@@ -91,6 +91,6 @@ async def get_query(
     query_id: str = Path(..., description="The query ID"),
 ) -> Any:
     """
-    Get details for a specific query.
+    Fetches query plan for given query.
     """
     return rust_client.get(f"/analyzer/engine/{engine_id}/query/{query_id}")
