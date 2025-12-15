@@ -8,8 +8,8 @@ data processing.
 ## TL;DR
 
 - A **generic model of query engines** provides a **semantic layer** over
-  traditional telemetry (traces, logs, metrics) and adds more concepts (FSMs and
-  resources).
+  traditional telemetry (traces, logs, metrics) and specifies more concepts
+  (FSMs and resources).
 - The model supports **distributed engines** that use
   **non-CPU based computation** and has explicit constructs for all types of
   resources (including memory, i/o), not just compute.
@@ -130,6 +130,8 @@ For more details, please refer to the model specification:
 [model.md](./model.md)
 
 ### Technology stack
+
+![Overview](docs/figures/overview.svg)
 
 Quent consists of various composable components, according to the following
 layers:
