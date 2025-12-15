@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 import requests
 from fastapi import HTTPException
 
-from config import settings
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
