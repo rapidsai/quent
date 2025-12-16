@@ -104,9 +104,12 @@ previous section), that works for multiple engines. These questions include:
 
 ## What
 
+![Overview](docs/figures/overview.svg)
+
 This project provides three things:
 
-1. A specification of the generic query engine model.
+1. A specification of the how to model a query engine and how telemetry can be
+   derived from such a model.
 2. A set of libraries with an Instrumentation API capable of capturing query
    engine telemetry according to the rules of the model.
 3. An implementation of an analysis system with an intuitive user interface that
@@ -130,8 +133,6 @@ For more details, please refer to the model specification:
 [model.md](./model.md)
 
 ### Technology stack
-
-![Overview](docs/figures/overview.svg)
 
 Quent consists of various composable components, according to the following
 layers:

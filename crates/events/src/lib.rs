@@ -321,7 +321,6 @@ pub mod resource {
         Operator(Uuid),
         Port(Uuid),
         ResourceGroup(Uuid),
-        Any(Uuid),
     }
 
     #[derive(Debug, Deserialize, Serialize)]
