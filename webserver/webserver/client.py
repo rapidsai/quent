@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class RustBackendClient:
     """HTTP client for communicating with the Rust backend service."""
 
-    def __init__(self, base_url: str = settings.RUST_BACKEND_URL):
+    def __init__(self, base_url: str = settings.QUENT_ANALYZER_ADDRESS):
         self.base_url = base_url.rstrip("/")
         self.timeout = settings.REQUEST_TIMEOUT
 

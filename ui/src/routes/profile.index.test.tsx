@@ -9,14 +9,14 @@ describe('EngineSelectionPage', () => {
   beforeEach(() => {
     // Set up default handlers for the profile page API endpoints
     server.use(
-      http.get(`${API_BASE}/engine/list`, () => {
+      http.get(`${API_BASE}/engines`, () => {
         return HttpResponse.json(['engine-1', 'engine-2', 'engine-3']);
       }),
-      http.get(`${API_BASE}/engine/:engineId/query_groups`, ({ params }) => {
+      http.get(`${API_BASE}/engines/:engineId/query-groups`, ({ params }) => {
         const { engineId } = params;
         return HttpResponse.json([`${engineId}-coordinator-1`, `${engineId}-coordinator-2`]);
       }),
-      http.get(`${API_BASE}/engine/:engineId/query_groups/:coordinatorId/list_queries`, () => {
+      http.get(`${API_BASE}/engines/:engineId/query-groups/:coordinatorId/queries`, () => {
         return HttpResponse.json(['query-1', 'query-2', 'query-3']);
       })
     );
@@ -127,7 +127,7 @@ describe('EngineSelectionPage', () => {
 
     it('shows empty state when no engines are available', async () => {
       server.use(
-        http.get(`${API_BASE}/engine/list`, () => {
+        http.get(`${API_BASE}/engines`, () => {
           return HttpResponse.json([]);
         })
       );
@@ -148,7 +148,7 @@ describe('EngineSelectionPage', () => {
 
     it('handles API error gracefully when fetching engines fails', async () => {
       server.use(
-        http.get(`${API_BASE}/engine/list`, () => {
+        http.get(`${API_BASE}/engines`, () => {
           return new HttpResponse(null, { status: 500, statusText: 'Internal Server Error' });
         })
       );

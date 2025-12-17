@@ -37,4 +37,4 @@ services:
       - "8000:8000"
     restart: unless-stopped
     environment:
-      RUST_BACKEND_URL: "http://server:8080"
+      QUENT_ANALYZER_ADDRESS: "http://server:8080"

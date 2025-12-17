@@ -11,7 +11,7 @@ def test_list_engines(client, mock_rust_client, sample_engine_data):
     """Test listing all engines."""
     mock_rust_client.get.return_value = [sample_engine_data]
 
-    response = client.get("/api/engine/list")
+    response = client.get("/api/engines/")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -27,7 +27,7 @@ def test_get_engine(client, mock_rust_client, sample_engine_data):
     engine_id = "engine-1"
     mock_rust_client.get.return_value = sample_engine_data
 
-    response = client.get(f"/api/engine/{engine_id}")
+    response = client.get(f"/api/engines/{engine_id}")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -41,7 +41,7 @@ def test_list_workers(client, mock_rust_client, sample_worker_data):
     engine_id = "engine-1"
     mock_rust_client.get.return_value = [sample_worker_data]
 
-    response = client.get(f"/api/engine/{engine_id}/workers")
+    response = client.get(f"/api/engines/{engine_id}/workers")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -59,7 +59,7 @@ def test_get_worker(client, mock_rust_client, sample_worker_data):
     worker_id = "worker-1"
     mock_rust_client.get.return_value = sample_worker_data
 
-    response = client.get(f"/api/engine/{engine_id}/workers/{worker_id}")
+    response = client.get(f"/api/engines/{engine_id}/workers/{worker_id}")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -75,7 +75,7 @@ def test_list_query_groups(client, mock_rust_client, sample_query_group_data):
     engine_id = "engine-1"
     mock_rust_client.get.return_value = [sample_query_group_data]
 
-    response = client.get(f"/api/engine/{engine_id}/query_groups")
+    response = client.get(f"/api/engines/{engine_id}/query-groups")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -92,7 +92,7 @@ def test_get_query_group(client, mock_rust_client, sample_query_group_data):
     query_group_id = "qg-1"
     mock_rust_client.get.return_value = sample_query_group_data
 
-    response = client.get(f"/api/engine/{engine_id}/query_groups/{query_group_id}")
+    response = client.get(f"/api/engines/{engine_id}/query-groups/{query_group_id}")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -110,7 +110,7 @@ def test_list_query_group_queries(client, mock_rust_client, sample_query_data):
     mock_rust_client.get.return_value = [sample_query_data]
 
     response = client.get(
-        f"/api/engine/{engine_id}/query_groups/{query_group_id}/list_queries"
+        f"/api/engines/{engine_id}/query-groups/{query_group_id}/queries"
     )
 
     assert response.status_code == status.HTTP_200_OK
@@ -128,7 +128,7 @@ def test_get_query(client, mock_rust_client, sample_query_data):
     query_id = "query-1"
     mock_rust_client.get.return_value = sample_query_data
 
-    response = client.get(f"/api/engine/{engine_id}/query/{query_id}")
+    response = client.get(f"/api/engines/{engine_id}/query/{query_id}")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()

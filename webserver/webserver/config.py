@@ -9,7 +9,7 @@ from typing import List
 class Settings:
     """Application settings and configuration."""
 
-    RUST_BACKEND_URL: str = os.getenv("RUST_BACKEND_URL", "http://localhost:8080")
+    QUENT_ANALYZER_ADDRESS: str = os.getenv("QUENT_ANALYZER_ADDRESS", "http://localhost:8080")
 
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
