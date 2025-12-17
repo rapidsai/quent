@@ -1,5 +1,6 @@
 //! Type definitions of entity events.
 
+use py_rs::PY;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -42,11 +43,11 @@ pub mod attributes {
     use super::*;
 
     /// A group of [`Attribute`]s.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct Struct(Vec<Attribute>);
 
     /// A sequence of [`Value`]s.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     #[ts(untagged)]
     pub enum List {
         U8(Vec<u8>),
@@ -64,7 +65,7 @@ pub mod attributes {
     }
 
     /// An [`Attribute`] value.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     #[ts(untagged)]
     pub enum Value {
         U8(u8),
@@ -83,7 +84,7 @@ pub mod attributes {
     }
 
     /// A key-value pair.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct Attribute {
         pub key: String,
         pub value: Value,
@@ -96,7 +97,7 @@ pub mod engine {
     use super::*;
 
     /// Attributes describing details about the implementation of this Engine
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct EngineImplementationAttributes {
         /// The name of this Engine implementation, e.g. "SiriusDB", "Velox", "DataFusion", etc.
         pub name: Option<String>,
@@ -223,7 +224,7 @@ pub mod plan {
     use super::*;
 
     /// A directed edge of a Plan DAG.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct Edge {
         /// The ID of the port sourcing data.
         pub source: Uuid,
@@ -266,7 +267,7 @@ pub mod plan {
 pub mod operator {
     use super::*;
 
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct Port {
         pub id: Uuid,
         pub name: String,

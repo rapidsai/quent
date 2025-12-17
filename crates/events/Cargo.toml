@@ -9,3 +9,4 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+py-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

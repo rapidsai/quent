@@ -737,6 +737,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "py-rs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53380868ca64975c70ed573d81655e24614dd2a4b21e4a2732c97fd4c27ff66b"
+dependencies = [
+ "lazy_static",
+ "py-rs-macros",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "py-rs-macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9834523610b99ce5e21c4c7552af3f4db4057a00ac14a57fc8f7eb39bac5be0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "termcolor",
+]
+
+[[package]]
 name = "quent"
 version = "0.1.0"
 dependencies = [
@@ -795,6 +820,7 @@ dependencies = [
 name = "quent-entities"
 version = "0.1.0"
 dependencies = [
+ "py-rs",
  "quent-events",
  "serde",
  "ts-rs",
@@ -805,6 +831,7 @@ dependencies = [
 name = "quent-events"
 version = "0.1.0"
 dependencies = [
+ "py-rs",
  "serde",
  "serde_json",
  "thiserror",
@@ -852,6 +879,7 @@ name = "quent-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "py-rs",
  "quent-analyzer",
  "quent-collector",
  "quent-entities",

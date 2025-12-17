@@ -1,4 +1,5 @@
 //! Type definitions for entities of the model.
+use py_rs::PY;
 use quent_events::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -14,7 +15,7 @@ pub mod engine {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of an Engine.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct EngineTimestamps {
         /// The time at which the Engine started initialization.
         pub init: Option<Timestamp>,
@@ -33,7 +34,7 @@ pub mod engine {
     ///
     /// Nothing can outlive the lifetime of an Engine.
     /// TODO(johanpel): this assumes 0 clock skew, we need to address this in general.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Engine {
         /// The ID of this Engine
         pub id: Uuid,
@@ -60,7 +61,7 @@ pub mod query_group {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a QueryGroup.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct QueryGroupTimestamps {
         /// The time at which the QueryGroup started initialization.
         pub init: Option<Timestamp>,
@@ -76,7 +77,7 @@ pub mod query_group {
     ///
     /// For example, a session in a long-lived multi-user engine could be modeled as a QueryGroup.
     /// TODO(johanpel): perhaps this isn't a great name for this concept, consider naming this something else.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct QueryGroup {
         /// The ID of this QueryGroup
         pub id: Uuid,
@@ -102,7 +103,7 @@ pub mod worker {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Worker.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct WorkerTimestamps {
         /// The time at which the Worker started initialization.
         pub init: Option<Timestamp>,
@@ -118,7 +119,7 @@ pub mod worker {
     ///
     /// It is a high-level resource of an Engine.
     /// Its lifetime is bounded by the lifetime of an Engine, but it can outlive any other entity.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Worker {
         /// The ID of this Worker.
         pub id: Uuid,
@@ -144,7 +145,7 @@ pub mod query {
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct QueryTimestamps {
         /// The time at which the Query started initialization.
         pub init: Option<Timestamp>,
@@ -165,7 +166,7 @@ pub mod query {
     }
 
     /// A Query.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Query {
         /// The ID of this Query
         pub id: Uuid,
@@ -195,7 +196,7 @@ pub mod operator {
     use super::*;
 
     /// A state transition where an Operator is blocked from progressing beceause it is waiting for inputs to arrive.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct WaitingForInputs {
         /// The timestamp of this transition.
         pub timestamp: Timestamp,
@@ -204,7 +205,7 @@ pub mod operator {
     }
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
-    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub enum OperatorState {
         /// The Operator is initializing, allocating its resources.
         Init(Timestamp),
@@ -234,7 +235,7 @@ pub mod operator {
     }
 
     /// An Operator in a Plan DAG.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Operator {
         /// The ID of this Operator.
         pub id: Uuid,
@@ -257,7 +258,7 @@ pub mod plan {
     use super::*;
 
     /// Timestamps of plan state transitions.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct PlanTimestamps {
         /// The time at which the Plan started initialization.
         pub init: Option<Timestamp>,
@@ -273,7 +274,7 @@ pub mod plan {
     }
 
     /// A Query Plan.
-    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct Plan {
         /// The ID of this Query Plan.
         pub id: Uuid,

@@ -24,3 +24,4 @@ serde_json.workspace = true
 quent-entities = { path = "../entities" }
 quent-events =  { path = "../events" }
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+py-rs = {workspace = true}

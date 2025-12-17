@@ -8,3 +8,4 @@ quent-events = { path = "../events" }
 uuid.workspace = true
 serde.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+py-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
