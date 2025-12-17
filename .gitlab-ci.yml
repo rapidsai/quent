@@ -1,3 +1,6 @@
+include:
+  - local: 'ui/.gitlab-ci.yml'
+
 stages:
   - format
   - lint

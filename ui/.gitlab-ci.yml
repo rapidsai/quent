@@ -1,0 +1,81 @@
+variables:
+  PNPM_VERSION: '9.15.0'
+  NODE_VERSION: '24.11.0'
+
+.setup-node: &setup-node
+  image: node:${NODE_VERSION}-alpine
+  tags:
+    - os/linux
+  cache:
+    key:
+      files:
+        - ui/pnpm-lock.yaml
+    paths:
+      - ui/.pnpm-store
+  before_script:
+    - cd ui
+    - corepack enable
+    - corepack prepare pnpm@${PNPM_VERSION} --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - ui/**/*
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - ui/**/*
+
+# Linting job (generates routes first for type-aware linting)
+ui:lint:
+  stage: lint
+  <<: *setup-node
+  script:
+    - pnpm routes:generate
+    - pnpm lint
+
+# Format check job
+ui:format:
+  stage: format
+  <<: *setup-node
+  script:
+    - pnpm format:check
+
+# TypeScript type check (generates routes first)
+ui:typecheck:
+  stage: lint
+  <<: *setup-node
+  script:
+    - pnpm typecheck
+
+# Unit tests
+ui:test:
+  stage: lint
+  <<: *setup-node
+  script:
+    - pnpm routes:generate
+    - pnpm test:coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    when: always
+    reports:
+      junit: ui/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: ui/coverage/cobertura-coverage.xml
+
+# Build job
+ui:build:
+  stage: build
+  <<: *setup-node
+  needs:
+    - ui:format
+    - ui:lint
+    - ui:typecheck
+    - ui:test
+  script:
+    - pnpm build
+  artifacts:
+    paths:
+      - ui/dist/
+    expire_in: 1 week
