@@ -24,7 +24,8 @@ A front end for query profiling instrumentation
   - Using nvm: `nvm use` or `nvm install`
   - Using volta: Automatically switches to correct version
   - Using asdf/nodenv: Uses `.node-version` file
-- **pnpm 9.0.0+** (required) - Install with `npm install -g pnpm` or see [pnpm installation](https://pnpm.io/installation)
+- **pnpm 9.0.0+** (required) - Install with `npm install -g pnpm` or see
+  [pnpm installation](https://pnpm.io/installation)
 
 ### Installation
 
@@ -36,7 +37,7 @@ A front end for query profiling instrumentation
 pnpm install
 ```
 
-3. (Optional) Configure environment variables:
+1. (Optional) Configure environment variables:
 
 Create a `.env` file in the root directory and add your API endpoint:
 
@@ -72,7 +73,7 @@ pnpm preview
 
 ## Project Structure
 
-```
+```text
 pacha-ui/
 ├── src/
 │   ├── components/        # Reusable components
@@ -95,19 +96,22 @@ pacha-ui/
 
 ## API Integration
 
-The application includes stub API functions in `src/services/api.ts`. These currently return mock data with simulated delays.
+The application includes stub API functions in `src/services/api.ts`. These
+currently return mock data with simulated delays.
 
 To integrate with a real backend:
 
 1. Update the `VITE_API_BASE_URL` environment variable
-2. Replace the mock implementations in `src/services/api.ts` with actual API calls
+2. Replace the mock implementations in `src/services/api.ts` with actual API
+   calls
 3. Adjust the data types and interfaces as needed
 
 ## Customization
 
 ### Styling
 
-The application uses Tailwind CSS and shadcn/ui for styling. You can customize the theme by editing the CSS variables in `src/index.css`:
+The application uses Tailwind CSS and shadcn/ui for styling. You can customize
+the theme by editing the CSS variables in `src/index.css`:
 
 ```css
 :root {
@@ -119,7 +123,8 @@ The application uses Tailwind CSS and shadcn/ui for styling. You can customize t
 }
 ```
 
-You can also customize Tailwind's configuration in `tailwind.config.js` to extend the default theme with custom colors, fonts, spacing, etc.
+You can also customize Tailwind's configuration in `tailwind.config.js` to
+extend the default theme with custom colors, fonts, spacing, etc.
 
 ### Adding New Charts
 
@@ -138,6 +143,7 @@ pnpm dlx shadcn@latest add [component-name]
 ```
 
 For example:
+
 ```bash
 pnpm dlx shadcn@latest add button
 pnpm dlx shadcn@latest add dialog
@@ -166,5 +172,5 @@ The application includes development tools for debugging:
 - **TanStack Router Devtools** - Visual router debugging
 - **TanStack Query Devtools** - Query state inspection
 
-These are automatically included in development mode and removed in production builds.
-
+These are automatically included in development mode and removed in production
+builds.
