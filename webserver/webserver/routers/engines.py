@@ -9,10 +9,10 @@ from fastapi import APIRouter, Path
 
 from ..client import rust_client
 
-router = APIRouter(prefix="/engine", tags=["engines"])
+router = APIRouter(prefix="/engines", tags=["engines"])
 
 
-@router.get("/list")
+@router.get("/")
 async def list_engines() -> Any:
     """
     List all available engines.
@@ -51,7 +51,7 @@ async def get_worker(
     return rust_client.get(f"/analyzer/engine/{engine_id}/worker/{worker_id}")
 
 
-@router.get("/{engine_id}/query_groups")
+@router.get("/{engine_id}/query-groups")
 async def list_query_groups(
     engine_id: str = Path(..., description="The engine ID"),
 ) -> Any:
@@ -61,7 +61,7 @@ async def list_query_groups(
     return rust_client.get(f"/analyzer/engine/{engine_id}/list_query_groups")
 
 
-@router.get("/{engine_id}/query_groups/{query_group_id}")
+@router.get("/{engine_id}/query-groups/{query_group_id}")
 async def get_query_group(
     engine_id: str = Path(..., description="The engine ID"),
     query_group_id: str = Path(..., description="The query_group ID"),
@@ -72,7 +72,7 @@ async def get_query_group(
     return rust_client.get(f"/analyzer/engine/{engine_id}/query_group/{query_group_id}")
 
 
-@router.get("/{engine_id}/query_groups/{query_group_id}/list_queries")
+@router.get("/{engine_id}/query-groups/{query_group_id}/queries")
 async def list_query_group_queries(
     engine_id: str = Path(..., description="The engine ID"),
     query_group_id: str = Path(..., description="The query_group ID"),

@@ -202,17 +202,17 @@ export async function fetchLocalQueryPlan(filename: string = 'plan.json'): Promi
  * @param queryId - The query ID to fetch the plan for
  */
 export async function fetchQueryPlan(engineId: string, queryId: string): Promise<unknown> {
-  return apiFetch<unknown>(`/engine/${engineId}/query/${queryId}`);
+  return apiFetch<unknown>(`/engines/${engineId}/query/${queryId}`);
 }
 
 export async function fetchListEngines(): Promise<string[]> {
-  return apiFetch<string[]>('/engine/list');
+  return apiFetch<string[]>('/engines');
 }
 
 export async function fetchListCoordinators(engineId: string): Promise<string[]> {
-  return apiFetch<string[]>(`/engine/${engineId}/query_groups`);
+  return apiFetch<string[]>(`/engines/${engineId}/query-groups`);
 }
 
 export async function fetchListQueries(engineId: string, coordinatorId: string): Promise<string[]> {
-  return apiFetch<string[]>(`/engine/${engineId}/query_groups/${coordinatorId}/list_queries`);
+  return apiFetch<string[]>(`/engines/${engineId}/query-groups/${coordinatorId}/queries`);
 }

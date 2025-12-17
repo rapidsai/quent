@@ -119,14 +119,14 @@ using environment variables:
 
 ### Environment Variables
 
-- `RUST_BACKEND_URL` - Rust backend URL (default: `http://localhost:8080`)
+- `QUENT_ANALYZER_ADDRESS` - Quent analyzer URL (default: `http://localhost:8080`)
 - `SERVER_HOST` - Host to bind to (default: `0.0.0.0`)
 - `SERVER_PORT` - Port to bind to (default: `8000`)
 
 ### Example
 
 ```bash
-RUST_BACKEND_URL=http://backend.example.com:9000 ./start.sh
+QUENT_ANALYZER_ADDRESS=http://backend.example.com:9000 ./start.sh
 ```
 
 ### CORS Configuration

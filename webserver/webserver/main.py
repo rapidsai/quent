@@ -31,7 +31,7 @@ async def read_root():
     return {
         "message": "Quent Webserver is running",
         "version": "0.1.0",
-        "backend": settings.RUST_BACKEND_URL,
+        "backend": settings.QUENT_ANALYZER_ADDRESS,
     }
 
 
