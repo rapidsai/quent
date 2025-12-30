@@ -32,7 +32,7 @@ class PlanTimestamps(BaseModel):
 	finalizing: int | None
 	
 	"""
-	 The time at which the Worker was completely destructed and all resources
-	 were freed.
+	 The time at which the Worker was completely destructed and all
+	 resources were freed.
 	"""
 	exit: int | None

@@ -2,6 +2,6 @@
 import type { Attribute } from "./Attribute";
 
 /**
- * A group of [`Attribute`]s.
+ * Attributes of the "Operating" state of a Resource.
  */
-export type Struct = Array<Attribute>;
+export type ResourceOperatingState = { timestamp: bigint, capacities: Array<Attribute>, };

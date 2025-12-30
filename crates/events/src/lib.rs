@@ -87,7 +87,7 @@ pub mod attributes {
     #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct Attribute {
         pub key: String,
-        pub value: Value,
+        pub value: Option<Value>,
     }
 }
 
@@ -224,6 +224,7 @@ pub mod plan {
     use super::*;
 
     /// A directed edge of a Plan DAG.
+    // TODO(johanpel): should we flatten this?
     #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
     pub struct Edge {
         /// The ID of the port sourcing data.
@@ -267,7 +268,7 @@ pub mod plan {
 pub mod operator {
     use super::*;
 
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(Clone, Debug, Deserialize, Serialize)]
     pub struct Port {
         pub id: Uuid,
         pub name: String,
@@ -312,7 +313,11 @@ pub mod operator {
 pub mod resource {
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
+    /// The scope of a Resource.
+    ///
+    /// This represents the scope in which a Resource is shared. Only constructs
+    /// owned by this Scope can have a Use of this Resource.
+    #[derive(TS, Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
     pub enum Scope {
         Engine(Uuid),
         QueryGroup(Uuid),
@@ -322,6 +327,21 @@ pub mod resource {
         Operator(Uuid),
         Port(Uuid),
         ResourceGroup(Uuid),
+    }
+
+    impl From<Scope> for Uuid {
+        fn from(value: Scope) -> Self {
+            match value {
+                Scope::Engine(uuid) => uuid,
+                Scope::QueryGroup(uuid) => uuid,
+                Scope::Query(uuid) => uuid,
+                Scope::Plan(uuid) => uuid,
+                Scope::Worker(uuid) => uuid,
+                Scope::Operator(uuid) => uuid,
+                Scope::Port(uuid) => uuid,
+                Scope::ResourceGroup(uuid) => uuid,
+            }
+        }
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -357,7 +377,7 @@ pub mod resource {
         pub struct Exit {}
 
         #[derive(Debug, Deserialize, Serialize)]
-        pub enum MemoryResourceEvent {
+        pub enum MemoryEvent {
             Init(Init),
             Operating(Operating),
             Resizing(Resizing),
@@ -385,7 +405,7 @@ pub mod resource {
         pub struct Exit {}
 
         #[derive(Debug, Deserialize, Serialize)]
-        pub enum ProcessorResourceEvent {
+        pub enum ProcessorEvent {
             Init(Init),
             Operating(Operating),
             Finalizing(Finalizing),
@@ -413,7 +433,7 @@ pub mod resource {
         pub struct Exit {}
 
         #[derive(Debug, Deserialize, Serialize)]
-        pub enum ChannelResourceEvent {
+        pub enum ChannelEvent {
             Init(Init),
             Operating(Operating),
             Finalizing(Finalizing),
@@ -447,16 +467,13 @@ pub mod resource {
         }
     }
 
-    use crate::resource::{
-        channel::ChannelResourceEvent, memory::MemoryResourceEvent,
-        processor::ProcessorResourceEvent,
-    };
+    use crate::resource::{channel::ChannelEvent, memory::MemoryEvent, processor::ProcessorEvent};
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum ResourceEvent {
-        Memory(MemoryResourceEvent),
-        Processor(ProcessorResourceEvent),
-        Channel(ChannelResourceEvent),
+        Memory(MemoryEvent),
+        Processor(ProcessorEvent),
+        Channel(ChannelEvent),
     }
 
     pub mod r#use {
@@ -534,18 +551,18 @@ impl From<resource::ResourceEvent> for EventData {
         Self::Resource(value)
     }
 }
-impl From<resource::memory::MemoryResourceEvent> for EventData {
-    fn from(value: resource::memory::MemoryResourceEvent) -> Self {
+impl From<resource::memory::MemoryEvent> for EventData {
+    fn from(value: resource::memory::MemoryEvent) -> Self {
         Self::Resource(resource::ResourceEvent::Memory(value))
     }
 }
-impl From<resource::channel::ChannelResourceEvent> for EventData {
-    fn from(value: resource::channel::ChannelResourceEvent) -> Self {
+impl From<resource::channel::ChannelEvent> for EventData {
+    fn from(value: resource::channel::ChannelEvent) -> Self {
         Self::Resource(resource::ResourceEvent::Channel(value))
     }
 }
-impl From<resource::processor::ProcessorResourceEvent> for EventData {
-    fn from(value: resource::processor::ProcessorResourceEvent) -> Self {
+impl From<resource::processor::ProcessorEvent> for EventData {
+    fn from(value: resource::processor::ProcessorEvent) -> Self {
         Self::Resource(resource::ResourceEvent::Processor(value))
     }
 }

@@ -2,10 +2,12 @@
 import type { QueryGroupTimestamps } from "./QueryGroupTimestamps";
 
 /**
- * A QueryGroup is an entity that orchestrates the execution of a distinct set of queries.
+ * A QueryGroup is an entity that orchestrates the execution of a distinct
+ * set of queries.
  *
- * For example, a session in a long-lived multi-user engine could be modeled as a QueryGroup.
- * TODO(johanpel): perhaps this isn't a great name for this concept, consider naming this something else.
+ * For example, a session in a long-lived multi-user engine could be
+ * modeled as a QueryGroup. TODO(johanpel): perhaps this isn't a great name
+ * for this concept, consider naming this something else.
  */
 export type QueryGroup = { 
 /**
@@ -17,7 +19,8 @@ id: string,
  */
 engine_id: string, 
 /**
- * Timestamps of state transitions throughout the lifetime of the QueryGroup.
+ * Timestamps of state transitions throughout the lifetime of the
+ * QueryGroup.
  */
 timestamps: QueryGroupTimestamps, 
 /**

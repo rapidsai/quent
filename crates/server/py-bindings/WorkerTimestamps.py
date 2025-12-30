@@ -7,7 +7,8 @@ from enum import StrEnum
 
 class WorkerTimestamps(BaseModel):
 	"""
-	 Timestamps (nanoseconds since Unix epoch) of state transitions of a Worker.
+	 Timestamps (nanoseconds since Unix epoch) of state transitions of a
+	 Worker.
 	"""
 	
 	
@@ -22,11 +23,13 @@ class WorkerTimestamps(BaseModel):
 	operating: int | None
 	
 	"""
-	 The time at which the Worker started shutting down and cleaning up its resources.
+	 The time at which the Worker started shutting down and cleaning up
+	 its resources.
 	"""
 	finalizing: int | None
 	
 	"""
-	 The time at which the Worker was completely destructed and all resources were freed.
+	 The time at which the Worker was completely destructed and all
+	 resources were freed.
 	"""
 	exit: int | None

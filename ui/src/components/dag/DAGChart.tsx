@@ -20,7 +20,7 @@ const elk = new ELK();
 const elkOptions = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '10',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '50',
   'elk.spacing.nodeNode': '80',
 };
 
@@ -28,6 +28,9 @@ const elkOptions = {
 const nodeTypes = {
   source: QueryPlanNode,
   join: QueryPlanNode,
+  joinlocal: QueryPlanNode,
+  joinpartition: QueryPlanNode,
+  filesystemscan: QueryPlanNode,
   aggregate: QueryPlanNode,
   exchange: QueryPlanNode,
   output: QueryPlanNode,
@@ -100,18 +103,20 @@ const FlowLayout = ({
     const nodesWithIncoming = new Set(data.edges.map(e => e.target));
     const nodesWithOutgoing = new Set(data.edges.map(e => e.source));
 
-    const flowNodes: Node<QueryPlanNodeData>[] = data.nodes.map(node => ({
-      id: node.id,
-      type: node.type,
-      data: {
-        label: node.label,
-        operationType: node.type,
-        metadata: node.metadata,
-        hasIncoming: nodesWithIncoming.has(node.id),
-        hasOutgoing: nodesWithOutgoing.has(node.id),
-      },
-      position: { x: 0, y: 0 }, // Will be set by layout
-    }));
+    const flowNodes: Node<QueryPlanNodeData>[] = data.nodes.map(node => {
+      return {
+        id: node.id,
+        type: node.type,
+        data: {
+          label: node.label,
+          operationType: node.type,
+          metadata: node.metadata,
+          hasIncoming: nodesWithIncoming.has(node.id),
+          hasOutgoing: nodesWithOutgoing.has(node.id),
+        },
+        position: { x: 0, y: 0 }, // Will be set by layout
+      };
+    });
 
     const flowEdges: Edge[] = data.edges.map(edge => ({
       id: edge.id,

@@ -11,3 +11,6 @@ uuid.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 http = "*"
+serde.workspace = true
+ts-rs.workspace = true
+py-rs.workspace = true

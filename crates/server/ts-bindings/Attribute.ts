@@ -4,4 +4,4 @@ import type { Value } from "./Value";
 /**
  * A key-value pair.
  */
-export type Attribute = { key: string, value: Value, };
+export type Attribute = { key: string, value: Value | null, };

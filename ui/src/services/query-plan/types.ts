@@ -65,9 +65,7 @@ export interface PrestoPhysicalPlan {
 }
 
 // TODO: development only, remove once API configured
-export type QueryPlanSource =
-  | { type: 'local'; path: string }
-  | { type: 'api'; engineId: string; queryId: string };
+export type QueryPlanSource = { type: 'api'; engineId: string; queryId: string };
 
 export interface QueryPlanTransformer<T = unknown> {
   engineName: string;

@@ -393,38 +393,35 @@ impl MemoryResourceObserver {
     pub fn init(&self, id: Uuid, init: memory::Init) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryResourceEvent::Init(init).into()),
+            Event::new(id, memory::MemoryEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: memory::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryResourceEvent::Operating(operating).into()),
+            Event::new(id, memory::MemoryEvent::Operating(operating).into()),
         )
     }
 
     pub fn resizing(&self, id: Uuid, resizing: memory::Resizing) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryResourceEvent::Resizing(resizing).into()),
+            Event::new(id, memory::MemoryEvent::Resizing(resizing).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: memory::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                memory::MemoryResourceEvent::Finalizing(finalizing).into(),
-            ),
+            Event::new(id, memory::MemoryEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: memory::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryResourceEvent::Exit(exit).into()),
+            Event::new(id, memory::MemoryEvent::Exit(exit).into()),
         )
     }
 }
@@ -437,34 +434,28 @@ impl ProcessorResourceObserver {
     pub fn init(&self, id: Uuid, init: processor::Init) {
         push_event(
             &self.tx,
-            Event::new(id, processor::ProcessorResourceEvent::Init(init).into()),
+            Event::new(id, processor::ProcessorEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: processor::Operating) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                processor::ProcessorResourceEvent::Operating(operating).into(),
-            ),
+            Event::new(id, processor::ProcessorEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: processor::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                processor::ProcessorResourceEvent::Finalizing(finalizing).into(),
-            ),
+            Event::new(id, processor::ProcessorEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: processor::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, processor::ProcessorResourceEvent::Exit(exit).into()),
+            Event::new(id, processor::ProcessorEvent::Exit(exit).into()),
         )
     }
 }
@@ -477,34 +468,28 @@ impl ChannelResourceObserver {
     pub fn init(&self, id: Uuid, init: channel::Init) {
         push_event(
             &self.tx,
-            Event::new(id, channel::ChannelResourceEvent::Init(init).into()),
+            Event::new(id, channel::ChannelEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: channel::Operating) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                channel::ChannelResourceEvent::Operating(operating).into(),
-            ),
+            Event::new(id, channel::ChannelEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: channel::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
-                id,
-                channel::ChannelResourceEvent::Finalizing(finalizing).into(),
-            ),
+            Event::new(id, channel::ChannelEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: channel::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, channel::ChannelResourceEvent::Exit(exit).into()),
+            Event::new(id, channel::ChannelEvent::Exit(exit).into()),
         )
     }
 }

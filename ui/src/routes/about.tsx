@@ -7,7 +7,7 @@ export const Route = createFileRoute('/about')({
 
 function About() {
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto p-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl">About PACHA</CardTitle>

@@ -182,26 +182,10 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
 }
 
 /**
- * Fetch query plan from local JSON file
- * For development/testing purposes
+ * Fetch query bundle from API endpoint
+ * @param queryId - The query ID to fetch the bundle for
  */
-export async function fetchLocalQueryPlan(filename: string = 'plan.json'): Promise<unknown> {
-  await delay(200);
-
-  const response = await fetch(`/${filename}`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to load query plan: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Fetch query plan from API endpoint
- * @param queryId - The query ID to fetch the plan for
- */
-export async function fetchQueryPlan(engineId: string, queryId: string): Promise<unknown> {
+export async function fetchQueryBundle(engineId: string, queryId: string): Promise<unknown> {
   return apiFetch<unknown>(`/engines/${engineId}/query/${queryId}`);
 }
 

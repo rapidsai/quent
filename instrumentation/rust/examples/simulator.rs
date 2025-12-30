@@ -16,6 +16,12 @@ use rand::{Rng, rng};
 use tracing::info;
 use uuid::Uuid;
 
+const NUM_QUERY_GROUPS: usize = 2;
+const NUM_QUERIES: usize = 2;
+
+const NUM_WORKERS: usize = 4;
+const NUM_THREADS: usize = 4;
+
 fn initialize_tracing() {
     tracing_subscriber::fmt()
         .with_target(true)
@@ -284,6 +290,7 @@ fn lower_logical(
 
 fn create_plan_events<T>(
     query_id: Uuid,
+    worker_id: Option<Uuid>,
     plan_obs: &PlanObserver,
     op_obs: &OperatorObserver,
     plan: &Graph<Operator<T>, Edge, Directed>,
@@ -301,7 +308,7 @@ where
             name: plan_name,
             query_id,
             parent_plan_id,
-            worker_id: None,
+            worker_id,
             edges: plan
                 .edge_references()
                 .map(|edge| plan::Edge {
@@ -405,7 +412,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resource::group::Init {
             resource: resource::Resource {
                 name: "Network".to_string(),
-                scope: resource::Scope::Worker(engine_id),
+                scope: resource::Scope::Engine(engine_id),
             },
         },
     );
@@ -421,7 +428,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut worker_task_thread: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
 
     let worker_ids = std::iter::repeat_with(|| Uuid::now_v7())
-        .take(4)
+        .take(NUM_WORKERS)
         .collect::<Vec<_>>();
     for (worker_index, worker_id) in worker_ids.iter().enumerate() {
         worker_obs.init(
@@ -501,7 +508,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         worker_thread_pool.insert(*worker_id, thread_pool_id);
         {
-            let thread_ids: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7()).take(4).collect();
+            let thread_ids: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
+                .take(NUM_THREADS)
+                .collect();
             for (index, thread_id) in thread_ids.iter().enumerate() {
                 processor_obs.init(
                     *thread_id,
@@ -529,7 +538,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 up_link_id,
                 channel::Init {
                     resource: resource::Resource {
-                        name: format!("link-{worker_index}-to-{other_worker_index}"),
+                        name: format!("link-worker{worker_index}-to-worker{other_worker_index}"),
                         scope: resource::Scope::ResourceGroup(network_id),
                     },
                     source_id: *worker_main_memory.get(&worker_id).unwrap(),
@@ -541,7 +550,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 down_link_id,
                 channel::Init {
                     resource: resource::Resource {
-                        name: format!("link-{other_worker_index}-to-{worker_index}"),
+                        name: format!("link-worker{other_worker_index}-to-worker{worker_index}"),
                         scope: resource::Scope::ResourceGroup(network_id),
                     },
                     source_id: *worker_main_memory.get(&other_worker_id).unwrap(),
@@ -559,7 +568,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine_obs.operating(engine_id, engine::Operating {});
 
     let query_group_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
-        .take(2)
+        .take(NUM_QUERY_GROUPS)
         .map(|query_group_id| {
             info!("simulating query_group - http://localhost:8080/analyzer/engine/{engine_id}/query_group/{query_group_id}");
             std::thread::spawn({
@@ -568,6 +577,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let query_obs = context.query_observer();
                 let plan_obs = context.plan_observer();
                 let operator_obs = context.operator_observer();
+                let worker_ids = worker_ids.clone();
 
                 move || {
                     query_group_obs.init(
@@ -580,12 +590,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     query_group_obs.operating(query_group_id, query_group::Operating {});
 
                     let query_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
-                        .take(2)
+                        .take(NUM_QUERIES)
                         .map(|query_id| {
                             std::thread::spawn({
                                 let query_obs = query_obs.clone();
                                 let plan_obs = plan_obs.clone();
                                 let operator_obs = operator_obs.clone();
+                                let worker_ids = worker_ids.clone();
                                 move || {
                                     info!("simulating query - http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}");
                                     query_obs.init(
@@ -600,9 +611,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let p_plan = make_physical_plan(&l_plan);
                                     query_obs.executing(query_id, query::Executing {});
 
-                                    let logical_plan_id = create_plan_events(query_id, &plan_obs, &operator_obs, &l_plan, "logical".to_string(), None);
+                                    let logical_plan_id = create_plan_events(query_id, None, &plan_obs, &operator_obs, &l_plan, "logical".to_string(), None);
                                     // TODO(johanpel): properly nest this
-                                    let _physical_plan_id = create_plan_events(query_id, &plan_obs, &operator_obs, &p_plan, "physical".to_string(), Some(logical_plan_id));
+                                    for worker in worker_ids {
+                                        create_plan_events(query_id, Some(worker), &plan_obs, &operator_obs, &p_plan, "physical".to_string(), Some(logical_plan_id));
+                                    }
 
                                     query_obs.idle(query_id, query::Idle {});
                                     query_obs.finalizing(query_id, query::Finalizing {});

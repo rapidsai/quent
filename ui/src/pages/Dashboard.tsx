@@ -16,7 +16,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-8 p-6">
       <div className="grid gap-6 grid-cols-[1fr_1fr]">
         <div className="col-span-1 flex flex-col gap-6 md:col-span-1">
           <div className="w-full">

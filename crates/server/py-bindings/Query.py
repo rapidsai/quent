@@ -2,7 +2,6 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Plan import Plan
 from .QueryTimestamps import QueryTimestamps
 
 
@@ -24,7 +23,8 @@ class Query(BaseModel):
 	query_group_id: str
 	
 	"""
-	 Timestamps of state transitions throughout the lifetime of the Query.
+	 Timestamps of state transitions throughout the lifetime of the
+	 Query.
 	"""
 	timestamps: QueryTimestamps
 	
@@ -32,8 +32,3 @@ class Query(BaseModel):
 	 A name for this Query.
 	"""
 	name: str | None
-	
-	"""
-	 The plans of this Query.
-	"""
-	plans: list[Plan]

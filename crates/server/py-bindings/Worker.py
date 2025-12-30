@@ -10,8 +10,8 @@ class Worker(BaseModel):
 	"""
 	 A Worker is an entity that executes Query Plans.
 	
-	 It is a high-level resource of an Engine.
-	 Its lifetime is bounded by the lifetime of an Engine, but it can outlive any other entity.
+	 It is a high-level resource of an Engine. Its lifetime is bounded by the
+	 lifetime of an Engine, but it can outlive any other entity.
 	"""
 	
 	
@@ -26,7 +26,8 @@ class Worker(BaseModel):
 	engine_id: str
 	
 	"""
-	 Timestamps of state transitions throughout the lifetime of the Worker.
+	 Timestamps of state transitions throughout the lifetime of the
+	 Worker.
 	"""
 	timestamps: WorkerTimestamps
 	
