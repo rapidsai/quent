@@ -83,7 +83,7 @@ function RootComponent() {
             </div>
           </div>
         </nav>
-        <main className="flex-1 w-full px-4 py-8 sm:px-6 lg:px-8">
+        <main className="flex-1 w-full">
           <Outlet />
         </main>
       </div>

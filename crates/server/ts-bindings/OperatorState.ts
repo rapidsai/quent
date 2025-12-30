@@ -2,6 +2,7 @@
 import type { WaitingForInputs } from "./WaitingForInputs";
 
 /**
- * Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
+ * Timestamps (nanoseconds since Unix epoch) of state transitions of a
+ * Query.
  */
 export type OperatorState = { "Init": bigint } | { "WaitingForInputs": WaitingForInputs } | { "Executing": bigint } | { "Blocked": bigint } | { "Finalizing": bigint } | { "Exit": bigint };

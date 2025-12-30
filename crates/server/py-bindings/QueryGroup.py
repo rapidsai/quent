@@ -8,10 +8,12 @@ from .QueryGroupTimestamps import QueryGroupTimestamps
 
 class QueryGroup(BaseModel):
 	"""
-	 A QueryGroup is an entity that orchestrates the execution of a distinct set of queries.
+	 A QueryGroup is an entity that orchestrates the execution of a distinct
+	 set of queries.
 	
-	 For example, a session in a long-lived multi-user engine could be modeled as a QueryGroup.
-	 TODO(johanpel): perhaps this isn't a great name for this concept, consider naming this something else.
+	 For example, a session in a long-lived multi-user engine could be
+	 modeled as a QueryGroup. TODO(johanpel): perhaps this isn't a great name
+	 for this concept, consider naming this something else.
 	"""
 	
 	
@@ -26,7 +28,8 @@ class QueryGroup(BaseModel):
 	engine_id: str
 	
 	"""
-	 Timestamps of state transitions throughout the lifetime of the QueryGroup.
+	 Timestamps of state transitions throughout the lifetime of the
+	 QueryGroup.
 	"""
 	timestamps: QueryGroupTimestamps
 	

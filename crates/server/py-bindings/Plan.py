@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from enum import StrEnum
 
 from .Edge import Edge
-from .Operator import Operator
 from .PlanTimestamps import PlanTimestamps
 
 
@@ -15,9 +14,14 @@ class Plan(BaseModel):
 	
 	
 	"""
-	 The ID of this Query Plan.
+	 The ID of this Plan.
 	"""
 	id: str
+	
+	"""
+	 The name of this Plan.
+	"""
+	name: str
 	
 	"""
 	 The ID of the Query this Plan is part of.
@@ -25,31 +29,33 @@ class Plan(BaseModel):
 	query_id: str
 	
 	"""
-	 The timestamps of various state transitions during the lifetime of this plan.
+	 The timestamps of various state transitions during the lifetime of
+	 this plan.
 	"""
 	timestamps: PlanTimestamps
 	
 	"""
-	 The optional parent Plan ID. This is useful if an Engine constructs various
-	 types of Plans before execution, sometimes referred to as "lowering".
-	 Examples include a logical and physical plan.
+	 The optional parent Plan ID. This is useful if an Engine constructs
+	 various types of Plans before execution, sometimes referred to as
+	 "lowering". Examples include a logical and physical plan.
 	"""
-	parent_id: str | None
+	parent_plan_id: str | None
 	
 	"""
 	 The optional Worker ID of the Worker that executed this Plan.
 	
-	 If this Plan was not directly executed on a worker, but merely some level
-	 plan in a sequence of lowering stages, then this may be  set to None.
+	 If this Plan was not directly executed on a worker, but merely some
+	 level plan in a sequence of lowering stages, then this may be set to
+	 None.
 	"""
 	worker_id: str | None
 	
 	"""
-	 The Operators of this Plan.
+	 The IDs of the Operators that are part of this Plan.
 	"""
-	operators: list[Operator]
+	operator_ids: list[str]
 	
 	"""
-	 The Edges of this Plan.
+	 The Edges between Operators of this Plan.
 	"""
 	edges: list[Edge]

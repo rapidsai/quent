@@ -54,7 +54,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-hidden;
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
@@ -64,4 +64,11 @@
 /* Override React Flow default node background */
 .react-flow__node {
   background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+/* Sorry */
+.react-flow__attribution {
+  display: none;
 }

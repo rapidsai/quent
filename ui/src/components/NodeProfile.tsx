@@ -11,8 +11,8 @@ export function NodeProfile({ queryId, data }: NodeProfileProps) {
   const { nodeId, timestamps, series } = data;
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">{nodeId} Profile</h2>
+    <div className="space-y-4 p-2">
+      <h2 className="text-lg font-semibold">Entity: {nodeId}</h2>
       <Timeline timestamps={timestamps} series={series} />
       <div className="border rounded-lg p-4 bg-card">
         <dl className="space-y-2">

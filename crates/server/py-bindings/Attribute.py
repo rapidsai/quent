@@ -12,4 +12,4 @@ class Attribute(BaseModel):
 	"""
 	
 	key: str
-	value: Value
+	value: Value | None

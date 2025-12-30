@@ -7,7 +7,8 @@ from enum import StrEnum
 
 class QueryTimestamps(BaseModel):
 	"""
-	 Timestamps (nanoseconds since Unix epoch) of state transitions of a Query.
+	 Timestamps (nanoseconds since Unix epoch) of state transitions of a
+	 Query.
 	"""
 	
 	
@@ -29,18 +30,20 @@ class QueryTimestamps(BaseModel):
 	"""
 	 The time at which the Query was idle.
 	
-	 In this state, the Query has been processed, but it still potentially occupies
-	 resources of the engine to hold a result which is yet to be delivered to the query
-	 client.
+	 In this state, the Query has been processed, but it still
+	 potentially occupies resources of the engine to hold a result which
+	 is yet to be delivered to the query client.
 	"""
 	idle: int | None
 	
 	"""
-	 The time at which the Query started shutting down and cleaning up its resources.
+	 The time at which the Query started shutting down and cleaning up
+	 its resources.
 	"""
 	finalizing: int | None
 	
 	"""
-	 The time at which the Query was completely destructed and all resources were freed.
+	 The time at which the Query was completely destructed and all
+	 resources were freed.
 	"""
 	exit: int | None

@@ -2,6 +2,7 @@ import type { QueryPlanTransformer, DAGData } from './types';
 import { prestoTransformer } from './presto-transformer';
 import { prestoPhysicalTransformer } from './presto-physical-transformer';
 import { queryEngineTransformer } from './query-engine-transformer';
+import { queryBundleTransformer } from './query-bundle-transformer';
 
 class TransformerRegistry {
   private transformers = new Map<string, QueryPlanTransformer>();
@@ -10,6 +11,7 @@ class TransformerRegistry {
     this.register(prestoTransformer);
     this.register(prestoPhysicalTransformer);
     this.register(queryEngineTransformer);
+    this.register(queryBundleTransformer);
   }
 
   register(transformer: QueryPlanTransformer): void {

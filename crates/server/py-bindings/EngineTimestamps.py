@@ -7,7 +7,8 @@ from enum import StrEnum
 
 class EngineTimestamps(BaseModel):
 	"""
-	 Timestamps (nanoseconds since Unix epoch) of state transitions of an Engine.
+	 Timestamps (nanoseconds since Unix epoch) of state transitions of an
+	 Engine.
 	"""
 	
 	
@@ -22,11 +23,13 @@ class EngineTimestamps(BaseModel):
 	operating: int | None
 	
 	"""
-	 The time at which the Engine started shutting down and cleaning up its resources.
+	 The time at which the Engine started shutting down and cleaning up
+	 its resources.
 	"""
 	finalizing: int | None
 	
 	"""
-	 The time at which the Engine was completely destructed and all resources were freed.
+	 The time at which the Engine was completely destructed and all
+	 resources were freed.
 	"""
 	exit: int | None

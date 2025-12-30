@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from enum import StrEnum
 
 from .OperatorState import OperatorState
-from .Port import Port
 
 
 
@@ -21,10 +20,11 @@ class Operator(BaseModel):
 	"""
 	 The ID of the Plan this Operator belongs to.
 	"""
-	plan_id: str
+	parent_plan_id: str
 	
 	"""
-	 A list of Operator IDs in a parent plan (if any) from which this Operator was derived.
+	 A list of Operator IDs in a parent plan (if any) from which this
+	 Operator was derived.
 	"""
 	parent_operator_ids: list[str]
 	
@@ -34,11 +34,12 @@ class Operator(BaseModel):
 	name: str | None
 	
 	"""
-	 The Ports of this operator.
+	 The IDs of the Ports of this operator.
 	"""
-	ports: list[Port]
+	ports: list[str]
 	
 	"""
-	 The sequence of states through which this Operator has been executed.
+	 The sequence of states through which this Operator has been
+	 executed.
 	"""
 	state_sequence: list[OperatorState]

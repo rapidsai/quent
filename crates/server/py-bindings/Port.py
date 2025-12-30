@@ -6,6 +6,10 @@ from enum import StrEnum
 
 
 class Port(BaseModel):
-
+	"""
+	 A Port of an Operator in a Plan DAG.
+	"""
+	
 	id: str
+	parent_operator_id: str
 	name: str

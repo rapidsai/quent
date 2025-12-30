@@ -5,11 +5,11 @@ import type { EngineTimestamps } from "./EngineTimestamps";
 /**
  * An Engine represents the top-level entity of the model.
  *
- * Engines accept Queries that they pass to Query Groups which in turn orchestrate
- * execution through Plans submitted to Workers.
+ * Engines accept Queries that they pass to Query Groups which in turn
+ * orchestrate execution through Plans submitted to Workers.
  *
- * Nothing can outlive the lifetime of an Engine.
- * TODO(johanpel): this assumes 0 clock skew, we need to address this in general.
+ * Nothing can outlive the lifetime of an Engine. TODO(johanpel): this
+ * assumes 0 clock skew, we need to address this in general.
  */
 export type Engine = { 
 /**
@@ -17,11 +17,13 @@ export type Engine = {
  */
 id: string, 
 /**
- * Timestamps of state transitions throughout the lifetime of the Engine.
+ * Timestamps of state transitions throughout the lifetime of the
+ * Engine.
  */
 timestamps: EngineTimestamps, 
 /**
- * The name of this Engine - typically a name for this instance of a specific engine implementation.
+ * The name of this Engine - typically a name for this instance of a
+ * specific engine implementation.
  */
 name: string | null, 
 /**

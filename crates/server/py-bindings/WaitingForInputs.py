@@ -7,7 +7,8 @@ from enum import StrEnum
 
 class WaitingForInputs(BaseModel):
 	"""
-	 A state transition where an Operator is blocked from progressing beceause it is waiting for inputs to arrive.
+	 A state transition where an Operator is blocked from progressing
+	 beceause it is waiting for inputs to arrive.
 	"""
 	
 	

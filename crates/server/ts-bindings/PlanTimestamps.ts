@@ -21,7 +21,7 @@ idle: bigint | null,
  */
 finalizing: bigint | null, 
 /**
- * The time at which the Worker was completely destructed and all resources
- * were freed.
+ * The time at which the Worker was completely destructed and all
+ * resources were freed.
  */
 exit: bigint | null, };

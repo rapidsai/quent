@@ -1,0 +1,4 @@
+{
+  "routeFileIgnorePattern": ".test.|.spec."
+}
+

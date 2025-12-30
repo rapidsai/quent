@@ -1,12 +1,12 @@
 use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
-use quent_analyzer::Analyzer;
-use quent_entities::{engine::Engine, query::Query, query_group::QueryGroup, worker::Worker};
+use quent_analyzer::{Analyzer, query::QueryBundle};
+use quent_entities::{engine::Engine, query_group::QueryGroup, worker::Worker};
 use quent_exporter_ndjson::NdjsonImporter;
 use tracing::error;
 use uuid::Uuid;
 
 // TODO(johanpel): pagination
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
     let entries = match std::fs::read_dir("data") {
         Ok(entries) => entries,
@@ -46,7 +46,7 @@ async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
     Ok(Json(ids))
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn engine(Path(engine_id): Path<Uuid>) -> Result<Json<Engine>, StatusCode> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -56,7 +56,7 @@ async fn engine(Path(engine_id): Path<Uuid>) -> Result<Json<Engine>, StatusCode>
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn list_workers(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, StatusCode> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -65,7 +65,7 @@ async fn list_workers(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, St
     Ok(Json(analyzer.worker_ids()))
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn worker(
     Path((engine_id, worker_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Option<Worker>>, StatusCode> {
@@ -77,7 +77,7 @@ async fn worker(
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn list_query_groups(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, StatusCode> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -86,7 +86,7 @@ async fn list_query_groups(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>
     Ok(Json(analyzer.query_group_ids()))
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn query_group(
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Option<QueryGroup>>, StatusCode> {
@@ -98,7 +98,7 @@ async fn query_group(
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn list_queries(
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Vec<Uuid>>, StatusCode> {
@@ -109,15 +109,16 @@ async fn list_queries(
     Ok(Json(analyzer.query_ids(query_group_id)))
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 async fn query(
     Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<Option<Query>>, StatusCode> {
+) -> Result<Json<QueryBundle>, StatusCode> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
     let analyzer =
         Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(analyzer.query(query_id).cloned()))
+    let query_bundle = analyzer.query_bundle(query_id)?;
+    Ok(Json(query_bundle))
 }
 
 // TODO(johanpel): add a context and really cache these analyzers :this-is-fine:
