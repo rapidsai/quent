@@ -682,9 +682,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     engine_obs.exit(engine_id, engine::Exit {});
 
-    info!("events pushed, waiting 1s to flush (for now :tm:)");
-    // TODO(johanpel): ensure the channels are flushed on drop
-    std::thread::sleep(std::time::Duration::from_secs(1));
-
     Ok(())
 }

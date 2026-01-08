@@ -4,8 +4,14 @@ use std::time::Duration;
 
 use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 use quent_events::EventData;
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::{
+    runtime::Handle,
+    select,
+    sync::mpsc::{self, Receiver, Sender},
+    task::JoinHandle,
+};
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status, transport::Channel};
 
 use thiserror::Error;
@@ -33,6 +39,10 @@ type Event = quent_events::Event<EventData>;
 pub struct Client {
     _grpc_client: CollectorClient<Channel>,
     event_sender: Sender<Event>,
+    cancellation_token: CancellationToken,
+    events_sender_handle: Option<JoinHandle<()>>,
+    events_collector_handle: Option<JoinHandle<()>>,
+    runtime_handle: Handle,
 }
 
 impl Client {
@@ -56,7 +66,7 @@ impl Client {
                 }
             };
         }
-        let mut client = client?;
+        let client = client?;
 
         debug!("connected, preparing channels and spawning control thread ...");
         // TODO(johanpel): consider unbounded
@@ -67,30 +77,60 @@ impl Client {
             Receiver<CollectEventRequest>,
         ) = mpsc::channel(1024);
 
-        // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
-        tokio::spawn(async move {
-            // TODO: probably want to use recv_many + batch if gRPC doesnt do this already
-            loop {
-                if let Some(event) = event_receiver.recv().await {
-                    let mut payload: Vec<u8> = Vec::with_capacity(4096);
-                    if let Err(e) = ciborium::into_writer(&event, &mut payload) {
-                        error!("unable to serialize event: {e}");
-                        continue;
-                    }
+        let cancellation_token = CancellationToken::new();
+        let cloned_token = cancellation_token.clone();
 
-                    let event = CollectEventRequest { payload };
-                    match grpc_sender.send(event).await {
-                        Ok(_) => {
-                            // succesfully sent event
+        // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
+        let events_sender_handle = tokio::spawn(async move {
+            loop {
+                select! {
+                    // TODO: probably want to use recv_many + batch if gRPC doesnt do this already
+                    Some(event) = event_receiver.recv() => {
+                        let mut payload: Vec<u8> = Vec::with_capacity(4096);
+                        if let Err(e) = ciborium::into_writer(&event, &mut payload) {
+                            error!("unable to serialize event: {e}");
+                            continue;
                         }
-                        Err(_item) => {
-                            error!("server disconnected");
-                            break;
+
+                        let event = CollectEventRequest { payload };
+                        match grpc_sender.send(event).await {
+                            Ok(()) => {
+                                // succesfully sent event
+                            }
+                            Err(_item) => {
+                                error!("server disconnected");
+                                break;
+                            }
                         }
+                    },
+                    () = cloned_token.cancelled() => {
+                        event_receiver.close();
+                        // drain events that are buffered
+                        while let Some(event) = event_receiver.recv().await {
+                            let mut payload: Vec<u8> = Vec::with_capacity(4096);
+                            if let Err(e) = ciborium::into_writer(&event, &mut payload) {
+                                error!("unable to serialize event: {e}");
+                                continue;
+                            }
+
+                            let event = CollectEventRequest { payload };
+                            match grpc_sender.send(event).await {
+                                Ok(_) => {
+                                    // succesfully sent event
+                                }
+                                Err(_item) => {
+                                    error!("server disconnected");
+                                    break;
+                                }
+                            }
+                        }
+                        info!("client shutting down");
+                        break
+                    },
+                    else => {
+                        info!("client shutting down");
+                        break
                     }
-                } else {
-                    info!("client shutting down");
-                    break;
                 }
             }
         });
@@ -104,12 +144,20 @@ impl Client {
             engine_id.to_string().parse().expect("valid metadata value"),
         );
 
-        let _resp = client.collect_events(req).await?;
+        let mut cloned_client = client.clone();
+        let events_collector_handle = tokio::spawn(async move {
+            let _ = cloned_client.collect_events(req).await;
+        });
         debug!("client ready to send events");
 
         Ok(Client {
             _grpc_client: client,
             event_sender,
+            cancellation_token,
+            // Safety: this fn must be called from a tokio runtime.
+            runtime_handle: Handle::current(),
+            events_sender_handle: Some(events_sender_handle),
+            events_collector_handle: Some(events_collector_handle),
         })
     }
 
@@ -120,5 +168,28 @@ impl Client {
             .send(event)
             .await
             .map_err(|e| Error::SendError(e.to_string()))
+    }
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        self.cancellation_token.cancel();
+
+        // Wait for the sender to finish sending the remaining events
+        if let Some(join_handle) = self.events_sender_handle.take()
+            && let Err(e) = self.runtime_handle.block_on(join_handle)
+        {
+            warn!("grpc sender task failed: {e}");
+        }
+
+        debug!("events_sender_handle completed");
+
+        // Wait for the collector to finish processing the remaining events
+        if let Some(join_handle) = self.events_collector_handle.take()
+            && let Err(e) = self.runtime_handle.block_on(join_handle)
+        {
+            warn!("grpc collector task failed: {e}");
+        }
+        debug!("events_collector_handle completed");
     }
 }

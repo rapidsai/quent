@@ -46,6 +46,7 @@ impl Exporter for NdjsonExporter {
         let line = format!("{}\n", serde_json::to_string(&event)?);
         let mut lock = self.writer.lock().await;
         lock.write_all(line.as_bytes()).await?;
+        lock.flush().await?;
         Ok(())
     }
 

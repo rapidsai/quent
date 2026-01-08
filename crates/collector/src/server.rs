@@ -50,7 +50,7 @@ impl proto::collector_server::Collector for CollectorService {
 
         let mut stream = request.into_inner();
         let exporters = Arc::clone(&self.exporters);
-        tokio::spawn(async move {
+        let export_join_handle = tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(request) => {
@@ -98,6 +98,7 @@ impl proto::collector_server::Collector for CollectorService {
                 }
             }
         });
+        let _ = export_join_handle.await;
         Ok(Response::new(proto::CollectEventResponse {}))
     }
 }

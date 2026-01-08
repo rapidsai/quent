@@ -10,7 +10,11 @@ use quent_events::{
 use quent_exporter::Exporter;
 use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
 use quent_exporter_ndjson::NdjsonExporter;
-use tokio::runtime::{Handle, Runtime};
+use tokio::{
+    runtime::{Handle, Runtime},
+    task::JoinHandle,
+};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
@@ -30,9 +34,17 @@ pub enum ExporterOptions {
 }
 
 pub struct Context {
-    _runtime: Option<tokio::runtime::Runtime>,
+    handle: Handle,
     events_sender: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
-    _exporter: Arc<dyn Exporter>,
+    exporter: Arc<dyn Exporter>,
+    cancellation_token: CancellationToken,
+    forwarder_handle: Option<JoinHandle<()>>,
+
+    // The runtime should be the last field, so it is dropped the last
+    // (see https://doc.rust-lang.org/reference/destructors.html for
+    // drop order of structs) because other tasks for exporters and
+    // forwarders rely on this runtime.
+    _runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl Context {
@@ -65,22 +77,50 @@ impl Context {
             }
         };
 
-        handle.spawn({
+        let cancellation_token = CancellationToken::new();
+        let cloned_token = cancellation_token.clone();
+
+        let forwarder_handle = handle.spawn({
             let exporter: Arc<dyn Exporter> = Arc::clone(&exporter);
             async move {
-                while let Some(event) = events_receiver.recv().await {
-                    match exporter.push(event).await {
-                        Ok(_) => (), // successfully pushed to exporter,
-                        Err(e) => warn!("unable to export event: {e}"),
+                loop {
+                    tokio::select! {
+                        Some(event) = events_receiver.recv() => {
+                            match exporter.push(event).await {
+                                Ok(_) => (), // successfully pushed to exporter,
+                                Err(e) => warn!("unable to export event: {e}"),
+                            }
+                        },
+                        () = cloned_token.cancelled() => {
+                            events_receiver.close();
+                            // drain events that are buffered
+                            while let Some(event) = events_receiver.recv().await {
+                                match exporter.push(event).await {
+                                    Ok(_) => (), // successfully pushed to exporter,
+                                    Err(e) => warn!("unable to export event: {e}"),
+                                }
+                            }
+                            break
+                        },
+                        else => {
+                            // we only enter here when the events_receiver
+                            // channel has been closed (.recv() returns None)
+                            // so no messages to receive or push to the
+                            // exporter, so simply break.
+                            break
+                        }
                     }
                 }
             }
         });
 
         Ok(Context {
-            _runtime: runtime,
+            handle,
             events_sender,
-            _exporter: exporter,
+            exporter,
+            cancellation_token,
+            forwarder_handle: Some(forwarder_handle),
+            _runtime: runtime,
         })
     }
 
@@ -136,6 +176,24 @@ impl Context {
     pub fn resource_group_observer(&self) -> ResourceGroupObserver {
         ResourceGroupObserver {
             tx: self.events_sender.clone(),
+        }
+    }
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        self.cancellation_token.cancel();
+
+        // Wait for the forwarder to finish processing remaining events
+        if let Some(forwarder_handle) = self.forwarder_handle.take()
+            && let Err(e) = self.handle.block_on(forwarder_handle)
+        {
+            warn!("forwarder task failed: {e}");
+        }
+
+        // Flush the exporter to ensure all events are sent
+        if let Err(e) = self.handle.block_on(self.exporter.force_flush()) {
+            warn!("failed to flush exporter: {e}");
         }
     }
 }
