@@ -2,6 +2,8 @@
 //!
 use std::sync::Arc;
 
+#[cfg(feature = "q")]
+use quent_events::q;
 use quent_events::{
     Event, EventData, engine, operator, plan, query, query_group,
     resource::{channel, group, memory, processor},
@@ -175,6 +177,12 @@ impl Context {
     }
     pub fn resource_group_observer(&self) -> ResourceGroupObserver {
         ResourceGroupObserver {
+            tx: self.events_sender.clone(),
+        }
+    }
+    #[cfg(feature = "q")]
+    pub fn q_observer(&self) -> QObserver {
+        QObserver {
             tx: self.events_sender.clone(),
         }
     }
@@ -582,6 +590,138 @@ impl ResourceGroupObserver {
         push_event(
             &self.tx,
             Event::new(id, group::ResourceGroupEvent::Exit(exit).into()),
+        )
+    }
+}
+
+#[cfg(feature = "q")]
+#[derive(Clone)]
+pub struct QObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
+}
+
+#[cfg(feature = "q")]
+impl QObserver {
+    // Task events
+    pub fn task_initializing(&self, id: Uuid, initializing: q::task::Initializing) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Initializing(initializing).into()),
+        )
+    }
+
+    pub fn task_queueing(&self, id: Uuid, queueing: q::task::Queueing) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Queueing(queueing).into()),
+        )
+    }
+
+    pub fn task_computing(&self, id: Uuid, computing: q::task::Computing) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Computing(computing).into()),
+        )
+    }
+
+    pub fn task_allocating_memory(&self, id: Uuid, allocating_memory: q::task::AllocatingMemory) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                q::task::TaskEvent::AllocatingMemory(allocating_memory).into(),
+            ),
+        )
+    }
+
+    pub fn task_loading(&self, id: Uuid, loading: q::task::Loading) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Loading(loading).into()),
+        )
+    }
+
+    pub fn task_allocating_storage(
+        &self,
+        id: Uuid,
+        allocating_storage: q::task::AllocatingStorage,
+    ) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                q::task::TaskEvent::AllocatingStorage(allocating_storage).into(),
+            ),
+        )
+    }
+
+    pub fn task_spilling(&self, id: Uuid, spilling: q::task::Spilling) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Spilling(spilling).into()),
+        )
+    }
+
+    pub fn task_sending(&self, id: Uuid, sending: q::task::Sending) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Sending(sending).into()),
+        )
+    }
+
+    pub fn task_finalizing(&self, id: Uuid, finalizing: q::task::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Finalizing(finalizing).into()),
+        )
+    }
+
+    pub fn task_exit(&self, id: Uuid, exit: q::task::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::task::TaskEvent::Exit(exit).into()),
+        )
+    }
+
+    // RecordBatch events
+    pub fn record_batch_initializing(&self, id: Uuid, initializing: q::record_batch::Initializing) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                q::record_batch::RecordBatchEvent::Initializing(initializing).into(),
+            ),
+        )
+    }
+
+    pub fn record_batch_idle(&self, id: Uuid, idle: q::record_batch::Idle) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::record_batch::RecordBatchEvent::Idle(idle).into()),
+        )
+    }
+
+    pub fn record_batch_moving(&self, id: Uuid, moving: q::record_batch::Moving) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::record_batch::RecordBatchEvent::Moving(moving).into()),
+        )
+    }
+
+    pub fn record_batch_finalizing(&self, id: Uuid, finalizing: q::record_batch::Finalizing) {
+        push_event(
+            &self.tx,
+            Event::new(
+                id,
+                q::record_batch::RecordBatchEvent::Finalizing(finalizing).into(),
+            ),
+        )
+    }
+
+    pub fn record_batch_exit(&self, id: Uuid, exit: q::record_batch::Exit) {
+        push_event(
+            &self.tx,
+            Event::new(id, q::record_batch::RecordBatchEvent::Exit(exit).into()),
         )
     }
 }

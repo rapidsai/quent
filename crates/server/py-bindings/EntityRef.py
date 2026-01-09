@@ -14,6 +14,7 @@ class EntityRefIdentifier(StrEnum):
 	Port = "Port"
 	ResourceGroup = "ResourceGroup"
 	Resource = "Resource"
+	CustomFsm = "CustomFsm"
 
 class EntityRefVariantEngine(BaseModel):
 	Engine: str
@@ -42,4 +43,7 @@ class EntityRefVariantResourceGroup(BaseModel):
 class EntityRefVariantResource(BaseModel):
 	Resource: str
 
-EntityRef = EntityRefVariantEngine | EntityRefVariantQueryGroup | EntityRefVariantQuery | EntityRefVariantPlan | EntityRefVariantWorker | EntityRefVariantOperator | EntityRefVariantPort | EntityRefVariantResourceGroup | EntityRefVariantResource
+class EntityRefVariantCustomFsm(BaseModel):
+	CustomFsm: str
+
+EntityRef = EntityRefVariantEngine | EntityRefVariantQueryGroup | EntityRefVariantQuery | EntityRefVariantPlan | EntityRefVariantWorker | EntityRefVariantOperator | EntityRefVariantPort | EntityRefVariantResourceGroup | EntityRefVariantResource | EntityRefVariantCustomFsm

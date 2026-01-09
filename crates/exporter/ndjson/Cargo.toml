@@ -3,6 +3,10 @@ name = "quent-exporter-ndjson"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+default = []
+q = ["quent-events/q"]
+
 [dependencies]
 async-trait.workspace = true
 quent-events = { path = "../../events" }

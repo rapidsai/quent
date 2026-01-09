@@ -22,7 +22,12 @@ class Resource(BaseModel):
 	"""
 	 The name of this Resource
 	"""
-	name: str | None
+	instance_name: str | None
+	
+	"""
+	 The name of this Resource type
+	"""
+	type_name: str | None
 	
 	"""
 	 The scope of this Resource.

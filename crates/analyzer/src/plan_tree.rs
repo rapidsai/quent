@@ -63,7 +63,7 @@ impl PlanTree {
 
             Ok(PlanTree {
                 id: current_plan_id,
-                query: Some(plan.query_id),
+                query: plan.query_id,
                 worker: plan.worker_id,
                 children,
             })
@@ -72,7 +72,7 @@ impl PlanTree {
         let root_plan = entities
             .plans
             .values()
-            .find(|p| p.parent_plan_id.is_none() && p.query_id == query_id)
+            .find(|p| p.parent_plan_id.is_none() && p.query_id == Some(query_id))
             .ok_or(Error::Logic(format!(
                 "A root plan for query id {query_id} does not exist."
             )))?;

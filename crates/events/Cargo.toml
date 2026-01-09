@@ -3,6 +3,10 @@ name = "quent-events"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+default = []
+q = []
+
 [dependencies]
 uuid = { workspace = true, features = ["serde"] }
 serde.workspace = true

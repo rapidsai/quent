@@ -21,12 +21,12 @@ class Plan(BaseModel):
 	"""
 	 The name of this Plan.
 	"""
-	name: str
+	name: str | None
 	
 	"""
 	 The ID of the Query this Plan is part of.
 	"""
-	query_id: str
+	query_id: str | None
 	
 	"""
 	 The timestamps of various state transitions during the lifetime of

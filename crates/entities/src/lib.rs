@@ -1,17 +1,28 @@
-//! Type definitions for entities of the model.
+//! Type definitions for model entities shared with the UI.
 //!
 //! These type definitions intentionally do not use generics, since many binding
 //! generators will not support them.
 use py_rs::PY;
-use quent_events::{Timestamp, resource::Scope};
+use quent_events::{Timestamp, attributes::Attribute, resource::Scope};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
+
+use crate::relation::Related;
+
+pub mod fsm;
+pub mod relation;
+pub mod span;
+pub mod timeline;
 
 // TODO(johanpel): figure out if we can stop being so verbose in prefixing type
 // names with their namespace. This appears a limitation of ts_rs where you
 // can't have two types of the same name in a different namespace. This is also
 // a known limitation of e.g. wasm_bindgen.
+
+pub trait Entity {
+    fn new(id: Uuid) -> Self;
+}
 
 /// A run-time typed reference to an entity.
 #[derive(TS, PY, Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -25,6 +36,7 @@ pub enum EntityRef {
     Port(Uuid),
     ResourceGroup(Uuid),
     Resource(Uuid),
+    CustomFsm(Uuid),
 }
 
 impl From<Scope> for EntityRef {
@@ -54,12 +66,15 @@ impl From<EntityRef> for Uuid {
             EntityRef::Port(uuid) => uuid,
             EntityRef::ResourceGroup(uuid) => uuid,
             EntityRef::Resource(uuid) => uuid,
+            EntityRef::CustomFsm(uuid) => uuid,
         }
     }
 }
 
 pub mod engine {
     use quent_events::engine::EngineImplementationAttributes;
+
+    use crate::relation::Related;
 
     use super::*;
 
@@ -101,12 +116,18 @@ pub mod engine {
         pub implementation: Option<EngineImplementationAttributes>,
     }
 
-    impl Engine {
-        pub fn new(id: Uuid) -> Self {
+    impl Entity for Engine {
+        fn new(id: Uuid) -> Self {
             Self {
                 id,
                 ..Default::default()
             }
+        }
+    }
+
+    impl Related for Engine {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            std::iter::empty()
         }
     }
 }
@@ -149,17 +170,25 @@ pub mod query_group {
         pub name: Option<String>,
     }
 
-    impl QueryGroup {
-        pub fn new(id: Uuid) -> Self {
+    impl Entity for QueryGroup {
+        fn new(id: Uuid) -> Self {
             Self {
                 id,
                 ..Default::default()
             }
         }
     }
+
+    impl Related for QueryGroup {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            [EntityRef::Engine(self.engine_id)].into_iter()
+        }
+    }
 }
 
 pub mod worker {
+    use crate::relation::Related;
+
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
@@ -195,12 +224,18 @@ pub mod worker {
         pub name: Option<String>,
     }
 
-    impl Worker {
-        pub fn new(id: Uuid) -> Self {
+    impl Entity for Worker {
+        fn new(id: Uuid) -> Self {
             Self {
                 id,
                 ..Default::default()
             }
+        }
+    }
+
+    impl Related for Worker {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            [EntityRef::Engine(self.engine_id)].into_iter()
         }
     }
 }
@@ -246,12 +281,18 @@ pub mod query {
         pub name: Option<String>,
     }
 
-    impl Query {
-        pub fn new(id: Uuid) -> Self {
+    impl Entity for Query {
+        fn new(id: Uuid) -> Self {
             Self {
                 id,
                 ..Default::default()
             }
+        }
+    }
+
+    impl Related for Query {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            [EntityRef::QueryGroup(self.query_group_id)].into_iter()
         }
     }
 }
@@ -320,12 +361,45 @@ pub mod operator {
         pub state_sequence: Vec<OperatorState>,
     }
 
+    impl Entity for Operator {
+        fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl Related for Operator {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            [EntityRef::Plan(self.parent_plan_id)].into_iter()
+        }
+    }
+
     /// A Port of an Operator in a Plan DAG.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    ///
+    /// Note a Port is not an FSM so none of its non-id fields need to be
+    /// optional as they are declared within a single event.
+    #[derive(TS, PY, Clone, Default, Debug, Deserialize, Serialize)]
     pub struct Port {
         pub id: Uuid,
         pub parent_operator_id: Uuid,
         pub name: String,
+    }
+
+    impl Entity for Port {
+        fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl Related for Port {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            [EntityRef::Operator(self.parent_operator_id)].into_iter()
+        }
     }
 }
 
@@ -356,9 +430,9 @@ pub mod plan {
         /// The ID of this Plan.
         pub id: Uuid,
         /// The name of this Plan.
-        pub name: String,
+        pub name: Option<String>,
         /// The ID of the Query this Plan is part of.
-        pub query_id: Uuid,
+        pub query_id: Option<Uuid>,
         /// The timestamps of various state transitions during the lifetime of
         /// this plan.
         pub timestamps: PlanTimestamps,
@@ -377,11 +451,28 @@ pub mod plan {
         /// The Edges between Operators of this Plan.
         pub edges: Vec<Edge>,
     }
+
+    impl Entity for Plan {
+        fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl Related for Plan {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            if let Some(parent) = self.parent_plan_id {
+                vec![EntityRef::Plan(parent)].into_iter()
+            } else {
+                vec![].into_iter()
+            }
+        }
+    }
 }
 
 pub mod resource {
-    use quent_events::attributes::Attribute;
-
     use super::*;
 
     /// Attributes of the "Operating" state of a Resource.
@@ -407,7 +498,9 @@ pub mod resource {
         /// The ID of this Resource
         pub id: Uuid,
         /// The name of this Resource
-        pub name: Option<String>,
+        pub instance_name: Option<String>,
+        /// The name of this Resource type
+        pub type_name: Option<String>,
         /// The scope of this Resource.
         pub scope: Option<EntityRef>,
         /// The Capacities of this Resource.
@@ -416,6 +509,27 @@ pub mod resource {
         pub capacities: Vec<Attribute>,
         /// The sequence of states that this Resource
         pub state_sequence: Vec<ResourceState>,
+    }
+
+    impl Entity for Resource {
+        fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl Related for Resource {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            if let Some(scope) = self.scope {
+                vec![scope].into_iter()
+            } else {
+                // Shouldn't happen after filtering out parentless things, but
+                // for good measure:
+                vec![].into_iter()
+            }
+        }
     }
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
@@ -439,11 +553,59 @@ pub mod resource {
     pub struct ResourceGroup {
         /// The ID of this Resource Group
         pub id: Uuid,
-        /// The name of this Resource Group
-        pub name: String,
+        /// The name of this Resource Group instance
+        pub instance_name: Option<String>,
+        /// The name of this Resource Group type
+        pub type_name: Option<String>,
         /// The scope of this Resource Group
         pub scope: Option<EntityRef>,
         /// The timestamps of state transitions of this ResourceGroup.
         pub timestamps: ResourceGroupTimestamps,
+    }
+
+    impl Entity for ResourceGroup {
+        fn new(id: Uuid) -> Self {
+            Self {
+                id,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl Related for ResourceGroup {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            if let Some(scope) = self.scope {
+                vec![scope].into_iter()
+            } else {
+                // Shouldn't happen after filtering out parentless things, but
+                // for good measure:
+                vec![].into_iter()
+            }
+        }
+    }
+
+    #[derive(TS, PY, Clone, Debug, Deserialize, PartialEq, Serialize)]
+    pub struct Use {
+        pub resource: Uuid,
+        pub amounts: Vec<Attribute>,
+    }
+
+    impl Use {
+        pub fn new(resource: Uuid, amounts: Vec<Attribute>) -> Self {
+            Self { resource, amounts }
+        }
+
+        pub fn unit(resource: Uuid) -> Self {
+            Self {
+                resource,
+                amounts: vec![],
+            }
+        }
+    }
+
+    impl Related for Use {
+        fn relations(&self) -> impl Iterator<Item = EntityRef> {
+            [EntityRef::Resource(self.resource)].into_iter()
+        }
     }
 }

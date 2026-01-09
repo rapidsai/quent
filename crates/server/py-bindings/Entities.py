@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from enum import StrEnum
 
 from .Engine import Engine
+from .Fsm import Fsm
 from .Operator import Operator
 from .Plan import Plan
 from .Port import Port
@@ -24,11 +25,12 @@ class Entities(BaseModel):
 	"""
 	
 	engine: Engine
-	query_groups: { [key in str]?: QueryGroup }
 	workers: { [key in str]?: Worker }
+	resource_groups: { [key in str]?: ResourceGroup }
+	resources: { [key in str]?: Resource }
+	query_groups: { [key in str]?: QueryGroup }
 	queries: { [key in str]?: Query }
 	plans: { [key in str]?: Plan }
 	operators: { [key in str]?: Operator }
 	ports: { [key in str]?: Port }
-	resource_groups: { [key in str]?: ResourceGroup }
-	resources: { [key in str]?: Resource }
+	custom_fsms: { [key in str]?: Fsm }

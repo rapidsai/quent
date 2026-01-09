@@ -14,7 +14,11 @@ id: string,
 /**
  * The name of this Resource
  */
-name: string | null, 
+instance_name: string | null, 
+/**
+ * The name of this Resource type
+ */
+type_name: string | null, 
 /**
  * The scope of this Resource.
  */

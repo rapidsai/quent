@@ -3,4 +3,4 @@ import type { Entities } from "./Entities";
 import type { PlanTree } from "./PlanTree";
 import type { ResourceTree } from "./ResourceTree";
 
-export type QueryBundle = { entities: Entities, plan_tree: PlanTree, resource_tree: ResourceTree, };
+export type QueryBundle = { entities: Entities, plan_tree: PlanTree, resource_tree: ResourceTree, unique_operator_names: Array<string>, unique_entity_names: Array<string>, };

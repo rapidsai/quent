@@ -3,6 +3,10 @@ name = "quent"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+q = ["quent-events/q"]
+
 [dependencies]
 quent-events = { path = "../../crates/events" }
 quent-exporter = { path = "../../crates/exporter" }
@@ -24,3 +28,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tokio-stream.workspace = true
 tonic.workspace = true
 tracing-subscriber.workspace = true
+
+[[example]]
+name = "simulator"
+required-features = ["q"]

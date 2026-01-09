@@ -1,13 +1,14 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
+    sync::Arc,
 };
 
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
-use quent::{ExporterOptions, OperatorObserver, PlanObserver};
+use quent::ExporterOptions;
 use quent_events::{
     engine::{self, EngineImplementationAttributes},
-    operator, plan, query, query_group,
+    operator, plan, q, query, query_group,
     resource::{self, channel, memory},
     worker,
 };
@@ -16,11 +17,12 @@ use rand::{Rng, rng};
 use tracing::info;
 use uuid::Uuid;
 
-const NUM_QUERY_GROUPS: usize = 2;
-const NUM_QUERIES: usize = 2;
+const NUM_QUERY_GROUPS: usize = 1;
+const NUM_QUERIES: usize = 1; // per query group
+const NUM_TASKS: usize = 3; // per operator
 
-const NUM_WORKERS: usize = 4;
-const NUM_THREADS: usize = 4;
+const NUM_WORKERS: usize = 2;
+const NUM_THREADS: usize = 2; // per worker thread pool
 
 fn initialize_tracing() {
     tracing_subscriber::fmt()
@@ -115,58 +117,76 @@ enum Physical {
     Output,
 }
 
-type LogicalOp = Operator<Logical>;
-type LogicalPlan = Graph<LogicalOp, Edge, Directed>;
-
-type PhysicalOp = Operator<Physical>;
-type PhysicalPlan = Graph<PhysicalOp, Edge, Directed>;
+struct Plan<T>
+where
+    T: Debug,
+{
+    name: String,
+    query_id: Uuid,
+    // parent_plan_id: Option<Uuid>,
+    dag: Graph<Operator<T>, Edge, Directed>,
+    execute: bool,
+}
 
 // Create the following logical plan:
 // Scan -> Project \
 //                  -> Join -> Sort -> Limit -> Output
 // Scan -> Project /
-fn logical_plan() -> LogicalPlan {
+fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     // Add a scan --> project branch and return the (project, project output port) Uuids.
-    fn add_scan_project_branch(plan: &mut LogicalPlan) -> NodeIndex {
-        let scan = plan.add_node(LogicalOp::new(Logical::Scan, vec![]));
-        let project = plan.add_node(LogicalOp::new(Logical::Project, vec![]));
+    fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
+        let scan = plan.add_node(Operator::new(Logical::Scan, vec![]));
+        let project = plan.add_node(Operator::new(Logical::Project, vec![]));
         plan.add_edge(scan, project, Edge::new("out", "in"));
 
         project
     }
 
-    let mut plan = Graph::new();
+    let mut dag = Graph::new();
 
-    let project_a = add_scan_project_branch(&mut plan);
-    let project_b = add_scan_project_branch(&mut plan);
+    let project_a = add_scan_project_branch(&mut dag);
+    let project_b = add_scan_project_branch(&mut dag);
 
-    let join = plan.add_node(LogicalOp::new(Logical::Join, vec![]));
-    plan.add_edge(project_a, join, Edge::new("out", "left"));
-    plan.add_edge(project_b, join, Edge::new("out", "right"));
+    let join = dag.add_node(Operator::new(Logical::Join, vec![]));
+    dag.add_edge(project_a, join, Edge::new("out", "left"));
+    dag.add_edge(project_b, join, Edge::new("out", "right"));
 
-    let sort = plan.add_node(LogicalOp::new(Logical::Sort, vec![]));
-    plan.add_edge(join, sort, Edge::new("out", "in"));
+    let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
+    dag.add_edge(join, sort, Edge::new("out", "in"));
 
-    let limit = plan.add_node(LogicalOp::new(Logical::Limit, vec![]));
-    plan.add_edge(sort, limit, Edge::new("out", "in"));
+    let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
+    dag.add_edge(sort, limit, Edge::new("out", "in"));
 
-    let output = plan.add_node(LogicalOp::new(Logical::Output, vec![]));
-    plan.add_edge(limit, output, Edge::new("out", "in"));
+    let output = dag.add_node(Operator::new(Logical::Output, vec![]));
+    dag.add_edge(limit, output, Edge::new("out", "in"));
 
-    plan
+    Plan {
+        name,
+        query_id,
+        // parent_plan_id: None,
+        dag,
+        execute: false,
+    }
 }
 
-fn make_physical_plan(logical: &LogicalPlan) -> PhysicalPlan {
+fn make_physical_plan(logical: &Plan<Logical>) -> Plan<Physical> {
     // Find the output node
     let output = logical
+        .dag
         .node_indices()
         .collect::<Vec<_>>()
         .into_iter()
-        .find(|n| logical[*n].kind == Logical::Output)
+        .find(|n| logical.dag[*n].kind == Logical::Output)
         .unwrap();
 
     // Build a physical plan
-    let mut physical = PhysicalPlan::new();
+    let mut physical = Plan {
+        name: "physical".into(),
+        query_id: logical.query_id,
+        // parent_plan_id: Some(logical.id),
+        dag: Graph::new(),
+        execute: true,
+    };
 
     lower_logical(logical, &mut physical, output, None);
 
@@ -174,12 +194,12 @@ fn make_physical_plan(logical: &LogicalPlan) -> PhysicalPlan {
 }
 
 fn lower_logical(
-    logical: &LogicalPlan,
-    physical: &mut PhysicalPlan,
+    logical: &Plan<Logical>,
+    physical: &mut Plan<Physical>,
     logical_current_idx: NodeIndex,
     physical_target_idx_port: Option<(NodeIndex, &'static str)>,
 ) {
-    let current_logical_op = &logical[logical_current_idx];
+    let current_logical_op = &logical.dag[logical_current_idx];
 
     match current_logical_op.kind {
         Logical::Scan => {
@@ -188,16 +208,19 @@ fn lower_logical(
         Logical::Project => {
             // Check whether this project has an incoming scan source to simulate predicate pushdown
             if let Some(scan_edge) = logical
+                .dag
                 .edges_directed(logical_current_idx, Direction::Incoming)
-                .find(|edge| logical[edge.source()].kind == Logical::Scan)
+                .find(|edge| logical.dag[edge.source()].kind == Logical::Scan)
             {
-                let scan_op = &logical[scan_edge.source()];
-                let source = physical.add_node(PhysicalOp::new(
+                let scan_op = &logical.dag[scan_edge.source()];
+                let source = physical.dag.add_node(Operator::new(
                     Physical::FileSystemScan,
                     vec![current_logical_op.id, scan_op.id],
                 ));
                 if let Some((target_node, target_port)) = physical_target_idx_port {
-                    physical.add_edge(source, target_node, Edge::new(target_port, "in"));
+                    physical
+                        .dag
+                        .add_edge(source, target_node, Edge::new(target_port, "in"));
                 }
             } else {
                 unimplemented!("this shouldn't happen in this simulator, yet");
@@ -205,23 +228,32 @@ fn lower_logical(
         }
         Logical::Join => {
             // split up in a partition stage and join stage
-            let partition = physical.add_node(PhysicalOp::new(
+            let partition = physical.dag.add_node(Operator::new(
                 Physical::JoinPartition,
                 vec![current_logical_op.id],
             ));
-            let local = physical.add_node(PhysicalOp::new(
+            let local = physical.dag.add_node(Operator::new(
                 Physical::JoinLocal,
                 vec![current_logical_op.id],
             ));
-            physical.add_edge(partition, local, Edge::new("build_out", "build_in"));
-            physical.add_edge(partition, local, Edge::new("probe_out", "probe_in"));
+            physical
+                .dag
+                .add_edge(partition, local, Edge::new("build_out", "build_in"));
+            physical
+                .dag
+                .add_edge(partition, local, Edge::new("probe_out", "probe_in"));
 
             if let Some((target_node, target_port)) = physical_target_idx_port {
-                physical.add_edge(local, target_node, Edge::new("out", target_port));
+                physical
+                    .dag
+                    .add_edge(local, target_node, Edge::new("out", target_port));
             }
 
             // Recurse up both branches
-            for input_edge in logical.edges_directed(logical_current_idx, Direction::Incoming) {
+            for input_edge in logical
+                .dag
+                .edges_directed(logical_current_idx, Direction::Incoming)
+            {
                 lower_logical(
                     logical,
                     physical,
@@ -231,12 +263,16 @@ fn lower_logical(
             }
         }
         Logical::Sort => {
-            let sort =
-                physical.add_node(PhysicalOp::new(Physical::Sort, vec![current_logical_op.id]));
+            let sort = physical
+                .dag
+                .add_node(Operator::new(Physical::Sort, vec![current_logical_op.id]));
             if let Some((target_node, target_port)) = physical_target_idx_port {
-                physical.add_edge(sort, target_node, Edge::new("out", target_port));
+                physical
+                    .dag
+                    .add_edge(sort, target_node, Edge::new("out", target_port));
             }
             let input_edge = logical
+                .dag
                 .edges_directed(logical_current_idx, Direction::Incoming)
                 .next()
                 .unwrap();
@@ -248,14 +284,16 @@ fn lower_logical(
             );
         }
         Logical::Limit => {
-            let limit = physical.add_node(PhysicalOp::new(
-                Physical::Limit,
-                vec![current_logical_op.id],
-            ));
+            let limit = physical
+                .dag
+                .add_node(Operator::new(Physical::Limit, vec![current_logical_op.id]));
             if let Some((target_node, target_port)) = physical_target_idx_port {
-                physical.add_edge(limit, target_node, Edge::new("out", target_port));
+                physical
+                    .dag
+                    .add_edge(limit, target_node, Edge::new("out", target_port));
             }
             let input_edge = logical
+                .dag
                 .edges_directed(logical_current_idx, Direction::Incoming)
                 .next()
                 .unwrap();
@@ -267,14 +305,16 @@ fn lower_logical(
             );
         }
         Logical::Output => {
-            let output = physical.add_node(PhysicalOp::new(
-                Physical::Output,
-                vec![current_logical_op.id],
-            ));
+            let output = physical
+                .dag
+                .add_node(Operator::new(Physical::Output, vec![current_logical_op.id]));
             if let Some((target_node, target_port)) = physical_target_idx_port {
-                physical.add_edge(output, target_node, Edge::new("out", target_port));
+                physical
+                    .dag
+                    .add_edge(output, target_node, Edge::new("out", target_port));
             }
             let input_edge = logical
+                .dag
                 .edges_directed(logical_current_idx, Direction::Incoming)
                 .next()
                 .unwrap();
@@ -288,302 +328,546 @@ fn lower_logical(
     }
 }
 
-fn create_plan_events<T>(
-    query_id: Uuid,
-    worker_id: Option<Uuid>,
-    plan_obs: &PlanObserver,
-    op_obs: &OperatorObserver,
-    plan: &Graph<Operator<T>, Edge, Directed>,
-    plan_name: String,
-    parent_plan_id: Option<Uuid>,
-) -> Uuid
-where
-    T: Debug,
-{
-    let plan_id = Uuid::now_v7();
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
+struct Worker {
+    id: Uuid,
+    name: String,
+    main_memory: Uuid,
+    filesystem: Uuid,
+    fs_to_mem: Uuid,
+    mem_to_fs: Uuid,
+    task_thread_pool: Uuid,
+    task_threads: Vec<Uuid>,
+}
 
-    plan_obs.init(
-        plan_id,
-        plan::Init {
-            name: plan_name,
-            query_id,
-            parent_plan_id,
-            worker_id,
-            edges: plan
-                .edge_references()
-                .map(|edge| plan::Edge {
-                    source: edge.weight().source.id,
-                    target: edge.weight().target.id,
-                })
+impl Worker {
+    fn new(id: Uuid, name: String, num_threads: usize) -> Self {
+        Self {
+            id,
+            name,
+            main_memory: Uuid::now_v7(),
+            filesystem: Uuid::now_v7(),
+            fs_to_mem: Uuid::now_v7(),
+            mem_to_fs: Uuid::now_v7(),
+            task_thread_pool: Uuid::now_v7(),
+            task_threads: std::iter::repeat_with(|| Uuid::now_v7())
+                .take(num_threads)
                 .collect(),
-        },
-    );
+        }
+    }
 
-    plan_obs.executing(plan_id, Default::default());
+    fn spawn(&self, context: &quent::Context, engine_id: Uuid) {
+        info!("Spawning worker: {}", self.id);
+        let worker_obs = context.worker_observer();
+        let resource_group_obs = context.resource_group_observer();
+        let memory_obs = context.memory_resource_observer();
+        let channel_obs = context.channel_resource_observer();
+        let processor_obs = context.processor_resource_observer();
 
-    // Nonsensically create all operator events.
-    let nodes = petgraph::algo::toposort(plan, None).unwrap();
-    info!(
-        "Topological order: {:?}",
-        nodes
-            .iter()
-            .map(|node| format!("{:?}: {:?}", node, plan[node.clone()].kind))
-            .collect::<Vec<_>>()
-    );
+        let resource_link = |resource_name: &str, resource_id: Uuid| {
+            info!(
+                "Spawning resource {resource_name}: http://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/use/{resource_id}"
+            );
+        };
 
-    for node_idx in nodes.into_iter() {
-        let op = &plan[node_idx];
-        op_obs.init(
-            op.id,
-            operator::Init {
-                plan_id,
-                parent_operator_ids: op.parents.clone(),
-                name: Some(op.name()),
-                ports: plan
-                    .edges_directed(node_idx, petgraph::Direction::Incoming)
-                    .map(|edge| operator::Port {
-                        id: edge.weight().target.id,
-                        name: edge.weight().target.name.to_string(),
+        worker_obs.init(
+            self.id,
+            worker::Init {
+                engine_id,
+                name: Some(self.name.clone()),
+            },
+        );
+
+        // Filesystem
+        memory_obs.init(
+            self.filesystem,
+            memory::Init {
+                resource: resource::Resource {
+                    type_name: "Filesystem".to_string(),
+                    instance_name: "Filesystem".to_string(),
+                    scope: resource::Scope::Worker(self.id),
+                },
+            },
+        );
+        memory_obs.operating(self.filesystem, Default::default());
+        resource_link("filesystem", self.filesystem);
+
+        // Main memory pool
+        memory_obs.init(
+            self.main_memory,
+            memory::Init {
+                resource: resource::Resource {
+                    type_name: "Main Memory".to_string(),
+                    instance_name: "Main Memory".to_string(),
+                    scope: resource::Scope::Worker(self.id),
+                },
+            },
+        );
+        memory_obs.operating(self.main_memory, Default::default());
+        resource_link("main memory", self.main_memory);
+
+        // Filesystem -> Main memory channel
+        channel_obs.init(
+            self.fs_to_mem,
+            channel::Init {
+                resource: resource::Resource {
+                    type_name: "FsToMem".to_string(),
+                    instance_name: "FsToMem".to_string(),
+                    scope: resource::Scope::Worker(self.id),
+                },
+                source_id: self.filesystem,
+                target_id: self.main_memory,
+            },
+        );
+        channel_obs.operating(self.fs_to_mem, Default::default());
+        resource_link("fs to mem", self.fs_to_mem);
+
+        // Main memory -> Filesystem channel
+        channel_obs.init(
+            self.mem_to_fs,
+            channel::Init {
+                resource: resource::Resource {
+                    type_name: "MemToFs".to_string(),
+                    instance_name: "MemToFs".to_string(),
+                    scope: resource::Scope::Worker(self.id),
+                },
+                source_id: self.main_memory,
+                target_id: self.filesystem,
+            },
+        );
+        channel_obs.operating(self.mem_to_fs, Default::default());
+        resource_link("mem to fs", self.mem_to_fs);
+
+        // Thread pool
+        resource_group_obs.init(
+            self.task_thread_pool,
+            resource::group::Init {
+                resource: resource::Resource {
+                    type_name: "Thread Pool".to_string(),
+                    instance_name: "Thread Pool".to_string(),
+                    scope: resource::Scope::Worker(self.id),
+                },
+            },
+        );
+        for (index, thread_id) in self.task_threads.iter().enumerate() {
+            processor_obs.init(
+                *thread_id,
+                resource::processor::Init {
+                    resource: resource::Resource {
+                        type_name: "Task Thread".to_string(),
+                        instance_name: format!("TaskThread-{index}"),
+                        scope: resource::Scope::ResourceGroup(self.task_thread_pool),
+                    },
+                },
+            );
+            processor_obs.operating(*thread_id, Default::default());
+            resource_link("task thread", *thread_id);
+        }
+        resource_group_obs.operating(self.task_thread_pool, Default::default());
+
+        worker_obs.operating(self.id, worker::Operating {});
+    }
+
+    fn execute_physical_operator_tasks(
+        &self,
+        context: &quent::Context,
+        index: usize,
+        engine: &Engine,
+        operator: &Operator<Physical>,
+        thread: Uuid,
+    ) {
+        use q::task;
+
+        let obs = context.q_observer();
+
+        let id = Uuid::now_v7();
+        obs.task_initializing(
+            id,
+            task::Initializing {
+                operator_id: operator.id,
+                name: Some(format!("task-{index}")),
+            },
+        );
+        obs.task_queueing(id, task::Queueing {});
+
+        let (spill, load, send) = match operator.kind {
+            Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
+            Physical::JoinPartition => (false, rng().random_bool(0.5), true),
+            Physical::JoinLocal => (true, rng().random_bool(0.5), false),
+            Physical::Sort => (false, rng().random_bool(0.5), false),
+            Physical::Limit => (false, rng().random_bool(0.5), false),
+            Physical::Output => (false, rng().random_bool(0.5), false),
+        };
+
+        let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
+
+        obs.task_allocating_memory(
+            id,
+            task::AllocatingMemory {
+                use_task_thread: thread,
+            },
+        );
+
+        if spill {
+            obs.task_allocating_storage(
+                id,
+                task::AllocatingStorage {
+                    use_task_thread: thread,
+                },
+            );
+            obs.task_spilling(
+                id,
+                task::Spilling {
+                    use_task_thread: thread,
+                    use_mem_to_fs: self.mem_to_fs,
+                    use_mem_to_fs_bytes: num_bytes,
+                },
+            );
+            obs.task_allocating_memory(
+                id,
+                task::AllocatingMemory {
+                    use_task_thread: thread,
+                },
+            );
+        }
+        if load {
+            obs.task_loading(
+                id,
+                task::Loading {
+                    use_task_thread: thread,
+                    use_fs_to_mem: self.fs_to_mem,
+                    use_fs_to_mem_bytes: num_bytes,
+                },
+            );
+        }
+        obs.task_computing(
+            id,
+            task::Computing {
+                use_task_thread: thread,
+                use_main_memory: self.main_memory,
+                use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
+            },
+        );
+        if send {
+            // Get all other workers and send some data to each of them sequentially.
+            let other_workers = engine.workers.keys().filter(|w| **w != self.id);
+
+            for other in other_workers {
+                let link = *engine.network_links.get(&(self.id, *other)).unwrap();
+
+                obs.task_sending(
+                    id,
+                    task::Sending {
+                        use_task_thread: thread,
+                        use_link: link,
+                        use_link_bytes: num_bytes,
+                    },
+                );
+            }
+        }
+
+        obs.task_finalizing(id, task::Finalizing {});
+        obs.task_exit(id, task::Exit {});
+    }
+
+    fn execute_physical_plan(
+        &self,
+        context: &quent::Context,
+        engine: &Engine,
+        plan: &Plan<Physical>,
+    ) {
+        let plan_obs = context.plan_observer();
+        let operator_obs = context.operator_observer();
+
+        let plan_id = Uuid::now_v7();
+        plan_obs.init(
+            plan_id,
+            plan::Init {
+                name: plan.name.clone(),
+                query_id: plan.query_id,
+                parent_plan_id: None, // TODO(johanpel): plan levels
+                worker_id: Some(self.id),
+                edges: plan
+                    .dag
+                    .edge_references()
+                    .map(|edge| plan::Edge {
+                        source: edge.weight().source.id,
+                        target: edge.weight().target.id,
                     })
-                    .chain(
-                        plan.edges_directed(node_idx, petgraph::Direction::Outgoing)
-                            .map(|edge| operator::Port {
-                                id: edge.weight().source.id,
-                                name: edge.weight().source.name.to_string(),
-                            }),
-                    )
                     .collect(),
             },
         );
 
-        op_obs.waiting_for_inputs(op.id, Default::default());
-        op_obs.executing(op.id, Default::default());
-        op_obs.blocked(op.id, Default::default());
-        op_obs.executing(op.id, Default::default());
-        op_obs.waiting_for_inputs(op.id, Default::default());
-        op_obs.finalizing(op.id, Default::default());
-        op_obs.exit(op.id, Default::default());
+        plan_obs.executing(plan_id, Default::default());
+
+        // Nonsensically create all operator events.
+        let nodes = petgraph::algo::toposort(&plan.dag, None).unwrap();
+        info!(
+            "Topological order: {:?}",
+            nodes
+                .iter()
+                .map(|node| format!("{:?}: {:?}", node, plan.dag[node.clone()].kind))
+                .collect::<Vec<_>>()
+        );
+
+        for node_idx in nodes.into_iter() {
+            let op = &plan.dag[node_idx];
+            operator_obs.init(
+                op.id,
+                operator::Init {
+                    plan_id: plan_id,
+                    parent_operator_ids: op.parents.clone(),
+                    name: Some(op.name()),
+                    ports: plan
+                        .dag
+                        .edges_directed(node_idx, petgraph::Direction::Incoming)
+                        .map(|edge| operator::Port {
+                            id: edge.weight().target.id,
+                            name: edge.weight().target.name.to_string(),
+                        })
+                        .chain(
+                            plan.dag
+                                .edges_directed(node_idx, petgraph::Direction::Outgoing)
+                                .map(|edge| operator::Port {
+                                    id: edge.weight().source.id,
+                                    name: edge.weight().source.name.to_string(),
+                                }),
+                        )
+                        .collect(),
+                },
+            );
+
+            operator_obs.waiting_for_inputs(op.id, Default::default());
+            operator_obs.executing(op.id, Default::default());
+            if plan.execute {
+                let mut index = 0usize;
+                // TODO(johanpel): make things run concurrently and overlap tasks
+                for _ in 0..NUM_TASKS {
+                    self.execute_physical_operator_tasks(
+                        context,
+                        index,
+                        engine,
+                        op,
+                        *self
+                            .task_threads
+                            .get(index % self.task_threads.len())
+                            .unwrap(),
+                    );
+                    index += 1;
+                }
+            }
+            operator_obs.blocked(op.id, Default::default());
+            operator_obs.executing(op.id, Default::default());
+            if plan.execute {
+                // todo run some tasks
+            }
+            operator_obs.waiting_for_inputs(op.id, Default::default());
+            operator_obs.finalizing(op.id, Default::default());
+            operator_obs.exit(op.id, Default::default());
+        }
+
+        plan_obs.idle(plan_id, Default::default());
+        plan_obs.finalizing(plan_id, Default::default());
+        plan_obs.exit(plan_id, Default::default());
     }
 
-    plan_obs.idle(plan_id, Default::default());
-    plan_obs.finalizing(plan_id, Default::default());
-    plan_obs.exit(plan_id, Default::default());
+    fn shut_down(&self, context: &quent::Context) {
+        let worker_obs = context.worker_observer();
+        let resource_group_obs = context.resource_group_observer();
+        let memory_obs = context.memory_resource_observer();
+        let channel_obs = context.channel_resource_observer();
+        let processor_obs = context.processor_resource_observer();
 
-    plan_id
+        memory_obs.finalizing(self.filesystem, Default::default());
+        memory_obs.exit(self.filesystem, Default::default());
+
+        memory_obs.finalizing(self.main_memory, Default::default());
+        memory_obs.exit(self.main_memory, Default::default());
+
+        channel_obs.finalizing(self.fs_to_mem, Default::default());
+        channel_obs.exit(self.fs_to_mem, Default::default());
+
+        channel_obs.finalizing(self.mem_to_fs, Default::default());
+        channel_obs.exit(self.mem_to_fs, Default::default());
+
+        resource_group_obs.finalizing(self.task_thread_pool, Default::default());
+
+        for task_thread in self.task_threads.iter() {
+            processor_obs.finalizing(*task_thread, Default::default());
+            processor_obs.exit(*task_thread, Default::default());
+        }
+        resource_group_obs.exit(self.task_thread_pool, Default::default());
+
+        worker_obs.finalizing(self.id, worker::Finalizing {});
+        worker_obs.exit(self.id, worker::Exit {});
+    }
+}
+
+#[derive(Debug)]
+struct Engine {
+    id: Uuid,
+    workers: HashMap<Uuid, Worker>,
+    network: Uuid,
+    network_links: HashMap<(Uuid, Uuid), Uuid>,
+}
+
+impl Engine {
+    fn new() -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            workers: Default::default(),
+            network: Uuid::now_v7(),
+            network_links: Default::default(),
+        }
+    }
+
+    fn spawn(&mut self, context: &quent::Context, num_workers: usize) {
+        // Create some observers
+        info!("Spawning engine: {}", self.id);
+        let engine_obs = context.engine_observer();
+        let resource_group_obs = context.resource_group_observer();
+        let channel_obs = context.channel_resource_observer();
+
+        engine_obs.init(
+            self.id,
+            engine::Init {
+                name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
+                implementation: Some(EngineImplementationAttributes {
+                    name: Some("Simulator".into()),
+                    version: Some("0.0.0-PoC".into()),
+                    custom_attributes: vec![],
+                }),
+            },
+        );
+
+        // Workers
+        let worker_ids = std::iter::repeat_with(|| Uuid::now_v7())
+            .take(num_workers)
+            .collect::<Vec<_>>();
+
+        for (worker_index, worker_id) in worker_ids.iter().enumerate() {
+            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), NUM_THREADS);
+            worker.spawn(&context, self.id);
+            self.workers.insert(*worker_id, worker);
+        }
+
+        // Engine-wide resources
+        // Create a fully connected bidirectional network of workers
+        resource_group_obs.init(
+            self.network,
+            resource::group::Init {
+                resource: resource::Resource {
+                    type_name: "Network".to_string(),
+                    instance_name: "Network".to_string(),
+                    scope: resource::Scope::Engine(self.id),
+                },
+            },
+        );
+        for worker_index in 0..worker_ids.len() {
+            for other_worker_index in worker_index + 1..worker_ids.len() {
+                let worker_id = worker_ids[worker_index];
+                let other_worker_id = worker_ids[other_worker_index];
+                let up_link_id = Uuid::now_v7();
+                channel_obs.init(
+                    up_link_id,
+                    channel::Init {
+                        resource: resource::Resource {
+                            type_name: "Link".to_string(),
+                            instance_name: format!(
+                                "link-worker{worker_index}-to-worker{other_worker_index}"
+                            ),
+                            scope: resource::Scope::ResourceGroup(self.network),
+                        },
+                        source_id: self.workers.get(&worker_id).unwrap().main_memory,
+                        target_id: self.workers.get(&other_worker_id).unwrap().main_memory,
+                    },
+                );
+                channel_obs.operating(up_link_id, channel::Operating {});
+
+                let down_link_id = Uuid::now_v7();
+                channel_obs.init(
+                    down_link_id,
+                    channel::Init {
+                        resource: resource::Resource {
+                            type_name: "Link".to_string(),
+                            instance_name: format!(
+                                "link-worker{other_worker_index}-to-worker{worker_index}"
+                            ),
+                            scope: resource::Scope::ResourceGroup(self.network),
+                        },
+                        source_id: self.workers.get(&other_worker_id).unwrap().main_memory,
+                        target_id: self.workers.get(&worker_id).unwrap().main_memory,
+                    },
+                );
+                channel_obs.operating(down_link_id, channel::Operating {});
+
+                self.network_links
+                    .insert((worker_id, other_worker_id), up_link_id);
+                self.network_links
+                    .insert((other_worker_id, worker_id), down_link_id);
+            }
+        }
+        resource_group_obs.operating(self.network, resource::group::Operating {});
+
+        engine_obs.operating(self.id, engine::Operating {});
+    }
+
+    fn shut_down(&self, context: &quent::Context) {
+        // Create some observers
+        let engine_obs = context.engine_observer();
+        let resource_group_obs = context.resource_group_observer();
+        let channel_obs = context.channel_resource_observer();
+
+        engine_obs.finalizing(self.id, engine::Finalizing {});
+
+        // Tear down network
+        resource_group_obs.finalizing(self.network, Default::default());
+        for link in self.network_links.values().cloned() {
+            channel_obs.finalizing(link, Default::default());
+            channel_obs.exit(link, Default::default());
+        }
+        resource_group_obs.exit(self.network, Default::default());
+
+        // Tear down workers
+        for worker in self.workers.values() {
+            worker.shut_down(&context);
+        }
+
+        engine_obs.exit(self.id, engine::Exit {});
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
-    let engine_id = Uuid::now_v7();
-
-    info!("simulating engine - http://localhost:8080/analyzer/engine/{engine_id}");
+    let mut engine = Engine::new();
+    info!(
+        "simulating engine - http://localhost:8080/analyzer/engine/{}",
+        engine.id
+    );
 
     let context =
-        quent::Context::try_new(ExporterOptions::Collector(Default::default()), engine_id)?;
-
+        quent::Context::try_new(ExporterOptions::Collector(Default::default()), engine.id)?;
     info!("context created, creating events...");
 
-    // Spawn engine
-    let engine_obs = context.engine_observer();
-    engine_obs.init(
-        engine_id,
-        engine::Init {
-            name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
-            implementation: Some(EngineImplementationAttributes {
-                name: Some("Simulator".into()),
-                version: Some("0.0.0-PoC".into()),
-                custom_attributes: vec![],
-            }),
-        },
-    );
-
-    // Create some observers
-    let worker_obs = context.worker_observer();
-    let resource_group_obs = context.resource_group_observer();
-    let memory_obs = context.memory_resource_observer();
-    let channel_obs = context.channel_resource_observer();
-    let processor_obs = context.processor_resource_observer();
-
-    // Engine resources.
-    let network_id = Uuid::now_v7();
-    resource_group_obs.init(
-        network_id,
-        resource::group::Init {
-            resource: resource::Resource {
-                name: "Network".to_string(),
-                scope: resource::Scope::Engine(engine_id),
-            },
-        },
-    );
-    let mut network_links: HashMap<(Uuid, Uuid), (Uuid, Uuid)> = HashMap::new();
-
-    // Worker resources.
-    type ResourceMap = HashMap<Uuid, Uuid>;
-    let mut worker_filesystem = ResourceMap::new();
-    let mut worker_main_memory = ResourceMap::new();
-    let mut worker_fs_to_mem = ResourceMap::new();
-    let mut worker_mem_to_fs = ResourceMap::new();
-    let mut worker_thread_pool = ResourceMap::new();
-    let mut worker_task_thread: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-
-    let worker_ids = std::iter::repeat_with(|| Uuid::now_v7())
-        .take(NUM_WORKERS)
-        .collect::<Vec<_>>();
-    for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-        worker_obs.init(
-            *worker_id,
-            worker::Init {
-                engine_id,
-                name: Some(format!("worker-{worker_index}")),
-            },
-        );
-
-        // Spawn resources in workers
-        let filesystem_id = Uuid::now_v7();
-        memory_obs.init(
-            filesystem_id,
-            memory::Init {
-                resource: resource::Resource {
-                    name: "Filesystem".to_string(),
-                    scope: resource::Scope::Worker(*worker_id),
-                },
-            },
-        );
-        memory_obs.operating(filesystem_id, Default::default());
-        worker_filesystem.insert(*worker_id, filesystem_id);
-
-        let main_memory_id = Uuid::now_v7();
-        memory_obs.init(
-            main_memory_id,
-            memory::Init {
-                resource: resource::Resource {
-                    name: "Filesystem".to_string(),
-                    scope: resource::Scope::Worker(*worker_id),
-                },
-            },
-        );
-        memory_obs.operating(main_memory_id, Default::default());
-        worker_main_memory.insert(*worker_id, main_memory_id);
-
-        let fs_to_mem_id = Uuid::now_v7();
-        channel_obs.init(
-            fs_to_mem_id,
-            channel::Init {
-                resource: resource::Resource {
-                    name: "FsToMem".to_string(),
-                    scope: resource::Scope::Worker(*worker_id),
-                },
-                source_id: filesystem_id,
-                target_id: main_memory_id,
-            },
-        );
-        channel_obs.operating(fs_to_mem_id, Default::default());
-        worker_fs_to_mem.insert(*worker_id, fs_to_mem_id);
-
-        let mem_to_fs_id = Uuid::now_v7();
-        channel_obs.init(
-            mem_to_fs_id,
-            channel::Init {
-                resource: resource::Resource {
-                    name: "MemToFs".to_string(),
-                    scope: resource::Scope::Worker(*worker_id),
-                },
-                source_id: main_memory_id,
-                target_id: filesystem_id,
-            },
-        );
-        channel_obs.operating(mem_to_fs_id, Default::default());
-        worker_mem_to_fs.insert(*worker_id, mem_to_fs_id);
-
-        let thread_pool_id = Uuid::now_v7();
-        resource_group_obs.init(
-            thread_pool_id,
-            resource::group::Init {
-                resource: resource::Resource {
-                    name: "ThreadPool".to_string(),
-                    scope: resource::Scope::Worker(*worker_id),
-                },
-            },
-        );
-        worker_thread_pool.insert(*worker_id, thread_pool_id);
-        {
-            let thread_ids: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
-                .take(NUM_THREADS)
-                .collect();
-            for (index, thread_id) in thread_ids.iter().enumerate() {
-                processor_obs.init(
-                    *thread_id,
-                    resource::processor::Init {
-                        resource: resource::Resource {
-                            name: format!("TaskThread-{index}"),
-                            scope: resource::Scope::ResourceGroup(thread_pool_id),
-                        },
-                    },
-                );
-                processor_obs.operating(*thread_id, Default::default());
-            }
-            worker_task_thread.insert(*worker_id, thread_ids);
-        }
-        resource_group_obs.operating(thread_pool_id, Default::default());
-    }
-
-    // Create a fully connected bidirectional network of workers
-    for worker_index in 0..worker_ids.len() {
-        for other_worker_index in worker_index + 1..worker_ids.len() {
-            let worker_id = worker_ids[worker_index];
-            let other_worker_id = worker_ids[other_worker_index];
-            let up_link_id = Uuid::now_v7();
-            channel_obs.init(
-                up_link_id,
-                channel::Init {
-                    resource: resource::Resource {
-                        name: format!("link-worker{worker_index}-to-worker{other_worker_index}"),
-                        scope: resource::Scope::ResourceGroup(network_id),
-                    },
-                    source_id: *worker_main_memory.get(&worker_id).unwrap(),
-                    target_id: *worker_main_memory.get(&other_worker_id).unwrap(),
-                },
-            );
-            let down_link_id = Uuid::now_v7();
-            channel_obs.init(
-                down_link_id,
-                channel::Init {
-                    resource: resource::Resource {
-                        name: format!("link-worker{other_worker_index}-to-worker{worker_index}"),
-                        scope: resource::Scope::ResourceGroup(network_id),
-                    },
-                    source_id: *worker_main_memory.get(&other_worker_id).unwrap(),
-                    target_id: *worker_main_memory.get(&worker_id).unwrap(),
-                },
-            );
-            network_links.insert((worker_id, other_worker_id), (up_link_id, down_link_id));
-        }
-    }
-
-    for worker_id in worker_ids.iter() {
-        worker_obs.operating(*worker_id, worker::Operating {});
-    }
-
-    engine_obs.operating(engine_id, engine::Operating {});
+    engine.spawn(&context, NUM_WORKERS);
+    let engine = Arc::new(engine);
+    let context = Arc::new(context);
 
     let query_group_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
         .take(NUM_QUERY_GROUPS)
         .map(|query_group_id| {
-            info!("simulating query_group - http://localhost:8080/analyzer/engine/{engine_id}/query_group/{query_group_id}");
+            info!("simulating query_group - http://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
             std::thread::spawn({
-                let engine_id = engine_id.clone();
+                let engine = Arc::clone(&engine);
+                let context = Arc::clone(&context);
                 let query_group_obs = context.query_group_observer();
                 let query_obs = context.query_observer();
-                let plan_obs = context.plan_observer();
-                let operator_obs = context.operator_observer();
-                let worker_ids = worker_ids.clone();
-
                 move || {
                     query_group_obs.init(
                         query_group_id,
                         query_group::Init {
-                            engine_id,
+                            engine_id: engine.id,
                             name: Some(format!("query_group-{:04x}", rng().random::<u32>())),
                         },
                     );
@@ -593,12 +877,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .take(NUM_QUERIES)
                         .map(|query_id| {
                             std::thread::spawn({
+                                let engine = Arc::clone(&engine);
+                                let context = Arc::clone(&context);
                                 let query_obs = query_obs.clone();
-                                let plan_obs = plan_obs.clone();
-                                let operator_obs = operator_obs.clone();
-                                let worker_ids = worker_ids.clone();
                                 move || {
-                                    info!("simulating query - http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}");
+                                    info!("simulating query - http://localhost:8080/analyzer/engine/{}/query/{query_id}", engine.id);
                                     query_obs.init(
                                         query_id,
                                         query::Init {
@@ -607,14 +890,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         },
                                     );
                                     query_obs.planning(query_id, query::Planning {});
-                                    let l_plan = logical_plan();
+                                    let l_plan = make_logical_plan(query_id, "logical".into());
                                     let p_plan = make_physical_plan(&l_plan);
                                     query_obs.executing(query_id, query::Executing {});
 
-                                    let logical_plan_id = create_plan_events(query_id, None, &plan_obs, &operator_obs, &l_plan, "logical".to_string(), None);
-                                    // TODO(johanpel): properly nest this
-                                    for worker in worker_ids {
-                                        create_plan_events(query_id, Some(worker), &plan_obs, &operator_obs, &p_plan, "physical".to_string(), Some(logical_plan_id));
+                                    // TODO(johanpel): properly nest this or don't require plans to be executable as operator fsms
+                                    // engine.workers.values().next().unwrap().execute_physical_plan(&context, &l_plan);
+                                    for worker in engine.workers.values() {
+                                            worker.execute_physical_plan(&context, &engine, &p_plan);
                                     }
 
                                     query_obs.idle(query_id, query::Idle {});
@@ -640,47 +923,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         query_group_future.join().unwrap();
     }
 
-    engine_obs.finalizing(engine_id, engine::Finalizing {});
-
-    // Shut down workers.
-    for worker_id in worker_ids.iter() {
-        let filesystem = *worker_filesystem.get(worker_id).unwrap();
-        memory_obs.finalizing(filesystem, Default::default());
-        memory_obs.exit(filesystem, Default::default());
-
-        let main_memory = *worker_main_memory.get(worker_id).unwrap();
-        memory_obs.finalizing(main_memory, Default::default());
-        memory_obs.exit(main_memory, Default::default());
-
-        let fs_to_mem = *worker_fs_to_mem.get(worker_id).unwrap();
-        channel_obs.finalizing(fs_to_mem, Default::default());
-        channel_obs.exit(fs_to_mem, Default::default());
-
-        let mem_to_fs = *worker_mem_to_fs.get(worker_id).unwrap();
-        channel_obs.finalizing(mem_to_fs, Default::default());
-        channel_obs.exit(mem_to_fs, Default::default());
-
-        for task_thread in worker_task_thread.get(worker_id).unwrap() {
-            processor_obs.finalizing(*task_thread, Default::default());
-            processor_obs.exit(*task_thread, Default::default());
-        }
-
-        let thread_pool = *worker_thread_pool.get(worker_id).unwrap();
-        resource_group_obs.finalizing(thread_pool, Default::default());
-        resource_group_obs.exit(thread_pool, Default::default());
-
-        worker_obs.finalizing(*worker_id, worker::Finalizing {});
-        worker_obs.exit(*worker_id, worker::Exit {});
-    }
-
-    for (up_link, down_link) in network_links.values().cloned() {
-        channel_obs.finalizing(up_link, Default::default());
-        channel_obs.exit(down_link, Default::default());
-    }
-    resource_group_obs.finalizing(network_id, Default::default());
-    resource_group_obs.exit(network_id, Default::default());
-
-    engine_obs.exit(engine_id, engine::Exit {});
+    engine.shut_down(&context);
 
     Ok(())
 }

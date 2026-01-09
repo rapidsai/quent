@@ -1,3 +1,4 @@
 target/
 server/data/*.ndjson
 data/
+ui/node_modules

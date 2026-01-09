@@ -13,3 +13,5 @@ class QueryBundle(BaseModel):
 	entities: Entities
 	plan_tree: PlanTree
 	resource_tree: ResourceTree
+	unique_operator_names: list[str]
+	unique_entity_names: list[str]
