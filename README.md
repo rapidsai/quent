@@ -2,58 +2,59 @@
 
 (working title)
 
-Reduce the time-to-conclusion of performance analysis of query engines found in
-data processing.
+PoC to reduce the time-to-conclusion of performance analysis of data processing
+engines.
 
 ## TL;DR
 
-- A **generic model of query engines** provides a **semantic layer** over
-  traditional telemetry (traces, logs, metrics) and specifies more concepts
-  (FSMs and resources).
-- The model supports **distributed engines** that use
-  **non-CPU based computation** and has explicit constructs for all types of
-  resources (including memory, i/o), not just compute.
-- Libraries with an **Instrumentation API** target typical languages used to
-  build query engines (Rust, C++, Java, Python) to capture telemetry according
-  to the model.
-- A toolchain for **analysis and exploration** of engine performance is provided
-  to **reduce the time-to-conclusion** of engine devleopers, engine users and
-  system architects iterating on performance. The generic model also helps
-  **compare engines and systems**.
-- The implementation aims to be nimble enough to allow it being **always on**.
+- A specification of **modeling concepts** (finite state machines and resources)
+  for **resource-constrained applications and domains** helps capture and
+  visualize **telemetry** in an intuitive way.
+- Models dictate the **instrumentation API** to captures telemetry according to
+  the model.
+- This PoC focuses on **data processing engines** and provides a
+  **domain-specific model** on top of which data processing engines can build
+  their own engine models.
+- This PoC aims to instrument two engines: Presto/Velox/CUDF and SiriusDB. It
+  will contain **application-specific models** for these engines based on the
+  specified modeling concepts and the domain-specific model.
+- This PoC provides a toolchain for **analysis and exploration** of data
+  processing engine telemetry to show this framework will
+  **reduce the Time-To-Conclusion (TTC)** of people doing
+  **performance analysis**.
 
 ## Why
 
-Understanding performance of (distributed) query engines running on advanced
-hardware (e.g. with GPUs using GPUDirect RDMA technologies) is hard and
-therefore takes a lot of time.
+Understanding performance of software running on advanced hardware (e.g.
+distributed systems with GPUs) is hard, because the software is complex.
 
-Engine developers may spend countless hours
-reproducing regressions seen in obscure CI systems running in the cloud with
-profiling tools attached, and then having to relate stack traces that go through
-asynchronous execution libraries or compute layers such as CUDF to abstractions
-they know from the code that they own. Not to mention countless of hours spent
-writing brittle log analysis scripts that break the second someone makes a
-commit to refactor a small portion of the code.
+While software complexity has rapidly increased as hardware complexity has
+rapidly increased, it can be argued that traditional profiling tools have yet to
+catch up to the increase in software complexity by providing better
+abstractions.
 
-It cannot be expected that a typical data analyst fully understands e.g. a
-`perf` or NSight Systems profile of an engine that they didn't design. How are
-they going to relate anything they see back to their query, their interface into
-this engine? It will take a lot of knowledge of the internals and a lot of
-effort. Their willingness to use an engine (or a GPU-accelerated variant
-thereof) may fall or stand with their ability to easily identify and solve
-performance issues.
+For example, imagine a software engineer happily using some asynchronous
+execution library to overlap I/O and computation, and is mainly focused on
+high-level abstractions and orchestration around it. As soon as they open a
+profiler, they are met with minute details of thread pools, queues, schedulers,
+and whatnot, and they will have to spend a lot of time to understand what
+they're seeing. Engineers may also spend countless hours reproducing regressions
+seen in obscure Continuous Benchmarking infrastructure running in the cloud. Not
+to mention all the time spent writing brittle log analysis scripts that break
+the second someone makes a commit to refactor a small portion of the code. In
+other words, they will experience a high time-to-conclusion (TTC).
 
-The time-to-conclusion of performance analysis efforts is therefore
-typically large - in the order of hours to days. This needs to become seconds or
-minutes instead.
+This all is especially true for people working with distributed and GPU
+accelerated data processing engines, which is what this PoC will focus on.
+
+> Because this a PoC with a narrower scope than the full potential of this framework, in the rest of the README, we'll assume to be in the domain of data processing engines exclusively.
 
 ## Who
 
 This project is useful for:
 
-- A) engine developers - when optimizing performance, implementing new features,
-  or investigating regressions
+- A) data processing engine developers - when optimizing performance,
+  implementing new features, or investigating regressions
 - B) engine users - to quickly understand the bottlenecks in their queries
   running on specific engines and systems, in order to rewrite queries or pick a
   better system configuration
@@ -62,36 +63,34 @@ This project is useful for:
 
 ## How
 
-From a distance, the execution of queries in query engines goes through three
-layers:
+From a distance, the execution of queries in data processing engines goes
+through three stages:
 
 1. Planning - a query is transformed into a plan (which can go through multiple
    levels of planning) in the form of a Directed Acyclic Graph (DAG) that
-   represents a dataflow graph.
-2. Orchestration - the query is executed through various abstractions that
-   manage I/O, computation and memory resources, as well as communication in
-   distributed engines. These abstractions make it easier to build query
-   engines. Examples include control flow through asynchronous executors,
-   execution on non-CPU computational devices such as GPUs, spill memory to
-   storage automatically in out-of-memory scenarios, and interfaces that
-   simplify reading from myriad storage interfaces, including cloud-based object
-   stores OS-based file systems, or DMA-capable storage systems.
+   represents a dataflow graph to be executed. Pretty much every engine does
+   this.
+2. Execution - the query is executed through a typically very specific
+   architecture/stack of control flow abstractions that orchestrate the usage of
+   resources such as storage and network I/O and computation from a high-level.
+3. Hardware - the abstractions ultimately cause work to be performed on CPUs,
+   GPUs, etc. These are things that we already have good profiling tools for.
 
-3. Hardware - the abstractions ultimately perform work on hardware including:
-   - Loading data from storage devices
-   - Storing intermediate results in GPU devive memory
-   - Moving data over PCIe interfaces
-   - Performing computations on CPU or GPU cores
+If common concepts of the data processing domain can be modeled in a generic
+way, and if we can let engines produce telemetry according to this model, it
+becomes possible to:
 
-Provided that concepts present at each layer can be generelized (e.g. in layer
-1: a DAG, in layer 2: a memory pool, in layer 3: a storage interface), we can
-also generalize performance analysis thereof and construct a generic query
-engine model.
+1. implement common functionality to capture, store, and analyze data processing
+   engine telemetry
+2. compare the merit of common functionality across multiple engines in order to
+   discover which engines do things well (especially integrate GPUs) and which
+   engines don't
+3. vizualize this telemetry in an intuitive way - much more intuitive than what
+   a traditional profiling tool could effectively do, because it has no
+   domain-specific knowledge
 
-By performing measurements / capturing telemetry of a query engine accords with
-the rules of such a generic model, one analysis tool can be provided that
-quickly answers questions typically asked by users A, B, and C (described in the
-previous section), that works for multiple engines. These questions include:
+For data processing engines, this means stakeholders of type A, B, and C (see
+[Who](#who)) can quickly answers questions such as:
 
 - When running the same query after a commit with a regression, what is the
   source of the regression?
@@ -106,40 +105,34 @@ previous section), that works for multiple engines. These questions include:
 
 ![Overview](docs/figures/overview.svg)
 
-This project provides three things:
+### Models
 
-1. A specification of the how to model a query engine and how telemetry can be
-   derived from such a model.
-2. A set of libraries with an Instrumentation API capable of capturing query
-   engine telemetry according to the rules of the model.
-3. An implementation of an analysis system with an intuitive user interface that
-   provides low time-to-conclusion to common questions for users of type A, B
-   and C.
+This project provides a domain-specific model for data processing engines on top
+of which engineers can map application-specific constructs for their specific
+engines.
 
-### Model
-
-Quent provides a query engine model onto which engine implementers map
-the constructs of their engine.
-
-The model aims to be generic enough such that it
-supports various execution paradigms, including but not limited to:
+The modeling technique/approach aims to be generic enough such that it can
+support various execution paradigms that specific engines may employ, including
+but not limited to:
 
 - local and distributed execution
 - sequential and concurrent query execution
 - engines operating on asynchronous runtimes
-- engines running on heterogeneous systems with non-CPU based compute
+- engines running on heterogeneous systems with non-CPU based compute and
+  complex memory hierarchies
 
 For more details, please refer to the model specification:
 [model.md](./model.md)
+
+Some people familiar with OpenTelemetry may think of the domain-specific model
+as "semantic conventions" on top of the new telemetry concepts introduced.
 
 ### Technology stack
 
 Quent consists of various composable components, according to the following
 layers:
 
-1. **Engine**: the (distributed) query engine to be profiled. Anything for which
-   the top-level query can be expressed as a data-flow system processing a
-   Directed Acyclic Graph (DAG) is a potential candidate.
+1. **Engine**: the (distributed) query engine to be profiled
 2. **Instrumentation**: libraries used by target engines to produce telemetry
    events in the engine's native language.
    - The API provided by such a library will be used by engine developers to
@@ -172,13 +165,29 @@ layers:
 5. **Analyzer**: service that reads raw events, validates the model, and
    performs useful aggregations of bulk events used in visualization.
    - The reference implementation lives in [crates/analyzer/](crates/analyzer).
+   - In this PoC:
+   - Some parts of the implementation will provide building blocks and interface
+     only for the primitive modeling concepts (shown in red above) without
+     domain-specific knowledge. The goal is to leverage this to be able to
+     quickly add visualizations in the UI (see below) of things so specific or
+     experimental to one specific engine, that it may not warrant writing a
+     whole separate code path in the analyzer for. As a consequence, the
+     visualization options will be limited and may be imperfect, but they can be
+     provided very quickly to the end user without analyzer code changes, after
+     the modification of the engine-specific model and its consequences for
+     integration into the engine have been processed only.
+
+   - Some parts may or may not use the above in order to simplify other parts
+     that do domain-specific things (shown in green), or may have fully custom
+     domain-specific parts in this PoC.
+
 6. **Web Server**: service that interacts with the analyzer and performs final
    data wrangling for UI interactions.
    - The reference implementation lives in [webserver/](webserver).
 7. **User Interface**: application facing developers and data engineers using
    the query engine, helps to quickly gain performance insights about queries.
 
-## Running the Quent Server & Simulator
+## Running the PoC Server & Simulator
 
 ### Docker Compose (recommended)
 
