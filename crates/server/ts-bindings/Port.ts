@@ -2,5 +2,8 @@
 
 /**
  * A Port of an Operator in a Plan DAG.
+ *
+ * Note a Port is not an FSM so none of its non-id fields need to be
+ * optional as they are declared within a single event.
  */
 export type Port = { id: string, parent_operator_id: string, name: string, };

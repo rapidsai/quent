@@ -11,9 +11,13 @@ export type ResourceGroup = {
  */
 id: string, 
 /**
- * The name of this Resource Group
+ * The name of this Resource Group instance
  */
-name: string, 
+instance_name: string | null, 
+/**
+ * The name of this Resource Group type
+ */
+type_name: string | null, 
 /**
  * The scope of this Resource Group
  */

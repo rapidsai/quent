@@ -5,7 +5,11 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+#[cfg(feature = "q")]
+pub mod q;
+
 pub type Timestamp = u64;
+pub type Duration = u64;
 
 #[inline]
 fn timestamp() -> Timestamp {
@@ -43,11 +47,11 @@ pub mod attributes {
     use super::*;
 
     /// A group of [`Attribute`]s.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
     pub struct Struct(Vec<Attribute>);
 
     /// A sequence of [`Value`]s.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
     #[ts(untagged)]
     pub enum List {
         U8(Vec<u8>),
@@ -65,7 +69,7 @@ pub mod attributes {
     }
 
     /// An [`Attribute`] value.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
     #[ts(untagged)]
     pub enum Value {
         U8(u8),
@@ -84,10 +88,124 @@ pub mod attributes {
     }
 
     /// A key-value pair.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
     pub struct Attribute {
         pub key: String,
         pub value: Option<Value>,
+    }
+
+    impl Attribute {
+        /// Create a new attribute with the given key and no value.
+        pub fn null(key: impl Into<String>) -> Self {
+            Self {
+                key: key.into(),
+                value: None,
+            }
+        }
+
+        /// Create an attribute with a u8 value.
+        pub fn u8(key: impl Into<String>, value: u8) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::U8(value)),
+            }
+        }
+
+        /// Create an attribute with a u16 value.
+        pub fn u16(key: impl Into<String>, value: u16) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::U16(value)),
+            }
+        }
+
+        /// Create an attribute with a u32 value.
+        pub fn u32(key: impl Into<String>, value: u32) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::U32(value)),
+            }
+        }
+
+        /// Create an attribute with a u64 value.
+        pub fn u64(key: impl Into<String>, value: u64) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::U64(value)),
+            }
+        }
+
+        /// Create an attribute with an i8 value.
+        pub fn i8(key: impl Into<String>, value: i8) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::I8(value as u8)),
+            }
+        }
+
+        /// Create an attribute with an i16 value.
+        pub fn i16(key: impl Into<String>, value: i16) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::I16(value)),
+            }
+        }
+
+        /// Create an attribute with an i32 value.
+        pub fn i32(key: impl Into<String>, value: i32) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::I32(value)),
+            }
+        }
+
+        /// Create an attribute with an i64 value.
+        pub fn i64(key: impl Into<String>, value: i64) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::I64(value)),
+            }
+        }
+
+        /// Create an attribute with an f32 value.
+        pub fn f32(key: impl Into<String>, value: f32) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::F32(value)),
+            }
+        }
+
+        /// Create an attribute with an f64 value.
+        pub fn f64(key: impl Into<String>, value: f64) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::F64(value)),
+            }
+        }
+
+        /// Create an attribute with a String value.
+        pub fn string(key: impl Into<String>, value: impl Into<String>) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::String(value.into())),
+            }
+        }
+
+        /// Create an attribute with a Struct value.
+        pub fn structure(key: impl Into<String>, value: Struct) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::Struct(value)),
+            }
+        }
+
+        /// Create an attribute with a List value.
+        pub fn list(key: impl Into<String>, value: List) -> Self {
+            Self {
+                key: key.into(),
+                value: Some(Value::List(value)),
+            }
+        }
     }
 }
 
@@ -346,7 +464,8 @@ pub mod resource {
 
     #[derive(Debug, Deserialize, Serialize)]
     pub struct Resource {
-        pub name: String,
+        pub instance_name: String,
+        pub type_name: String, // TODO(johanpel): for now solve this like so, but this could be generated code too
         pub scope: Scope,
     }
 
@@ -508,6 +627,8 @@ pub enum EventData {
     Operator(operator::OperatorEvent),
     Resource(resource::ResourceEvent),
     ResourceGroup(resource::group::ResourceGroupEvent),
+    #[cfg(feature = "q")]
+    Q(q::QEvent),
 }
 
 impl From<engine::EngineEvent> for EventData {
@@ -564,5 +685,24 @@ impl From<resource::channel::ChannelEvent> for EventData {
 impl From<resource::processor::ProcessorEvent> for EventData {
     fn from(value: resource::processor::ProcessorEvent) -> Self {
         Self::Resource(resource::ResourceEvent::Processor(value))
+    }
+}
+
+#[cfg(feature = "q")]
+impl From<q::QEvent> for EventData {
+    fn from(value: q::QEvent) -> Self {
+        Self::Q(value)
+    }
+}
+#[cfg(feature = "q")]
+impl From<q::task::TaskEvent> for EventData {
+    fn from(value: q::task::TaskEvent) -> Self {
+        Self::Q(q::QEvent::Task(value))
+    }
+}
+#[cfg(feature = "q")]
+impl From<q::record_batch::RecordBatchEvent> for EventData {
+    fn from(value: q::record_batch::RecordBatchEvent) -> Self {
+        Self::Q(q::QEvent::RecordBatch(value))
     }
 }

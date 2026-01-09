@@ -3,6 +3,10 @@ name = "quent-entities"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+default = []
+q = []
+
 [dependencies]
 quent-events = { path = "../events" }
 uuid.workspace = true

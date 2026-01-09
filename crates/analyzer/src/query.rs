@@ -11,6 +11,9 @@ pub struct QueryBundle {
 
     plan_tree: PlanTree,
     resource_tree: ResourceTree,
+
+    unique_operator_names: Vec<String>,
+    unique_entity_names: Vec<String>,
 }
 
 impl QueryBundle {
@@ -18,10 +21,16 @@ impl QueryBundle {
         let entities = entities.try_filter_by_query(query_id)?;
         let plan_tree = PlanTree::try_new(&entities, query_id)?;
         let resource_tree = ResourceTree::try_new(&entities, &plan_tree, query_id)?;
+
+        let unique_entity_names = entities.unique_entity_type_names().collect();
+        let unique_operator_names = entities.unique_operator_names().map(Into::into).collect();
+
         Ok(Self {
             entities,
             plan_tree,
             resource_tree,
+            unique_entity_names,
+            unique_operator_names,
         })
     }
 }

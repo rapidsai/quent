@@ -458,11 +458,7 @@ Any [Transition](#transition) into the `operating` state must have:
 
 A [Use](#use) of a [Memory](#memory) [Resource](#resource).
 
-```text
-⊙ -> allocating -> idle -> releasing -> ⊗
-```
-
-The [Transition](#transition) into the `idle` state must have:
+Must have:
 
 `used_bytes: u64`: the number of bytes used from the [Memory](#memory).
 
@@ -806,18 +802,21 @@ send it to [Memory](#memory) of another [Worker](#worker).
   - All states except `initializing`, `queueing`, and `finalizing` claim a
     [Computation](#computation) of one and the same Task Thread.
   - The `sending` state claims a [Transfer](#transfer) of a Link
-  - The `loading` state claims a [Transfer](#transfer) of a FilesystemIO
+  - The `loading` state claims a [Transfer](#transfer) of a FsToMem
+  - The `spilling` state claims a [Transfer](#transfer) of a MemToFs
   - State transitions:
     ```text
-    ⊙             -> initializing
-    initializing  -> queueing
-    queueing      -> computing
-    computing     -> allocating memory  -> computing
-    computing     -> loading            -> computing
-    computing     -> allocating storage -> spilling   -> computing
-    computing     -> sending            -> computing
-    computing     -> finalizing
-    finalizing    -> ⊗
+    ⊙                 -> initializing
+    initializing      -> queueing
+    queueing          -> allocating memory
+    allocating memory -> allocating storage -> spilling -> allocating memory
+    allocating memory -> loading -> computing
+    allocating memory -> computing
+    computing         -> sending
+    sending           -> finalizing
+    sending           -> sending
+    computing         -> finalizing
+    finalizing        -> ⊗
     ```
 
 ### Model relations

@@ -1,6 +1,8 @@
 use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
 use quent_analyzer::{Analyzer, query::QueryBundle};
-use quent_entities::{engine::Engine, query_group::QueryGroup, worker::Worker};
+use quent_entities::{
+    engine::Engine, query_group::QueryGroup, timeline::ResourceTimeline, worker::Worker,
+};
 use quent_exporter_ndjson::NdjsonImporter;
 use tracing::error;
 use uuid::Uuid;
@@ -121,6 +123,18 @@ async fn query(
     Ok(Json(query_bundle))
 }
 
+#[tracing::instrument(skip_all)]
+async fn resource_use_timeline(
+    Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ResourceTimeline>, StatusCode> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let analyzer =
+        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let timeline = analyzer.resource_usage_timeline(resource_id)?;
+    Ok(Json(timeline))
+}
+
 // TODO(johanpel): add a context and really cache these analyzers :this-is-fine:
 pub fn routes() -> Router<()> {
     Router::new()
@@ -141,4 +155,8 @@ pub fn routes() -> Router<()> {
             get(list_queries),
         )
         .route("/engine/{engine_id}/query/{query_id}", get(query))
+        .route(
+            "/engine/{engine_id}/timeline/resource/use/{resource_id}",
+            get(resource_use_timeline),
+        )
 }

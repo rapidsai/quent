@@ -8,6 +8,9 @@ from enum import StrEnum
 class Port(BaseModel):
 	"""
 	 A Port of an Operator in a Plan DAG.
+	
+	 Note a Port is not an FSM so none of its non-id fields need to be
+	 optional as they are declared within a single event.
 	"""
 	
 	id: str

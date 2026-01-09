@@ -3,7 +3,9 @@ name = "quent-server"
 version.workspace = true
 edition.workspace =  true
 
-# TODO(johanpel): move this to a sensible bin place
+[features]
+default = []
+q = ["quent-events/q", "quent-analyzer/q"]
 
 [dependencies]
 axum = "0.8.7"

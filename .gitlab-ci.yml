@@ -1,5 +1,5 @@
 include:
-  - local: 'ui/.gitlab-ci.yml'
+  - local: "ui/.gitlab-ci.yml"
 
 stages:
   - format
@@ -47,13 +47,13 @@ check:
   stage: lint
   <<: *setup-rust
   script:
-    - cargo check --all --locked
+    - cargo check --all --all-features --locked
 
 clippy:
   stage: lint
   <<: *setup-rust
   script:
-    - cargo clippy --all --locked -- -D warnings
+    - cargo clippy --all --all-features --locked -- -D warnings
 
 build:
   stage: build
@@ -63,4 +63,4 @@ build:
     - check
     - clippy
   script:
-    - cargo build --all --locked --release
+    - cargo build --all --all-features --locked --release

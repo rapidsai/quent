@@ -1,16 +1,21 @@
 //! Analyzes raw events to produce useful performance insights.
 
-use quent_entities::{engine::Engine, query_group::QueryGroup, worker::Worker};
+use quent_entities::{
+    engine::Engine, query_group::QueryGroup, timeline::ResourceTimeline, worker::Worker,
+};
 use quent_events::{Event as RawEvent, EventData};
 use uuid::Uuid;
 
-use crate::{entities::Entities, query::QueryBundle};
+use crate::{
+    entities::Entities, query::QueryBundle, timeline::make_resource_timeline_for_resource,
+};
 
 pub mod entities;
 pub mod error;
 pub mod plan_tree;
 pub mod query;
 pub mod resource_tree;
+pub mod timeline;
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 
@@ -61,5 +66,10 @@ impl Analyzer {
     #[tracing::instrument(skip(self), err)]
     pub fn query_bundle(&self, id: Uuid) -> Result<QueryBundle> {
         QueryBundle::try_new(&self.entities, id)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn resource_usage_timeline(&self, resource_id: Uuid) -> Result<ResourceTimeline> {
+        make_resource_timeline_for_resource(&self.entities, resource_id)
     }
 }

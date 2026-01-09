@@ -13,8 +13,8 @@ RUN apt-get update && \
 COPY . .
 
 # Build server executables
-RUN cargo build --release -p quent-server
-RUN cargo build --release --example simulator
+RUN cargo build --release -p quent-server --features=q
+RUN cargo build --release --example simulator --features=q
 
 # Support running both server and simulator executables.
 FROM debian:trixie AS runtime

@@ -13,11 +13,11 @@ id: string,
 /**
  * The name of this Plan.
  */
-name: string, 
+name: string | null, 
 /**
  * The ID of the Query this Plan is part of.
  */
-query_id: string, 
+query_id: string | null, 
 /**
  * The timestamps of various state transitions during the lifetime of
  * this plan.
