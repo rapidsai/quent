@@ -12,7 +12,6 @@ use quent_events::{
     resource::{self, channel, memory},
     worker,
 };
-
 use rand::{Rng, rng};
 use tracing::info;
 use uuid::Uuid;

@@ -1,0 +1,30 @@
+fn main() {
+    cxx_build::bridges([
+        "src/uuid.rs",
+        "src/lib.rs",
+        "src/engine.rs",
+        "src/query_group.rs",
+        "src/worker.rs",
+        "src/query.rs",
+        "src/plan.rs",
+        "src/operator.rs",
+        "src/attributes/mod.rs",
+        "src/attributes/list.rs",
+        "src/attributes/quent_struct.rs",
+        "src/attributes/value.rs",
+    ])
+    .compile("quent");
+
+    println!("cargo:rerun-if-changed=src/uuid.rs");
+    println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=src/engine.rs");
+    println!("cargo:rerun-if-changed=src/query_group.rs");
+    println!("cargo:rerun-if-changed=src/worker.rs");
+    println!("cargo:rerun-if-changed=src/query.rs");
+    println!("cargo:rerun-if-changed=src/plan.rs");
+    println!("cargo:rerun-if-changed=src/operator.rs");
+    println!("cargo:rerun-if-changed=src/attributes/mod.rs");
+    println!("cargo:rerun-if-changed=src/attributes/list.rs");
+    println!("cargo:rerun-if-changed=src/attributes/quent_struct.rs");
+    println!("cargo:rerun-if-changed=src/attributes/value.rs");
+}

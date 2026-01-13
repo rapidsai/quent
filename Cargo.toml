@@ -9,7 +9,8 @@ members = [
     "crates/exporter/ndjson",
     "crates/exporter/collector",
     "crates/server",
-    "instrumentation/rust"
+    "instrumentation/rust",
+    "instrumentation/cpp"
 ]
 
 [workspace.package]
