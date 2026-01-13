@@ -1,10 +1,11 @@
 use py_rs::PY;
-use quent_events::{Timestamp, attributes::Attribute};
+use quent_events::attributes::Attribute;
+use quent_time::{Span, Timestamp};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::{Entity, EntityRef, relation::Related, resource::Use, span::Span};
+use crate::{Entity, EntityRef, relation::Related, resource::Use};
 
 #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
 pub struct State {
@@ -42,7 +43,7 @@ impl Fsm {
         } else {
             let start = self.state_sequence[index].timestamp;
             let end = self.state_sequence[index + 1].timestamp;
-            Some(Span { start, end })
+            Span::try_new(start, end).ok()
         }
     }
 }

@@ -9,6 +9,7 @@ members = [
     "crates/exporter/ndjson",
     "crates/exporter/collector",
     "crates/server",
+    "crates/time",
     "instrumentation/rust",
     "instrumentation/cpp"
 ]

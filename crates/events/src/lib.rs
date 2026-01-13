@@ -1,27 +1,13 @@
 //! Type definitions of entity events.
 
 use py_rs::PY;
+use quent_time::{Timestamp, timestamp};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
 #[cfg(feature = "q")]
 pub mod q;
-
-pub type Timestamp = u64;
-pub type Duration = u64;
-
-#[inline]
-fn timestamp() -> Timestamp {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    // Narrowing conversion to u64 limits this to Unix timestamp in seconds: 18446744073709551617
-    // Which is in the 26th century
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|v| v.as_nanos() as u64)
-        .unwrap_or_default()
-    // TODO(johanpel): consider to do something else instead of unwrap_or_default, perhaps using Instant as described in the duration_since docs.
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event<T> {

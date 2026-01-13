@@ -1,9 +1,9 @@
 use quent_entities::{
     EntityRef,
     fsm::Fsm,
-    span::Span,
     timeline::{ResourceTimeline, ResourceTimelineUse},
 };
+use quent_time::Span;
 use uuid::Uuid;
 
 use crate::{Result, entities::Entities, error::Error};
@@ -52,10 +52,10 @@ pub fn make_resource_timeline_for_resource(
     }
 
     // TODO(johanpel): not unwrap
-    let span = Span {
-        start: entities.engine.timestamps.init.unwrap(),
-        end: entities.engine.timestamps.exit.unwrap(),
-    };
+    let span = Span::try_new(
+        entities.engine.timestamps.init.unwrap(),
+        entities.engine.timestamps.exit.unwrap(),
+    )?;
 
     let uses = entities
         .iter_use_relations()
