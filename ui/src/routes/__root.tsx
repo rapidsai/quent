@@ -27,7 +27,6 @@ function RootComponent() {
         <nav className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
           <div className="w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
-              <img src="/favicon.png" alt="Engage" className="h-10 w-10 object-contain" />
               <h1 className="text-2xl font-bold text-primary">
                 PACHA <span className="font-extralight">UI</span>
               </h1>
@@ -42,38 +41,10 @@ function RootComponent() {
                         size="sm"
                         asChild
                         className={cn(
-                          isActive('/') && 'bg-accent text-accent-foreground font-semibold'
-                        )}
-                      >
-                        <Link to="/">Dashboard</Link>
-                      </Button>
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
-                  <NavigationMenuItem>
-                    <NavigationMenuLink asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className={cn(
                           isActive('/profile') && 'bg-accent text-accent-foreground font-semibold'
                         )}
                       >
                         <Link to="/profile">Profile</Link>
-                      </Button>
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
-                  <NavigationMenuItem>
-                    <NavigationMenuLink asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className={cn(
-                          isActive('/about') && 'bg-accent text-accent-foreground font-semibold'
-                        )}
-                      >
-                        <Link to="/about">About</Link>
                       </Button>
                     </NavigationMenuLink>
                   </NavigationMenuItem>

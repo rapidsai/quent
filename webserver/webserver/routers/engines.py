@@ -94,3 +94,13 @@ async def get_query(
     Fetches query plan for given query.
     """
     return rust_client.get(f"/analyzer/engine/{engine_id}/query/{query_id}")
+
+@router.get("/{engine_id}/resource/{resource_id}/timeline")
+async def get_resource_timeline(
+    engine_id: str = Path(..., description="The engine ID"),
+    resource_id: str = Path(..., description="The resource ID"),
+) -> Any:
+    """
+    Fetches timeline for a given resource.
+    """
+    return rust_client.get(f"/analyzer/engine/{engine_id}/timeline/resource/use/{resource_id}")

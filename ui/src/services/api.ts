@@ -3,10 +3,41 @@
  * Replace these with actual API endpoints
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+import { QueryBundle } from '~quent/types/QueryBundle';
+import { ResourceTimeline } from '~quent/types/ResourceTimeline';
+import { Span } from '~quent/types/Span';
 
-// Simulated delay for mock API calls
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export const DEFEAULT_STALE_TIME = 5 * 60 * 1000;
+
+/**
+ * TODO: Figure out a more permanent solution for this
+ * Parse JSON with BigInt support for large integers.
+ * Integers larger than Number.MAX_SAFE_INTEGER are converted to BigInt.
+ */
+export function parseJsonWithBigInt<T>(text: string): T {
+  // Match integers that are too large for Number (and not floats)
+  // This regex finds: a number boundary, optional minus, digits only (no decimal/exponent)
+  // We convert integers > MAX_SAFE_INTEGER to BigInt
+  const processed = text.replace(
+    /([:\s[,]|^)(-?\d{16,})(?=[,\s}\]]|$)/g,
+    (match, prefix, numStr) => {
+      const num = Number(numStr);
+      // Only convert if it exceeds safe integer range
+      if (!Number.isSafeInteger(num)) {
+        return `${prefix}"__bigint__${numStr}"`;
+      }
+      return match;
+    }
+  );
+
+  return JSON.parse(processed, (_key, value) => {
+    if (typeof value === 'string' && value.startsWith('__bigint__')) {
+      return BigInt(value.slice(10));
+    }
+    return value;
+  });
+}
 
 export interface ChartDataPoint {
   date: string;
@@ -68,89 +99,23 @@ export type NodeProfileResponse = {
   series: Record<string, number[]>;
 };
 
-export async function fetchQuery(queryId: string): Promise<QueryResponse> {
-  // return apiFetch<QueryResponse>(`/queries/${queryId}`);
-  return { id: queryId };
-}
-
-export async function fetchNodeProfile(
-  _queryId: string,
-  nodeId: string
-): Promise<NodeProfileResponse> {
-  // return apiFetch<NodeProfileResponse>(`/nodes/${nodeId}/profile`);
-
+export function generateResourceUsage({ start, end }: Span): [number[], number[]] {
   const timestamps: number[] = [];
-  let base = +new Date(2001, 9, 3);
-  const oneDay = 1 * 600 * 1000;
-  const tempData = [Math.random() * 300];
-  for (let i = 1; i < 500; i++) {
-    const now = new Date((base += oneDay));
+  const numIntervals = 200n;
+  const interval = (end - start) / numIntervals;
+  const maxValue = 90;
+  let baseDate = +new Date(Number(start / 1000n));
+
+  const tempData = [Math.round(Math.random() * maxValue)];
+  for (let i = 1; i < numIntervals; i++) {
+    const now = new Date((baseDate += Number(interval * 1000n)));
     timestamps.push(+now);
-    tempData.push(Math.round((Math.random() - 0.5) * 20 + tempData[i - 1]));
-  }
-  const tempData2 = [Math.random() * 300];
-  for (let i = 1; i < 500; i++) {
-    tempData2.push(Math.round((Math.random() - 0.5) * 20 + tempData2[i - 1]));
-  }
-  const tempData3 = [Math.random() * 300];
-  for (let i = 1; i < 500; i++) {
-    tempData3.push(Math.round((Math.random() - 0.5) * 20 + tempData3[i - 1]));
+    const delta = (Math.random() - 0.5) * 20;
+    const nextValue = Math.max(0, Math.min(maxValue, tempData[i - 1] + delta));
+    tempData.push(Math.round(nextValue));
   }
 
-  await delay(200);
-  return {
-    nodeId,
-    timestamps,
-    series: { Mem: tempData, IO: tempData2, CPU: tempData3 },
-  };
-}
-
-/**
- * Fetch line chart data
- * @returns Promise with array of data points
- */
-export async function fetchLineChartData(): Promise<ChartDataPoint[]> {
-  // TODO: Replace with actual API call
-  // const response = await fetch(`${API_BASE_URL}/line-chart-data`);
-  // return response.json();
-
-  await delay(500);
-
-  // Mock data
-  const mockData: ChartDataPoint[] = [];
-  const now = new Date();
-
-  for (let i = 30; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    mockData.push({
-      date: date.toISOString().split('T')[0],
-      value: Math.floor(Math.random() * 100) + 50,
-    });
-  }
-
-  return mockData;
-}
-
-/**
- * Fetch bar chart data
- * @returns Promise with array of bar chart data
- */
-export async function fetchBarChartData(): Promise<BarChartData[]> {
-  // TODO: Replace with actual API call
-  // const response = await fetch(`${API_BASE_URL}/bar-chart-data`);
-  // return response.json();
-
-  await delay(500);
-
-  // Mock data
-  return [
-    { category: 'Product A', value: 120 },
-    { category: 'Product B', value: 200 },
-    { category: 'Product C', value: 150 },
-    { category: 'Product D', value: 80 },
-    { category: 'Product E', value: 170 },
-  ];
+  return [timestamps, tempData];
 }
 
 /**
@@ -178,15 +143,16 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  return parseJsonWithBigInt<T>(text);
 }
 
 /**
  * Fetch query bundle from API endpoint
  * @param queryId - The query ID to fetch the bundle for
  */
-export async function fetchQueryBundle(engineId: string, queryId: string): Promise<unknown> {
-  return apiFetch<unknown>(`/engines/${engineId}/query/${queryId}`);
+export async function fetchQueryBundle(engineId: string, queryId: string): Promise<QueryBundle> {
+  return apiFetch<QueryBundle>(`/engines/${engineId}/query/${queryId}`);
 }
 
 export async function fetchListEngines(): Promise<string[]> {
@@ -199,4 +165,11 @@ export async function fetchListCoordinators(engineId: string): Promise<string[]>
 
 export async function fetchListQueries(engineId: string, coordinatorId: string): Promise<string[]> {
   return apiFetch<string[]>(`/engines/${engineId}/query-groups/${coordinatorId}/queries`);
+}
+
+export async function fetchResourceTimeline(
+  engineId: string,
+  resourceId: string
+): Promise<ResourceTimeline> {
+  return apiFetch<ResourceTimeline>(`/engines/${engineId}/resource/${resourceId}/timeline`);
 }

@@ -38,7 +38,7 @@ describe('EngineSelectionPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Engine')).toBeInTheDocument();
       });
-      expect(screen.getByText('Coordinator')).toBeInTheDocument();
+      expect(screen.getByText('Query Group')).toBeInTheDocument();
       expect(screen.getByText('Query')).toBeInTheDocument();
     });
 
@@ -54,7 +54,7 @@ describe('EngineSelectionPage', () => {
       renderWithRouter({ initialPath: '/profile' });
 
       await waitFor(() => {
-        expect(screen.getByText('Select Coordinator')).toBeInTheDocument();
+        expect(screen.getByText('Select Query Group')).toBeInTheDocument();
       });
     });
 
@@ -76,7 +76,7 @@ describe('EngineSelectionPage', () => {
       });
 
       // Coordinator section should be invisible
-      const coordinatorLabel = screen.getByText('Coordinator');
+      const coordinatorLabel = screen.getByText('Query Group');
       expect(coordinatorLabel.parentElement).toHaveClass('invisible');
     });
 
@@ -194,7 +194,7 @@ describe('EngineSelectionPage', () => {
 
       // Check that labels exist
       expect(screen.getByText('Engine')).toBeInTheDocument();
-      expect(screen.getByText('Coordinator')).toBeInTheDocument();
+      expect(screen.getByText('Query Group')).toBeInTheDocument();
       expect(screen.getByText('Query')).toBeInTheDocument();
 
       // Check labels have proper htmlFor attributes
@@ -202,7 +202,7 @@ describe('EngineSelectionPage', () => {
       expect(engineLabel.tagName).toBe('LABEL');
       expect(engineLabel).toHaveAttribute('for', 'engineId');
 
-      const coordinatorLabel = screen.getByText('Coordinator');
+      const coordinatorLabel = screen.getByText('Query Group');
       expect(coordinatorLabel.tagName).toBe('LABEL');
       expect(coordinatorLabel).toHaveAttribute('for', 'coordinatorId');
 
