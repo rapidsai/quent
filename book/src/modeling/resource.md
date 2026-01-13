@@ -2,11 +2,19 @@
 
 A Resource is an FSM with at least one or more associated [Capacity][capacity].
 
+Resources have a type defined by a unique type name, such that multiple
+instances of Resources with exactly the same abstract behavior can exist in a
+model.
+
 Must have:
 
-- `name: string`: the name of the Resource
-- `scope: uuid`: the scope of the Resource, which the ID of the Entity across
-  which this Resource is shared.
+- `type_name: string`: the name of the type of this Resource.
+- `instance_name: string`: the name of the instance of this Resource.
+
+> TODO: do we need scope? This may be derived from all Uses.
+>
+> - `scope: uuid`: the scope of the Resource, which the ID of the Entity across
+>   which this Resource is shared.
 
 ## Capacity
 

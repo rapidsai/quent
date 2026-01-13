@@ -553,10 +553,10 @@ pub mod resource {
     pub struct ResourceGroup {
         /// The ID of this Resource Group
         pub id: Uuid,
-        /// The name of this Resource Group instance
-        pub instance_name: Option<String>,
-        /// The name of this Resource Group type
+        /// The name of the type of this Resource Group
         pub type_name: Option<String>,
+        /// The name of the instance of this Resource Group
+        pub instance_name: Option<String>,
         /// The scope of this Resource Group
         pub scope: Option<EntityRef>,
         /// The timestamps of state transitions of this ResourceGroup.
