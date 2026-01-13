@@ -121,8 +121,7 @@ but not limited to:
 - engines running on heterogeneous systems with non-CPU based compute and
   complex memory hierarchies
 
-For more details, please refer to the model specification:
-[model.md](./model.md)
+For more details, please refer to the [book](book/src/README.md).
 
 Some people familiar with OpenTelemetry may think of the domain-specific model
 as "semantic conventions" on top of the new telemetry concepts introduced.
