@@ -19,14 +19,14 @@ class ResourceGroup(BaseModel):
 	id: str
 	
 	"""
-	 The name of this Resource Group instance
-	"""
-	instance_name: str | None
-	
-	"""
-	 The name of this Resource Group type
+	 The name of the type of this Resource Group
 	"""
 	type_name: str | None
+	
+	"""
+	 The name of the instance of this Resource Group
+	"""
+	instance_name: str | None
 	
 	"""
 	 The scope of this Resource Group
