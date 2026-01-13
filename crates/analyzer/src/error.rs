@@ -9,12 +9,16 @@ pub enum Error {
     InvalidId(Uuid),
     #[error("logic error: {0}")]
     Logic(String),
+    #[error("time error: {0}")]
+    Time(#[from] quent_time::TimeError),
 }
 
 impl From<Error> for StatusCode {
     fn from(value: Error) -> Self {
         match value {
-            Error::Validation(_) | Error::Logic(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::Validation(_) | Error::Logic(_) | Error::Time(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
             Error::InvalidId(_) => StatusCode::NOT_FOUND,
         }
     }

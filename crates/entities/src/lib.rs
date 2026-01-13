@@ -3,7 +3,9 @@
 //! These type definitions intentionally do not use generics, since many binding
 //! generators will not support them.
 use py_rs::PY;
-use quent_events::{Timestamp, attributes::Attribute, resource::Scope};
+use quent_events::engine::EngineImplementationAttributes;
+use quent_events::{attributes::Attribute, resource::Scope};
+use quent_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -12,7 +14,6 @@ use crate::relation::Related;
 
 pub mod fsm;
 pub mod relation;
-pub mod span;
 pub mod timeline;
 
 // TODO(johanpel): figure out if we can stop being so verbose in prefixing type
@@ -72,10 +73,6 @@ impl From<EntityRef> for Uuid {
 }
 
 pub mod engine {
-    use quent_events::engine::EngineImplementationAttributes;
-
-    use crate::relation::Related;
-
     use super::*;
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of an

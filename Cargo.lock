@@ -928,6 +928,7 @@ dependencies = [
  "quent-entities",
  "quent-events",
  "quent-exporter-ndjson",
+ "quent-time",
  "serde",
  "thiserror",
  "tracing",
@@ -977,6 +978,7 @@ version = "0.1.0"
 dependencies = [
  "py-rs",
  "quent-events",
+ "quent-time",
  "serde",
  "ts-rs",
  "uuid",
@@ -987,6 +989,7 @@ name = "quent-events"
 version = "0.1.0"
 dependencies = [
  "py-rs",
+ "quent-time",
  "serde",
  "serde_json",
  "thiserror",
@@ -1049,6 +1052,16 @@ dependencies = [
  "tracing-subscriber",
  "ts-rs",
  "uuid",
+]
+
+[[package]]
+name = "quent-time"
+version = "0.1.0"
+dependencies = [
+ "py-rs",
+ "serde",
+ "thiserror",
+ "ts-rs",
 ]
 
 [[package]]

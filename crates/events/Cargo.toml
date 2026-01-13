@@ -8,6 +8,7 @@ default = []
 q = []
 
 [dependencies]
+quent-time = { path = "../time" }
 uuid = { workspace = true, features = ["serde"] }
 serde.workspace = true
 serde_json.workspace = true
