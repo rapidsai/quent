@@ -64,8 +64,7 @@ export interface PrestoPhysicalPlan {
   [stageId: string]: PrestoPhysicalStage;
 }
 
-// TODO: development only, remove once API configured
-export type QueryPlanSource = { type: 'api'; engineId: string; queryId: string };
+export type QueryPlanSource = { engineId: string; queryId: string };
 
 export interface QueryPlanTransformer<T = unknown> {
   engineName: string;

@@ -20,7 +20,7 @@ function ProfileLayout() {
   const queryId = queryIndexMatch?.params?.queryId ?? queryNodeMatch?.params?.queryId;
 
   return (
-    <div className="grid grid-cols-[1fr_2fr] gap-6 h-full">
+    <div className="grid grid-cols-[1fr_2fr] h-full">
       <div className="border-r">
         {queryId && queryId !== '' ? (
           <QueryPlan queryId={queryId} engineId={engineId} />
@@ -30,7 +30,7 @@ function ProfileLayout() {
           </div>
         )}
       </div>
-      <div className="overflow-y-auto h-[calc(100vh-4rem)]">
+      <div className="overflow-y-auto h-[calc(100vh-4rem)] w-full">
         <Outlet />
       </div>
     </div>

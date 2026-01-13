@@ -9,7 +9,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     error: queryPlanError,
   } = useQueryPlan({
     source: {
-      type: 'api',
       engineId,
       queryId,
     },

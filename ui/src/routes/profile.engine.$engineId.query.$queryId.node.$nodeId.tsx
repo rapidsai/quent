@@ -1,26 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { NodeProfile } from '@/components/NodeProfile';
-import { fetchNodeProfile } from '@/services/api';
+import { fetchQueryBundle } from '@/services/api';
+import { ResourceTree } from '~quent/types/ResourceTree';
 
-export interface NodeRouteData {
-  nodeId: string;
-  timestamps: number[];
-  series: Record<string, number[]>;
-}
-
+// TODO: This does the same thing as the /query/$queryId route, figure out what happens when selecting nodes in the DAG
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/node/$nodeId')({
   component: NodeRoute,
-  loader: async ({ params }): Promise<NodeRouteData> => {
-    // Will be used to retrieve time series data for node
-    const { nodeId, queryId } = params;
-    const data = await fetchNodeProfile(queryId, nodeId);
-    return data;
+  loader: async ({ params }): Promise<ResourceTree> => {
+    const { queryId, engineId } = params;
+    const queryBundle = await fetchQueryBundle(engineId, queryId);
+    return queryBundle.resource_tree;
   },
 });
 
 function NodeRoute() {
-  const { queryId, nodeId } = Route.useParams();
-  const loaderData = Route.useLoaderData();
+  const { engineId } = Route.useParams();
+  const resourceTree = Route.useLoaderData();
 
-  return <NodeProfile nodeId={nodeId} queryId={queryId} data={loaderData} />;
+  return <NodeProfile engineId={engineId} resourceTree={resourceTree} />;
 }

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { transformerRegistry } from '@/services/query-plan/transformer-registry';
-import { fetchQueryBundle } from '@/services/api';
+import { DEFEAULT_STALE_TIME, fetchQueryBundle } from '@/services/api';
 import type { DAGData, QueryPlanSource } from '@/services/query-plan/types';
 
 interface UseQueryPlanOptions {
@@ -16,7 +16,7 @@ export const useQueryPlan = ({ source }: UseQueryPlanOptions) => {
       const queryBundle = await fetchQueryBundle(source.engineId, source.queryId);
       return transformerRegistry.transform('quent', queryBundle);
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: DEFEAULT_STALE_TIME,
     retry: 2,
   });
 };
