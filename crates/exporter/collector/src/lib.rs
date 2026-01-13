@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Default)]
 pub struct CollectorExporterOptions {
-    address: Option<String>,
+    pub address: Option<String>,
 }
 
 #[derive(Debug)]

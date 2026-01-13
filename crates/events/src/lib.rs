@@ -13,8 +13,7 @@ pub type Duration = u64;
 
 #[inline]
 fn timestamp() -> Timestamp {
-    use std::time::SystemTime;
-    use std::time::UNIX_EPOCH;
+    use std::time::{SystemTime, UNIX_EPOCH};
     // Narrowing conversion to u64 limits this to Unix timestamp in seconds: 18446744073709551617
     // Which is in the 26th century
     SystemTime::now()
@@ -48,7 +47,7 @@ pub mod attributes {
 
     /// A group of [`Attribute`]s.
     #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
-    pub struct Struct(Vec<Attribute>);
+    pub struct Struct(pub Vec<Attribute>);
 
     /// A sequence of [`Value`]s.
     #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]

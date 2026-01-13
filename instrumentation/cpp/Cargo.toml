@@ -1,0 +1,19 @@
+[package]
+name = "quent-cpp"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["staticlib"]  # or "cdylib" if you prefer a shared library
+
+[dependencies]
+quent = { path = "../rust" }
+quent-events = { path = "../../crates/events" }
+quent-exporter-collector = { path = "../../crates/exporter/collector" }
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+cxx = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"

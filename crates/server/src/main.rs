@@ -15,13 +15,11 @@ mod analyzer;
 
 fn initialize_tracing() {
     use tracing_subscriber::{
+        EnvFilter,
+        fmt::{self, format::FmtSpan},
         layer::SubscriberExt,
         registry,
         util::SubscriberInitExt,
-        {
-            EnvFilter,
-            fmt::{self, format::FmtSpan},
-        },
     };
     registry()
         .with(

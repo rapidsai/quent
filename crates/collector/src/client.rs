@@ -2,7 +2,6 @@
 
 use std::time::Duration;
 
-use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 use quent_events::EventData;
 use tokio::{
     runtime::Handle,
@@ -17,6 +16,8 @@ use tonic::{Request, Status, transport::Channel};
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 
 #[derive(Debug, Error)]
 pub enum Error {
