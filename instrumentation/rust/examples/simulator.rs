@@ -349,7 +349,7 @@ impl Worker {
             fs_to_mem: Uuid::now_v7(),
             mem_to_fs: Uuid::now_v7(),
             task_thread_pool: Uuid::now_v7(),
-            task_threads: std::iter::repeat_with(|| Uuid::now_v7())
+            task_threads: std::iter::repeat_with(Uuid::now_v7)
                 .take(num_threads)
                 .collect(),
         }
@@ -605,7 +605,7 @@ impl Worker {
             "Topological order: {:?}",
             nodes
                 .iter()
-                .map(|node| format!("{:?}: {:?}", node, plan.dag[node.clone()].kind))
+                .map(|node| format!("{:?}: {:?}", node, plan.dag[*node].kind))
                 .collect::<Vec<_>>()
         );
 
@@ -614,7 +614,7 @@ impl Worker {
             operator_obs.init(
                 op.id,
                 operator::Init {
-                    plan_id: plan_id,
+                    plan_id,
                     parent_operator_ids: op.parents.clone(),
                     name: Some(op.name()),
                     ports: plan
@@ -639,9 +639,8 @@ impl Worker {
             operator_obs.waiting_for_inputs(op.id, Default::default());
             operator_obs.executing(op.id, Default::default());
             if plan.execute {
-                let mut index = 0usize;
                 // TODO(johanpel): make things run concurrently and overlap tasks
-                for _ in 0..NUM_TASKS {
+                for (index, _) in (0..NUM_TASKS).enumerate() {
                     self.execute_physical_operator_tasks(
                         context,
                         index,
@@ -652,7 +651,6 @@ impl Worker {
                             .get(index % self.task_threads.len())
                             .unwrap(),
                     );
-                    index += 1;
                 }
             }
             operator_obs.blocked(op.id, Default::default());
@@ -740,13 +738,13 @@ impl Engine {
         );
 
         // Workers
-        let worker_ids = std::iter::repeat_with(|| Uuid::now_v7())
+        let worker_ids = std::iter::repeat_with(Uuid::now_v7)
             .take(num_workers)
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
             let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), NUM_THREADS);
-            worker.spawn(&context, self.id);
+            worker.spawn(context, self.id);
             self.workers.insert(*worker_id, worker);
         }
 
@@ -829,7 +827,7 @@ impl Engine {
 
         // Tear down workers
         for worker in self.workers.values() {
-            worker.shut_down(&context);
+            worker.shut_down(context);
         }
 
         engine_obs.exit(self.id, engine::Exit {});
@@ -853,7 +851,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Arc::new(engine);
     let context = Arc::new(context);
 
-    let query_group_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
+    let query_group_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
         .take(NUM_QUERY_GROUPS)
         .map(|query_group_id| {
             info!("simulating query_group - http://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
@@ -872,7 +870,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                     query_group_obs.operating(query_group_id, query_group::Operating {});
 
-                    let query_futures: Vec<_> = std::iter::repeat_with(|| Uuid::now_v7())
+                    let query_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
                         .take(NUM_QUERIES)
                         .map(|query_id| {
                             std::thread::spawn({
