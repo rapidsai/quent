@@ -1,75 +1,131 @@
+# Default configuration for all jobs
+default:
+  tags:
+    - os/linux
+  interruptible: true
+
+# Add UI jobs
 include:
   - local: "ui/.gitlab-ci.yml"
 
+variables:
+  CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+# Define cache template for Cargo dependencies and build artifacts
+.cargo_cache:
+  cache:
+    key:
+      files:
+        - Cargo.lock
+    paths:
+      - .cargo/registry/index
+      - .cargo/registry/cache
+      - .cargo/git/db
+      - target/
+
+# Install system dependencies needed for Rust builds
+.install_protoc:
+  before_script:
+    - apt-get update && apt-get install -y protobuf-compiler
+    - protoc --version
+
 stages:
+  - prepare
   - format
   - lint
+  - check
   - build
   - test
 
-variables:
-  CARGO_HOME: ".cargo"
-
-.setup-rust: &setup-rust
-  image: rust:1.91-trixie
-  tags:
-    - os/linux
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends protobuf-compiler ca-certificates
-    - protoc --version
-    - mkdir -p "${CARGO_HOME}"
-    - export PATH="${CARGO_HOME}/bin:${PATH}"
-    - rustup component add rustfmt clippy
-    - cargo install rumdl --locked
-  cache:
-    key: "cargo-${CI_COMMIT_REF_SLUG}"
-    paths:
-      - target
-      - .cargo/registry
-      - .cargo/git
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
-format:
-  stage: format
-  <<: *setup-rust
+# Prepare dependencies once and share across all jobs
+prepare:
+  stage: prepare
+  image: rust:latest
+  extends: .cargo_cache
   script:
+    - rustc --version
+    - cargo --version
+    - cargo fetch --locked
+  artifacts:
+    paths:
+      - .cargo/
+      - Cargo.lock
+    expire_in: 1 hour
+
+# Run cargo check
+cargo-check:
+  stage: check
+  image: rust:latest
+  extends:
+    - .cargo_cache
+    - .install_protoc
+  needs:
+    - prepare
+  script:
+    - cargo check --workspace --all-targets --all-features --locked
+
+# Run cargo fmt check
+cargo-fmt:
+  stage: format
+  image: rust:latest
+  script:
+    - rustup component add rustfmt
     - cargo fmt --all -- --check
 
-markdown:
+# Run cargo clippy
+cargo-clippy:
   stage: lint
-  <<: *setup-rust
+  image: rust:latest
+  extends:
+    - .cargo_cache
+    - .install_protoc
+  needs:
+    - prepare
   script:
+    - rustup component add clippy
+    - cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+# Run rumdl check
+rumdl-check:
+  stage: lint
+  image: rust:latest
+  needs:
+    - prepare
+  script:
+    - cargo install rumdl --locked
+    - export PATH="$CARGO_HOME/bin:$PATH"
     - rumdl check --diff --exclude .cargo
+  cache:
+    key: rumdl-tools
+    paths:
+      - .cargo/bin/rumdl
 
-check:
-  stage: lint
-  <<: *setup-rust
-  script:
-    - cargo check --all --all-features --locked
-
-clippy:
-  stage: lint
-  <<: *setup-rust
-  script:
-    - cargo clippy --all --all-features --locked -- -D warnings
-
-build:
+# Build the project
+cargo-build:
   stage: build
-  <<: *setup-rust
+  image: rust:latest
+  extends:
+    - .cargo_cache
+    - .install_protoc
   needs:
-    - format
-    - check
-    - clippy
+    - prepare
   script:
-    - cargo build --all --all-features --locked --release
+    - cargo build --workspace --all-features --locked --release
+  artifacts:
+    paths:
+      - target/release/
+    expire_in: 1 day
 
-test:
+# Run tests
+cargo-test:
   stage: test
-  <<: *setup-rust
+  image: rust:latest
+  extends:
+    - .cargo_cache
+    - .install_protoc
   needs:
-    - build
+    - prepare
   script:
-    - cargo test --all --all-features
+    - cargo test --workspace --all-features --locked --all-targets
