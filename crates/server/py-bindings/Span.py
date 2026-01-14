@@ -7,8 +7,16 @@ from enum import StrEnum
 
 class Span(BaseModel):
 	"""
-	 A span of time
+	 A span of time represented as a half-open interval [start, end) over discrete timestamps.
 	"""
 	
+	
+	"""
+	 The start timestamp, inclusive.
+	"""
 	start: int
+	
+	"""
+	 The end timestamp, exclusive.
+	"""
 	end: int

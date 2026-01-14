@@ -13,7 +13,7 @@ pub struct ResourceTimelineUse {
     pub entity: EntityRef,
 }
 
-#[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
 pub struct ResourceTimeline {
     pub span: Span,
     pub uses: Vec<ResourceTimelineUse>,
