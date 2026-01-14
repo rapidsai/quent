@@ -5,6 +5,7 @@ stages:
   - format
   - lint
   - build
+  - test
 
 variables:
   CARGO_HOME: ".cargo"
@@ -64,3 +65,11 @@ build:
     - clippy
   script:
     - cargo build --all --all-features --locked --release
+
+test:
+  stage: test
+  <<: *setup-rust
+  needs:
+    - build
+  script:
+    - cargo test --all --all-features
