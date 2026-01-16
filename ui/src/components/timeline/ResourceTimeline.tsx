@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { DEFEAULT_STALE_TIME, fetchResourceTimeline, generateResourceUsage } from '@/services/api';
 import { Timeline } from './Timeline';
+import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo } from 'react';
 
 type ResourceTimelineProps = {
@@ -23,11 +24,7 @@ export function ResourceTimeline({ engineId, resourceId }: ResourceTimelineProps
   }, [data]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8 text-neutral-400">
-        Loading timeline...
-      </div>
-    );
+    return <TimelineSkeleton />;
   }
 
   if (error) {
