@@ -27,6 +27,7 @@ const elkOptions = {
 // Custom node types for different operations
 const nodeTypes = {
   source: QueryPlanNode,
+  scan: QueryPlanNode,
   join: QueryPlanNode,
   joinlocal: QueryPlanNode,
   joinpartition: QueryPlanNode,

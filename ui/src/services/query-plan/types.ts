@@ -1,3 +1,11 @@
+import type { TreeDataItem } from '@/components/ui/tree-view';
+
+export interface QueryPlanDataItem extends TreeDataItem {
+  queryId?: string;
+  workerId?: string;
+  planType?: string;
+}
+
 export interface DAGNode {
   id: string;
   label: string;
@@ -22,52 +30,5 @@ export interface DAGEdge {
 export interface DAGData {
   nodes: DAGNode[];
   edges: DAGEdge[];
-}
-
-export interface PrestoQueryPlanNode {
-  id: string;
-  name: string;
-  identifier: string;
-  details: string;
-  children: PrestoQueryPlanNode[];
-  remoteSources: unknown[];
-  estimates: unknown[];
-}
-
-// Root node structure
-export interface PrestoQueryPlan {
-  id: string;
-  name: string;
-  identifier: string;
-  details: string;
-  children: PrestoQueryPlanNode[];
-  remoteSources: unknown[];
-  estimates: unknown[];
-}
-
-// Presto Physical Plan types (distributed/stage-based)
-export interface PrestoPhysicalPlanNode {
-  id: string;
-  name: string;
-  identifier: string;
-  details: string;
-  children: PrestoPhysicalPlanNode[];
-  remoteSources: string[]; // Stage IDs
-  estimates: unknown[];
-}
-
-export interface PrestoPhysicalStage {
-  plan: PrestoPhysicalPlanNode;
-}
-
-export interface PrestoPhysicalPlan {
-  [stageId: string]: PrestoPhysicalStage;
-}
-
-export type QueryPlanSource = { engineId: string; queryId: string };
-
-export interface QueryPlanTransformer<T = unknown> {
-  engineName: string;
-  transform(plan: T): DAGData;
-  validate(plan: unknown): plan is T;
+  queryData: QueryPlanDataItem[];
 }
