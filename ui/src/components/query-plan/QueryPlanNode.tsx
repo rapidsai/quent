@@ -12,6 +12,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 
 const operationStyles: Record<string, string> = {
   source: 'bg-blue-100 border-blue-500 text-blue-900',
+  scan: 'bg-blue-100 border-blue-500 text-blue-900',
   filesystemscan: 'bg-blue-100 border-blue-500 text-blue-900',
   join: 'bg-purple-100 border-purple-500 text-purple-900',
   joinlocal: 'bg-purple-100 border-purple-500 text-purple-900',

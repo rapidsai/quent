@@ -1,74 +1,125 @@
-import type { DAGData, DAGNode, DAGEdge, QueryPlanTransformer } from './types';
+import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import { Operator } from '~quent/types/Operator';
 import { Port } from '~quent/types/Port';
+import { Plan } from '~quent/types/Plan';
 
-export class QueryBundleTransformer implements QueryPlanTransformer<QueryBundle> {
-  engineName = 'quent';
-
-  validate(bundle: QueryBundle): bundle is QueryBundle {
-    return (
-      typeof bundle === 'object' &&
-      bundle !== null &&
-      Object.keys(bundle?.entities?.plans).length > 0
-    );
-  }
-
-  getNodeEntity(bundle: QueryBundle, id: string): DAGNode | undefined {
-    // Find associated port
-    if (bundle?.entities?.ports?.[id]) {
-      const port: Port = bundle?.entities?.ports?.[id];
-      const operator: Operator | undefined = bundle?.entities?.operators?.[port.parent_operator_id];
-      if (operator) {
-        return {
-          id: operator.id,
-          label: operator.name ?? 'Node',
-          type: operator.name?.toLowerCase() ?? 'operator',
-          metadata: {
-            rawNode: operator,
-          },
-        };
-      }
-    }
-
-    return undefined;
-  }
-
-  transform(bundle: QueryBundle): DAGData {
-    const nodeMap = new Map<string, DAGNode>();
-    const edges: DAGEdge[] = [];
-
-    // TODO: Once we have a way to display plan trees, we'll take a plan ID to render
-    // for now just render the phyiscal plan
-    const plans = Object.values(bundle?.entities?.plans);
-    const planTree = plans?.find(plan => plan?.name === 'physical') || plans?.[0];
-
-    if (!planTree) {
-      throw new Error('No physical plan found');
-    }
-
-    planTree.edges.forEach(edge => {
-      const sourceNode = this.getNodeEntity(bundle, edge.source);
-      const targetNode = this.getNodeEntity(bundle, edge.target);
-      if (sourceNode && targetNode) {
-        // Only add each node once (deduplicate by ID)
-        if (!nodeMap.has(sourceNode.id)) {
-          nodeMap.set(sourceNode.id, sourceNode);
-        }
-        if (!nodeMap.has(targetNode.id)) {
-          nodeMap.set(targetNode.id, targetNode);
-        }
-        edges.push({
-          id: `${edge.source}-${edge.target}`,
-          source: sourceNode.id,
-          target: targetNode.id,
-          type: 'smoothstep',
-        });
-      }
-    });
-
-    return { nodes: Array.from(nodeMap.values()), edges };
-  }
+interface PlanTreeNode {
+  id: string;
+  query: string | null;
+  worker: string | null;
+  children: PlanTreeNode[];
 }
 
-export const queryBundleTransformer = new QueryBundleTransformer();
+/**
+ * Validate that a query bundle has the required structure
+ */
+export const validateQueryBundle = (bundle: QueryBundle): bundle is QueryBundle =>
+  typeof bundle === 'object' && bundle !== null && Object.keys(bundle?.entities?.plans).length > 0;
+
+/**
+ * Retrieve the operator node entity from a port id
+ */
+const getNodeEntity = (bundle: QueryBundle, id: string): DAGNode | undefined => {
+  // Find associated port
+  if (bundle?.entities?.ports?.[id]) {
+    const port: Port = bundle?.entities?.ports?.[id];
+    const operator: Operator | undefined = bundle?.entities?.operators?.[port.parent_operator_id];
+    if (operator) {
+      return {
+        id: operator.id,
+        label: operator.name ?? 'Node',
+        type: operator.name?.toLowerCase() ?? 'operator',
+        metadata: {
+          rawNode: operator,
+        },
+      };
+    }
+  }
+
+  return undefined;
+};
+
+/**
+ * Recursively transform a plan node into TreeView format and provide display data
+ */
+const transformNodeForTreeView = (node: PlanTreeNode, plans: Plan[]): QueryPlanDataItem => {
+  const planType = plans.find(plan => plan.id === node.id)?.name || undefined;
+
+  return {
+    id: node.id,
+    name: `Query: ${node.query}`,
+    queryId: node.query ?? undefined,
+    workerId: node.worker ?? undefined,
+    planType,
+    children: node.children?.length
+      ? node.children.map(child => transformNodeForTreeView(child, plans))
+      : undefined,
+  };
+};
+
+/**
+ * Transform the plan_tree into TreeView format for query plan explorer
+ */
+export const getTreeData = (bundle: QueryBundle): QueryPlanDataItem[] => {
+  if (!validateQueryBundle(bundle)) {
+    throw new Error('Invalid QueryBundle format');
+  }
+
+  const plans = Object.values(bundle.entities.plans).filter(
+    (plan): plan is Plan => plan !== undefined
+  );
+  return [bundle.plan_tree].map(node => transformNodeForTreeView(node, plans));
+};
+
+/**
+ * Transform specified query plan into DAG visualization data
+ */
+export const getPlanDAG = (
+  bundle: QueryBundle,
+  planId: string
+): { nodes: DAGNode[]; edges: DAGEdge[] } => {
+  if (!validateQueryBundle(bundle)) {
+    throw new Error('Invalid QueryBundle format');
+  }
+
+  const nodeMap = new Map<string, DAGNode>();
+  const edges: DAGEdge[] = [];
+
+  const plans = Object.values(bundle.entities.plans).filter(
+    (plan): plan is Plan => plan !== undefined
+  );
+  const planTree = plans.find(plan => plan.id === planId) || plans[0];
+
+  if (!planTree) {
+    throw new Error(`No plan found for planId: ${planId}`);
+  }
+
+  // Build the DAG from the plan's edges
+  planTree.edges.forEach(edge => {
+    const sourceNode = getNodeEntity(bundle, edge.source);
+    const targetNode = getNodeEntity(bundle, edge.target);
+
+    if (sourceNode && targetNode) {
+      // Deduplicate nodes by ID
+      if (!nodeMap.has(sourceNode.id)) {
+        nodeMap.set(sourceNode.id, sourceNode);
+      }
+      if (!nodeMap.has(targetNode.id)) {
+        nodeMap.set(targetNode.id, targetNode);
+      }
+
+      edges.push({
+        id: `${edge.source}-${edge.target}`,
+        source: sourceNode.id,
+        target: targetNode.id,
+        type: 'smoothstep',
+      });
+    }
+  });
+
+  return {
+    nodes: Array.from(nodeMap.values()),
+    edges,
+  };
+};
