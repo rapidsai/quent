@@ -42,11 +42,20 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
       style={{ zIndex: 10 }}
     >
-      {data.hasIncoming && <Handle type="target" position={Position.Top} className="w-2 h-2" />}
+      {data.hasIncoming && (
+        <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
+      )}
 
-      <div className="text-sm font-semibold break-words">{data.label}</div>
+      <div className="text-sm font-semibold break-words text-center">{data.label}</div>
 
-      {data.hasOutgoing && <Handle type="source" position={Position.Bottom} className="w-2 h-2" />}
+      {data.hasOutgoing && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="w-2 h-2"
+          style={{ opacity: 0 }}
+        />
+      )}
     </div>
   );
 });

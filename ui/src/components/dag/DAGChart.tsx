@@ -7,6 +7,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  MarkerType,
   type Node,
   type Edge,
 } from '@xyflow/react';
@@ -21,7 +22,7 @@ const elkOptions = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
   'elk.layered.spacing.nodeNodeBetweenLayers': '50',
-  'elk.spacing.nodeNode': '80',
+  'elk.spacing.nodeNode': '50',
 };
 
 // Custom node types for different operations
@@ -124,6 +125,11 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+      },
     }));
 
     return { flowNodes, flowEdges };
@@ -166,7 +172,10 @@ const FlowLayout = ({
       fitView
       minZoom={0.1}
       maxZoom={2}
-      defaultEdgeOptions={{ type: 'smoothstep' }}
+      defaultEdgeOptions={{
+        type: 'smoothstep',
+        markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
+      }}
     >
       <Background />
     </ReactFlow>
