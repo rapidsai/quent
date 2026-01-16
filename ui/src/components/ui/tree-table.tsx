@@ -648,7 +648,7 @@ export function TreeTable<I extends TreeTableDataItem>({
       <div
         ref={containerRef}
         className={cn(
-          'bg-transparent transition-opacity duration-[120ms] ease-out',
+          'bg-transparent transition-opacity duration-100 ease-out',
           isLayoutReady ? 'opacity-100' : 'opacity-0'
         )}
       >
