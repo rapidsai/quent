@@ -94,8 +94,8 @@ rumdl-check:
   needs:
     - prepare
   script:
-    - cargo install rumdl --locked
     - export PATH="$CARGO_HOME/bin:$PATH"
+    - command -v rumdl || cargo install rumdl --locked
     - rumdl check --diff --exclude .cargo
   cache:
     key: rumdl-tools
