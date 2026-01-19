@@ -8,9 +8,10 @@ default = []
 q = []
 
 [dependencies]
+py-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
 quent-time = { path = "../time" }
-uuid.workspace = true
 serde.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
-py-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+uuid.workspace = true

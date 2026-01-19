@@ -18,184 +18,25 @@ pub struct Event<T> {
 
 impl<T> Event<T> {
     #[inline]
-    pub fn new(id: Uuid, data: T) -> Self {
+    pub fn new_now(id: Uuid, data: T) -> Self {
         Self {
             id,
             timestamp: timestamp(),
             data,
         }
     }
-}
 
-/// Support for custom attributes defined at run-time.
-pub mod attributes {
-    use super::*;
-
-    /// A group of [`Attribute`]s.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
-    pub struct Struct(pub Vec<Attribute>);
-
-    /// A sequence of [`Value`]s.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
-    #[ts(untagged)]
-    pub enum List {
-        U8(Vec<u8>),
-        U16(Vec<u16>),
-        U32(Vec<u32>),
-        U64(Vec<u64>),
-        I8(Vec<i8>),
-        I16(Vec<i16>),
-        I32(Vec<i32>),
-        I64(Vec<i64>),
-        F32(Vec<f32>),
-        F64(Vec<f64>),
-        String(Vec<String>),
-        Struct(Vec<Struct>),
-    }
-
-    /// An [`Attribute`] value.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
-    #[ts(untagged)]
-    pub enum Value {
-        U8(u8),
-        U16(u16),
-        U32(u32),
-        U64(u64),
-        I8(u8),
-        I16(i16),
-        I32(i32),
-        I64(i64),
-        F32(f32),
-        F64(f64),
-        String(String),
-        Struct(Struct),
-        List(List),
-    }
-
-    /// A key-value pair.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
-    pub struct Attribute {
-        pub key: String,
-        pub value: Option<Value>,
-    }
-
-    impl Attribute {
-        /// Create a new attribute with the given key and no value.
-        pub fn null(key: impl Into<String>) -> Self {
-            Self {
-                key: key.into(),
-                value: None,
-            }
-        }
-
-        /// Create an attribute with a u8 value.
-        pub fn u8(key: impl Into<String>, value: u8) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::U8(value)),
-            }
-        }
-
-        /// Create an attribute with a u16 value.
-        pub fn u16(key: impl Into<String>, value: u16) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::U16(value)),
-            }
-        }
-
-        /// Create an attribute with a u32 value.
-        pub fn u32(key: impl Into<String>, value: u32) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::U32(value)),
-            }
-        }
-
-        /// Create an attribute with a u64 value.
-        pub fn u64(key: impl Into<String>, value: u64) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::U64(value)),
-            }
-        }
-
-        /// Create an attribute with an i8 value.
-        pub fn i8(key: impl Into<String>, value: i8) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::I8(value as u8)),
-            }
-        }
-
-        /// Create an attribute with an i16 value.
-        pub fn i16(key: impl Into<String>, value: i16) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::I16(value)),
-            }
-        }
-
-        /// Create an attribute with an i32 value.
-        pub fn i32(key: impl Into<String>, value: i32) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::I32(value)),
-            }
-        }
-
-        /// Create an attribute with an i64 value.
-        pub fn i64(key: impl Into<String>, value: i64) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::I64(value)),
-            }
-        }
-
-        /// Create an attribute with an f32 value.
-        pub fn f32(key: impl Into<String>, value: f32) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::F32(value)),
-            }
-        }
-
-        /// Create an attribute with an f64 value.
-        pub fn f64(key: impl Into<String>, value: f64) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::F64(value)),
-            }
-        }
-
-        /// Create an attribute with a String value.
-        pub fn string(key: impl Into<String>, value: impl Into<String>) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::String(value.into())),
-            }
-        }
-
-        /// Create an attribute with a Struct value.
-        pub fn structure(key: impl Into<String>, value: Struct) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::Struct(value)),
-            }
-        }
-
-        /// Create an attribute with a List value.
-        pub fn list(key: impl Into<String>, value: List) -> Self {
-            Self {
-                key: key.into(),
-                value: Some(Value::List(value)),
-            }
+    pub fn new(id: Uuid, timestamp: Timestamp, data: T) -> Self {
+        Self {
+            id,
+            timestamp,
+            data,
         }
     }
 }
 
 pub mod engine {
-    use crate::attributes::Attribute;
+    use quent_attributes::Attribute;
 
     use super::*;
 
@@ -592,7 +433,7 @@ pub mod resource {
         #[derive(Debug, Deserialize, Serialize)]
         pub struct Transfer {
             pub resource_id: Uuid,
-            pub transferred_bytes: u64,
+            pub used_bytes: u64,
         }
 
         #[derive(Debug, Deserialize, Serialize)]

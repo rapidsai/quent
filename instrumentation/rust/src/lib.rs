@@ -215,28 +215,28 @@ impl EngineObserver {
     pub fn init(&self, id: Uuid, init: engine::Init) {
         push_event(
             &self.tx,
-            Event::new(id, engine::EngineEvent::Init(init).into()),
+            Event::new_now(id, engine::EngineEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: engine::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, engine::EngineEvent::Operating(operating).into()),
+            Event::new_now(id, engine::EngineEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: engine::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, engine::EngineEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, engine::EngineEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: engine::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, engine::EngineEvent::Exit(exit).into()),
+            Event::new_now(id, engine::EngineEvent::Exit(exit).into()),
         )
     }
 }
@@ -250,14 +250,14 @@ impl QueryGroupObserver {
     pub fn init(&self, id: Uuid, init: query_group::Init) {
         push_event(
             &self.tx,
-            Event::new(id, query_group::QueryGroupEvent::Init(init).into()),
+            Event::new_now(id, query_group::QueryGroupEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: query_group::Operating) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 query_group::QueryGroupEvent::Operating(operating).into(),
             ),
@@ -267,7 +267,7 @@ impl QueryGroupObserver {
     pub fn finalizing(&self, id: Uuid, finalizing: query_group::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 query_group::QueryGroupEvent::Finalizing(finalizing).into(),
             ),
@@ -277,7 +277,7 @@ impl QueryGroupObserver {
     pub fn exit(&self, id: Uuid, exit: query_group::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, query_group::QueryGroupEvent::Exit(exit).into()),
+            Event::new_now(id, query_group::QueryGroupEvent::Exit(exit).into()),
         )
     }
 }
@@ -291,28 +291,28 @@ impl WorkerObserver {
     pub fn init(&self, id: Uuid, init: worker::Init) {
         push_event(
             &self.tx,
-            Event::new(id, worker::WorkerEvent::Init(init).into()),
+            Event::new_now(id, worker::WorkerEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: worker::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, worker::WorkerEvent::Operating(operating).into()),
+            Event::new_now(id, worker::WorkerEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: worker::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, worker::WorkerEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, worker::WorkerEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: worker::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, worker::WorkerEvent::Exit(exit).into()),
+            Event::new_now(id, worker::WorkerEvent::Exit(exit).into()),
         )
     }
 }
@@ -326,42 +326,42 @@ impl QueryObserver {
     pub fn init(&self, id: Uuid, init: query::Init) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Init(init).into()),
+            Event::new_now(id, query::QueryEvent::Init(init).into()),
         )
     }
 
     pub fn planning(&self, id: Uuid, planning: query::Planning) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Planning(planning).into()),
+            Event::new_now(id, query::QueryEvent::Planning(planning).into()),
         )
     }
 
     pub fn executing(&self, id: Uuid, executing: query::Executing) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Executing(executing).into()),
+            Event::new_now(id, query::QueryEvent::Executing(executing).into()),
         );
     }
 
     pub fn idle(&self, id: Uuid, idle: query::Idle) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Idle(idle).into()),
+            Event::new_now(id, query::QueryEvent::Idle(idle).into()),
         );
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: query::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, query::QueryEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: query::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, query::QueryEvent::Exit(exit).into()),
+            Event::new_now(id, query::QueryEvent::Exit(exit).into()),
         )
     }
 }
@@ -373,29 +373,38 @@ pub struct PlanObserver {
 
 impl PlanObserver {
     pub fn init(&self, id: Uuid, init: plan::Init) {
-        push_event(&self.tx, Event::new(id, plan::PlanEvent::Init(init).into()))
+        push_event(
+            &self.tx,
+            Event::new_now(id, plan::PlanEvent::Init(init).into()),
+        )
     }
 
     pub fn executing(&self, id: Uuid, executing: plan::Executing) {
         push_event(
             &self.tx,
-            Event::new(id, plan::PlanEvent::Executing(executing).into()),
+            Event::new_now(id, plan::PlanEvent::Executing(executing).into()),
         );
     }
 
     pub fn idle(&self, id: Uuid, idle: plan::Idle) {
-        push_event(&self.tx, Event::new(id, plan::PlanEvent::Idle(idle).into()));
+        push_event(
+            &self.tx,
+            Event::new_now(id, plan::PlanEvent::Idle(idle).into()),
+        );
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: plan::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, plan::PlanEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, plan::PlanEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: plan::Exit) {
-        push_event(&self.tx, Event::new(id, plan::PlanEvent::Exit(exit).into()))
+        push_event(
+            &self.tx,
+            Event::new_now(id, plan::PlanEvent::Exit(exit).into()),
+        )
     }
 }
 
@@ -408,14 +417,14 @@ impl OperatorObserver {
     pub fn init(&self, id: Uuid, init: operator::Init) {
         push_event(
             &self.tx,
-            Event::new(id, operator::OperatorEvent::Init(init).into()),
+            Event::new_now(id, operator::OperatorEvent::Init(init).into()),
         )
     }
 
     pub fn waiting_for_inputs(&self, id: Uuid, waiting_for_inputs: operator::WaitingForInputs) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 operator::OperatorEvent::WaitingForInputs(waiting_for_inputs).into(),
             ),
@@ -425,28 +434,28 @@ impl OperatorObserver {
     pub fn executing(&self, id: Uuid, executing: operator::Executing) {
         push_event(
             &self.tx,
-            Event::new(id, operator::OperatorEvent::Executing(executing).into()),
+            Event::new_now(id, operator::OperatorEvent::Executing(executing).into()),
         );
     }
 
     pub fn blocked(&self, id: Uuid, blocked: operator::Blocked) {
         push_event(
             &self.tx,
-            Event::new(id, operator::OperatorEvent::Blocked(blocked).into()),
+            Event::new_now(id, operator::OperatorEvent::Blocked(blocked).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: operator::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, operator::OperatorEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, operator::OperatorEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: operator::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, operator::OperatorEvent::Exit(exit).into()),
+            Event::new_now(id, operator::OperatorEvent::Exit(exit).into()),
         )
     }
 }
@@ -459,35 +468,35 @@ impl MemoryResourceObserver {
     pub fn init(&self, id: Uuid, init: memory::Init) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryEvent::Init(init).into()),
+            Event::new_now(id, memory::MemoryEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: memory::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryEvent::Operating(operating).into()),
+            Event::new_now(id, memory::MemoryEvent::Operating(operating).into()),
         )
     }
 
     pub fn resizing(&self, id: Uuid, resizing: memory::Resizing) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryEvent::Resizing(resizing).into()),
+            Event::new_now(id, memory::MemoryEvent::Resizing(resizing).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: memory::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, memory::MemoryEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: memory::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, memory::MemoryEvent::Exit(exit).into()),
+            Event::new_now(id, memory::MemoryEvent::Exit(exit).into()),
         )
     }
 }
@@ -500,28 +509,28 @@ impl ProcessorResourceObserver {
     pub fn init(&self, id: Uuid, init: processor::Init) {
         push_event(
             &self.tx,
-            Event::new(id, processor::ProcessorEvent::Init(init).into()),
+            Event::new_now(id, processor::ProcessorEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: processor::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, processor::ProcessorEvent::Operating(operating).into()),
+            Event::new_now(id, processor::ProcessorEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: processor::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, processor::ProcessorEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, processor::ProcessorEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: processor::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, processor::ProcessorEvent::Exit(exit).into()),
+            Event::new_now(id, processor::ProcessorEvent::Exit(exit).into()),
         )
     }
 }
@@ -534,28 +543,28 @@ impl ChannelResourceObserver {
     pub fn init(&self, id: Uuid, init: channel::Init) {
         push_event(
             &self.tx,
-            Event::new(id, channel::ChannelEvent::Init(init).into()),
+            Event::new_now(id, channel::ChannelEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: channel::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, channel::ChannelEvent::Operating(operating).into()),
+            Event::new_now(id, channel::ChannelEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: channel::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, channel::ChannelEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, channel::ChannelEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: channel::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, channel::ChannelEvent::Exit(exit).into()),
+            Event::new_now(id, channel::ChannelEvent::Exit(exit).into()),
         )
     }
 }
@@ -568,28 +577,28 @@ impl ResourceGroupObserver {
     pub fn init(&self, id: Uuid, init: group::Init) {
         push_event(
             &self.tx,
-            Event::new(id, group::ResourceGroupEvent::Init(init).into()),
+            Event::new_now(id, group::ResourceGroupEvent::Init(init).into()),
         )
     }
 
     pub fn operating(&self, id: Uuid, operating: group::Operating) {
         push_event(
             &self.tx,
-            Event::new(id, group::ResourceGroupEvent::Operating(operating).into()),
+            Event::new_now(id, group::ResourceGroupEvent::Operating(operating).into()),
         )
     }
 
     pub fn finalizing(&self, id: Uuid, finalizing: group::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, group::ResourceGroupEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, group::ResourceGroupEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn exit(&self, id: Uuid, exit: group::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, group::ResourceGroupEvent::Exit(exit).into()),
+            Event::new_now(id, group::ResourceGroupEvent::Exit(exit).into()),
         )
     }
 }
@@ -606,28 +615,28 @@ impl QObserver {
     pub fn task_initializing(&self, id: Uuid, initializing: q::task::Initializing) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Initializing(initializing).into()),
+            Event::new_now(id, q::task::TaskEvent::Initializing(initializing).into()),
         )
     }
 
     pub fn task_queueing(&self, id: Uuid, queueing: q::task::Queueing) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Queueing(queueing).into()),
+            Event::new_now(id, q::task::TaskEvent::Queueing(queueing).into()),
         )
     }
 
     pub fn task_computing(&self, id: Uuid, computing: q::task::Computing) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Computing(computing).into()),
+            Event::new_now(id, q::task::TaskEvent::Computing(computing).into()),
         )
     }
 
     pub fn task_allocating_memory(&self, id: Uuid, allocating_memory: q::task::AllocatingMemory) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 q::task::TaskEvent::AllocatingMemory(allocating_memory).into(),
             ),
@@ -637,7 +646,7 @@ impl QObserver {
     pub fn task_loading(&self, id: Uuid, loading: q::task::Loading) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Loading(loading).into()),
+            Event::new_now(id, q::task::TaskEvent::Loading(loading).into()),
         )
     }
 
@@ -648,7 +657,7 @@ impl QObserver {
     ) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 q::task::TaskEvent::AllocatingStorage(allocating_storage).into(),
             ),
@@ -658,28 +667,28 @@ impl QObserver {
     pub fn task_spilling(&self, id: Uuid, spilling: q::task::Spilling) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Spilling(spilling).into()),
+            Event::new_now(id, q::task::TaskEvent::Spilling(spilling).into()),
         )
     }
 
     pub fn task_sending(&self, id: Uuid, sending: q::task::Sending) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Sending(sending).into()),
+            Event::new_now(id, q::task::TaskEvent::Sending(sending).into()),
         )
     }
 
     pub fn task_finalizing(&self, id: Uuid, finalizing: q::task::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Finalizing(finalizing).into()),
+            Event::new_now(id, q::task::TaskEvent::Finalizing(finalizing).into()),
         )
     }
 
     pub fn task_exit(&self, id: Uuid, exit: q::task::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, q::task::TaskEvent::Exit(exit).into()),
+            Event::new_now(id, q::task::TaskEvent::Exit(exit).into()),
         )
     }
 
@@ -687,7 +696,7 @@ impl QObserver {
     pub fn record_batch_initializing(&self, id: Uuid, initializing: q::record_batch::Initializing) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 q::record_batch::RecordBatchEvent::Initializing(initializing).into(),
             ),
@@ -697,21 +706,21 @@ impl QObserver {
     pub fn record_batch_idle(&self, id: Uuid, idle: q::record_batch::Idle) {
         push_event(
             &self.tx,
-            Event::new(id, q::record_batch::RecordBatchEvent::Idle(idle).into()),
+            Event::new_now(id, q::record_batch::RecordBatchEvent::Idle(idle).into()),
         )
     }
 
     pub fn record_batch_moving(&self, id: Uuid, moving: q::record_batch::Moving) {
         push_event(
             &self.tx,
-            Event::new(id, q::record_batch::RecordBatchEvent::Moving(moving).into()),
+            Event::new_now(id, q::record_batch::RecordBatchEvent::Moving(moving).into()),
         )
     }
 
     pub fn record_batch_finalizing(&self, id: Uuid, finalizing: q::record_batch::Finalizing) {
         push_event(
             &self.tx,
-            Event::new(
+            Event::new_now(
                 id,
                 q::record_batch::RecordBatchEvent::Finalizing(finalizing).into(),
             ),
@@ -721,7 +730,7 @@ impl QObserver {
     pub fn record_batch_exit(&self, id: Uuid, exit: q::record_batch::Exit) {
         push_event(
             &self.tx,
-            Event::new(id, q::record_batch::RecordBatchEvent::Exit(exit).into()),
+            Event::new_now(id, q::record_batch::RecordBatchEvent::Exit(exit).into()),
         )
     }
 }

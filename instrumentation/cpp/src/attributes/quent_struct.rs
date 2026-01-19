@@ -1,5 +1,5 @@
 pub struct QuentStruct {
-    pub(crate) inner: quent_events::attributes::Struct,
+    pub(crate) inner: quent_attributes::Struct,
 }
 
 // Implement ExternType to allow this Rust type to be referenced from other bridges
@@ -13,7 +13,7 @@ unsafe impl cxx::ExternType for QuentStruct {
 impl QuentStruct {
     pub fn new(attributes: Vec<Box<super::Attribute>>) -> Box<Self> {
         Box::new(QuentStruct {
-            inner: quent_events::attributes::Struct(
+            inner: quent_attributes::Struct(
                 attributes.into_iter().map(|attr| attr.inner).collect(),
             ),
         })
@@ -21,7 +21,7 @@ impl QuentStruct {
 
     pub fn new_empty() -> Box<Self> {
         Box::new(QuentStruct {
-            inner: quent_events::attributes::Struct(Vec::new()),
+            inner: quent_attributes::Struct(Vec::new()),
         })
     }
 

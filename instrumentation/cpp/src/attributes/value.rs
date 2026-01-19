@@ -1,5 +1,5 @@
 pub struct Value {
-    pub(crate) inner: quent_events::attributes::Value,
+    pub(crate) inner: quent_attributes::Value,
 }
 
 // Implement ExternType to allow this Rust type to be referenced from other bridges
@@ -13,211 +13,211 @@ unsafe impl cxx::ExternType for Value {
 impl Value {
     pub fn new_u8(value: u8) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::U8(value),
+            inner: quent_attributes::Value::U8(value),
         })
     }
 
     pub fn new_u16(value: u16) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::U16(value),
+            inner: quent_attributes::Value::U16(value),
         })
     }
 
     pub fn new_u32(value: u32) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::U32(value),
+            inner: quent_attributes::Value::U32(value),
         })
     }
 
     pub fn new_u64(value: u64) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::U64(value),
+            inner: quent_attributes::Value::U64(value),
         })
     }
 
     pub fn new_i8(value: i8) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::I8(value as u8),
+            inner: quent_attributes::Value::I8(value as u8),
         })
     }
 
     pub fn new_i16(value: i16) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::I16(value),
+            inner: quent_attributes::Value::I16(value),
         })
     }
 
     pub fn new_i32(value: i32) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::I32(value),
+            inner: quent_attributes::Value::I32(value),
         })
     }
 
     pub fn new_i64(value: i64) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::I64(value),
+            inner: quent_attributes::Value::I64(value),
         })
     }
 
     pub fn new_f32(value: f32) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::F32(value),
+            inner: quent_attributes::Value::F32(value),
         })
     }
 
     pub fn new_f64(value: f64) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::F64(value),
+            inner: quent_attributes::Value::F64(value),
         })
     }
 
     pub fn new_string(value: String) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::String(value),
+            inner: quent_attributes::Value::String(value),
         })
     }
 
     #[allow(clippy::boxed_local)]
     pub fn new_list(list: Box<super::List>) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::List(list.inner),
+            inner: quent_attributes::Value::List(list.inner),
         })
     }
 
     #[allow(clippy::boxed_local)]
     pub fn new_struct(s: Box<super::QuentStruct>) -> Box<Self> {
         Box::new(Value {
-            inner: quent_events::attributes::Value::Struct(s.inner),
+            inner: quent_attributes::Value::Struct(s.inner),
         })
     }
 
     // Type checking methods
     pub fn is_u8(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::U8(_))
+        matches!(self.inner, quent_attributes::Value::U8(_))
     }
 
     pub fn is_u16(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::U16(_))
+        matches!(self.inner, quent_attributes::Value::U16(_))
     }
 
     pub fn is_u32(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::U32(_))
+        matches!(self.inner, quent_attributes::Value::U32(_))
     }
 
     pub fn is_u64(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::U64(_))
+        matches!(self.inner, quent_attributes::Value::U64(_))
     }
 
     pub fn is_i8(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::I8(_))
+        matches!(self.inner, quent_attributes::Value::I8(_))
     }
 
     pub fn is_i16(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::I16(_))
+        matches!(self.inner, quent_attributes::Value::I16(_))
     }
 
     pub fn is_i32(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::I32(_))
+        matches!(self.inner, quent_attributes::Value::I32(_))
     }
 
     pub fn is_i64(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::I64(_))
+        matches!(self.inner, quent_attributes::Value::I64(_))
     }
 
     pub fn is_f32(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::F32(_))
+        matches!(self.inner, quent_attributes::Value::F32(_))
     }
 
     pub fn is_f64(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::F64(_))
+        matches!(self.inner, quent_attributes::Value::F64(_))
     }
 
     pub fn is_string(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::String(_))
+        matches!(self.inner, quent_attributes::Value::String(_))
     }
 
     pub fn is_list(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::List(_))
+        matches!(self.inner, quent_attributes::Value::List(_))
     }
 
     pub fn is_struct(&self) -> bool {
-        matches!(self.inner, quent_events::attributes::Value::Struct(_))
+        matches!(self.inner, quent_attributes::Value::Struct(_))
     }
 
     // Getter methods with Result for safety
     pub fn as_u8(&self) -> Result<u8, String> {
         match self.inner {
-            quent_events::attributes::Value::U8(v) => Ok(v),
+            quent_attributes::Value::U8(v) => Ok(v),
             _ => Err("Value is not a U8".to_string()),
         }
     }
 
     pub fn as_u16(&self) -> Result<u16, String> {
         match self.inner {
-            quent_events::attributes::Value::U16(v) => Ok(v),
+            quent_attributes::Value::U16(v) => Ok(v),
             _ => Err("Value is not a U16".to_string()),
         }
     }
 
     pub fn as_u32(&self) -> Result<u32, String> {
         match self.inner {
-            quent_events::attributes::Value::U32(v) => Ok(v),
+            quent_attributes::Value::U32(v) => Ok(v),
             _ => Err("Value is not a U32".to_string()),
         }
     }
 
     pub fn as_u64(&self) -> Result<u64, String> {
         match self.inner {
-            quent_events::attributes::Value::U64(v) => Ok(v),
+            quent_attributes::Value::U64(v) => Ok(v),
             _ => Err("Value is not a U64".to_string()),
         }
     }
 
     pub fn as_i8(&self) -> Result<i8, String> {
         match self.inner {
-            quent_events::attributes::Value::I8(v) => Ok(v as i8),
+            quent_attributes::Value::I8(v) => Ok(v as i8),
             _ => Err("Value is not an I8".to_string()),
         }
     }
 
     pub fn as_i16(&self) -> Result<i16, String> {
         match self.inner {
-            quent_events::attributes::Value::I16(v) => Ok(v),
+            quent_attributes::Value::I16(v) => Ok(v),
             _ => Err("Value is not an I16".to_string()),
         }
     }
 
     pub fn as_i32(&self) -> Result<i32, String> {
         match self.inner {
-            quent_events::attributes::Value::I32(v) => Ok(v),
+            quent_attributes::Value::I32(v) => Ok(v),
             _ => Err("Value is not an I32".to_string()),
         }
     }
 
     pub fn as_i64(&self) -> Result<i64, String> {
         match self.inner {
-            quent_events::attributes::Value::I64(v) => Ok(v),
+            quent_attributes::Value::I64(v) => Ok(v),
             _ => Err("Value is not an I64".to_string()),
         }
     }
 
     pub fn as_f32(&self) -> Result<f32, String> {
         match self.inner {
-            quent_events::attributes::Value::F32(v) => Ok(v),
+            quent_attributes::Value::F32(v) => Ok(v),
             _ => Err("Value is not an F32".to_string()),
         }
     }
 
     pub fn as_f64(&self) -> Result<f64, String> {
         match self.inner {
-            quent_events::attributes::Value::F64(v) => Ok(v),
+            quent_attributes::Value::F64(v) => Ok(v),
             _ => Err("Value is not an F64".to_string()),
         }
     }
 
     pub fn as_string(&self) -> Result<String, String> {
         match &self.inner {
-            quent_events::attributes::Value::String(s) => Ok(s.clone()),
+            quent_attributes::Value::String(s) => Ok(s.clone()),
             _ => Err("Value is not a String".to_string()),
         }
     }

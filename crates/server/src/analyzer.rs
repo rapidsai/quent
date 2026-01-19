@@ -1,11 +1,27 @@
-use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
+use std::num::NonZero;
+
+use axum::{
+    Json, Router,
+    extract::{Path, Query},
+    http::StatusCode,
+    routing::get,
+};
 use quent_analyzer::{Analyzer, query::QueryBundle};
 use quent_entities::{
-    engine::Engine, query_group::QueryGroup, timeline::ResourceTimeline, worker::Worker,
+    engine::Engine,
+    query_group::QueryGroup,
+    timeline::{ResourceTimeline, ResourceTimelineBinned},
+    worker::Worker,
 };
 use quent_exporter_ndjson::NdjsonImporter;
+use serde::Deserialize;
 use tracing::error;
 use uuid::Uuid;
+
+#[derive(Deserialize)]
+struct NumBinsQuery {
+    num_bins: u64,
+}
 
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all)]
@@ -131,7 +147,24 @@ async fn resource_use_timeline(
         .map_err(|_| StatusCode::NOT_FOUND)?;
     let analyzer =
         Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let timeline = analyzer.resource_usage_timeline(resource_id)?;
+    let timeline = analyzer.resource_usage_spans(resource_id)?;
+    Ok(Json(timeline))
+}
+
+#[tracing::instrument(skip_all)]
+async fn resource_use_timeline_aggregated(
+    Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
+    Query(query): Query<NumBinsQuery>,
+) -> Result<Json<ResourceTimelineBinned>, StatusCode> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let analyzer =
+        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let num_bins =
+        NonZero::try_from(query.num_bins).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let config = quent_time::bin::BinnedSpan::try_new(analyzer.timestamp_span(), num_bins)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let timeline = analyzer.resource_usage_aggregated(resource_id, config)?;
     Ok(Json(timeline))
 }
 
@@ -158,5 +191,9 @@ pub fn routes() -> Router<()> {
         .route(
             "/engine/{engine_id}/timeline/resource/use/{resource_id}",
             get(resource_use_timeline),
+        )
+        .route(
+            "/engine/{engine_id}/timeline/resource/agg/{resource_id}",
+            get(resource_use_timeline_aggregated),
         )
 }
