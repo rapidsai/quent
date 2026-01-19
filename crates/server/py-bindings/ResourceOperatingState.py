@@ -2,7 +2,7 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
+from .CapacityValue import CapacityValue
 
 
 
@@ -12,4 +12,4 @@ class ResourceOperatingState(BaseModel):
 	"""
 	
 	timestamp: int
-	capacities: list[Attribute]
+	capacities: list[CapacityValue]

@@ -2,11 +2,14 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
+from .Value import Value
 
 
 
-class Use(BaseModel):
-
-	resource: str
-	capacities: list[Attribute]
+class CapacityValue(BaseModel):
+	"""
+	 A Resource Capacity
+	"""
+	
+	name: str
+	bound: Value | None

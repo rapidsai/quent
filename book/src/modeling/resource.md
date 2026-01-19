@@ -26,6 +26,18 @@ can be fixed or change during the lifetime of the [Resource][resource].
 
 A Capacity is declared as a set of [Attributes][attribute].
 
+A Capacity can be of two types:
+
+- An `Occupancy`-type capacity: A [Use][use] value represents the amount of
+  Resource Capacity held/occupied during a Span.
+- A `Rate`-type capacity: A [Use][use] value represents the total quantity
+  processed over the span.
+
+A Capacity type is declared through the following attribute:
+
+- `capacity_<capacity_name>_is_rate: bool`: `true` if it is a `Rate` Capacity,
+  `false` otherwise.
+
 ### Unbounded capacity
 
 If the Capacity is unbounded, then it is declared by the following
@@ -33,7 +45,7 @@ If the Capacity is unbounded, then it is declared by the following
 
 - `capacity_<capacity_name>: option<T>` where:
   - T is any unsigned integer
-- The value of this attribute must be `none`.
+  - The value of this attribute must be `none`.
 
 ### Bounded capacity
 

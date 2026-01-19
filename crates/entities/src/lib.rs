@@ -4,7 +4,7 @@
 //! generators will not support them.
 use py_rs::PY;
 use quent_events::engine::EngineImplementationAttributes;
-use quent_events::{attributes::Attribute, resource::Scope};
+use quent_events::resource::Scope;
 use quent_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -14,6 +14,7 @@ use crate::relation::Related;
 
 pub mod fsm;
 pub mod relation;
+pub mod resource;
 pub mod timeline;
 
 // TODO(johanpel): figure out if we can stop being so verbose in prefixing type
@@ -465,144 +466,6 @@ pub mod plan {
             } else {
                 vec![].into_iter()
             }
-        }
-    }
-}
-
-pub mod resource {
-    use super::*;
-
-    /// Attributes of the "Operating" state of a Resource.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
-    pub struct ResourceOperatingState {
-        pub timestamp: Timestamp,
-        pub capacities: Vec<Attribute>,
-    }
-
-    /// Resource states.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
-    pub enum ResourceState {
-        Init(Timestamp),
-        Operating(ResourceOperatingState),
-        Resizing(Timestamp),
-        Finalizing(Timestamp),
-        Exit(Timestamp),
-    }
-
-    /// A Resource of which its Capacities cannot be resized.
-    #[derive(TS, PY, Clone, Default, Debug, Deserialize, Serialize)]
-    pub struct Resource {
-        /// The ID of this Resource
-        pub id: Uuid,
-        /// The name of this Resource
-        pub instance_name: Option<String>,
-        /// The name of this Resource type
-        pub type_name: Option<String>,
-        /// The scope of this Resource.
-        pub scope: Option<EntityRef>,
-        /// The Capacities of this Resource.
-        ///
-        /// If this is empty, this is Unit resource.
-        pub capacities: Vec<Attribute>,
-        /// The sequence of states that this Resource
-        pub state_sequence: Vec<ResourceState>,
-    }
-
-    impl Entity for Resource {
-        fn new(id: Uuid) -> Self {
-            Self {
-                id,
-                ..Default::default()
-            }
-        }
-    }
-
-    impl Related for Resource {
-        fn relations(&self) -> impl Iterator<Item = EntityRef> {
-            if let Some(scope) = self.scope {
-                vec![scope].into_iter()
-            } else {
-                // Shouldn't happen after filtering out parentless things, but
-                // for good measure:
-                vec![].into_iter()
-            }
-        }
-    }
-
-    /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
-    /// ResourceGroup.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
-    pub struct ResourceGroupTimestamps {
-        /// The time at which the ResourceGroup started initialization.
-        pub init: Option<Timestamp>,
-        /// The time at which the ResourceGroup started operating.
-        pub operating: Option<Timestamp>,
-        /// The time at which the ResourceGroup started shutting down and
-        /// cleaning up its resources.
-        pub finalizing: Option<Timestamp>,
-        /// The time at which the ResourceGroup was completely destructed and
-        /// all resources were freed.
-        pub exit: Option<Timestamp>,
-    }
-
-    /// A Group of Resources.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
-    pub struct ResourceGroup {
-        /// The ID of this Resource Group
-        pub id: Uuid,
-        /// The name of the type of this Resource Group
-        pub type_name: Option<String>,
-        /// The name of the instance of this Resource Group
-        pub instance_name: Option<String>,
-        /// The scope of this Resource Group
-        pub scope: Option<EntityRef>,
-        /// The timestamps of state transitions of this ResourceGroup.
-        pub timestamps: ResourceGroupTimestamps,
-    }
-
-    impl Entity for ResourceGroup {
-        fn new(id: Uuid) -> Self {
-            Self {
-                id,
-                ..Default::default()
-            }
-        }
-    }
-
-    impl Related for ResourceGroup {
-        fn relations(&self) -> impl Iterator<Item = EntityRef> {
-            if let Some(scope) = self.scope {
-                vec![scope].into_iter()
-            } else {
-                // Shouldn't happen after filtering out parentless things, but
-                // for good measure:
-                vec![].into_iter()
-            }
-        }
-    }
-
-    #[derive(TS, PY, Clone, Debug, Deserialize, PartialEq, Serialize)]
-    pub struct Use {
-        pub resource: Uuid,
-        pub amounts: Vec<Attribute>,
-    }
-
-    impl Use {
-        pub fn new(resource: Uuid, amounts: Vec<Attribute>) -> Self {
-            Self { resource, amounts }
-        }
-
-        pub fn unit(resource: Uuid) -> Self {
-            Self {
-                resource,
-                amounts: vec![],
-            }
-        }
-    }
-
-    impl Related for Use {
-        fn relations(&self) -> impl Iterator<Item = EntityRef> {
-            [EntityRef::Resource(self.resource)].into_iter()
         }
     }
 }

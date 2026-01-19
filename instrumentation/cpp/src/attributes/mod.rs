@@ -9,7 +9,7 @@ pub use value::Value;
 
 #[derive(Clone, Debug)]
 pub struct Attribute {
-    pub(crate) inner: quent_events::attributes::Attribute,
+    pub(crate) inner: quent_attributes::Attribute,
 }
 
 // Implement ExternType to allow this Rust type to be referenced from other bridges
@@ -23,7 +23,7 @@ unsafe impl cxx::ExternType for Attribute {
 impl Attribute {
     pub fn new(key: String, value: Option<value::Value>) -> Self {
         Attribute {
-            inner: quent_events::attributes::Attribute {
+            inner: quent_attributes::Attribute {
                 key,
                 value: value.map(|v| v.inner),
             },

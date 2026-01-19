@@ -13,12 +13,13 @@ use quent_events::{
     worker,
 };
 use rand::{Rng, rng};
+use rayon::prelude::*;
 use tracing::info;
 use uuid::Uuid;
 
 const NUM_QUERY_GROUPS: usize = 1;
 const NUM_QUERIES: usize = 1; // per query group
-const NUM_TASKS: usize = 3; // per operator
+const NUM_TASKS: usize = 1024; // per operator
 
 const NUM_WORKERS: usize = 2;
 const NUM_THREADS: usize = 2; // per worker thread pool
@@ -609,7 +610,10 @@ impl Worker {
                 .collect::<Vec<_>>()
         );
 
-        for node_idx in nodes.into_iter() {
+        // TODO(johanpel): we're running ALL operators in parallel, which isn't
+        // really sensible, but it does provide overlapping usages that can be
+        // aggegrated.
+        nodes.into_par_iter().for_each(|node_idx| {
             let op = &plan.dag[node_idx];
             operator_obs.init(
                 op.id,
@@ -661,7 +665,7 @@ impl Worker {
             operator_obs.waiting_for_inputs(op.id, Default::default());
             operator_obs.finalizing(op.id, Default::default());
             operator_obs.exit(op.id, Default::default());
-        }
+        });
 
         plan_obs.idle(plan_id, Default::default());
         plan_obs.finalizing(plan_id, Default::default());

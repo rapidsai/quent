@@ -1,13 +1,19 @@
 //! Analyzes raw events to produce useful performance insights.
 
 use quent_entities::{
-    engine::Engine, query_group::QueryGroup, timeline::ResourceTimeline, worker::Worker,
+    engine::Engine,
+    query_group::QueryGroup,
+    timeline::{ResourceTimeline, ResourceTimelineBinned},
+    worker::Worker,
 };
 use quent_events::{Event as RawEvent, EventData};
+use quent_time::{Span, bin::BinnedSpan};
 use uuid::Uuid;
 
 use crate::{
-    entities::Entities, query::QueryBundle, timeline::make_resource_timeline_for_resource,
+    entities::Entities,
+    query::QueryBundle,
+    timeline::{make_resource_timeline_bin_aggregated, make_resource_timeline_for_resource},
 };
 
 pub mod entities;
@@ -36,6 +42,16 @@ impl Analyzer {
 
     pub fn engine(&self) -> &Engine {
         &self.entities.engine
+    }
+
+    /// Return a Span that spans all event timestamps.
+    pub fn timestamp_span(&self) -> Span {
+        // TODO(johanpel): calculate this as entities are constructed
+        Span::try_new(
+            self.engine().timestamps.init.unwrap(),
+            self.engine().timestamps.exit.unwrap(),
+        )
+        .unwrap()
     }
 
     // TODO(johanpel): this is separated from an engine, since we assume engines can have
@@ -68,8 +84,17 @@ impl Analyzer {
         QueryBundle::try_new(&self.entities, id)
     }
 
-    #[tracing::instrument(skip(self))]
-    pub fn resource_usage_timeline(&self, resource_id: Uuid) -> Result<ResourceTimeline> {
+    #[tracing::instrument(skip(self), err)]
+    pub fn resource_usage_spans(&self, resource_id: Uuid) -> Result<ResourceTimeline> {
         make_resource_timeline_for_resource(&self.entities, resource_id)
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub fn resource_usage_aggregated(
+        &self,
+        resource_id: Uuid,
+        config: BinnedSpan,
+    ) -> Result<ResourceTimelineBinned> {
+        make_resource_timeline_bin_aggregated(&self.entities, resource_id, config)
     }
 }

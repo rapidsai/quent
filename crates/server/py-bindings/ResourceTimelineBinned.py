@@ -2,11 +2,11 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
+from .BinnedSpan import BinnedSpan
 
 
 
-class Use(BaseModel):
+class ResourceTimelineBinned(BaseModel):
 
-	resource: str
-	capacities: list[Attribute]
+	config: BinnedSpan
+	capacity_values: { [key in str]?: list[float] }

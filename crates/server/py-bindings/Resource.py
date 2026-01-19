@@ -2,7 +2,7 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
+from .CapacityDecl import CapacityDecl
 from .EntityRef import EntityRef
 from .ResourceState import ResourceState
 
@@ -27,7 +27,7 @@ class Resource(BaseModel):
 	"""
 	 The name of this Resource type
 	"""
-	type_name: str | None
+	type_name: str
 	
 	"""
 	 The scope of this Resource.
@@ -39,7 +39,7 @@ class Resource(BaseModel):
 	
 	 If this is empty, this is Unit resource.
 	"""
-	capacities: list[Attribute]
+	capacities: { [key in str]?: CapacityDecl }
 	
 	"""
 	 The sequence of states that this Resource

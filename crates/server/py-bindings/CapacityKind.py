@@ -2,11 +2,11 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
 
 
+class CapacityKindIdentifier(StrEnum):
+	Occupancy = "Occupancy"
+	Rate = "Rate"
 
-class Use(BaseModel):
 
-	resource: str
-	capacities: list[Attribute]
+CapacityKind = CapacityKindIdentifier.Occupancy | CapacityKindIdentifier.Rate

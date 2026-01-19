@@ -1,5 +1,5 @@
 [package]
-name = "quent-time"
+name = "quent-attributes"
 version.workspace = true
 edition.workspace =  true
 
@@ -8,4 +8,3 @@ serde.workspace = true
 thiserror.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
 py-rs = {workspace = true}
-

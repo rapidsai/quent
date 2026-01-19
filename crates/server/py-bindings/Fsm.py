@@ -9,6 +9,6 @@ from .State import State
 class Fsm(BaseModel):
 
 	id: str
-	type_name: str | None
+	type_name: str
 	instance_name: str | None
 	state_sequence: list[State]

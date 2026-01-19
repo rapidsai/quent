@@ -7,13 +7,14 @@ edition.workspace = true
 crate-type = ["staticlib"]  # or "cdylib" if you prefer a shared library
 
 [dependencies]
+cxx = "1.0"
 quent = { path = "../rust" }
+quent-attributes = { path = "../../crates/attributes" }
 quent-events = { path = "../../crates/events" }
 quent-exporter-collector = { path = "../../crates/exporter/collector" }
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
-cxx = "1.0"
 
 [build-dependencies]
 cxx-build = "1.0"

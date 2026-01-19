@@ -8,14 +8,15 @@ default = []
 q = ["quent-events/q"]
 
 [dependencies]
-quent-events = { path = "../events" }
-quent-time = { path = "../time" }
-quent-entities = { path = "../entities" }
-quent-exporter-ndjson = { path = "../exporter/ndjson" }
-uuid.workspace = true
-tracing.workspace = true
-thiserror.workspace = true
 http = "*"
-serde.workspace = true
-ts-rs.workspace = true
 py-rs.workspace = true
+quent-attributes = { path = "../attributes" }
+quent-entities = { path = "../entities" }
+quent-events = { path = "../events" }
+quent-exporter-ndjson = { path = "../exporter/ndjson" }
+quent-time = { path = "../time" }
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+ts-rs.workspace = true
+uuid.workspace = true

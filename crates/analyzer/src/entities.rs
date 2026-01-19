@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+#[cfg(feature = "q")]
+use quent_attributes::Attribute;
+use quent_attributes::Value;
 use quent_entities::{
     Entity, EntityRef,
     engine::Engine,
@@ -9,15 +12,15 @@ use quent_entities::{
     query::Query,
     query_group::QueryGroup,
     relation::Related,
-    resource::{Resource, ResourceGroup, ResourceOperatingState, ResourceState},
+    resource::{
+        CapacityDecl, CapacityValue, Resource, ResourceGroup, ResourceOperatingState, ResourceState,
+    },
     worker::Worker,
 };
 #[cfg(feature = "q")]
 use quent_entities::{fsm::State, resource::Use};
-
 use quent_events::{
     EventData,
-    attributes::{Attribute, Value},
     engine::EngineEvent,
     operator::OperatorEvent,
     query::QueryEvent,
@@ -66,6 +69,7 @@ pub struct Entities {
     pub plans: HashMap<Uuid, Plan>,
     pub operators: HashMap<Uuid, Operator>,
     pub ports: HashMap<Uuid, Port>,
+    // TODO(johanpel): don't send this to the UI, this can get very big
     pub custom_fsms: HashMap<Uuid, Fsm>,
 }
 
@@ -228,13 +232,11 @@ impl Entities {
                                     entry
                                         .state_sequence
                                         .push(ResourceState::Init(event.timestamp));
-                                    entry.capacities = vec![Attribute {
-                                        key: "bytes".to_string(),
-                                        // TODO(johanpel): have a better
-                                        // mechanism to convey this is bounded
-                                        value: Some(Value::U64(0)),
-                                    }];
-                                    entry.type_name = Some(init.resource.type_name);
+                                    entry.capacities = HashMap::from([(
+                                        "bytes".to_string(),
+                                        CapacityDecl::new_occupancy("bytes", Value::U64(0)),
+                                    )]);
+                                    entry.type_name = init.resource.type_name;
                                     entry.instance_name = Some(init.resource.instance_name);
                                     entry.scope = Some(init.resource.scope.into());
                                 }
@@ -242,10 +244,10 @@ impl Entities {
                                     .state_sequence
                                     .push(ResourceState::Operating(ResourceOperatingState {
                                         timestamp: event.timestamp,
-                                        capacities: vec![Attribute {
-                                            key: "capacity_bytes".to_string(),
-                                            value: Some(Value::U64(operating.capacity_bytes)),
-                                        }],
+                                        capacities: vec![CapacityValue::new(
+                                            "bytes",
+                                            Some(Value::U64(operating.capacity_bytes)),
+                                        )],
                                     })),
                                 memory::MemoryEvent::Resizing(_) => entry
                                     .state_sequence
@@ -265,7 +267,7 @@ impl Entities {
                                 entry
                                     .state_sequence
                                     .push(ResourceState::Init(event.timestamp));
-                                entry.type_name = Some(init.resource.type_name);
+                                entry.type_name = init.resource.type_name;
                                 entry.instance_name = Some(init.resource.instance_name);
                                 entry.scope = Some(init.resource.scope.into());
                             }
@@ -288,14 +290,11 @@ impl Entities {
                                     entry
                                         .state_sequence
                                         .push(ResourceState::Init(event.timestamp));
-                                    // TODO(johanpel): figure out how to convey
-                                    // to the UI that it has to render this as a
-                                    // throughput thing.
-                                    entry.capacities = vec![Attribute {
-                                        key: "bytes".to_string(),
-                                        value: None,
-                                    }];
-                                    entry.type_name = Some(init.resource.type_name);
+                                    entry.capacities = HashMap::from([(
+                                        "bytes".to_string(),
+                                        CapacityDecl::new_rate("bytes", Value::U64(0)),
+                                    )]);
+                                    entry.type_name = init.resource.type_name;
                                     entry.instance_name = Some(init.resource.instance_name);
                                     entry.scope = Some(init.resource.scope.into());
                                 }
@@ -344,7 +343,7 @@ impl Entities {
                             let entry = entry(&mut custom_fsms, event.id);
                             match task_event {
                                 TaskEvent::Initializing(initializing) => {
-                                    entry.type_name = Some("Task".into());
+                                    entry.type_name = "Task".into();
                                     entry.instance_name = initializing.name;
                                     entry.state_sequence.push(State {
                                         name: "init".into(),
@@ -435,7 +434,7 @@ impl Entities {
                                             Use::unit(computing.use_task_thread),
                                             Use {
                                                 resource: computing.use_main_memory,
-                                                amounts: vec![Attribute::u64(
+                                                capacities: vec![Attribute::u64(
                                                     "bytes",
                                                     computing.use_main_memory_bytes,
                                                 )],
@@ -742,21 +741,13 @@ impl Entities {
         ]
         .into_iter()
         .map(ToString::to_string);
-        let resources = self
-            .resources
-            .values()
-            .filter_map(|res| res.type_name.as_ref())
-            .cloned();
+        let resources = self.resources.values().map(|res| res.type_name.clone());
         let resource_groups = self
             .resource_groups
             .values()
             .filter_map(|res| res.type_name.as_ref())
             .cloned();
-        let custom_fsms = self
-            .custom_fsms
-            .values()
-            .filter_map(|fsm| fsm.type_name.as_ref())
-            .cloned();
+        let custom_fsms = self.custom_fsms.values().map(|fsm| fsm.type_name.clone());
 
         base.chain(resources)
             .chain(resource_groups)

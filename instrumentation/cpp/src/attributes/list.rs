@@ -1,5 +1,5 @@
 pub struct List {
-    pub(crate) inner: quent_events::attributes::List,
+    pub(crate) inner: quent_attributes::List,
 }
 
 // Implement ExternType to allow this Rust type to be referenced from other bridges
@@ -13,80 +13,80 @@ unsafe impl cxx::ExternType for List {
 impl List {
     pub fn new_u8(values: Vec<u8>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::U8(values),
+            inner: quent_attributes::List::U8(values),
         })
     }
 
     pub fn new_u16(values: Vec<u16>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::U16(values),
+            inner: quent_attributes::List::U16(values),
         })
     }
 
     pub fn new_u32(values: Vec<u32>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::U32(values),
+            inner: quent_attributes::List::U32(values),
         })
     }
 
     pub fn new_u64(values: Vec<u64>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::U64(values),
+            inner: quent_attributes::List::U64(values),
         })
     }
 
     pub fn new_i8(values: Vec<i8>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::I8(values),
+            inner: quent_attributes::List::I8(values),
         })
     }
 
     pub fn new_i16(values: Vec<i16>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::I16(values),
+            inner: quent_attributes::List::I16(values),
         })
     }
 
     pub fn new_i32(values: Vec<i32>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::I32(values),
+            inner: quent_attributes::List::I32(values),
         })
     }
 
     pub fn new_i64(values: Vec<i64>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::I64(values),
+            inner: quent_attributes::List::I64(values),
         })
     }
 
     pub fn new_f32(values: Vec<f32>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::F32(values),
+            inner: quent_attributes::List::F32(values),
         })
     }
 
     pub fn new_f64(values: Vec<f64>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::F64(values),
+            inner: quent_attributes::List::F64(values),
         })
     }
 
     pub fn new_string(values: Vec<String>) -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::String(values),
+            inner: quent_attributes::List::String(values),
         })
     }
 
     pub fn new_struct_empty() -> Box<Self> {
         Box::new(List {
-            inner: quent_events::attributes::List::Struct(Vec::new()),
+            inner: quent_attributes::List::Struct(Vec::new()),
         })
     }
 
     #[allow(clippy::boxed_local)]
     pub fn add_struct(&mut self, s: Box<super::quent_struct::QuentStruct>) {
         match &mut self.inner {
-            quent_events::attributes::List::Struct(v) => {
+            quent_attributes::List::Struct(v) => {
                 v.push(s.inner);
             }
             _ => {
@@ -98,18 +98,18 @@ impl List {
 
     pub fn len(&self) -> usize {
         match &self.inner {
-            quent_events::attributes::List::U8(v) => v.len(),
-            quent_events::attributes::List::U16(v) => v.len(),
-            quent_events::attributes::List::U32(v) => v.len(),
-            quent_events::attributes::List::U64(v) => v.len(),
-            quent_events::attributes::List::I8(v) => v.len(),
-            quent_events::attributes::List::I16(v) => v.len(),
-            quent_events::attributes::List::I32(v) => v.len(),
-            quent_events::attributes::List::I64(v) => v.len(),
-            quent_events::attributes::List::F32(v) => v.len(),
-            quent_events::attributes::List::F64(v) => v.len(),
-            quent_events::attributes::List::String(v) => v.len(),
-            quent_events::attributes::List::Struct(v) => v.len(),
+            quent_attributes::List::U8(v) => v.len(),
+            quent_attributes::List::U16(v) => v.len(),
+            quent_attributes::List::U32(v) => v.len(),
+            quent_attributes::List::U64(v) => v.len(),
+            quent_attributes::List::I8(v) => v.len(),
+            quent_attributes::List::I16(v) => v.len(),
+            quent_attributes::List::I32(v) => v.len(),
+            quent_attributes::List::I64(v) => v.len(),
+            quent_attributes::List::F32(v) => v.len(),
+            quent_attributes::List::F64(v) => v.len(),
+            quent_attributes::List::String(v) => v.len(),
+            quent_attributes::List::Struct(v) => v.len(),
         }
     }
 

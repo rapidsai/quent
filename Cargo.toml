@@ -2,16 +2,17 @@
 resolver = "3"
 members = [
     "crates/analyzer",
+    "crates/attributes",
     "crates/collector",
     "crates/entities",
     "crates/events",
     "crates/exporter",
-    "crates/exporter/ndjson",
     "crates/exporter/collector",
+    "crates/exporter/ndjson",
     "crates/server",
     "crates/time",
+    "instrumentation/cpp",
     "instrumentation/rust",
-    "instrumentation/cpp"
 ]
 
 [workspace.package]
@@ -22,6 +23,7 @@ edition = "2024"
 async-trait = "0.1.89"
 log = {version = "0.4.28", features = ["kv"]}
 prost = "0.14.1"
+py-rs = "0.1.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 thiserror = "2.0.17"
@@ -33,5 +35,4 @@ tonic-prost = "0.14.2"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 ts-rs = "11.1.0"
-py-rs = "0.1.1"
 uuid = {version = "1.18.1", features = ["v7"]}

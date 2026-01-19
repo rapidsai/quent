@@ -9,17 +9,17 @@ use ts_rs::TS;
 use crate::{Duration, Result, Span, TimeError, Timestamp};
 
 /// A span of time separated into equally-sized bins of time.
-#[derive(TS, PY, Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(TS, PY, Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BinnedSpan {
     // The entire span of time this binned span represents.
-    span: Span,
+    pub span: Span,
     // The duration of one bin.
-    bin_duration: NonZero<Duration>,
+    pub bin_duration: NonZero<Duration>,
     // The number of bins.
     //
     // This is a u64, because a u64::MAX duration span could be binned into
     // u64::MAX bins.
-    num_bins: NonZero<u64>,
+    pub num_bins: NonZero<u64>,
 }
 
 impl BinnedSpan {
@@ -56,6 +56,17 @@ impl BinnedSpan {
             bin_duration: bin_size,
             num_bins,
         })
+    }
+
+    #[inline]
+    pub fn num_bins(&self) -> NonZero<u64> {
+        self.num_bins
+    }
+
+    /// Return the duration of each bin
+    #[inline]
+    pub fn bin_duration(&self) -> NonZero<u64> {
+        self.bin_duration
     }
 
     /// Return the index of the bin in which the provided timestamp lies, if at all.
@@ -115,16 +126,13 @@ impl BinnedSpan {
         &self,
         span: &Span,
     ) -> impl Iterator<Item = (u64, Duration)> {
-        // TODO(johanpel): this could be optimized by only calling overlap for the first and last bin
-        self.iter_indices(span).map(|index| {
-            (
-                index,
-                self.bin(index)
-                    .unwrap()
-                    .intersection(span)
-                    .unwrap()
-                    .duration(),
-            )
+        // TODO(johanpel): this could be optimized by only calling
+        // intersection() for the first and last bin
+        self.iter_indices(span).filter_map(|index| {
+            self.bin(index)
+                .unwrap()
+                .intersection(span)
+                .map(|span| (index, span.duration()))
         })
     }
 }

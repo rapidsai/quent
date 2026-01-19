@@ -2,11 +2,15 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
+from .Span import Span
 
 
 
-class Use(BaseModel):
-
-	resource: str
-	capacities: list[Attribute]
+class BinnedSpan(BaseModel):
+	"""
+	 A span of time separated into equally-sized bins of time.
+	"""
+	
+	span: Span
+	bin_duration: int
+	num_bins: int
