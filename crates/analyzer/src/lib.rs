@@ -3,7 +3,7 @@
 use quent_entities::{
     engine::Engine,
     query_group::QueryGroup,
-    timeline::{ResourceTimeline, ResourceTimelineBinned},
+    timeline::{ResourceTimeline, ResourceTimelineBinned, ResourceTimelineBinnedByState},
     worker::Worker,
 };
 use quent_events::{Event as RawEvent, EventData};
@@ -13,7 +13,10 @@ use uuid::Uuid;
 use crate::{
     entities::Entities,
     query::QueryBundle,
-    timeline::{make_resource_timeline_bin_aggregated, make_resource_timeline_for_resource},
+    timeline::{
+        make_resource_timeline_bin_aggregated, make_resource_timeline_for_resource,
+        make_resource_timeline_state_and_bin_aggregated,
+    },
 };
 
 pub mod entities;
@@ -96,5 +99,20 @@ impl Analyzer {
         config: BinnedSpan,
     ) -> Result<ResourceTimelineBinned> {
         make_resource_timeline_bin_aggregated(&self.entities, resource_id, config)
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub fn resource_usage_states_aggregated(
+        &self,
+        resource_id: Uuid,
+        config: BinnedSpan,
+        fsm_type_name: String,
+    ) -> Result<ResourceTimelineBinnedByState> {
+        make_resource_timeline_state_and_bin_aggregated(
+            &self.entities,
+            resource_id,
+            config,
+            fsm_type_name,
+        )
     }
 }

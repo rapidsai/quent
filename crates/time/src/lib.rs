@@ -8,6 +8,10 @@ use ts_rs::TS;
 pub mod bin;
 
 /// The number of nanoseconds expired since the Unix epoch.
+// TODO(johanpel): u64::MAX should be excluded as a valid timestamp because it
+// cannot fall into half-open span intervals. There is a possibility to make
+// this a sentinel value for "potentially up to infinity" which may be useful
+// when events are missing, e.g. state machine exit state timestamps.
 pub type Timestamp = u64;
 
 /// An amount of time in nanoseconds.

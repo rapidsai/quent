@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from enum import StrEnum
 
 from .CapacityKind import CapacityKind
-from .Value import Value
 
 
 
@@ -14,4 +13,3 @@ class CapacityDecl(BaseModel):
 	
 	name: str
 	kind: CapacityKind
-	value_type: Value

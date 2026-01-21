@@ -10,18 +10,13 @@ use quent_analyzer::{Analyzer, query::QueryBundle};
 use quent_entities::{
     engine::Engine,
     query_group::QueryGroup,
-    timeline::{ResourceTimeline, ResourceTimelineBinned},
+    timeline::{ResourceTimeline, ResourceTimelineBinned, ResourceTimelineBinnedByState},
     worker::Worker,
 };
 use quent_exporter_ndjson::NdjsonImporter;
 use serde::Deserialize;
 use tracing::error;
 use uuid::Uuid;
-
-#[derive(Deserialize)]
-struct NumBinsQuery {
-    num_bins: u64,
-}
 
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all)]
@@ -151,10 +146,15 @@ async fn resource_use_timeline(
     Ok(Json(timeline))
 }
 
+#[derive(Deserialize)]
+struct ResourceUsageAggregatedQuery {
+    num_bins: u64,
+}
+
 #[tracing::instrument(skip_all)]
 async fn resource_use_timeline_aggregated(
     Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
-    Query(query): Query<NumBinsQuery>,
+    Query(query): Query<ResourceUsageAggregatedQuery>,
 ) -> Result<Json<ResourceTimelineBinned>, StatusCode> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -165,6 +165,30 @@ async fn resource_use_timeline_aggregated(
     let config = quent_time::bin::BinnedSpan::try_new(analyzer.timestamp_span(), num_bins)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let timeline = analyzer.resource_usage_aggregated(resource_id, config)?;
+    Ok(Json(timeline))
+}
+
+#[derive(Deserialize)]
+struct ResourceUsageStatesAggregatedQuery {
+    fsm_type_name: String,
+    num_bins: u64,
+}
+
+#[tracing::instrument(skip_all)]
+async fn resource_use_timeline_state_aggregated(
+    Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
+    Query(query): Query<ResourceUsageStatesAggregatedQuery>,
+) -> Result<Json<ResourceTimelineBinnedByState>, StatusCode> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let analyzer =
+        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let num_bins =
+        NonZero::try_from(query.num_bins).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let config = quent_time::bin::BinnedSpan::try_new(analyzer.timestamp_span(), num_bins)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let timeline =
+        analyzer.resource_usage_states_aggregated(resource_id, config, query.fsm_type_name)?;
     Ok(Json(timeline))
 }
 
@@ -189,11 +213,15 @@ pub fn routes() -> Router<()> {
         )
         .route("/engine/{engine_id}/query/{query_id}", get(query))
         .route(
-            "/engine/{engine_id}/timeline/resource/use/{resource_id}",
+            "/engine/{engine_id}/timeline/resource/{resource_id}/use/all",
             get(resource_use_timeline),
         )
         .route(
-            "/engine/{engine_id}/timeline/resource/agg/{resource_id}",
+            "/engine/{engine_id}/timeline/resource/{resource_id}/agg/all",
             get(resource_use_timeline_aggregated),
+        )
+        .route(
+            "/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm",
+            get(resource_use_timeline_state_aggregated),
         )
 }

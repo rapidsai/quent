@@ -11,6 +11,8 @@ pub enum Error {
     Logic(String),
     #[error("time error: {0}")]
     Time(#[from] quent_time::TimeError),
+    #[error("entity error: {0}")]
+    Entity(#[from] quent_entities::error::EntityError),
     #[error("value type error: {0}")]
     ValueType(String),
 }
@@ -18,9 +20,11 @@ pub enum Error {
 impl From<Error> for StatusCode {
     fn from(value: Error) -> Self {
         match value {
-            Error::Validation(_) | Error::Logic(_) | Error::Time(_) | Error::ValueType(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            Error::Validation(_)
+            | Error::Logic(_)
+            | Error::Time(_)
+            | Error::ValueType(_)
+            | Error::Entity(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::InvalidId(_) => StatusCode::NOT_FOUND,
         }
     }

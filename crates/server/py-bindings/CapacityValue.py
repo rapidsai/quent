@@ -2,7 +2,6 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Value import Value
 
 
 
@@ -12,4 +11,4 @@ class CapacityValue(BaseModel):
 	"""
 	
 	name: str
-	bound: Value | None
+	value: int | None

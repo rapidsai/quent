@@ -13,5 +13,6 @@ quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
 quent-time = { path = "../time" }
 serde.workspace = true
+thiserror.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
 uuid.workspace = true

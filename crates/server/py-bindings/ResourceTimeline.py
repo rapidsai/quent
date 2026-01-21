@@ -8,6 +8,17 @@ from .Span import Span
 
 
 class ResourceTimeline(BaseModel):
-
+	"""
+	 A timeline of individual [`ResourceTimelineUse`]s.
+	"""
+	
+	
+	"""
+	 The span of time for which the usages are included.
+	"""
 	span: Span
+	
+	"""
+	 The uses, arbitrarily ordered.
+	"""
 	uses: list[ResourceTimelineUse]

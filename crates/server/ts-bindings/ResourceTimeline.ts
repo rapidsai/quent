@@ -2,4 +2,15 @@
 import type { ResourceTimelineUse } from "./ResourceTimelineUse";
 import type { Span } from "./Span";
 
-export type ResourceTimeline = { span: Span, uses: Array<ResourceTimelineUse>, };
+/**
+ * A timeline of individual [`ResourceTimelineUse`]s.
+ */
+export type ResourceTimeline = { 
+/**
+ * The span of time for which the usages are included.
+ */
+span: Span, 
+/**
+ * The uses, arbitrarily ordered.
+ */
+uses: Array<ResourceTimelineUse>, };

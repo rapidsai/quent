@@ -6,7 +6,7 @@ from .BinnedSpan import BinnedSpan
 
 
 
-class ResourceTimelineBinned(BaseModel):
+class ResourceTimelineBinnedByState(BaseModel):
 
 	
 	"""
@@ -15,7 +15,7 @@ class ResourceTimelineBinned(BaseModel):
 	config: BinnedSpan
 	
 	"""
-	 Maps a resource capacity name to a vector where each element holds an
-	 aggregated value of a time bin.
+	 Maps a resource capacity name to a map of a state name to a vector where
+	 each element holds an aggregated value of a time bin.
 	"""
-	capacities_values: { [key in str]?: list[float] }
+	capacities_states_values: { [key in str]?: { [key in str]?: list[float] } }

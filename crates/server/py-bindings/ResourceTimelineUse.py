@@ -2,14 +2,29 @@
 from pydantic import BaseModel
 from enum import StrEnum
 
-from .Attribute import Attribute
+from .CapacityValue import CapacityValue
 from .EntityRef import EntityRef
 from .Span import Span
 
 
 
 class ResourceTimelineUse(BaseModel):
-
+	"""
+	 An individual usage of a resource.
+	"""
+	
+	
+	"""
+	 The span of time in which the resource was utilized.
+	"""
 	span: Span
-	amounts: list[Attribute]
+	
+	"""
+	 The amounts of the resource's capacity that was utilized.
+	"""
+	amounts: list[CapacityValue]
+	
+	"""
+	 The entity that utilized the resource.
+	"""
 	entity: EntityRef

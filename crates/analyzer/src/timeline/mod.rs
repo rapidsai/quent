@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use quent_entities::{
     EntityRef,
     fsm::Fsm,
-    timeline::{ResourceTimeline, ResourceTimelineBinned, ResourceTimelineUse},
+    resource::CapacityKind,
+    timeline::{
+        ResourceTimeline, ResourceTimelineBinned, ResourceTimelineBinnedByState,
+        ResourceTimelineUse,
+    },
 };
 use quent_time::{Span, bin::BinnedSpan};
 use uuid::Uuid;
@@ -12,7 +16,7 @@ use crate::{
     Result,
     entities::Entities,
     error::Error,
-    timeline::binned::{BinnedTimelineAggregator, NumericPrimitiveBinnedTimeline},
+    timeline::binned::{BinnedTimelineAggregator, NamedAggregator},
 };
 
 pub mod binned;
@@ -89,27 +93,12 @@ pub fn make_resource_timeline_bin_aggregated(
 
     let resource = entities.resources.get(&resource_id).unwrap();
 
-    // Prepare a place to put binners. Since we're going to bin capacity uses
-    // which MUST be primitive numeric values per specification, we will be able
-    // to use NumericPrimitiveBinnedTimeline here.
-    let mut binners: HashMap<&str, NumericPrimitiveBinnedTimeline> = HashMap::new();
+    let mut aggregator = NamedAggregator::new(config);
 
     for (span, capacity) in entities
-        // Iterate over all entities that use resources
-        .iter_use_relations()
-        // Filter out entities that don't use our target resource
-        .filter_map(|(user, resource)| (Uuid::from(resource) == resource_id).then_some(user))
-        // Filter out anything that's not an FSM for now :tm:
-        .filter_map(|user| match user {
-            quent_entities::EntityRef::CustomFsm(uuid) => {
-                Some(entities.custom_fsms.get(&uuid).unwrap())
-            }
-            _ => None,
-        })
+        .iter_custom_fsms_using_resource(resource_id)
         // Flatten into spans and states with potential uses of this resource
-        .flat_map(|fsm| {
-            (0..fsm.state_sequence.len() - 1).map(|index| fsm.state_span(index).unwrap())
-        })
+        .flat_map(|fsm| fsm.state_spans())
         // Flatten into spans into usages.
         .flat_map(|state_span| {
             let span = state_span.span;
@@ -120,29 +109,94 @@ pub fn make_resource_timeline_bin_aggregated(
         // Flatten into various capacities of this resource
         .flat_map(|(span, usage)| usage.capacities.iter().map(move |amount| (span, amount)))
     {
-        if let Some(value) = &capacity.value {
-            let capacity_type =
-                resource
-                    .capacities
-                    .get(&capacity.key)
-                    .ok_or(Error::Logic(format!(
-                        "Use of undeclared resource capacity {}. Possible capacities only include: {:?}",
-                        capacity.key,
-                        resource.capacities.keys()
-                    )))?.kind;
-            binners
-                .entry(capacity.key.as_str())
-                .or_insert_with(|| NumericPrimitiveBinnedTimeline::new(config))
-                .try_push(span, (value.clone(), capacity_type))?
+        if let Some(value) = capacity.value {
+            let capacity_kind = resource.capacity(&capacity.name)?.kind;
+            let value = match capacity_kind {
+                CapacityKind::Occupancy => value as f64,
+                CapacityKind::Rate => value as f64 / span.duration() as f64,
+            };
+            aggregator.try_push(span, (value, capacity.name.as_str()))?
         }
     }
 
     Ok(ResourceTimelineBinned {
         config,
-        capacity_values: binners
+        capacities_values: aggregator
+            .try_finish()?
             .into_iter()
-            .map(|(k, v)| v.try_finish().map(|values| (k.to_string(), values)))
-            .collect::<Result<HashMap<_, _>>>()?,
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
+    })
+}
+
+pub fn make_resource_timeline_state_and_bin_aggregated(
+    entities: &Entities,
+    resource_id: Uuid,
+    config: BinnedSpan,
+    fsm_type_name: impl Into<String>,
+) -> Result<ResourceTimelineBinnedByState> {
+    let fsm_type_name = fsm_type_name.into();
+    // Sanity checks
+    check_entity_exists_or_error(entities, resource_id)?;
+    let resource = entities.resources.get(&resource_id).unwrap();
+
+    let mut binners: HashMap<&str, NamedAggregator> = HashMap::new();
+
+    for (span, capacity, state_name) in entities
+        .iter_custom_fsms_using_resource(resource_id)
+        // Filter out FSMs that don't have this type name
+        .filter(|fsm| fsm.type_name == fsm_type_name)
+        // Flatten into spans and states with potential uses of this resource
+        .flat_map(|fsm| fsm.state_spans())
+        // Flatten into spans into usages.
+        .flat_map(|state_span| {
+            state_span
+                .state
+                .uses
+                .iter()
+                .map(move |usage| (state_span.span, usage, &state_span.state.name))
+        })
+        // Filter states of which their usages aren't targeting this resource
+        .filter(|(_, usage, _)| usage.resource == resource_id)
+        // Flatten into various capacities of this resource
+        .flat_map(|(span, usage, state_name)| {
+            usage
+                .capacities
+                .iter()
+                .map(move |amount| (span, amount, state_name))
+        })
+    {
+        if let Some(value) = capacity.value {
+            let capacity_kind = resource.capacity(&capacity.name)?.kind;
+            let value = match capacity_kind {
+                CapacityKind::Occupancy => value as f64,
+                CapacityKind::Rate => value as f64 / span.duration() as f64,
+            };
+            binners
+                .entry(capacity.name.as_str())
+                .or_insert_with(|| NamedAggregator::new(config))
+                .try_push(span, (value, state_name))?
+        }
+    }
+
+    let capacities_states_values = binners
+        .into_iter()
+        .map(|(k, v)| {
+            v.try_finish().map(|values| {
+                (
+                    k.to_string(),
+                    values
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v))
+                        .collect(),
+                )
+            })
+        })
+        .collect::<Result<HashMap<_, _>>>()?;
+
+    Ok(ResourceTimelineBinnedByState {
+        config,
+        capacities_states_values,
     })
 }
 
@@ -153,10 +207,9 @@ mod tests {
     use crate::{entities::Entities, timeline::make_resource_timeline_bin_aggregated};
 
     use super::*;
-    use quent_attributes::{Attribute, Value};
     use quent_entities::{
         fsm,
-        resource::{CapacityDecl, Resource, Use},
+        resource::{CapacityDecl, CapacityValue, Resource, Use},
     };
     use quent_events::{Event, EventData, engine, resource};
     use quent_time::bin::BinnedSpan;
@@ -258,7 +311,7 @@ mod tests {
                             name: "using".into(),
                             uses: vec![Use {
                                 resource: resource_id,
-                                capacities: vec![Attribute::u64("bytes", 250)],
+                                capacities: vec![CapacityValue::new("bytes", 250)],
                             }],
                             timestamp: i * 100,
                             attributes: vec![],
@@ -276,6 +329,15 @@ mod tests {
             );
         }
 
+        // Sanity check
+        assert_eq!(
+            entities
+                .iter_custom_fsms_using_resource(resource_id)
+                .collect::<Vec<_>>()
+                .len(),
+            4
+        );
+
         let config = BinnedSpan::try_new(
             Span::try_new(0, 1000).unwrap(),
             NonZero::try_from(10).unwrap(),
@@ -289,9 +351,9 @@ mod tests {
         assert_eq!(timeline.config, config);
 
         // We should have bin datapoints for the "bytes" capacity.
-        assert!(timeline.capacity_values.contains_key("bytes"));
+        assert!(timeline.capacities_values.contains_key("bytes"));
 
-        let values = timeline.capacity_values.get("bytes").unwrap();
+        let values = timeline.capacities_values.get("bytes").unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -321,14 +383,8 @@ mod tests {
                 type_name: "test".into(),
                 scope: Some(EntityRef::Engine(engine_id)),
                 capacities: HashMap::from([
-                    (
-                        "a".to_string(),
-                        CapacityDecl::new_occupancy("a", Value::U64(0)),
-                    ),
-                    (
-                        "b".to_string(),
-                        CapacityDecl::new_occupancy("b", Value::U64(0)),
-                    ),
+                    ("a".to_string(), CapacityDecl::new_occupancy("a")),
+                    ("b".to_string(), CapacityDecl::new_occupancy("b")),
                 ]),
                 state_sequence: vec![],
             },
@@ -348,7 +404,10 @@ mod tests {
                             name: "using".into(),
                             uses: vec![Use {
                                 resource: resource_id,
-                                capacities: vec![Attribute::u64("a", 250), Attribute::u64("b", 1)],
+                                capacities: vec![
+                                    CapacityValue::new("a", 250),
+                                    CapacityValue::new("b", 1),
+                                ],
                             }],
                             timestamp: i * 250,
                             attributes: vec![],
@@ -366,6 +425,15 @@ mod tests {
             );
         }
 
+        // Sanity check
+        assert_eq!(
+            entities
+                .iter_custom_fsms_using_resource(resource_id)
+                .collect::<Vec<_>>()
+                .len(),
+            2
+        );
+
         let config = BinnedSpan::try_new(
             Span::try_new(0, 1000).unwrap(),
             NonZero::try_from(10).unwrap(),
@@ -376,11 +444,11 @@ mod tests {
             make_resource_timeline_bin_aggregated(&entities, resource_id, config).unwrap();
 
         assert_eq!(timeline.config, config);
-        assert!(timeline.capacity_values.contains_key("a"));
-        assert!(timeline.capacity_values.contains_key("b"));
+        assert!(timeline.capacities_values.contains_key("a"));
+        assert!(timeline.capacities_values.contains_key("b"));
 
-        let a = timeline.capacity_values.get("a").unwrap();
-        let b = timeline.capacity_values.get("b").unwrap();
+        let a = timeline.capacities_values.get("a").unwrap();
+        let b = timeline.capacities_values.get("b").unwrap();
 
         assert_eq!(
             a[..],
@@ -401,5 +469,127 @@ mod tests {
             ],
         );
         assert_eq!(b[..], [1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 1.5, 1.0, 1.0],);
+    }
+
+    #[test]
+    fn test_resource_timeline_aggregated_multi_state() {
+        let engine_id = Uuid::now_v7();
+        let resource_id = Uuid::now_v7();
+
+        // Feed some events
+        let events = engine_events(engine_id)
+            .into_iter()
+            .chain(memory_events(engine_id, resource_id));
+
+        let mut entities = Entities::try_new(engine_id, events).unwrap();
+
+        // Produce triangle-ish memory utilization using 4 FSMs with 2 usage states
+        for i in 0..4 {
+            let fsm = Uuid::now_v7();
+            let start = 100 * i;
+            let end = 1000 - i * 100;
+            entities.custom_fsms.insert(
+                fsm,
+                fsm::Fsm {
+                    id: fsm,
+                    type_name: "test".to_string(),
+                    instance_name: Some(format!("test-{i}")),
+                    state_sequence: vec![
+                        fsm::State {
+                            name: "state_a".into(),
+                            uses: vec![Use {
+                                resource: resource_id,
+                                capacities: vec![CapacityValue::new("bytes", 250)],
+                            }],
+                            timestamp: start,
+                            attributes: vec![],
+                            relations: vec![],
+                        },
+                        fsm::State {
+                            name: "state_b".into(),
+                            uses: vec![Use {
+                                resource: resource_id,
+                                capacities: vec![CapacityValue::new("bytes", 42)],
+                            }],
+                            timestamp: start + (end - start) / 2,
+                            attributes: vec![],
+                            relations: vec![],
+                        },
+                        fsm::State {
+                            name: "exit".into(),
+                            uses: vec![],
+                            timestamp: end,
+                            attributes: vec![],
+                            relations: vec![],
+                        },
+                    ],
+                },
+            );
+        }
+
+        // Sanity check
+        assert_eq!(
+            entities
+                .iter_custom_fsms_using_resource(resource_id)
+                .collect::<Vec<_>>()
+                .len(),
+            4
+        );
+
+        let config = BinnedSpan::try_new(
+            Span::try_new(0, 1000).unwrap(),
+            NonZero::try_from(10).unwrap(),
+        )
+        .unwrap();
+
+        let timeline =
+            make_resource_timeline_state_and_bin_aggregated(&entities, resource_id, config, "test")
+                .unwrap();
+
+        // Config shouldn't be modified.
+        assert_eq!(timeline.config, config);
+
+        // For each capacity, we should have values per state
+        assert!(timeline.capacities_states_values.contains_key("bytes"));
+        let bytes = timeline.capacities_states_values.get("bytes").unwrap();
+        assert!(bytes.contains_key("state_a"));
+        assert!(bytes.contains_key("state_b"));
+
+        let state_a_bytes = bytes.get("state_a").unwrap();
+        let state_b_bytes = bytes.get("state_b").unwrap();
+
+        // Check whether the "trianglish" utilization is correct after aggregation:
+        assert_eq!(
+            state_a_bytes[..],
+            [
+                // all four "a" states ramp up with 250 steps and end halfway the entire timeline
+                1.0 * 250.0,
+                2.0 * 250.0,
+                3.0 * 250.0,
+                4.0 * 250.0,
+                4.0 * 250.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+        );
+        assert_eq!(
+            state_b_bytes[..],
+            // all four "b" states start with 42 util halfway the tlime and then ramp down
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                42.0 * 4.0,
+                42.0 * 4.0,
+                42.0 * 3.0,
+                42.0 * 2.0,
+                42.0 * 1.0,
+            ],
+        );
     }
 }

@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::relation::Related;
 
+pub mod error;
 pub mod fsm;
 pub mod relation;
 pub mod resource;
@@ -27,7 +28,7 @@ pub trait Entity {
 }
 
 /// A run-time typed reference to an entity.
-#[derive(TS, PY, Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(TS, PY, Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
 pub enum EntityRef {
     Engine(Uuid),
     QueryGroup(Uuid),

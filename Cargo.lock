@@ -1013,6 +1013,7 @@ dependencies = [
  "quent-events",
  "quent-time",
  "serde",
+ "thiserror",
  "ts-rs",
  "uuid",
 ]

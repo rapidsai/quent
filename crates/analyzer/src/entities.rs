@@ -1,8 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-#[cfg(feature = "q")]
-use quent_attributes::Attribute;
-use quent_attributes::Value;
 use quent_entities::{
     Entity, EntityRef,
     engine::Engine,
@@ -234,7 +231,7 @@ impl Entities {
                                         .push(ResourceState::Init(event.timestamp));
                                     entry.capacities = HashMap::from([(
                                         "bytes".to_string(),
-                                        CapacityDecl::new_occupancy("bytes", Value::U64(0)),
+                                        CapacityDecl::new_occupancy("bytes"),
                                     )]);
                                     entry.type_name = init.resource.type_name;
                                     entry.instance_name = Some(init.resource.instance_name);
@@ -246,7 +243,7 @@ impl Entities {
                                         timestamp: event.timestamp,
                                         capacities: vec![CapacityValue::new(
                                             "bytes",
-                                            Some(Value::U64(operating.capacity_bytes)),
+                                            operating.capacity_bytes,
                                         )],
                                     })),
                                 memory::MemoryEvent::Resizing(_) => entry
@@ -292,7 +289,7 @@ impl Entities {
                                         .push(ResourceState::Init(event.timestamp));
                                     entry.capacities = HashMap::from([(
                                         "bytes".to_string(),
-                                        CapacityDecl::new_rate("bytes", Value::U64(0)),
+                                        CapacityDecl::new_rate("bytes"),
                                     )]);
                                     entry.type_name = init.resource.type_name;
                                     entry.instance_name = Some(init.resource.instance_name);
@@ -343,7 +340,7 @@ impl Entities {
                             let entry = entry(&mut custom_fsms, event.id);
                             match task_event {
                                 TaskEvent::Initializing(initializing) => {
-                                    entry.type_name = "Task".into();
+                                    entry.type_name = "task".into();
                                     entry.instance_name = initializing.name;
                                     entry.state_sequence.push(State {
                                         name: "init".into(),
@@ -379,9 +376,16 @@ impl Entities {
                                         Use::unit(loading.use_task_thread),
                                         Use::new(
                                             loading.use_fs_to_mem,
-                                            vec![Attribute::u64(
+                                            vec![CapacityValue::new(
                                                 "bytes",
                                                 loading.use_fs_to_mem_bytes,
+                                            )],
+                                        ),
+                                        Use::new(
+                                            loading.use_main_memory,
+                                            vec![CapacityValue::new(
+                                                "bytes",
+                                                loading.use_main_memory_bytes,
                                             )],
                                         ),
                                     ],
@@ -404,7 +408,7 @@ impl Entities {
                                         Use::unit(spilling.use_task_thread),
                                         Use::new(
                                             spilling.use_mem_to_fs,
-                                            vec![Attribute::u64(
+                                            vec![CapacityValue::new(
                                                 "bytes",
                                                 spilling.use_mem_to_fs_bytes,
                                             )],
@@ -420,7 +424,10 @@ impl Entities {
                                         Use::unit(sending.use_task_thread),
                                         Use::new(
                                             sending.use_link,
-                                            vec![Attribute::u64("bytes", sending.use_link_bytes)],
+                                            vec![CapacityValue::new(
+                                                "bytes",
+                                                sending.use_link_bytes,
+                                            )],
                                         ),
                                     ],
                                     timestamp: event.timestamp,
@@ -434,7 +441,7 @@ impl Entities {
                                             Use::unit(computing.use_task_thread),
                                             Use {
                                                 resource: computing.use_main_memory,
-                                                capacities: vec![Attribute::u64(
+                                                capacities: vec![CapacityValue::new(
                                                     "bytes",
                                                     computing.use_main_memory_bytes,
                                                 )],
@@ -719,6 +726,26 @@ impl Entities {
             fsm.use_relations()
                 .map(|rel| (EntityRef::CustomFsm(*id), rel))
         })
+    }
+
+    pub(crate) fn iter_custom_fsms_using_resource(
+        &self,
+        resource_id: Uuid,
+    ) -> impl Iterator<Item = &Fsm> {
+        self
+            // Iterate over all entities that use resources
+            .iter_use_relations()
+            // Filter out entities that don't use the target resource
+            .filter_map(move |(user, resource)| {
+                (Uuid::from(resource) == resource_id).then_some(user)
+            })
+            // Filter out anything that's not an FSM for now :tm:
+            .filter_map(|user| match user {
+                quent_entities::EntityRef::CustomFsm(uuid) => {
+                    Some(self.custom_fsms.get(&uuid).unwrap())
+                }
+                _ => None,
+            })
     }
 
     pub(crate) fn unique_operator_names(&self) -> impl Iterator<Item = &str> {

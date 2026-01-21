@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use py_rs::PY;
-use quent_attributes::{Attribute, Value};
 use quent_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
+
+use crate::error::{EntityError, Result};
 
 use super::*;
 
@@ -36,46 +37,42 @@ pub enum CapacityKind {
 pub struct CapacityDecl {
     pub name: String,
     pub kind: CapacityKind,
-    // TODO(johanpel): for now :tm: use an actual value to get RTTI on what values this capacity can have.
-    pub value_type: Value,
 }
 
 impl CapacityDecl {
-    pub fn new_occupancy(name: impl Into<String>, value_type: Value) -> Self {
+    pub fn new_occupancy(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             kind: CapacityKind::Occupancy,
-            value_type,
         }
     }
-    pub fn new_rate(name: impl Into<String>, value_type: Value) -> Self {
+    pub fn new_rate(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             kind: CapacityKind::Rate,
-            value_type,
         }
     }
 }
 
 /// A Resource Capacity
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+#[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct CapacityValue {
     // TODO(johanpel): consider making this a small index into whats declared at init
-    name: String,
-    bound: Option<Value>,
+    pub name: String,
+    pub value: Option<u64>,
 }
 
 impl CapacityValue {
-    pub fn new(name: impl Into<String>, bound: Option<Value>) -> Self {
+    pub fn new(name: impl Into<String>, value: u64) -> Self {
         Self {
             name: name.into(),
-            bound,
+            value: Some(value),
         }
     }
-    pub fn new_unbounded(name: impl Into<String>) -> Self {
+    pub fn new_null(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            bound: None,
+            value: None,
         }
     }
 }
@@ -114,6 +111,18 @@ pub struct Resource {
     pub capacities: HashMap<String, CapacityDecl>,
     /// The sequence of states that this Resource
     pub state_sequence: Vec<ResourceState>,
+}
+
+impl Resource {
+    pub fn capacity(&self, capacity_name: &str) -> Result<&CapacityDecl> {
+        self.capacities
+            .get(capacity_name)
+            .ok_or(EntityError::InvalidArgument(format!(
+                "unknown capacity \"{capacity_name}\" for resource {}. Must be one of: {:?}",
+                self.id,
+                self.capacities.keys()
+            )))
+    }
 }
 
 impl Entity for Resource {
@@ -194,11 +203,11 @@ pub struct Use {
     pub resource: Uuid,
     // TODO(johanpel): consider using an index into a list of capacity names
     // in a resource vs. an attribute key as string
-    pub capacities: Vec<Attribute>,
+    pub capacities: Vec<CapacityValue>,
 }
 
 impl Use {
-    pub fn new(resource: Uuid, capacities: Vec<Attribute>) -> Self {
+    pub fn new(resource: Uuid, capacities: Vec<CapacityValue>) -> Self {
         Self {
             resource,
             capacities,

@@ -31,6 +31,8 @@ pub mod task {
         pub use_task_thread: Uuid,
         pub use_fs_to_mem: Uuid,
         pub use_fs_to_mem_bytes: u64,
+        pub use_main_memory: Uuid,
+        pub use_main_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]

@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     fmt::{Debug, Display},
     sync::Arc,
+    time::Duration,
 };
 
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
@@ -364,9 +365,16 @@ impl Worker {
         let channel_obs = context.channel_resource_observer();
         let processor_obs = context.processor_resource_observer();
 
-        let resource_link = |resource_name: &str, resource_id: Uuid| {
+        let resource_links = |resource_name: &str, resource_id: Uuid| {
+            info!("Spawning resource {resource_name}");
             info!(
-                "Spawning resource {resource_name}: http://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/use/{resource_id}"
+                "\thttp://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/use/all"
+            );
+            info!(
+                "\thttp://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/all?num_bins=10"
+            );
+            info!(
+                "\thttp://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm?num_bins=10&fsm_type_name=task"
             );
         };
 
@@ -390,7 +398,7 @@ impl Worker {
             },
         );
         memory_obs.operating(self.filesystem, Default::default());
-        resource_link("filesystem", self.filesystem);
+        resource_links("filesystem", self.filesystem);
 
         // Main memory pool
         memory_obs.init(
@@ -404,7 +412,7 @@ impl Worker {
             },
         );
         memory_obs.operating(self.main_memory, Default::default());
-        resource_link("main memory", self.main_memory);
+        resource_links("main memory", self.main_memory);
 
         // Filesystem -> Main memory channel
         channel_obs.init(
@@ -420,7 +428,7 @@ impl Worker {
             },
         );
         channel_obs.operating(self.fs_to_mem, Default::default());
-        resource_link("fs to mem", self.fs_to_mem);
+        resource_links("fs to mem", self.fs_to_mem);
 
         // Main memory -> Filesystem channel
         channel_obs.init(
@@ -436,7 +444,7 @@ impl Worker {
             },
         );
         channel_obs.operating(self.mem_to_fs, Default::default());
-        resource_link("mem to fs", self.mem_to_fs);
+        resource_links("mem to fs", self.mem_to_fs);
 
         // Thread pool
         resource_group_obs.init(
@@ -461,7 +469,7 @@ impl Worker {
                 },
             );
             processor_obs.operating(*thread_id, Default::default());
-            resource_link("task thread", *thread_id);
+            resource_links("task thread", *thread_id);
         }
         resource_group_obs.operating(self.task_thread_pool, Default::default());
 
@@ -489,7 +497,7 @@ impl Worker {
             },
         );
         obs.task_queueing(id, task::Queueing {});
-
+        std::thread::sleep(Duration::from_micros(42));
         let (spill, load, send) = match operator.kind {
             Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
             Physical::JoinPartition => (false, rng().random_bool(0.5), true),
@@ -507,7 +515,7 @@ impl Worker {
                 use_task_thread: thread,
             },
         );
-
+        std::thread::sleep(Duration::from_micros(42));
         if spill {
             obs.task_allocating_storage(
                 id,
@@ -515,6 +523,7 @@ impl Worker {
                     use_task_thread: thread,
                 },
             );
+            std::thread::sleep(Duration::from_micros(42));
             obs.task_spilling(
                 id,
                 task::Spilling {
@@ -523,12 +532,14 @@ impl Worker {
                     use_mem_to_fs_bytes: num_bytes,
                 },
             );
+            std::thread::sleep(Duration::from_micros(42));
             obs.task_allocating_memory(
                 id,
                 task::AllocatingMemory {
                     use_task_thread: thread,
                 },
             );
+            std::thread::sleep(Duration::from_micros(42));
         }
         if load {
             obs.task_loading(
@@ -537,8 +548,11 @@ impl Worker {
                     use_task_thread: thread,
                     use_fs_to_mem: self.fs_to_mem,
                     use_fs_to_mem_bytes: num_bytes,
+                    use_main_memory: self.main_memory,
+                    use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
                 },
             );
+            std::thread::sleep(Duration::from_micros(42));
         }
         obs.task_computing(
             id,
@@ -548,6 +562,7 @@ impl Worker {
                 use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
             },
         );
+        std::thread::sleep(Duration::from_micros(42));
         if send {
             // Get all other workers and send some data to each of them sequentially.
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
@@ -563,10 +578,12 @@ impl Worker {
                         use_link_bytes: num_bytes,
                     },
                 );
+                std::thread::sleep(Duration::from_micros(42));
             }
         }
 
         obs.task_finalizing(id, task::Finalizing {});
+        std::thread::sleep(Duration::from_micros(42));
         obs.task_exit(id, task::Exit {});
     }
 
@@ -641,6 +658,7 @@ impl Worker {
             );
 
             operator_obs.waiting_for_inputs(op.id, Default::default());
+            std::thread::sleep(Duration::from_millis(10));
             operator_obs.executing(op.id, Default::default());
             if plan.execute {
                 // TODO(johanpel): make things run concurrently and overlap tasks
@@ -657,18 +675,24 @@ impl Worker {
                     );
                 }
             }
+            std::thread::sleep(Duration::from_millis(10));
             operator_obs.blocked(op.id, Default::default());
+            std::thread::sleep(Duration::from_millis(10));
             operator_obs.executing(op.id, Default::default());
             if plan.execute {
                 // todo run some tasks
             }
             operator_obs.waiting_for_inputs(op.id, Default::default());
+            std::thread::sleep(Duration::from_millis(10));
             operator_obs.finalizing(op.id, Default::default());
+            std::thread::sleep(Duration::from_millis(10));
             operator_obs.exit(op.id, Default::default());
         });
 
         plan_obs.idle(plan_id, Default::default());
+        std::thread::sleep(Duration::from_millis(10));
         plan_obs.finalizing(plan_id, Default::default());
+        std::thread::sleep(Duration::from_millis(10));
         plan_obs.exit(plan_id, Default::default());
     }
 
@@ -681,24 +705,24 @@ impl Worker {
 
         memory_obs.finalizing(self.filesystem, Default::default());
         memory_obs.exit(self.filesystem, Default::default());
-
+        std::thread::sleep(Duration::from_millis(10));
         memory_obs.finalizing(self.main_memory, Default::default());
         memory_obs.exit(self.main_memory, Default::default());
-
+        std::thread::sleep(Duration::from_millis(10));
         channel_obs.finalizing(self.fs_to_mem, Default::default());
         channel_obs.exit(self.fs_to_mem, Default::default());
-
+        std::thread::sleep(Duration::from_millis(10));
         channel_obs.finalizing(self.mem_to_fs, Default::default());
         channel_obs.exit(self.mem_to_fs, Default::default());
-
+        std::thread::sleep(Duration::from_millis(10));
         resource_group_obs.finalizing(self.task_thread_pool, Default::default());
-
+        std::thread::sleep(Duration::from_millis(10));
         for task_thread in self.task_threads.iter() {
             processor_obs.finalizing(*task_thread, Default::default());
             processor_obs.exit(*task_thread, Default::default());
         }
         resource_group_obs.exit(self.task_thread_pool, Default::default());
-
+        std::thread::sleep(Duration::from_millis(10));
         worker_obs.finalizing(self.id, worker::Finalizing {});
         worker_obs.exit(self.id, worker::Exit {});
     }
