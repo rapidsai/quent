@@ -655,7 +655,7 @@ export function TreeTable<I extends TreeTableDataItem>({
         <div className={cn('w-full', isLayoutReady ? 'overflow-x-auto' : 'overflow-x-hidden')}>
           <div style={{ minWidth: `${effectiveWidth}px` }}>
             <div
-              className="mb-1 bg-accent/40 text-xs text-muted-foreground"
+              className="mb-1 bg-accent/40 text-xs text-muted-foreground border-b"
               style={
                 {
                   width: `${effectiveWidth}px`,
@@ -674,7 +674,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                 return (
                   <div
                     key={column.key}
-                    className="relative flex items-center px-3 py-3 text-xs font-semibold text-muted-foreground"
+                    className="relative flex items-center px-3 py-2 text-sm font-semibold text-muted-foreground"
                     style={{ width: columnWidth }}
                   >
                     <span className="font-semibold">{column.label}</span>
