@@ -2,52 +2,39 @@ import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useMemo } from 'react';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { ResourceTimeline } from './timeline/ResourceTimeline';
-import { Database, Folder, LineChart, LucideIcon, Rocket } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
+import { Entities } from '~quent/types/Entities';
+import { EntityTypeValue, EntityRefKey } from '@/types';
+import { getIconForType, getRowForEntity, TreeTableItem } from './resource-tree/ResourceTreeRow';
 
-interface NodeProfileProps {
+interface QueryResourceTreeProps {
   engineId: string;
   resourceTree: ResourceTree;
+  entities: Entities;
 }
 
-type TreeTableItem = {
-  id: string;
-  type: string;
-  icon: LucideIcon;
-  children?: TreeTableItem[];
-};
-
-const getIconForType = (type: string): LucideIcon => {
-  switch (type) {
-    case 'Engine':
-      return Database;
-    case 'QueryGroup':
-    case 'ResourceGroup':
-      return Folder;
-    case 'Worker':
-      return Rocket;
-    case 'Resource':
-      return LineChart;
-    default:
-      return Database;
-  }
-};
-
-export function NodeProfile({ resourceTree, engineId }: NodeProfileProps) {
+export function QueryResourceTree({ resourceTree, engineId, entities }: QueryResourceTreeProps) {
   const treeData = useMemo(() => {
     const transformResourceTree = (resourceTree: ResourceTree): TreeTableItem => {
       const [entityType, entityId] = resourceTree.item
         ? Object.entries(resourceTree.item)[0]
-        : ['Root', 'root'];
+        : ['Root' as EntityRefKey, 'root' as string];
+
+      const entityKey = entityRefToEntitiesKey(entityType as EntityRefKey) as keyof Entities;
+      // Special case for engine, there can only and will always be one
+      const entity: EntityTypeValue | undefined =
+        entityKey === 'engine' ? entities.engine : entities[entityKey]?.[entityId];
+
       return {
         id: entityId,
         type: entityType,
+        entity: entity as EntityTypeValue,
         icon: getIconForType(entityType),
         children: resourceTree.children?.map(child => transformResourceTree(child)) ?? null,
       };
     };
     return [transformResourceTree(resourceTree)];
-  }, [resourceTree]);
+  }, [resourceTree, entities]);
 
   const columns = useMemo(() => {
     return [
@@ -56,26 +43,11 @@ export function NodeProfile({ resourceTree, engineId }: NodeProfileProps) {
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({
-          item,
-          isSelected,
-        }: {
-          item: TreeTableItem;
-          level: number;
-          isSelected: boolean;
-        }) => (
-          <span
-            className={cn(
-              {
-                'text-foreground': isSelected,
-                'text-foreground-muted': !isSelected,
-              },
-              'flex items-center'
-            )}
-          >
-            {item.icon && <item.icon className="h-4 w-4 shrink-0 mr-2" />}
-            <span className="font-extrabold mr-1">{item.type}</span>({item.id})
-          </span>
+        render: ({ item }: { item: TreeTableItem; level: number }) => (
+          <div className="text-foreground flex items-center">
+            <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
+            <div>{getRowForEntity(item)}</div>
+          </div>
         ),
       },
       {
@@ -97,7 +69,12 @@ export function NodeProfile({ resourceTree, engineId }: NodeProfileProps) {
 
   return (
     <div className="space-y-4 w-full h-full">
-      <TreeTable<TreeTableItem> data={treeData} columns={columns} initialSelectedItemId={'root'} />
+      <TreeTable<TreeTableItem>
+        data={treeData}
+        columns={columns}
+        initialSelectedItemId={'root'}
+        columnWidths={[350, 500]}
+      />
     </div>
   );
 }

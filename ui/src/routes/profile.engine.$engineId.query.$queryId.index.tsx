@@ -1,4 +1,4 @@
-import { NodeProfile } from '@/components/NodeProfile';
+import { QueryResourceTree } from '@/components/QueryResourceTree';
 import { fetchQueryBundle } from '@/services/api';
 import { createFileRoute } from '@tanstack/react-router';
 import { QueryBundle } from '~quent/types/QueryBundle';
@@ -12,11 +12,11 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/'
 });
 
 function QueryIndex() {
-  const { resource_tree } = Route.useLoaderData();
+  const { resource_tree, entities } = Route.useLoaderData();
   const { engineId } = Route.useParams();
   return (
     <div className="flex items-center justify-center w-full h-full min-h-[200px]">
-      <NodeProfile engineId={engineId} resourceTree={resource_tree} />
+      <QueryResourceTree engineId={engineId} resourceTree={resource_tree} entities={entities} />
     </div>
   );
 }
