@@ -5,6 +5,7 @@
 
 import { QueryBundle } from '~quent/types/QueryBundle';
 import { ResourceTimeline } from '~quent/types/ResourceTimeline';
+import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
 import { Span } from '~quent/types/Span';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -118,26 +119,35 @@ export function generateResourceUsage({ start, end }: Span): [number[], number[]
   return [timestamps, tempData];
 }
 
+interface ApiFetchOptions {
+  params?: Record<string, string | number | boolean>;
+  fetchOptions?: RequestInit;
+}
+
 /**
  * Generic API fetch helper
  * @param endpoint - API endpoint to call
- * @param options - Fetch options
+ * @param options - Optional params and fetch options
  */
-export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+export async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise<T> {
+  const { params, fetchOptions } = options ?? {};
+  const searchParams = params
+    ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`
+    : '';
+  const url = `${API_BASE_URL}${endpoint}${searchParams}`;
 
   const defaultOptions: RequestInit = {
     headers: {},
   };
 
   // Only set Content-Type for requests with a body
-  if (options?.body) {
+  if (fetchOptions?.body) {
     defaultOptions.headers = {
       'Content-Type': 'application/json',
     };
   }
 
-  const response = await fetch(url, { ...defaultOptions, ...options });
+  const response = await fetch(url, { ...defaultOptions, ...fetchOptions });
 
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
@@ -172,4 +182,15 @@ export async function fetchResourceTimeline(
   resourceId: string
 ): Promise<ResourceTimeline> {
   return apiFetch<ResourceTimeline>(`/engines/${engineId}/resource/${resourceId}/timeline`);
+}
+
+export async function fetchResourceTimelineAggregated(
+  engineId: string,
+  resourceId: string,
+  params?: Record<string, string | number | boolean>
+): Promise<ResourceTimelineBinnedByState> {
+  return apiFetch<ResourceTimelineBinnedByState>(
+    `/engines/${engineId}/resource/${resourceId}/timeline/aggregated`,
+    { params }
+  );
 }

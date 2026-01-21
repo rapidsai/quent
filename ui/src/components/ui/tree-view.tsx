@@ -4,12 +4,12 @@ import { ChevronRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
-const treeVariants = cva('group px-2 rounded-md transition-all duration-150 hover:bg-accent/70');
+const treeVariants = cva('group px-2 rounded-sm transition-all duration-150 hover:bg-accent/70');
 
-const treeNodeVariants = cva('group px-2 rounded-md transition-all duration-150');
+const treeNodeVariants = cva('group px-2 rounded-sm transition-all duration-150');
 
 const selectedTreeVariants = cva(
-  'bg-primary/15 border-l-2 border-primary text-foreground font-medium'
+  'bg-accent/70 border-l-2 border-primary text-foreground font-medium'
 );
 
 const dragOverVariants = cva('before:opacity-100 before:bg-primary/20 text-primary-foreground');

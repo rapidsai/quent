@@ -2,8 +2,10 @@ import { useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption, ECharts } from 'echarts';
-import { connect, graphic } from 'echarts';
+import { connect } from 'echarts';
 import { TooltipContent } from './TimelineTooltip';
+import { getColorByIndex, withOpacity } from '@/services/colors';
+import { formatBytes } from '@/services/formatters';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
@@ -11,33 +13,14 @@ const connectChart = (instance: ECharts, chartGroup: string = CHART_GROUP) => {
   instance.group = chartGroup;
   connect(chartGroup);
 };
-
-// ECharts default color palette
-const COLOR_PALETTE = [
-  '#5470c6',
-  '#91cc75',
-  '#fac858',
-  '#ee6666',
-  '#73c0de',
-  '#3ba272',
-  '#fc8452',
-  '#9a60b4',
-  '#ea7ccc',
-];
-
-const epochFormatter = (value: number) => {
-  return new Date(value / 1000).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
+export const DEFAULT_TIMELINE_HEIGHT = 100;
+const TIMELINE_MARKUP_COLOR = '#808080';
+const GRID_BORDER_COLOR = withOpacity(TIMELINE_MARKUP_COLOR, 0.2);
 
 export function Timeline({
   series,
   timestamps,
-  height = 125,
+  height = DEFAULT_TIMELINE_HEIGHT,
 }: {
   series: Record<string, number[]>;
   timestamps: number[];
@@ -45,26 +28,23 @@ export function Timeline({
 }) {
   const seriesOptions = useMemo(() => {
     return Object.entries(series).map(([name, data], index) => {
-      const color = COLOR_PALETTE[index % COLOR_PALETTE.length];
-      const areaGradient = new graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: color + 'CC' }, // Top: 80% opacity
-        { offset: 1, color: color + '0D' }, // Bottom: 5% opacity
-      ]);
+      const color = getColorByIndex(index);
       return {
         name,
         type: 'line',
+        stack: 'total', // Stack all series with the same stack name
         step: 'middle',
         symbol: 'circle',
-        symbolSize: 6,
+        symbolSize: 4,
         // Shows on hover
         showSymbol: false,
         hoverAnimation: false,
         animation: false,
         cursor: 'default',
         data,
-        lineStyle: { color, width: 2 },
+        lineStyle: { width: 0 },
         itemStyle: { color },
-        areaStyle: { color: areaGradient },
+        areaStyle: { color: withOpacity(color, 0.9) },
         emphasis: {
           disabled: true, // Disable emphasis state
           focus: 'none', // Don't dim other series
@@ -78,6 +58,21 @@ export function Timeline({
       type: 'value',
       boundaryGap: false,
       splitNumber: 1,
+      show: true,
+      axisLine: {
+        show: true,
+        lineStyle: { color: GRID_BORDER_COLOR },
+      },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: {
+        show: true,
+        margin: 8,
+        fontSize: 10,
+        color: TIMELINE_MARKUP_COLOR,
+        // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
+        formatter: (value: number) => formatBytes(value, 0),
+      },
     }),
     []
   );
@@ -88,22 +83,27 @@ export function Timeline({
       boundaryGap: false,
       type: 'category',
       animation: false,
-      axisLabel: {
-        show: false,
-        formatter: epochFormatter,
+      show: true,
+      axisLine: {
+        show: true,
+        onZero: true,
+        lineStyle: { color: GRID_BORDER_COLOR },
       },
-      axisLine: { onZero: true },
+      axisTick: { show: false },
+      axisLabel: { show: false },
     }),
     [timestamps]
   );
 
   const gridOptions = useMemo(
     () => ({
-      left: 40,
-      right: 10,
+      left: 35,
+      right: 2,
       top: 10,
-      bottom: 30,
-      backgroundColor: 'rgba(128, 128, 128, 0.1)',
+      bottom: 10,
+      backgroundColor: withOpacity(TIMELINE_MARKUP_COLOR, 0.1),
+      borderWidth: 1,
+      borderColor: GRID_BORDER_COLOR,
       show: true,
     }),
     []
@@ -124,7 +124,7 @@ export function Timeline({
         formatter: function (params: unknown) {
           if (!Array.isArray(params) || params.length === 0) return '';
           const timestamp = Number(params[0].axisValue);
-          const date = new Date(timestamp / 1000);
+          const date = new Date(timestamp);
           const series = params.map((p: { color: string; seriesName: string; value: number }) => ({
             color: p.color,
             name: p.seriesName,
@@ -150,14 +150,14 @@ export function Timeline({
           realtime: true,
           start: 0,
           end: 100,
-          xAxisIndex: seriesOptions.map((_, i) => i),
+          xAxisIndex: 'all',
         },
         {
           type: 'inside',
           realtime: true,
           start: 0,
           end: 100,
-          xAxisIndex: seriesOptions.map((_, i) => i),
+          xAxisIndex: 'all',
         },
       ],
       xAxis: xAxisOptions,
@@ -169,7 +169,7 @@ export function Timeline({
   return (
     <ReactECharts
       option={eChartOptions}
-      style={{ height: `${height}px` }}
+      style={{ width: '100%', height: `${height}px` }}
       onChartReady={connectChart}
       notMerge
       lazyUpdate

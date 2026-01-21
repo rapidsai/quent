@@ -56,7 +56,7 @@ const AccordionTrigger = React.forwardRef<
       <AccordionPrimitive.Trigger
         ref={ref}
         className={cn(
-          `group flex items-center py-2 transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative ${rowSurfaceClasses}`,
+          `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative ${rowSurfaceClasses}`,
           className
         )}
         data-selected={selectedAttr}
@@ -243,7 +243,7 @@ const TreeLeaf = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          `flex text-left items-center py-2 before:right-1 text-foreground w-full min-w-0 px-0 relative ${rowSurfaceClasses}`,
+          `flex text-left items-center before:right-1 text-foreground w-full min-w-0 px-0 relative ${rowSurfaceClasses}`,
           treeVariants(),
           className,
           isSelected && selectedTreeVariants(),
@@ -599,7 +599,7 @@ export function TreeTable<I extends TreeTableDataItem>({
           return (
             <div
               key={column.key}
-              className="px-3 py-2 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+              className="pl-3 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {column.render({ item: extended, level, isSelected })}
             </div>
@@ -644,23 +644,30 @@ export function TreeTable<I extends TreeTableDataItem>({
     window.addEventListener('mouseup', onMouseUp);
   };
   return (
-    <div className="min-h-screen">
+    <div className="h-full">
       <div
         ref={containerRef}
         className={cn(
-          'bg-transparent transition-opacity duration-100 ease-out',
+          'bg-transparent transition-opacity duration-100 ease-out h-full',
           isLayoutReady ? 'opacity-100' : 'opacity-0'
         )}
       >
-        <div className={cn('w-full', isLayoutReady ? 'overflow-x-auto' : 'overflow-x-hidden')}>
+        <div
+          className={cn(
+            'w-full overflow-y-auto max-h-full',
+            isLayoutReady ? 'overflow-x-auto' : 'overflow-x-hidden'
+          )}
+        >
           <div style={{ minWidth: `${effectiveWidth}px` }}>
             <div
-              className="mb-1 bg-accent/40 text-xs text-muted-foreground border-b"
+              className="mb-1 bg-accent text-xs text-muted-foreground"
               style={
                 {
                   width: `${effectiveWidth}px`,
                   minWidth: `${effectiveWidth}px`,
-                  position: 'relative',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
                   display: 'flex',
                   alignItems: 'center',
                 } as React.CSSProperties
@@ -686,15 +693,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                         }}
                         onMouseDown={e => handleColumnResizeStart(index, e)}
                       >
-                        <div
-                          className="h-4/5 w-px opacity-50 transition-opacity hover:opacity-75"
-                          style={{
-                            background:
-                              'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.4) 100%)',
-                            boxShadow:
-                              '1px 0 0 rgba(255, 255, 255, 0.04), -1px 0 0 rgba(0, 0, 0, 0.35)',
-                          }}
-                        />
+                        <div className="h-4/5 w-px opacity-75 transition-opacity hover:opacity-100 bg-black" />
                       </div>
                     )}
                   </div>

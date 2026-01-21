@@ -95,12 +95,18 @@ async def get_query(
     """
     return rust_client.get(f"/analyzer/engine/{engine_id}/query/{query_id}")
 
-@router.get("/{engine_id}/resource/{resource_id}/timeline")
-async def get_resource_timeline(
+
+@router.get("/{engine_id}/resource/{resource_id}/timeline/aggregated")
+async def get_resource_timeline_aggregated(
     engine_id: str = Path(..., description="The engine ID"),
     resource_id: str = Path(..., description="The resource ID"),
+    num_bins: int = 10,
+    fsm_type_name: str = "task",
 ) -> Any:
     """
-    Fetches timeline for a given resource.
+    Fetches aggregated FSM timeline for a given resource.
     """
-    return rust_client.get(f"/analyzer/engine/{engine_id}/timeline/resource/use/{resource_id}")
+    return rust_client.get(
+        f"/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm"
+        f"?num_bins={num_bins}&fsm_type_name={fsm_type_name}"
+    )

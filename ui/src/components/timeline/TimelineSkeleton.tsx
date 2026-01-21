@@ -1,10 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import { DEFAULT_TIMELINE_HEIGHT } from './Timeline';
 
 type TimelineSkeletonProps = {
   height?: number;
 };
 
-export function TimelineSkeleton({ height = 125 }: TimelineSkeletonProps) {
+export function TimelineSkeleton({ height = DEFAULT_TIMELINE_HEIGHT }: TimelineSkeletonProps) {
   return (
     <div className="relative w-full" style={{ height: `${height}px` }}>
       {/* Chart area background */}

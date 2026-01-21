@@ -44,7 +44,7 @@ export function QueryResourceTree({ resourceTree, engineId, entities }: QueryRes
         widthIndex: 0,
         isFirst: true,
         render: ({ item }: { item: TreeTableItem; level: number }) => (
-          <div className="text-foreground flex items-center">
+          <div className="text-foreground flex items-center py-2">
             <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
             <div>{getRowForEntity(item)}</div>
           </div>
@@ -60,7 +60,7 @@ export function QueryResourceTree({ resourceTree, engineId, entities }: QueryRes
           ) : (
             // TODO: Aggregate all of the children into an aggregate timeline
             // <Timeline timestamps={[]} series={{}} />
-            <div> -- </div>
+            <div className="h-full items-center flex"> -- </div>
           );
         },
       },

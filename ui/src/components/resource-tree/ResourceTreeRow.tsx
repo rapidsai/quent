@@ -66,13 +66,11 @@ const WorkerRow = ({ entity }: { entity: Worker }): React.ReactNode => {
   return <ResourceTreeRow title={entity.name} subText={entity.id} />;
 };
 const ResourceRow = ({ entity }: { entity: Resource }): React.ReactNode => {
-  const capacities = Object.keys(entity.capacities).join(', ');
   return (
     <ResourceTreeRow
       title={
         <div>
           <span className="font-bold">{entity.instance_name}</span>{' '}
-          {capacities ? `(${capacities})` : ''}
         </div>
       }
       subText={entity.id}

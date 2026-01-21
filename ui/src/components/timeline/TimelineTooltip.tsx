@@ -1,3 +1,5 @@
+import { formatBytes } from '@/services/formatters';
+
 interface TooltipSeries {
   color: string;
   name: string;
@@ -10,6 +12,7 @@ export function TooltipContent({ date, series }: { date: Date; series: TooltipSe
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   });
 
   return (
@@ -19,7 +22,7 @@ export function TooltipContent({ date, series }: { date: Date; series: TooltipSe
         <div key={i} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
           <span className="text-foreground">{s.name}</span>
-          <span className="font-semibold ml-auto text-foreground">{Math.round(s.value)}</span>
+          <span className="font-semibold ml-auto text-foreground">{formatBytes(s.value, 2)}</span>
         </div>
       ))}
     </div>
