@@ -6,7 +6,7 @@ pub mod task {
     use super::*;
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Initializing {
+    pub struct Init {
         pub operator_id: Uuid,
         pub name: Option<String>,
     }
@@ -62,7 +62,7 @@ pub mod task {
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum TaskEvent {
-        Initializing(Initializing),
+        Init(Init),
         Queueing(Queueing),
         Computing(Computing),
         AllocatingMemory(AllocatingMemory),
@@ -79,7 +79,7 @@ pub mod record_batch {
     use super::*;
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Initializing {
+    pub struct Init {
         pub operator_id: Uuid,
     }
 
@@ -102,7 +102,7 @@ pub mod record_batch {
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum RecordBatchEvent {
-        Initializing(Initializing),
+        Initializing(Init),
         Idle(Idle),
         Moving(Moving),
         Finalizing(Finalizing),

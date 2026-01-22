@@ -7,7 +7,9 @@ pub enum Error {
     Validation(String),
     #[error("invalid id: {0}")]
     InvalidId(Uuid),
-    #[error("logic error: {0}")]
+    #[error("invalid id: {0}")]
+    InvalidTypeName(String),
+    #[error("invalid type name: {0}")]
     Logic(String),
     #[error("time error: {0}")]
     Time(#[from] quent_time::TimeError),
@@ -24,6 +26,7 @@ impl From<Error> for StatusCode {
             | Error::Logic(_)
             | Error::Time(_)
             | Error::ValueType(_)
+            | Error::InvalidTypeName(_)
             | Error::Entity(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::InvalidId(_) => StatusCode::NOT_FOUND,
         }

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use py_rs::PY;
 use quent_entities::EntityRef;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -14,7 +13,7 @@ use crate::{Entities, Result, error::Error, plan_tree::PlanTree};
 /// The tree is built from the perspective of a single query. Thus, under the
 /// root level, engine, query group and query and query-level plans are
 /// siblings.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Serialize)]
 pub struct ResourceTree {
     /// The ID of the Entity representing this node.
     ///

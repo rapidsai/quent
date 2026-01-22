@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use quent_time::{Span, bin::BinnedSpan};
+use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
 use crate::Result;
 
@@ -20,7 +20,7 @@ pub(crate) trait BinnedTimelineAggregator {
     /// * `span` - The time span that determines which bins should receive the
     ///   item.
     /// * `item` - The item to be pushed into all intersecting bins.
-    fn try_push(&mut self, span: Span, item: Self::Item) -> Result<()>;
+    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> Result<()>;
 
     /// Attempt to return the finished output of this aggregator.
     fn try_finish(self) -> Result<Self::Output>;
@@ -53,7 +53,7 @@ impl BinnedTimelineAggregator for UnitAggregator {
         self.config
     }
 
-    fn try_push(&mut self, span: Span, item: Self::Item) -> Result<()> {
+    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> Result<()> {
         // Quickly return if the span duration is zero.
         let span_duration = span.duration();
         if span_duration == 0 {
@@ -99,7 +99,7 @@ impl<'a> BinnedTimelineAggregator for NamedAggregator<'a> {
         self.config
     }
 
-    fn try_push(&mut self, span: Span, item: Self::Item) -> Result<()> {
+    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> Result<()> {
         self.named_bins
             .entry(item.1)
             .or_insert_with(|| UnitAggregator::new(self.config))
@@ -121,13 +121,16 @@ mod tests {
 
     #[test]
     fn numeric_primitive_occupancy() -> Result<()> {
-        let config =
-            BinnedSpan::try_new(Span::try_new(0, 80).unwrap(), NonZero::new(4).unwrap()).unwrap();
+        let config = BinnedSpan::try_new(
+            SpanNanoSec::try_new(0, 80).unwrap(),
+            NonZero::new(4).unwrap(),
+        )
+        .unwrap();
 
         let mut aggregator: UnitAggregator = UnitAggregator::new(config);
 
-        aggregator.try_push(Span::try_new(0, 30).unwrap(), 10.0)?;
-        aggregator.try_push(Span::try_new(20, 60).unwrap(), 10.0)?;
+        aggregator.try_push(SpanNanoSec::try_new(0, 30).unwrap(), 10.0)?;
+        aggregator.try_push(SpanNanoSec::try_new(20, 60).unwrap(), 10.0)?;
 
         assert_eq!(aggregator.try_finish().unwrap(), [10.0, 15.0, 10.0, 0.0]);
 

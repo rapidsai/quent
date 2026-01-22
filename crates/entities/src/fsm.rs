@@ -1,47 +1,71 @@
 use std::collections::HashSet;
 
-use py_rs::PY;
 use quent_attributes::Attribute;
-use quent_time::{Span, Timestamp};
-use serde::{Deserialize, Serialize};
+use quent_time::{SpanNanoSec, TimeUnixNanoSec};
+use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{Entity, EntityRef, relation::Related, resource::Use};
 
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+/// Declaration of an FSM state
+#[derive(TS, Clone, Debug, Serialize, Hash, PartialEq, Eq)]
+pub struct StateDecl {
+    pub name: String,
+    // TODO(johanpel): attribute decls
+    // TODO(johanpel): transition decls
+}
+
+impl StateDecl {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+}
+
+/// Declaration of an FSM
+#[derive(TS, Clone, Debug, Serialize)]
+pub struct FsmTypeDecl {
+    /// The unique type name of this FSM type
+    pub name: String,
+    /// Unordered set of states this FSM type
+    pub states: HashSet<StateDecl>,
+}
+
+impl FsmTypeDecl {
+    pub fn new(name: impl Into<String>, states: impl Iterator<Item = StateDecl>) -> Self {
+        Self {
+            name: name.into(),
+            states: states.collect(),
+        }
+    }
+    pub fn insert(&mut self, state_decl: StateDecl) {
+        self.states.insert(state_decl);
+    }
+}
+
+#[derive(TS, Clone, Debug, Serialize)]
 pub struct State {
     // TODO(johanpel): consider deduplicating names by providing a state index
     // into an FSM vector
     pub name: String,
     pub uses: Vec<Use>,
-    pub timestamp: Timestamp,
+    pub timestamp: TimeUnixNanoSec,
     pub attributes: Vec<Attribute>,
     pub relations: Vec<EntityRef>,
 }
 
-#[derive(Debug)]
-pub struct StateSpan<'a> {
-    pub span: Span,
-    pub state: &'a State,
-}
-
-impl Related for State {
-    fn relations(&self) -> impl Iterator<Item = EntityRef> {
-        self.relations.iter().cloned()
-    }
-
-    fn use_relations(&self) -> impl Iterator<Item = EntityRef> {
-        self.uses.iter().map(|u| EntityRef::Resource(u.resource))
-    }
-}
-
-#[derive(TS, PY, Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Default, Debug, Serialize)]
 pub struct Fsm {
     pub id: Uuid,
     pub type_name: String,
     pub instance_name: Option<String>,
     pub state_sequence: Vec<State>,
+}
+
+#[derive(Debug)]
+pub struct StateSpan<'a> {
+    pub span: SpanNanoSec,
+    pub state: &'a State,
 }
 
 impl Fsm {
@@ -55,7 +79,7 @@ impl Fsm {
             let start = self.state_sequence[index].timestamp;
             let end = self.state_sequence[index + 1].timestamp;
             Some(
-                Span::try_new(start, end)
+                SpanNanoSec::try_new(start, end)
                     .map(|span| {
                         let state = &self.state_sequence[index];
                         StateSpan { span, state }
@@ -64,7 +88,7 @@ impl Fsm {
                     // isn't following the "arrow of time". Perhaps introduce an
                     // FSM builder type that ensures built FSMs don't break this
                     // rule so we can safely unwrap the span constructed here.
-                    .expect("broken fsm"),
+                    .unwrap_or_else(|_| panic!("broken fsm: {self:#?}")),
             )
         }
     }
@@ -84,6 +108,16 @@ impl Entity for Fsm {
             id,
             ..Default::default()
         }
+    }
+}
+
+impl Related for State {
+    fn relations(&self) -> impl Iterator<Item = EntityRef> {
+        self.relations.iter().cloned()
+    }
+
+    fn use_relations(&self) -> impl Iterator<Item = EntityRef> {
+        self.uses.iter().map(|u| EntityRef::Resource(u.resource))
     }
 }
 

@@ -612,10 +612,10 @@ pub struct QObserver {
 #[cfg(feature = "q")]
 impl QObserver {
     // Task events
-    pub fn task_initializing(&self, id: Uuid, initializing: q::task::Initializing) {
+    pub fn task_initializing(&self, id: Uuid, initializing: q::task::Init) {
         push_event(
             &self.tx,
-            Event::new_now(id, q::task::TaskEvent::Initializing(initializing).into()),
+            Event::new_now(id, q::task::TaskEvent::Init(initializing).into()),
         )
     }
 
@@ -693,7 +693,7 @@ impl QObserver {
     }
 
     // RecordBatch events
-    pub fn record_batch_initializing(&self, id: Uuid, initializing: q::record_batch::Initializing) {
+    pub fn record_batch_initializing(&self, id: Uuid, initializing: q::record_batch::Init) {
         push_event(
             &self.tx,
             Event::new_now(

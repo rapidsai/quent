@@ -3,14 +3,15 @@ use std::collections::{HashMap, HashSet};
 use quent_entities::{
     Entity, EntityRef,
     engine::Engine,
-    fsm::Fsm,
+    fsm::{Fsm, FsmTypeDecl, StateDecl},
     operator::{Operator, OperatorState, Port, WaitingForInputs},
     plan::Plan,
     query::Query,
     query_group::QueryGroup,
     relation::Related,
     resource::{
-        CapacityDecl, CapacityValue, Resource, ResourceGroup, ResourceOperatingState, ResourceState,
+        CapacityDecl, CapacityValue, Resource, ResourceGroup, ResourceOperatingState,
+        ResourceState, ResourceTypeDecl,
     },
     worker::Worker,
 };
@@ -25,9 +26,9 @@ use quent_events::{
     resource::{channel, group as resource_group, memory, processor},
     worker::WorkerEvent,
 };
+use quent_time::{SpanNanoSec, TimeUnixNanoSec};
 
-use py_rs::PY;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -55,27 +56,35 @@ where
 /// The maps provide an easy way for quick lookups based on entity IDs.
 /// This also means the values in the maps are flattened entities.
 /// Their relations are solely expressed through IDs serving as references.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug)]
 pub struct Entities {
-    pub engine: Engine,
-    pub workers: HashMap<Uuid, Worker>,
-    pub resource_groups: HashMap<Uuid, ResourceGroup>,
-    pub resources: HashMap<Uuid, Resource>,
-    pub query_groups: HashMap<Uuid, QueryGroup>,
-    pub queries: HashMap<Uuid, Query>,
-    pub plans: HashMap<Uuid, Plan>,
-    pub operators: HashMap<Uuid, Operator>,
-    pub ports: HashMap<Uuid, Port>,
-    // TODO(johanpel): don't send this to the UI, this can get very big
-    pub custom_fsms: HashMap<Uuid, Fsm>,
+    // Domain-specific entities, subject to change:
+    pub(crate) engine: Engine,
+    pub(crate) workers: HashMap<Uuid, Worker>,
+    pub(crate) query_groups: HashMap<Uuid, QueryGroup>,
+    pub(crate) queries: HashMap<Uuid, Query>,
+    pub(crate) plans: HashMap<Uuid, Plan>,
+    pub(crate) operators: HashMap<Uuid, Operator>,
+    pub(crate) ports: HashMap<Uuid, Port>,
+
+    // Generic entities:
+    pub(crate) resource_types: HashMap<String, ResourceTypeDecl>,
+    pub(crate) resources: HashMap<Uuid, Resource>,
+    pub(crate) resource_groups: HashMap<Uuid, ResourceGroup>,
+    pub(crate) fsm_types: HashMap<String, FsmTypeDecl>,
+    pub(crate) fsms: HashMap<Uuid, Fsm>,
+
+    /// The total span of time over all events.
+    pub(crate) span: SpanNanoSec,
 }
 
 impl Entities {
     pub fn try_new(engine_id: Uuid, events: impl Iterator<Item = Event>) -> Result<Self> {
         // TODO(johanpel): we need to sit down and think about how to do this as quickly as
         //                 possible for larger datasets, this is just a trivial implementation
-        //                 to make it work. This is known to get pretty intense.
+        //                 to make it work. This is known to get pretty intense
 
+        // Domain-specific entities, subject to change:
         let mut engine = Engine::new(engine_id);
         let mut query_groups: HashMap<Uuid, QueryGroup> = HashMap::new();
         let mut workers: HashMap<Uuid, Worker> = HashMap::new();
@@ -83,13 +92,23 @@ impl Entities {
         let mut plans: HashMap<Uuid, Plan> = HashMap::new();
         let mut operators: HashMap<Uuid, Operator> = HashMap::new();
         let mut ports: HashMap<Uuid, Port> = HashMap::new();
-        let mut resource_groups: HashMap<Uuid, ResourceGroup> = HashMap::new();
+
+        // Generic entities:
+        let mut resource_types: HashMap<String, ResourceTypeDecl> = HashMap::new();
         let mut resources: HashMap<Uuid, Resource> = HashMap::new();
+        let mut resource_groups: HashMap<Uuid, ResourceGroup> = HashMap::new();
+
+        let mut fsm_types: HashMap<String, FsmTypeDecl> = HashMap::new();
         #[allow(unused_mut)]
-        let mut custom_fsms: HashMap<Uuid, Fsm> = HashMap::new();
+        let mut fsms: HashMap<Uuid, Fsm> = HashMap::new();
+
+        let mut earliest_event: TimeUnixNanoSec = TimeUnixNanoSec::MAX;
+        let mut latest_event: TimeUnixNanoSec = 0;
 
         for event in events {
             let ts = event.timestamp;
+            earliest_event = earliest_event.min(ts);
+            latest_event = latest_event.max(ts);
 
             match event.data {
                 EventData::Engine(engine_event) => {
@@ -226,14 +245,18 @@ impl Entities {
                         quent_events::resource::ResourceEvent::Memory(memory_event) => {
                             match memory_event {
                                 memory::MemoryEvent::Init(init) => {
+                                    let type_decl = resource_types
+                                        .entry(init.resource.type_name.clone())
+                                        .or_insert_with(|| {
+                                            ResourceTypeDecl::new(
+                                                init.resource.type_name,
+                                                [CapacityDecl::new_occupancy("bytes")],
+                                            )
+                                        });
                                     entry
                                         .state_sequence
                                         .push(ResourceState::Init(event.timestamp));
-                                    entry.capacities = HashMap::from([(
-                                        "bytes".to_string(),
-                                        CapacityDecl::new_occupancy("bytes"),
-                                    )]);
-                                    entry.type_name = init.resource.type_name;
+                                    entry.type_name = type_decl.name.clone();
                                     entry.instance_name = Some(init.resource.instance_name);
                                     entry.scope = Some(init.resource.scope.into());
                                 }
@@ -261,10 +284,15 @@ impl Entities {
                             processor_resource_event,
                         ) => match processor_resource_event {
                             processor::ProcessorEvent::Init(init) => {
+                                let type_decl = resource_types
+                                    .entry(init.resource.type_name.clone())
+                                    .or_insert_with(|| {
+                                        ResourceTypeDecl::unit(init.resource.type_name)
+                                    });
                                 entry
                                     .state_sequence
                                     .push(ResourceState::Init(event.timestamp));
-                                entry.type_name = init.resource.type_name;
+                                entry.type_name = type_decl.name.clone();
                                 entry.instance_name = Some(init.resource.instance_name);
                                 entry.scope = Some(init.resource.scope.into());
                             }
@@ -284,14 +312,15 @@ impl Entities {
                         quent_events::resource::ResourceEvent::Channel(channel_resource_event) => {
                             match channel_resource_event {
                                 channel::ChannelEvent::Init(init) => {
+                                    let type_decl = resource_types
+                                        .entry(init.resource.type_name.clone())
+                                        .or_insert_with(|| {
+                                            ResourceTypeDecl::unit(init.resource.type_name)
+                                        });
                                     entry
                                         .state_sequence
                                         .push(ResourceState::Init(event.timestamp));
-                                    entry.capacities = HashMap::from([(
-                                        "bytes".to_string(),
-                                        CapacityDecl::new_rate("bytes"),
-                                    )]);
-                                    entry.type_name = init.resource.type_name;
+                                    entry.type_name = type_decl.name.clone();
                                     entry.instance_name = Some(init.resource.instance_name);
                                     entry.scope = Some(init.resource.scope.into());
                                 }
@@ -337,19 +366,17 @@ impl Entities {
                     match q_event {
                         q::QEvent::Task(task_event) => {
                             use quent_events::q::task::TaskEvent;
-                            let entry = entry(&mut custom_fsms, event.id);
+                            let entry = entry(&mut fsms, event.id);
                             match task_event {
-                                TaskEvent::Initializing(initializing) => {
+                                TaskEvent::Init(init) => {
                                     entry.type_name = "task".into();
-                                    entry.instance_name = initializing.name;
+                                    entry.instance_name = init.name;
                                     entry.state_sequence.push(State {
                                         name: "init".into(),
                                         uses: vec![],
                                         timestamp: event.timestamp,
                                         attributes: vec![],
-                                        relations: vec![EntityRef::Operator(
-                                            initializing.operator_id,
-                                        )],
+                                        relations: vec![EntityRef::Operator(init.operator_id)],
                                     })
                                 }
                                 TaskEvent::Queueing(_queueing) => {
@@ -439,13 +466,13 @@ impl Entities {
                                         name: "computing".into(),
                                         uses: vec![
                                             Use::unit(computing.use_task_thread),
-                                            Use {
-                                                resource: computing.use_main_memory,
-                                                capacities: vec![CapacityValue::new(
+                                            Use::new(
+                                                computing.use_main_memory,
+                                                [CapacityValue::new(
                                                     "bytes",
                                                     computing.use_main_memory_bytes,
                                                 )],
-                                            },
+                                            ),
                                         ],
                                         timestamp: event.timestamp,
                                         attributes: vec![],
@@ -477,6 +504,36 @@ impl Entities {
             }
         }
 
+        // TODO(johanpel): consider either adding FSM type decl events or
+        // generating all this with a DSL instead of having to do this, or worst
+        // case still do this work but parallelize this don't clone so many
+        // strings.
+
+        // Iterate over all FSMs to produce their type decls.
+        for fsm in fsms.values() {
+            let fsm_type_decl = fsm_types.entry(fsm.type_name.clone()).or_insert_with(|| {
+                FsmTypeDecl::new(
+                    fsm.type_name.clone(),
+                    fsm.state_sequence
+                        .iter()
+                        .map(|state| StateDecl::new(state.name.clone())),
+                )
+            });
+            for state in fsm.state_sequence.iter() {
+                fsm_type_decl.insert(StateDecl::new(state.name.clone()));
+                for usage in state.uses.iter() {
+                    if let Some(resource) = resources.get(&usage.resource)
+                        && let Some(resource_type_decl) =
+                            resource_types.get_mut(&resource.type_name)
+                    {
+                        resource_type_decl
+                            .used_by_fsms
+                            .insert(fsm.type_name.clone());
+                    }
+                }
+            }
+        }
+
         Ok(Self {
             engine,
             query_groups,
@@ -485,101 +542,22 @@ impl Entities {
             plans,
             operators,
             ports,
-            resource_groups,
+            resource_types,
             resources,
-            custom_fsms,
+            resource_groups,
+            fsm_types,
+            fsms,
+            span: SpanNanoSec::try_new(earliest_event, latest_event.saturating_add(1))?,
         })
     }
 
-    /// Filter out parentless entities.
-    // TODO(johanpel): collect the parentless entries and return them from this
-    // function so they can be reported or otherwise processed.
-    pub fn remove_parentless(&mut self) {
-        // Filter query groups that don't refer to this engine.
-        for key in self.query_groups.keys().cloned().collect::<Vec<_>>() {
-            if self.query_groups.get(&key).unwrap().engine_id != self.engine.id {
-                self.query_groups.remove(&key);
-            }
-        }
-        // Filter queries that don't refer to any query groups.
-        for key in self.queries.keys().cloned().collect::<Vec<_>>() {
-            if !self
-                .query_groups
-                .contains_key(&self.queries.get(&key).unwrap().query_group_id)
-            {
-                self.queries.remove(&key);
-            }
-        }
-        // Filter plans that don't refer to any queries.
-        for key in self.plans.keys().cloned().collect::<Vec<_>>() {
-            if let Some(query_id) = self.plans.get(&key).unwrap().query_id
-                && !self.queries.contains_key(&query_id)
-            {
-                self.queries.remove(&key);
-            }
-        }
-        // Filter operators that don't refer to any plans
-        for key in self.operators.keys().cloned().collect::<Vec<_>>() {
-            if !self
-                .plans
-                .contains_key(&self.operators.get(&key).unwrap().parent_plan_id)
-            {
-                self.operators.remove(&key);
-            }
-        }
-        // Filter ports that don't refer to any operators
-        for key in self.ports.keys().cloned().collect::<Vec<_>>() {
-            if !self
-                .operators
-                .contains_key(&self.ports.get(&key).unwrap().parent_operator_id)
-            {
-                self.ports.remove(&key);
-            }
-        }
-
-        // Gather all IDs of required entities into a set.
-        let mut parent_entity_ids: HashSet<Uuid> = HashSet::with_capacity(
-            self.workers.len()
-                + self.query_groups.len()
-                + self.queries.len()
-                + self.plans.len()
-                + self.operators.len()
-                + self.ports.len(),
-        );
-        parent_entity_ids.extend(self.workers.keys());
-        parent_entity_ids.extend(self.query_groups.keys());
-        parent_entity_ids.extend(self.queries.keys());
-        parent_entity_ids.extend(self.plans.keys());
-        parent_entity_ids.extend(self.operators.keys());
-        parent_entity_ids.extend(self.ports.keys());
-        parent_entity_ids.insert(self.engine.id);
-
-        // Filter resource groups that don't refer to any of the above entities.
-        for key in self.resource_groups.keys().cloned().collect::<Vec<_>>() {
-            if let Some(root) = self.resource_group_tree_root(key) {
-                if !parent_entity_ids.contains(&root.into()) {
-                    self.resource_groups.remove(&key);
-                }
-            } else {
-                self.resource_groups.remove(&key);
-            }
-        }
-        parent_entity_ids.extend(self.resource_groups.keys());
-
-        // Filter resources that don't refer to any of the above entities.
-        for key in self.resources.keys().cloned().collect::<Vec<_>>() {
-            if let Some(scope) = &self.resources.get(&key).unwrap().scope
-                && parent_entity_ids.contains(&(*scope).into())
-            {
-                continue;
-            }
-            self.resources.remove(&key);
-        }
-
-        // TODO(johanpel): Filter custom FSMs that don't refer to any of the above entities.
-    }
-
     /// Clone all entities that are involved in executing one single query.
+    // TODO(johanpel): we need to sit down and think about this. If you take the
+    // output of this and do analysis on it, you're not going to know what went
+    // on in resources shared across multiple concurrently running workloads. It
+    // would probably be best to calculate the start state within this filtered
+    // dataset of the resources, then include all entities with a time-based
+    // filter.
     pub fn try_filter_by_query(&self, query_id: Uuid) -> Result<Self> {
         let engine = self.engine.clone();
 
@@ -587,6 +565,13 @@ impl Entities {
             .queries
             .get(&query_id)
             .ok_or(Error::InvalidId(query_id))?;
+        // TODO(johanpel): for now :tm: assume that the query timestamps exceed
+        // any other query-related timestamps in both directions, but this would
+        // ultimately need to be determined otherwise.
+        let span = SpanNanoSec::try_new(
+            query.timestamps.init.unwrap_or(self.span.start()),
+            query.timestamps.exit.unwrap_or(self.span.end()),
+        )?;
         let queries = HashMap::from([(query_id, query.clone())]);
 
         let query_group = self
@@ -636,9 +621,12 @@ impl Entities {
             plans,
             operators,
             ports,
-            resource_groups: HashMap::new(),
+            resource_types: self.resource_types.clone(),
             resources: HashMap::new(),
-            custom_fsms: HashMap::new(),
+            resource_groups: HashMap::new(),
+            fsm_types: self.fsm_types.clone(),
+            fsms: HashMap::new(),
+            span,
         };
 
         // ResourceGroups are a bit trickier as they can be nested. In order
@@ -665,8 +653,8 @@ impl Entities {
             .collect();
 
         // samesies for custom entities
-        entities.custom_fsms = self
-            .custom_fsms
+        entities.fsms = self
+            .fsms
             .iter()
             .filter_map(|(id, fsm)| {
                 fsm.relations()
@@ -706,7 +694,7 @@ impl Entities {
             EntityRef::Port(uuid) => self.ports.contains_key(&uuid),
             EntityRef::ResourceGroup(uuid) => self.resource_groups.contains_key(&uuid),
             EntityRef::Resource(uuid) => self.resources.contains_key(&uuid),
-            EntityRef::CustomFsm(uuid) => self.custom_fsms.contains_key(&uuid),
+            EntityRef::CustomFsm(uuid) => self.fsms.contains_key(&uuid),
         }
     }
 
@@ -722,7 +710,7 @@ impl Entities {
     }
 
     pub(crate) fn iter_use_relations(&self) -> impl Iterator<Item = (EntityRef, EntityRef)> {
-        self.custom_fsms.iter().flat_map(|(id, fsm)| {
+        self.fsms.iter().flat_map(|(id, fsm)| {
             fsm.use_relations()
                 .map(|rel| (EntityRef::CustomFsm(*id), rel))
         })
@@ -741,9 +729,7 @@ impl Entities {
             })
             // Filter out anything that's not an FSM for now :tm:
             .filter_map(|user| match user {
-                quent_entities::EntityRef::CustomFsm(uuid) => {
-                    Some(self.custom_fsms.get(&uuid).unwrap())
-                }
+                quent_entities::EntityRef::CustomFsm(uuid) => Some(self.fsms.get(&uuid).unwrap()),
                 _ => None,
             })
     }
@@ -774,7 +760,7 @@ impl Entities {
             .values()
             .filter_map(|res| res.type_name.as_ref())
             .cloned();
-        let custom_fsms = self.custom_fsms.values().map(|fsm| fsm.type_name.clone());
+        let custom_fsms = self.fsms.values().map(|fsm| fsm.type_name.clone());
 
         base.chain(resources)
             .chain(resource_groups)
@@ -783,38 +769,60 @@ impl Entities {
             .into_iter()
     }
 
-    /// Return an EntityRef for the provided id.
-    pub(crate) fn get_entity_ref_from_id(&self, id: Uuid) -> Option<EntityRef> {
-        if self.engine.id == id {
-            return Some(EntityRef::Engine(id));
+    #[inline]
+    pub(crate) fn resource(&self, resource_id: Uuid) -> Result<&Resource> {
+        self.resources
+            .get(&resource_id)
+            .ok_or(Error::InvalidId(resource_id))
+    }
+
+    pub(crate) fn resource_type(&self, resource_type_name: &str) -> Result<&ResourceTypeDecl> {
+        self.resource_types
+            .get(resource_type_name)
+            .ok_or(Error::InvalidTypeName(format!(
+                "unknown resource type {resource_type_name}"
+            )))
+    }
+}
+
+/// A set of high-level manageable entities stored in maps from entity id -> entity.
+///
+/// The maps provide an easy way for quick lookups based on entity IDs.
+/// This also means the values in the maps are flattened entities.
+/// Their relations are solely expressed through IDs.
+#[derive(TS, Serialize, Debug)]
+pub struct EntitiesUI {
+    pub engine: Engine,
+    pub workers: HashMap<Uuid, Worker>,
+    pub resources_types: HashMap<String, ResourceTypeDecl>,
+    pub resources: HashMap<Uuid, Resource>,
+    pub resource_groups: HashMap<Uuid, ResourceGroup>,
+    pub query_groups: HashMap<Uuid, QueryGroup>,
+    pub queries: HashMap<Uuid, Query>,
+    pub plans: HashMap<Uuid, Plan>,
+    pub operators: HashMap<Uuid, Operator>,
+    pub ports: HashMap<Uuid, Port>,
+    pub fsm_types: HashMap<String, FsmTypeDecl>,
+}
+
+impl From<Entities> for EntitiesUI {
+    fn from(value: Entities) -> Self {
+        Self {
+            // Domain-specific entities
+            engine: value.engine.clone(),
+            workers: value.workers.clone(),
+            query_groups: value.query_groups.clone(),
+            queries: value.queries.clone(),
+            plans: value.plans.clone(),
+            operators: value.operators.clone(),
+            ports: value.ports.clone(),
+            // Generic entities:
+            resources_types: value.resource_types.clone(),
+            resource_groups: value.resource_groups.clone(),
+            // TODO(johanpel): This has the potential to get huge too, figure
+            // out how to mitigate:
+            resources: value.resources.clone(),
+            fsm_types: value.fsm_types.clone(),
         }
-        if self.query_groups.contains_key(&id) {
-            return Some(EntityRef::QueryGroup(id));
-        }
-        if self.queries.contains_key(&id) {
-            return Some(EntityRef::Query(id));
-        }
-        if self.plans.contains_key(&id) {
-            return Some(EntityRef::Plan(id));
-        }
-        if self.workers.contains_key(&id) {
-            return Some(EntityRef::Worker(id));
-        }
-        if self.operators.contains_key(&id) {
-            return Some(EntityRef::Operator(id));
-        }
-        if self.ports.contains_key(&id) {
-            return Some(EntityRef::Port(id));
-        }
-        if self.resource_groups.contains_key(&id) {
-            return Some(EntityRef::ResourceGroup(id));
-        }
-        if self.resources.contains_key(&id) {
-            return Some(EntityRef::Resource(id));
-        }
-        if self.custom_fsms.contains_key(&id) {
-            return Some(EntityRef::CustomFsm(id));
-        }
-        None
     }
 }

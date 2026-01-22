@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 const NUM_QUERY_GROUPS: usize = 1;
 const NUM_QUERIES: usize = 1; // per query group
-const NUM_TASKS: usize = 1024; // per operator
+const NUM_TASKS: usize = 32; // per operator
 
 const NUM_WORKERS: usize = 2;
 const NUM_THREADS: usize = 2; // per worker thread pool
@@ -358,23 +358,20 @@ impl Worker {
     }
 
     fn spawn(&self, context: &quent::Context, engine_id: Uuid) {
-        info!("Spawning worker: {}", self.id);
         let worker_obs = context.worker_observer();
         let resource_group_obs = context.resource_group_observer();
         let memory_obs = context.memory_resource_observer();
         let channel_obs = context.channel_resource_observer();
         let processor_obs = context.processor_resource_observer();
 
+        info!("Spawning worker {}", self.name);
         let resource_links = |resource_name: &str, resource_id: Uuid| {
-            info!("Spawning resource {resource_name}");
+            info!("\tResource {resource_name}");
             info!(
-                "\thttp://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/use/all"
+                "\t\tTimeline (all FSMs): http://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/all?num_bins=16"
             );
             info!(
-                "\thttp://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/all?num_bins=10"
-            );
-            info!(
-                "\thttp://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm?num_bins=10&fsm_type_name=task"
+                "\t\tTimeline (task FSM): http://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm?num_bins=16&fsm_type_name=task"
             );
         };
 
@@ -491,13 +488,12 @@ impl Worker {
         let id = Uuid::now_v7();
         obs.task_initializing(
             id,
-            task::Initializing {
+            task::Init {
                 operator_id: operator.id,
                 name: Some(format!("task-{index}")),
             },
         );
         obs.task_queueing(id, task::Queueing {});
-        std::thread::sleep(Duration::from_micros(42));
         let (spill, load, send) = match operator.kind {
             Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
             Physical::JoinPartition => (false, rng().random_bool(0.5), true),
@@ -515,7 +511,7 @@ impl Worker {
                 use_task_thread: thread,
             },
         );
-        std::thread::sleep(Duration::from_micros(42));
+        std::thread::sleep(Duration::from_micros(rng().random_range(1..25)));
         if spill {
             obs.task_allocating_storage(
                 id,
@@ -523,7 +519,7 @@ impl Worker {
                     use_task_thread: thread,
                 },
             );
-            std::thread::sleep(Duration::from_micros(42));
+            std::thread::sleep(Duration::from_micros(rng().random_range(1..25)));
             obs.task_spilling(
                 id,
                 task::Spilling {
@@ -532,14 +528,14 @@ impl Worker {
                     use_mem_to_fs_bytes: num_bytes,
                 },
             );
-            std::thread::sleep(Duration::from_micros(42));
+            std::thread::sleep(Duration::from_millis(rng().random_range(1..25)));
             obs.task_allocating_memory(
                 id,
                 task::AllocatingMemory {
                     use_task_thread: thread,
                 },
             );
-            std::thread::sleep(Duration::from_micros(42));
+            std::thread::sleep(Duration::from_micros(rng().random_range(1..25)));
         }
         if load {
             obs.task_loading(
@@ -552,7 +548,7 @@ impl Worker {
                     use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
                 },
             );
-            std::thread::sleep(Duration::from_micros(42));
+            std::thread::sleep(Duration::from_millis(rng().random_range(1..25)));
         }
         obs.task_computing(
             id,
@@ -562,7 +558,7 @@ impl Worker {
                 use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
             },
         );
-        std::thread::sleep(Duration::from_micros(42));
+        std::thread::sleep(Duration::from_millis(rng().random_range(1..25)));
         if send {
             // Get all other workers and send some data to each of them sequentially.
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
@@ -578,12 +574,12 @@ impl Worker {
                         use_link_bytes: num_bytes,
                     },
                 );
-                std::thread::sleep(Duration::from_micros(42));
+                std::thread::sleep(Duration::from_millis(rng().random_range(1..25)));
             }
         }
 
         obs.task_finalizing(id, task::Finalizing {});
-        std::thread::sleep(Duration::from_micros(42));
+        std::thread::sleep(Duration::from_micros(10));
         obs.task_exit(id, task::Exit {});
     }
 
@@ -627,11 +623,8 @@ impl Worker {
                 .collect::<Vec<_>>()
         );
 
-        // TODO(johanpel): we're running ALL operators in parallel, which isn't
-        // really sensible, but it does provide overlapping usages that can be
-        // aggegrated.
-        nodes.into_par_iter().for_each(|node_idx| {
-            let op = &plan.dag[node_idx];
+        for node_idx in nodes.iter() {
+            let op = &plan.dag[*node_idx];
             operator_obs.init(
                 op.id,
                 operator::Init {
@@ -640,14 +633,14 @@ impl Worker {
                     name: Some(op.name()),
                     ports: plan
                         .dag
-                        .edges_directed(node_idx, petgraph::Direction::Incoming)
+                        .edges_directed(*node_idx, petgraph::Direction::Incoming)
                         .map(|edge| operator::Port {
                             id: edge.weight().target.id,
                             name: edge.weight().target.name.to_string(),
                         })
                         .chain(
                             plan.dag
-                                .edges_directed(node_idx, petgraph::Direction::Outgoing)
+                                .edges_directed(*node_idx, petgraph::Direction::Outgoing)
                                 .map(|edge| operator::Port {
                                     id: edge.weight().source.id,
                                     name: edge.weight().source.name.to_string(),
@@ -660,21 +653,28 @@ impl Worker {
             operator_obs.waiting_for_inputs(op.id, Default::default());
             std::thread::sleep(Duration::from_millis(10));
             operator_obs.executing(op.id, Default::default());
-            if plan.execute {
-                // TODO(johanpel): make things run concurrently and overlap tasks
-                for (index, _) in (0..NUM_TASKS).enumerate() {
-                    self.execute_physical_operator_tasks(
-                        context,
-                        index,
-                        engine,
-                        op,
-                        *self
-                            .task_threads
-                            .get(index % self.task_threads.len())
-                            .unwrap(),
-                    );
+        }
+
+        if plan.execute {
+            // On each thread, run a bunch of tasks for each operator.
+            self.task_threads.par_iter().for_each(|task_thread_id| {
+                for node_idx in nodes.iter() {
+                    let op = &plan.dag[*node_idx];
+                    for (index, _) in (0..NUM_TASKS / NUM_THREADS).enumerate() {
+                        self.execute_physical_operator_tasks(
+                            context,
+                            index,
+                            engine,
+                            op,
+                            *task_thread_id,
+                        );
+                    }
                 }
-            }
+            });
+        }
+
+        for node_idx in nodes.iter() {
+            let op = &plan.dag[*node_idx];
             std::thread::sleep(Duration::from_millis(10));
             operator_obs.blocked(op.id, Default::default());
             std::thread::sleep(Duration::from_millis(10));
@@ -687,7 +687,7 @@ impl Worker {
             operator_obs.finalizing(op.id, Default::default());
             std::thread::sleep(Duration::from_millis(10));
             operator_obs.exit(op.id, Default::default());
-        });
+        }
 
         plan_obs.idle(plan_id, Default::default());
         std::thread::sleep(Duration::from_millis(10));
@@ -748,7 +748,10 @@ impl Engine {
 
     fn spawn(&mut self, context: &quent::Context, num_workers: usize) {
         // Create some observers
-        info!("Spawning engine: {}", self.id);
+        info!(
+            "Simulating Engine: http://localhost:8080/analyzer/engine/{}",
+            self.id
+        );
         let engine_obs = context.engine_observer();
         let resource_group_obs = context.resource_group_observer();
         let channel_obs = context.channel_resource_observer();
@@ -866,14 +869,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
     let mut engine = Engine::new();
-    info!(
-        "simulating engine - http://localhost:8080/analyzer/engine/{}",
-        engine.id
-    );
 
     let context =
         quent::Context::try_new(ExporterOptions::Collector(Default::default()), engine.id)?;
-    info!("context created, creating events...");
 
     engine.spawn(&context, NUM_WORKERS);
     let engine = Arc::new(engine);
@@ -882,7 +880,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query_group_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
         .take(NUM_QUERY_GROUPS)
         .map(|query_group_id| {
-            info!("simulating query_group - http://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
+            info!("Simulating Query Group: http://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
             std::thread::spawn({
                 let engine = Arc::clone(&engine);
                 let context = Arc::clone(&context);
@@ -906,7 +904,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let context = Arc::clone(&context);
                                 let query_obs = query_obs.clone();
                                 move || {
-                                    info!("simulating query - http://localhost:8080/analyzer/engine/{}/query/{query_id}", engine.id);
+                                    info!("Simulating Query: http://localhost:8080/analyzer/engine/{}/query/{query_id}", engine.id);
                                     query_obs.init(
                                         query_id,
                                         query::Init {
@@ -921,9 +919,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                     // TODO(johanpel): properly nest this or don't require plans to be executable as operator fsms
                                     // engine.workers.values().next().unwrap().execute_physical_plan(&context, &l_plan);
-                                    for worker in engine.workers.values() {
+                                    engine.workers.values().collect::<Vec<_>>().par_iter().for_each(|worker| {
                                             worker.execute_physical_plan(&context, &engine, &p_plan);
-                                    }
+                                    });
 
                                     query_obs.idle(query_id, query::Idle {});
                                     query_obs.finalizing(query_id, query::Finalizing {});

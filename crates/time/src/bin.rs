@@ -2,23 +2,24 @@
 
 use std::num::NonZero;
 
-use py_rs::PY;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 
-use crate::{Duration, Result, Span, TimeError, Timestamp};
+use crate::{
+    Result, SpanNanoSec, SpanSec, TimeError, TimeNanoSec, TimeSec, TimeUnixNanoSec, to_secs,
+};
 
 /// A span of time separated into equally-sized bins of time.
-#[derive(TS, PY, Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BinnedSpan {
-    // The entire span of time this binned span represents.
-    pub span: Span,
-    // The duration of one bin.
-    pub bin_duration: NonZero<Duration>,
-    // The number of bins.
-    //
-    // This is a u64, because a u64::MAX duration span could be binned into
-    // u64::MAX bins.
+    /// The entire span of time this binned span represents.
+    pub span: SpanNanoSec,
+    /// The duration of one bin.
+    pub bin_duration: NonZero<TimeNanoSec>,
+    /// The number of bins.
+    ///
+    /// This is a u64, because a u64::MAX duration span could be binned into
+    /// u64::MAX bins.
     pub num_bins: NonZero<u64>,
 }
 
@@ -29,11 +30,11 @@ impl BinnedSpan {
     ///
     /// If the duration of the `span` is smaller than the number of bins, the bins will be of size 1.
     /// This function will modify the `span` in which the bins lie such that it always fits within the expressable `[Timestamp]` range.
-    pub fn try_new(span: Span, num_bins: NonZero<u64>) -> Result<Self> {
+    pub fn try_new(span: SpanNanoSec, num_bins: NonZero<u64>) -> Result<Self> {
         // Calculate a guaranteed non-zero positive bin size. This can fail if the span duration is zero.
         let bin_size =
             NonZero::try_from(span.duration().div_ceil(num_bins.get())).map_err(|_| {
-                TimeError::InvalidArguments(format!(
+                TimeError::InvalidArgument(format!(
                     "BinnedSpan cannot be constructed from zero-duration span: {span:?}"
                 ))
             })?;
@@ -44,7 +45,7 @@ impl BinnedSpan {
         // Recalculate the start in case the end saturated.
         let start = end.saturating_sub(num_bins.get().saturating_mul(bin_size.get()));
         // Construct the actual span from the adjusted interval.
-        let span = Span::try_new(start, end)?;
+        let span = SpanNanoSec::try_new(start, end)?;
         // Sanity check.
         assert_eq!(
             span.duration(),
@@ -70,8 +71,8 @@ impl BinnedSpan {
     }
 
     /// Return the index of the bin in which the provided timestamp lies, if at all.
-    pub fn index_of(&self, timestamp: Timestamp) -> Option<u64> {
-        if let Some(relative_timestamp) = timestamp.checked_sub(self.span.start) {
+    pub fn index_of(&self, timestamp: TimeUnixNanoSec) -> Option<u64> {
+        if let Some(relative_timestamp) = timestamp.checked_sub(self.span.start()) {
             let maybe_index = relative_timestamp / self.bin_duration.get();
             if maybe_index >= self.num_bins.get() {
                 None
@@ -84,18 +85,18 @@ impl BinnedSpan {
     }
 
     /// Return the Span of the bin with the provided index.
-    pub fn bin(&self, index: u64) -> Option<Span> {
+    pub fn bin(&self, index: u64) -> Option<SpanNanoSec> {
         if index < self.num_bins.get() {
-            let start = self.span.start + index * self.bin_duration.get();
+            let start = self.span.start() + index * self.bin_duration.get();
             // Unwrap here because if this would ever panic something is really wrong.
-            Some(Span::try_new(start, start + self.bin_duration.get()).unwrap())
+            Some(SpanNanoSec::try_new(start, start + self.bin_duration.get()).unwrap())
         } else {
             None
         }
     }
 
     /// Return an iterator over bin indices that the provided span overlaps.
-    pub fn iter_indices(&self, span: &Span) -> impl Iterator<Item = u64> {
+    pub fn iter_indices(&self, span: &SpanNanoSec) -> impl Iterator<Item = u64> {
         let start_end = (
             self.index_of(span.start()),
             span.end().checked_sub(1).and_then(|t| self.index_of(t)),
@@ -124,8 +125,8 @@ impl BinnedSpan {
     /// in this bin) of bins where `span` intersects.
     pub fn iter_indices_intersect_durations(
         &self,
-        span: &Span,
-    ) -> impl Iterator<Item = (u64, Duration)> {
+        span: &SpanNanoSec,
+    ) -> impl Iterator<Item = (u64, TimeNanoSec)> {
         // TODO(johanpel): this could be optimized by only calling
         // intersection() for the first and last bin
         self.iter_indices(span).filter_map(|index| {
@@ -135,6 +136,27 @@ impl BinnedSpan {
                 .map(|span| (index, span.duration()))
         })
     }
+
+    /// Attempt to convert this BinnedSpan into [`BinnedSpanSec`] with
+    /// timestamps relative to the provided epoch.
+    pub fn try_to_secs_relative(&self, epoch: TimeNanoSec) -> Result<BinnedSpanSec> {
+        Ok(BinnedSpanSec {
+            span: self.span.try_to_secs_relative(epoch)?,
+            bin_duration: to_secs(self.bin_duration.get()),
+            num_bins: self.num_bins.get(),
+        })
+    }
+}
+
+/// A UI-friendly representation of [`BinnedSpan`].
+#[derive(TS, Serialize, Clone, Copy, Debug, PartialEq)]
+pub struct BinnedSpanSec {
+    /// The entire span of time this binned span represents.
+    pub span: SpanSec,
+    /// The duration of one bin.
+    pub bin_duration: TimeSec,
+    /// The number of bins.
+    pub num_bins: u64,
 }
 
 #[cfg(test)]
@@ -145,60 +167,63 @@ mod tests {
     fn try_new() {
         // Trivial arguments
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(5).unwrap(),
         );
         assert!(bins.is_ok());
         let bins = bins.unwrap();
         assert_eq!(bins.num_bins, NonZero::try_from(5).unwrap());
         assert_eq!(bins.bin_duration, NonZero::try_from(20).unwrap());
-        assert_eq!(bins.span, Span::try_new(100, 200).unwrap());
+        assert_eq!(bins.span, SpanNanoSec::try_new(100, 200).unwrap());
 
         // More bins than time steps
         let bins = BinnedSpan::try_new(
-            Span::try_new(10, 20).unwrap(),
+            SpanNanoSec::try_new(10, 20).unwrap(),
             NonZero::try_from(15).unwrap(),
         );
         assert!(bins.is_ok());
         let bins = bins.unwrap();
         assert_eq!(bins.num_bins, NonZero::try_from(15).unwrap());
         assert_eq!(bins.bin_duration, NonZero::try_from(1).unwrap());
-        assert_eq!(bins.span, Span::try_new(10, 25).unwrap());
+        assert_eq!(bins.span, SpanNanoSec::try_new(10, 25).unwrap());
 
         // More bins than time steps near zero
         let bins = BinnedSpan::try_new(
-            Span::try_new(0, 10).unwrap(),
+            SpanNanoSec::try_new(0, 10).unwrap(),
             NonZero::try_from(15).unwrap(),
         );
         assert!(bins.is_ok());
         let bins = bins.unwrap();
         assert_eq!(bins.num_bins, NonZero::try_from(15).unwrap());
         assert_eq!(bins.bin_duration, NonZero::try_from(1).unwrap());
-        assert_eq!(bins.span, Span::try_new(0, 15).unwrap());
+        assert_eq!(bins.span, SpanNanoSec::try_new(0, 15).unwrap());
 
         // More bins than time steps near max
         let bins = BinnedSpan::try_new(
-            Span::try_new(u64::MAX - 10, u64::MAX).unwrap(),
+            SpanNanoSec::try_new(u64::MAX - 10, u64::MAX).unwrap(),
             NonZero::try_from(15).unwrap(),
         );
         assert!(bins.is_ok());
         let bins = bins.unwrap();
         assert_eq!(bins.num_bins, NonZero::try_from(15).unwrap());
         assert_eq!(bins.bin_duration, NonZero::try_from(1).unwrap());
-        assert_eq!(bins.span, Span::try_new(u64::MAX - 15, u64::MAX).unwrap());
+        assert_eq!(
+            bins.span,
+            SpanNanoSec::try_new(u64::MAX - 15, u64::MAX).unwrap()
+        );
     }
 
     #[test]
     pub fn bin() {
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
-        assert_eq!(bins.bin(0), Some(Span::try_new(100, 125).unwrap()));
-        assert_eq!(bins.bin(1), Some(Span::try_new(125, 150).unwrap()));
-        assert_eq!(bins.bin(2), Some(Span::try_new(150, 175).unwrap()));
-        assert_eq!(bins.bin(3), Some(Span::try_new(175, 200).unwrap()));
+        assert_eq!(bins.bin(0), Some(SpanNanoSec::try_new(100, 125).unwrap()));
+        assert_eq!(bins.bin(1), Some(SpanNanoSec::try_new(125, 150).unwrap()));
+        assert_eq!(bins.bin(2), Some(SpanNanoSec::try_new(150, 175).unwrap()));
+        assert_eq!(bins.bin(3), Some(SpanNanoSec::try_new(175, 200).unwrap()));
         assert_eq!(bins.bin(4), None);
         assert_eq!(bins.bin(u64::MAX), None);
     }
@@ -207,7 +232,7 @@ mod tests {
     pub fn index_of() {
         // Trivial
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
@@ -221,7 +246,7 @@ mod tests {
 
         // Extremes
         let bins = BinnedSpan::try_new(
-            Span::try_new(0, u64::MAX).unwrap(),
+            SpanNanoSec::try_new(0, u64::MAX).unwrap(),
             NonZero::try_from(1024).unwrap(),
         )
         .unwrap();
@@ -239,71 +264,71 @@ mod tests {
     pub fn iter_indices() {
         // Span is same as binned span
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
         assert_eq!(
-            bins.iter_indices(&Span::try_new(100, 200).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(100, 200).unwrap())
                 .collect::<Vec<_>>(),
             vec![0, 1, 2, 3]
         );
 
         // Span is smaller than binned span
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
         assert_eq!(
-            bins.iter_indices(&Span::try_new(125, 149).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(125, 149).unwrap())
                 .collect::<Vec<_>>(),
             vec![1]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(125, 150).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(125, 150).unwrap())
                 .collect::<Vec<_>>(),
             vec![1]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(124, 150).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(124, 150).unwrap())
                 .collect::<Vec<_>>(),
             vec![0, 1]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(124, 151).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(124, 151).unwrap())
                 .collect::<Vec<_>>(),
             vec![0, 1, 2]
         );
 
         // Span is larger than binned span
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
         assert_eq!(
-            bins.iter_indices(&Span::try_new(0, 300).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(0, 300).unwrap())
                 .collect::<Vec<_>>(),
             vec![0, 1, 2, 3]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(99, 150).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(99, 150).unwrap())
                 .collect::<Vec<_>>(),
             vec![0, 1]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(99, 151).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(99, 151).unwrap())
                 .collect::<Vec<_>>(),
             vec![0, 1, 2]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(150, 200).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(150, 200).unwrap())
                 .collect::<Vec<_>>(),
             vec![2, 3]
         );
         assert_eq!(
-            bins.iter_indices(&Span::try_new(150, 300).unwrap())
+            bins.iter_indices(&SpanNanoSec::try_new(150, 300).unwrap())
                 .collect::<Vec<_>>(),
             vec![2, 3]
         );
@@ -313,71 +338,71 @@ mod tests {
     pub fn iter_indices_intersect_durations() {
         // Span is same as binned span
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(100, 200).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(100, 200).unwrap())
                 .collect::<Vec<_>>(),
             vec![(0, 25), (1, 25), (2, 25), (3, 25)]
         );
 
         // Span is smaller than binned span
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(125, 149).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(125, 149).unwrap())
                 .collect::<Vec<_>>(),
             vec![(1, 24)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(125, 150).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(125, 150).unwrap())
                 .collect::<Vec<_>>(),
             vec![(1, 25)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(124, 150).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(124, 150).unwrap())
                 .collect::<Vec<_>>(),
             vec![(0, 1), (1, 25)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(124, 151).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(124, 151).unwrap())
                 .collect::<Vec<_>>(),
             vec![(0, 1), (1, 25), (2, 1)]
         );
 
         // Span is larger than binned span
         let bins = BinnedSpan::try_new(
-            Span::try_new(100, 200).unwrap(),
+            SpanNanoSec::try_new(100, 200).unwrap(),
             NonZero::try_from(4).unwrap(),
         )
         .unwrap();
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(0, 300).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(0, 300).unwrap())
                 .collect::<Vec<_>>(),
             vec![(0, 25), (1, 25), (2, 25), (3, 25)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(99, 150).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(99, 150).unwrap())
                 .collect::<Vec<_>>(),
             vec![(0, 25), (1, 25)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(99, 151).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(99, 151).unwrap())
                 .collect::<Vec<_>>(),
             vec![(0, 25), (1, 25), (2, 1)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(150, 200).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(150, 200).unwrap())
                 .collect::<Vec<_>>(),
             vec![(2, 25), (3, 25)]
         );
         assert_eq!(
-            bins.iter_indices_intersect_durations(&Span::try_new(150, 300).unwrap())
+            bins.iter_indices_intersect_durations(&SpanNanoSec::try_new(150, 300).unwrap())
                 .collect::<Vec<_>>(),
             vec![(2, 25), (3, 25)]
         );

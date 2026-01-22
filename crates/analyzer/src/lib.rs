@@ -1,28 +1,41 @@
 //! Analyzes raw events to produce useful performance insights.
+//!
+//! General analyzer TODOs for post-PoC:
+//!
+//! - Arrow-fication of the data. Right now, everything is deserialized into
+//!   Rust native types. It's subjectively easier for now to capture modeling
+//!   rules but when queries become more complicated, more run-time defined and
+//!   interactive, it's most likely best to move this to a query engine in order
+//!   to get better performance and scalability without too much engineering
+//!   investment. Prior art used DataFusion.
+//!
+//! - Timeseries databases like InfluxDB have the ability to do various things
+//!   like time binned aggregations etc. as well. How modeling rules and
+//!   validation can be expressed in such frameworks is to be investigated.
+//!
 
 use quent_entities::{
     engine::Engine,
     query_group::QueryGroup,
-    timeline::{ResourceTimeline, ResourceTimelineBinned, ResourceTimelineBinnedByState},
+    timeline::{ResourceTimelineBinned, ResourceTimelineBinnedByState},
     worker::Worker,
 };
 use quent_events::{Event as RawEvent, EventData};
-use quent_time::{Span, bin::BinnedSpan};
+use quent_time::{SpanNanoSec, bin::BinnedSpan};
 use uuid::Uuid;
 
 use crate::{
     entities::Entities,
-    query::QueryBundle,
+    query_bundle::QueryBundle,
     timeline::{
-        make_resource_timeline_bin_aggregated, make_resource_timeline_for_resource,
-        make_resource_timeline_state_and_bin_aggregated,
+        make_resource_timeline_bin_aggregated, make_resource_timeline_state_and_bin_aggregated,
     },
 };
 
 pub mod entities;
 pub mod error;
 pub mod plan_tree;
-pub mod query;
+pub mod query_bundle;
 pub mod resource_tree;
 pub mod timeline;
 
@@ -48,9 +61,9 @@ impl Analyzer {
     }
 
     /// Return a Span that spans all event timestamps.
-    pub fn timestamp_span(&self) -> Span {
+    pub fn timestamp_span(&self) -> SpanNanoSec {
         // TODO(johanpel): calculate this as entities are constructed
-        Span::try_new(
+        SpanNanoSec::try_new(
             self.engine().timestamps.init.unwrap(),
             self.engine().timestamps.exit.unwrap(),
         )
@@ -85,11 +98,6 @@ impl Analyzer {
     #[tracing::instrument(skip(self), err)]
     pub fn query_bundle(&self, id: Uuid) -> Result<QueryBundle> {
         QueryBundle::try_new(&self.entities, id)
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub fn resource_usage_spans(&self, resource_id: Uuid) -> Result<ResourceTimeline> {
-        make_resource_timeline_for_resource(&self.entities, resource_id)
     }
 
     #[tracing::instrument(skip(self), err)]
