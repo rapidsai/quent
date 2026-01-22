@@ -6,11 +6,11 @@ use axum::{
     http::StatusCode,
     routing::get,
 };
-use quent_analyzer::{Analyzer, query::QueryBundle};
+use quent_analyzer::{Analyzer, query_bundle::QueryBundle};
 use quent_entities::{
     engine::Engine,
     query_group::QueryGroup,
-    timeline::{ResourceTimeline, ResourceTimelineBinned, ResourceTimelineBinnedByState},
+    timeline::{ResourceTimelineBinned, ResourceTimelineBinnedByState},
     worker::Worker,
 };
 use quent_exporter_ndjson::NdjsonImporter;
@@ -134,18 +134,6 @@ async fn query(
     Ok(Json(query_bundle))
 }
 
-#[tracing::instrument(skip_all)]
-async fn resource_use_timeline(
-    Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<ResourceTimeline>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let timeline = analyzer.resource_usage_spans(resource_id)?;
-    Ok(Json(timeline))
-}
-
 #[derive(Deserialize)]
 struct ResourceUsageAggregatedQuery {
     num_bins: u64,
@@ -212,10 +200,6 @@ pub fn routes() -> Router<()> {
             get(list_queries),
         )
         .route("/engine/{engine_id}/query/{query_id}", get(query))
-        .route(
-            "/engine/{engine_id}/timeline/resource/{resource_id}/use/all",
-            get(resource_use_timeline),
-        )
         .route(
             "/engine/{engine_id}/timeline/resource/{resource_id}/agg/all",
             get(resource_use_timeline_aggregated),

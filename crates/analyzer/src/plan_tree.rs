@@ -1,5 +1,4 @@
-use py_rs::PY;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -15,7 +14,7 @@ use crate::{Result, entities::Entities, error::Error};
 /// any arbitrary number of times. At some point, at least one worker will
 /// execute a Plan, but the model is flexible enough to allow a worker to
 /// locally lower the plan further.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Serialize)]
 pub struct PlanTree {
     /// The Plan ID.
     pub id: Uuid,

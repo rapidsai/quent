@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
-use py_rs::PY;
-use quent_time::Timestamp;
-use serde::{Deserialize, Serialize};
+use quent_time::TimeUnixNanoSec;
+use serde::Serialize;
+use smallvec::SmallVec;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -11,7 +11,7 @@ use crate::error::{EntityError, Result};
 use super::*;
 
 /// The type of capacity of a Resource.
-#[derive(TS, PY, Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Copy, Debug, Serialize)]
 pub enum CapacityKind {
     /// The Use value represents the amount of Resource Capacity
     /// held/occupied during a Span.
@@ -33,7 +33,7 @@ pub enum CapacityKind {
 }
 
 /// Declaration of a Capacity of a Resource
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Serialize)]
 pub struct CapacityDecl {
     pub name: String,
     pub kind: CapacityKind,
@@ -52,10 +52,69 @@ impl CapacityDecl {
             kind: CapacityKind::Rate,
         }
     }
+    pub fn unit() -> Self {
+        Self {
+            name: "unit".into(),
+            kind: CapacityKind::Occupancy,
+        }
+    }
+}
+
+/// Declaration of a Resource type
+#[derive(TS, Clone, Debug, Serialize)]
+pub struct ResourceTypeDecl {
+    /// The unique type name for this type of Resource.
+    pub name: String,
+    // The common case is that a resource has one capacity, don't bother going
+    // with HashMap here.
+    #[ts(as = "Vec<CapacityDecl>")]
+    pub capacities: SmallVec<[CapacityDecl; 1]>,
+
+    /// An unordered set of FSM type names that Use this Resource.
+    pub used_by_fsms: HashSet<String>,
+}
+
+impl ResourceTypeDecl {
+    pub fn new(
+        name: impl Into<String>,
+        capacities: impl Into<SmallVec<[CapacityDecl; 1]>>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            capacities: capacities.into(),
+            used_by_fsms: Default::default(),
+        }
+    }
+
+    pub fn unit(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            capacities: SmallVec::from([CapacityDecl::unit()]),
+            used_by_fsms: Default::default(),
+        }
+    }
+
+    pub fn capacity(&self, capacity_name: &str) -> Option<&CapacityDecl> {
+        self.capacities
+            .iter()
+            .find(|capacity| capacity.name.eq(capacity_name))
+    }
+
+    pub fn try_capacity(&self, capacity_name: &str) -> Result<&CapacityDecl> {
+        self.capacity(capacity_name)
+            .ok_or(EntityError::InvalidArgument(format!(
+                "unknown capacity \"{capacity_name}\" for resource type {}. Must be one of: {:?}",
+                self.name,
+                self.capacities
+                    .iter()
+                    .map(|capacity| capacity.name.as_str())
+                    .collect::<Vec<_>>()
+            )))
+    }
 }
 
 /// A Resource Capacity
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(TS, Clone, Debug, Serialize, PartialEq)]
 pub struct CapacityValue {
     // TODO(johanpel): consider making this a small index into whats declared at init
     pub name: String,
@@ -78,51 +137,37 @@ impl CapacityValue {
 }
 
 /// Attributes of the "Operating" state of a Resource.
-#[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Default, Serialize)]
 pub struct ResourceOperatingState {
-    pub timestamp: Timestamp,
+    pub timestamp: TimeUnixNanoSec,
     pub capacities: Vec<CapacityValue>,
 }
 
 /// Resource states.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Serialize)]
 pub enum ResourceState {
-    Init(Timestamp),
+    Init(TimeUnixNanoSec),
     Operating(ResourceOperatingState),
-    Resizing(Timestamp),
-    Finalizing(Timestamp),
-    Exit(Timestamp),
+    Resizing(TimeUnixNanoSec),
+    Finalizing(TimeUnixNanoSec),
+    Exit(TimeUnixNanoSec),
 }
 
 /// A Resource of which its Capacities cannot be resized.
-#[derive(TS, PY, Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(TS, Clone, Default, Debug, Serialize)]
 pub struct Resource {
-    /// The ID of this Resource
+    /// The ID of this Resource.
     pub id: Uuid,
-    /// The name of this Resource
+    /// The name of this Resource.
     pub instance_name: Option<String>,
-    /// The name of this Resource type
+    /// The type of this Resource.
     pub type_name: String,
     /// The scope of this Resource.
     pub scope: Option<EntityRef>,
-    /// The Capacities of this Resource.
-    ///
-    /// If this is empty, this is Unit resource.
-    pub capacities: HashMap<String, CapacityDecl>,
     /// The sequence of states that this Resource
+    #[serde(skip)]
+    #[ts(skip)]
     pub state_sequence: Vec<ResourceState>,
-}
-
-impl Resource {
-    pub fn capacity(&self, capacity_name: &str) -> Result<&CapacityDecl> {
-        self.capacities
-            .get(capacity_name)
-            .ok_or(EntityError::InvalidArgument(format!(
-                "unknown capacity \"{capacity_name}\" for resource {}. Must be one of: {:?}",
-                self.id,
-                self.capacities.keys()
-            )))
-    }
 }
 
 impl Entity for Resource {
@@ -148,22 +193,22 @@ impl Related for Resource {
 
 /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
 /// ResourceGroup.
-#[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Default, Serialize)]
 pub struct ResourceGroupTimestamps {
     /// The time at which the ResourceGroup started initialization.
-    pub init: Option<Timestamp>,
+    pub init: Option<TimeUnixNanoSec>,
     /// The time at which the ResourceGroup started operating.
-    pub operating: Option<Timestamp>,
+    pub operating: Option<TimeUnixNanoSec>,
     /// The time at which the ResourceGroup started shutting down and
     /// cleaning up its resources.
-    pub finalizing: Option<Timestamp>,
+    pub finalizing: Option<TimeUnixNanoSec>,
     /// The time at which the ResourceGroup was completely destructed and
     /// all resources were freed.
-    pub exit: Option<Timestamp>,
+    pub exit: Option<TimeUnixNanoSec>,
 }
 
 /// A Group of Resources.
-#[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(TS, Clone, Debug, Default, Serialize)]
 pub struct ResourceGroup {
     /// The ID of this Resource Group
     pub id: Uuid,
@@ -174,6 +219,8 @@ pub struct ResourceGroup {
     /// The scope of this Resource Group
     pub scope: Option<EntityRef>,
     /// The timestamps of state transitions of this ResourceGroup.
+    #[serde(skip)]
+    #[ts(skip)]
     pub timestamps: ResourceGroupTimestamps,
 }
 
@@ -198,28 +245,25 @@ impl Related for ResourceGroup {
     }
 }
 
-#[derive(TS, PY, Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(TS, Clone, Debug, PartialEq, Serialize)]
 pub struct Use {
     pub resource: Uuid,
-    // TODO(johanpel): consider using an index into a list of capacity names
-    // in a resource vs. an attribute key as string
-    pub capacities: Vec<CapacityValue>,
+    #[ts(as = "Vec<CapacityDecl>")]
+    pub capacities: SmallVec<[CapacityValue; 1]>,
 }
 
 impl Use {
-    pub fn new(resource: Uuid, capacities: Vec<CapacityValue>) -> Self {
+    pub fn new(resource: Uuid, capacities: impl Into<SmallVec<[CapacityValue; 1]>>) -> Self {
         Self {
             resource,
-            capacities,
+            capacities: capacities.into(),
         }
     }
 
     pub fn unit(resource: Uuid) -> Self {
         Self {
             resource,
-            // TODO(johanpel): figure out how to best deal with unit
-            // resource capacity (also in analysis)
-            capacities: vec![],
+            capacities: SmallVec::from([CapacityValue::new("unit", 1)]),
         }
     }
 }

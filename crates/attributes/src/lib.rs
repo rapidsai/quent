@@ -1,6 +1,5 @@
 //! Support for custom attributes defined at run-time.
 
-use py_rs::PY;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
@@ -13,11 +12,11 @@ pub enum ValueError {
 }
 
 /// A group of [`Attribute`]s.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Struct(pub Vec<Attribute>);
 
 /// A sequence of [`Value`]s.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[ts(untagged)]
 pub enum List {
     U8(Vec<u8>),
@@ -35,7 +34,7 @@ pub enum List {
 }
 
 /// An [`Attribute`] value.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[ts(untagged)]
 pub enum Value {
     U8(u8),
@@ -54,7 +53,7 @@ pub enum Value {
 }
 
 /// A key-value pair.
-#[derive(TS, PY, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Attribute {
     pub key: String,
     pub value: Option<Value>,

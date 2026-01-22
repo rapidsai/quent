@@ -1,7 +1,6 @@
 //! Type definitions of entity events.
 
-use py_rs::PY;
-use quent_time::{Timestamp, timestamp};
+use quent_time::{TimeUnixNanoSec, timestamp};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -12,7 +11,7 @@ pub mod q;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event<T> {
     pub id: Uuid,
-    pub timestamp: Timestamp,
+    pub timestamp: TimeUnixNanoSec,
     pub data: T,
 }
 
@@ -26,7 +25,7 @@ impl<T> Event<T> {
         }
     }
 
-    pub fn new(id: Uuid, timestamp: Timestamp, data: T) -> Self {
+    pub fn new(id: Uuid, timestamp: TimeUnixNanoSec, data: T) -> Self {
         Self {
             id,
             timestamp,
@@ -41,7 +40,7 @@ pub mod engine {
     use super::*;
 
     /// Attributes describing details about the implementation of this Engine
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Deserialize, Serialize)]
     pub struct EngineImplementationAttributes {
         /// The name of this Engine implementation, e.g. "SiriusDB", "Velox", "DataFusion", etc.
         pub name: Option<String>,
@@ -169,7 +168,7 @@ pub mod plan {
 
     /// A directed edge of a Plan DAG.
     // TODO(johanpel): should we flatten this?
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Deserialize, Serialize)]
     pub struct Edge {
         /// The ID of the port sourcing data.
         pub source: Uuid,

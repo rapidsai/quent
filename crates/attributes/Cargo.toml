@@ -7,4 +7,3 @@ edition.workspace =  true
 serde.workspace = true
 thiserror.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
-py-rs = {workspace = true}

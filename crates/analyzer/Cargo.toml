@@ -9,7 +9,6 @@ q = ["quent-events/q"]
 
 [dependencies]
 http = "*"
-py-rs.workspace = true
 quent-attributes = { path = "../attributes" }
 quent-entities = { path = "../entities" }
 quent-events = { path = "../events" }

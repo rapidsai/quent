@@ -2,11 +2,11 @@
 //!
 //! These type definitions intentionally do not use generics, since many binding
 //! generators will not support them.
-use py_rs::PY;
+
 use quent_events::engine::EngineImplementationAttributes;
 use quent_events::resource::Scope;
-use quent_time::Timestamp;
-use serde::{Deserialize, Serialize};
+use quent_time::TimeUnixNanoSec;
+use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -28,7 +28,7 @@ pub trait Entity {
 }
 
 /// A run-time typed reference to an entity.
-#[derive(TS, PY, Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+#[derive(TS, Clone, Copy, Debug, PartialEq, Eq, Serialize, Hash)]
 pub enum EntityRef {
     Engine(Uuid),
     QueryGroup(Uuid),
@@ -79,18 +79,18 @@ pub mod engine {
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of an
     /// Engine.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct EngineTimestamps {
         /// The time at which the Engine started initialization.
-        pub init: Option<Timestamp>,
+        pub init: Option<TimeUnixNanoSec>,
         /// The time at which the Engine started accepting queries.
-        pub operating: Option<Timestamp>,
+        pub operating: Option<TimeUnixNanoSec>,
         /// The time at which the Engine started shutting down and cleaning up
         /// its resources.
-        pub finalizing: Option<Timestamp>,
+        pub finalizing: Option<TimeUnixNanoSec>,
         /// The time at which the Engine was completely destructed and all
         /// resources were freed.
-        pub exit: Option<Timestamp>,
+        pub exit: Option<TimeUnixNanoSec>,
     }
 
     /// An Engine represents the top-level entity of the model.
@@ -100,12 +100,14 @@ pub mod engine {
     ///
     /// Nothing can outlive the lifetime of an Engine. TODO(johanpel): this
     /// assumes 0 clock skew, we need to address this in general.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct Engine {
         /// The ID of this Engine
         pub id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the
         /// Engine.
+        #[serde(skip)]
+        #[ts(skip)]
         pub timestamps: EngineTimestamps,
 
         /// The name of this Engine - typically a name for this instance of a
@@ -136,18 +138,18 @@ pub mod query_group {
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
     /// QueryGroup.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct QueryGroupTimestamps {
         /// The time at which the QueryGroup started initialization.
-        pub init: Option<Timestamp>,
+        pub init: Option<TimeUnixNanoSec>,
         /// The time at which the QueryGroup started accepting queries.
-        pub operating: Option<Timestamp>,
+        pub operating: Option<TimeUnixNanoSec>,
         /// The time at which the QueryGroup started shutting down and cleaning
         /// up its resources.
-        pub finalizing: Option<Timestamp>,
+        pub finalizing: Option<TimeUnixNanoSec>,
         /// The time at which the QueryGroup was completely destructed and all
         /// resources were freed.
-        pub exit: Option<Timestamp>,
+        pub exit: Option<TimeUnixNanoSec>,
     }
 
     /// A QueryGroup is an entity that orchestrates the execution of a distinct
@@ -156,7 +158,7 @@ pub mod query_group {
     /// For example, a session in a long-lived multi-user engine could be
     /// modeled as a QueryGroup. TODO(johanpel): perhaps this isn't a great name
     /// for this concept, consider naming this something else.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct QueryGroup {
         /// The ID of this QueryGroup
         pub id: Uuid,
@@ -164,6 +166,8 @@ pub mod query_group {
         pub engine_id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the
         /// QueryGroup.
+        #[serde(skip)]
+        #[ts(skip)]
         pub timestamps: QueryGroupTimestamps,
         /// A name for this QueryGroup instance
         pub name: Option<String>,
@@ -192,25 +196,25 @@ pub mod worker {
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
     /// Worker.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct WorkerTimestamps {
         /// The time at which the Worker started initialization.
-        pub init: Option<Timestamp>,
+        pub init: Option<TimeUnixNanoSec>,
         /// The time at which the Worker started accepting Plans.
-        pub operating: Option<Timestamp>,
+        pub operating: Option<TimeUnixNanoSec>,
         /// The time at which the Worker started shutting down and cleaning up
         /// its resources.
-        pub finalizing: Option<Timestamp>,
+        pub finalizing: Option<TimeUnixNanoSec>,
         /// The time at which the Worker was completely destructed and all
         /// resources were freed.
-        pub exit: Option<Timestamp>,
+        pub exit: Option<TimeUnixNanoSec>,
     }
 
     /// A Worker is an entity that executes Query Plans.
     ///
     /// It is a high-level resource of an Engine. Its lifetime is bounded by the
     /// lifetime of an Engine, but it can outlive any other entity.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct Worker {
         /// The ID of this Worker.
         pub id: Uuid,
@@ -218,6 +222,8 @@ pub mod worker {
         pub engine_id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the
         /// Worker.
+        #[serde(skip)]
+        #[ts(skip)]
         pub timestamps: WorkerTimestamps,
         /// A name for this Worker instance
         pub name: Option<String>,
@@ -244,30 +250,30 @@ pub mod query {
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
     /// Query.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct QueryTimestamps {
         /// The time at which the Query started initialization.
-        pub init: Option<Timestamp>,
+        pub init: Option<TimeUnixNanoSec>,
         /// The time at which the Query started planning.
-        pub planning: Option<Timestamp>,
+        pub planning: Option<TimeUnixNanoSec>,
         /// The time at which the Query started executing.
-        pub executing: Option<Timestamp>,
+        pub executing: Option<TimeUnixNanoSec>,
         /// The time at which the Query was idle.
         ///
         /// In this state, the Query has been processed, but it still
         /// potentially occupies resources of the engine to hold a result which
         /// is yet to be delivered to the query client.
-        pub idle: Option<Timestamp>,
+        pub idle: Option<TimeUnixNanoSec>,
         /// The time at which the Query started shutting down and cleaning up
         /// its resources.
-        pub finalizing: Option<Timestamp>,
+        pub finalizing: Option<TimeUnixNanoSec>,
         /// The time at which the Query was completely destructed and all
         /// resources were freed.
-        pub exit: Option<Timestamp>,
+        pub exit: Option<TimeUnixNanoSec>,
     }
 
     /// A Query.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct Query {
         /// The ID of this Query
         pub id: Uuid,
@@ -275,6 +281,8 @@ pub mod query {
         pub query_group_id: Uuid,
         /// Timestamps of state transitions throughout the lifetime of the
         /// Query.
+        #[serde(skip)]
+        #[ts(skip)]
         pub timestamps: QueryTimestamps,
         /// A name for this Query.
         pub name: Option<String>,
@@ -301,35 +309,35 @@ pub mod operator {
 
     /// A state transition where an Operator is blocked from progressing
     /// beceause it is waiting for inputs to arrive.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Serialize)]
     pub struct WaitingForInputs {
         /// The timestamp of this transition.
-        pub timestamp: Timestamp,
+        pub timestamp: TimeUnixNanoSec,
         /// The IDs of the Ports this Operator was blocked on.
         pub ports: Vec<Uuid>,
     }
 
     /// Timestamps (nanoseconds since Unix epoch) of state transitions of a
     /// Query.
-    #[derive(TS, PY, Clone, Debug, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Serialize)]
     pub enum OperatorState {
         /// The Operator is initializing, allocating its resources.
-        Init(Timestamp),
+        Init(TimeUnixNanoSec),
         /// The Operator is waiting for inputs.
         WaitingForInputs(WaitingForInputs),
         /// The Operator is actively processing.
-        Executing(Timestamp),
+        Executing(TimeUnixNanoSec),
         /// The Operator is blocked.
-        Blocked(Timestamp),
+        Blocked(TimeUnixNanoSec),
         /// The Operator is finalizing, cleaning up its resources.
-        Finalizing(Timestamp),
+        Finalizing(TimeUnixNanoSec),
         /// The Operator is completely finalized, and no longer holds any
         /// resources.
-        Exit(Timestamp),
+        Exit(TimeUnixNanoSec),
     }
 
     impl OperatorState {
-        pub fn timestamp(&self) -> Timestamp {
+        pub fn timestamp(&self) -> TimeUnixNanoSec {
             match self {
                 OperatorState::Init(ts) => *ts,
                 OperatorState::WaitingForInputs(waiting_for_inputs) => waiting_for_inputs.timestamp,
@@ -342,7 +350,7 @@ pub mod operator {
     }
 
     /// An Operator in a Plan DAG.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct Operator {
         /// The ID of this Operator.
         pub id: Uuid,
@@ -357,6 +365,8 @@ pub mod operator {
         pub ports: Vec<Uuid>,
         /// The sequence of states through which this Operator has been
         /// executed.
+        #[serde(skip)]
+        #[ts(skip)]
         pub state_sequence: Vec<OperatorState>,
     }
 
@@ -379,7 +389,7 @@ pub mod operator {
     ///
     /// Note a Port is not an FSM so none of its non-id fields need to be
     /// optional as they are declared within a single event.
-    #[derive(TS, PY, Clone, Default, Debug, Deserialize, Serialize)]
+    #[derive(TS, Clone, Default, Debug, Serialize)]
     pub struct Port {
         pub id: Uuid,
         pub parent_operator_id: Uuid,
@@ -408,23 +418,23 @@ pub mod plan {
     use super::*;
 
     /// Timestamps of plan state transitions.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct PlanTimestamps {
         /// The time at which the Plan started initialization.
-        pub init: Option<Timestamp>,
+        pub init: Option<TimeUnixNanoSec>,
         /// The time at which the Plan started execution.
-        pub executing: Option<Timestamp>,
+        pub executing: Option<TimeUnixNanoSec>,
         /// The time at which Plan execution was completed.
-        pub idle: Option<Timestamp>,
+        pub idle: Option<TimeUnixNanoSec>,
         /// The time at which the Plan started cleaning up its resources.
-        pub finalizing: Option<Timestamp>,
+        pub finalizing: Option<TimeUnixNanoSec>,
         /// The time at which the Worker was completely destructed and all
         /// resources were freed.
-        pub exit: Option<Timestamp>,
+        pub exit: Option<TimeUnixNanoSec>,
     }
 
     /// A Query Plan.
-    #[derive(TS, PY, Clone, Debug, Default, Deserialize, Serialize)]
+    #[derive(TS, Clone, Debug, Default, Serialize)]
     pub struct Plan {
         /// The ID of this Plan.
         pub id: Uuid,
@@ -434,6 +444,8 @@ pub mod plan {
         pub query_id: Option<Uuid>,
         /// The timestamps of various state transitions during the lifetime of
         /// this plan.
+        #[serde(skip)]
+        #[ts(skip)]
         pub timestamps: PlanTimestamps,
         /// The optional parent Plan ID. This is useful if an Engine constructs
         /// various types of Plans before execution, sometimes referred to as
