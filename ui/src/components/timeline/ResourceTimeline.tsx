@@ -1,25 +1,55 @@
 import { useQuery } from '@tanstack/react-query';
-import { DEFEAULT_STALE_TIME, fetchResourceTimelineAggregated } from '@/services/api';
+import {
+  DEFEAULT_STALE_TIME,
+  fetchResourceTimelineAggregated,
+  fetchResourceTimelineAggregatedByFSM,
+} from '@/services/api';
 import { Timeline } from './Timeline';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo } from 'react';
 import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
+import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
+import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
+import { TimelineSeries } from './types';
 
 type ResourceTimelineProps = {
   engineId: string;
   resourceId: string;
+  startTime: bigint;
+  fsmStateName: string | undefined;
 };
 
-export function ResourceTimeline({ engineId, resourceId }: ResourceTimelineProps) {
+const EMPTY_TIMELINE_SERIES: TimelineSeries = {
+  empty: {
+    binDuration: 0,
+    values: [],
+    formatter: (value: number) => `${value}`,
+  },
+};
+
+export function ResourceTimeline({
+  engineId,
+  resourceId,
+  startTime,
+  fsmStateName,
+}: ResourceTimelineProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['resourceTimeline', engineId, resourceId],
-    queryFn: () => fetchResourceTimelineAggregated(engineId, resourceId, { num_bins: 100 }),
+    queryKey: ['resourceTimeline', engineId, resourceId, fsmStateName],
+    // TODO (joe): Dynamic number of bins
+    queryFn: (): Promise<ResourceTimelineBinnedByState | ResourceTimelineBinned> =>
+      fsmStateName
+        ? fetchResourceTimelineAggregatedByFSM(engineId, resourceId, fsmStateName, {
+            num_bins: 100,
+          })
+        : fetchResourceTimelineAggregated(engineId, resourceId, { num_bins: 100 }),
     staleTime: DEFEAULT_STALE_TIME,
   });
 
   const { timestamps, series } = useMemo(() => {
-    return data ? buildBinnedTimelineSeries(data) : { timestamps: [], series: {} };
-  }, [data]);
+    return data
+      ? buildBinnedTimelineSeries(data, startTime)
+      : { timestamps: [], series: EMPTY_TIMELINE_SERIES };
+  }, [data, startTime]);
 
   if (isLoading) {
     return <TimelineSkeleton />;
@@ -34,5 +64,5 @@ export function ResourceTimeline({ engineId, resourceId }: ResourceTimelineProps
   }
 
   // This should render a timeline one way or another
-  return <Timeline series={series} timestamps={timestamps ?? []} />;
+  return <Timeline series={series} timestamps={timestamps ?? []} startTime={startTime} />;
 }

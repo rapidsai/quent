@@ -315,7 +315,10 @@ impl Entities {
                                     let type_decl = resource_types
                                         .entry(init.resource.type_name.clone())
                                         .or_insert_with(|| {
-                                            ResourceTypeDecl::unit(init.resource.type_name)
+                                            ResourceTypeDecl::new(
+                                                init.resource.type_name,
+                                                [CapacityDecl::new_occupancy("bytes")],
+                                            )
                                         });
                                     entry
                                         .state_sequence

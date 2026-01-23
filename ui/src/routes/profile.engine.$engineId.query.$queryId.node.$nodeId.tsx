@@ -14,7 +14,7 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/n
 
 function NodeRoute() {
   const { engineId } = Route.useParams();
-  const { resource_tree, entities } = Route.useLoaderData();
+  const queryBundle = Route.useLoaderData();
 
-  return <QueryResourceTree engineId={engineId} resourceTree={resource_tree} entities={entities} />;
+  return <QueryResourceTree engineId={engineId} queryBundle={queryBundle} />;
 }

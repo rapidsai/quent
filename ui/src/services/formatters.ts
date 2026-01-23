@@ -75,7 +75,7 @@ export function formatBytes(bytes: number, decimals: number = 1, binary: boolean
   const value = absBytes / Math.pow(base, exponent);
   const unit = units[exponent];
 
-  return `${sign}${value.toFixed(decimals)} ${unit}`;
+  return `${sign}${value.toFixed(decimals)} ${unit ?? ''}`;
 }
 
 /**
@@ -93,4 +93,35 @@ export function formatBytesCompact(
   const formatted = formatBytes(bytes, maxDecimals, binary);
   // Remove trailing zeros after decimal point (e.g., "1.0 GB" -> "1 GB")
   return formatted.replace(/\.0+ /, ' ');
+}
+
+const MS_PER_SECOND = 1000;
+const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+
+/**
+ * Format a duration in milliseconds to a human-readable string.
+ * Automatically selects the most appropriate unit.
+ * @param ms - Duration in milliseconds
+ * @param decimals - Number of decimal places (default: 1)
+ * @returns Formatted string (e.g., "150ms", "2.5s", "3.2min", "1.5h", "2.3d")
+ */
+export function formatDuration(ms: number, decimals: number = 2): string {
+  const absMs = Math.abs(ms);
+  const sign = ms < 0 ? '-' : '';
+
+  if (absMs < MS_PER_SECOND) {
+    return `${sign}${absMs.toFixed(0)}ms`;
+  }
+  if (absMs < MS_PER_MINUTE) {
+    return `${sign}${(absMs / MS_PER_SECOND).toFixed(decimals)}s`;
+  }
+  if (absMs < MS_PER_HOUR) {
+    return `${sign}${(absMs / MS_PER_MINUTE).toFixed(decimals)}min`;
+  }
+  if (absMs < MS_PER_DAY) {
+    return `${sign}${(absMs / MS_PER_HOUR).toFixed(decimals)}h`;
+  }
+  return `${sign}${(absMs / MS_PER_DAY).toFixed(decimals)}d`;
 }

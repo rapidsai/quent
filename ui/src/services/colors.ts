@@ -58,19 +58,56 @@ export function getPalette(name: PaletteName): readonly string[] {
   return PALETTES[name];
 }
 
-// Persistent color assignments for consistent mapping across renders
-const colorAssignments = new Map<string, ChartColor>();
+/**
+ * Simple string hash function (djb2 algorithm).
+ * Returns a positive integer hash for the given string.
+ */
+function hashString(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return hash >>> 0; // Convert to unsigned 32-bit integer
+}
+
+// Track color assignments: key -> palette index
+const colorAssignments = new Map<string, number>();
+// Track which palette indices are in use
+const usedIndices = new Set<number>();
 
 /**
  * Get a deterministic color for a given key.
- * The same key will always return the same color within a session.
+ * Uses a hash of the key to select a color, with collision handling to ensure
+ * all colors are used before any color is assigned to multiple keys.
  */
 export function getColorForKey(key: string): ChartColor {
   const palette = getActivePalette();
-  if (!colorAssignments.has(key)) {
-    colorAssignments.set(key, palette[colorAssignments.size % palette.length]);
+
+  // Return cached assignment if exists
+  if (colorAssignments.has(key)) {
+    return palette[colorAssignments.get(key)!];
   }
-  return colorAssignments.get(key)!;
+
+  // Get hash-based starting index
+  const hashIndex = hashString(key) % palette.length;
+
+  // If all colors are used, just use the hash index (allow duplicates)
+  if (usedIndices.size >= palette.length) {
+    colorAssignments.set(key, hashIndex);
+    return palette[hashIndex];
+  }
+
+  // Find an available index, starting from hash index and probing forward
+  let index = hashIndex;
+  while (usedIndices.has(index)) {
+    index = (index + 1) % palette.length;
+  }
+
+  // Assign and mark as used
+  colorAssignments.set(key, index);
+  usedIndices.add(index);
+
+  return palette[index];
 }
 
 /**
@@ -111,4 +148,5 @@ export function withOpacity(hex: string, opacity: number): string {
  */
 export function resetColorAssignments(): void {
   colorAssignments.clear();
+  usedIndices.clear();
 }

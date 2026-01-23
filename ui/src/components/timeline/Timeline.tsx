@@ -4,8 +4,9 @@ import ReactECharts from 'echarts-for-react';
 import type { EChartsOption, ECharts } from 'echarts';
 import { connect } from 'echarts';
 import { TooltipContent } from './TimelineTooltip';
-import { getColorByIndex, withOpacity } from '@/services/colors';
+import { getColorForKey, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
+import { TimelineSeries } from './types';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
@@ -18,45 +19,52 @@ const TIMELINE_MARKUP_COLOR = '#808080';
 const GRID_BORDER_COLOR = withOpacity(TIMELINE_MARKUP_COLOR, 0.2);
 
 export function Timeline({
+  startTime,
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
 }: {
-  series: Record<string, number[]>;
+  startTime: bigint;
+  series: TimelineSeries;
   timestamps: number[];
   height?: number;
 }) {
   const seriesOptions = useMemo(() => {
-    return Object.entries(series).map(([name, data], index) => {
-      const color = getColorByIndex(index);
-      return {
-        name,
-        type: 'line',
-        stack: 'total', // Stack all series with the same stack name
-        step: 'middle',
-        symbol: 'circle',
-        symbolSize: 4,
-        // Shows on hover
-        showSymbol: false,
-        hoverAnimation: false,
-        animation: false,
-        cursor: 'default',
-        data,
-        lineStyle: { width: 0 },
-        itemStyle: { color },
-        areaStyle: { color: withOpacity(color, 0.9) },
-        emphasis: {
-          disabled: true, // Disable emphasis state
-          focus: 'none', // Don't dim other series
-        },
-      };
-    });
+    return (
+      Object.entries(series)
+        // TODO(joe): How should we sort series within the timeline?
+        // Everything alphabetical RN to keep it consistent
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, seriesData]) => {
+          const color = getColorForKey(name);
+          return {
+            name,
+            type: 'line',
+            stack: 'total', // Stack all series with the same stack name
+            step: 'middle',
+            symbol: 'circle',
+            symbolSize: 4,
+            // Shows on hover
+            showSymbol: false,
+            hoverAnimation: false,
+            animation: false,
+            cursor: 'default',
+            data: seriesData.values,
+            lineStyle: { width: 0 },
+            itemStyle: { color },
+            areaStyle: { color: withOpacity(color, 0.9) },
+            emphasis: {
+              disabled: true, // Disable emphasis state
+              focus: 'none', // Don't dim other series
+            },
+          };
+        })
+    );
   }, [series]);
 
   const yAxisOptions = useMemo(
     () => ({
       type: 'value',
-      boundaryGap: false,
       splitNumber: 1,
       show: true,
       axisLine: {
@@ -121,16 +129,19 @@ export function Timeline({
         position: function (pt) {
           return [pt[0] + 25, '10%'];
         },
-        formatter: function (params: unknown) {
-          if (!Array.isArray(params) || params.length === 0) return '';
-          const timestamp = Number(params[0].axisValue);
-          const date = new Date(timestamp);
-          const series = params.map((p: { color: string; seriesName: string; value: number }) => ({
-            color: p.color,
-            name: p.seriesName,
-            value: p.value,
-          }));
-          return renderToStaticMarkup(<TooltipContent date={date} series={series} />);
+        formatter: function (hoveredSeries: unknown) {
+          if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
+          const timestamp = Number(hoveredSeries[0].axisValue);
+          const seriesValues = hoveredSeries.map(
+            (p: { color: string; seriesName: string; value: number }) => ({
+              color: p.color,
+              name: p.seriesName,
+              value: p.value,
+            })
+          );
+          return renderToStaticMarkup(
+            <TooltipContent timestamp={timestamp} series={seriesValues} startTime={startTime} />
+          );
         },
       },
       title: {
@@ -164,7 +175,7 @@ export function Timeline({
       yAxis: yAxisOptions,
       series: seriesOptions,
     } as EChartsOption;
-  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions]);
+  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, startTime]);
 
   return (
     <ReactECharts
