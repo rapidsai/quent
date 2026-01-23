@@ -4,9 +4,8 @@
  */
 
 import { QueryBundle } from '~quent/types/QueryBundle';
-import { ResourceTimeline } from '~quent/types/ResourceTimeline';
+import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
 import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
-import { Span } from '~quent/types/Span';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 export const DEFEAULT_STALE_TIME = 5 * 60 * 1000;
@@ -100,25 +99,6 @@ export type NodeProfileResponse = {
   series: Record<string, number[]>;
 };
 
-export function generateResourceUsage({ start, end }: Span): [number[], number[]] {
-  const timestamps: number[] = [];
-  const numIntervals = 200n;
-  const interval = (end - start) / numIntervals;
-  const maxValue = 90;
-  let baseDate = +new Date(Number(start / 1000n));
-
-  const tempData = [Math.round(Math.random() * maxValue)];
-  for (let i = 1; i < numIntervals; i++) {
-    const now = new Date((baseDate += Number(interval * 1000n)));
-    timestamps.push(+now);
-    const delta = (Math.random() - 0.5) * 20;
-    const nextValue = Math.max(0, Math.min(maxValue, tempData[i - 1] + delta));
-    tempData.push(Math.round(nextValue));
-  }
-
-  return [timestamps, tempData];
-}
-
 interface ApiFetchOptions {
   params?: Record<string, string | number | boolean>;
   fetchOptions?: RequestInit;
@@ -177,20 +157,25 @@ export async function fetchListQueries(engineId: string, coordinatorId: string):
   return apiFetch<string[]>(`/engines/${engineId}/query-groups/${coordinatorId}/queries`);
 }
 
-export async function fetchResourceTimeline(
-  engineId: string,
-  resourceId: string
-): Promise<ResourceTimeline> {
-  return apiFetch<ResourceTimeline>(`/engines/${engineId}/resource/${resourceId}/timeline`);
-}
-
 export async function fetchResourceTimelineAggregated(
   engineId: string,
   resourceId: string,
   params?: Record<string, string | number | boolean>
+): Promise<ResourceTimelineBinned> {
+  return apiFetch<ResourceTimelineBinned>(
+    `/engines/${engineId}/resource/${resourceId}/timeline/aggregated`,
+    { params }
+  );
+}
+
+export async function fetchResourceTimelineAggregatedByFSM(
+  engineId: string,
+  resourceId: string,
+  fsmTypeName: string = 'task',
+  params?: Record<string, string | number | boolean>
 ): Promise<ResourceTimelineBinnedByState> {
   return apiFetch<ResourceTimelineBinnedByState>(
-    `/engines/${engineId}/resource/${resourceId}/timeline/aggregated`,
+    `/engines/${engineId}/resource/${resourceId}/fsm/${fsmTypeName}/timeline/aggregated`,
     { params }
   );
 }

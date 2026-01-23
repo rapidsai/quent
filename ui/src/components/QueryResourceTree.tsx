@@ -3,24 +3,25 @@ import { useMemo } from 'react';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { ResourceTimeline } from './timeline/ResourceTimeline';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
-import { Entities } from '~quent/types/Entities';
+import { EntitiesUI } from '~quent/types/EntitiesUI';
 import { EntityTypeValue, EntityRefKey } from '@/types';
 import { getIconForType, getRowForEntity, TreeTableItem } from './resource-tree/ResourceTreeRow';
+import { QueryBundle } from '~quent/types/QueryBundle';
 
 interface QueryResourceTreeProps {
   engineId: string;
-  resourceTree: ResourceTree;
-  entities: Entities;
+  queryBundle: QueryBundle;
 }
 
-export function QueryResourceTree({ resourceTree, engineId, entities }: QueryResourceTreeProps) {
+export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
+  const { entities, resource_tree: resourceTree } = queryBundle;
   const treeData = useMemo(() => {
     const transformResourceTree = (resourceTree: ResourceTree): TreeTableItem => {
       const [entityType, entityId] = resourceTree.item
         ? Object.entries(resourceTree.item)[0]
         : ['Root' as EntityRefKey, 'root' as string];
 
-      const entityKey = entityRefToEntitiesKey(entityType as EntityRefKey) as keyof Entities;
+      const entityKey = entityRefToEntitiesKey(entityType as EntityRefKey) as keyof EntitiesUI;
       // Special case for engine, there can only and will always be one
       const entity: EntityTypeValue | undefined =
         entityKey === 'engine' ? entities.engine : entities[entityKey]?.[entityId];
@@ -55,8 +56,17 @@ export function QueryResourceTree({ resourceTree, engineId, entities }: QueryRes
         label: 'Usage',
         widthIndex: 1,
         render: ({ item }: { item: TreeTableItem }) => {
+          const entity = item?.entity ?? {};
+          const fsmTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
+          const fsmStateName =
+            fsmTypeName && queryBundle.entities.resources_types[fsmTypeName]?.used_by_fsms[0];
           return item.type === 'Resource' ? (
-            <ResourceTimeline engineId={engineId} resourceId={item.id} />
+            <ResourceTimeline
+              engineId={engineId}
+              resourceId={item.id}
+              startTime={queryBundle.start_time_unix_ns}
+              fsmStateName={fsmStateName ?? undefined}
+            />
           ) : (
             // TODO: Aggregate all of the children into an aggregate timeline
             // <Timeline timestamps={[]} series={{}} />
@@ -65,7 +75,7 @@ export function QueryResourceTree({ resourceTree, engineId, entities }: QueryRes
         },
       },
     ] satisfies Column<TreeTableItem>[];
-  }, [engineId]);
+  }, [engineId, queryBundle]);
 
   return (
     <div className="space-y-4 w-full h-full">

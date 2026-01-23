@@ -1,7 +1,6 @@
 // Top level types, keep types with relevant code where possible
 
 import { Engine } from '~quent/types/Engine';
-import { Fsm } from '~quent/types/Fsm';
 import { Query } from '~quent/types/Query';
 import { Operator } from '~quent/types/Operator';
 import { Plan } from '~quent/types/Plan';
@@ -11,10 +10,12 @@ import { Resource } from '~quent/types/Resource';
 import { ResourceGroup } from '~quent/types/ResourceGroup';
 import { Worker } from '~quent/types/Worker';
 import { EntityRef } from '~quent/types/EntityRef';
+import { FsmTypeDecl } from '~quent/types/FsmTypeDecl';
+import { ResourceTypeDecl } from '~quent/types/ResourceTypeDecl';
 
 export type EntityTypeValue =
   | Engine
-  | Fsm
+  | FsmTypeDecl
   | Operator
   | Plan
   | Port
@@ -22,6 +23,7 @@ export type EntityTypeValue =
   | QueryGroup
   | Resource
   | ResourceGroup
+  | ResourceTypeDecl
   | Worker;
 
 export type EntityRefKey = keyof EntityRef;

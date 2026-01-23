@@ -1,4 +1,4 @@
-import { formatBytes } from '@/services/formatters';
+import { formatBytes, formatDuration } from '@/services/formatters';
 
 interface TooltipSeries {
   color: string;
@@ -6,25 +6,44 @@ interface TooltipSeries {
   value: number;
 }
 
-export function TooltipContent({ date, series }: { date: Date; series: TooltipSeries[] }) {
-  const formattedDate = date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-
+const TooltipSeriesStat = ({ series }: { series: Partial<TooltipSeries> }) => {
   return (
-    <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foregroundleading-tight shadow-md">
-      <div className="font-semibold mb-1 text-muted-foreground">{formattedDate}</div>
-      {series.map((s, i) => (
-        <div key={i} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-          <span className="text-foreground">{s.name}</span>
-          <span className="font-semibold ml-auto text-foreground">{formatBytes(s.value, 2)}</span>
-        </div>
-      ))}
+    <li className="flex items-center gap-1">
+      {series.color && (
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
+      )}
+      <span className="text-foreground">{series.name}</span>
+      <span className="font-semibold ml-auto text-foreground">
+        {formatBytes(series.value ?? 0, 2)}
+      </span>
+    </li>
+  );
+};
+
+export function TooltipContent({
+  timestamp,
+  series,
+  startTime,
+}: {
+  timestamp: number;
+  series: TooltipSeries[];
+  startTime: bigint;
+}) {
+  return (
+    <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
+      <div className="font-semibold mb-1 text-muted-foreground">
+        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+      </div>
+      <ul>
+        {series
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((s, i) => (s.value > 0 ? <TooltipSeriesStat key={i} series={s} /> : null))}
+      </ul>
+      <section className="pt-1">
+        <TooltipSeriesStat
+          series={{ name: 'Total', value: series.reduce((acc, s) => acc + s.value, 0) }}
+        />
+      </section>
     </div>
   );
 }

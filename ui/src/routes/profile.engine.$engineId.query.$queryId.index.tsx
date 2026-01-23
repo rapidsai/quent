@@ -12,11 +12,11 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/'
 });
 
 function QueryIndex() {
-  const { resource_tree, entities } = Route.useLoaderData();
+  const queryBundle = Route.useLoaderData();
   const { engineId } = Route.useParams();
   return (
     <div className="flex items-center justify-center w-full h-full min-h-[200px]">
-      <QueryResourceTree engineId={engineId} resourceTree={resource_tree} entities={entities} />
+      <QueryResourceTree engineId={engineId} queryBundle={queryBundle} />
     </div>
   );
 }
