@@ -1,22 +1,22 @@
 use std::collections::{HashMap, HashSet};
 
 use quent_entities::{
-    Entity, EntityRef,
+    EntityRef, IncompleteEntity,
     engine::Engine,
-    fsm::{Fsm, FsmTypeDecl, StateDecl},
+    fsm::{DynamicFsm, DynamicFsmStateDecl, DynamicFsmTypeDecl, Fsm, FsmBuilder},
     operator::{Operator, OperatorState, Port, WaitingForInputs},
     plan::Plan,
     query::Query,
     query_group::QueryGroup,
     relation::Related,
     resource::{
-        CapacityDecl, CapacityValue, Resource, ResourceGroup, ResourceOperatingState,
-        ResourceState, ResourceTypeDecl,
+        CapacityDecl, CapacityValue, Resource, ResourceBuilder, ResourceGroup,
+        ResourceOperatingState, ResourceState, ResourceTypeDecl,
     },
     worker::Worker,
 };
 #[cfg(feature = "q")]
-use quent_entities::{fsm::State, resource::Use};
+use quent_entities::{fsm::DynamicState, resource::Use};
 use quent_events::{
     EventData,
     engine::EngineEvent,
@@ -46,7 +46,7 @@ use crate::{Event, Result, error::Error};
 // forget this.
 fn entry<T>(map: &mut HashMap<Uuid, T>, id: Uuid) -> &mut T
 where
-    T: Entity,
+    T: IncompleteEntity,
 {
     map.entry(id).or_insert_with(|| T::new(id))
 }
@@ -71,14 +71,17 @@ pub struct Entities {
     pub(crate) resource_types: HashMap<String, ResourceTypeDecl>,
     pub(crate) resources: HashMap<Uuid, Resource>,
     pub(crate) resource_groups: HashMap<Uuid, ResourceGroup>,
-    pub(crate) fsm_types: HashMap<String, FsmTypeDecl>,
-    pub(crate) fsms: HashMap<Uuid, Fsm>,
+    pub(crate) fsm_types: HashMap<String, DynamicFsmTypeDecl>,
+    pub(crate) fsms: HashMap<Uuid, DynamicFsm>,
 
     /// The total span of time over all events.
     pub(crate) span: SpanNanoSec,
 }
 
 impl Entities {
+    /// Consume all events and construct the application model in memory.
+    ///
+    /// Events are assumed to follow no particular order.
     pub fn try_new(engine_id: Uuid, events: impl Iterator<Item = Event>) -> Result<Self> {
         // TODO(johanpel): we need to sit down and think about how to do this as quickly as
         //                 possible for larger datasets, this is just a trivial implementation
@@ -95,12 +98,11 @@ impl Entities {
 
         // Generic entities:
         let mut resource_types: HashMap<String, ResourceTypeDecl> = HashMap::new();
-        let mut resources: HashMap<Uuid, Resource> = HashMap::new();
+        let mut resource_builders: HashMap<Uuid, ResourceBuilder> = HashMap::new();
         let mut resource_groups: HashMap<Uuid, ResourceGroup> = HashMap::new();
 
-        let mut fsm_types: HashMap<String, FsmTypeDecl> = HashMap::new();
         #[allow(unused_mut)]
-        let mut fsms: HashMap<Uuid, Fsm> = HashMap::new();
+        let mut fsm_builders: HashMap<Uuid, FsmBuilder<DynamicState>> = HashMap::new();
 
         let mut earliest_event: TimeUnixNanoSec = TimeUnixNanoSec::MAX;
         let mut latest_event: TimeUnixNanoSec = 0;
@@ -240,7 +242,7 @@ impl Entities {
                     }
                 }
                 EventData::Resource(resource_event) => {
-                    let entry = entry(&mut resources, event.id);
+                    let entry = entry(&mut resource_builders, event.id);
                     match resource_event {
                         quent_events::resource::ResourceEvent::Memory(memory_event) => {
                             match memory_event {
@@ -253,31 +255,29 @@ impl Entities {
                                                 [CapacityDecl::new_occupancy("bytes")],
                                             )
                                         });
-                                    entry
-                                        .state_sequence
-                                        .push(ResourceState::Init(event.timestamp));
-                                    entry.type_name = type_decl.name.clone();
-                                    entry.instance_name = Some(init.resource.instance_name);
-                                    entry.scope = Some(init.resource.scope.into());
+                                    entry.push_state(ResourceState::Init(event.timestamp));
+                                    entry.set_type_name(type_decl.name.clone());
+                                    entry.set_instance_name(Some(init.resource.instance_name));
+                                    entry.set_scope(init.resource.scope.into());
                                 }
-                                memory::MemoryEvent::Operating(operating) => entry
-                                    .state_sequence
-                                    .push(ResourceState::Operating(ResourceOperatingState {
+                                memory::MemoryEvent::Operating(operating) => entry.push_state(
+                                    ResourceState::Operating(ResourceOperatingState {
                                         timestamp: event.timestamp,
                                         capacities: vec![CapacityValue::new(
                                             "bytes",
                                             operating.capacity_bytes,
                                         )],
-                                    })),
-                                memory::MemoryEvent::Resizing(_) => entry
-                                    .state_sequence
-                                    .push(ResourceState::Resizing(event.timestamp)),
-                                memory::MemoryEvent::Finalizing(_) => entry
-                                    .state_sequence
-                                    .push(ResourceState::Finalizing(event.timestamp)),
-                                memory::MemoryEvent::Exit(_) => entry
-                                    .state_sequence
-                                    .push(ResourceState::Exit(event.timestamp)),
+                                    }),
+                                ),
+                                memory::MemoryEvent::Resizing(_) => {
+                                    entry.push_state(ResourceState::Resizing(event.timestamp))
+                                }
+                                memory::MemoryEvent::Finalizing(_) => {
+                                    entry.push_state(ResourceState::Finalizing(event.timestamp))
+                                }
+                                memory::MemoryEvent::Exit(_) => {
+                                    entry.push_state(ResourceState::Exit(event.timestamp))
+                                }
                             }
                         }
                         quent_events::resource::ResourceEvent::Processor(
@@ -289,25 +289,23 @@ impl Entities {
                                     .or_insert_with(|| {
                                         ResourceTypeDecl::unit(init.resource.type_name)
                                     });
-                                entry
-                                    .state_sequence
-                                    .push(ResourceState::Init(event.timestamp));
-                                entry.type_name = type_decl.name.clone();
-                                entry.instance_name = Some(init.resource.instance_name);
-                                entry.scope = Some(init.resource.scope.into());
+                                entry.push_state(ResourceState::Init(event.timestamp));
+                                entry.set_type_name(type_decl.name.clone());
+                                entry.set_instance_name(Some(init.resource.instance_name));
+                                entry.set_scope(init.resource.scope.into());
                             }
-                            processor::ProcessorEvent::Operating(_) => entry.state_sequence.push(
-                                ResourceState::Operating(ResourceOperatingState {
+                            processor::ProcessorEvent::Operating(_) => {
+                                entry.push_state(ResourceState::Operating(ResourceOperatingState {
                                     timestamp: event.timestamp,
                                     capacities: vec![],
-                                }),
-                            ),
-                            processor::ProcessorEvent::Finalizing(_) => entry
-                                .state_sequence
-                                .push(ResourceState::Finalizing(event.timestamp)),
-                            processor::ProcessorEvent::Exit(_) => entry
-                                .state_sequence
-                                .push(ResourceState::Exit(event.timestamp)),
+                                }))
+                            }
+                            processor::ProcessorEvent::Finalizing(_) => {
+                                entry.push_state(ResourceState::Finalizing(event.timestamp))
+                            }
+                            processor::ProcessorEvent::Exit(_) => {
+                                entry.push_state(ResourceState::Exit(event.timestamp))
+                            }
                         },
                         quent_events::resource::ResourceEvent::Channel(channel_resource_event) => {
                             match channel_resource_event {
@@ -320,25 +318,23 @@ impl Entities {
                                                 [CapacityDecl::new_occupancy("bytes")],
                                             )
                                         });
-                                    entry
-                                        .state_sequence
-                                        .push(ResourceState::Init(event.timestamp));
-                                    entry.type_name = type_decl.name.clone();
-                                    entry.instance_name = Some(init.resource.instance_name);
-                                    entry.scope = Some(init.resource.scope.into());
+                                    entry.push_state(ResourceState::Init(event.timestamp));
+                                    entry.set_type_name(type_decl.name.clone());
+                                    entry.set_instance_name(Some(init.resource.instance_name));
+                                    entry.set_scope(init.resource.scope.into());
                                 }
-                                channel::ChannelEvent::Operating(_) => entry.state_sequence.push(
+                                channel::ChannelEvent::Operating(_) => entry.push_state(
                                     ResourceState::Operating(ResourceOperatingState {
                                         timestamp: event.timestamp,
                                         capacities: vec![],
                                     }),
                                 ),
-                                channel::ChannelEvent::Finalizing(_) => entry
-                                    .state_sequence
-                                    .push(ResourceState::Finalizing(event.timestamp)),
-                                channel::ChannelEvent::Exit(_) => entry
-                                    .state_sequence
-                                    .push(ResourceState::Exit(event.timestamp)),
+                                channel::ChannelEvent::Finalizing(_) => {
+                                    entry.push_state(ResourceState::Finalizing(event.timestamp))
+                                }
+                                channel::ChannelEvent::Exit(_) => {
+                                    entry.push_state(ResourceState::Exit(event.timestamp))
+                                }
                             }
                         }
                     }
@@ -369,38 +365,35 @@ impl Entities {
                     match q_event {
                         q::QEvent::Task(task_event) => {
                             use quent_events::q::task::TaskEvent;
-                            let entry = entry(&mut fsms, event.id);
+                            let entry = entry(&mut fsm_builders, event.id);
                             match task_event {
-                                TaskEvent::Init(init) => {
-                                    entry.type_name = "task".into();
-                                    entry.instance_name = init.name;
-                                    entry.state_sequence.push(State {
+                                TaskEvent::Init(init) => entry
+                                    .with_type_name("task")
+                                    .with_instance_name(init.name)
+                                    .push_state(DynamicState {
                                         name: "init".into(),
                                         uses: vec![],
                                         timestamp: event.timestamp,
                                         attributes: vec![],
                                         relations: vec![EntityRef::Operator(init.operator_id)],
-                                    })
-                                }
-                                TaskEvent::Queueing(_queueing) => {
-                                    entry.state_sequence.push(State {
-                                        name: "queueing".into(),
-                                        uses: vec![],
-                                        timestamp: event.timestamp,
-                                        attributes: vec![],
-                                        relations: vec![],
-                                    })
-                                }
+                                    }),
+                                TaskEvent::Queueing(_queueing) => entry.push_state(DynamicState {
+                                    name: "queueing".into(),
+                                    uses: vec![],
+                                    timestamp: event.timestamp,
+                                    attributes: vec![],
+                                    relations: vec![],
+                                }),
                                 TaskEvent::AllocatingMemory(allocating_memory) => {
-                                    entry.state_sequence.push(State {
+                                    entry.push_state(DynamicState {
                                         name: "allocating memory".into(),
                                         uses: vec![Use::unit(allocating_memory.use_task_thread)],
                                         timestamp: event.timestamp,
                                         attributes: vec![],
                                         relations: vec![],
-                                    })
+                                    });
                                 }
-                                TaskEvent::Loading(loading) => entry.state_sequence.push(State {
+                                TaskEvent::Loading(loading) => entry.push_state(DynamicState {
                                     name: "loading".into(),
                                     uses: vec![
                                         Use::unit(loading.use_task_thread),
@@ -423,16 +416,15 @@ impl Entities {
                                     attributes: vec![],
                                     relations: vec![],
                                 }),
-                                TaskEvent::AllocatingStorage(allocating_storage) => {
-                                    entry.state_sequence.push(State {
+                                TaskEvent::AllocatingStorage(allocating_storage) => entry
+                                    .push_state(DynamicState {
                                         name: "allocating storage".into(),
                                         uses: vec![Use::unit(allocating_storage.use_task_thread)],
                                         timestamp: event.timestamp,
                                         attributes: vec![],
                                         relations: vec![],
-                                    })
-                                }
-                                TaskEvent::Spilling(spilling) => entry.state_sequence.push(State {
+                                    }),
+                                TaskEvent::Spilling(spilling) => entry.push_state(DynamicState {
                                     name: "spilling".into(),
                                     uses: vec![
                                         Use::unit(spilling.use_task_thread),
@@ -448,7 +440,7 @@ impl Entities {
                                     attributes: vec![],
                                     relations: vec![],
                                 }),
-                                TaskEvent::Sending(sending) => entry.state_sequence.push(State {
+                                TaskEvent::Sending(sending) => entry.push_state(DynamicState {
                                     name: "sending".into(),
                                     uses: vec![
                                         Use::unit(sending.use_task_thread),
@@ -464,26 +456,24 @@ impl Entities {
                                     attributes: vec![],
                                     relations: vec![],
                                 }),
-                                TaskEvent::Computing(computing) => {
-                                    entry.state_sequence.push(State {
-                                        name: "computing".into(),
-                                        uses: vec![
-                                            Use::unit(computing.use_task_thread),
-                                            Use::new(
-                                                computing.use_main_memory,
-                                                [CapacityValue::new(
-                                                    "bytes",
-                                                    computing.use_main_memory_bytes,
-                                                )],
-                                            ),
-                                        ],
-                                        timestamp: event.timestamp,
-                                        attributes: vec![],
-                                        relations: vec![],
-                                    })
-                                }
+                                TaskEvent::Computing(computing) => entry.push_state(DynamicState {
+                                    name: "computing".into(),
+                                    uses: vec![
+                                        Use::unit(computing.use_task_thread),
+                                        Use::new(
+                                            computing.use_main_memory,
+                                            [CapacityValue::new(
+                                                "bytes",
+                                                computing.use_main_memory_bytes,
+                                            )],
+                                        ),
+                                    ],
+                                    timestamp: event.timestamp,
+                                    attributes: vec![],
+                                    relations: vec![],
+                                }),
                                 TaskEvent::Finalizing(_finalizing) => {
-                                    entry.state_sequence.push(State {
+                                    entry.push_state(DynamicState {
                                         name: "finalizing".into(),
                                         uses: vec![],
                                         timestamp: event.timestamp,
@@ -491,7 +481,7 @@ impl Entities {
                                         relations: vec![],
                                     })
                                 }
-                                TaskEvent::Exit(_exit) => entry.state_sequence.push(State {
+                                TaskEvent::Exit(_exit) => entry.push_state(DynamicState {
                                     name: "exit".into(),
                                     uses: vec![],
                                     timestamp: event.timestamp,
@@ -507,23 +497,39 @@ impl Entities {
             }
         }
 
-        // TODO(johanpel): consider either adding FSM type decl events or
-        // generating all this with a DSL instead of having to do this, or worst
-        // case still do this work but parallelize this don't clone so many
-        // strings.
+        // Build all resources
+        let resources: HashMap<Uuid, Resource> = resource_builders
+            .into_iter()
+            .map(|(id, builder)| (id, builder.try_build()))
+            .collect();
 
-        // Iterate over all FSMs to produce their type decls.
-        for fsm in fsms.values() {
-            let fsm_type_decl = fsm_types.entry(fsm.type_name.clone()).or_insert_with(|| {
-                FsmTypeDecl::new(
-                    fsm.type_name.clone(),
-                    fsm.state_sequence
-                        .iter()
-                        .map(|state| StateDecl::new(state.name.clone())),
-                )
-            });
-            for state in fsm.state_sequence.iter() {
-                fsm_type_decl.insert(StateDecl::new(state.name.clone()));
+        // Build all FSMs, derive FSM types from the data, and populate the
+        // "used_by_fsm" field of resources.
+        let mut fsms: HashMap<Uuid, DynamicFsm> = HashMap::with_capacity(fsm_builders.capacity());
+        let mut fsm_types: HashMap<String, DynamicFsmTypeDecl> = HashMap::new();
+
+        for (k, fsm) in fsm_builders.into_iter() {
+            // TODO(johanpel): for now bubble up this error but if there are
+            // e.g. abrupt failures we may want to move incomplete FSMs into
+            // their own bucket.
+            let fsm = fsm.try_build()?;
+
+            // Check whether this type decl already exists.
+            // TODO(johanpel): consider either adding FSM type decl events or
+            // generating all this with a DSL instead of having to do this, or
+            // worst case still do this work but parallelize this don't clone so
+            // many strings.
+            let fsm_type_decl = fsm_types
+                .entry(fsm.type_name().to_owned())
+                .or_insert_with(|| {
+                    DynamicFsmTypeDecl::new(
+                        fsm.type_name().to_owned(),
+                        fsm.states()
+                            .map(|state| DynamicFsmStateDecl::new(state.name.clone())),
+                    )
+                });
+            for state in fsm.states() {
+                fsm_type_decl.insert(DynamicFsmStateDecl::new(state.name.clone()));
                 for usage in state.uses.iter() {
                     if let Some(resource) = resources.get(&usage.resource)
                         && let Some(resource_type_decl) =
@@ -531,10 +537,12 @@ impl Entities {
                     {
                         resource_type_decl
                             .used_by_fsms
-                            .insert(fsm.type_name.clone());
+                            .insert(fsm.type_name().to_owned());
                     }
                 }
             }
+
+            fsms.insert(k, fsm);
         }
 
         Ok(Self {
@@ -669,6 +677,26 @@ impl Entities {
         Ok(entities)
     }
 
+    pub fn filter_by_time_window(&self, window: SpanNanoSec) -> Entities {
+        Self {
+            // TODO(johanpel): domain specific things shouldn't all be cloned.
+            engine: self.engine.clone(),
+            workers: self.workers.clone(),
+            query_groups: self.query_groups.clone(),
+            queries: self.queries.clone(),
+            plans: self.plans.clone(),
+            operators: self.operators.clone(),
+            ports: self.ports.clone(),
+            // TODO(johanpel): filter the below
+            resource_types: self.resource_types.clone(),
+            resources: self.resources.clone(),
+            resource_groups: self.resource_groups.clone(),
+            fsm_types: self.fsm_types.clone(),
+            fsms: self.fsms.clone(),
+            span: window,
+        }
+    }
+
     /// Return references of all resources and resource groups directly under some entity.
     pub fn get_resources_within_scope(&self, entity: EntityRef) -> Vec<EntityRef> {
         let resources = self.resources.iter().filter_map(|(k, v)| {
@@ -697,7 +725,7 @@ impl Entities {
             EntityRef::Port(uuid) => self.ports.contains_key(&uuid),
             EntityRef::ResourceGroup(uuid) => self.resource_groups.contains_key(&uuid),
             EntityRef::Resource(uuid) => self.resources.contains_key(&uuid),
-            EntityRef::CustomFsm(uuid) => self.fsms.contains_key(&uuid),
+            EntityRef::Fsm(uuid) => self.fsms.contains_key(&uuid),
         }
     }
 
@@ -713,16 +741,12 @@ impl Entities {
     }
 
     pub(crate) fn iter_use_relations(&self) -> impl Iterator<Item = (EntityRef, EntityRef)> {
-        self.fsms.iter().flat_map(|(id, fsm)| {
-            fsm.use_relations()
-                .map(|rel| (EntityRef::CustomFsm(*id), rel))
-        })
+        self.fsms
+            .iter()
+            .flat_map(|(id, fsm)| fsm.use_relations().map(|rel| (EntityRef::Fsm(*id), rel)))
     }
 
-    pub(crate) fn iter_custom_fsms_using_resource(
-        &self,
-        resource_id: Uuid,
-    ) -> impl Iterator<Item = &Fsm> {
+    pub(crate) fn iter_dynamic_fsms(&self, resource_id: Uuid) -> impl Iterator<Item = &DynamicFsm> {
         self
             // Iterate over all entities that use resources
             .iter_use_relations()
@@ -732,7 +756,7 @@ impl Entities {
             })
             // Filter out anything that's not an FSM for now :tm:
             .filter_map(|user| match user {
-                quent_entities::EntityRef::CustomFsm(uuid) => Some(self.fsms.get(&uuid).unwrap()),
+                quent_entities::EntityRef::Fsm(uuid) => Some(self.fsms.get(&uuid).unwrap()),
                 _ => None,
             })
     }
@@ -763,7 +787,7 @@ impl Entities {
             .values()
             .filter_map(|res| res.type_name.as_ref())
             .cloned();
-        let custom_fsms = self.fsms.values().map(|fsm| fsm.type_name.clone());
+        let custom_fsms = self.fsms.values().map(|fsm| fsm.type_name().to_owned());
 
         base.chain(resources)
             .chain(resource_groups)
@@ -805,7 +829,7 @@ pub struct EntitiesUI {
     pub plans: HashMap<Uuid, Plan>,
     pub operators: HashMap<Uuid, Operator>,
     pub ports: HashMap<Uuid, Port>,
-    pub fsm_types: HashMap<String, FsmTypeDecl>,
+    pub fsm_types: HashMap<String, DynamicFsmTypeDecl>,
 }
 
 impl From<Entities> for EntitiesUI {

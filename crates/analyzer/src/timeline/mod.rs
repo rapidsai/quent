@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use quent_entities::{
-    resource::CapacityKind,
+    fsm::Fsm,
+    resource::CapacityType,
     timeline::{ResourceTimelineBinned, ResourceTimelineBinnedByState},
 };
 use quent_time::bin::BinnedSpan;
@@ -26,7 +27,7 @@ pub fn make_resource_timeline_bin_aggregated(
     let mut aggregator = NamedAggregator::new(config);
 
     for (span, capacity) in entities
-        .iter_custom_fsms_using_resource(resource_id)
+        .iter_dynamic_fsms(resource_id)
         // Flatten into spans and states with potential uses of this resource
         .flat_map(|fsm| fsm.state_spans())
         // Flatten into spans into usages.
@@ -40,10 +41,10 @@ pub fn make_resource_timeline_bin_aggregated(
         .flat_map(|(span, usage)| usage.capacities.iter().map(move |amount| (span, amount)))
     {
         if let Some(value) = capacity.value {
-            let capacity_kind = resource_type.try_capacity(&capacity.name)?.kind;
-            let value = match capacity_kind {
-                CapacityKind::Occupancy => value as f64,
-                CapacityKind::Rate => value as f64 / span.duration() as f64,
+            let capacity_type = resource_type.try_capacity(&capacity.name)?.kind;
+            let value = match capacity_type {
+                CapacityType::Occupancy => value as f64,
+                CapacityType::Rate => value as f64 / span.duration() as f64,
             };
             aggregator.try_push(span, (value, capacity.name.as_str()))?
         }
@@ -72,9 +73,9 @@ pub fn make_resource_timeline_state_and_bin_aggregated(
     let mut binners: HashMap<&str, NamedAggregator> = HashMap::new();
 
     for (span, capacity, state_name) in entities
-        .iter_custom_fsms_using_resource(resource_id)
+        .iter_dynamic_fsms(resource_id)
         // Filter out FSMs that don't have this type name
-        .filter(|fsm| fsm.type_name == fsm_type_name)
+        .filter(|fsm| fsm.type_name() == fsm_type_name)
         // Flatten into spans and states with potential uses of this resource
         .flat_map(|fsm| fsm.state_spans())
         // Flatten into spans into usages.
@@ -98,8 +99,8 @@ pub fn make_resource_timeline_state_and_bin_aggregated(
         if let Some(value) = capacity.value {
             let capacity_kind = resource_type.try_capacity(&capacity.name)?.kind;
             let value = match capacity_kind {
-                CapacityKind::Occupancy => value as f64,
-                CapacityKind::Rate => value as f64 / span.duration() as f64,
+                CapacityType::Occupancy => value as f64,
+                CapacityType::Rate => value as f64 / span.duration() as f64,
             };
             binners
                 .entry(capacity.name.as_str())
@@ -229,36 +230,39 @@ mod tests {
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
             let fsm = Uuid::now_v7();
+            let start = i * 100;
+            let end = 1000 - i * 100;
             entities.fsms.insert(
                 fsm,
-                fsm::Fsm {
-                    id: fsm,
-                    type_name: "test".to_string(),
-                    instance_name: Some(format!("test-{i}")),
-                    state_sequence: vec![
-                        fsm::State {
+                fsm::DynamicFsm::try_new(
+                    fsm,
+                    "test",
+                    None,
+                    [
+                        fsm::DynamicState {
                             name: "using".into(),
                             uses: vec![Use::new(resource_id, [CapacityValue::new("bytes", 250)])],
-                            timestamp: i * 100,
+                            timestamp: start,
                             attributes: vec![],
                             relations: vec![],
                         },
-                        fsm::State {
+                        fsm::DynamicState {
                             name: "exit".into(),
                             uses: vec![],
-                            timestamp: 1000 - i * 100,
+                            timestamp: end,
                             attributes: vec![],
                             relations: vec![],
                         },
                     ],
-                },
+                )
+                .unwrap(),
             );
         }
 
         // Sanity check
         assert_eq!(
             entities
-                .iter_custom_fsms_using_resource(resource_id)
+                .iter_dynamic_fsms(resource_id)
                 .collect::<Vec<_>>()
                 .len(),
             4
@@ -327,12 +331,12 @@ mod tests {
             let fsm = Uuid::now_v7();
             entities.fsms.insert(
                 fsm,
-                fsm::Fsm {
-                    id: fsm,
-                    type_name: "test".to_string(),
-                    instance_name: Some(format!("test-{i}")),
-                    state_sequence: vec![
-                        fsm::State {
+                fsm::DynamicFsm::try_new(
+                    fsm,
+                    "test",
+                    None,
+                    [
+                        fsm::DynamicState {
                             name: "using".into(),
                             uses: vec![Use::new(
                                 resource_id,
@@ -343,7 +347,7 @@ mod tests {
                             attributes: vec![],
                             relations: vec![],
                         },
-                        fsm::State {
+                        fsm::DynamicState {
                             name: "exit".into(),
                             uses: vec![],
                             timestamp: 1000 - i * 250,
@@ -351,14 +355,15 @@ mod tests {
                             relations: vec![],
                         },
                     ],
-                },
+                )
+                .unwrap(),
             );
         }
 
         // Sanity check
         assert_eq!(
             entities
-                .iter_custom_fsms_using_resource(resource_id)
+                .iter_dynamic_fsms(resource_id)
                 .collect::<Vec<_>>()
                 .len(),
             2
@@ -420,26 +425,26 @@ mod tests {
             let end = 1000 - i * 100;
             entities.fsms.insert(
                 fsm,
-                fsm::Fsm {
-                    id: fsm,
-                    type_name: "test".to_string(),
-                    instance_name: Some(format!("test-{i}")),
-                    state_sequence: vec![
-                        fsm::State {
+                fsm::DynamicFsm::try_new(
+                    fsm,
+                    "test",
+                    None,
+                    [
+                        fsm::DynamicState {
                             name: "state_a".into(),
                             uses: vec![Use::new(resource_id, [CapacityValue::new("bytes", 250)])],
                             timestamp: start,
                             attributes: vec![],
                             relations: vec![],
                         },
-                        fsm::State {
+                        fsm::DynamicState {
                             name: "state_b".into(),
                             uses: vec![Use::new(resource_id, [CapacityValue::new("bytes", 42)])],
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
                             relations: vec![],
                         },
-                        fsm::State {
+                        fsm::DynamicState {
                             name: "exit".into(),
                             uses: vec![],
                             timestamp: end,
@@ -447,14 +452,15 @@ mod tests {
                             relations: vec![],
                         },
                     ],
-                },
+                )
+                .unwrap(),
             );
         }
 
         // Sanity check
         assert_eq!(
             entities
-                .iter_custom_fsms_using_resource(resource_id)
+                .iter_dynamic_fsms(resource_id)
                 .collect::<Vec<_>>()
                 .len(),
             4

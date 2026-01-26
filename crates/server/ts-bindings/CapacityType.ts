@@ -3,4 +3,4 @@
 /**
  * The type of capacity of a Resource.
  */
-export type CapacityKind = "Occupancy" | "Rate";
+export type CapacityType = "Occupancy" | "Rate";

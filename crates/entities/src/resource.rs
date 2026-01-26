@@ -6,13 +6,16 @@ use smallvec::SmallVec;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::error::{EntityError, Result};
+use crate::{
+    error::{EntityError, Result},
+    fsm::{Fsm, State, StateSequenceBuilder},
+};
 
 use super::*;
 
 /// The type of capacity of a Resource.
 #[derive(TS, Clone, Copy, Debug, Serialize)]
-pub enum CapacityKind {
+pub enum CapacityType {
     /// The Use value represents the amount of Resource Capacity
     /// held/occupied during a Span.
     Occupancy,
@@ -36,26 +39,26 @@ pub enum CapacityKind {
 #[derive(TS, Clone, Debug, Serialize)]
 pub struct CapacityDecl {
     pub name: String,
-    pub kind: CapacityKind,
+    pub kind: CapacityType,
 }
 
 impl CapacityDecl {
     pub fn new_occupancy(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            kind: CapacityKind::Occupancy,
+            kind: CapacityType::Occupancy,
         }
     }
     pub fn new_rate(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            kind: CapacityKind::Rate,
+            kind: CapacityType::Rate,
         }
     }
     pub fn unit() -> Self {
         Self {
             name: "unit".into(),
-            kind: CapacityKind::Occupancy,
+            kind: CapacityType::Occupancy,
         }
     }
 }
@@ -153,6 +156,81 @@ pub enum ResourceState {
     Exit(TimeUnixNanoSec),
 }
 
+impl State for ResourceState {
+    fn name(&self) -> &str {
+        match self {
+            ResourceState::Init(_) => "init",
+            ResourceState::Operating(_) => "operating",
+            ResourceState::Resizing(_) => "resizing",
+            ResourceState::Finalizing(_) => "finalizing",
+            ResourceState::Exit(_) => "exit",
+        }
+    }
+    fn uses(&self) -> impl Iterator<Item = &Use> {
+        std::iter::empty()
+    }
+    fn timestamp(&self) -> TimeUnixNanoSec {
+        *match self {
+            ResourceState::Init(ts) => ts,
+            ResourceState::Operating(s) => &s.timestamp,
+            ResourceState::Resizing(ts) => ts,
+            ResourceState::Finalizing(ts) => ts,
+            ResourceState::Exit(ts) => ts,
+        }
+    }
+    fn attributes(&self) -> impl Iterator<Item = &quent_attributes::Attribute> {
+        std::iter::empty()
+    }
+    fn relations(&self) -> impl Iterator<Item = EntityRef> {
+        std::iter::empty()
+    }
+}
+
+#[derive(Default)]
+pub struct ResourceBuilder {
+    id: Uuid,
+    instance_name: Option<String>,
+    type_name: String,
+    scope: Option<EntityRef>,
+    state_sequence: StateSequenceBuilder<ResourceState>,
+}
+
+impl IncompleteEntity for ResourceBuilder {
+    fn new(id: Uuid) -> Self {
+        Self {
+            id,
+            ..Default::default()
+        }
+    }
+}
+
+impl ResourceBuilder {
+    pub fn type_name(&self) -> &str {
+        &self.type_name
+    }
+    pub fn set_type_name(&mut self, type_name: impl Into<String>) {
+        self.type_name = type_name.into();
+    }
+    pub fn set_instance_name(&mut self, instance_name: Option<String>) {
+        self.instance_name = instance_name;
+    }
+    pub fn set_scope(&mut self, scope: EntityRef) {
+        self.scope = Some(scope);
+    }
+    pub fn push_state(&mut self, state: ResourceState) {
+        self.state_sequence.push_state(state);
+    }
+    pub fn try_build(self) -> Resource {
+        Resource {
+            id: self.id,
+            instance_name: self.instance_name,
+            type_name: self.type_name,
+            scope: self.scope,
+            state_sequence: self.state_sequence.sequence,
+        }
+    }
+}
+
 /// A Resource of which its Capacities cannot be resized.
 #[derive(TS, Clone, Default, Debug, Serialize)]
 pub struct Resource {
@@ -164,19 +242,10 @@ pub struct Resource {
     pub type_name: String,
     /// The scope of this Resource.
     pub scope: Option<EntityRef>,
-    /// The sequence of states that this Resource
+    /// The sequence of states that this resource went through.
     #[serde(skip)]
     #[ts(skip)]
     pub state_sequence: Vec<ResourceState>,
-}
-
-impl Entity for Resource {
-    fn new(id: Uuid) -> Self {
-        Self {
-            id,
-            ..Default::default()
-        }
-    }
 }
 
 impl Related for Resource {
@@ -188,6 +257,28 @@ impl Related for Resource {
             // for good measure:
             vec![].into_iter()
         }
+    }
+}
+
+impl Fsm for Resource {
+    type State = ResourceState;
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn type_name(&self) -> &str {
+        &self.type_name
+    }
+    fn instance_name(&self) -> Option<&str> {
+        self.instance_name.as_deref()
+    }
+    fn len(&self) -> usize {
+        self.state_sequence.len()
+    }
+    fn index(&self, index: usize) -> Option<&Self::State> {
+        self.state_sequence.get(index)
+    }
+    fn states(&self) -> impl ExactSizeIterator<Item = &Self::State> {
+        self.state_sequence.iter()
     }
 }
 
@@ -224,7 +315,7 @@ pub struct ResourceGroup {
     pub timestamps: ResourceGroupTimestamps,
 }
 
-impl Entity for ResourceGroup {
+impl IncompleteEntity for ResourceGroup {
     fn new(id: Uuid) -> Self {
         Self {
             id,

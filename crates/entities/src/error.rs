@@ -7,6 +7,8 @@ pub enum EntityError {
     InvalidArgument(String),
     #[error("incomplete fsm: {0}")]
     IncompleteFsm(String),
+    #[error("time error: {0}")]
+    Time(#[from] quent_time::TimeError),
 }
 
 pub type Result<T> = std::result::Result<T, EntityError>;

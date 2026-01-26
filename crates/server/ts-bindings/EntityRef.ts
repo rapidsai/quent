@@ -3,4 +3,4 @@
 /**
  * A run-time typed reference to an entity.
  */
-export type EntityRef = { "Engine": string } | { "QueryGroup": string } | { "Query": string } | { "Plan": string } | { "Worker": string } | { "Operator": string } | { "Port": string } | { "ResourceGroup": string } | { "Resource": string } | { "CustomFsm": string };
+export type EntityRef = { "Engine": string } | { "QueryGroup": string } | { "Query": string } | { "Plan": string } | { "Worker": string } | { "Operator": string } | { "Port": string } | { "ResourceGroup": string } | { "Resource": string } | { "Fsm": string };

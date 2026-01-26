@@ -5,7 +5,7 @@
 
 use quent_events::engine::EngineImplementationAttributes;
 use quent_events::resource::Scope;
-use quent_time::TimeUnixNanoSec;
+use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
@@ -18,18 +18,36 @@ pub mod relation;
 pub mod resource;
 pub mod timeline;
 
+pub use error::{EntityError, Result};
+
 // TODO(johanpel): figure out if we can stop being so verbose in prefixing type
 // names with their namespace. This appears a limitation of ts_rs where you
 // can't have two types of the same name in a different namespace. This is also
 // a known limitation of e.g. wasm_bindgen.
 
-pub trait Entity {
+/// Trait for entities that are not complete yet.
+pub trait IncompleteEntity {
     fn new(id: Uuid) -> Self;
+}
+
+/// The total lifetime of an entity.
+pub enum Lifetime {
+    /// The entity is of a single event type, so it is only alive in one instant (as far as the model is concerned).
+    Instant(TimeUnixNanoSec),
+    /// The entity is alive across a span of time.
+    Span(SpanUnixNanoSec),
+}
+
+/// Trait for entities that are complete.
+pub trait Entity {
+    fn id(&self) -> Uuid;
+    fn lifetime(&self) -> Lifetime;
 }
 
 /// A run-time typed reference to an entity.
 #[derive(TS, Clone, Copy, Debug, PartialEq, Eq, Serialize, Hash)]
 pub enum EntityRef {
+    // Domain-specific
     Engine(Uuid),
     QueryGroup(Uuid),
     Query(Uuid),
@@ -37,9 +55,10 @@ pub enum EntityRef {
     Worker(Uuid),
     Operator(Uuid),
     Port(Uuid),
+    // Generic
     ResourceGroup(Uuid),
     Resource(Uuid),
-    CustomFsm(Uuid),
+    Fsm(Uuid),
 }
 
 impl From<Scope> for EntityRef {
@@ -69,7 +88,7 @@ impl From<EntityRef> for Uuid {
             EntityRef::Port(uuid) => uuid,
             EntityRef::ResourceGroup(uuid) => uuid,
             EntityRef::Resource(uuid) => uuid,
-            EntityRef::CustomFsm(uuid) => uuid,
+            EntityRef::Fsm(uuid) => uuid,
         }
     }
 }
@@ -117,7 +136,7 @@ pub mod engine {
         pub implementation: Option<EngineImplementationAttributes>,
     }
 
-    impl Entity for Engine {
+    impl IncompleteEntity for Engine {
         fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -173,7 +192,7 @@ pub mod query_group {
         pub name: Option<String>,
     }
 
-    impl Entity for QueryGroup {
+    impl IncompleteEntity for QueryGroup {
         fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -229,7 +248,7 @@ pub mod worker {
         pub name: Option<String>,
     }
 
-    impl Entity for Worker {
+    impl IncompleteEntity for Worker {
         fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -288,7 +307,7 @@ pub mod query {
         pub name: Option<String>,
     }
 
-    impl Entity for Query {
+    impl IncompleteEntity for Query {
         fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -370,7 +389,7 @@ pub mod operator {
         pub state_sequence: Vec<OperatorState>,
     }
 
-    impl Entity for Operator {
+    impl IncompleteEntity for Operator {
         fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -396,7 +415,7 @@ pub mod operator {
         pub name: String,
     }
 
-    impl Entity for Port {
+    impl IncompleteEntity for Port {
         fn new(id: Uuid) -> Self {
             Self {
                 id,
@@ -463,7 +482,7 @@ pub mod plan {
         pub edges: Vec<Edge>,
     }
 
-    impl Entity for Plan {
+    impl IncompleteEntity for Plan {
         fn new(id: Uuid) -> Self {
             Self {
                 id,

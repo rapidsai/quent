@@ -13,6 +13,9 @@ pub struct SpanNanoSec {
     end: TimeNanoSec,
 }
 
+/// Type alias for a slight increase in code clarity wherever it's used.
+pub type SpanUnixNanoSec = SpanNanoSec;
+
 impl SpanNanoSec {
     /// Construct a new Span.
     ///
@@ -27,6 +30,14 @@ impl SpanNanoSec {
             )))
         } else {
             Ok(Self { start, end })
+        }
+    }
+
+    /// Return a span with the maximum expressable range.
+    pub fn new_max() -> Self {
+        Self {
+            start: 0,
+            end: TimeNanoSec::MAX,
         }
     }
 
@@ -81,6 +92,7 @@ impl SpanNanoSec {
     ///
     /// The duration is equal to the count of discrete timestamps within the
     /// half-open interval.
+    #[inline]
     pub fn duration(&self) -> TimeNanoSec {
         self.end.saturating_sub(self.start)
     }
@@ -89,6 +101,7 @@ impl SpanNanoSec {
     ///
     /// Since a Span interval is half-open, a timestamp equal to the end timestamp
     /// is considered to not lie within this span.
+    #[inline]
     pub fn contains_timestamp(&self, timestamp: TimeUnixNanoSec) -> bool {
         self.start <= timestamp && timestamp < self.end
     }
@@ -103,6 +116,7 @@ impl SpanNanoSec {
 
     /// Extend this span such that it includes all timestamps of both self and
     /// other.
+    #[inline]
     pub fn extend(&self, other: &Self) -> Self {
         Self {
             start: self.start.min(other.start),
