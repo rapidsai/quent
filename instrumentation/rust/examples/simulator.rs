@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent::ExporterOptions;
 use quent_events::{
@@ -18,12 +19,30 @@ use rayon::prelude::*;
 use tracing::info;
 use uuid::Uuid;
 
-const NUM_QUERY_GROUPS: usize = 1;
-const NUM_QUERIES: usize = 1; // per query group
-const NUM_TASKS: usize = 32; // per operator
+#[derive(Parser, Debug)]
+#[command(name = "simulator")]
+#[command(about = "Emits simulated query engine telemetry", long_about = None)]
+struct Args {
+    /// Number of query groups
+    #[arg(long, default_value_t = 2)]
+    num_query_groups: usize,
 
-const NUM_WORKERS: usize = 2;
-const NUM_THREADS: usize = 2; // per worker thread pool
+    /// Number of queries per query group
+    #[arg(long, default_value_t = 2)]
+    num_queries: usize,
+
+    /// Number of tasks per operator
+    #[arg(long, default_value_t = 32)]
+    num_tasks: usize,
+
+    /// Number of workers
+    #[arg(long, default_value_t = 2)]
+    num_workers: usize,
+
+    /// Number of threads per worker thread pool
+    #[arg(long, default_value_t = 2)]
+    num_threads: usize,
+}
 
 fn initialize_tracing() {
     tracing_subscriber::fmt()
@@ -473,7 +492,7 @@ impl Worker {
         worker_obs.operating(self.id, worker::Operating {});
     }
 
-    fn execute_physical_operator_tasks(
+    fn execute_physical_operator_task(
         &self,
         context: &quent::Context,
         index: usize,
@@ -588,6 +607,8 @@ impl Worker {
         context: &quent::Context,
         engine: &Engine,
         plan: &Plan<Physical>,
+        num_tasks: usize,
+        num_threads: usize,
     ) {
         let plan_obs = context.plan_observer();
         let operator_obs = context.operator_observer();
@@ -660,8 +681,8 @@ impl Worker {
             self.task_threads.par_iter().for_each(|task_thread_id| {
                 for node_idx in nodes.iter() {
                     let op = &plan.dag[*node_idx];
-                    for (index, _) in (0..NUM_TASKS / NUM_THREADS).enumerate() {
-                        self.execute_physical_operator_tasks(
+                    for (index, _) in (0..num_tasks / num_threads).enumerate() {
+                        self.execute_physical_operator_task(
                             context,
                             index,
                             engine,
@@ -746,7 +767,7 @@ impl Engine {
         }
     }
 
-    fn spawn(&mut self, context: &quent::Context, num_workers: usize) {
+    fn spawn(&mut self, context: &quent::Context, num_workers: usize, num_threads: usize) {
         // Create some observers
         info!(
             "Simulating Engine: http://localhost:8080/analyzer/engine/{}",
@@ -774,7 +795,7 @@ impl Engine {
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), NUM_THREADS);
+            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), num_threads);
             worker.spawn(context, self.id);
             self.workers.insert(*worker_id, worker);
         }
@@ -868,17 +889,19 @@ impl Engine {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
+    let args = Args::parse();
+
     let mut engine = Engine::new();
 
     let context =
         quent::Context::try_new(ExporterOptions::Collector(Default::default()), engine.id)?;
 
-    engine.spawn(&context, NUM_WORKERS);
+    engine.spawn(&context, args.num_workers, args.num_threads);
     let engine = Arc::new(engine);
     let context = Arc::new(context);
 
     let query_group_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
-        .take(NUM_QUERY_GROUPS)
+        .take(args.num_query_groups)
         .map(|query_group_id| {
             info!("Simulating Query Group: http://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
             std::thread::spawn({
@@ -886,6 +909,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let context = Arc::clone(&context);
                 let query_group_obs = context.query_group_observer();
                 let query_obs = context.query_observer();
+                let num_queries = args.num_queries;
+                let num_tasks = args.num_tasks;
+                let num_threads = args.num_threads;
                 move || {
                     query_group_obs.init(
                         query_group_id,
@@ -897,7 +923,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     query_group_obs.operating(query_group_id, query_group::Operating {});
 
                     let query_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
-                        .take(NUM_QUERIES)
+                        .take(num_queries)
                         .map(|query_id| {
                             std::thread::spawn({
                                 let engine = Arc::clone(&engine);
@@ -920,7 +946,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     // TODO(johanpel): properly nest this or don't require plans to be executable as operator fsms
                                     // engine.workers.values().next().unwrap().execute_physical_plan(&context, &l_plan);
                                     engine.workers.values().collect::<Vec<_>>().par_iter().for_each(|worker| {
-                                            worker.execute_physical_plan(&context, &engine, &p_plan);
+                                            worker.execute_physical_plan(&context, &engine, &p_plan, num_tasks, num_threads);
                                     });
 
                                     query_obs.idle(query_id, query::Idle {});

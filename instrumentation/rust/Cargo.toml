@@ -20,6 +20,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+clap = { version = "4.5", features = ["derive"] }
 petgraph = "0.8.3"
 quent-collector = { path = "../../crates/collector", features = ["server"] }
 quent-exporter-ndjson = { path = "../../crates/exporter/ndjson" }
