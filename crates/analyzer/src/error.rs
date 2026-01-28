@@ -1,8 +1,7 @@
-use http::StatusCode;
 use uuid::Uuid;
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
+pub enum AnalyzerError {
     #[error("validation error: {0}")]
     Validation(String),
     #[error("invalid id: {0}")]
@@ -17,18 +16,6 @@ pub enum Error {
     Entity(#[from] quent_entities::error::EntityError),
     #[error("value type error: {0}")]
     ValueType(String),
-}
-
-impl From<Error> for StatusCode {
-    fn from(value: Error) -> Self {
-        match value {
-            Error::Validation(_)
-            | Error::Logic(_)
-            | Error::Time(_)
-            | Error::ValueType(_)
-            | Error::InvalidTypeName(_)
-            | Error::Entity(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Error::InvalidId(_) => StatusCode::NOT_FOUND,
-        }
-    }
+    #[error("broken implementation error: {0}")]
+    BrokenImpl(String),
 }

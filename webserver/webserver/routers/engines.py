@@ -5,7 +5,7 @@ Handles all endpoints related to engines, workers, query groups, and queries.
 
 from typing import Any
 
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path, Query
 
 from ..client import rust_client
 
@@ -96,31 +96,42 @@ async def get_query(
     return rust_client.get(f"/analyzer/engine/{engine_id}/query/{query_id}")
 
 
-@router.get("/{engine_id}/resource/{resource_id}/fsm/{fsm_type_name}/timeline/aggregated")
-async def get_resource_timeline_aggregated(
+@router.get("/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/fsm")
+async def get_resource_timeline_aggregated_by_fsm(
     engine_id: str = Path(..., description="The engine ID"),
+    query_id: str = Path(..., description="The query ID"),
     resource_id: str = Path(..., description="The resource ID"),
-    fsm_type_name: str = Path(..., description="FSM state name"),
-    num_bins: int = 10,
+    fsm_type_name: str = Query(..., description="FSM type name"),
+    num_bins: int = Query(..., description="Number of bins for aggregation"),
+    start: float = Query(
+        ..., description="Start time in seconds relative to query start"
+    ),
+    end: float = Query(..., description="End time in seconds relative to query start"),
 ) -> Any:
     """
-    Fetches aggregated FSM timeline for a given resource.
+    Fetches aggregated FSM timeline for a given resource within a query context.
     """
     return rust_client.get(
-        f"/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm"
-        f"?num_bins={num_bins}&fsm_type_name={fsm_type_name}"
+        f"/analyzer/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/fsm"
+        f"?num_bins={num_bins}&fsm_type_name={fsm_type_name}&start={start}&end={end}"
     )
 
-@router.get("/{engine_id}/resource/{resource_id}/timeline/aggregated")
-async def get_resource_timeline_aggregated(
+
+@router.get("/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/all")
+async def get_resource_timeline_aggregated_all(
     engine_id: str = Path(..., description="The engine ID"),
+    query_id: str = Path(..., description="The query ID"),
     resource_id: str = Path(..., description="The resource ID"),
-    num_bins: int = 10,
+    num_bins: int = Query(..., description="Number of bins for aggregation"),
+    start: float = Query(
+        ..., description="Start time in seconds relative to query start"
+    ),
+    end: float = Query(..., description="End time in seconds relative to query start"),
 ) -> Any:
     """
-    Fetches aggregated timeline for a given resource over all fsm states
+    Fetches aggregated timeline for a given resource over all fsm states within a query context.
     """
     return rust_client.get(
-        f"/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/all"
-        f"?num_bins={num_bins}"
+        f"/analyzer/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/all"
+        f"?num_bins={num_bins}&start={start}&end={end}"
     )

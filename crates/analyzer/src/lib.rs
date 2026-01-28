@@ -39,7 +39,7 @@ pub mod query_bundle;
 pub mod resource_tree;
 pub mod timeline;
 
-pub type Result<T> = std::result::Result<T, error::Error>;
+pub type AnalyzerResult<T> = std::result::Result<T, error::AnalyzerError>;
 
 pub type Event = RawEvent<EventData>;
 
@@ -50,7 +50,7 @@ pub struct Analyzer {
 }
 
 impl Analyzer {
-    pub fn try_new(engine_id: Uuid, events: impl Iterator<Item = Event>) -> Result<Self> {
+    pub fn try_new(engine_id: Uuid, events: impl Iterator<Item = Event>) -> AnalyzerResult<Self> {
         // Process all events into entities, flattened into maps to allow looking them up by ID.
         let entities = Entities::try_new(engine_id, events)?;
         Ok(Self { entities })
@@ -95,8 +95,12 @@ impl Analyzer {
             .collect()
     }
 
+    pub fn entities(&self) -> &Entities {
+        &self.entities
+    }
+
     #[tracing::instrument(skip(self), err)]
-    pub fn query_bundle(&self, id: Uuid) -> Result<QueryBundle> {
+    pub fn query_bundle(&self, id: Uuid) -> AnalyzerResult<QueryBundle> {
         QueryBundle::try_new(&self.entities, id)
     }
 
@@ -105,7 +109,7 @@ impl Analyzer {
         &self,
         resource_id: Uuid,
         config: BinnedSpan,
-    ) -> Result<ResourceTimelineBinned> {
+    ) -> AnalyzerResult<ResourceTimelineBinned> {
         make_resource_timeline_bin_aggregated(&self.entities, resource_id, config)
     }
 
@@ -115,7 +119,7 @@ impl Analyzer {
         resource_id: Uuid,
         config: BinnedSpan,
         fsm_type_name: String,
-    ) -> Result<ResourceTimelineBinnedByState> {
+    ) -> AnalyzerResult<ResourceTimelineBinnedByState> {
         make_resource_timeline_state_and_bin_aggregated(
             &self.entities,
             resource_id,

@@ -8,12 +8,14 @@ default = []
 q = ["quent-events/q", "quent-analyzer/q"]
 
 [dependencies]
-axum = "0.8.7"
+axum = { version = "0.8.7" }
 quent-collector = { path = "../collector", features = ["server"] }
+quent-exporter = { path = "../exporter" }
 quent-exporter-ndjson = { path = "../exporter/ndjson" }
 quent-analyzer = { path = "../analyzer" }
 quent-time = { path = "../time" }
 quent-entities = { path = "../entities" }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tokio-stream.workspace = true
 tonic.workspace = true

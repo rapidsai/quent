@@ -10,12 +10,12 @@ import { Resource } from '~quent/types/Resource';
 import { ResourceGroup } from '~quent/types/ResourceGroup';
 import { Worker } from '~quent/types/Worker';
 import { EntityRef } from '~quent/types/EntityRef';
-import { FsmTypeDecl } from '~quent/types/FsmTypeDecl';
+import { DynamicFsmTypeDecl } from '~quent/types/DynamicFsmTypeDecl';
 import { ResourceTypeDecl } from '~quent/types/ResourceTypeDecl';
 
 export type EntityTypeValue =
   | Engine
-  | FsmTypeDecl
+  | DynamicFsmTypeDecl
   | Operator
   | Plan
   | Port

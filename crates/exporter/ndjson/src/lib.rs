@@ -5,7 +5,7 @@ use std::{
 };
 
 use quent_events::{Event, EventData};
-use quent_exporter::Exporter;
+use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
@@ -20,7 +20,7 @@ pub struct NdjsonExporter {
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(engine_id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn try_new(engine_id: Uuid) -> ExporterResult<Self> {
         // TODO(johanpel): path config
         let path = format!("data/{}.ndjson", engine_id);
 
@@ -42,20 +42,24 @@ impl Exporter for NdjsonExporter {
     async fn push(
         &self,
         event: quent_events::Event<quent_events::EventData>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let line = format!("{}\n", serde_json::to_string(&event)?);
+    ) -> ExporterResult<()> {
+        let line = format!(
+            "{}\n",
+            serde_json::to_string(&event).map_err(|e| ExporterError::Serde(format!("{e:?}")))?
+        );
         let mut lock = self.writer.lock().await;
         lock.write_all(line.as_bytes()).await?;
         lock.flush().await?;
         Ok(())
     }
 
-    async fn force_flush(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn force_flush(&self) -> ExporterResult<()> {
         match self.writer.lock().await.flush().await {
             Ok(_) => Ok(()),
             Err(e) => {
-                error!("unable to flush ndjson exporter: {e}");
-                Err(Box::new(e))
+                let err = format!("unable to flush ndjson exporter: {e}");
+                error!("{err}");
+                Err(ExporterError::Flush(err))
             }
         }
     }
@@ -66,7 +70,7 @@ pub struct NdjsonImporter {
 }
 
 impl NdjsonImporter {
-    pub fn try_new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(path: impl AsRef<Path>) -> ImporterResult<Self> {
         let file = std::fs::File::open(path)?;
         Ok(Self {
             reader: BufReader::new(file),

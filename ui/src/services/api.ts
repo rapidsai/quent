@@ -159,23 +159,24 @@ export async function fetchListQueries(engineId: string, coordinatorId: string):
 
 export async function fetchResourceTimelineAggregated(
   engineId: string,
+  queryId: string,
   resourceId: string,
   params?: Record<string, string | number | boolean>
 ): Promise<ResourceTimelineBinned> {
   return apiFetch<ResourceTimelineBinned>(
-    `/engines/${engineId}/resource/${resourceId}/timeline/aggregated`,
+    `/engines/${engineId}/query/${queryId}/resource/${resourceId}/timeline/agg/all`,
     { params }
   );
 }
 
 export async function fetchResourceTimelineAggregatedByFSM(
   engineId: string,
+  queryId: string,
   resourceId: string,
-  fsmTypeName: string = 'task',
   params?: Record<string, string | number | boolean>
 ): Promise<ResourceTimelineBinnedByState> {
   return apiFetch<ResourceTimelineBinnedByState>(
-    `/engines/${engineId}/resource/${resourceId}/fsm/${fsmTypeName}/timeline/aggregated`,
+    `/engines/${engineId}/query/${queryId}/resource/${resourceId}/timeline/agg/fsm`,
     { params }
   );
 }

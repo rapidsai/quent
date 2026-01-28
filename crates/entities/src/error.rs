@@ -5,8 +5,10 @@ use thiserror::Error;
 pub enum EntityError {
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
-    #[error("incomplete fsm: {0}")]
-    IncompleteFsm(String),
+    /// Not all events needed to form a complete entity are present in the
+    /// dataset.
+    #[error("incomplete entity: {0}")]
+    Incomplete(String),
     #[error("time error: {0}")]
     Time(#[from] quent_time::TimeError),
 }

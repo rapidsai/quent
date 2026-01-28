@@ -19,11 +19,7 @@ variables:
     - pnpm config set store-dir .pnpm-store
     - pnpm install --frozen-lockfile
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - ui/**/*
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
+    - changes:
         - ui/**/*
 
 # Linting job (generates routes first for type-aware linting)

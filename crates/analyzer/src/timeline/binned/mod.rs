@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
-use crate::Result;
+use crate::AnalyzerResult;
 
 /// A trait for types that can aggregate items into a sequence of time bins.
 pub(crate) trait BinnedTimelineAggregator {
@@ -20,10 +20,10 @@ pub(crate) trait BinnedTimelineAggregator {
     /// * `span` - The time span that determines which bins should receive the
     ///   item.
     /// * `item` - The item to be pushed into all intersecting bins.
-    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> Result<()>;
+    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> AnalyzerResult<()>;
 
     /// Attempt to return the finished output of this aggregator.
-    fn try_finish(self) -> Result<Self::Output>;
+    fn try_finish(self) -> AnalyzerResult<Self::Output>;
 }
 
 /// A binned timeline built from numeric primitive values associated with a
@@ -53,7 +53,7 @@ impl BinnedTimelineAggregator for UnitAggregator {
         self.config
     }
 
-    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> Result<()> {
+    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> AnalyzerResult<()> {
         // Quickly return if the span duration is zero.
         let span_duration = span.duration();
         if span_duration == 0 {
@@ -70,7 +70,7 @@ impl BinnedTimelineAggregator for UnitAggregator {
         Ok(())
     }
 
-    fn try_finish(self) -> Result<Self::Output> {
+    fn try_finish(self) -> AnalyzerResult<Self::Output> {
         Ok(self.bins)
     }
 }
@@ -99,18 +99,18 @@ impl<'a> BinnedTimelineAggregator for NamedAggregator<'a> {
         self.config
     }
 
-    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> Result<()> {
+    fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> AnalyzerResult<()> {
         self.named_bins
             .entry(item.1)
             .or_insert_with(|| UnitAggregator::new(self.config))
             .try_push(span, item.0)
     }
 
-    fn try_finish(self) -> Result<Self::Output> {
+    fn try_finish(self) -> AnalyzerResult<Self::Output> {
         self.named_bins
             .into_iter()
             .map(|(k, v)| v.try_finish().map(|values| (k, values)))
-            .collect::<Result<_>>()
+            .collect::<AnalyzerResult<_>>()
     }
 }
 
@@ -120,7 +120,7 @@ mod tests {
     use std::num::NonZero;
 
     #[test]
-    fn numeric_primitive_occupancy() -> Result<()> {
+    fn numeric_primitive_occupancy() -> AnalyzerResult<()> {
         let config = BinnedSpan::try_new(
             SpanNanoSec::try_new(0, 80).unwrap(),
             NonZero::new(4).unwrap(),

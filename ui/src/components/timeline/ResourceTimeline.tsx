@@ -14,9 +14,11 @@ import { TimelineSeries } from './types';
 
 type ResourceTimelineProps = {
   engineId: string;
+  queryId: string;
   resourceId: string;
   startTime: bigint;
-  fsmStateName: string | undefined;
+  durationSeconds: number;
+  fsmTypeName: string | undefined;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -29,19 +31,28 @@ const EMPTY_TIMELINE_SERIES: TimelineSeries = {
 
 export function ResourceTimeline({
   engineId,
+  queryId,
   resourceId,
   startTime,
-  fsmStateName,
+  durationSeconds,
+  fsmTypeName,
 }: ResourceTimelineProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['resourceTimeline', engineId, resourceId, fsmStateName],
+    queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName],
     // TODO (joe): Dynamic number of bins
     queryFn: (): Promise<ResourceTimelineBinnedByState | ResourceTimelineBinned> =>
-      fsmStateName
-        ? fetchResourceTimelineAggregatedByFSM(engineId, resourceId, fsmStateName, {
+      fsmTypeName
+        ? fetchResourceTimelineAggregatedByFSM(engineId, queryId, resourceId, {
             num_bins: 100,
+            start: 0,
+            end: durationSeconds,
+            fsm_type_name: fsmTypeName,
           })
-        : fetchResourceTimelineAggregated(engineId, resourceId, { num_bins: 100 }),
+        : fetchResourceTimelineAggregated(engineId, queryId, resourceId, {
+            num_bins: 100,
+            start: 0,
+            end: durationSeconds,
+          }),
     staleTime: DEFEAULT_STALE_TIME,
   });
 

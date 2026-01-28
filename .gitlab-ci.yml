@@ -4,6 +4,14 @@ default:
     - os/linux
   interruptible: true
 
+# Control when pipelines are created
+workflow:
+  rules:
+    # Run on merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run on default branch
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 # Add UI jobs
 include:
   - local: "ui/.gitlab-ci.yml"
@@ -25,6 +33,16 @@ variables:
       - .cargo/git/db
       - target/
 
+# Rules for when to run Rust jobs (only checks for file changes)
+.rust_rules:
+  rules:
+    - changes:
+        - "**/*.rs"
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - "**/*.proto"
+        - .gitlab-ci.yml
+
 # Install system dependencies needed for Rust builds
 .install_protoc:
   before_script:
@@ -39,11 +57,13 @@ stages:
   - build
   - test
 
-# Prepare dependencies once and share across all jobs
+# Prepare dependencies once and share across all Rust jobs
 prepare:
   stage: prepare
   image: rust:latest
-  extends: .cargo_cache
+  extends:
+    - .cargo_cache
+    - .rust_rules
   script:
     - rustc --version
     - cargo --version
@@ -54,43 +74,43 @@ prepare:
       - Cargo.lock
     expire_in: 1 hour
 
-# Run cargo check
-cargo-check:
+rust:check:
   stage: check
   image: rust:latest
   extends:
     - .cargo_cache
     - .install_protoc
+    - .rust_rules
   needs:
     - prepare
   script:
     - cargo check --workspace --all-targets --all-features --locked
 
-# Run cargo fmt check
-cargo-fmt:
+rust:fmt:
   stage: format
   image: rust:latest
+  extends: .rust_rules
   script:
     - rustup component add rustfmt
     - cargo fmt --all -- --check
 
-# Run cargo clippy
-cargo-clippy:
+rust:clippy:
   stage: lint
   image: rust:latest
   extends:
     - .cargo_cache
     - .install_protoc
+    - .rust_rules
   needs:
     - prepare
   script:
     - rustup component add clippy
     - cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
-# Run rumdl check
-rumdl-check:
+markdown:check:
   stage: lint
   image: rust:latest
+  extends: .rust_rules
   needs:
     - prepare
   script:
@@ -102,13 +122,13 @@ rumdl-check:
     paths:
       - .cargo/bin/rumdl
 
-# Build the project
-cargo-build:
+rust:build:
   stage: build
   image: rust:latest
   extends:
     - .cargo_cache
     - .install_protoc
+    - .rust_rules
   needs:
     - prepare
   script:
@@ -118,13 +138,13 @@ cargo-build:
       - target/release/
     expire_in: 1 day
 
-# Run tests
-cargo-test:
+rust:test:
   stage: test
   image: rust:latest
   extends:
     - .cargo_cache
     - .install_protoc
+    - .rust_rules
   needs:
     - prepare
   script:
