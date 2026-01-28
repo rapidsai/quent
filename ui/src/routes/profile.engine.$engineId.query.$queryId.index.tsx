@@ -1,5 +1,6 @@
 import { QueryResourceTree } from '@/components/QueryResourceTree';
-import { fetchQueryBundle } from '@/services/api';
+import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
+import { queryClient } from '@/lib/queryClient';
 import { createFileRoute } from '@tanstack/react-router';
 import { QueryBundle } from '~quent/types/QueryBundle';
 
@@ -7,7 +8,8 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/'
   component: QueryIndex,
   loader: async ({ params }): Promise<QueryBundle> => {
     const { engineId, queryId } = params;
-    return await fetchQueryBundle(engineId, queryId);
+    // Use ensureQueryData to populate React Query cache (avoids duplicate fetches)
+    return await queryClient.ensureQueryData(queryBundleQueryOptions({ engineId, queryId }));
   },
 });
 

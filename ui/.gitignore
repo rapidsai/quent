@@ -37,3 +37,5 @@ vite.config.ts.timestamp-*
 
 coverage
 junit*
+
+stats.html

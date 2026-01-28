@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     'import.meta.env.TEST': 'true',
+    'import.meta.env.VITE_API_BASE_URL': '"http://localhost:8000/api"',
   },
   test: {
     environment: 'jsdom',

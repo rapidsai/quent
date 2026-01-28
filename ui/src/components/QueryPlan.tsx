@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
-import { DAGChart } from '@/components/dag/DAGChart';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
+
+// Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
+const DAGChart = lazy(() =>
+  import('@/components/dag/DAGChart').then(mod => ({ default: mod.DAGChart }))
+);
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const [planId, setPlanId] = useState<string>('');
@@ -98,9 +102,17 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         </div>
       </div>
 
-      {/* DAG Chart */}
+      {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
       <div className="flex-1 overflow-hidden">
-        <DAGChart data={dagData} queryId={queryId} engineId={engineId} height="100%" />
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              Loading visualization...
+            </div>
+          }
+        >
+          <DAGChart data={dagData} queryId={queryId} engineId={engineId} height="100%" />
+        </Suspense>
       </div>
     </div>
   );

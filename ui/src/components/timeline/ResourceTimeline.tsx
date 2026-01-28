@@ -1,16 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  DEFEAULT_STALE_TIME,
+  DEFAULT_STALE_TIME,
   fetchResourceTimelineAggregated,
   fetchResourceTimelineAggregatedByFSM,
 } from '@/services/api';
-import { Timeline } from './Timeline';
 import { TimelineSkeleton } from './TimelineSkeleton';
-import { useMemo } from 'react';
+import { useMemo, lazy, Suspense } from 'react';
 import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
 import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
 import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
 import { TimelineSeries } from './types';
+
+// Lazy load Timeline to split echarts into a separate chunk
+const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
 type ResourceTimelineProps = {
   engineId: string;
@@ -53,7 +55,7 @@ export function ResourceTimeline({
             start: 0,
             end: durationSeconds,
           }),
-    staleTime: DEFEAULT_STALE_TIME,
+    staleTime: DEFAULT_STALE_TIME,
   });
 
   const { timestamps, series } = useMemo(() => {
@@ -75,5 +77,9 @@ export function ResourceTimeline({
   }
 
   // This should render a timeline one way or another
-  return <Timeline series={series} timestamps={timestamps ?? []} startTime={startTime} />;
+  return (
+    <Suspense fallback={<TimelineSkeleton />}>
+      <Timeline series={series} timestamps={timestamps ?? []} startTime={startTime} />
+    </Suspense>
+  );
 }

@@ -7,8 +7,10 @@ import { QueryBundle } from '~quent/types/QueryBundle';
 import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
 import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-export const DEFEAULT_STALE_TIME = 5 * 60 * 1000;
+// Use relative URL by default to leverage Vite's proxy (both dev and preview)
+// Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const DEFAULT_STALE_TIME = 5 * 60 * 1000;
 
 /**
  * TODO: Figure out a more permanent solution for this

@@ -1,22 +1,22 @@
 import { useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import ReactECharts from 'echarts-for-react';
-import type { EChartsOption, ECharts } from 'echarts';
-import { connect } from 'echarts';
+import ReactECharts from 'echarts-for-react/lib/core';
+import { echarts, connect } from '@/lib/echarts';
+import type { EChartsOption } from '@/lib/echarts';
 import { TooltipContent } from './TimelineTooltip';
 import { getColorForKey, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
-import { TimelineSeries } from './types';
+import { TimelineSeries, DEFAULT_TIMELINE_HEIGHT } from './types';
 
 export const CHART_GROUP = 'timeline-sync-group';
-
-const connectChart = (instance: ECharts, chartGroup: string = CHART_GROUP) => {
-  instance.group = chartGroup;
-  connect(chartGroup);
-};
-export const DEFAULT_TIMELINE_HEIGHT = 100;
 const TIMELINE_MARKUP_COLOR = '#808080';
 const GRID_BORDER_COLOR = withOpacity(TIMELINE_MARKUP_COLOR, 0.2);
+
+// Use 'any' for echarts instance type to avoid conflicts between echarts/core and full echarts types
+const connectChart = (instance: { group: string }) => {
+  instance.group = CHART_GROUP;
+  connect(CHART_GROUP);
+};
 
 export function Timeline({
   startTime,
@@ -126,7 +126,7 @@ export function Timeline({
         borderWidth: 0,
         padding: 0,
         textStyle: {},
-        position: function (pt) {
+        position: function (pt: number[]) {
           return [pt[0] + 25, '10%'];
         },
         formatter: function (hoveredSeries: unknown) {
@@ -179,6 +179,7 @@ export function Timeline({
 
   return (
     <ReactECharts
+      echarts={echarts}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={connectChart}

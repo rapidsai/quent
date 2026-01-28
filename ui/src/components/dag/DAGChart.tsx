@@ -1,4 +1,4 @@
-import ELK from 'elkjs/lib/elk.bundled.js';
+import ELK from 'elkjs';
 import { useCallback, useLayoutEffect, MouseEvent } from 'react';
 import {
   Background,

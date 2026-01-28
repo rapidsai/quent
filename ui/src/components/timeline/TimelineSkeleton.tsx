@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import { DEFAULT_TIMELINE_HEIGHT } from './Timeline';
+import { DEFAULT_TIMELINE_HEIGHT } from './types';
 
 type TimelineSkeletonProps = {
   height?: number;

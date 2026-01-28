@@ -25,7 +25,9 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve": "vite preview --port 4173",
+    "stats": "vite build && open stats.html"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
@@ -71,6 +73,7 @@
     "msw": "^2.12.4",
     "postcss": "^8.4.38",
     "prettier": "^3.6.2",
+    "rollup-plugin-visualizer": "^6.0.5",
     "tailwindcss": "^3.4.4",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.5.3",
