@@ -30,18 +30,28 @@ pub trait IncompleteEntity {
     fn new(id: Uuid) -> Self;
 }
 
-/// The total lifetime of an entity.
-pub enum Lifetime {
-    /// The entity is of a single event type, so it is only alive in one instant (as far as the model is concerned).
-    Instant(TimeUnixNanoSec),
-    /// The entity is alive across a span of time.
-    Span(SpanUnixNanoSec),
-}
-
 /// Trait for entities that are complete.
 pub trait Entity {
+    /// Return the universally unique identifier of this entity.
     fn id(&self) -> Uuid;
-    fn lifetime(&self) -> Lifetime;
+}
+
+/// Trait for types associated with an instant lifetime.
+pub trait Instant {
+    /// Return the timestamp associated with this type.
+    fn instant(&self) -> Result<TimeUnixNanoSec>;
+}
+
+/// Trait for types that are associated with a span of time.
+pub trait Span {
+    /// Return the span of time this type is associated with.
+    ///
+    /// # Errors
+    ///
+    /// This function can return an [`EntityError`] in cases such as:
+    /// - Events are missing to form a complete entity model.
+    /// - The sequence of FSM transition events violates model specifications.
+    fn span(&self) -> Result<SpanUnixNanoSec>;
 }
 
 /// A run-time typed reference to an entity.
@@ -319,6 +329,26 @@ pub mod query {
     impl Related for Query {
         fn relations(&self) -> impl Iterator<Item = EntityRef> {
             [EntityRef::QueryGroup(self.query_group_id)].into_iter()
+        }
+    }
+
+    impl Entity for Query {
+        fn id(&self) -> Uuid {
+            self.id
+        }
+    }
+
+    impl Span for Query {
+        fn span(&self) -> Result<SpanUnixNanoSec> {
+            if let Some(start) = self.timestamps.init
+                && let Some(end) = self.timestamps.exit
+            {
+                Ok(SpanUnixNanoSec::try_new(start, end)?)
+            } else {
+                Err(EntityError::Incomplete(format!(
+                    "query entity is incomplete: {self:?}"
+                )))
+            }
         }
     }
 }

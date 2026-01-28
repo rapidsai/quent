@@ -8,7 +8,6 @@ default = []
 q = ["quent-events/q"]
 
 [dependencies]
-http = "*"
 quent-attributes = { path = "../attributes" }
 quent-entities = { path = "../entities" }
 quent-events = { path = "../events" }

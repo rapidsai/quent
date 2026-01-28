@@ -4,7 +4,7 @@ use quent_collector::{
     client::Client, default::QUENT_COLLECTOR_PORT, env::QUENT_COLLECTOR_ADDRESS,
 };
 use quent_events::{Event, EventData};
-use quent_exporter::Exporter;
+use quent_exporter::{Exporter, ExporterError, ExporterResult};
 use uuid::Uuid;
 
 #[derive(Debug, Default)]
@@ -33,11 +33,14 @@ impl CollectorExporter {
 
 #[async_trait::async_trait]
 impl Exporter for CollectorExporter {
-    async fn push(&self, event: Event<EventData>) -> Result<(), Box<dyn std::error::Error>> {
-        self.client.send(event).await?;
+    async fn push(&self, event: Event<EventData>) -> ExporterResult<()> {
+        self.client
+            .send(event)
+            .await
+            .map_err(|e| ExporterError::Collector(format!("{e:?}")))?;
         Ok(())
     }
-    async fn force_flush(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn force_flush(&self) -> ExporterResult<()> {
         // TODO(johanpel): figure this out, it may be that we don't need this trait fn
         Ok(())
     }

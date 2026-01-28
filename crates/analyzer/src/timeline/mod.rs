@@ -9,7 +9,7 @@ use quent_time::bin::BinnedSpan;
 use uuid::Uuid;
 
 use crate::{
-    Result,
+    AnalyzerResult,
     entities::Entities,
     timeline::binned::{BinnedTimelineAggregator, NamedAggregator},
 };
@@ -20,7 +20,7 @@ pub fn make_resource_timeline_bin_aggregated(
     entities: &Entities,
     resource_id: Uuid,
     config: BinnedSpan,
-) -> Result<ResourceTimelineBinned> {
+) -> AnalyzerResult<ResourceTimelineBinned> {
     let resource = entities.resource(resource_id)?;
     let resource_type = entities.resource_type(&resource.type_name)?;
 
@@ -65,7 +65,7 @@ pub fn make_resource_timeline_state_and_bin_aggregated(
     resource_id: Uuid,
     config: BinnedSpan,
     fsm_type_name: impl Into<String>,
-) -> Result<ResourceTimelineBinnedByState> {
+) -> AnalyzerResult<ResourceTimelineBinnedByState> {
     let fsm_type_name = fsm_type_name.into();
     let resource = entities.resource(resource_id)?;
     let resource_type = entities.resource_type(&resource.type_name)?;
@@ -122,7 +122,7 @@ pub fn make_resource_timeline_state_and_bin_aggregated(
                 )
             })
         })
-        .collect::<Result<HashMap<_, _>>>()?;
+        .collect::<AnalyzerResult<HashMap<_, _>>>()?;
 
     Ok(ResourceTimelineBinnedByState {
         config: config.try_to_secs_relative(entities.span.start())?,

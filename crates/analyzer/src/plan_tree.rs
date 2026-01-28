@@ -2,7 +2,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::{Result, entities::Entities, error::Error};
+use crate::{AnalyzerResult, entities::Entities, error::AnalyzerError};
 
 /// A tree of Plans.
 ///
@@ -28,9 +28,9 @@ pub struct PlanTree {
 
 impl PlanTree {
     /// Depth-first traverse the plan tree with a visitor function.
-    pub(crate) fn visit_depth_first<F>(&self, visitor: &mut F) -> Result<()>
+    pub(crate) fn visit_depth_first<F>(&self, visitor: &mut F) -> AnalyzerResult<()>
     where
-        F: FnMut(&PlanTree) -> Result<()>,
+        F: FnMut(&PlanTree) -> AnalyzerResult<()>,
     {
         visitor(self)?;
         for child in &self.children {
@@ -41,12 +41,12 @@ impl PlanTree {
 }
 
 impl PlanTree {
-    pub(crate) fn try_new(entities: &Entities, query_id: Uuid) -> Result<Self> {
-        fn build(current_plan_id: Uuid, entities: &Entities) -> Result<PlanTree> {
+    pub(crate) fn try_new(entities: &Entities, query_id: Uuid) -> AnalyzerResult<Self> {
+        fn build(current_plan_id: Uuid, entities: &Entities) -> AnalyzerResult<PlanTree> {
             let plan = entities
                 .plans
                 .get(&current_plan_id)
-                .ok_or(Error::Logic("Plan does not exist.".to_string()))?;
+                .ok_or(AnalyzerError::Logic("Plan does not exist.".to_string()))?;
 
             let children = entities
                 .plans
@@ -58,7 +58,7 @@ impl PlanTree {
                         None
                     }
                 })
-                .collect::<Result<Vec<_>>>()?;
+                .collect::<AnalyzerResult<Vec<_>>>()?;
 
             Ok(PlanTree {
                 id: current_plan_id,
@@ -72,7 +72,7 @@ impl PlanTree {
             .plans
             .values()
             .find(|p| p.parent_plan_id.is_none() && p.query_id == Some(query_id))
-            .ok_or(Error::Logic(format!(
+            .ok_or(AnalyzerError::Logic(format!(
                 "A root plan for query id {query_id} does not exist."
             )))?;
 

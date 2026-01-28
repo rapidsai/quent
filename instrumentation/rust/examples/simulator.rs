@@ -769,10 +769,8 @@ impl Engine {
 
     fn spawn(&mut self, context: &quent::Context, num_workers: usize, num_threads: usize) {
         // Create some observers
-        info!(
-            "Simulating Engine: http://localhost:8080/analyzer/engine/{}",
-            self.id
-        );
+        info!("Simulating Engine:");
+        info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
         let engine_obs = context.engine_observer();
         let resource_group_obs = context.resource_group_observer();
         let channel_obs = context.channel_resource_observer();
@@ -903,7 +901,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query_group_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
         .take(args.num_query_groups)
         .map(|query_group_id| {
-            info!("Simulating Query Group: http://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
+            info!("Simulating Query Group:");
+            info!("\thttp://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
             std::thread::spawn({
                 let engine = Arc::clone(&engine);
                 let context = Arc::clone(&context);
@@ -930,7 +929,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let context = Arc::clone(&context);
                                 let query_obs = query_obs.clone();
                                 move || {
-                                    info!("Simulating Query: http://localhost:8080/analyzer/engine/{}/query/{query_id}", engine.id);
+                                    info!("Simulating Query:");
+                                    info!("\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}", engine.id);
                                     query_obs.init(
                                         query_id,
                                         query::Init {

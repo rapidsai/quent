@@ -10,8 +10,8 @@ use tracing::info;
 mod defaults {
     pub(crate) const QUENT_ANALYZER_PORT: u16 = 8080;
 }
-
 mod analyzer;
+pub(crate) mod error;
 
 fn initialize_tracing() {
     use tracing_subscriber::{

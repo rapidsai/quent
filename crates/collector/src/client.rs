@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum CollectorError {
     #[error("Unable to connect: {0}")]
     Connect(String),
     #[error("Send error: {0}")]
@@ -31,7 +31,7 @@ pub enum Error {
     GRPC(#[from] Status),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type CollectorResult<T> = std::result::Result<T, CollectorError>;
 
 type Event = quent_events::Event<EventData>;
 
@@ -47,12 +47,12 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new(engine_id: Uuid, address: String) -> Result<Client> {
+    pub async fn new(engine_id: Uuid, address: String) -> CollectorResult<Client> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
         const MAX_RETRIES: usize = 42;
-        let mut client = Err(Error::Connect(format!(
+        let mut client = Err(CollectorError::Connect(format!(
             "failed to connect after {MAX_RETRIES} attempts..."
         )));
         for retry in 1..MAX_RETRIES + 1 {
@@ -163,12 +163,12 @@ impl Client {
     }
 
     /// Send an event to the collector.
-    pub async fn send(&self, event: Event) -> Result<()> {
+    pub async fn send(&self, event: Event) -> CollectorResult<()> {
         // Convert the event into a gRPC message and stream it to the collector.
         self.event_sender
             .send(event)
             .await
-            .map_err(|e| Error::SendError(e.to_string()))
+            .map_err(|e| CollectorError::SendError(e.to_string()))
     }
 }
 

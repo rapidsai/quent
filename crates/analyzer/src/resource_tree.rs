@@ -5,7 +5,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::{Entities, Result, error::Error, plan_tree::PlanTree};
+use crate::{AnalyzerResult, Entities, error::AnalyzerError, plan_tree::PlanTree};
 
 /// A tree of references to entities that can hold resources in their scope,
 /// with resources as leaf nodes.
@@ -45,18 +45,19 @@ impl ResourceTree {
         entities: &Entities,
         plan_tree: &PlanTree,
         query_id: Uuid,
-    ) -> Result<Self> {
+    ) -> AnalyzerResult<Self> {
         let query = entities
             .queries
             .get(&query_id)
-            .ok_or(Error::InvalidId(query_id))?;
-        let query_group = entities
-            .query_groups
-            .get(&query.query_group_id)
-            .ok_or(Error::Logic(format!(
-                "unable to construct resource tree - query group {} of query {} does not exist",
-                query.query_group_id, query.id
-            )))?;
+            .ok_or(AnalyzerError::InvalidId(query_id))?;
+        let query_group =
+            entities
+                .query_groups
+                .get(&query.query_group_id)
+                .ok_or(AnalyzerError::Logic(format!(
+                    "unable to construct resource tree - query group {} of query {} does not exist",
+                    query.query_group_id, query.id
+                )))?;
 
         let engine_node = ResourceTree::from_scope(entities, EntityRef::Engine(entities.engine.id));
         let query_group_node =
@@ -75,7 +76,7 @@ impl ResourceTree {
             if let (Some(q), None) = (p.query, p.worker) {
                 // Sanity check.
                 if q != query_id {
-                    return Err(Error::Logic(format!(
+                    return Err(AnalyzerError::Logic(format!(
                         "Unexpected reference to query {q} not in entities."
                     )));
                 }

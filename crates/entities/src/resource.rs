@@ -248,6 +248,12 @@ pub struct Resource {
     pub state_sequence: Vec<ResourceState>,
 }
 
+impl Entity for Resource {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+}
+
 impl Related for Resource {
     fn relations(&self) -> impl Iterator<Item = EntityRef> {
         if let Some(scope) = self.scope {
@@ -262,9 +268,6 @@ impl Related for Resource {
 
 impl Fsm for Resource {
     type State = ResourceState;
-    fn id(&self) -> Uuid {
-        self.id
-    }
     fn type_name(&self) -> &str {
         &self.type_name
     }

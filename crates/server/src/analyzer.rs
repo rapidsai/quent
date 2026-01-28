@@ -3,29 +3,32 @@ use std::num::NonZero;
 use axum::{
     Json, Router,
     extract::{Path, Query},
-    http::StatusCode,
     routing::get,
 };
 use quent_analyzer::{Analyzer, query_bundle::QueryBundle};
 use quent_entities::{
+    Span,
     engine::Engine,
     query_group::QueryGroup,
     timeline::{ResourceTimelineBinned, ResourceTimelineBinnedByState},
     worker::Worker,
 };
 use quent_exporter_ndjson::NdjsonImporter;
+use quent_time::{SpanNanoSec, TimeUnixNanoSec, bin::BinnedSpan};
 use serde::Deserialize;
 use tracing::error;
 use uuid::Uuid;
 
+use crate::error::{ServerError, ServerResult};
+
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all)]
-async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
+async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     let entries = match std::fs::read_dir("data") {
         Ok(entries) => entries,
         Err(e) => {
             error!("unable read directory: {e}");
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            Err(e)?
         }
     };
 
@@ -35,7 +38,7 @@ async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
             Ok(entry) => entry,
             Err(e) => {
                 error!("entry error: {e}");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                Err(e)?
             }
         };
         let path = entry.path();
@@ -60,53 +63,43 @@ async fn list_engines() -> Result<Json<Vec<Uuid>>, StatusCode> {
 }
 
 #[tracing::instrument(skip_all)]
-async fn engine(Path(engine_id): Path<Uuid>) -> Result<Json<Engine>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn engine(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Engine>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.engine().clone()))
 }
 
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all)]
-async fn list_workers(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn list_workers(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Vec<Uuid>>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.worker_ids()))
 }
 
 #[tracing::instrument(skip_all)]
 async fn worker(
     Path((engine_id, worker_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<Option<Worker>>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+) -> ServerResult<Json<Option<Worker>>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.worker(worker_id).cloned()))
 }
 
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all)]
-async fn list_query_groups(Path(engine_id): Path<Uuid>) -> Result<Json<Vec<Uuid>>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn list_query_groups(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Vec<Uuid>>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.query_group_ids()))
 }
 
 #[tracing::instrument(skip_all)]
 async fn query_group(
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<Option<QueryGroup>>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+) -> ServerResult<Json<Option<QueryGroup>>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.query_group(query_group_id).cloned()))
 }
 
@@ -114,44 +107,57 @@ async fn query_group(
 #[tracing::instrument(skip_all)]
 async fn list_queries(
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<Vec<Uuid>>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+) -> ServerResult<Json<Vec<Uuid>>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.query_ids(query_group_id)))
 }
 
 #[tracing::instrument(skip_all)]
-async fn query(
-    Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<QueryBundle>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn query(Path((engine_id, query_id)): Path<(Uuid, Uuid)>) -> ServerResult<Json<QueryBundle>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
     let query_bundle = analyzer.query_bundle(query_id)?;
     Ok(Json(query_bundle))
 }
 
 #[derive(Deserialize)]
 struct ResourceUsageAggregatedQuery {
-    num_bins: u64,
+    /// The number of bins.
+    ///
+    /// u16::MAX is large enough when bins are plotted as single pixel wide
+    /// bars, even for insane screen resolutions.
+    num_bins: u16,
+    /// Start time in seconds.
+    start: f64,
+    /// End time in seconds.
+    end: f64,
+}
+
+impl ResourceUsageAggregatedQuery {
+    fn try_make_binned_span(&self, epoch: TimeUnixNanoSec) -> ServerResult<BinnedSpan> {
+        let start = epoch + (self.start * 1e9) as u64;
+        let end = epoch + (self.end * 1e9) as u64;
+        let span = SpanNanoSec::try_new(start, end)
+            .map_err(|e| ServerError::UrlQueryParams(format!("invalid time span: {e}")))?;
+        let num_bins = NonZero::<u64>::try_from(self.num_bins as u64)
+            .map_err(|e| ServerError::UrlQueryParams(format!("number of bins must be > 0: {e}")))?;
+        let binned_span = BinnedSpan::try_new(span, num_bins).map_err(|e| {
+            ServerError::UrlQueryParams(format!("unable to construct binned span: {e}"))
+        })?;
+        Ok(binned_span)
+    }
 }
 
 #[tracing::instrument(skip_all)]
 async fn resource_use_timeline_aggregated(
-    Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
+    Path((engine_id, query_id, resource_id)): Path<(Uuid, Uuid, Uuid)>,
     Query(query): Query<ResourceUsageAggregatedQuery>,
-) -> Result<Json<ResourceTimelineBinned>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let num_bins =
-        NonZero::try_from(query.num_bins).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let config = quent_time::bin::BinnedSpan::try_new(analyzer.timestamp_span(), num_bins)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+) -> ServerResult<Json<ResourceTimelineBinned>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
+    let query_entity = analyzer.entities().query(query_id)?;
+    let config = query.try_make_binned_span(query_entity.span()?.start())?;
     let timeline = analyzer.resource_usage_aggregated(resource_id, config)?;
     Ok(Json(timeline))
 }
@@ -159,22 +165,34 @@ async fn resource_use_timeline_aggregated(
 #[derive(Deserialize)]
 struct ResourceUsageStatesAggregatedQuery {
     fsm_type_name: String,
-    num_bins: u64,
+
+    // TODO(johanpel): figure out why
+    // https://codeberg.org/jplatte/serde_html_form used by Axum doesn't seem to
+    // properly support serde(flatten), so for now repeat:
+    num_bins: u16,
+    start: f64,
+    end: f64,
+}
+impl ResourceUsageStatesAggregatedQuery {
+    fn try_make_binned_span(&self, epoch: TimeUnixNanoSec) -> ServerResult<BinnedSpan> {
+        ResourceUsageAggregatedQuery {
+            num_bins: self.num_bins,
+            start: self.start,
+            end: self.end,
+        }
+        .try_make_binned_span(epoch)
+    }
 }
 
 #[tracing::instrument(skip_all)]
 async fn resource_use_timeline_state_aggregated(
-    Path((engine_id, resource_id)): Path<(Uuid, Uuid)>,
+    Path((engine_id, query_id, resource_id)): Path<(Uuid, Uuid, Uuid)>,
     Query(query): Query<ResourceUsageStatesAggregatedQuery>,
-) -> Result<Json<ResourceTimelineBinnedByState>, StatusCode> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let analyzer =
-        Analyzer::try_new(engine_id, importer).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let num_bins =
-        NonZero::try_from(query.num_bins).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let config = quent_time::bin::BinnedSpan::try_new(analyzer.timestamp_span(), num_bins)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+) -> ServerResult<Json<ResourceTimelineBinnedByState>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
+    let query_entity = analyzer.entities().query(query_id)?;
+    let config = query.try_make_binned_span(query_entity.span()?.start())?;
     let timeline =
         analyzer.resource_usage_states_aggregated(resource_id, config, query.fsm_type_name)?;
     Ok(Json(timeline))
@@ -201,11 +219,11 @@ pub fn routes() -> Router<()> {
         )
         .route("/engine/{engine_id}/query/{query_id}", get(query))
         .route(
-            "/engine/{engine_id}/timeline/resource/{resource_id}/agg/all",
+            "/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/all",
             get(resource_use_timeline_aggregated),
         )
         .route(
-            "/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm",
+            "/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/fsm",
             get(resource_use_timeline_state_aggregated),
         )
 }

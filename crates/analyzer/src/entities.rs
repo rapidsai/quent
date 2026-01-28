@@ -1,9 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+#[cfg(feature = "q")]
+use quent_entities::resource::Use;
 use quent_entities::{
     EntityRef, IncompleteEntity,
     engine::Engine,
-    fsm::{DynamicFsm, DynamicFsmStateDecl, DynamicFsmTypeDecl, Fsm, FsmBuilder},
+    fsm::{DynamicFsm, DynamicFsmStateDecl, DynamicFsmTypeDecl, DynamicState, Fsm, FsmBuilder},
     operator::{Operator, OperatorState, Port, WaitingForInputs},
     plan::Plan,
     query::Query,
@@ -15,8 +17,6 @@ use quent_entities::{
     },
     worker::Worker,
 };
-#[cfg(feature = "q")]
-use quent_entities::{fsm::DynamicState, resource::Use};
 use quent_events::{
     EventData,
     engine::EngineEvent,
@@ -32,7 +32,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::{Event, Result, error::Error};
+use crate::{AnalyzerResult, Event, error::AnalyzerError};
 
 // Get an entity from a map or insert a default entity.
 //
@@ -82,7 +82,7 @@ impl Entities {
     /// Consume all events and construct the application model in memory.
     ///
     /// Events are assumed to follow no particular order.
-    pub fn try_new(engine_id: Uuid, events: impl Iterator<Item = Event>) -> Result<Self> {
+    pub fn try_new(engine_id: Uuid, events: impl Iterator<Item = Event>) -> AnalyzerResult<Self> {
         // TODO(johanpel): we need to sit down and think about how to do this as quickly as
         //                 possible for larger datasets, this is just a trivial implementation
         //                 to make it work. This is known to get pretty intense
@@ -569,13 +569,13 @@ impl Entities {
     // would probably be best to calculate the start state within this filtered
     // dataset of the resources, then include all entities with a time-based
     // filter.
-    pub fn try_filter_by_query(&self, query_id: Uuid) -> Result<Self> {
+    pub fn try_filter_by_query(&self, query_id: Uuid) -> AnalyzerResult<Self> {
         let engine = self.engine.clone();
 
         let query = self
             .queries
             .get(&query_id)
-            .ok_or(Error::InvalidId(query_id))?;
+            .ok_or(AnalyzerError::InvalidId(query_id))?;
         // TODO(johanpel): for now :tm: assume that the query timestamps exceed
         // any other query-related timestamps in both directions, but this would
         // ultimately need to be determined otherwise.
@@ -585,13 +585,13 @@ impl Entities {
         )?;
         let queries = HashMap::from([(query_id, query.clone())]);
 
-        let query_group = self
-            .query_groups
-            .get(&query.query_group_id)
-            .ok_or(Error::Logic(format!(
-                "unable to filter by query - query group {} of query {} does not exist",
-                query.query_group_id, query.id
-            )))?;
+        let query_group =
+            self.query_groups
+                .get(&query.query_group_id)
+                .ok_or(AnalyzerError::Logic(format!(
+                    "unable to filter by query - query group {} of query {} does not exist",
+                    query.query_group_id, query.id
+                )))?;
         let query_groups = HashMap::from([(query_group.id, query_group.clone())]);
 
         let plans: HashMap<Uuid, Plan> = self
@@ -797,18 +797,28 @@ impl Entities {
     }
 
     #[inline]
-    pub(crate) fn resource(&self, resource_id: Uuid) -> Result<&Resource> {
+    pub(crate) fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&Resource> {
         self.resources
             .get(&resource_id)
-            .ok_or(Error::InvalidId(resource_id))
+            .ok_or(AnalyzerError::InvalidId(resource_id))
     }
 
-    pub(crate) fn resource_type(&self, resource_type_name: &str) -> Result<&ResourceTypeDecl> {
+    pub(crate) fn resource_type(
+        &self,
+        resource_type_name: &str,
+    ) -> AnalyzerResult<&ResourceTypeDecl> {
         self.resource_types
             .get(resource_type_name)
-            .ok_or(Error::InvalidTypeName(format!(
+            .ok_or(AnalyzerError::InvalidTypeName(format!(
                 "unknown resource type {resource_type_name}"
             )))
+    }
+
+    #[inline]
+    pub fn query(&self, query_id: Uuid) -> AnalyzerResult<&Query> {
+        self.queries
+            .get(&query_id)
+            .ok_or(AnalyzerError::InvalidId(query_id))
     }
 }
 

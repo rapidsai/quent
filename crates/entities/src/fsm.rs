@@ -7,7 +7,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    Entity, EntityRef, IncompleteEntity, Lifetime, Result, error::EntityError, relation::Related,
+    Entity, EntityRef, IncompleteEntity, Result, Span, error::EntityError, relation::Related,
     resource::Use,
 };
 
@@ -38,9 +38,6 @@ pub trait Fsm {
     /// The state type of this FSM.
     type State: State;
 
-    /// Return the ID of this FSM.
-    fn id(&self) -> Uuid;
-
     /// Return the type name of this FSM.
     fn type_name(&self) -> &str;
 
@@ -55,7 +52,10 @@ pub trait Fsm {
     fn index(&self, index: usize) -> Option<&Self::State>;
 
     /// Return a state and its time span for the given index.
-    fn state_span(&self, index: usize) -> Option<StateSpan<'_, Self::State>> {
+    fn state_span(&self, index: usize) -> Option<StateSpan<'_, Self::State>>
+    where
+        Self: Entity,
+    {
         // If there are zero or one state transitions, a span cannot be created,
         // and this Fsm is violating the spec. Also check bounds.
         if self.len() < 2 || index >= self.len() - 1 {
@@ -85,7 +85,10 @@ pub trait Fsm {
     }
 
     /// Return an iterator over all states with their time spans.
-    fn state_spans(&self) -> impl ExactSizeIterator<Item = StateSpan<'_, Self::State>> {
+    fn state_spans(&self) -> impl ExactSizeIterator<Item = StateSpan<'_, Self::State>>
+    where
+        Self: Entity,
+    {
         (0..self.len().saturating_sub(1)).map(|index| {
             // Safety: through the saturating sub we can't go out of bounds,
             // even if this FSM is incomplete with zero or one transitions.
@@ -97,18 +100,23 @@ pub trait Fsm {
     fn states(&self) -> impl ExactSizeIterator<Item = &Self::State>;
 }
 
-impl<U: Fsm> Entity for U {
-    fn id(&self) -> Uuid {
-        Fsm::id(self)
-    }
-    fn lifetime(&self) -> Lifetime {
-        Lifetime::Span(
-            SpanUnixNanoSec::try_new(
-                self.index(0).unwrap().timestamp(),
-                self.index(self.len() - 1).unwrap().timestamp(),
-            )
-            .unwrap(),
-        )
+impl<U> Span for U
+where
+    U: Fsm + std::fmt::Debug,
+{
+    fn span(&self) -> Result<SpanUnixNanoSec> {
+        if let Some(start) = self.index(0)
+            && let Some(end) = self.index(self.len() - 1)
+        {
+            Ok(SpanUnixNanoSec::try_new(
+                start.timestamp(),
+                end.timestamp(),
+            )?)
+        } else {
+            Err(EntityError::Incomplete(format!(
+                "fsm is incomplete: {self:?}"
+            )))
+        }
     }
 }
 
@@ -288,7 +296,7 @@ impl FsmBuilder<DynamicState> {
         // TODO(johanpel): state transition validation logic goes here.
         // Ensure there are at least two states:
         if self.states.sequence.len() < 2 {
-            Err(EntityError::IncompleteFsm(format!(
+            Err(EntityError::Incomplete(format!(
                 "fsm {} has {} states, but must have >= 2 states",
                 self.id,
                 self.states.sequence.len()
@@ -296,7 +304,7 @@ impl FsmBuilder<DynamicState> {
         } else {
             Ok(DynamicFsm {
                 id: self.id,
-                type_name: self.type_name.ok_or(EntityError::IncompleteFsm(format!(
+                type_name: self.type_name.ok_or(EntityError::Incomplete(format!(
                     "FSM {} requires a type name",
                     self.id
                 )))?,
@@ -334,9 +342,6 @@ impl Fsm for DynamicFsm {
     fn states(&self) -> impl ExactSizeIterator<Item = &Self::State> {
         self.state_sequence.iter()
     }
-    fn id(&self) -> Uuid {
-        self.id
-    }
     fn len(&self) -> usize {
         self.state_sequence.len()
     }
@@ -357,6 +362,12 @@ impl DynamicFsm {
             .with_instance_name(instance_name)
             .with_states(states);
         bld.try_build()
+    }
+}
+
+impl Entity for DynamicFsm {
+    fn id(&self) -> Uuid {
+        self.id
     }
 }
 

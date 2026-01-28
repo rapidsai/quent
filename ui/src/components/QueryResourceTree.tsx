@@ -57,15 +57,17 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
         widthIndex: 1,
         render: ({ item }: { item: TreeTableItem }) => {
           const entity = item?.entity ?? {};
-          const fsmTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
-          const fsmStateName =
-            fsmTypeName && queryBundle.entities.resources_types[fsmTypeName]?.used_by_fsms[0];
+          const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
+          const fsmTypeName =
+            entityTypeName && queryBundle.entities.resources_types[entityTypeName]?.used_by_fsms[0];
           return item.type === 'Resource' ? (
             <ResourceTimeline
               engineId={engineId}
+              queryId={queryBundle.query_id}
               resourceId={item.id}
               startTime={queryBundle.start_time_unix_ns}
-              fsmStateName={fsmStateName ?? undefined}
+              durationSeconds={queryBundle.duration_s}
+              fsmTypeName={fsmTypeName ?? undefined}
             />
           ) : (
             // TODO: Aggregate all of the children into an aggregate timeline
