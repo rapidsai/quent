@@ -10,11 +10,8 @@ Must have:
 
 - `type_name: string`: the name of the type of this Resource.
 - `instance_name: string`: the name of the instance of this Resource.
-
-> TODO: do we need scope? This may be derived from all Uses.
->
-> - `scope: uuid`: the scope of the Resource, which the ID of the Entity across
->   which this Resource is shared.
+- `resource_group_id: uuid`: the ID of the [Resource Group][resource-group] that
+  contains this Resource.
 
 ## Capacity
 
@@ -187,6 +184,7 @@ resource.
 [finite-state-machine]: ./fsm.md
 [fixed-bounds-resource]: #fixed-bounds-resource
 [resource]: #resource
+[resource-group]: ./resource_group.md
 [span]: ./time.md#span
 [state]: ./fsm.md#state
 [timestamp]: ./time.md#timestamp

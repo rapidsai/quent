@@ -254,6 +254,8 @@ pub mod operator {
 }
 
 pub mod resource {
+    use crate::resource::{channel::ChannelEvent, memory::MemoryEvent, processor::ProcessorEvent};
+
     use super::*;
 
     /// The scope of a Resource.
@@ -291,7 +293,7 @@ pub mod resource {
     pub struct Resource {
         pub instance_name: String,
         pub type_name: String, // TODO(johanpel): for now solve this like so, but this could be generated code too
-        pub scope: Scope,
+        pub parent_group_id: Uuid,
     }
 
     pub mod memory {
@@ -385,33 +387,11 @@ pub mod resource {
         }
     }
 
-    pub mod group {
-        use super::*;
-
-        #[derive(Debug, Deserialize, Serialize)]
-        pub struct Init {
-            pub resource: Resource,
-        }
-
-        #[derive(Debug, Default, Deserialize, Serialize)]
-        pub struct Operating {}
-
-        #[derive(Debug, Default, Deserialize, Serialize)]
-        pub struct Finalizing {}
-
-        #[derive(Debug, Default, Deserialize, Serialize)]
-        pub struct Exit {}
-
-        #[derive(Debug, Deserialize, Serialize)]
-        pub enum ResourceGroupEvent {
-            Init(Init),
-            Operating(Operating),
-            Finalizing(Finalizing),
-            Exit(Exit),
-        }
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct ResourceGroup {
+        pub instance_name: String,
+        pub parent_group_id: Option<Uuid>,
     }
-
-    use crate::resource::{channel::ChannelEvent, memory::MemoryEvent, processor::ProcessorEvent};
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum ResourceEvent {
@@ -451,7 +431,7 @@ pub enum EventData {
     Plan(plan::PlanEvent),
     Operator(operator::OperatorEvent),
     Resource(resource::ResourceEvent),
-    ResourceGroup(resource::group::ResourceGroupEvent),
+    ResourceGroup(resource::ResourceGroup),
     #[cfg(feature = "q")]
     Q(q::QEvent),
 }
@@ -486,8 +466,8 @@ impl From<operator::OperatorEvent> for EventData {
         Self::Operator(value)
     }
 }
-impl From<resource::group::ResourceGroupEvent> for EventData {
-    fn from(value: resource::group::ResourceGroupEvent) -> Self {
+impl From<resource::ResourceGroup> for EventData {
+    fn from(value: resource::ResourceGroup) -> Self {
         Self::ResourceGroup(value)
     }
 }

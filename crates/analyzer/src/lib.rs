@@ -28,6 +28,8 @@ use crate::{
     entities::Entities,
     query_bundle::QueryBundle,
     timeline::{
+        make_resource_group_timeline_bin_aggregated,
+        make_resource_group_timeline_state_and_bin_aggregated,
         make_resource_timeline_bin_aggregated, make_resource_timeline_state_and_bin_aggregated,
     },
 };
@@ -99,12 +101,10 @@ impl Analyzer {
         &self.entities
     }
 
-    #[tracing::instrument(skip(self), err)]
     pub fn query_bundle(&self, id: Uuid) -> AnalyzerResult<QueryBundle> {
         QueryBundle::try_new(&self.entities, id)
     }
 
-    #[tracing::instrument(skip(self), err)]
     pub fn resource_usage_aggregated(
         &self,
         resource_id: Uuid,
@@ -113,18 +113,47 @@ impl Analyzer {
         make_resource_timeline_bin_aggregated(&self.entities, resource_id, config)
     }
 
-    #[tracing::instrument(skip(self), err)]
     pub fn resource_usage_states_aggregated(
         &self,
         resource_id: Uuid,
+        fsm_type_name: &str,
         config: BinnedSpan,
-        fsm_type_name: String,
     ) -> AnalyzerResult<ResourceTimelineBinnedByState> {
         make_resource_timeline_state_and_bin_aggregated(
             &self.entities,
             resource_id,
-            config,
             fsm_type_name,
+            config,
+        )
+    }
+
+    pub fn resource_group_usage_aggregated(
+        &self,
+        resource_group_id: Uuid,
+        resource_type_name: &str,
+        config: BinnedSpan,
+    ) -> AnalyzerResult<ResourceTimelineBinned> {
+        make_resource_group_timeline_bin_aggregated(
+            &self.entities,
+            resource_group_id,
+            resource_type_name,
+            config,
+        )
+    }
+
+    pub fn resource_group_usage_states_aggregated(
+        &self,
+        resource_id: Uuid,
+        resource_type_name: &str,
+        fsm_type_name: &str,
+        config: BinnedSpan,
+    ) -> AnalyzerResult<ResourceTimelineBinnedByState> {
+        make_resource_group_timeline_state_and_bin_aggregated(
+            &self.entities,
+            resource_id,
+            resource_type_name,
+            fsm_type_name,
+            config,
         )
     }
 }

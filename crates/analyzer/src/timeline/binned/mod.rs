@@ -120,7 +120,7 @@ mod tests {
     use std::num::NonZero;
 
     #[test]
-    fn numeric_primitive_occupancy() -> AnalyzerResult<()> {
+    fn unit_aggregator() -> AnalyzerResult<()> {
         let config = BinnedSpan::try_new(
             SpanNanoSec::try_new(0, 80).unwrap(),
             NonZero::new(4).unwrap(),

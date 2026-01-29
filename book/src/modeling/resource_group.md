@@ -1,33 +1,23 @@
 # Resource Group
 
-A Resource Group is a [Resource][resource] that represents a hierarchical
-grouping over a set of [Resources][resource].
+A Resource Group is an [Entity][entity] represents a hierarchical grouping over
+a set of [Resources][resource] and other Resource Groups.
 
 Must have:
 
-- `type_name: string`: the name of the type of this Resource Group.
 - `instance_name: string`: the name of the instance of this Resource Group.
 
-> TODO: do we need scope? This may be derived from all Uses.
->
-> - `scope: uuid`: the scope of the Resource Group, which the ID of the Entity
->   across which this Resource Group is shared.
+May have:
 
-FSM:
+- `parent_group_id: option<uuid>`: the id of the parent resource group, if any.
 
-```text
-⊙ -> initializing -> operating -> finalizing -> ⊗
-```
-
-> TODO: figure out whether this should necessarily be an FSM? To simplify, if
-> we're interested in resource bringup time, we can also derive it from all
-> leaf resources.
+Exaclty one Resource Group must exist for which `parent_group_id` is null.
 
 ## Notes
 
 Resource Groups together with [Resource][resource] types are useful to express
-[Resource][resource] hierarchies in which [Resource][resource] [Uses][use] may
-be aggregated.
+[Resource][resource] hierarchies as trees in which [Resource][resource]
+[Uses][use] may be aggregated.
 
 For example, consider an application that divides a workload up into two parts:
 A and B. For simplicity, assume only these parts allocate memory. They both
@@ -54,5 +44,6 @@ should be modeled, e.g. a `HostLeafPool` and a `GPULeafPool`, so the total
 number of `bytes` are aggregated and visualized seperately.
 
 [capacity]: ./resource.md#capacity
+[entity]: ./entity.md
 [resource]: ./resource.md
 [use]: ./resource.md#use

@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
-    sync::Arc,
     time::Duration,
 };
 
@@ -11,7 +10,7 @@ use quent::ExporterOptions;
 use quent_events::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, q, query, query_group,
-    resource::{self, channel, memory},
+    resource::{self, ResourceGroup, channel, memory},
     worker,
 };
 use rand::{Rng, rng};
@@ -24,11 +23,11 @@ use uuid::Uuid;
 #[command(about = "Emits simulated query engine telemetry", long_about = None)]
 struct Args {
     /// Number of query groups
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = 1)]
     num_query_groups: usize,
 
     /// Number of queries per query group
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = 1)]
     num_queries: usize,
 
     /// Number of tasks per operator
@@ -50,6 +49,23 @@ fn initialize_tracing() {
         .with_max_level(tracing::Level::INFO)
         .with_writer(std::io::stderr)
         .init();
+}
+
+fn log_resource_links(engine_id: Uuid, query_id: Uuid, resource_id: Uuid, resource_name: &str) {
+    info!("\tResource: {resource_name}
+\t\tTimeline: http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline?num_bins=16&start=0&end=4"
+    );
+}
+
+fn log_resource_group_links(
+    engine_id: Uuid,
+    query_id: Uuid,
+    resource_group_id: Uuid,
+    resource_group_name: &str,
+) {
+    info!("\tResource Group: {resource_group_name}
+\t\tTimeline: http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline?num_bins=16&start=0&end=4"
+    );
 }
 
 struct Operator<T: Debug> {
@@ -351,6 +367,7 @@ fn lower_logical(
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 struct Worker {
     id: Uuid,
+    resource_group_id: Uuid,
     name: String,
     main_memory: Uuid,
     filesystem: Uuid,
@@ -364,6 +381,7 @@ impl Worker {
     fn new(id: Uuid, name: String, num_threads: usize) -> Self {
         Self {
             id,
+            resource_group_id: Uuid::now_v7(),
             name,
             main_memory: Uuid::now_v7(),
             filesystem: Uuid::now_v7(),
@@ -376,7 +394,7 @@ impl Worker {
         }
     }
 
-    fn spawn(&self, context: &quent::Context, engine_id: Uuid) {
+    fn spawn(&self, context: &quent::Context, engine_id: Uuid, engine_resource_id: Uuid) {
         let worker_obs = context.worker_observer();
         let resource_group_obs = context.resource_group_observer();
         let memory_obs = context.memory_resource_observer();
@@ -384,15 +402,15 @@ impl Worker {
         let processor_obs = context.processor_resource_observer();
 
         info!("Spawning worker {}", self.name);
-        let resource_links = |resource_name: &str, resource_id: Uuid| {
-            info!("\tResource {resource_name}");
-            info!(
-                "\t\tTimeline (all FSMs): http://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/all?num_bins=16"
-            );
-            info!(
-                "\t\tTimeline (task FSM): http://localhost:8080/analyzer/engine/{engine_id}/timeline/resource/{resource_id}/agg/fsm?num_bins=16&fsm_type_name=task"
-            );
-        };
+
+        // Worker resource
+        resource_group_obs.group(
+            self.resource_group_id,
+            resource::ResourceGroup {
+                instance_name: "Worker".to_string(),
+                parent_group_id: Some(engine_resource_id),
+            },
+        );
 
         worker_obs.init(
             self.id,
@@ -409,26 +427,24 @@ impl Worker {
                 resource: resource::Resource {
                     type_name: "Filesystem".to_string(),
                     instance_name: "Filesystem".to_string(),
-                    scope: resource::Scope::Worker(self.id),
+                    parent_group_id: self.resource_group_id,
                 },
             },
         );
         memory_obs.operating(self.filesystem, Default::default());
-        resource_links("filesystem", self.filesystem);
 
         // Main memory pool
         memory_obs.init(
             self.main_memory,
             memory::Init {
                 resource: resource::Resource {
-                    type_name: "Main Memory".to_string(),
+                    type_name: "Memory".to_string(),
                     instance_name: "Main Memory".to_string(),
-                    scope: resource::Scope::Worker(self.id),
+                    parent_group_id: self.resource_group_id,
                 },
             },
         );
         memory_obs.operating(self.main_memory, Default::default());
-        resource_links("main memory", self.main_memory);
 
         // Filesystem -> Main memory channel
         channel_obs.init(
@@ -437,14 +453,13 @@ impl Worker {
                 resource: resource::Resource {
                     type_name: "FsToMem".to_string(),
                     instance_name: "FsToMem".to_string(),
-                    scope: resource::Scope::Worker(self.id),
+                    parent_group_id: self.resource_group_id,
                 },
                 source_id: self.filesystem,
                 target_id: self.main_memory,
             },
         );
         channel_obs.operating(self.fs_to_mem, Default::default());
-        resource_links("fs to mem", self.fs_to_mem);
 
         // Main memory -> Filesystem channel
         channel_obs.init(
@@ -453,24 +468,20 @@ impl Worker {
                 resource: resource::Resource {
                     type_name: "MemToFs".to_string(),
                     instance_name: "MemToFs".to_string(),
-                    scope: resource::Scope::Worker(self.id),
+                    parent_group_id: self.resource_group_id,
                 },
                 source_id: self.main_memory,
                 target_id: self.filesystem,
             },
         );
         channel_obs.operating(self.mem_to_fs, Default::default());
-        resource_links("mem to fs", self.mem_to_fs);
 
         // Thread pool
-        resource_group_obs.init(
+        resource_group_obs.group(
             self.task_thread_pool,
-            resource::group::Init {
-                resource: resource::Resource {
-                    type_name: "Thread Pool".to_string(),
-                    instance_name: "Thread Pool".to_string(),
-                    scope: resource::Scope::Worker(self.id),
-                },
+            ResourceGroup {
+                instance_name: "Thread Pool".to_string(),
+                parent_group_id: Some(self.resource_group_id),
             },
         );
         for (index, thread_id) in self.task_threads.iter().enumerate() {
@@ -478,16 +489,14 @@ impl Worker {
                 *thread_id,
                 resource::processor::Init {
                     resource: resource::Resource {
-                        type_name: "Task Thread".to_string(),
-                        instance_name: format!("TaskThread-{index}"),
-                        scope: resource::Scope::ResourceGroup(self.task_thread_pool),
+                        type_name: "Thread".to_string(),
+                        instance_name: format!("thread-{index}"),
+                        parent_group_id: self.task_thread_pool,
                     },
                 },
             );
             processor_obs.operating(*thread_id, Default::default());
-            resource_links("task thread", *thread_id);
         }
-        resource_group_obs.operating(self.task_thread_pool, Default::default());
 
         worker_obs.operating(self.id, worker::Operating {});
     }
@@ -608,8 +617,27 @@ impl Worker {
         engine: &Engine,
         plan: &Plan<Physical>,
         num_tasks: usize,
-        num_threads: usize,
     ) {
+        // Log analyzer debug links:
+        log_resource_links(engine.id, plan.query_id, self.main_memory, "Memory");
+        log_resource_links(engine.id, plan.query_id, self.main_memory, "Filesystem");
+        log_resource_links(engine.id, plan.query_id, self.fs_to_mem, "FsToMem");
+        log_resource_links(engine.id, plan.query_id, self.mem_to_fs, "MemToFs");
+        log_resource_group_links(
+            engine.id,
+            plan.query_id,
+            self.task_thread_pool,
+            "ThreadPool",
+        );
+        for (index, thread_id) in self.task_threads.iter().enumerate() {
+            log_resource_links(
+                engine.id,
+                plan.query_id,
+                *thread_id,
+                format!("Thread {index}").as_str(),
+            );
+        }
+
         let plan_obs = context.plan_observer();
         let operator_obs = context.operator_observer();
 
@@ -678,20 +706,22 @@ impl Worker {
 
         if plan.execute {
             // On each thread, run a bunch of tasks for each operator.
-            self.task_threads.par_iter().for_each(|task_thread_id| {
-                for node_idx in nodes.iter() {
-                    let op = &plan.dag[*node_idx];
-                    for (index, _) in (0..num_tasks / num_threads).enumerate() {
-                        self.execute_physical_operator_task(
-                            context,
-                            index,
-                            engine,
-                            op,
-                            *task_thread_id,
-                        );
+            let tasks_per_thread_per_op = num_tasks / self.task_threads.len();
+            self.task_threads
+                .par_iter()
+                .enumerate()
+                .for_each(|(thread_index, thread_id)| {
+                    for task_index in thread_index * tasks_per_thread_per_op
+                        ..(thread_index + 1) * tasks_per_thread_per_op
+                    {
+                        for node_idx in nodes.iter() {
+                            let op = &plan.dag[*node_idx];
+                            self.execute_physical_operator_task(
+                                context, task_index, engine, op, *thread_id,
+                            );
+                        }
                     }
-                }
-            });
+                });
         }
 
         for node_idx in nodes.iter() {
@@ -719,7 +749,6 @@ impl Worker {
 
     fn shut_down(&self, context: &quent::Context) {
         let worker_obs = context.worker_observer();
-        let resource_group_obs = context.resource_group_observer();
         let memory_obs = context.memory_resource_observer();
         let channel_obs = context.channel_resource_observer();
         let processor_obs = context.processor_resource_observer();
@@ -736,13 +765,11 @@ impl Worker {
         channel_obs.finalizing(self.mem_to_fs, Default::default());
         channel_obs.exit(self.mem_to_fs, Default::default());
         std::thread::sleep(Duration::from_millis(10));
-        resource_group_obs.finalizing(self.task_thread_pool, Default::default());
         std::thread::sleep(Duration::from_millis(10));
         for task_thread in self.task_threads.iter() {
             processor_obs.finalizing(*task_thread, Default::default());
             processor_obs.exit(*task_thread, Default::default());
         }
-        resource_group_obs.exit(self.task_thread_pool, Default::default());
         std::thread::sleep(Duration::from_millis(10));
         worker_obs.finalizing(self.id, worker::Finalizing {});
         worker_obs.exit(self.id, worker::Exit {});
@@ -752,6 +779,7 @@ impl Worker {
 #[derive(Debug)]
 struct Engine {
     id: Uuid,
+    resource_id: Uuid,
     workers: HashMap<Uuid, Worker>,
     network: Uuid,
     network_links: HashMap<(Uuid, Uuid), Uuid>,
@@ -761,6 +789,7 @@ impl Engine {
     fn new() -> Self {
         Self {
             id: Uuid::now_v7(),
+            resource_id: Uuid::now_v7(),
             workers: Default::default(),
             network: Uuid::now_v7(),
             network_links: Default::default(),
@@ -794,20 +823,26 @@ impl Engine {
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
             let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), num_threads);
-            worker.spawn(context, self.id);
+            worker.spawn(context, self.id, self.resource_id);
             self.workers.insert(*worker_id, worker);
         }
 
+        // Engine root resource
+        resource_group_obs.group(
+            self.resource_id,
+            ResourceGroup {
+                instance_name: "Engine".to_string(),
+                parent_group_id: None,
+            },
+        );
+
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        resource_group_obs.init(
+        resource_group_obs.group(
             self.network,
-            resource::group::Init {
-                resource: resource::Resource {
-                    type_name: "Network".to_string(),
-                    instance_name: "Network".to_string(),
-                    scope: resource::Scope::Engine(self.id),
-                },
+            ResourceGroup {
+                instance_name: "Network".to_string(),
+                parent_group_id: Some(self.resource_id),
             },
         );
         for worker_index in 0..worker_ids.len() {
@@ -823,7 +858,7 @@ impl Engine {
                             instance_name: format!(
                                 "link-worker{worker_index}-to-worker{other_worker_index}"
                             ),
-                            scope: resource::Scope::ResourceGroup(self.network),
+                            parent_group_id: self.network,
                         },
                         source_id: self.workers.get(&worker_id).unwrap().main_memory,
                         target_id: self.workers.get(&other_worker_id).unwrap().main_memory,
@@ -840,7 +875,7 @@ impl Engine {
                             instance_name: format!(
                                 "link-worker{other_worker_index}-to-worker{worker_index}"
                             ),
-                            scope: resource::Scope::ResourceGroup(self.network),
+                            parent_group_id: self.network,
                         },
                         source_id: self.workers.get(&other_worker_id).unwrap().main_memory,
                         target_id: self.workers.get(&worker_id).unwrap().main_memory,
@@ -854,7 +889,6 @@ impl Engine {
                     .insert((other_worker_id, worker_id), down_link_id);
             }
         }
-        resource_group_obs.operating(self.network, resource::group::Operating {});
 
         engine_obs.operating(self.id, engine::Operating {});
     }
@@ -862,18 +896,15 @@ impl Engine {
     fn shut_down(&self, context: &quent::Context) {
         // Create some observers
         let engine_obs = context.engine_observer();
-        let resource_group_obs = context.resource_group_observer();
         let channel_obs = context.channel_resource_observer();
 
         engine_obs.finalizing(self.id, engine::Finalizing {});
 
         // Tear down network
-        resource_group_obs.finalizing(self.network, Default::default());
         for link in self.network_links.values().cloned() {
             channel_obs.finalizing(link, Default::default());
             channel_obs.exit(link, Default::default());
         }
-        resource_group_obs.exit(self.network, Default::default());
 
         // Tear down workers
         for worker in self.workers.values() {
@@ -889,87 +920,71 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
+    info!("Simulating with: {args:?}");
+
     let mut engine = Engine::new();
 
     let context =
         quent::Context::try_new(ExporterOptions::Collector(Default::default()), engine.id)?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
-    let engine = Arc::new(engine);
-    let context = Arc::new(context);
 
-    let query_group_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
-        .take(args.num_query_groups)
-        .map(|query_group_id| {
-            info!("Simulating Query Group:");
-            info!("\thttp://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}", engine.id);
-            std::thread::spawn({
-                let engine = Arc::clone(&engine);
-                let context = Arc::clone(&context);
-                let query_group_obs = context.query_group_observer();
-                let query_obs = context.query_observer();
-                let num_queries = args.num_queries;
-                let num_tasks = args.num_tasks;
-                let num_threads = args.num_threads;
-                move || {
-                    query_group_obs.init(
-                        query_group_id,
-                        query_group::Init {
-                            engine_id: engine.id,
-                            name: Some(format!("query_group-{:04x}", rng().random::<u32>())),
-                        },
-                    );
-                    query_group_obs.operating(query_group_id, query_group::Operating {});
+    for query_group_id in std::iter::repeat_with(Uuid::now_v7).take(args.num_query_groups) {
+        info!("Simulating Query Group:");
+        info!(
+            "\thttp://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}",
+            engine.id
+        );
 
-                    let query_futures: Vec<_> = std::iter::repeat_with(Uuid::now_v7)
-                        .take(num_queries)
-                        .map(|query_id| {
-                            std::thread::spawn({
-                                let engine = Arc::clone(&engine);
-                                let context = Arc::clone(&context);
-                                let query_obs = query_obs.clone();
-                                move || {
-                                    info!("Simulating Query:");
-                                    info!("\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}", engine.id);
-                                    query_obs.init(
-                                        query_id,
-                                        query::Init {
-                                            query_group_id,
-                                            name: Some(format!("query-{}", rng().random::<u32>())),
-                                        },
-                                    );
-                                    query_obs.planning(query_id, query::Planning {});
-                                    let l_plan = make_logical_plan(query_id, "logical".into());
-                                    let p_plan = make_physical_plan(&l_plan);
-                                    query_obs.executing(query_id, query::Executing {});
+        let query_group_obs = context.query_group_observer();
+        let query_obs = context.query_observer();
 
-                                    // TODO(johanpel): properly nest this or don't require plans to be executable as operator fsms
-                                    // engine.workers.values().next().unwrap().execute_physical_plan(&context, &l_plan);
-                                    engine.workers.values().collect::<Vec<_>>().par_iter().for_each(|worker| {
-                                            worker.execute_physical_plan(&context, &engine, &p_plan, num_tasks, num_threads);
-                                    });
+        query_group_obs.init(
+            query_group_id,
+            query_group::Init {
+                engine_id: engine.id,
+                name: Some(format!("query_group-{:04x}", rng().random::<u32>())),
+            },
+        );
+        query_group_obs.operating(query_group_id, query_group::Operating {});
 
-                                    query_obs.idle(query_id, query::Idle {});
-                                    query_obs.finalizing(query_id, query::Finalizing {});
-                                    query_obs.exit(query_id, query::Exit {});
-                                }
-                            })
-                        })
-                        .collect();
+        // "Run" the specified number of queries, sequentially for now.
+        for query_id in std::iter::repeat_with(Uuid::now_v7).take(args.num_queries) {
+            info!("Simulating Query:");
+            info!(
+                "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
+                engine.id
+            );
+            query_obs.init(
+                query_id,
+                query::Init {
+                    query_group_id,
+                    name: Some(format!("query-{}", rng().random::<u32>())),
+                },
+            );
+            query_obs.planning(query_id, query::Planning {});
+            let l_plan = make_logical_plan(query_id, "logical".into());
+            let p_plan = make_physical_plan(&l_plan);
+            query_obs.executing(query_id, query::Executing {});
 
-                    for query_future in query_futures {
-                        query_future.join().unwrap();
-                    }
+            // TODO(johanpel): properly nest this or don't require plans to be executable as operator fsms
+            // engine.workers.values().next().unwrap().execute_physical_plan(&context, &l_plan);
+            engine
+                .workers
+                .values()
+                .collect::<Vec<_>>()
+                .par_iter()
+                .for_each(|worker| {
+                    worker.execute_physical_plan(&context, &engine, &p_plan, args.num_tasks);
+                });
 
-                    query_group_obs.finalizing(query_group_id, query_group::Finalizing {});
-                    query_group_obs.exit(query_group_id, query_group::Exit {});
-                }
-            })
-        })
-        .collect();
+            query_obs.idle(query_id, query::Idle {});
+            query_obs.finalizing(query_id, query::Finalizing {});
+            query_obs.exit(query_id, query::Exit {});
+        }
 
-    for query_group_future in query_group_futures {
-        query_group_future.join().unwrap();
+        query_group_obs.finalizing(query_group_id, query_group::Finalizing {});
+        query_group_obs.exit(query_group_id, query_group::Exit {});
     }
 
     engine.shut_down(&context);

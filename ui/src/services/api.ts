@@ -4,8 +4,7 @@
  */
 
 import { QueryBundle } from '~quent/types/QueryBundle';
-import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
-import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
+import { TimelineResponse } from '~quent/types/TimelineResponse';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
@@ -159,26 +158,26 @@ export async function fetchListQueries(engineId: string, coordinatorId: string):
   return apiFetch<string[]>(`/engines/${engineId}/query-groups/${coordinatorId}/queries`);
 }
 
-export async function fetchResourceTimelineAggregated(
+export async function fetchResourceTimeline(
   engineId: string,
   queryId: string,
   resourceId: string,
   params?: Record<string, string | number | boolean>
-): Promise<ResourceTimelineBinned> {
-  return apiFetch<ResourceTimelineBinned>(
-    `/engines/${engineId}/query/${queryId}/resource/${resourceId}/timeline/agg/all`,
+): Promise<TimelineResponse> {
+  return apiFetch<TimelineResponse>(
+    `/engines/${engineId}/query/${queryId}/resource/${resourceId}/timeline`,
     { params }
   );
 }
 
-export async function fetchResourceTimelineAggregatedByFSM(
+export async function fetchResourceGroupTimeline(
   engineId: string,
   queryId: string,
-  resourceId: string,
+  resourceGroupId: string,
   params?: Record<string, string | number | boolean>
-): Promise<ResourceTimelineBinnedByState> {
-  return apiFetch<ResourceTimelineBinnedByState>(
-    `/engines/${engineId}/query/${queryId}/resource/${resourceId}/timeline/agg/fsm`,
+): Promise<TimelineResponse> {
+  return apiFetch<TimelineResponse>(
+    `/engines/${engineId}/query/${queryId}/resource_group/${resourceGroupId}/timeline`,
     { params }
   );
 }

@@ -7,11 +7,7 @@ use axum::{
 };
 use quent_analyzer::{Analyzer, query_bundle::QueryBundle};
 use quent_entities::{
-    Span,
-    engine::Engine,
-    query_group::QueryGroup,
-    timeline::{ResourceTimelineBinned, ResourceTimelineBinnedByState},
-    worker::Worker,
+    Span, engine::Engine, query_group::QueryGroup, timeline::TimelineResponse, worker::Worker,
 };
 use quent_exporter_ndjson::NdjsonImporter;
 use quent_time::{SpanNanoSec, TimeUnixNanoSec, bin::BinnedSpan};
@@ -22,7 +18,7 @@ use uuid::Uuid;
 use crate::error::{ServerError, ServerResult};
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     let entries = match std::fs::read_dir("data") {
         Ok(entries) => entries,
@@ -62,7 +58,7 @@ async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     Ok(Json(ids))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn engine(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Engine>> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
     let analyzer = Analyzer::try_new(engine_id, importer)?;
@@ -70,14 +66,14 @@ async fn engine(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Engine>> {
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn list_workers(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Vec<Uuid>>> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
     let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.worker_ids()))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn worker(
     Path((engine_id, worker_id)): Path<(Uuid, Uuid)>,
 ) -> ServerResult<Json<Option<Worker>>> {
@@ -87,14 +83,14 @@ async fn worker(
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn list_query_groups(Path(engine_id): Path<Uuid>) -> ServerResult<Json<Vec<Uuid>>> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
     let analyzer = Analyzer::try_new(engine_id, importer)?;
     Ok(Json(analyzer.query_group_ids()))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn query_group(
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
 ) -> ServerResult<Json<Option<QueryGroup>>> {
@@ -104,7 +100,7 @@ async fn query_group(
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn list_queries(
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
 ) -> ServerResult<Json<Vec<Uuid>>> {
@@ -113,7 +109,7 @@ async fn list_queries(
     Ok(Json(analyzer.query_ids(query_group_id)))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument]
 async fn query(Path((engine_id, query_id)): Path<(Uuid, Uuid)>) -> ServerResult<Json<QueryBundle>> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
     let analyzer = Analyzer::try_new(engine_id, importer)?;
@@ -121,8 +117,8 @@ async fn query(Path((engine_id, query_id)): Path<(Uuid, Uuid)>) -> ServerResult<
     Ok(Json(query_bundle))
 }
 
-#[derive(Deserialize)]
-struct ResourceUsageAggregatedQuery {
+#[derive(Debug, Deserialize)]
+struct ResourceTimelineUrlQueryParams {
     /// The number of bins.
     ///
     /// u16::MAX is large enough when bins are plotted as single pixel wide
@@ -132,9 +128,21 @@ struct ResourceUsageAggregatedQuery {
     start: f64,
     /// End time in seconds.
     end: f64,
+
+    /// If set, only include utilizations from FSMs with this type name, and
+    /// aggregate for each state separately.
+    ///
+    /// Can be set for both resource and resource group timelines.
+    fsm_type_name: Option<String>,
+
+    /// Sets the resource type for which to provide an aggregated timeline.
+    ///
+    /// This is required for resource group routes, and is ignored for
+    /// individual resource timeline routes.
+    resource_type_name: Option<String>,
 }
 
-impl ResourceUsageAggregatedQuery {
+impl ResourceTimelineUrlQueryParams {
     fn try_make_binned_span(&self, epoch: TimeUnixNanoSec) -> ServerResult<BinnedSpan> {
         let start = epoch + (self.start * 1e9) as u64;
         let end = epoch + (self.end * 1e9) as u64;
@@ -149,53 +157,61 @@ impl ResourceUsageAggregatedQuery {
     }
 }
 
-#[tracing::instrument(skip_all)]
-async fn resource_use_timeline_aggregated(
+#[tracing::instrument]
+async fn resource_timeline(
     Path((engine_id, query_id, resource_id)): Path<(Uuid, Uuid, Uuid)>,
-    Query(query): Query<ResourceUsageAggregatedQuery>,
-) -> ServerResult<Json<ResourceTimelineBinned>> {
+    Query(url_query_params): Query<ResourceTimelineUrlQueryParams>,
+) -> ServerResult<Json<TimelineResponse>> {
     let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
     let analyzer = Analyzer::try_new(engine_id, importer)?;
     let query_entity = analyzer.entities().query(query_id)?;
-    let config = query.try_make_binned_span(query_entity.span()?.start())?;
-    let timeline = analyzer.resource_usage_aggregated(resource_id, config)?;
-    Ok(Json(timeline))
+    let config = url_query_params.try_make_binned_span(query_entity.span()?.start())?;
+    let response = if let Some(fsm_type_name) = url_query_params.fsm_type_name {
+        TimelineResponse::BinnedByState(analyzer.resource_usage_states_aggregated(
+            resource_id,
+            &fsm_type_name,
+            config,
+        )?)
+    } else {
+        TimelineResponse::Binned(analyzer.resource_usage_aggregated(resource_id, config)?)
+    };
+    Ok(Json(response))
 }
 
-#[derive(Deserialize)]
-struct ResourceUsageStatesAggregatedQuery {
-    fsm_type_name: String,
-
-    // TODO(johanpel): figure out why
-    // https://codeberg.org/jplatte/serde_html_form used by Axum doesn't seem to
-    // properly support serde(flatten), so for now repeat:
-    num_bins: u16,
-    start: f64,
-    end: f64,
-}
-impl ResourceUsageStatesAggregatedQuery {
-    fn try_make_binned_span(&self, epoch: TimeUnixNanoSec) -> ServerResult<BinnedSpan> {
-        ResourceUsageAggregatedQuery {
-            num_bins: self.num_bins,
-            start: self.start,
-            end: self.end,
+#[tracing::instrument]
+async fn resource_group_timeline(
+    Path((engine_id, query_id, resource_group_id)): Path<(Uuid, Uuid, Uuid)>,
+    Query(url_query_params): Query<ResourceTimelineUrlQueryParams>,
+) -> ServerResult<Json<TimelineResponse>> {
+    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
+    let analyzer = Analyzer::try_new(engine_id, importer)?;
+    let query_entity = analyzer.entities().query(query_id)?;
+    let config = url_query_params.try_make_binned_span(query_entity.span()?.start())?;
+    let response = if let Some(resource_type_name) = url_query_params.resource_type_name {
+        if let Some(fsm_type_name) = url_query_params.fsm_type_name {
+            Ok(TimelineResponse::BinnedByState(
+                analyzer.resource_group_usage_states_aggregated(
+                    resource_group_id,
+                    &resource_type_name,
+                    &fsm_type_name,
+                    config,
+                )?,
+            ))
+        } else {
+            Ok(TimelineResponse::Binned(
+                analyzer.resource_group_usage_aggregated(
+                    resource_group_id,
+                    &resource_type_name,
+                    config,
+                )?,
+            ))
         }
-        .try_make_binned_span(epoch)
-    }
-}
-
-#[tracing::instrument(skip_all)]
-async fn resource_use_timeline_state_aggregated(
-    Path((engine_id, query_id, resource_id)): Path<(Uuid, Uuid, Uuid)>,
-    Query(query): Query<ResourceUsageStatesAggregatedQuery>,
-) -> ServerResult<Json<ResourceTimelineBinnedByState>> {
-    let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
-    let analyzer = Analyzer::try_new(engine_id, importer)?;
-    let query_entity = analyzer.entities().query(query_id)?;
-    let config = query.try_make_binned_span(query_entity.span()?.start())?;
-    let timeline =
-        analyzer.resource_usage_states_aggregated(resource_id, config, query.fsm_type_name)?;
-    Ok(Json(timeline))
+    } else {
+        Err(ServerError::UrlQueryParams(
+            "url query parameter resource_type_name must be set".to_string(),
+        ))
+    }?;
+    Ok(Json(response))
 }
 
 // TODO(johanpel): add a context and really cache these analyzers :this-is-fine:
@@ -219,11 +235,11 @@ pub fn routes() -> Router<()> {
         )
         .route("/engine/{engine_id}/query/{query_id}", get(query))
         .route(
-            "/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/all",
-            get(resource_use_timeline_aggregated),
+            "/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline",
+            get(resource_timeline),
         )
         .route(
-            "/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline/agg/fsm",
-            get(resource_use_timeline_state_aggregated),
+            "/engine/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline",
+            get(resource_group_timeline),
         )
 }

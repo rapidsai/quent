@@ -29,7 +29,7 @@ fn initialize_tracing() {
         .with(
             fmt::layer()
                 .with_target(true)
-                .with_span_events(FmtSpan::ENTER)
+                .with_span_events(FmtSpan::CLOSE)
                 .with_writer(std::io::stderr),
         )
         .init();

@@ -27,5 +27,3 @@ COPY --from=builder /quent/target/release/examples/simulator /quent/simulator
 # Expose default analyzer (HTTP) and collector (gRPC) ports
 EXPOSE 8080
 EXPOSE 7836
-
-ENTRYPOINT ["/bin/sh","-c"]

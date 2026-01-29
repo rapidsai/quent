@@ -1,17 +1,9 @@
 import { TimelineSeries } from '@/components/timeline/types';
 import { formatBytes } from '@/services/formatters';
-import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
-import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
-
-/** Type guard to check if data is ResourceTimelineBinnedByState */
-function isBinnedByState(
-  data: ResourceTimelineBinnedByState | ResourceTimelineBinned
-): data is ResourceTimelineBinnedByState {
-  return 'capacities_states_values' in data;
-}
+import { TimelineResponse } from '~quent/types/TimelineResponse';
 
 export function buildBinnedTimelineSeries(
-  data: ResourceTimelineBinnedByState | ResourceTimelineBinned,
+  data: TimelineResponse,
   startTime: bigint
 ): {
   timestamps: number[];
@@ -33,7 +25,16 @@ export function buildBinnedTimelineSeries(
   // Build series based on data type
   const series: TimelineSeries = {};
 
-  if (isBinnedByState(data)) {
+  if (data.type === 'Binned') {
+    // ResourceTimelineBinned: capacities_values (flat: capacity → values)
+    const { capacities_values } = data;
+    for (const [capacity, values] of Object.entries(capacities_values)) {
+      const formatter = getFormatterForCapacityType(capacity);
+      if (values) {
+        series[capacity] = { formatter, values, binDuration: bin_duration };
+      }
+    }
+  } else if (data.type === 'BinnedByState') {
     const { capacities_states_values } = data;
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
@@ -46,15 +47,6 @@ export function buildBinnedTimelineSeries(
             values,
           };
         }
-      }
-    }
-  } else {
-    // ResourceTimelineBinned: capacities_values (flat: capacity → values)
-    const { capacities_values } = data;
-    for (const [capacity, values] of Object.entries(capacities_values)) {
-      const formatter = getFormatterForCapacityType(capacity);
-      if (values) {
-        series[capacity] = { formatter, values, binDuration: bin_duration };
       }
     }
   }
