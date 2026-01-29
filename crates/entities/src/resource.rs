@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use quent_time::TimeUnixNanoSec;
+use quent_time::{SpanNanoSec, TimeUnixNanoSec};
 use serde::Serialize;
 use smallvec::SmallVec;
 use ts_rs::TS;
@@ -33,6 +33,16 @@ pub enum CapacityType {
     /// rate/sec. The average rate over the span is computed as:
     /// value / span.duration() = 2 bytes/sec.
     Rate,
+}
+
+impl CapacityType {
+    /// Interpret a value from a [`CapacityValue`] based on this [`CapacityType`].
+    pub fn reinterpret_capacity_value(&self, value: u64, span: SpanNanoSec) -> f64 {
+        match self {
+            CapacityType::Occupancy => value as f64,
+            CapacityType::Rate => value as f64 / span.duration() as f64,
+        }
+    }
 }
 
 /// Declaration of a Capacity of a Resource
@@ -191,7 +201,7 @@ pub struct ResourceBuilder {
     id: Uuid,
     instance_name: Option<String>,
     type_name: String,
-    scope: Option<EntityRef>,
+    parent_id: Option<Uuid>,
     state_sequence: StateSequenceBuilder<ResourceState>,
 }
 
@@ -214,34 +224,39 @@ impl ResourceBuilder {
     pub fn set_instance_name(&mut self, instance_name: Option<String>) {
         self.instance_name = instance_name;
     }
-    pub fn set_scope(&mut self, scope: EntityRef) {
-        self.scope = Some(scope);
+    pub fn set_parent_id(&mut self, parent: Uuid) {
+        self.parent_id = Some(parent);
     }
     pub fn push_state(&mut self, state: ResourceState) {
         self.state_sequence.push_state(state);
     }
-    pub fn try_build(self) -> Resource {
-        Resource {
+    pub fn try_build(self) -> Result<Resource> {
+        Ok(Resource {
             id: self.id,
             instance_name: self.instance_name,
             type_name: self.type_name,
-            scope: self.scope,
+            parent_id: self.parent_id.ok_or_else(|| {
+                EntityError::Incomplete(format!(
+                    "resource {} must have a parent resource group",
+                    self.id
+                ))
+            })?,
             state_sequence: self.state_sequence.sequence,
-        }
+        })
     }
 }
 
-/// A Resource of which its Capacities cannot be resized.
+/// A Resource.
 #[derive(TS, Clone, Default, Debug, Serialize)]
 pub struct Resource {
     /// The ID of this Resource.
     pub id: Uuid,
     /// The name of this Resource.
     pub instance_name: Option<String>,
-    /// The type of this Resource.
+    /// The unique type name of this Resource.
     pub type_name: String,
-    /// The scope of this Resource.
-    pub scope: Option<EntityRef>,
+    /// The id of the
+    pub parent_id: Uuid,
     /// The sequence of states that this resource went through.
     #[serde(skip)]
     #[ts(skip)]
@@ -256,13 +271,7 @@ impl Entity for Resource {
 
 impl Related for Resource {
     fn relations(&self) -> impl Iterator<Item = EntityRef> {
-        if let Some(scope) = self.scope {
-            vec![scope].into_iter()
-        } else {
-            // Shouldn't happen after filtering out parentless things, but
-            // for good measure:
-            vec![].into_iter()
-        }
+        vec![EntityRef::ResourceGroup(self.parent_id)].into_iter()
     }
 }
 
@@ -301,21 +310,18 @@ pub struct ResourceGroupTimestamps {
     pub exit: Option<TimeUnixNanoSec>,
 }
 
-/// A Group of Resources.
+/// A Group of [`Resource`]s.
 #[derive(TS, Clone, Debug, Default, Serialize)]
 pub struct ResourceGroup {
-    /// The ID of this Resource Group
+    /// The ID of this Resource Group.
     pub id: Uuid,
-    /// The name of the type of this Resource Group
-    pub type_name: Option<String>,
-    /// The name of the instance of this Resource Group
-    pub instance_name: Option<String>,
-    /// The scope of this Resource Group
-    pub scope: Option<EntityRef>,
-    /// The timestamps of state transitions of this ResourceGroup.
-    #[serde(skip)]
-    #[ts(skip)]
-    pub timestamps: ResourceGroupTimestamps,
+    /// The name of the instance of this Resource Group.
+    pub instance_name: String,
+    /// The parent of this Resource Group.
+    ///
+    /// If this is None, it is considered the root of the global application's
+    /// resource tree.
+    pub parent_id: Option<Uuid>,
 }
 
 impl IncompleteEntity for ResourceGroup {
@@ -329,11 +335,9 @@ impl IncompleteEntity for ResourceGroup {
 
 impl Related for ResourceGroup {
     fn relations(&self) -> impl Iterator<Item = EntityRef> {
-        if let Some(scope) = self.scope {
-            vec![scope].into_iter()
+        if let Some(parent) = self.parent_id {
+            vec![EntityRef::ResourceGroup(parent)].into_iter()
         } else {
-            // Shouldn't happen after filtering out parentless things, but
-            // for good measure:
             vec![].into_iter()
         }
     }

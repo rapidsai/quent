@@ -13,6 +13,9 @@ export type ResourceTree = {
 /**
  * The ID of the Entity representing this node.
  *
+ * This is either an [`EntityRef::Resource`] or a
+ * [`EntityRef::ResourceGroup`].
+ *
  * If this is None, this is the root level.
  */
 item: EntityRef | null, 

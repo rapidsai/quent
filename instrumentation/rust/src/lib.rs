@@ -6,7 +6,7 @@ use std::sync::Arc;
 use quent_events::q;
 use quent_events::{
     Event, EventData, engine, operator, plan, query, query_group,
-    resource::{channel, group, memory, processor},
+    resource::{ResourceGroup, channel, memory, processor},
     worker,
 };
 use quent_exporter::Exporter;
@@ -574,32 +574,8 @@ pub struct ResourceGroupObserver {
     tx: tokio::sync::mpsc::UnboundedSender<Event<EventData>>,
 }
 impl ResourceGroupObserver {
-    pub fn init(&self, id: Uuid, init: group::Init) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, group::ResourceGroupEvent::Init(init).into()),
-        )
-    }
-
-    pub fn operating(&self, id: Uuid, operating: group::Operating) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, group::ResourceGroupEvent::Operating(operating).into()),
-        )
-    }
-
-    pub fn finalizing(&self, id: Uuid, finalizing: group::Finalizing) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, group::ResourceGroupEvent::Finalizing(finalizing).into()),
-        )
-    }
-
-    pub fn exit(&self, id: Uuid, exit: group::Exit) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, group::ResourceGroupEvent::Exit(exit).into()),
-        )
+    pub fn group(&self, id: Uuid, attributes: ResourceGroup) {
+        push_event(&self.tx, Event::new_now(id, attributes.into()))
     }
 }
 

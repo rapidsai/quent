@@ -27,20 +27,6 @@ pub struct PlanTree {
 }
 
 impl PlanTree {
-    /// Depth-first traverse the plan tree with a visitor function.
-    pub(crate) fn visit_depth_first<F>(&self, visitor: &mut F) -> AnalyzerResult<()>
-    where
-        F: FnMut(&PlanTree) -> AnalyzerResult<()>,
-    {
-        visitor(self)?;
-        for child in &self.children {
-            child.visit_depth_first(visitor)?;
-        }
-        Ok(())
-    }
-}
-
-impl PlanTree {
     pub(crate) fn try_new(entities: &Entities, query_id: Uuid) -> AnalyzerResult<Self> {
         fn build(current_plan_id: Uuid, entities: &Entities) -> AnalyzerResult<PlanTree> {
             let plan = entities

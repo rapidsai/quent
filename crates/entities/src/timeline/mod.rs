@@ -21,3 +21,10 @@ pub struct ResourceTimelineBinnedByState {
     /// each element holds an aggregated value of a time bin.
     pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
 }
+
+#[derive(TS, Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum TimelineResponse {
+    Binned(ResourceTimelineBinned),
+    BinnedByState(ResourceTimelineBinnedByState),
+}

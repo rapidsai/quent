@@ -1,14 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  DEFAULT_STALE_TIME,
-  fetchResourceTimelineAggregated,
-  fetchResourceTimelineAggregatedByFSM,
-} from '@/services/api';
+import { DEFAULT_STALE_TIME, fetchResourceTimeline } from '@/services/api';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
 import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
-import { ResourceTimelineBinnedByState } from '~quent/types/ResourceTimelineBinnedByState';
-import { ResourceTimelineBinned } from '~quent/types/ResourceTimelineBinned';
 import { TimelineSeries } from './types';
 
 // Lazy load Timeline to split echarts into a separate chunk
@@ -42,19 +36,13 @@ export function ResourceTimeline({
   const { data, isLoading, error } = useQuery({
     queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName],
     // TODO (joe): Dynamic number of bins
-    queryFn: (): Promise<ResourceTimelineBinnedByState | ResourceTimelineBinned> =>
-      fsmTypeName
-        ? fetchResourceTimelineAggregatedByFSM(engineId, queryId, resourceId, {
-            num_bins: 100,
-            start: 0,
-            end: durationSeconds,
-            fsm_type_name: fsmTypeName,
-          })
-        : fetchResourceTimelineAggregated(engineId, queryId, resourceId, {
-            num_bins: 100,
-            start: 0,
-            end: durationSeconds,
-          }),
+    queryFn: () =>
+      fetchResourceTimeline(engineId, queryId, resourceId, {
+        num_bins: 100,
+        start: 0,
+        end: durationSeconds,
+        ...(fsmTypeName && { fsm_type_name: fsmTypeName }),
+      }),
     staleTime: DEFAULT_STALE_TIME,
   });
 

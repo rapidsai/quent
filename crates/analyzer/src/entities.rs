@@ -23,7 +23,7 @@ use quent_events::{
     operator::OperatorEvent,
     query::QueryEvent,
     query_group::QueryGroupEvent,
-    resource::{channel, group as resource_group, memory, processor},
+    resource::{channel, memory, processor},
     worker::WorkerEvent,
 };
 use quent_time::{SpanNanoSec, TimeUnixNanoSec};
@@ -76,6 +76,9 @@ pub struct Entities {
 
     /// The total span of time over all events.
     pub(crate) span: SpanNanoSec,
+
+    /// The root resource.
+    pub(crate) resource_root: Uuid,
 }
 
 impl Entities {
@@ -258,7 +261,7 @@ impl Entities {
                                     entry.push_state(ResourceState::Init(event.timestamp));
                                     entry.set_type_name(type_decl.name.clone());
                                     entry.set_instance_name(Some(init.resource.instance_name));
-                                    entry.set_scope(init.resource.scope.into());
+                                    entry.set_parent_id(init.resource.parent_group_id);
                                 }
                                 memory::MemoryEvent::Operating(operating) => entry.push_state(
                                     ResourceState::Operating(ResourceOperatingState {
@@ -292,7 +295,7 @@ impl Entities {
                                 entry.push_state(ResourceState::Init(event.timestamp));
                                 entry.set_type_name(type_decl.name.clone());
                                 entry.set_instance_name(Some(init.resource.instance_name));
-                                entry.set_scope(init.resource.scope.into());
+                                entry.set_parent_id(init.resource.parent_group_id);
                             }
                             processor::ProcessorEvent::Operating(_) => {
                                 entry.push_state(ResourceState::Operating(ResourceOperatingState {
@@ -321,7 +324,7 @@ impl Entities {
                                     entry.push_state(ResourceState::Init(event.timestamp));
                                     entry.set_type_name(type_decl.name.clone());
                                     entry.set_instance_name(Some(init.resource.instance_name));
-                                    entry.set_scope(init.resource.scope.into());
+                                    entry.set_parent_id(init.resource.parent_group_id);
                                 }
                                 channel::ChannelEvent::Operating(_) => entry.push_state(
                                     ResourceState::Operating(ResourceOperatingState {
@@ -341,23 +344,8 @@ impl Entities {
                 }
                 EventData::ResourceGroup(resource_group_event) => {
                     let entry = entry(&mut resource_groups, event.id);
-                    match resource_group_event {
-                        resource_group::ResourceGroupEvent::Init(init) => {
-                            entry.type_name = Some(init.resource.type_name);
-                            entry.instance_name = Some(init.resource.instance_name);
-                            entry.scope = Some(init.resource.scope.into());
-                            entry.timestamps.init = Some(event.timestamp);
-                        }
-                        resource_group::ResourceGroupEvent::Operating(_) => {
-                            entry.timestamps.operating = Some(event.timestamp)
-                        }
-                        resource_group::ResourceGroupEvent::Finalizing(_) => {
-                            entry.timestamps.finalizing = Some(event.timestamp)
-                        }
-                        resource_group::ResourceGroupEvent::Exit(_) => {
-                            entry.timestamps.exit = Some(event.timestamp)
-                        }
-                    }
+                    entry.instance_name = resource_group_event.instance_name;
+                    entry.parent_id = resource_group_event.parent_group_id;
                 }
                 #[cfg(feature = "q")]
                 EventData::Q(q_event) => {
@@ -500,8 +488,8 @@ impl Entities {
         // Build all resources
         let resources: HashMap<Uuid, Resource> = resource_builders
             .into_iter()
-            .map(|(id, builder)| (id, builder.try_build()))
-            .collect();
+            .map(|(id, builder)| Ok(builder.try_build().map(|r| (id, r))?))
+            .collect::<AnalyzerResult<_>>()?;
 
         // Build all FSMs, derive FSM types from the data, and populate the
         // "used_by_fsm" field of resources.
@@ -545,6 +533,19 @@ impl Entities {
             fsms.insert(k, fsm);
         }
 
+        // Find the resource tree root, of which there should only be one.
+        let roots = resource_groups
+            .values()
+            .filter(|group| group.parent_id.is_none())
+            .collect::<Vec<_>>();
+        if roots.len() != 1 {
+            return Err(AnalyzerError::Validation(format!(
+                "encountered {} resource tree roots, but exactly 1 must exist",
+                roots.len()
+            )));
+        }
+        let resource_root = roots.first().unwrap().id;
+
         Ok(Self {
             engine,
             query_groups,
@@ -559,6 +560,7 @@ impl Entities {
             fsm_types,
             fsms,
             span: SpanNanoSec::try_new(earliest_event, latest_event.saturating_add(1))?,
+            resource_root,
         })
     }
 
@@ -632,36 +634,38 @@ impl Entities {
             plans,
             operators,
             ports,
+            // TODO(johanpel): figure out how to deal with workload-scoped resources
             resource_types: self.resource_types.clone(),
-            resources: HashMap::new(),
-            resource_groups: HashMap::new(),
+            resources: self.resources.clone(),
+            resource_groups: self.resource_groups.clone(),
             fsm_types: self.fsm_types.clone(),
             fsms: HashMap::new(),
             span,
+            resource_root: self.resource_root,
         };
 
         // ResourceGroups are a bit trickier as they can be nested. In order
         // to know whether we should add a resource group, we need to find its
         // non-resource group parent. If that is in any of the other filtered
         // entities, we know we need to add it.
-        entities.resource_groups = self
-            .resource_groups
-            .iter()
-            .filter_map(|(k, v)| {
-                self.resource_group_tree_root(*k).and_then(|non_rg_parent| {
-                    entities.contains(non_rg_parent).then_some((*k, v.clone()))
-                })
-            })
-            .collect();
+        // entities.resource_groups = self
+        //     .resource_groups
+        //     .iter()
+        //     .filter_map(|(k, v)| {
+        //         self.resource_group_tree_root(*k).and_then(|non_rg_parent| {
+        //             entities.contains(non_rg_parent).then_some((*k, v.clone()))
+        //         })
+        //     })
+        //     .collect();
 
-        entities.resources = self
-            .resources
-            .iter()
-            .filter_map(|(k, v)| {
-                v.scope
-                    .and_then(|scope| entities.contains(scope).then_some((*k, v.clone())))
-            })
-            .collect();
+        // entities.resources = self
+        //     .resources
+        //     .iter()
+        //     .filter_map(|(k, v)| {
+        //         v.scope
+        //             .and_then(|scope| entities.contains(scope).then_some((*k, v.clone())))
+        //     })
+        //     .collect();
 
         // samesies for custom entities
         entities.fsms = self
@@ -675,42 +679,6 @@ impl Entities {
             .collect();
 
         Ok(entities)
-    }
-
-    pub fn filter_by_time_window(&self, window: SpanNanoSec) -> Entities {
-        Self {
-            // TODO(johanpel): domain specific things shouldn't all be cloned.
-            engine: self.engine.clone(),
-            workers: self.workers.clone(),
-            query_groups: self.query_groups.clone(),
-            queries: self.queries.clone(),
-            plans: self.plans.clone(),
-            operators: self.operators.clone(),
-            ports: self.ports.clone(),
-            // TODO(johanpel): filter the below
-            resource_types: self.resource_types.clone(),
-            resources: self.resources.clone(),
-            resource_groups: self.resource_groups.clone(),
-            fsm_types: self.fsm_types.clone(),
-            fsms: self.fsms.clone(),
-            span: window,
-        }
-    }
-
-    /// Return references of all resources and resource groups directly under some entity.
-    pub fn get_resources_within_scope(&self, entity: EntityRef) -> Vec<EntityRef> {
-        let resources = self.resources.iter().filter_map(|(k, v)| {
-            v.scope
-                .and_then(|s| (s == entity).then_some(EntityRef::Resource(*k)))
-        });
-
-        let resource_groups = self.resource_groups.iter().filter_map(|(k, v)| {
-            v.scope
-                .and_then(|s| (s == entity).then_some(EntityRef::ResourceGroup(*k)))
-        });
-
-        // TODO(johanpel): not collect
-        resources.chain(resource_groups).collect()
     }
 
     /// Return true if reference to some entity is contained within this set.
@@ -729,27 +697,21 @@ impl Entities {
         }
     }
 
-    /// Traverse potential resource group parents until a non-resource group parent is found.
-    fn resource_group_tree_root(&self, resource_group: Uuid) -> Option<EntityRef> {
-        let mut current = self.resource_groups.get(&resource_group)?;
-        loop {
-            match current.scope? {
-                EntityRef::ResourceGroup(uuid) => current = self.resource_groups.get(&uuid)?,
-                other => return Some(other),
-            }
-        }
-    }
-
-    pub(crate) fn iter_use_relations(&self) -> impl Iterator<Item = (EntityRef, EntityRef)> {
+    /// Return an iterator over all use relations.
+    pub(crate) fn use_relations(&self) -> impl Iterator<Item = (EntityRef, EntityRef)> {
         self.fsms
             .iter()
             .flat_map(|(id, fsm)| fsm.use_relations().map(|rel| (EntityRef::Fsm(*id), rel)))
     }
 
-    pub(crate) fn iter_dynamic_fsms(&self, resource_id: Uuid) -> impl Iterator<Item = &DynamicFsm> {
+    /// Return an iterator over all [`DynamicFsm`]s using the provided resource.
+    pub(crate) fn dynamic_fsms_using(
+        &self,
+        resource_id: Uuid,
+    ) -> impl Iterator<Item = &DynamicFsm> {
         self
             // Iterate over all entities that use resources
-            .iter_use_relations()
+            .use_relations()
             // Filter out entities that don't use the target resource
             .filter_map(move |(user, resource)| {
                 (Uuid::from(resource) == resource_id).then_some(user)
@@ -761,7 +723,27 @@ impl Entities {
             })
     }
 
-    pub(crate) fn unique_operator_names(&self) -> impl Iterator<Item = &str> {
+    /// Return an iterator over all [`DynamicFsm`]s using the provided resource.
+    pub(crate) fn dynamic_fsms_using_any_of(
+        &self,
+        resource_ids: &HashSet<Uuid>,
+    ) -> impl Iterator<Item = &DynamicFsm> {
+        self
+            // Iterate over all entities that use resources
+            .use_relations()
+            // Filter out entities that don't use the target resource
+            .filter_map(move |(user, resource)| {
+                (resource_ids.contains(&Uuid::from(resource))).then_some(user)
+            })
+            // Filter out anything that's not an FSM for now :tm:
+            .filter_map(|user| match user {
+                quent_entities::EntityRef::Fsm(uuid) => Some(self.fsms.get(&uuid).unwrap()),
+                _ => None,
+            })
+    }
+
+    /// Return the type names of operators.
+    pub(crate) fn operator_type_names(&self) -> impl Iterator<Item = &str> {
         self.operators
             .values()
             .filter_map(|op| op.name.as_deref())
@@ -769,7 +751,8 @@ impl Entities {
             .into_iter()
     }
 
-    pub(crate) fn unique_entity_type_names(&self) -> impl Iterator<Item = String> {
+    /// Return the type names of entities.
+    pub(crate) fn entity_type_names(&self) -> impl Iterator<Item = String> {
         // TODO(johanpel): consider allowing folks to rename these concepts for rendering
         let base = [
             "Engine",
@@ -782,20 +765,15 @@ impl Entities {
         .into_iter()
         .map(ToString::to_string);
         let resources = self.resources.values().map(|res| res.type_name.clone());
-        let resource_groups = self
-            .resource_groups
-            .values()
-            .filter_map(|res| res.type_name.as_ref())
-            .cloned();
         let custom_fsms = self.fsms.values().map(|fsm| fsm.type_name().to_owned());
 
         base.chain(resources)
-            .chain(resource_groups)
             .chain(custom_fsms)
             .collect::<HashSet<_>>()
             .into_iter()
     }
 
+    /// Return a reference to the [`Resource`] with the provided ID.
     #[inline]
     pub(crate) fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&Resource> {
         self.resources
@@ -803,6 +781,8 @@ impl Entities {
             .ok_or(AnalyzerError::InvalidId(resource_id))
     }
 
+    /// Return the [`ResourceTypeDecl`] of the resource type with the provided
+    /// resource type name.
     pub(crate) fn resource_type(
         &self,
         resource_type_name: &str,
@@ -812,6 +792,33 @@ impl Entities {
             .ok_or(AnalyzerError::InvalidTypeName(format!(
                 "unknown resource type {resource_type_name}"
             )))
+    }
+
+    /// Return the [`ResourceGroup`] of the resource group with the provided ID.
+    pub(crate) fn resource_group(&self, resource_group_id: Uuid) -> AnalyzerResult<&ResourceGroup> {
+        self.resource_groups
+            .get(&resource_group_id)
+            .ok_or(AnalyzerError::InvalidId(resource_group_id))
+    }
+
+    /// Return all direct children of a [`ResourceGroup`].
+    pub(crate) fn resource_group_children(
+        &self,
+        resource_group_id: Uuid,
+    ) -> AnalyzerResult<impl Iterator<Item = EntityRef>> {
+        self.resource_group(resource_group_id)?;
+
+        let group_children = self.resource_groups.values().filter_map(move |group| {
+            group.parent_id.and_then(|parent| {
+                (parent == resource_group_id).then_some(EntityRef::ResourceGroup(group.id))
+            })
+        });
+
+        let resource_children = self.resources.values().filter_map(move |resource| {
+            (resource.parent_id == resource_group_id).then_some(EntityRef::Resource(resource.id))
+        });
+
+        Ok(group_children.chain(resource_children))
     }
 
     #[inline]

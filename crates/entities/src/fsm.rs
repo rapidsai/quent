@@ -34,7 +34,7 @@ pub trait State {
 // Surpress this, because if something is an FSM, it always has two states, and
 // it is never empty.
 #[allow(clippy::len_without_is_empty)]
-pub trait Fsm {
+pub trait Fsm: Entity {
     /// The state type of this FSM.
     type State: State;
 
@@ -52,10 +52,7 @@ pub trait Fsm {
     fn index(&self, index: usize) -> Option<&Self::State>;
 
     /// Return a state and its time span for the given index.
-    fn state_span(&self, index: usize) -> Option<StateSpan<'_, Self::State>>
-    where
-        Self: Entity,
-    {
+    fn state_span(&self, index: usize) -> Option<StateSpan<'_, Self::State>> {
         // If there are zero or one state transitions, a span cannot be created,
         // and this Fsm is violating the spec. Also check bounds.
         if self.len() < 2 || index >= self.len() - 1 {
@@ -85,10 +82,7 @@ pub trait Fsm {
     }
 
     /// Return an iterator over all states with their time spans.
-    fn state_spans(&self) -> impl ExactSizeIterator<Item = StateSpan<'_, Self::State>>
-    where
-        Self: Entity,
-    {
+    fn state_spans(&self) -> impl ExactSizeIterator<Item = StateSpan<'_, Self::State>> {
         (0..self.len().saturating_sub(1)).map(|index| {
             // Safety: through the saturating sub we can't go out of bounds,
             // even if this FSM is incomplete with zero or one transitions.

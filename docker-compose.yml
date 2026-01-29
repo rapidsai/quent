@@ -23,7 +23,7 @@ services:
     restart: "no"
     environment:
       QUENT_COLLECTOR_ADDRESS: "http://server:7836"
-    command: /quent/simulator
+    command: "/quent/simulator --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 4 --num-tasks 32"
 
   webserver:
     build:

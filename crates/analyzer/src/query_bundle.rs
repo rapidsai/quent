@@ -43,10 +43,10 @@ impl QueryBundle {
         assert_eq!(entities.queries.len(), 1);
 
         let plan_tree = PlanTree::try_new(&entities, query_id)?;
-        let resource_tree = ResourceTree::try_new(&entities, &plan_tree, query_id)?;
+        let resource_tree = ResourceTree::try_new(&entities, entities.resource_root)?;
 
-        let unique_entity_names = entities.unique_entity_type_names().collect();
-        let unique_operator_names = entities.unique_operator_names().map(Into::into).collect();
+        let unique_entity_names = entities.entity_type_names().collect();
+        let unique_operator_names = entities.operator_type_names().map(Into::into).collect();
 
         let query_span = entities
             .queries
