@@ -1,9 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { DEFAULT_STALE_TIME, fetchResourceTimeline } from '@/services/api';
+import {
+  DEFAULT_STALE_TIME,
+  fetchResourceTimeline,
+  fetchResourceGroupTimeline,
+} from '@/services/api';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
 import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
 import { TimelineSeries } from './types';
+import { EntityTypeKey } from '@/types';
 
 // Lazy load Timeline to split echarts into a separate chunk
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
@@ -12,9 +17,12 @@ type ResourceTimelineProps = {
   engineId: string;
   queryId: string;
   resourceId: string;
+  resourceType: string;
   startTime: bigint;
   durationSeconds: number;
   fsmTypeName: string | undefined;
+  resourceTypeName?: string;
+  instanceName?: string;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -29,19 +37,27 @@ export function ResourceTimeline({
   engineId,
   queryId,
   resourceId,
+  resourceType,
   startTime,
   durationSeconds,
   fsmTypeName,
+  resourceTypeName,
+  instanceName,
 }: ResourceTimelineProps) {
+  const queryFunction =
+    resourceType === EntityTypeKey.ResourceGroup
+      ? fetchResourceGroupTimeline
+      : fetchResourceTimeline;
   const { data, isLoading, error } = useQuery({
-    queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName],
+    queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName, resourceTypeName],
     // TODO (joe): Dynamic number of bins
     queryFn: () =>
-      fetchResourceTimeline(engineId, queryId, resourceId, {
+      queryFunction(engineId, queryId, resourceId, {
         num_bins: 100,
         start: 0,
         end: durationSeconds,
         ...(fsmTypeName && { fsm_type_name: fsmTypeName }),
+        ...(resourceTypeName && { resource_type_name: resourceTypeName }),
       }),
     staleTime: DEFAULT_STALE_TIME,
   });
@@ -67,7 +83,12 @@ export function ResourceTimeline({
   // This should render a timeline one way or another
   return (
     <Suspense fallback={<TimelineSkeleton />}>
-      <Timeline series={series} timestamps={timestamps ?? []} startTime={startTime} />
+      <Timeline
+        series={series}
+        timestamps={timestamps ?? []}
+        startTime={startTime}
+        colorKey={resourceType === EntityTypeKey.ResourceGroup ? instanceName : undefined}
+      />
     </Suspense>
   );
 }

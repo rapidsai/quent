@@ -23,11 +23,13 @@ export function Timeline({
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
+  colorKey,
 }: {
   startTime: bigint;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
+  colorKey?: string;
 }) {
   const seriesOptions = useMemo(() => {
     return (
@@ -36,7 +38,8 @@ export function Timeline({
         // Everything alphabetical RN to keep it consistent
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([name, seriesData]) => {
-          const color = getColorForKey(name);
+          // use colorKey for ResourceGroup coloring, otherwise use series name
+          const color = getColorForKey(colorKey ?? name);
           return {
             name,
             type: 'line',
@@ -60,7 +63,7 @@ export function Timeline({
           };
         })
     );
-  }, [series]);
+  }, [series, colorKey]);
 
   const yAxisOptions = useMemo(
     () => ({

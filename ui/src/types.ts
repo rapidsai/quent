@@ -27,3 +27,8 @@ export type EntityTypeValue =
   | Worker;
 
 export type EntityRefKey = keyof EntityRef;
+
+export const EntityTypeKey = {
+  Resource: 'Resource',
+  ResourceGroup: 'ResourceGroup',
+} as const;
