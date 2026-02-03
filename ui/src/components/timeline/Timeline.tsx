@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
-import { echarts, connect } from '@/lib/echarts';
+import type { EChartsInstance } from 'echarts-for-react';
+import { echarts, connect, getInstanceByDom } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import { TooltipContent } from './TimelineTooltip';
 import { getColorForKey, withOpacity } from '@/services/colors';
@@ -12,10 +13,36 @@ export const CHART_GROUP = 'timeline-sync-group';
 const TIMELINE_MARKUP_COLOR = '#808080';
 const GRID_BORDER_COLOR = withOpacity(TIMELINE_MARKUP_COLOR, 0.2);
 
-// Use 'any' for echarts instance type to avoid conflicts between echarts/core and full echarts types
-const connectChart = (instance: { group: string }) => {
-  instance.group = CHART_GROUP;
-  connect(CHART_GROUP);
+function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
+  const chartElements = document.querySelectorAll('[_echarts_instance_]');
+  for (const el of chartElements) {
+    const instance = getInstanceByDom(el as HTMLElement);
+    if (instance && instance.group === chartGroup) {
+      return instance as unknown as EChartsInstance;
+    }
+  }
+  return null;
+}
+
+const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+  // Sync zoom state from any existing chart in the group before connecting
+  const existingInstance = findExistingChartInGroup(chartGroup);
+  if (existingInstance) {
+    const existingOption = existingInstance.getOption();
+    const dataZoomOption = existingOption.dataZoom as Array<{ start?: number; end?: number }>;
+
+    if (dataZoomOption && dataZoomOption[0]) {
+      const { start, end } = dataZoomOption[0];
+      if (start !== undefined && end !== undefined) {
+        instance.setOption({
+          dataZoom: [{ start, end }],
+        });
+      }
+    }
+  }
+
+  instance.group = chartGroup;
+  connect(chartGroup);
 };
 
 export function Timeline({
