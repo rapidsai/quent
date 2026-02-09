@@ -194,7 +194,7 @@ const TreeNode = ({
             </>
           )}
         </AccordionTrigger>
-        <AccordionContent className="border-l border-border">
+        <AccordionContent>
           <TreeItem
             data={item.children ? item.children : item}
             selectedItemId={selectedItemId}
@@ -452,11 +452,14 @@ export type Column<I> = {
   widthIndex: number;
   isFirst?: boolean;
   render: ColumnComponent<I>;
+  /** Optional content to render in the sub-header row below this column */
+  subHeaderContent?: React.ReactNode;
 };
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
-const DEFAULT_COLUMN_WIDTHS = [280, 500];
+type ColumnWidth = number | 'auto';
+const DEFAULT_COLUMN_WIDTHS: ColumnWidth[] = [280, 500];
 
 export function TreeTable<I extends TreeTableDataItem>({
   data,
@@ -466,10 +469,10 @@ export function TreeTable<I extends TreeTableDataItem>({
 }: {
   data: I[];
   columns: Column<I>[];
-  columnWidths?: number[];
+  columnWidths?: ColumnWidth[];
 } & TreeViewProps) {
   const [treeData, setTreeData] = useState<I[]>(data);
-  const [currentColumnWidths, setCurrentColumnWidths] = useState<number[]>(columnWidths);
+  const [currentColumnWidths, setCurrentColumnWidths] = useState<ColumnWidth[]>(columnWidths);
 
   useEffect(() => {
     setTreeData(data);
@@ -480,7 +483,11 @@ export function TreeTable<I extends TreeTableDataItem>({
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const [hasUserResized, setHasUserResized] = useState(false);
 
-  const totalWidth = currentColumnWidths.reduce((sum, w) => sum + w, 0);
+  // Calculate total width of fixed columns only ('auto' columns are flexible)
+  const totalFixedWidth = currentColumnWidths.reduce<number>(
+    (sum, w) => sum + (typeof w === 'number' ? w : 0),
+    0
+  );
 
   useIsomorphicLayoutEffect(() => {
     const node = containerRef.current;
@@ -518,23 +525,31 @@ export function TreeTable<I extends TreeTableDataItem>({
   }, [isLayoutReady]);
 
   const baseContainerWidth = containerWidth || 0;
+  const hasAutoColumns = currentColumnWidths.some(w => w === 'auto');
   const effectiveWidth = useMemo(() => {
-    return Math.max(totalWidth, baseContainerWidth);
-  }, [baseContainerWidth, totalWidth]);
+    // If we have auto columns, use container width; otherwise use max of fixed total and container
+    return hasAutoColumns ? baseContainerWidth : Math.max(totalFixedWidth, baseContainerWidth);
+  }, [baseContainerWidth, totalFixedWidth, hasAutoColumns]);
 
-  const displayColumnWidths = useMemo(() => {
-    const extraWidth = Math.max(baseContainerWidth - totalWidth, 0);
+  const displayColumnWidths = useMemo((): ColumnWidth[] => {
+    // If there are auto columns, keep them as 'auto'
+    if (hasAutoColumns) {
+      return currentColumnWidths;
+    }
+
+    // No auto columns: distribute extra width to last column
+    const extraWidth = Math.max(baseContainerWidth - totalFixedWidth, 0);
     if (extraWidth <= 0) {
       return currentColumnWidths;
     }
 
     const next = [...currentColumnWidths];
     const fillIndex = next.length - 1;
-    if (fillIndex >= 0) {
-      next[fillIndex] = next[fillIndex]! + extraWidth;
+    if (fillIndex >= 0 && typeof next[fillIndex] === 'number') {
+      next[fillIndex] = (next[fillIndex] as number) + extraWidth;
     }
     return next;
-  }, [currentColumnWidths, baseContainerWidth, totalWidth]);
+  }, [currentColumnWidths, baseContainerWidth, totalFixedWidth, hasAutoColumns]);
 
   const leftSpacing = 10;
   const chevronSpace = 24;
@@ -542,19 +557,22 @@ export function TreeTable<I extends TreeTableDataItem>({
   const indentPerLevel = 20;
   const finalDividerInset = 8;
 
-  const firstColumnBodyWidth = Math.max((displayColumnWidths[0] ?? 0) - totalLeftSpacing, 0);
+  const firstColWidth = displayColumnWidths[0];
+  const firstColumnBodyWidth =
+    firstColWidth === 'auto' ? 200 : Math.max((firstColWidth ?? 0) - totalLeftSpacing, 0);
   const renderItemTotalWidth = Math.max(effectiveWidth - totalLeftSpacing, 0);
 
   const columnLayoutWidths = useMemo(
-    () =>
-      displayColumnWidths.map((width, index) =>
-        index === 0 ? Math.max(width - totalLeftSpacing, 0) : width
-      ),
+    (): ColumnWidth[] =>
+      displayColumnWidths.map((width, index) => {
+        if (width === 'auto') return 'auto';
+        return index === 0 ? Math.max(width - totalLeftSpacing, 0) : width;
+      }),
     [displayColumnWidths, totalLeftSpacing]
   );
 
   const gridTemplateColumns = useMemo(
-    () => columnLayoutWidths.map(width => `${width}px`).join(' '),
+    () => columnLayoutWidths.map(width => (width === 'auto' ? '1fr' : `${width}px`)).join(' '),
     [columnLayoutWidths]
   );
 
@@ -599,7 +617,7 @@ export function TreeTable<I extends TreeTableDataItem>({
           return (
             <div
               key={column.key}
-              className="pl-3 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+              className="text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {column.render({ item: extended, level, isSelected })}
             </div>
@@ -613,6 +631,11 @@ export function TreeTable<I extends TreeTableDataItem>({
     e.preventDefault();
     e.stopPropagation();
 
+    // Don't allow resizing 'auto' columns
+    if (currentColumnWidths[index] === 'auto') {
+      return;
+    }
+
     const startX = e.clientX;
     const initialWidths = hasUserResized ? currentColumnWidths : displayColumnWidths;
     const startWidths = [...initialWidths];
@@ -623,7 +646,11 @@ export function TreeTable<I extends TreeTableDataItem>({
       const next = [...startWidths];
       const leftIndex = index;
 
-      let newLeft = startWidths[leftIndex]! + delta;
+      const currentWidth = startWidths[leftIndex];
+      // Skip 'auto' columns in resize calculations
+      if (currentWidth === 'auto') return;
+
+      let newLeft = currentWidth + delta;
       if (newLeft < minWidth) {
         newLeft = minWidth;
       }
@@ -643,8 +670,9 @@ export function TreeTable<I extends TreeTableDataItem>({
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   };
+
   return (
-    <div className="h-full">
+    <div className="h-full w-full">
       <div
         ref={containerRef}
         className={cn(
@@ -659,46 +687,75 @@ export function TreeTable<I extends TreeTableDataItem>({
           )}
         >
           <div style={{ minWidth: `${effectiveWidth}px` }}>
+            {/* Sticky header container */}
             <div
-              className="mb-1 bg-accent text-xs text-muted-foreground"
-              style={
-                {
-                  width: `${effectiveWidth}px`,
-                  minWidth: `${effectiveWidth}px`,
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                } as React.CSSProperties
-              }
+              style={{
+                width: `${effectiveWidth}px`,
+                minWidth: `${effectiveWidth}px`,
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+              }}
             >
-              <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />
-              <div className="shrink-0" style={{ width: `${chevronSpace}px` }} />
-              {columns.map((column, index) => {
-                const columnWidth = columnLayoutWidths[column.widthIndex] ?? 0;
+              {/* Header row */}
+              <div
+                className="bg-accent text-xs text-muted-foreground flex items-center border-b border-border"
+                style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}
+              >
+                <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />
+                <div className="shrink-0" style={{ width: `${chevronSpace}px` }} />
+                {columns.map((column, index) => {
+                  const columnWidth = columnLayoutWidths[column.widthIndex];
+                  const isAutoColumn = columnWidth === 'auto';
 
-                return (
-                  <div
-                    key={column.key}
-                    className="relative flex items-center px-3 py-2 text-sm font-semibold text-muted-foreground"
-                    style={{ width: columnWidth }}
-                  >
-                    <span className="font-semibold">{column.label}</span>
-                    {(index < columns.length - 1 || index === columns.length - 1) && (
+                  return (
+                    <div
+                      key={column.key}
+                      className={cn(
+                        'relative flex items-center px-3 py-1.5 text-xs font-semibold text-muted-foreground',
+                        !isAutoColumn && 'shrink-0'
+                      )}
+                      style={isAutoColumn ? { flex: 1, minWidth: 0 } : { width: columnWidth }}
+                    >
+                      <span>{column.label}</span>
+                      {index < columns.length - 1 && !isAutoColumn && (
+                        <div
+                          className="absolute top-1/2 flex h-4 w-4 -translate-y-1/2 cursor-col-resize items-center justify-center group/resize"
+                          style={{
+                            right: index === columns.length - 1 ? `${finalDividerInset}px` : '-2px',
+                          }}
+                          onMouseDown={e => handleColumnResizeStart(index, e)}
+                        >
+                          <div className="h-4 w-0.5 rounded-full bg-muted-foreground/40 transition-all group-hover/resize:h-5 group-hover/resize:bg-muted-foreground/80" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Sub-header row for controller/additional content */}
+              {columns.some(col => col.subHeaderContent) && (
+                <div
+                  className="flex bg-background"
+                  style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}
+                >
+                  <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />
+                  <div className="shrink-0" style={{ width: `${chevronSpace}px` }} />
+                  {columns.map(column => {
+                    const columnWidth = columnLayoutWidths[column.widthIndex];
+                    const isAutoColumn = columnWidth === 'auto';
+                    return (
                       <div
-                        className="absolute top-1/2 flex h-8 w-5 -translate-y-1/2 cursor-col-resize items-center justify-center"
-                        style={{
-                          right: index === columns.length - 1 ? `${finalDividerInset}px` : '-2px',
-                        }}
-                        onMouseDown={e => handleColumnResizeStart(index, e)}
+                        className={cn('overflow-hidden', !isAutoColumn && 'shrink-0')}
+                        key={`subheader-${column.key}`}
+                        style={isAutoColumn ? { flex: 1, minWidth: 0 } : { width: columnWidth }}
                       >
-                        <div className="h-4/5 w-px opacity-75 transition-opacity hover:opacity-100 bg-black" />
+                        {column.subHeaderContent}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
               <TreeView data={treeData} renderItem={renderItem} {...treeViewProps} />

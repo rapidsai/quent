@@ -1,49 +1,17 @@
 import { useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
-import type { EChartsInstance } from 'echarts-for-react';
-import { echarts, connect, getInstanceByDom } from '@/lib/echarts';
+import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import { TooltipContent } from './TimelineTooltip';
 import { getColorForKey, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
-import { TimelineSeries, DEFAULT_TIMELINE_HEIGHT } from './types';
+import { TimelineSeries, DEFAULT_TIMELINE_HEIGHT, TIMELINE_SPACING } from './types';
+import { connectChart } from '@/lib/timeline.utils';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const TIMELINE_MARKUP_COLOR = '#808080';
 const GRID_BORDER_COLOR = withOpacity(TIMELINE_MARKUP_COLOR, 0.2);
-
-function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
-  const chartElements = document.querySelectorAll('[_echarts_instance_]');
-  for (const el of chartElements) {
-    const instance = getInstanceByDom(el as HTMLElement);
-    if (instance && instance.group === chartGroup) {
-      return instance as unknown as EChartsInstance;
-    }
-  }
-  return null;
-}
-
-const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
-  // Sync zoom state from any existing chart in the group before connecting
-  const existingInstance = findExistingChartInGroup(chartGroup);
-  if (existingInstance) {
-    const existingOption = existingInstance.getOption();
-    const dataZoomOption = existingOption.dataZoom as Array<{ start?: number; end?: number }>;
-
-    if (dataZoomOption && dataZoomOption[0]) {
-      const { start, end } = dataZoomOption[0];
-      if (start !== undefined && end !== undefined) {
-        instance.setOption({
-          dataZoom: [{ start, end }],
-        });
-      }
-    }
-  }
-
-  instance.group = chartGroup;
-  connect(chartGroup);
-};
 
 export function Timeline({
   startTime,
@@ -51,12 +19,14 @@ export function Timeline({
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
   colorKey,
+  showTooltip = true,
 }: {
   startTime: bigint;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
   colorKey?: string;
+  showTooltip?: boolean;
 }) {
   const seriesOptions = useMemo(() => {
     return (
@@ -75,8 +45,8 @@ export function Timeline({
             symbol: 'circle',
             symbolSize: 4,
             // Shows on hover
-            showSymbol: false,
             hoverAnimation: false,
+            showSymbol: false,
             animation: false,
             cursor: 'default',
             data: seriesData.values,
@@ -121,6 +91,7 @@ export function Timeline({
       boundaryGap: false,
       type: 'category',
       animation: false,
+      interval: 0,
       show: true,
       axisLine: {
         show: true,
@@ -129,16 +100,22 @@ export function Timeline({
       },
       axisTick: { show: false },
       axisLabel: { show: false },
+      axisPointer: {
+        show: true, // Always show the axis pointer line (synced across charts)
+        type: 'line',
+        label: { show: false }, // Don't show the x-axis value label
+        lineStyle: {
+          type: 'dashed',
+          color: TIMELINE_MARKUP_COLOR,
+        },
+      },
     }),
     [timestamps]
   );
 
   const gridOptions = useMemo(
     () => ({
-      left: 35,
-      right: 2,
-      top: 10,
-      bottom: 10,
+      ...TIMELINE_SPACING,
       backgroundColor: withOpacity(TIMELINE_MARKUP_COLOR, 0.1),
       borderWidth: 1,
       borderColor: GRID_BORDER_COLOR,
@@ -150,15 +127,16 @@ export function Timeline({
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       tooltip: {
+        show: showTooltip,
         trigger: 'axis',
+        transitionDuration: 0, // Disable tooltip animation
         // We will style the tooltip in the component
         backgroundColor: 'transparent',
         borderWidth: 0,
         padding: 0,
         textStyle: {},
-        position: function (pt: number[]) {
-          return [pt[0] + 25, '10%'];
-        },
+        confine: true,
+        appendToBody: true,
         formatter: function (hoveredSeries: unknown) {
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
@@ -178,26 +156,22 @@ export function Timeline({
         left: 'center',
       },
       axisPointer: {
-        link: [
-          {
-            xAxisIndex: 'all',
-          },
-        ],
+        link: [{ xAxisIndex: 'all' }],
       },
       grid: gridOptions,
+      toolbox: {
+        show: false, // Hide the toolbox UI, but feature is activated via dispatchAction
+        feature: {
+          dataZoom: {
+            yAxisIndex: 'none', // Only zoom x-axis
+          },
+        },
+      },
       dataZoom: [
         {
+          type: 'slider',
           show: false,
           realtime: true,
-          start: 0,
-          end: 100,
-          xAxisIndex: 'all',
-        },
-        {
-          type: 'inside',
-          realtime: true,
-          start: 0,
-          end: 100,
           xAxisIndex: 'all',
         },
       ],
@@ -205,7 +179,7 @@ export function Timeline({
       yAxis: yAxisOptions,
       series: seriesOptions,
     } as EChartsOption;
-  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, startTime]);
+  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, startTime, showTooltip]);
 
   return (
     <ReactECharts
@@ -213,7 +187,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={connectChart}
-      notMerge
+      notMerge={false}
       lazyUpdate
     />
   );

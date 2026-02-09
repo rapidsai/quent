@@ -70,9 +70,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <div className="border-b border-border bg-card shadow-sm">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border">
           <Network className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Query Plan Explorer</h3>
+          <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
         </div>
         <div className="px-2 py-2 overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none] max-h-40">
           <TreeView<QueryPlanDataItem>

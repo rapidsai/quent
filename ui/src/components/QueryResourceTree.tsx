@@ -2,6 +2,7 @@ import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useMemo, useState } from 'react';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { ResourceTimeline } from './timeline/ResourceTimeline';
+import { TimelineController } from './timeline/TimelineController';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
 import { EntitiesUI } from '~quent/types/EntitiesUI';
@@ -11,6 +12,9 @@ import { QueryBundle } from '~quent/types/QueryBundle';
 import { ResourceGroup } from '~quent/types/ResourceGroup';
 import { Resource } from '~quent/types/Resource';
 
+// Number of bins used by all timelines - must match ResourceTimeline
+const NUM_TIMELINE_BINS = 100;
+
 interface QueryResourceTreeProps {
   engineId: string;
   queryBundle: QueryBundle;
@@ -19,6 +23,7 @@ interface QueryResourceTreeProps {
 export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+  const [hoveredTimelineId, setHoveredTimelineId] = useState<string | null>(null);
 
   const treeData = useMemo(() => {
     const transformResourceTree = (resourceTree: ResourceTree): TreeTableItem => {
@@ -97,6 +102,13 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
         key: 'usage',
         label: 'Usage',
         widthIndex: 1,
+        subHeaderContent: (
+          <TimelineController
+            startTime={queryBundle.start_time_unix_ns}
+            durationSeconds={queryBundle.duration_s}
+            numBins={NUM_TIMELINE_BINS}
+          />
+        ),
         render: ({ item }: { item: TreeTableItem }) => {
           const entity = item?.entity ?? {};
           const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
@@ -104,15 +116,23 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
             entityTypeName && queryBundle.entities.resources_types[entityTypeName]?.used_by_fsms[0];
           if (item.type === EntityTypeKey.Resource) {
             return (
-              <ResourceTimeline
-                engineId={engineId}
-                queryId={queryBundle.query_id}
-                resourceId={item.id}
-                resourceType={item.type}
-                startTime={queryBundle.start_time_unix_ns}
-                durationSeconds={queryBundle.duration_s}
-                fsmTypeName={fsmTypeName ?? undefined}
-              />
+              <div
+                onMouseEnter={() => setHoveredTimelineId(item.id)}
+                onMouseLeave={() => setHoveredTimelineId(null)}
+                onClick={e => e.stopPropagation()}
+                className="h-full w-full"
+              >
+                <ResourceTimeline
+                  engineId={engineId}
+                  queryId={queryBundle.query_id}
+                  resourceId={item.id}
+                  resourceType={item.type}
+                  startTime={queryBundle.start_time_unix_ns}
+                  durationSeconds={queryBundle.duration_s}
+                  fsmTypeName={fsmTypeName ?? undefined}
+                  showTooltip={hoveredTimelineId === item.id}
+                />
+              </div>
             );
           } else if (item.type === EntityTypeKey.ResourceGroup) {
             const instanceName =
@@ -125,17 +145,25 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
             }
 
             return (
-              <ResourceTimeline
-                engineId={engineId}
-                queryId={queryBundle.query_id}
-                resourceId={item.id}
-                resourceType={EntityTypeKey.ResourceGroup}
-                startTime={queryBundle.start_time_unix_ns}
-                durationSeconds={queryBundle.duration_s}
-                fsmTypeName={undefined}
-                resourceTypeName={selectedType}
-                instanceName={instanceName}
-              />
+              <div
+                onMouseEnter={() => setHoveredTimelineId(item.id)}
+                onMouseLeave={() => setHoveredTimelineId(null)}
+                onClick={e => e.stopPropagation()}
+                className="h-full w-full"
+              >
+                <ResourceTimeline
+                  engineId={engineId}
+                  queryId={queryBundle.query_id}
+                  resourceId={item.id}
+                  resourceType={EntityTypeKey.ResourceGroup}
+                  startTime={queryBundle.start_time_unix_ns}
+                  durationSeconds={queryBundle.duration_s}
+                  fsmTypeName={undefined}
+                  resourceTypeName={selectedType}
+                  instanceName={instanceName}
+                  showTooltip={hoveredTimelineId === item.id}
+                />
+              </div>
             );
           } else {
             return (
@@ -147,16 +175,14 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
         },
       },
     ] satisfies Column<TreeTableItem>[];
-  }, [engineId, queryBundle, selectedTypes]);
+  }, [engineId, queryBundle, selectedTypes, hoveredTimelineId]);
 
   return (
-    <div className="space-y-4 w-full h-full">
-      <TreeTable<TreeTableItem>
-        data={treeData}
-        columns={columns}
-        initialSelectedItemId={'root'}
-        columnWidths={[350, 500]}
-      />
-    </div>
+    <TreeTable<TreeTableItem>
+      data={treeData}
+      columns={columns}
+      initialSelectedItemId={'root'}
+      columnWidths={[350, 'auto']}
+    />
   );
 }

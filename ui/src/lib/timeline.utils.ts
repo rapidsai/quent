@@ -1,6 +1,9 @@
 import { TimelineSeries } from '@/components/timeline/types';
 import { formatBytes } from '@/services/formatters';
 import { TimelineResponse } from '~quent/types/TimelineResponse';
+import type { EChartsInstance } from 'echarts-for-react';
+import { connect, getInstanceByDom } from '@/lib/echarts';
+import { CHART_GROUP } from '@/components/timeline/Timeline';
 
 export function buildBinnedTimelineSeries(
   data: TimelineResponse,
@@ -62,3 +65,42 @@ function getFormatterForCapacityType(capacityType: string): (value: number) => s
       return (value: number) => String(value);
   }
 }
+
+function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
+  const chartElements = document.querySelectorAll('[_echarts_instance_]');
+  for (const el of chartElements) {
+    const instance = getInstanceByDom(el as HTMLElement);
+    if (instance && instance.group === chartGroup) {
+      return instance as unknown as EChartsInstance;
+    }
+  }
+  return null;
+}
+
+export const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+  // Sync zoom state from any existing chart in the group before connecting
+  const existingInstance = findExistingChartInGroup(chartGroup);
+  if (existingInstance) {
+    const existingOption = existingInstance.getOption();
+    const dataZoomOption = existingOption.dataZoom as Array<{ start?: number; end?: number }>;
+
+    if (dataZoomOption && dataZoomOption[0]) {
+      const { start, end } = dataZoomOption[0];
+      if (start !== undefined && end !== undefined) {
+        instance.setOption({
+          dataZoom: [{ start, end }],
+        });
+      }
+    }
+  }
+
+  // Activate the dataZoom brush tool by default
+  instance.dispatchAction({
+    type: 'takeGlobalCursor',
+    key: 'dataZoomSelect',
+    dataZoomSelectActive: true,
+  });
+
+  instance.group = chartGroup;
+  connect(chartGroup);
+};

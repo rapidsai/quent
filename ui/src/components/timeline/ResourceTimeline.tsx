@@ -23,6 +23,7 @@ type ResourceTimelineProps = {
   fsmTypeName: string | undefined;
   resourceTypeName?: string;
   instanceName?: string;
+  showTooltip?: boolean;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -43,6 +44,7 @@ export function ResourceTimeline({
   fsmTypeName,
   resourceTypeName,
   instanceName,
+  showTooltip = true,
 }: ResourceTimelineProps) {
   const queryFunction =
     resourceType === EntityTypeKey.ResourceGroup
@@ -53,7 +55,7 @@ export function ResourceTimeline({
     // TODO (joe): Dynamic number of bins
     queryFn: () =>
       queryFunction(engineId, queryId, resourceId, {
-        num_bins: 100,
+        num_bins: 200,
         start: 0,
         end: durationSeconds,
         ...(fsmTypeName && { fsm_type_name: fsmTypeName }),
@@ -88,6 +90,7 @@ export function ResourceTimeline({
         timestamps={timestamps ?? []}
         startTime={startTime}
         colorKey={resourceType === EntityTypeKey.ResourceGroup ? instanceName : undefined}
+        showTooltip={showTooltip}
       />
     </Suspense>
   );

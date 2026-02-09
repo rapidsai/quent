@@ -21,12 +21,14 @@ import {
   DataZoomComponent,
   DataZoomInsideComponent,
   DataZoomSliderComponent,
+  ToolboxComponent,
 } from 'echarts/components';
 import type {
   TitleComponentOption,
   TooltipComponentOption,
   GridComponentOption,
   DataZoomComponentOption,
+  ToolboxComponentOption,
 } from 'echarts/components';
 
 // Renderer - use Canvas for better performance (SVG available if needed)
@@ -43,6 +45,7 @@ echarts.use([
   DataZoomComponent,
   DataZoomInsideComponent,
   DataZoomSliderComponent,
+  ToolboxComponent,
   // Renderer
   CanvasRenderer,
 ]);
@@ -54,6 +57,7 @@ export type EChartsOption = ComposeOption<
   | TooltipComponentOption
   | GridComponentOption
   | DataZoomComponentOption
+  | ToolboxComponentOption
 >;
 
 // Re-export echarts instance and types
