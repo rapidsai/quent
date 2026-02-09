@@ -8,9 +8,7 @@ const treeVariants = cva('group px-2 rounded-sm transition-all duration-150 hove
 
 const treeNodeVariants = cva('group px-2 rounded-sm transition-all duration-150');
 
-const selectedTreeVariants = cva(
-  'bg-accent/70 border-l-2 border-primary text-foreground font-medium'
-);
+const selectedTreeVariants = cva('bg-accent/70 text-foreground font-medium');
 
 const dragOverVariants = cva('before:opacity-100 before:bg-primary/20 text-primary-foreground');
 
@@ -318,7 +316,7 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
             )}
           </div>
         </AccordionTrigger>
-        <AccordionContent className="ml-4 pl-1 border-l border-border/50">
+        <AccordionContent className="ml-4 pl-1">
           <TreeItem
             data={item.children ? (item.children as T[]) : item}
             selectedItemId={selectedItemId}
