@@ -65,7 +65,28 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     return null;
   }
 
-  const singleQuery = treeData.length === 1 && !treeData[0]?.children;
+  const singleQueryPlan = treeData.length === 1 && !treeData[0]?.children;
+
+  const renderItem = ({ item, hasChildren }: { item: QueryPlanDataItem; hasChildren: boolean }) => {
+    return (
+      <div className="flex flex-col items-start py-0.5 pl-1">
+        {singleQueryPlan ? (
+          <span className="text-xs">Query: {item.queryId}</span>
+        ) : (
+          <span className="text-xs">
+            <span className="capitalize">{item.planType}</span>
+            {!hasChildren && <span>: {item.id}</span>}
+          </span>
+        )}
+        {item.workerId && (
+          <span className="text-xs text-muted-foreground">Worker: {item.workerId}</span>
+        )}
+        {hasChildren && (
+          <span className="text-xs text-muted-foreground capitalize text-left">ID: {item.id}</span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
@@ -73,31 +94,17 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border">
           <Network className="h-4 w-4 text-primary" />
           <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
+          <div className="text-xs text-muted-foreground">
+            {queryBundle.entities.query_group.instance_name} -{' '}
+            {queryBundle.entities.query.instance_name}
+          </div>
         </div>
-        <div className="px-2 py-2 overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none] max-h-40">
+        <div className="overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none] max-h-40">
           <TreeView<QueryPlanDataItem>
             data={treeData}
             initialSelectedItemId={planId}
             onSelectChange={handlePlanSelect}
-            renderItem={({ item, hasChildren }) => (
-              <div className="flex flex-col py-0.5">
-                {hasChildren || singleQuery ? (
-                  <span className="text-sm">Query: {item.queryId}</span>
-                ) : item.planType ? (
-                  <span className="text-sm">
-                    Query Plan ({item.planType}): {item.id}
-                  </span>
-                ) : null}
-                {item.workerId && (
-                  <span className="text-xs text-muted-foreground">Worker: {item.workerId}</span>
-                )}
-                {(singleQuery || hasChildren) && item.planType && (
-                  <span className="text-xs text-muted-foreground capitalize text-left">
-                    Plan Type: {item.planType}
-                  </span>
-                )}
-              </div>
-            )}
+            renderItem={renderItem}
           />
         </div>
       </div>

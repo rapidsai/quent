@@ -1,21 +1,26 @@
+use thiserror::Error;
 use uuid::Uuid;
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, Error)]
 pub enum AnalyzerError {
     #[error("validation error: {0}")]
     Validation(String),
     #[error("invalid id: {0}")]
     InvalidId(Uuid),
-    #[error("invalid id: {0}")]
-    InvalidTypeName(String),
     #[error("invalid type name: {0}")]
-    Logic(String),
+    InvalidTypeName(String),
     #[error("time error: {0}")]
     Time(#[from] quent_time::TimeError),
-    #[error("entity error: {0}")]
-    Entity(#[from] quent_entities::error::EntityError),
     #[error("value type error: {0}")]
     ValueType(String),
     #[error("broken implementation error: {0}")]
-    BrokenImpl(String),
+    BrokenImpl(&'static str),
+    #[error("incomplete entity: {0}")]
+    IncompleteEntity(String),
+    #[error("incomplete fsm: {0}")]
+    IncompleteFsm(String),
+    #[error("attempted to convert exit transition into state")]
+    FsmExitTransitionConversion,
+    #[error("invalid argument: {0}")]
+    InvalidArgument(String),
 }

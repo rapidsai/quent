@@ -20,7 +20,7 @@ type ResourceTimelineProps = {
   resourceType: string;
   startTime: bigint;
   durationSeconds: number;
-  fsmTypeName: string | undefined;
+  fsmTypeName?: string | undefined;
   resourceTypeName?: string;
   instanceName?: string;
   showTooltip?: boolean;

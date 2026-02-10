@@ -3,18 +3,10 @@ name = "quent-analyzer"
 version.workspace = true
 edition.workspace =  true
 
-[features]
-default = []
-q = ["quent-events/q"]
-
 [dependencies]
 quent-attributes = { path = "../attributes" }
-quent-entities = { path = "../entities" }
 quent-events = { path = "../events" }
-quent-exporter-ndjson = { path = "../exporter/ndjson" }
 quent-time = { path = "../time" }
-serde.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
-ts-rs.workspace = true
 uuid.workspace = true
+smallvec = {workspace = true, features = ["serde"] }

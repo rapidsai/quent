@@ -1,8 +1,12 @@
+//! Functionality to analyze telemetry to construct timelines with time bins.
+
 use std::collections::HashMap;
 
 use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
 use crate::AnalyzerResult;
+
+pub mod resource;
 
 /// A trait for types that can aggregate items into a sequence of time bins.
 pub(crate) trait BinnedTimelineAggregator {

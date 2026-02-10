@@ -2,9 +2,6 @@
 
 use std::num::NonZero;
 
-use serde::Serialize;
-use ts_rs::TS;
-
 use crate::{
     Result, SpanNanoSec, SpanSec, TimeError, TimeNanoSec, TimeSec, TimeUnixNanoSec, to_secs,
 };
@@ -149,7 +146,8 @@ impl BinnedSpan {
 }
 
 /// A UI-friendly representation of [`BinnedSpan`].
-#[derive(TS, Serialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS, serde::Serialize))]
 pub struct BinnedSpanSec {
     /// The entire span of time this binned span represents.
     pub span: SpanSec,

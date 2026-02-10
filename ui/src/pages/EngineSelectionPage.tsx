@@ -108,8 +108,8 @@ export function EngineSelectionPage() {
                 </SelectItem>
               ) : (
                 coordinatorsList.data?.map(coordinator => (
-                  <SelectItem key={coordinator} value={coordinator}>
-                    {coordinator}
+                  <SelectItem key={coordinator.id} value={coordinator.id}>
+                    {coordinator.instance_name ?? coordinator.id}
                   </SelectItem>
                 ))
               )}
@@ -137,8 +137,8 @@ export function EngineSelectionPage() {
                 </SelectItem>
               ) : (
                 queryList.data?.map(query => (
-                  <SelectItem key={query} value={query}>
-                    {query}
+                  <SelectItem key={query.id} value={query.id}>
+                    {query.instance_name ?? query.id}
                   </SelectItem>
                 ))
               )}

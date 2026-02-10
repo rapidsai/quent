@@ -5,6 +5,8 @@
 
 import { QueryBundle } from '~quent/types/QueryBundle';
 import { TimelineResponse } from '~quent/types/TimelineResponse';
+import { QueryGroup } from '~quent/types/QueryGroup';
+import { Query } from '~quent/types/Query';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
@@ -150,12 +152,12 @@ export async function fetchListEngines(): Promise<string[]> {
   return apiFetch<string[]>('/engines');
 }
 
-export async function fetchListCoordinators(engineId: string): Promise<string[]> {
-  return apiFetch<string[]>(`/engines/${engineId}/query-groups`);
+export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
+  return apiFetch<QueryGroup[]>(`/engines/${engineId}/query-groups`);
 }
 
-export async function fetchListQueries(engineId: string, coordinatorId: string): Promise<string[]> {
-  return apiFetch<string[]>(`/engines/${engineId}/query-groups/${coordinatorId}/queries`);
+export async function fetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]> {
+  return apiFetch<Query[]>(`/engines/${engineId}/query_group/${coordinatorId}/queries`);
 }
 
 export async function fetchResourceTimeline(

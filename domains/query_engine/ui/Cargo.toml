@@ -1,0 +1,14 @@
+[package]
+name = "quent-query-engine-ui"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+quent-attributes = { path = "../../../crates/attributes" }
+quent-analyzer = { path = "../../../crates/analyzer" }
+quent-query-engine-analyzer = { path = "../analyzer" }
+quent-query-engine-events = { path = "../events" }
+quent-time = { path = "../../../crates/time", features = ["ts"] }
+serde.workspace = true
+ts-rs.workspace = true
+uuid.workspace = true

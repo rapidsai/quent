@@ -7,7 +7,6 @@ version.workspace = true
 default = []
 client = []
 server = []
-q = ["quent-events/q"]
 
 [dependencies]
 ciborium = "0.2.2"

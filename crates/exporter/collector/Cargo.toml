@@ -3,12 +3,9 @@ name = "quent-exporter-collector"
 version.workspace = true
 edition.workspace =  true
 
-[features]
-default = []
-q = ["quent-events/q"]
-
 [dependencies]
 async-trait.workspace = true
+serde.workspace = true
 quent-collector = { path = "../../collector", features = ["client"] }
 quent-events = { path = "../../events" }
 quent-exporter = { path = "../" }

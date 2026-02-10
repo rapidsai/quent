@@ -25,9 +25,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "~quent/types/*": ["../crates/server/ts-bindings/*"]
-    }
+      "~quent/types/*": ["../examples/simulator/server/ts-bindings/*"],
+    },
   },
-  "include": ["src", "../crates/server/ts-bindings"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "../examples/simulator/server/ts-bindings"],
+  "references": [{ "path": "./tsconfig.node.json" }],
 }

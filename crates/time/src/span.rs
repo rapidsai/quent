@@ -1,6 +1,3 @@
-use serde::Serialize;
-use ts_rs::TS;
-
 use crate::{Result, TimeError, TimeNanoSec, TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 
 /// A span of time represented as a half-open interval [start, end) over
@@ -126,7 +123,8 @@ impl SpanNanoSec {
 }
 
 /// A span of time in seconds.
-#[derive(TS, Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS, serde::Serialize))]
 pub struct SpanSec {
     /// The start time, inclusive.
     start: TimeSec,

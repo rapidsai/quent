@@ -1,0 +1,32 @@
+[package]
+name = "quent-simulator-server"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+axum = { version = "0.8.7" }
+moka = { version = "0.12.13", features = ["future"] }
+quent-analyzer = { path = "../../../crates/analyzer" }
+quent-collector = { path = "../../../crates/collector", features = ["server"] }
+quent-exporter = { path = "../../../crates/exporter" }
+quent-exporter-ndjson = { path = "../../../crates/exporter/ndjson" }
+quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
+quent-simulator-analyzer = { path = "../analyzer" }
+quent-simulator-events = { path = "../events" }
+quent-simulator-ui = { path = "../ui" }
+quent-time = { path = "../../../crates/time" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
+tokio-stream.workspace = true
+tonic.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[build-dependencies]
+ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+quent-simulator-ui = { path = "../ui" }

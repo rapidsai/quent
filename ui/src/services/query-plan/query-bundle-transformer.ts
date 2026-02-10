@@ -3,12 +3,10 @@ import type { QueryBundle } from '~quent/types/QueryBundle';
 import { Operator } from '~quent/types/Operator';
 import { Port } from '~quent/types/Port';
 import { Plan } from '~quent/types/Plan';
+import { PlanTree } from '~quent/types/PlanTree';
 
-interface PlanTreeNode {
-  id: string;
-  query: string | null;
-  worker: string | null;
-  children: PlanTreeNode[];
+interface PlanTreeNode extends PlanTree {
+  query?: string | null;
 }
 
 /**
@@ -24,12 +22,14 @@ const getNodeEntity = (bundle: QueryBundle, id: string): DAGNode | undefined => 
   // Find associated port
   if (bundle?.entities?.ports?.[id]) {
     const port: Port = bundle?.entities?.ports?.[id];
-    const operator: Operator | undefined = bundle?.entities?.operators?.[port.parent_operator_id];
+    const operator: Operator | undefined = port.operator_id
+      ? bundle?.entities?.operators?.[port.operator_id]
+      : undefined;
     if (operator) {
       return {
         id: operator.id,
-        label: operator.name ?? 'Node',
-        type: operator.name?.toLowerCase() ?? 'operator',
+        label: operator.instance_name ?? operator.operator_type_name ?? 'Node',
+        type: operator.operator_type_name?.toLowerCase() ?? 'operator',
         metadata: {
           rawNode: operator,
         },
@@ -44,16 +44,17 @@ const getNodeEntity = (bundle: QueryBundle, id: string): DAGNode | undefined => 
  * Recursively transform a plan node into TreeView format and provide display data
  */
 const transformNodeForTreeView = (node: PlanTreeNode, plans: Plan[]): QueryPlanDataItem => {
-  const planType = plans.find(plan => plan.id === node.id)?.name || undefined;
+  const plan = plans.find(plan => plan.id === node.id);
 
   return {
     id: node.id,
-    name: `Query: ${node.query}`,
-    queryId: node.query ?? undefined,
+    name: `Query Plan: ${node.id}`,
+    queryId: node.id ?? undefined,
     workerId: node.worker ?? undefined,
-    planType,
+    planType: plan?.instance_name ?? undefined,
+    className: 'rounded-none',
     children: node.children?.length
-      ? node.children.map(child => transformNodeForTreeView(child, plans))
+      ? node.children?.map(child => transformNodeForTreeView(child, plans))
       : undefined,
   };
 };

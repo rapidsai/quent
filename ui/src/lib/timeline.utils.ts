@@ -12,7 +12,7 @@ export function buildBinnedTimelineSeries(
   timestamps: number[];
   series: TimelineSeries;
 } {
-  const { config } = data;
+  const config = 'Binned' in data ? data.Binned.config : data.BinnedByState.config;
   const { bin_duration, num_bins } = config;
 
   // Generate timestamps from span.start, incrementing by bin_duration
@@ -28,17 +28,17 @@ export function buildBinnedTimelineSeries(
   // Build series based on data type
   const series: TimelineSeries = {};
 
-  if (data.type === 'Binned') {
+  if ('Binned' in data) {
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
-    const { capacities_values } = data;
+    const { capacities_values } = data.Binned;
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatterForCapacityType(capacity);
       if (values) {
         series[capacity] = { formatter, values, binDuration: bin_duration };
       }
     }
-  } else if (data.type === 'BinnedByState') {
-    const { capacities_states_values } = data;
+  } else if ('BinnedByState' in data) {
+    const { capacities_states_values } = data.BinnedByState;
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {

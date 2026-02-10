@@ -3,8 +3,9 @@
 use quent_collector::{
     client::Client, default::QUENT_COLLECTOR_PORT, env::QUENT_COLLECTOR_ADDRESS,
 };
-use quent_events::{Event, EventData};
+use quent_events::Event;
 use quent_exporter::{Exporter, ExporterError, ExporterResult};
+use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Default)]
@@ -13,11 +14,14 @@ pub struct CollectorExporterOptions {
 }
 
 #[derive(Debug)]
-pub struct CollectorExporter {
-    client: Client,
+pub struct CollectorExporter<T> {
+    client: Client<T>,
 }
 
-impl CollectorExporter {
+impl<T> CollectorExporter<T>
+where
+    T: Serialize + Send + std::fmt::Debug + 'static,
+{
     pub async fn new(
         engine_id: Uuid,
         options: CollectorExporterOptions,
@@ -32,8 +36,11 @@ impl CollectorExporter {
 }
 
 #[async_trait::async_trait]
-impl Exporter for CollectorExporter {
-    async fn push(&self, event: Event<EventData>) -> ExporterResult<()> {
+impl<T> Exporter<T> for CollectorExporter<T>
+where
+    T: Serialize + Send + std::fmt::Debug + 'static,
+{
+    async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         self.client
             .send(event)
             .await

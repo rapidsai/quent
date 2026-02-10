@@ -5,7 +5,7 @@ edition.workspace =  true
 
 [dependencies]
 quent-events = {path = "../events" }
-tokio = { workspace = true, features = ["sync"] }
+serde.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 thiserror.workspace = true

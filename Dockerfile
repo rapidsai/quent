@@ -12,17 +12,17 @@ RUN apt-get update && \
 # Copy source
 COPY . .
 
-# Build server executables
-RUN cargo build --release -p quent-server --features=q
-RUN cargo build --release --example simulator --features=q
+# Build simulator executables
+RUN cargo build --release -p quent-simulator-server
+RUN cargo build --release -p quent-simulator
 
 # Support running both server and simulator executables.
 FROM debian:trixie AS runtime
 
 WORKDIR /quent
 
-COPY --from=builder /quent/target/release/quent-server /quent/quent-server
-COPY --from=builder /quent/target/release/examples/simulator /quent/simulator
+COPY --from=builder /quent/target/release/quent-simulator-server /quent/quent-simulator-server
+COPY --from=builder /quent/target/release/quent-simulator /quent/quent-simulator
 
 # Expose default analyzer (HTTP) and collector (gRPC) ports
 EXPOSE 8080

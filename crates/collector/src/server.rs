@@ -5,6 +5,7 @@ use std::{str::FromStr, sync::Arc};
 use dashmap::DashMap;
 use quent_exporter::Exporter;
 use quent_exporter_ndjson::NdjsonExporter;
+use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
@@ -16,13 +17,24 @@ use crate::proto;
 //
 // TODO(johanpel): clean up exporter after timeout or engine end.
 // TODO(johanpel): exporter config
-#[derive(Default, Debug)]
-pub struct CollectorService {
-    exporters: Arc<DashMap<Uuid, Arc<dyn Exporter>>>,
+#[derive(Debug)]
+pub struct CollectorService<T> {
+    exporters: Arc<DashMap<Uuid, Arc<dyn Exporter<T>>>>,
+}
+
+impl<T> Default for CollectorService<T> {
+    fn default() -> Self {
+        Self {
+            exporters: Default::default(),
+        }
+    }
 }
 
 #[tonic::async_trait]
-impl proto::collector_server::Collector for CollectorService {
+impl<T> proto::collector_server::Collector for CollectorService<T>
+where
+    for<'de> T: Serialize + Deserialize<'de> + Send + std::fmt::Debug + 'static,
+{
     #[tracing::instrument]
     async fn collect_events(
         &self,
@@ -65,22 +77,36 @@ impl proto::collector_server::Collector for CollectorService {
                                     break;
                                 }
                             };
-                            let exporter: Arc<dyn Exporter> = Arc::new(exporter);
+                            let exporter: Arc<dyn Exporter<T>> = Arc::new(exporter);
                             exporters.insert(engine_id, Arc::clone(&exporter));
                             exporter
                         };
 
-                        match ciborium::from_reader(std::io::Cursor::new(request.payload)) {
-                            Ok(event) => match exporter.push(event).await {
-                                Ok(_) => (), // successfully exported
-                                Err(e) => {
-                                    warn!("collector: unable to export: {e}")
+                        let mut events = Vec::with_capacity(request.event.len());
+                        tracing::trace_span!("deserializing", num_events = request.event.len())
+                            .in_scope(|| {
+                                for serialized_event in request.event {
+                                    match ciborium::from_reader(&serialized_event[..]) {
+                                        Ok(event) => events.push(event),
+                                        Err(e) => {
+                                            warn!("collector: deserialization error: {e}")
+                                        }
+                                    }
                                 }
-                            },
-                            Err(e) => {
-                                warn!("collector: deserialization error: {e}")
-                            }
-                        }
+                            });
+
+                        tracing::trace_span!("exporting")
+                            .in_scope(async || {
+                                for event in events {
+                                    match exporter.push(event).await {
+                                        Ok(_) => (), // successfully exported
+                                        Err(e) => {
+                                            warn!("collector: unable to export: {e}")
+                                        }
+                                    }
+                                }
+                            })
+                            .await;
                     }
                     Err(err) => {
                         warn!("collector: stream error: {err:?}");

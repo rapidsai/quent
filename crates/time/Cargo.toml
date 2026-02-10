@@ -3,7 +3,11 @@ name = "quent-time"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+default = []
+ts = ["ts-rs", "serde"]
+
 [dependencies]
-serde.workspace = true
 thiserror.workspace = true
-ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+serde = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }

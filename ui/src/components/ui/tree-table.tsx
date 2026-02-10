@@ -321,7 +321,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
         <ul>
           {data.map(item => (
             <li key={item.id}>
-              {item.children ? (
+              {item.children?.length ? (
                 <TreeNode
                   item={item}
                   level={level ?? 0}
@@ -689,6 +689,7 @@ export function TreeTable<I extends TreeTableDataItem>({
           <div style={{ minWidth: `${effectiveWidth}px` }}>
             {/* Sticky header container */}
             <div
+              className="bg-background"
               style={{
                 width: `${effectiveWidth}px`,
                 minWidth: `${effectiveWidth}px`,
@@ -699,7 +700,7 @@ export function TreeTable<I extends TreeTableDataItem>({
             >
               {/* Header row */}
               <div
-                className="bg-accent text-xs text-muted-foreground flex items-center border-b border-border"
+                className="bg-accent/70 text-xs text-muted-foreground flex items-center border-b border-border"
                 style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}
               >
                 <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />
