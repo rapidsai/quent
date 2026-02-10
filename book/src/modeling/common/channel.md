@@ -19,7 +19,7 @@ Must have:
 
 ## Transfer
 
-A Transfer is a [Use][use] of a Channel.
+A Transfer is a [Usage][usage] of a Channel.
 
 Must have:
 
@@ -27,4 +27,4 @@ Must have:
 
 [entity]: ../entity.md
 [resource]: ../resource.md
-[use]: ../resource.md#use
+[usage]: ../resource.md#use

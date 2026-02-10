@@ -1,18 +1,29 @@
 [workspace]
 resolver = "3"
 members = [
+    # Application-agnostic crates
     "crates/analyzer",
     "crates/attributes",
     "crates/collector",
-    "crates/entities",
     "crates/events",
     "crates/exporter",
     "crates/exporter/collector",
     "crates/exporter/ndjson",
-    "crates/server",
+    "crates/instrumentation",
     "crates/time",
-    "instrumentation/cpp",
-    "instrumentation/rust",
+    "crates/ui",
+    # Domain-specific crates
+    "domains/query_engine/analyzer",
+    "domains/query_engine/events",
+    "domains/query_engine/ui",
+    # Simulator crates
+    "examples/simulator/analyzer",
+    "examples/simulator/application",
+    "examples/simulator/instrumentation",
+    "examples/simulator/server",
+    "examples/simulator/ui",
+    # Application-specific PoC crates
+    # ...
 ]
 
 [workspace.package]
@@ -25,6 +36,7 @@ log = {version = "0.4.28", features = ["kv"]}
 prost = "0.14.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+smallvec = {version = "1.15.1", features = ["serde"] }
 thiserror = "2.0.17"
 tokio = "1.48.0"
 tokio-stream = "0.1.17"
@@ -32,6 +44,6 @@ tokio-util = "0.7.18"
 tonic = "0.14.2"
 tonic-prost = "0.14.2"
 tracing = "0.1.43"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tracing-subscriber = "0.3"
 ts-rs = "11.1.0"
 uuid = {version = "1.18.1", features = ["v7"]}

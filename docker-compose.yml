@@ -6,14 +6,14 @@ services:
       context: .
       dockerfile: Dockerfile
     image: quent
-    container_name: quent-server
+    container_name: quent-simulator-server
     ports:
       - "8080:8080"
       - "7836:7836"
     restart: unless-stopped
     volumes:
       - ./data:/quent/data
-    command: /quent/quent-server
+    command: /quent/quent-simulator-server
 
   simulator:
     image: quent
@@ -23,7 +23,7 @@ services:
     restart: "no"
     environment:
       QUENT_COLLECTOR_ADDRESS: "http://server:7836"
-    command: "/quent/simulator --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 4 --num-tasks 32"
+    command: "/quent/quent-simulator --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 2 --num-tasks 128"
 
   webserver:
     build:

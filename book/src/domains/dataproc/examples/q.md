@@ -116,7 +116,7 @@ Note the above is not some FSM definition, but merely describes how construct
 are related through their [Attributes][attributes].
 
 A consistent model also ensures all defined [Resources][resource] have a
-[Use][use] somewhere, which in the case of the model of Q:
+[Usage][usage] somewhere, which in the case of the model of Q:
 
 ```text
 Task (computing, allocating memory/storage, loading, sending) -> Computation -> Task Thread -> Thread Pool -> Worker -> Engine
@@ -178,5 +178,5 @@ thing, there can be a much smaller set of performance analysis tools.
 [resource]: ../../../modeling/resource.md
 [resource-group]: ../../../modeling/resource_group.md
 [transfer]: ../../../modeling/common/channel.md#transfer
-[use]: ../../../modeling/resource.md#use
+[usage]: ../../../modeling/resource.md#use
 [worker]: ../README.md#worker

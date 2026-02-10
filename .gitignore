@@ -3,3 +3,4 @@ target/
 .rumdl_cache
 .idea
 .zed
+.claude

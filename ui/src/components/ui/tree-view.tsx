@@ -117,7 +117,7 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
   }, [data, expandAll, initialSelectedItemId]);
 
   return (
-    <div className={cn('overflow-hidden relative px-1 py-2', className)}>
+    <div className={cn('overflow-hidden relative', className)}>
       <TreeItem
         data={data}
         selectedItemId={selectedItemId}
@@ -316,7 +316,7 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
             )}
           </div>
         </AccordionTrigger>
-        <AccordionContent className="ml-4 pl-1">
+        <AccordionContent className="ml-4 pl-1 border-l border-border/70">
           <TreeItem
             data={item.children ? (item.children as T[]) : item}
             selectedItemId={selectedItemId}
@@ -414,7 +414,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
     >
       {renderItem ? (
         <>
-          <div className="h-4 w-4 shrink-0 mr-1" />
+          {item.children?.length && <div className="h-4 w-4 shrink-0 mr-1" />}
           {renderItem({
             item,
             level,

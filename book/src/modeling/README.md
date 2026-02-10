@@ -27,7 +27,7 @@ The basic concepts are:
 - [Timestamp, Span, and Duration][time]
 - [Entity][entity]
 - [FSM][fsm], [State][state] and [Transition][transition]
-- [Resource][resource] and [Use][use]
+- [Resource][resource] and [Usage][usage]
 - [Resource Group][resource-group]
 
 These modeling primitives are used to construct some common [Entity][entity]
@@ -57,4 +57,4 @@ capitalized, e.g. [Entity][entity], [Timestamp][timestamp],
 [time]: ./time.md
 [timestamp]: ./time.md#timestamp
 [transition]: ./fsm.md#transition
-[use]: ./resource.md#use
+[usage]: ./resource.md#use

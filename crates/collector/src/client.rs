@@ -2,7 +2,8 @@
 
 use std::time::Duration;
 
-use quent_events::EventData;
+use quent_events::Event;
+use serde::Serialize;
 use tokio::{
     runtime::Handle,
     select,
@@ -33,21 +34,22 @@ pub enum CollectorError {
 
 pub type CollectorResult<T> = std::result::Result<T, CollectorError>;
 
-type Event = quent_events::Event<EventData>;
-
 // Trivial implementation of a gRPC client that sends events to a centralized collector
 #[derive(Debug)]
-pub struct Client {
+pub struct Client<T> {
     _grpc_client: CollectorClient<Channel>,
-    event_sender: Sender<Event>,
+    event_sender: Sender<Event<T>>,
     cancellation_token: CancellationToken,
     events_sender_handle: Option<JoinHandle<()>>,
     events_collector_handle: Option<JoinHandle<()>>,
     runtime_handle: Handle,
 }
 
-impl Client {
-    pub async fn new(engine_id: Uuid, address: String) -> CollectorResult<Client> {
+impl<T> Client<T>
+where
+    T: Serialize + Send + 'static,
+{
+    pub async fn new(engine_id: Uuid, address: String) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -71,7 +73,7 @@ impl Client {
 
         debug!("connected, preparing channels and spawning control thread ...");
         // TODO(johanpel): consider unbounded
-        let (event_sender, mut event_receiver): (Sender<Event>, Receiver<Event>) =
+        let (event_sender, mut event_receiver): (Sender<Event<T>>, Receiver<Event<T>>) =
             mpsc::channel(1024);
         let (grpc_sender, grpc_receiver): (
             Sender<CollectEventRequest>,
@@ -83,49 +85,79 @@ impl Client {
 
         // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
         let events_sender_handle = tokio::spawn(async move {
+            // Batch of serialized events.
+            let mut buffer = Vec::new();
+            // Number of bytes currently in the buffer.
+            let mut num_buffer_bytes = 0usize;
+            // Interval by which to export even if the buffer isn't full.
+            let mut ticker = tokio::time::interval(Duration::from_millis(128));
+            // Max bytes in the buffer.
+            // gRPC max default is 4 MiB, reserve 256 KiB for overhead.
+            const MAX_BUFFER_BYTES: usize = (4 * 1024 * 1024) - (256 * 1024);
+            // Reusable serialization buffer so we can re-use the allocation.
+            let mut serialized_event = Vec::with_capacity(4096);
+
+            /// function to flush the buffer
+            async fn flush_buffer(
+                buffer: &mut Vec<Vec<u8>>,
+                num_buffer_bytes: &mut usize,
+                grpc_sender: &Sender<CollectEventRequest>,
+            ) -> Result<(), ()> {
+                if buffer.is_empty() {
+                    return Ok(());
+                }
+                let request = CollectEventRequest {
+                    event: std::mem::take(buffer),
+                };
+                *num_buffer_bytes = 0;
+                grpc_sender.send(request).await.map_err(|_| ())
+            }
+
             loop {
                 select! {
-                    // TODO: probably want to use recv_many + batch if gRPC doesnt do this already
                     Some(event) = event_receiver.recv() => {
-                        let mut payload: Vec<u8> = Vec::with_capacity(4096);
-                        if let Err(e) = ciborium::into_writer(&event, &mut payload) {
+                        serialized_event.clear();
+                        if let Err(e) = ciborium::into_writer(&event, &mut serialized_event) {
                             error!("unable to serialize event: {e}");
                             continue;
                         }
+                        num_buffer_bytes += serialized_event.len();
+                        buffer.push(serialized_event.clone());
 
-                        let event = CollectEventRequest { payload };
-                        match grpc_sender.send(event).await {
-                            Ok(()) => {
-                                // succesfully sent event
-                            }
-                            Err(_item) => {
+                        if num_buffer_bytes >= MAX_BUFFER_BYTES {
+                            if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
                                 error!("server disconnected");
                                 break;
                             }
+                            ticker.reset();
+                        }
+                    },
+                    _ = ticker.tick() => {
+                        if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
+                            error!("server disconnected");
+                            break;
                         }
                     },
                     () = cloned_token.cancelled() => {
                         event_receiver.close();
                         // drain events that are buffered
                         while let Some(event) = event_receiver.recv().await {
-                            let mut payload: Vec<u8> = Vec::with_capacity(4096);
-                            if let Err(e) = ciborium::into_writer(&event, &mut payload) {
+                            serialized_event.clear();
+                            if let Err(e) = ciborium::into_writer(&event, &mut serialized_event) {
                                 error!("unable to serialize event: {e}");
                                 continue;
                             }
-
-                            let event = CollectEventRequest { payload };
-                            match grpc_sender.send(event).await {
-                                Ok(_) => {
-                                    // succesfully sent event
-                                }
-                                Err(_item) => {
-                                    error!("server disconnected");
-                                    break;
-                                }
-                            }
+                            buffer.push(serialized_event.clone());
                         }
-                        info!("client shutting down");
+
+                        if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
+                            error!("server disconnected during shutdown");
+                        }
+                        info!(
+                            "client shutting down: {} events pending, {} gRPC messages pending",
+                            event_receiver.len(),
+                            grpc_sender.max_capacity() - grpc_sender.capacity()
+                        );
                         break
                     },
                     else => {
@@ -163,7 +195,7 @@ impl Client {
     }
 
     /// Send an event to the collector.
-    pub async fn send(&self, event: Event) -> CollectorResult<()> {
+    pub async fn send(&self, event: Event<T>) -> CollectorResult<()> {
         // Convert the event into a gRPC message and stream it to the collector.
         self.event_sender
             .send(event)
@@ -172,7 +204,7 @@ impl Client {
     }
 }
 
-impl Drop for Client {
+impl<T> Drop for Client<T> {
     fn drop(&mut self) {
         self.cancellation_token.cancel();
 

@@ -23,7 +23,7 @@ pub type TimeNanoSec = u64;
 pub type TimeSec = f64;
 
 /// Error type
-#[derive(Error, Debug)]
+#[derive(Clone, Debug, Error)]
 pub enum TimeError {
     #[error("invalid argument: {0}")]
     InvalidArgument(String),

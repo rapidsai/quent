@@ -30,27 +30,6 @@ async def get_engine(
     return rust_client.get(f"/analyzer/engine/{engine_id}")
 
 
-@router.get("/{engine_id}/workers")
-async def list_workers(
-    engine_id: str = Path(..., description="The engine ID"),
-) -> Any:
-    """
-    List all workers for a given engine.
-    """
-    return rust_client.get(f"/analyzer/engine/{engine_id}/list_workers")
-
-
-@router.get("/{engine_id}/workers/{worker_id}")
-async def get_worker(
-    engine_id: str = Path(..., description="The engine ID"),
-    worker_id: str = Path(..., description="The worker ID"),
-) -> Any:
-    """
-    Get details for a given worker.
-    """
-    return rust_client.get(f"/analyzer/engine/{engine_id}/worker/{worker_id}")
-
-
 @router.get("/{engine_id}/query-groups")
 async def list_query_groups(
     engine_id: str = Path(..., description="The engine ID"),
@@ -61,18 +40,7 @@ async def list_query_groups(
     return rust_client.get(f"/analyzer/engine/{engine_id}/list_query_groups")
 
 
-@router.get("/{engine_id}/query-groups/{query_group_id}")
-async def get_query_group(
-    engine_id: str = Path(..., description="The engine ID"),
-    query_group_id: str = Path(..., description="The query_group ID"),
-) -> Any:
-    """
-    Get details for a specific query_group.
-    """
-    return rust_client.get(f"/analyzer/engine/{engine_id}/query_group/{query_group_id}")
-
-
-@router.get("/{engine_id}/query-groups/{query_group_id}/queries")
+@router.get("/{engine_id}/query_group/{query_group_id}/queries")
 async def list_query_group_queries(
     engine_id: str = Path(..., description="The engine ID"),
     query_group_id: str = Path(..., description="The query_group ID"),

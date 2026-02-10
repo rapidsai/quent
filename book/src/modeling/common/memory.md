@@ -9,7 +9,7 @@ Any [Transition][transition] into the `operating` state must have:
 
 ## Allocation
 
-A [Use][use] of a Memory [Resource][resource].
+A [Usage][usage] of a Memory [Resource][resource].
 
 Must have:
 
@@ -31,4 +31,4 @@ storage.
 [capacity]: ../resource.md#capacity
 [resource]: ../resource.md
 [transition]: ../resource.md#transition
-[use]: ../resource.md#use
+[usage]: ../resource.md#use

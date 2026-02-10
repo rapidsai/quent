@@ -17,7 +17,7 @@ Exaclty one Resource Group must exist for which `parent_group_id` is null.
 
 Resource Groups together with [Resource][resource] types are useful to express
 [Resource][resource] hierarchies as trees in which [Resource][resource]
-[Uses][use] may be aggregated.
+[Usages][usage] may be aggregated.
 
 For example, consider an application that divides a workload up into two parts:
 A and B. For simplicity, assume only these parts allocate memory. They both
@@ -46,4 +46,4 @@ number of `bytes` are aggregated and visualized seperately.
 [capacity]: ./resource.md#capacity
 [entity]: ./entity.md
 [resource]: ./resource.md
-[use]: ./resource.md#use
+[usage]: ./resource.md#use

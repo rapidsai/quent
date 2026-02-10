@@ -1,0 +1,12 @@
+[package]
+name = "quent-ui"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+quent-attributes = { path = "../attributes" }
+quent-analyzer = { path = "../analyzer" }
+quent-time = { path = "../time", features = ["ts"] }
+serde.workspace = true
+ts-rs.workspace = true
+uuid.workspace = true

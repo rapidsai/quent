@@ -15,8 +15,8 @@ Must have:
 
 ## Capacity
 
-A Capacity of a [Resource][resource] is a named quantity that can be
-exclusively claimed during some uninterrupted period of time via a [Use][use].
+A Capacity of a [Resource][resource] is a named quantity that can be exclusively
+claimed during some uninterrupted period of time via a [Usage][usage].
 
 A Capacity may or may not have some non-negative integer maximum bound. Bounds
 can be fixed or change during the lifetime of the [Resource][resource].
@@ -25,9 +25,9 @@ A Capacity is declared as a set of [Attributes][attribute].
 
 A Capacity can be of two types:
 
-- An `Occupancy`-type capacity: A [Use][use] value represents the amount of
+- An `Occupancy`-type capacity: A [Usage][usage] value represents the amount of
   Resource Capacity held/occupied during a Span.
-- A `Rate`-type capacity: A [Use][use] value represents the total quantity
+- A `Rate`-type capacity: A [Usage][usage] value represents the total quantity
   processed over the span.
 
 A Capacity type is declared through the following attribute:
@@ -58,7 +58,7 @@ bounded, then it is declared by the following set of [Attributes][attribute]:
 A Unit Resource is a [Resource][resource] with one exceptional unnamed
 dimensionless [Capacity][capacity] whose bounds are `[0, 1]`.
 
-In other words, there can only be one [Use][use] of the entire
+In other words, there can only be one [Usage][usage] of the entire
 [Resource][resource] during some period of time.
 
 If a [Resource][resource] does not declare any [Capacity][capacity], it is a
@@ -103,13 +103,13 @@ state must declare all [Capacities][capacity]. The [Transition][transition]
 from the `resizing` state into the `operating` state must only declare the
 [Capacities][capacity] for which the bounds changed.
 
-## Use
+## Usage
 
-A Use represents an exclusive assignment of [Capacities][capacity] of a
+A Usage represents an exclusive assignment of [Capacities][capacity] of a
 [Resource][resource].
 
-A Use must not outlive the `operating` (and `resizing`, if applicable) states of
-the associated [Resource][resource].
+A Usage must not outlive the `operating` (and `resizing`, if applicable) states
+of the associated [Resource][resource].
 
 Must have:
 
@@ -132,9 +132,9 @@ May have:
 - `used_<capacity name>_effective: <capacity value type>`: the amount usage of
   the [Resource][resource] 's capacity minus any overhead.
 
-Any Use must be combined with [Timestamps][timestamp] such that
+Any Usage must be combined with [Timestamps][timestamp] such that
 exactly one [Span][span] of time may be derived representing the duration of
-the Use.
+the Usage.
 
 ## Notes
 
@@ -160,16 +160,16 @@ overview figure of README.md in the repository sources) aims to provide the
 means to correlate outcomes of traditional profiling tools to the telemetry of
 engine models.
 
-### Obtaining the Span of time of a Use from an FSM
+### Obtaining the Span of time of a Usage from an FSM
 
-One way of deriving the [Span][span] of time of the Use is by by encapsulating
+One way of deriving the [Span][span] of time of the Usage is by by encapsulating
 it in one or multiple [FSM][finite-state-machine] [States][state]. In this
-case, the required [Attributes][attributes] of the Use must be captured by the
-[Transition][transition] into the [State][state] spanning the Use of a
+case, the required [Attributes][attributes] of the Usage must be captured by the
+[Transition][transition] into the [State][state] spanning the Usage of a
 [Resource][resource]. This must be done in at least one [State][state]. This
-may be done in multiple [States][state] if the same Use outlives a single
-[State][state]. In case the Use spans multiple states, the sequence of
-[States][state] must not be interrupted by [States][state] in which the Use's
+may be done in multiple [States][state] if the same Usage outlives a single
+[State][state]. In case the Usage spans multiple states, the sequence of
+[States][state] must not be interrupted by [States][state] in which the Usage's
 claim of the [Resource][resource] associated [Capcity][capacity] is released.
 
 ### `used_<capacity name>_effective`
@@ -189,4 +189,4 @@ resource.
 [state]: ./fsm.md#state
 [timestamp]: ./time.md#timestamp
 [transition]: ./fsm.md#transition
-[use]: #use
+[usage]: #use

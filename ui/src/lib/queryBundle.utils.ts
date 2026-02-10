@@ -1,23 +1,22 @@
 import { EntityRefKey } from '@/types';
-import { EntitiesUI } from '~quent/types/EntitiesUI';
+import { QueryEntities } from '~quent/types/QueryEntities';
 
 // Maps entity ref string to a key in the entities object
-const ENTITY_REF_TO_ENTITIES_KEY = {
+export const ENTITY_REF_TO_ENTITIES_KEY = {
   Engine: 'engine',
-  QueryGroup: 'query_groups',
-  Query: 'queries',
+  QueryGroup: 'query_group',
+  Query: 'query',
   Plan: 'plans',
   Worker: 'workers',
   Operator: 'operators',
   Port: 'ports',
   ResourceGroup: 'resource_groups',
   Resource: 'resources',
-  CustomFsm: 'custom_fsms',
-} as const satisfies Record<EntityRefKey, keyof EntitiesUI>;
+} as const satisfies Record<EntityRefKey, keyof QueryEntities>;
 
 /**
- * Converts an EntityRef to the corresponding key in the EntitiesUI object.
+ * Converts an EntityRef to the corresponding key in the QueryEntities object.
  */
-export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof EntitiesUI {
+export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEntities {
   return ENTITY_REF_TO_ENTITIES_KEY[entityRef];
 }

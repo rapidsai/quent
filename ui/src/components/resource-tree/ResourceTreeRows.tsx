@@ -32,7 +32,7 @@ export const ResourceGroupRow = ({
   return (
     <div>
       <div>
-        <span className="font-bold">{group.instance_name}</span>
+        <span className="text-xs font-bold">{group.instance_name}</span>
       </div>
       <div className="text-xs text-muted-foreground">{group.id}</div>
       {hasMultipleChildTypes && selectedType && onTypeChange && (
@@ -73,9 +73,11 @@ export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => 
   return (
     <div>
       <div>
-        <span className="font-bold">
+        <span className="text-xs font-bold">
           {resource.instance_name}{' '}
-          {resource.type_name !== resource.instance_name ? `(${resource.type_name})` : ''}
+          {resource.type_name !== resource.instance_name && resource.type_name
+            ? `(${resource.type_name})`
+            : ''}
         </span>
       </div>
       <div className="text-xs text-muted-foreground">{resource.id}</div>

@@ -5,7 +5,7 @@ import { ResourceTimeline } from './timeline/ResourceTimeline';
 import { TimelineController } from './timeline/TimelineController';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
-import { EntitiesUI } from '~quent/types/EntitiesUI';
+import { QueryEntities } from '~quent/types/QueryEntities';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
 import { TreeTableItem, ResourceGroupRow, ResourceRow } from './resource-tree/ResourceTreeRows';
 import { QueryBundle } from '~quent/types/QueryBundle';
@@ -20,53 +20,76 @@ interface QueryResourceTreeProps {
   queryBundle: QueryBundle;
 }
 
+// Helper function to lookup entity from QueryEntities
+const lookupEntity = (
+  entities: QueryEntities,
+  entityType: EntityRefKey,
+  entityId: string
+): EntityTypeValue | undefined => {
+  const entityKey = entityRefToEntitiesKey(entityType) as keyof QueryEntities;
+  const entityValue = entities[entityKey];
+
+  // SingleEntity (Engine | Query | QueryGroup): single object with id
+  if ('id' in entityValue && entityValue.id === entityId) {
+    return entityValue as EntityTypeValue;
+  }
+  // Record<string, EntityTypeValue>: lookup by entityId key
+  return (entityValue as Record<string, EntityTypeValue>)?.[entityId];
+};
+
+const transformResourceTree = (
+  entities: QueryEntities,
+  resourceTree: ResourceTree
+): TreeTableItem => {
+  if ('ResourceGroup' in resourceTree) {
+    const node = resourceTree.ResourceGroup;
+    const [entityType, entityId] = Object.entries(node.id)[0] as [EntityRefKey, string];
+    const entity = lookupEntity(entities, entityType, entityId);
+    const children = node.children.map(child => transformResourceTree(entities, child));
+    const availableResourceTypes = collectResourceTypesFromTree(children);
+
+    return {
+      id: entityId,
+      type: entityType,
+      entity: entity as EntityTypeValue,
+      icon: getIconForType(entityType),
+      children,
+      availableResourceTypes,
+    };
+  } else {
+    const [entityType, entityId] = Object.entries(resourceTree.Resource)[0] as [
+      EntityRefKey,
+      string,
+    ];
+    const entity = lookupEntity(entities, entityType, entityId);
+
+    return {
+      id: entityId,
+      type: entityType,
+      entity: entity as EntityTypeValue,
+      icon: getIconForType(entityType),
+      children: [],
+      availableResourceTypes: undefined,
+    };
+  }
+};
+
 export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
   const [hoveredTimelineId, setHoveredTimelineId] = useState<string | null>(null);
 
   const treeData = useMemo(() => {
-    const transformResourceTree = (resourceTree: ResourceTree): TreeTableItem => {
-      const [entityType, entityId] = resourceTree.item
-        ? Object.entries(resourceTree.item)[0]
-        : ['Root' as EntityRefKey, 'root' as string];
+    const rootNode = transformResourceTree(entities, resourceTree);
 
-      const entityKey = entityRefToEntitiesKey(entityType as EntityRefKey) as keyof EntitiesUI;
-      // Special case for engine, there can only and will always be one
-      const entity: EntityTypeValue | undefined =
-        entityKey === 'engine' ? entities.engine : entities[entityKey]?.[entityId];
-
-      let iconKey = entityType ?? 'Resource';
-      if (entityType === EntityTypeKey.ResourceGroup && entity) {
-        if ('type_name' in entity && entity.type_name) {
-          iconKey = entity.type_name as string;
-        } else if ('instance_name' in entity && entity.instance_name) {
-          iconKey = entity.instance_name as string;
-        }
-      }
-
-      const children = resourceTree.children?.map(child => transformResourceTree(child)) ?? null;
-
-      // For ResourceGroups, collect available resource types from descendants
-      let availableResourceTypes: string[] | undefined;
-      if (entityType === EntityTypeKey.ResourceGroup && children) {
-        availableResourceTypes = collectResourceTypesFromTree(children);
-      }
-
-      return {
-        id: entityId,
-        type: entityType,
-        entity: entity as EntityTypeValue,
-        icon: getIconForType(iconKey),
-        children,
-        availableResourceTypes,
-      };
-    };
-    const rootNode = transformResourceTree(resourceTree);
-    return [{ ...rootNode, expanded: true }];
+    // Skip the root node (engine) and return its children directly
+    return rootNode.children || [];
   }, [resourceTree, entities]);
 
   const columns = useMemo(() => {
+    const startTime = queryBundle.start_time_unix_ns;
+    const durationSeconds = queryBundle.duration_s;
+
     return [
       {
         key: 'resource',
@@ -82,7 +105,7 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
             <div className="text-foreground flex items-center py-2">
               <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
               <div>
-                {item.type === EntityTypeKey.ResourceGroup ? (
+                {item?.children?.length ? (
                   <ResourceGroupRow
                     group={item.entity as ResourceGroup}
                     id={item.id}
@@ -111,67 +134,41 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
         ),
         render: ({ item }: { item: TreeTableItem }) => {
           const entity = item?.entity ?? {};
+          // Look up FSM type name from the resource type's used_by field
           const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
-          const fsmTypeName =
-            entityTypeName && queryBundle.entities.resources_types[entityTypeName]?.used_by_fsms[0];
-          if (item.type === EntityTypeKey.Resource) {
-            return (
-              <div
-                onMouseEnter={() => setHoveredTimelineId(item.id)}
-                onMouseLeave={() => setHoveredTimelineId(null)}
-                onClick={e => e.stopPropagation()}
-                className="h-full w-full"
-              >
-                <ResourceTimeline
-                  engineId={engineId}
-                  queryId={queryBundle.query_id}
-                  resourceId={item.id}
-                  resourceType={item.type}
-                  startTime={queryBundle.start_time_unix_ns}
-                  durationSeconds={queryBundle.duration_s}
-                  fsmTypeName={fsmTypeName ?? undefined}
-                  showTooltip={hoveredTimelineId === item.id}
-                />
-              </div>
-            );
-          } else if (item.type === EntityTypeKey.ResourceGroup) {
-            const instanceName =
-              'instance_name' in entity ? (entity.instance_name as string) : undefined;
-            const selectedType =
-              selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+          const usedBy = entityTypeName
+            ? queryBundle.entities.resource_types[entityTypeName]?.used_by
+            : undefined;
+          const fsmTypeName = usedBy && usedBy?.length > 0 ? usedBy[0] : undefined;
+          const instanceName =
+            'instance_name' in entity ? (entity.instance_name as string) : undefined;
+          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+          const resourceType =
+            item.type === EntityTypeKey.Resource
+              ? EntityTypeKey.Resource
+              : EntityTypeKey.ResourceGroup;
 
-            if (!selectedType) {
-              return <div className="h-full items-center flex">No resources</div>;
-            }
-
-            return (
-              <div
-                onMouseEnter={() => setHoveredTimelineId(item.id)}
-                onMouseLeave={() => setHoveredTimelineId(null)}
-                onClick={e => e.stopPropagation()}
-                className="h-full w-full"
-              >
-                <ResourceTimeline
-                  engineId={engineId}
-                  queryId={queryBundle.query_id}
-                  resourceId={item.id}
-                  resourceType={EntityTypeKey.ResourceGroup}
-                  startTime={queryBundle.start_time_unix_ns}
-                  durationSeconds={queryBundle.duration_s}
-                  fsmTypeName={undefined}
-                  resourceTypeName={selectedType}
-                  instanceName={instanceName}
-                  showTooltip={hoveredTimelineId === item.id}
-                />
-              </div>
-            );
-          } else {
-            return (
-              // TODO: Aggregate all of the children into an aggregate timeline
-              // <Timeline timestamps={[]} series={{}} />
-              <div className="h-full items-center flex"> -- </div>
-            );
-          }
+          return (
+            <div
+              onMouseEnter={() => setHoveredTimelineId(item.id)}
+              onMouseLeave={() => setHoveredTimelineId(null)}
+              onClick={e => e.stopPropagation()}
+              className="h-full w-full"
+            >
+              <ResourceTimeline
+                engineId={engineId}
+                queryId={queryBundle.query_id}
+                resourceId={item.id}
+                resourceType={resourceType}
+                startTime={startTime}
+                durationSeconds={durationSeconds}
+                fsmTypeName={fsmTypeName}
+                resourceTypeName={selectedType}
+                instanceName={instanceName}
+                showTooltip={hoveredTimelineId === item.id}
+              />
+            </div>
+          );
         },
       },
     ] satisfies Column<TreeTableItem>[];
@@ -182,7 +179,7 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
       data={treeData}
       columns={columns}
       initialSelectedItemId={'root'}
-      columnWidths={[350, 'auto']}
+      columnWidths={[275, 'auto']}
     />
   );
 }

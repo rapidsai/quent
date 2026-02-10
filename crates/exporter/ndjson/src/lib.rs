@@ -1,11 +1,13 @@
 //! Exporter dumping events as newline-delimited JSON objects into a file.
 use std::{
     io::{BufRead, BufReader},
+    marker::PhantomData,
     path::Path,
 };
 
-use quent_events::{Event, EventData};
+use quent_events::Event;
 use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
+use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
@@ -31,25 +33,24 @@ impl NdjsonExporter {
             .open(&path)
             .await?;
 
-        let writer = Mutex::new(BufWriter::new(file));
-
-        Ok(Self { writer })
+        Ok(Self {
+            writer: Mutex::new(BufWriter::new(file)),
+        })
     }
 }
 
 #[async_trait::async_trait]
-impl Exporter for NdjsonExporter {
-    async fn push(
-        &self,
-        event: quent_events::Event<quent_events::EventData>,
-    ) -> ExporterResult<()> {
+impl<T> Exporter<T> for NdjsonExporter
+where
+    T: Serialize + Send + 'static,
+{
+    async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         let line = format!(
             "{}\n",
             serde_json::to_string(&event).map_err(|e| ExporterError::Serde(format!("{e:?}")))?
         );
         let mut lock = self.writer.lock().await;
         lock.write_all(line.as_bytes()).await?;
-        lock.flush().await?;
         Ok(())
     }
 
@@ -65,21 +66,26 @@ impl Exporter for NdjsonExporter {
     }
 }
 
-pub struct NdjsonImporter {
+pub struct NdjsonImporter<T> {
     reader: BufReader<std::fs::File>,
+    _phantom: PhantomData<T>,
 }
 
-impl NdjsonImporter {
+impl<T> NdjsonImporter<T> {
     pub fn try_new(path: impl AsRef<Path>) -> ImporterResult<Self> {
         let file = std::fs::File::open(path)?;
         Ok(Self {
             reader: BufReader::new(file),
+            _phantom: Default::default(),
         })
     }
 }
 
-impl Iterator for NdjsonImporter {
-    type Item = Event<EventData>;
+impl<T> Iterator for NdjsonImporter<T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    type Item = Event<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut line = String::new();
@@ -87,7 +93,7 @@ impl Iterator for NdjsonImporter {
             Ok(0) => None,
             Ok(_) => {
                 let trimmed = line.trim_end();
-                match serde_json::from_str::<Event<EventData>>(trimmed) {
+                match serde_json::from_str::<Event<T>>(trimmed) {
                     Ok(event) => Some(event),
                     Err(e) => {
                         error!("failed to parse ndjson line: {e}");
