@@ -295,6 +295,20 @@ impl TryFrom<(&qa::operator::Operator, TimeUnixNanoSec)> for Operator {
 }
 
 #[derive(TS, Debug, Serialize)]
+pub struct PortStatistics {
+    /// Custom statistics
+    pub custom_statistics: HashMap<String, Option<Value>>,
+}
+
+impl From<&qa::port::PortStatistics> for PortStatistics {
+    fn from(value: &qa::port::PortStatistics) -> Self {
+        Self {
+            custom_statistics: value.custom_statistics.clone(),
+        }
+    }
+}
+
+#[derive(TS, Debug, Serialize)]
 pub struct Port {
     /// The ID of this [`Port`]
     pub id: Uuid,
@@ -302,6 +316,8 @@ pub struct Port {
     pub operator_id: Option<Uuid>,
     /// The name of this [`Port`].
     pub instance_name: Option<String>,
+    /// Statistics associated with this port:
+    pub statistics: Option<PortStatistics>,
 }
 
 impl TryFrom<(&qa::port::Port, TimeUnixNanoSec)> for Port {
@@ -313,6 +329,7 @@ impl TryFrom<(&qa::port::Port, TimeUnixNanoSec)> for Port {
             id: port.id,
             operator_id: port.operator_id,
             instance_name: port.instance_name.clone(),
+            statistics: port.statistics.as_ref().map(Into::into),
         })
     }
 }

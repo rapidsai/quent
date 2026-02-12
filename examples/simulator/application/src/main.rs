@@ -1,11 +1,13 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
+    sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
+use quent_attributes::Attribute;
 use quent_events::resource::{self, channel, memory};
 use quent_instrumentation::ExporterOptions;
 use quent_query_engine_events::{
@@ -14,7 +16,7 @@ use quent_query_engine_events::{
 };
 use quent_simulator_events::task;
 use quent_simulator_instrumentation::SimulatorContext;
-use rand::{Rng, rng};
+use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -80,6 +82,7 @@ struct Operator<T: Debug> {
     id: Uuid,
     parents: Vec<Uuid>,
     kind: T,
+    tasks_processed: AtomicU64,
 }
 
 impl<T> Operator<T>
@@ -95,6 +98,7 @@ where
             id: Uuid::now_v7(),
             parents,
             kind,
+            tasks_processed: AtomicU64::new(0),
         }
     }
 }
@@ -112,6 +116,8 @@ where
 struct Port {
     id: Uuid,
     name: &'static str,
+    num_bytes: AtomicU64,
+    num_rows: AtomicU64,
 }
 
 #[derive(Debug)]
@@ -132,10 +138,14 @@ impl Edge {
             source: Port {
                 id: Uuid::now_v7(),
                 name: source,
+                num_bytes: AtomicU64::new(0),
+                num_rows: AtomicU64::new(0),
             },
             target: Port {
                 id: Uuid::now_v7(),
                 name: target,
+                num_bytes: AtomicU64::new(0),
+                num_rows: AtomicU64::new(0),
             },
         }
     }
@@ -221,7 +231,7 @@ impl<T: Debug> Plan<T> {
                 .map(|edge| {
                     (
                         edge.weight().target.id,
-                        port::PortEvent {
+                        port::Declaration {
                             operator_id: op.id,
                             instance_name: edge.weight().target.name.to_string(),
                         },
@@ -233,7 +243,7 @@ impl<T: Debug> Plan<T> {
                         .map(|edge| {
                             (
                                 edge.weight().source.id,
-                                port::PortEvent {
+                                port::Declaration {
                                     operator_id: op.id,
                                     instance_name: edge.weight().source.name.to_string(),
                                 },
@@ -289,7 +299,7 @@ fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     }
 }
 
-fn make_physical_plan(logical: &Plan<Logical>) -> Plan<Physical> {
+fn simulate_planning(logical: &Plan<Logical>) -> Plan<Physical> {
     // Find the output node
     let output = logical
         .dag
@@ -498,7 +508,7 @@ impl Worker {
             self.filesystem,
             memory::Init {
                 resource: resource::Resource {
-                    type_name: "Filesystem".to_string(),
+                    type_name: "filesystem".to_string(),
                     instance_name: "Filesystem".to_string(),
                     parent_group_id: self.id,
                 },
@@ -512,7 +522,7 @@ impl Worker {
             memory::Init {
                 resource: resource::Resource {
                     type_name: "memory".to_string(),
-                    instance_name: "Main Memory".to_string(),
+                    instance_name: "Memory".to_string(),
                     parent_group_id: self.id,
                 },
             },
@@ -524,8 +534,8 @@ impl Worker {
             self.fs_to_mem,
             channel::Init {
                 resource: resource::Resource {
-                    type_name: "FsToMem".to_string(),
-                    instance_name: "FsToMem".to_string(),
+                    type_name: "fs2mem".to_string(),
+                    instance_name: "Filesystem -> Memory".to_string(),
                     parent_group_id: self.id,
                 },
                 source_id: self.filesystem,
@@ -539,8 +549,8 @@ impl Worker {
             self.mem_to_fs,
             channel::Init {
                 resource: resource::Resource {
-                    type_name: "MemToFs".to_string(),
-                    instance_name: "MemToFs".to_string(),
+                    type_name: "mem2fs".to_string(),
+                    instance_name: "Memory -> Filesystem".to_string(),
                     parent_group_id: self.id,
                 },
                 source_id: self.main_memory,
@@ -553,7 +563,7 @@ impl Worker {
         resource_group_obs.group(
             self.task_thread_pool,
             resource::GroupEvent {
-                type_name: "thread pool".to_string(),
+                type_name: "threadpool".to_string(),
                 instance_name: "Thread Pool".to_string(),
                 parent_group_id: Some(self.id),
             },
@@ -564,7 +574,7 @@ impl Worker {
                 resource::processor::Init {
                     resource: resource::Resource {
                         type_name: "thread".to_string(),
-                        instance_name: format!("thread-{index}"),
+                        instance_name: format!("Thread {index}"),
                         parent_group_id: self.task_thread_pool,
                     },
                 },
@@ -688,43 +698,62 @@ impl Worker {
         l_plan: &Plan<Logical>,
         num_tasks: usize,
     ) {
-        let plan = make_physical_plan(l_plan);
-        plan.declare(context, Some(self.id));
+        let physical_plan = simulate_planning(l_plan);
+        physical_plan.declare(context, Some(self.id));
 
         // Log analyzer debug links:
-        log_resource_links(engine.id, plan.query_id, self.main_memory, "Memory");
-        log_resource_links(engine.id, plan.query_id, self.main_memory, "Filesystem");
-        log_resource_links(engine.id, plan.query_id, self.fs_to_mem, "FsToMem");
-        log_resource_links(engine.id, plan.query_id, self.mem_to_fs, "MemToFs");
+        log_resource_links(
+            engine.id,
+            physical_plan.query_id,
+            self.main_memory,
+            "Memory",
+        );
+        log_resource_links(
+            engine.id,
+            physical_plan.query_id,
+            self.filesystem,
+            "Filesystem",
+        );
+        log_resource_links(
+            engine.id,
+            physical_plan.query_id,
+            self.fs_to_mem,
+            "Filesystem -> Memory",
+        );
+        log_resource_links(
+            engine.id,
+            physical_plan.query_id,
+            self.mem_to_fs,
+            "Memory -> Filesystem",
+        );
         log_resource_group_links(
             engine.id,
-            plan.query_id,
+            physical_plan.query_id,
             self.task_thread_pool,
-            "ThreadPool",
+            "Thread Pool",
         );
         for (index, thread_id) in self.task_threads.iter().enumerate() {
             log_resource_links(
                 engine.id,
-                plan.query_id,
+                physical_plan.query_id,
                 *thread_id,
                 format!("Thread {index}").as_str(),
             );
         }
 
-        // Plan/operator/port declaration is now done via plan.declare() before calling execute_physical_plan
-        let nodes = petgraph::algo::toposort(&plan.dag, None).unwrap();
+        let nodes = petgraph::algo::toposort(&physical_plan.dag, None).unwrap();
         info!(
             "Topological order: {:?}",
             nodes
                 .iter()
-                .map(|node| format!("{:?}: {:?}", node, plan.dag[*node].kind))
+                .map(|node| format!("{:?}: {:?}", node, physical_plan.dag[*node].kind))
                 .collect::<Vec<_>>()
         );
 
-        if plan.execute {
+        if physical_plan.execute {
             // On each thread, run a bunch of tasks for each operator.
             let tasks_per_thread_per_op = num_tasks / self.task_threads.len();
-            let plan = &plan;
+            let plan = &physical_plan;
             let nodes = &nodes;
             std::thread::scope(|s| {
                 for (thread_index, thread_id) in self.task_threads.iter().enumerate() {
@@ -739,12 +768,92 @@ impl Worker {
                                     self.execute_physical_operator_task(
                                         context, task_index, engine, op, thread_id,
                                     );
+                                    op.tasks_processed.fetch_add(1, Ordering::Relaxed);
+                                    let edges =
+                                        plan.dag.edges_directed(*node_idx, Direction::Outgoing);
+                                    for edge in edges {
+                                        edge.weight().source.num_bytes.fetch_add(
+                                            rng().random_range(1024..1024 * 1024),
+                                            Ordering::Relaxed,
+                                        );
+                                        edge.weight().source.num_rows.fetch_add(
+                                            rng().random_range(16..1024),
+                                            Ordering::Relaxed,
+                                        );
+                                        edge.weight().target.num_bytes.fetch_add(
+                                            rng().random_range(1024..128 * 1024),
+                                            Ordering::Relaxed,
+                                        );
+                                        edge.weight().target.num_rows.fetch_add(
+                                            rng().random_range(16..1024),
+                                            Ordering::Relaxed,
+                                        );
+                                    }
                                 }
                             }
                         }
                     });
                 }
             });
+        }
+
+        // Set some stats
+        let op_obs = context.operator_observer();
+        let port_obs = context.port_observer();
+        for node_idx in nodes.iter() {
+            let op = &physical_plan.dag[*node_idx];
+            let mut attributes = vec![Attribute::u64(
+                "tasks_processed",
+                op.tasks_processed.load(Ordering::Relaxed),
+            )];
+
+            match op.kind {
+                Physical::FileSystemScan => {
+                    attributes.push(Attribute::string("file_name", "/dev/null"))
+                }
+                Physical::JoinPartition => {
+                    attributes.push(Attribute::u64(
+                        "average_partition_size_bytes",
+                        rng().random_range(1..1024 * 1024 * 1024),
+                    ));
+                    attributes.push(Attribute::string(
+                        "join_strategy",
+                        *rng().sample(Choose::new(&["broadcast", "hash partition"]).unwrap()),
+                    ))
+                }
+                Physical::JoinLocal => (),
+                Physical::Sort => attributes.push(Attribute::string(
+                    "direction",
+                    *rng().sample(Choose::new(&["asc", "desc"]).unwrap()),
+                )),
+                Physical::Limit => attributes.push(Attribute::u32("amount", 42)),
+                Physical::Output => attributes.push(Attribute::string(
+                    "sink",
+                    *rng().sample(Choose::new(&["file", "memory"]).unwrap()),
+                )),
+            }
+            op_obs.statistics(
+                op.id,
+                operator::Statistics {
+                    custom_attributes: attributes,
+                },
+            );
+
+            let edges = physical_plan
+                .dag
+                .edges_directed(*node_idx, Direction::Incoming);
+            for edge in edges {
+                let port = &edge.weight().target;
+                port_obs.statistics(
+                    port.id,
+                    port::Statistics {
+                        custom_attributes: vec![
+                            Attribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
+                            Attribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
+                        ],
+                    },
+                );
+            }
         }
     }
 
@@ -844,9 +953,7 @@ impl Engine {
                     channel::Init {
                         resource: resource::Resource {
                             type_name: "Link".to_string(),
-                            instance_name: format!(
-                                "link-worker{worker_index}-to-worker{other_worker_index}"
-                            ),
+                            instance_name: format!("Worker {worker_index} -> {other_worker_index}"),
                             parent_group_id: self.network,
                         },
                         source_id: self.workers.get(&worker_id).unwrap().main_memory,
@@ -861,9 +968,7 @@ impl Engine {
                     channel::Init {
                         resource: resource::Resource {
                             type_name: "Link".to_string(),
-                            instance_name: format!(
-                                "link-worker{other_worker_index}-to-worker{worker_index}"
-                            ),
+                            instance_name: format!("Worker {other_worker_index} -> {worker_index}"),
                             parent_group_id: self.network,
                         },
                         source_id: self.workers.get(&other_worker_id).unwrap().main_memory,
