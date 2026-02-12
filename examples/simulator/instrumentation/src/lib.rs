@@ -6,7 +6,9 @@ use quent_instrumentation::{
     ProcessorResourceObserver, ResourceGroupObserver,
 };
 use quent_query_engine_events::{
-    QueryEngineEvent, engine, operator, plan, port, query, query_group, worker,
+    QueryEngineEvent, engine, operator, plan,
+    port::{self, PortEvent},
+    query, query_group, worker,
 };
 use quent_simulator_events::SimulatorEvent;
 use uuid::Uuid;
@@ -277,12 +279,26 @@ pub struct PortObserver {
 }
 
 impl PortObserver {
-    pub fn port(&self, id: Uuid, event: port::PortEvent) {
+    pub fn port(&self, id: Uuid, event: port::Declaration) {
         push_event(
             &self.tx,
             Event::new_now(
                 id,
-                SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Port(event)),
+                SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Port(PortEvent::Declaration(
+                    event,
+                ))),
+            ),
+        )
+    }
+
+    pub fn statistics(&self, id: Uuid, event: port::Statistics) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Port(PortEvent::Statistics(
+                    event,
+                ))),
             ),
         )
     }

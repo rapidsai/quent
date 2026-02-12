@@ -1,7 +1,16 @@
+use std::collections::HashMap;
+
 use quent_analyzer::{Entity, resource::ResourceGroup};
+use quent_attributes::{Attribute, Value};
 use quent_events::Event;
 use quent_query_engine_events::port::PortEvent;
 use uuid::Uuid;
+
+#[derive(Debug)]
+pub struct PortStatistics {
+    /// Custom statistics
+    pub custom_statistics: HashMap<String, Option<Value>>,
+}
 
 /// A Port of an Operator in a Plan DAG.
 #[derive(Debug)]
@@ -12,6 +21,11 @@ pub struct Port {
     pub operator_id: Option<Uuid>,
     /// The name of this [`Port`].
     pub instance_name: Option<String>,
+    /// The statistics of this [`Port`].
+    ///
+    /// These are attributes that are typically gathered after the work
+    /// described by its associated [`Operator`] has completed.
+    pub statistics: Option<PortStatistics>,
 }
 
 impl Port {
@@ -25,13 +39,27 @@ impl Port {
                 id,
                 operator_id: None,
                 instance_name: None,
+                statistics: None,
             })
         }
     }
 
     pub fn push(&mut self, event: Event<PortEvent>) {
-        self.operator_id = Some(event.data.operator_id);
-        self.instance_name = Some(event.data.instance_name);
+        match event.data {
+            PortEvent::Declaration(declaration) => {
+                self.operator_id = Some(declaration.operator_id);
+                self.instance_name = Some(declaration.instance_name);
+            }
+            PortEvent::Statistics(statistics) => {
+                self.statistics = Some(PortStatistics {
+                    custom_statistics: statistics
+                        .custom_attributes
+                        .into_iter()
+                        .map(|Attribute { key, value }| (key, value))
+                        .collect(),
+                });
+            }
+        }
     }
 }
 
