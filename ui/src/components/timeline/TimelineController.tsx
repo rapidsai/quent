@@ -38,12 +38,23 @@ export function TimelineController({
     );
   }, [startTimeMillis, durationSeconds, numBins]);
 
-  // Create empty data series (all zeros) - invisible, just needed for dataZoom to work
+  // Create two series: one for static axis display, one for dataZoom control
   const seriesOptions = useMemo(
     () => [
       {
-        name: 'controller',
-        type: 'line',
+        name: 'static-display',
+        type: 'line' as const,
+        xAxisIndex: 0,
+        data: Array(numBins).fill(0),
+        showSymbol: false,
+        lineStyle: { width: 0 },
+        areaStyle: { opacity: 0 },
+        silent: true,
+      },
+      {
+        name: 'zoom-control',
+        type: 'line' as const,
+        xAxisIndex: 1,
         data: Array(numBins).fill(0),
         showSymbol: false,
         lineStyle: { width: 0 },
@@ -54,11 +65,12 @@ export function TimelineController({
     [numBins]
   );
 
-  const xAxisOptions = useMemo(
+  // Static x-axis (index 0): shows labels, ticks, gridlines - not affected by dataZoom
+  const staticXAxisOptions = useMemo(
     () => ({
       data: timestamps,
       boundaryGap: false,
-      type: 'category',
+      type: 'category' as const,
       show: true,
       axisLine: {
         show: true,
@@ -75,11 +87,26 @@ export function TimelineController({
         show: true,
         lineStyle: {
           color: GRID_BORDER_COLOR,
-          type: 'solid',
+          type: 'solid' as const,
         },
       },
     }),
     [timestamps, startTimeMillis]
+  );
+
+  // Hidden x-axis (index 1): controlled by dataZoom, no visible elements
+  const zoomXAxisOptions = useMemo(
+    () => ({
+      data: timestamps,
+      boundaryGap: false,
+      type: 'category' as const,
+      show: false,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitLine: { show: false },
+    }),
+    [timestamps]
   );
 
   const yAxisOptions = useMemo(
@@ -116,7 +143,7 @@ export function TimelineController({
         {
           type: 'slider',
           show: true,
-          xAxisIndex: 'all',
+          xAxisIndex: [1], // Only control the hidden zoom axis (index 1), not the static display axis (index 0)
           realtime: true,
           height: height - 25,
           top: 5,
@@ -137,8 +164,13 @@ export function TimelineController({
             areaStyle: { opacity: 0 },
           },
           moveHandleSize: 5,
-          labelFormatter: (_: number, valueStr: string) =>
-            formatDuration(Number(valueStr) - startTimeMillis),
+          labelFormatter: (_: number, valueStr: string) => {
+            const raw = Number(valueStr);
+            const minTs = timestamps[0] ?? startTimeMillis;
+            const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
+            const clamped = Math.max(minTs, Math.min(maxTs, raw));
+            return formatDuration(clamped - startTimeMillis);
+          },
           emphasis: {
             handleStyle: {
               color: withOpacity(TIMELINE_MARKUP_COLOR, 0.5),
@@ -147,18 +179,27 @@ export function TimelineController({
         },
         {
           type: 'inside',
-          xAxisIndex: 'all',
+          xAxisIndex: [1], // Only control the hidden zoom axis
           realtime: true,
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,
         },
       ],
-      xAxis: xAxisOptions,
+      xAxis: [staticXAxisOptions, zoomXAxisOptions],
       yAxis: yAxisOptions,
       series: seriesOptions,
     } as EChartsOption;
-  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, height, startTimeMillis]);
+  }, [
+    seriesOptions,
+    yAxisOptions,
+    staticXAxisOptions,
+    zoomXAxisOptions,
+    gridOptions,
+    height,
+    startTimeMillis,
+    timestamps,
+  ]);
 
   return (
     <ReactECharts
