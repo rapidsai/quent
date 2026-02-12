@@ -6,10 +6,31 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 const API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:8000';
 
+/** Ensures JS chunks get high fetch priority so they load before competing API requests. */
+function vitePluginScriptPriority() {
+  return {
+    name: 'vite-plugin-script-priority',
+    transformIndexHtml(html: string) {
+      return html
+        .replace(/<script(\s[^>]*?)(\s*\/?)>/gi, (_, attrs, close) =>
+          attrs.includes('fetchpriority')
+            ? `<script${attrs}${close}>`
+            : `<script fetchpriority="high"${attrs}${close}>`
+        )
+        .replace(/<link(\s+)([^>]*?rel=["']modulepreload["'][^>]*?)>/gi, (_, space, rest) =>
+          rest.includes('fetchpriority')
+            ? `<link${space}${rest}>`
+            : `<link${space}fetchpriority="high" ${rest}>`
+        );
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    vitePluginScriptPriority(),
     TanStackRouterVite({
       routeFileIgnorePattern: '.test.|.spec.',
     }),

@@ -4,6 +4,7 @@ import {
   fetchResourceTimeline,
   fetchResourceGroupTimeline,
 } from '@/services/api';
+import { useDeferredReady } from '@/hooks/useDeferredReady';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
 import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
@@ -46,13 +47,13 @@ export function ResourceTimeline({
   instanceName,
   showTooltip = true,
 }: ResourceTimelineProps) {
+  const deferredReady = useDeferredReady();
   const queryFunction =
     resourceType === EntityTypeKey.ResourceGroup
       ? fetchResourceGroupTimeline
       : fetchResourceTimeline;
   const { data, isLoading, error } = useQuery({
     queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName, resourceTypeName],
-    // TODO (joe): Dynamic number of bins
     queryFn: () =>
       queryFunction(engineId, queryId, resourceId, {
         num_bins: 200,
@@ -62,6 +63,7 @@ export function ResourceTimeline({
         ...(resourceTypeName && { resource_type_name: resourceTypeName }),
       }),
     staleTime: DEFAULT_STALE_TIME,
+    enabled: deferredReady,
   });
 
   const { timestamps, series } = useMemo(() => {
@@ -70,7 +72,7 @@ export function ResourceTimeline({
       : { timestamps: [], series: EMPTY_TIMELINE_SERIES };
   }, [data, startTime]);
 
-  if (isLoading) {
+  if (!deferredReady || isLoading) {
     return <TimelineSkeleton />;
   }
 
