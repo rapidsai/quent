@@ -1,184 +1,145 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ResourceTree } from '~quent/types/ResourceTree';
-import { ResourceTimeline } from './timeline/ResourceTimeline';
 import { TimelineController } from './timeline/TimelineController';
-import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
-import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
-import { QueryEntities } from '~quent/types/QueryEntities';
-import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
-import { TreeTableItem, ResourceGroupRow, ResourceRow } from './resource-tree/ResourceTreeRows';
+import { collectResourceTypesFromTree } from '@/lib/resource.utils';
+import { EntityRefKey } from '@/types';
+import { TreeTableItem } from './resource-tree/types';
+import { ResourceColumn } from './resource-tree/ResourceColumn';
+import { UsageColumn } from './resource-tree/UsageColumn';
 import { QueryBundle } from '~quent/types/QueryBundle';
-import { ResourceGroup } from '~quent/types/ResourceGroup';
-import { Resource } from '~quent/types/Resource';
+import { fetchResourceGroupTimeline, DEFAULT_STALE_TIME } from '@/services/api';
+import { transformResourceTree } from '@/lib/timeline.utils';
 
 // Number of bins used by all timelines - must match ResourceTimeline
-const NUM_TIMELINE_BINS = 100;
+const NUM_TIMELINE_BINS = 200;
+
+/** Root resource group id when resource_tree root is a ResourceGroup */
+function getRootResourceGroupId(resourceTree: ResourceTree): string | null {
+  if (!('ResourceGroup' in resourceTree)) return null;
+  const [, entityId] = Object.entries(resourceTree.ResourceGroup.id)[0] as [EntityRefKey, string];
+  return entityId;
+}
 
 interface QueryResourceTreeProps {
   engineId: string;
   queryBundle: QueryBundle;
 }
 
-// Helper function to lookup entity from QueryEntities
-const lookupEntity = (
-  entities: QueryEntities,
-  entityType: EntityRefKey,
-  entityId: string
-): EntityTypeValue | undefined => {
-  const entityKey = entityRefToEntitiesKey(entityType) as keyof QueryEntities;
-  const entityValue = entities[entityKey];
-
-  // SingleEntity (Engine | Query | QueryGroup): single object with id
-  if ('id' in entityValue && entityValue.id === entityId) {
-    return entityValue as EntityTypeValue;
-  }
-  // Record<string, EntityTypeValue>: lookup by entityId key
-  return (entityValue as Record<string, EntityTypeValue>)?.[entityId];
-};
-
-const transformResourceTree = (
-  entities: QueryEntities,
-  resourceTree: ResourceTree
-): TreeTableItem => {
-  if ('ResourceGroup' in resourceTree) {
-    const node = resourceTree.ResourceGroup;
-    const [entityType, entityId] = Object.entries(node.id)[0] as [EntityRefKey, string];
-    const entity = lookupEntity(entities, entityType, entityId);
-    const children = node.children.map(child => transformResourceTree(entities, child));
-    const availableResourceTypes = collectResourceTypesFromTree(children);
-
-    return {
-      id: entityId,
-      type: entityType,
-      entity: entity as EntityTypeValue,
-      icon: getIconForType(entityType),
-      children,
-      availableResourceTypes,
-    };
-  } else {
-    const [entityType, entityId] = Object.entries(resourceTree.Resource)[0] as [
-      EntityRefKey,
-      string,
-    ];
-    const entity = lookupEntity(entities, entityType, entityId);
-
-    return {
-      id: entityId,
-      type: entityType,
-      entity: entity as EntityTypeValue,
-      icon: getIconForType(entityType),
-      children: [],
-      availableResourceTypes: undefined,
-    };
-  }
-};
-
 export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+
+  const rootItem = useMemo(
+    () => transformResourceTree(entities, resourceTree),
+    [resourceTree, entities]
+  );
+
+  const resourceTypeOptions = useMemo(() => collectResourceTypesFromTree([rootItem]), [rootItem]);
+
+  const [rootResourceType, setRootResourceType] = useState<string>(resourceTypeOptions[0] || '');
   const [hoveredTimelineId, setHoveredTimelineId] = useState<string | null>(null);
 
-  const treeData = useMemo(() => {
-    const rootNode = transformResourceTree(entities, resourceTree);
+  const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
-    // Skip the root node (engine) and return its children directly
-    return rootNode.children || [];
-  }, [resourceTree, entities]);
+  const startTime = queryBundle.start_time_unix_ns;
+  const durationSeconds = queryBundle.duration_s;
+
+  const resourceTypeName = 'memory';
+  const { data: rootTimelineData } = useQuery({
+    queryKey: [
+      'resourceGroupTimeline',
+      'root',
+      engineId,
+      queryBundle.query_id,
+      rootResourceGroupId,
+      resourceTypeName,
+      durationSeconds,
+      rootResourceType,
+    ],
+    queryFn: () =>
+      fetchResourceGroupTimeline(engineId, queryBundle.query_id, rootResourceGroupId!, {
+        num_bins: NUM_TIMELINE_BINS,
+        start: 0,
+        end: durationSeconds,
+        resource_type_name: rootResourceType,
+      }),
+    staleTime: DEFAULT_STALE_TIME,
+    enabled: rootResourceGroupId != null && !!rootResourceType,
+  });
+
+  // Little funky but the tree expects an array of items, so to avoid creating
+  // a new array each render we'll memoize
+  const treeData = useMemo(() => {
+    return [rootItem];
+  }, [rootItem]);
 
   const columns = useMemo(() => {
-    const startTime = queryBundle.start_time_unix_ns;
-    const durationSeconds = queryBundle.duration_s;
-
     return [
       {
         key: 'resource',
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item }: { item: TreeTableItem; level: number }) => {
-          const handleTypeChange = (itemId: string, newType: string) => {
-            setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-          };
-          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
-          return (
-            <div className="text-foreground flex items-center py-2">
-              <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
-              <div>
-                {item?.children?.length ? (
-                  <ResourceGroupRow
-                    group={item.entity as ResourceGroup}
-                    id={item.id}
-                    availableResourceTypes={item.availableResourceTypes}
-                    selectedType={selectedType}
-                    onTypeChange={handleTypeChange}
-                  />
-                ) : (
-                  <ResourceRow resource={item.entity as Resource} />
-                )}
-              </div>
-            </div>
-          );
-        },
+        render: ({ item }: { item: TreeTableItem; level: number }) => (
+          <ResourceColumn
+            item={item}
+            selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
+            onTypeChange={(itemId, newType) => {
+              setSelectedTypes(prev => new Map(prev).set(itemId, newType));
+              // Update timeline controller with the same type selected in the root resource
+              if (itemId === rootItem.id) {
+                setRootResourceType(newType);
+              }
+            }}
+          />
+        ),
       },
       {
         key: 'usage',
         label: 'Usage',
         widthIndex: 1,
         subHeaderContent: (
-          <TimelineController
-            startTime={queryBundle.start_time_unix_ns}
-            durationSeconds={queryBundle.duration_s}
-            numBins={NUM_TIMELINE_BINS}
+          <div className="h-full overflow-hidden flex items-center py-2">
+            <TimelineController
+              startTime={startTime}
+              durationSeconds={durationSeconds}
+              numBins={NUM_TIMELINE_BINS}
+              timelineData={rootTimelineData}
+            />
+          </div>
+        ),
+        render: ({ item }: { item: TreeTableItem }) => (
+          <UsageColumn
+            item={item}
+            engineId={engineId}
+            queryBundle={queryBundle}
+            selectedTypes={selectedTypes}
+            hoveredTimelineId={hoveredTimelineId}
+            setHoveredTimelineId={setHoveredTimelineId}
+            startTime={startTime}
+            durationSeconds={durationSeconds}
           />
         ),
-        render: ({ item }: { item: TreeTableItem }) => {
-          const entity = item?.entity ?? {};
-          // Look up FSM type name from the resource type's used_by field
-          const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
-          const usedBy = entityTypeName
-            ? queryBundle.entities.resource_types[entityTypeName]?.used_by
-            : undefined;
-          const fsmTypeName = usedBy && usedBy?.length > 0 ? usedBy[0] : undefined;
-          const instanceName =
-            'instance_name' in entity ? (entity.instance_name as string) : undefined;
-          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
-          const resourceType =
-            item.type === EntityTypeKey.Resource
-              ? EntityTypeKey.Resource
-              : EntityTypeKey.ResourceGroup;
-
-          return (
-            <div
-              onMouseEnter={() => setHoveredTimelineId(item.id)}
-              onMouseLeave={() => setHoveredTimelineId(null)}
-              onClick={e => e.stopPropagation()}
-              className="h-full w-full"
-            >
-              <ResourceTimeline
-                engineId={engineId}
-                queryId={queryBundle.query_id}
-                resourceId={item.id}
-                resourceType={resourceType}
-                startTime={startTime}
-                durationSeconds={durationSeconds}
-                fsmTypeName={fsmTypeName}
-                resourceTypeName={selectedType}
-                instanceName={instanceName}
-                showTooltip={hoveredTimelineId === item.id}
-              />
-            </div>
-          );
-        },
       },
     ] satisfies Column<TreeTableItem>[];
-  }, [engineId, queryBundle, selectedTypes, hoveredTimelineId]);
+  }, [
+    startTime,
+    durationSeconds,
+    rootTimelineData,
+    selectedTypes,
+    rootItem,
+    engineId,
+    queryBundle,
+    hoveredTimelineId,
+  ]);
 
   return (
     <TreeTable<TreeTableItem>
       data={treeData}
       columns={columns}
-      initialSelectedItemId={'root'}
+      initialSelectedItemId={rootItem.id}
       columnWidths={[275, 'auto']}
     />
   );

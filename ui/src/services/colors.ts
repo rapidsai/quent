@@ -150,3 +150,6 @@ export function resetColorAssignments(): void {
   colorAssignments.clear();
   usedIndices.clear();
 }
+
+export const BLACK = '#000000';
+export const WHITE = '#ffffff';

@@ -1,5 +1,5 @@
 import { EntityTypeKey } from '@/types';
-import { TreeTableItem } from '@/components/resource-tree/ResourceTreeRows';
+import { TreeTableItem } from '@/components/resource-tree/types';
 import { Database, Folder, LineChart, LucideIcon, Network, Rocket, Star } from 'lucide-react';
 
 /**

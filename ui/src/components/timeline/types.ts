@@ -14,3 +14,5 @@ export const TIMELINE_SPACING = {
   top: 5,
   bottom: 5,
 };
+
+// Timeline color constants live in useTimelineChartColors (canvas-based, theme mirrored in JS).

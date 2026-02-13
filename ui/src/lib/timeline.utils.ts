@@ -1,6 +1,12 @@
 import { TimelineSeries } from '@/components/timeline/types';
+import { TreeTableItem } from '@/components/resource-tree/types';
 import { formatBytes } from '@/services/formatters';
+import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
+import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
 import { TimelineResponse } from '~quent/types/TimelineResponse';
+import { QueryEntities } from '~quent/types/QueryEntities';
+import { ResourceTree } from '~quent/types/ResourceTree';
+import { EntityTypeValue, EntityRefKey } from '@/types';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
@@ -103,4 +109,56 @@ export const connectChart = (instance: EChartsInstance, chartGroup: string = CHA
 
   instance.group = chartGroup;
   connect(chartGroup);
+};
+
+// Helper function to lookup entity from QueryEntities
+const lookupEntity = (
+  entities: QueryEntities,
+  entityType: EntityRefKey,
+  entityId: string
+): EntityTypeValue | undefined => {
+  const entityKey = entityRefToEntitiesKey(entityType) as keyof QueryEntities;
+  const entityValue = entities[entityKey];
+
+  // SingleEntity (Engine | Query | QueryGroup): single object with id
+  if ('id' in entityValue && entityValue.id === entityId) {
+    return entityValue as EntityTypeValue;
+  }
+
+  // Record<string, EntityTypeValue>: lookup by entityId key
+  return (entityValue as Record<string, EntityTypeValue>)?.[entityId];
+};
+
+export const transformResourceTree = (
+  entities: QueryEntities,
+  resourceTree: ResourceTree
+): TreeTableItem => {
+  if ('ResourceGroup' in resourceTree) {
+    const node = resourceTree.ResourceGroup;
+    const [entityType, entityId] = Object.entries(node.id)[0] as [EntityRefKey, string];
+    const entity = lookupEntity(entities, entityType, entityId);
+    const children = node.children.map(child => transformResourceTree(entities, child));
+    const availableResourceTypes = collectResourceTypesFromTree(children);
+
+    return {
+      id: entityId,
+      type: entityType,
+      entity: entity as EntityTypeValue,
+      icon: getIconForType(entityType),
+      children,
+      availableResourceTypes,
+    };
+  }
+
+  const [entityType, entityId] = Object.entries(resourceTree.Resource)[0] as [EntityRefKey, string];
+  const entity = lookupEntity(entities, entityType, entityId);
+
+  return {
+    id: entityId,
+    type: entityType,
+    entity: entity as EntityTypeValue,
+    icon: getIconForType(entityType),
+    children: [],
+    availableResourceTypes: undefined,
+  };
 };

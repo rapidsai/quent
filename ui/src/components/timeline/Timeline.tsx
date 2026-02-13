@@ -8,10 +8,9 @@ import { getColorForKey, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
 import { TimelineSeries, DEFAULT_TIMELINE_HEIGHT, TIMELINE_SPACING } from './types';
 import { connectChart } from '@/lib/timeline.utils';
+import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
-const TIMELINE_MARKUP_COLOR = '#808080';
-const GRID_BORDER_COLOR = withOpacity(TIMELINE_MARKUP_COLOR, 0.2);
 
 export function Timeline({
   startTime,
@@ -28,6 +27,8 @@ export function Timeline({
   colorKey?: string;
   showTooltip?: boolean;
 }) {
+  const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
+
   const seriesOptions = useMemo(() => {
     return (
       Object.entries(series)
@@ -69,7 +70,7 @@ export function Timeline({
       show: true,
       axisLine: {
         show: true,
-        lineStyle: { color: GRID_BORDER_COLOR },
+        lineStyle: { color: gridBorderColor },
       },
       axisTick: { show: false },
       splitLine: { show: false },
@@ -77,12 +78,12 @@ export function Timeline({
         show: true,
         margin: 8,
         fontSize: 10,
-        color: TIMELINE_MARKUP_COLOR,
+        color: timelineMarkupColor,
         // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
         formatter: (value: number) => formatBytes(value, 0),
       },
     }),
-    []
+    [gridBorderColor, timelineMarkupColor]
   );
 
   const xAxisOptions = useMemo(
@@ -96,32 +97,39 @@ export function Timeline({
       axisLine: {
         show: true,
         onZero: true,
-        lineStyle: { color: GRID_BORDER_COLOR },
+        lineStyle: { color: gridBorderColor },
       },
       axisTick: { show: false },
       axisLabel: { show: false },
+      splitLine: {
+        show: true,
+        lineStyle: {
+          color: gridBorderColor,
+          type: 'solid' as const,
+        },
+      },
       axisPointer: {
         show: true, // Always show the axis pointer line (synced across charts)
         type: 'line',
         label: { show: false }, // Don't show the x-axis value label
         lineStyle: {
           type: 'dashed',
-          color: TIMELINE_MARKUP_COLOR,
+          color: timelineMarkupColor,
         },
       },
     }),
-    [timestamps]
+    [timestamps, timelineMarkupColor, gridBorderColor]
   );
 
   const gridOptions = useMemo(
     () => ({
       ...TIMELINE_SPACING,
-      backgroundColor: withOpacity(TIMELINE_MARKUP_COLOR, 0.1),
+      backgroundColor: gridBackgroundColor,
       borderWidth: 1,
-      borderColor: GRID_BORDER_COLOR,
+      borderColor: gridBorderColor,
       show: true,
     }),
-    []
+    [gridBorderColor, gridBackgroundColor]
   );
 
   const eChartOptions: EChartsOption = useMemo(() => {

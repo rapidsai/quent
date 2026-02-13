@@ -22,6 +22,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "routes:generate": "tsr generate",
     "typecheck": "tsr generate && tsc --noEmit",
+    "ci:check": "pnpm routes:generate && pnpm lint && pnpm format:check && pnpm typecheck && pnpm routes:generate && pnpm test:coverage",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
