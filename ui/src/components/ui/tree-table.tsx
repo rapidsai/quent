@@ -34,7 +34,7 @@ type TreeTableRenderItemParams = {
 };
 
 const rowSurfaceClasses =
-  'relative cursor-pointer transition-colors hover:bg-accent/10 data-[selected=true]:bg-accent/70';
+  'relative cursor-pointer transition-colors hover:bg-secondary/10 data-[selected=true]:bg-secondary/70';
 
 // Tree-table specific AccordionTrigger with level-based positioning
 const AccordionTrigger = React.forwardRef<
@@ -700,7 +700,7 @@ export function TreeTable<I extends TreeTableDataItem>({
             >
               {/* Header row */}
               <div
-                className="bg-accent/70 text-xs text-muted-foreground flex items-center border-b border-border"
+                className="bg-secondary/70 text-xs text-muted-foreground flex items-center border-b border-border"
                 style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}
               >
                 <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />

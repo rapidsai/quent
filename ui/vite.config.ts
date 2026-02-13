@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { TanStackRouterVite } from '@tanstack/router-vite-plugin';
 import { visualizer } from 'rollup-plugin-visualizer';
+import tailwindcss from '@tailwindcss/vite';
 
 const API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:8000';
 
@@ -34,6 +35,7 @@ export default defineConfig({
     TanStackRouterVite({
       routeFileIgnorePattern: '.test.|.spec.',
     }),
+    tailwindcss(),
     // Bundle analyzer - generates stats.html after build
     visualizer({
       filename: 'stats.html',
