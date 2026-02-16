@@ -7,6 +7,7 @@ edition.workspace =  true
 axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future"] }
 quent-analyzer = { path = "../../../crates/analyzer" }
+quent-ui = { path = "../../../crates/ui" }
 quent-collector = { path = "../../../crates/collector", features = ["server"] }
 quent-exporter = { path = "../../../crates/exporter" }
 quent-exporter-ndjson = { path = "../../../crates/exporter/ndjson" }
@@ -30,3 +31,4 @@ uuid.workspace = true
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 quent-simulator-ui = { path = "../ui" }
+quent-ui = { path = "../../../crates/ui" }

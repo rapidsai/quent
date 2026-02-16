@@ -149,7 +149,8 @@ Engines.
 
 #### Requirements
 
-- Docker + Docker Compose (or [Podman](https://podman.io/) + [Podman Compose](https://docs.podman.io/en/v5.6.2/markdown/podman-compose.1.html))
+- Docker + Docker Compose (or [Podman](https://podman.io/) +
+  [Podman Compose](https://docs.podman.io/en/v5.6.2/markdown/podman-compose.1.html))
 
 #### Steps
 

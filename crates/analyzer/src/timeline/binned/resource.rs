@@ -1,43 +1,18 @@
 //! Binned timelines for resource utilization.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
-use quent_time::{SpanNanoSec, bin::BinnedSpan};
+use quent_time::{SpanNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerError, AnalyzerResult,
-    fsm::{Fsm, State, collection::FsmCollection},
-    resource::{
-        CapacityValue, ResourceTypeDecl, Using, collection::ResourceCollection,
-        tree::ResourceTreeNode,
-    },
-    timeline::binned::{BinnedTimelineAggregator, NamedAggregator},
+    AnalyzerResult,
+    resource::{CapacityValue, ResourceTypeDecl, Usage},
+    timeline::binned::{BinnedTimelineAggregator, KeyedAggregator},
 };
-
-#[derive(Clone, Debug)]
-pub struct ResourceTimelineBinned {
-    /// The configuration of the binned timeline.
-    ///
-    /// This may slightly differ from the requested configuration to ensure
-    /// bounds are not exceeded and bin sizes are equal.
-    pub config: BinnedSpan,
-    /// Maps a resource capacity name to a vector where each element holds an
-    /// aggregated value of a time bin.
-    pub capacities_values: HashMap<String, Vec<f64>>,
-}
-
-#[derive(Clone, Debug)]
-pub struct ResourceTimelineBinnedByState {
-    /// The configuration of the binned timeline.
-    ///
-    /// This may slightly differ from the requested configuration to ensure
-    /// bounds are not exceeded and bin sizes are equal.
-    pub config: BinnedSpan,
-    /// Maps a resource capacity name to a map of a state name to a vector where
-    /// each element holds an aggregated value of a time bin.
-    pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
-}
 
 /// Calculate a value to bin-aggregate depending on the [`CapacityType`].
 fn convert_capacity(
@@ -49,242 +24,185 @@ fn convert_capacity(
     Ok(capacity_type.reinterpret_capacity_value(capacity_value.value.unwrap_or_default(), span))
 }
 
-impl ResourceTimelineBinned {
-    pub fn try_new_resource(
-        resources: &impl ResourceCollection,
-        users: &impl Using,
-        resource_id: Uuid,
-        config: BinnedSpan,
-    ) -> AnalyzerResult<ResourceTimelineBinned> {
-        let resource = resources.resource(resource_id)?;
-        let resource_type = resources.resource_type(resource.type_name())?;
+#[derive(Clone, Debug)]
+pub struct ResourceTimeline<'a> {
+    pub config: BinnedSpan,
+    pub data: HashMap<&'a str, Vec<f64>>,
+}
 
-        let mut aggregator = NamedAggregator::new(config);
+#[derive(Clone, Debug)]
+pub struct ResourceTimelineByKey<'a, K> {
+    pub config: BinnedSpan,
+    pub data: HashMap<(K, &'a str), Vec<f64>>,
+}
 
-        for (span, capacity) in users.usages().flat_map(|(usage, span)| {
-            usage
-                .capacities
-                .iter()
-                .filter_map(move |cap| (usage.resource == resource_id).then_some((span, cap)))
-        }) {
-            if capacity.value.is_some() {
-                let value = convert_capacity(span, capacity, resource_type)?;
-                aggregator.try_push(span, (value, capacity.name.as_str()))?
-            }
-        }
+pub trait ResourceIdFilter {
+    fn accepts(&self, id: Uuid) -> bool;
+}
 
-        Ok(ResourceTimelineBinned {
-            config,
-            capacities_values: aggregator
-                .try_finish()?
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v))
-                .collect(),
-        })
-    }
-
-    pub fn try_new_group(
-        resources: &impl ResourceCollection,
-        users: &impl Using,
-        resource_group_id: Uuid,
-        resource_type_name: &str,
-        config: BinnedSpan,
-    ) -> AnalyzerResult<ResourceTimelineBinned> {
-        // Construct the tree with the provided resource group as root.
-        let tree = ResourceTreeNode::try_new(resources, resource_group_id)?;
-        // Look up the resource type
-        let resource_type = resources.resource_type(resource_type_name)?;
-        // Iterate over all leaf reasources, only keeping those of the requested type.
-        let resources = tree
-            .iter_leaves()
-            .filter_map(|resource_id| {
-                resources
-                    .resource(resource_id)
-                    .map(|resource| {
-                        (resource.type_name() == resource_type_name).then_some(resource.id())
-                    })
-                    .transpose()
-            })
-            .collect::<AnalyzerResult<HashSet<_>>>()?;
-
-        let mut aggregator = NamedAggregator::new(config);
-
-        for (span, capacity) in users.usages().flat_map(|(usage, span)| {
-            let resources = &resources;
-            usage
-                .capacities
-                .iter()
-                .filter_map(move |cap| resources.contains(&usage.resource).then_some((span, cap)))
-        }) {
-            if capacity.value.is_some() {
-                let value = convert_capacity(span, capacity, resource_type)?;
-                aggregator.try_push(span, (value, capacity.name.as_str()))?
-            }
-        }
-
-        Ok(ResourceTimelineBinned {
-            config,
-            capacities_values: aggregator
-                .try_finish()?
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v))
-                .collect(),
-        })
+impl ResourceIdFilter for Uuid {
+    fn accepts(&self, id: Uuid) -> bool {
+        *self == id
     }
 }
 
-impl ResourceTimelineBinnedByState {
-    pub fn try_new_resource<T>(
-        resources: &impl ResourceCollection,
-        fsms: &impl FsmCollection<T>,
-        resource_id: Uuid,
-        fsm_type_name: &str,
+impl ResourceIdFilter for HashSet<Uuid> {
+    fn accepts(&self, id: Uuid) -> bool {
+        self.contains(&id)
+    }
+}
+
+pub struct ResourceTimelineBuilder<'a, F>
+where
+    F: ResourceIdFilter,
+{
+    resource_type: &'a ResourceTypeDecl,
+    id_filter: F,
+    aggregator: KeyedAggregator<&'a str>,
+}
+
+impl<'a, F> ResourceTimelineBuilder<'a, F>
+where
+    F: ResourceIdFilter,
+{
+    pub fn try_new(
+        resource_type: &'a ResourceTypeDecl,
+        id_filter: F,
         config: BinnedSpan,
-    ) -> AnalyzerResult<ResourceTimelineBinnedByState>
-    where
-        T: Fsm,
-        <T as Fsm>::StateType: Using,
-    {
-        if !fsms.contains_fsm_type(fsm_type_name) {
-            return Err(AnalyzerError::InvalidArgument(format!(
-                "fsm collection has no fsm type {fsm_type_name}"
-            )));
-        }
-
-        let resource = resources.resource(resource_id)?;
-        let resource_type = resources.resource_type(resource.type_name())?;
-
-        let mut aggregators: HashMap<&str, NamedAggregator> = HashMap::new();
-
-        for (state, capacity) in fsms
-            .fsms()
-            // Filter out any FSMs not of this type.
-            .filter(|fsm| fsm.type_name() == fsm_type_name)
-            // Flatten state usages
-            .flat_map(|fsm| {
-                fsm.states()
-                    .flat_map(|state| state.usages().map(move |(usage, _)| (state, usage)))
-                    // Filter out any usage not targeting the provided resource
-                    .filter(|(_, usage)| usage.resource == resource_id)
-            })
-            // Flatten resource capacities
-            .flat_map(|(state, usage)| {
-                usage
-                    .capacities
-                    .iter()
-                    .map(move |capacity| (state, capacity))
-            })
-        {
-            let aggregator = aggregators
-                .entry(capacity.name.as_str())
-                .or_insert_with(|| NamedAggregator::new(config));
-            if capacity.value.is_some() {
-                let value = convert_capacity(state.span(), capacity, resource_type)?;
-                aggregator.try_push(state.span(), (value, state.name()))?
-            }
-        }
-
-        let capacities_states_values = aggregators
-            .into_iter()
-            .map(|(capacity, aggregator)| {
-                aggregator.try_finish().map(|timeline| {
-                    (
-                        capacity.to_string(),
-                        timeline
-                            .into_iter()
-                            .map(|(k, v)| (k.to_string(), v))
-                            .collect(),
-                    )
-                })
-            })
-            .collect::<AnalyzerResult<_>>()?;
-
-        Ok(ResourceTimelineBinnedByState {
-            config,
-            capacities_states_values,
+    ) -> AnalyzerResult<Self> {
+        // Construct the aggregator.
+        let aggregator = KeyedAggregator::new(config);
+        Ok(Self {
+            id_filter,
+            resource_type,
+            aggregator,
         })
     }
 
-    pub fn try_new_group<T>(
-        resources: &impl ResourceCollection,
-        fsms: &impl FsmCollection<T>,
-        resource_group_id: Uuid,
-        resource_type_name: &str,
-        fsm_type_name: &str,
-        config: BinnedSpan,
-    ) -> AnalyzerResult<ResourceTimelineBinnedByState>
-    where
-        T: Fsm,
-        <T as Fsm>::StateType: Using,
-    {
-        if !fsms.contains_fsm_type(fsm_type_name) {
-            return Err(AnalyzerError::InvalidArgument(format!(
-                "fsm collection has no fsm type {fsm_type_name}"
-            )));
+    pub fn id_filter(&self) -> &F {
+        &self.id_filter
+    }
+
+    pub fn try_push(&mut self, usage: &'a Usage, span: SpanUnixNanoSec) -> AnalyzerResult<()> {
+        if self.id_filter.accepts(usage.resource) {
+            self.try_push_prefiltered(usage, span)?;
         }
-        let tree = ResourceTreeNode::try_new(resources, resource_group_id)?;
-        let resource_type = resources.resource_type(resource_type_name)?;
-        let resources = tree
-            .iter_leaves()
-            .filter_map(|resource_id| {
-                resources
-                    .resource(resource_id)
-                    .map(|resource| {
-                        (resource.type_name() == resource_type_name).then_some(resource.id())
-                    })
-                    .transpose()
-            })
-            .collect::<AnalyzerResult<HashSet<_>>>()?;
+        Ok(())
+    }
 
-        let mut aggregators: HashMap<&str, NamedAggregator> = HashMap::new();
-
-        for (state, capacity) in fsms
-            .fsms()
-            // Filter out any FSMs not of this type.
-            .filter(|fsm| fsm.type_name() == fsm_type_name)
-            // Flatten state usages
-            .flat_map(|fsm| {
-                fsm.states()
-                    .flat_map(|state| state.usages().map(move |(usage, _)| (state, usage)))
-                    // Filter out any usage not targeting the provided resource
-                    .filter(|(_, usage)| resources.contains(&usage.resource))
-            })
-            // Flatten resource capacities
-            .flat_map(|(state, usage)| {
-                usage
-                    .capacities
-                    .iter()
-                    .map(move |capacity| (state, capacity))
-            })
-        {
-            let aggregator = aggregators
-                .entry(capacity.name.as_str())
-                .or_insert_with(|| NamedAggregator::new(config));
+    /// Push a usage without checking the id filter.
+    /// Caller must guarantee that `usage.resource` is accepted by this builder.
+    pub fn try_push_prefiltered(
+        &mut self,
+        usage: &'a Usage,
+        span: SpanUnixNanoSec,
+    ) -> AnalyzerResult<()> {
+        // TODO(johanpel): perf is fine for now but at some point we want to consider preventing all the hashmaps.
+        for capacity in usage.capacities.iter() {
             if capacity.value.is_some() {
-                let value = convert_capacity(state.span(), capacity, resource_type)?;
-                aggregator.try_push(state.span(), (value, state.name()))?
+                let value = convert_capacity(span, capacity, self.resource_type)?;
+                self.aggregator
+                    .try_push(span, (capacity.name.as_str(), value))?
             }
         }
+        Ok(())
+    }
 
-        let capacities_states_values = aggregators
-            .into_iter()
-            .map(|(capacity, aggregator)| {
-                aggregator.try_finish().map(|timeline| {
-                    (
-                        capacity.to_string(),
-                        timeline
-                            .into_iter()
-                            .map(|(k, v)| (k.to_string(), v))
-                            .collect(),
-                    )
-                })
-            })
-            .collect::<AnalyzerResult<_>>()?;
+    pub fn try_extend(
+        &mut self,
+        items: impl Iterator<Item = (&'a Usage, SpanUnixNanoSec)>,
+    ) -> AnalyzerResult<()> {
+        for (usage, span) in items {
+            self.try_push(usage, span)?
+        }
+        Ok(())
+    }
 
-        Ok(ResourceTimelineBinnedByState {
-            config,
-            capacities_states_values,
+    pub fn build(self) -> ResourceTimeline<'a> {
+        ResourceTimeline {
+            config: self.aggregator.config,
+            data: self.aggregator.finish(),
+        }
+    }
+}
+
+pub struct ResourceTimelineByKeyBuilder<'a, F, K>
+where
+    F: ResourceIdFilter,
+{
+    resource_type: &'a ResourceTypeDecl,
+    id_filter: F,
+    aggregator: KeyedAggregator<(K, &'a str)>,
+}
+
+impl<'a, F, K> ResourceTimelineByKeyBuilder<'a, F, K>
+where
+    F: ResourceIdFilter,
+    K: Eq + Hash + Copy,
+{
+    pub fn try_new(
+        resource_type: &'a ResourceTypeDecl,
+        id_filter: F,
+        config: BinnedSpan,
+    ) -> AnalyzerResult<Self> {
+        let aggregator = KeyedAggregator::new(config);
+
+        Ok(Self {
+            resource_type,
+            id_filter,
+            aggregator,
         })
+    }
+
+    pub fn id_filter(&self) -> &F {
+        &self.id_filter
+    }
+
+    pub fn try_push(
+        &mut self,
+        key: K,
+        usage: &'a Usage,
+        span: SpanUnixNanoSec,
+    ) -> AnalyzerResult<()> {
+        if self.id_filter.accepts(usage.resource) {
+            self.try_push_prefiltered(key, usage, span)?;
+        }
+        Ok(())
+    }
+
+    /// Push a usage without checking the id filter.
+    /// Caller must guarantee that `usage.resource` is accepted by this builder.
+    pub fn try_push_prefiltered(
+        &mut self,
+        key: K,
+        usage: &'a Usage,
+        span: SpanUnixNanoSec,
+    ) -> AnalyzerResult<()> {
+        for capacity in usage.capacities.iter() {
+            if capacity.value.is_some() {
+                let value = convert_capacity(span, capacity, self.resource_type)?;
+                self.aggregator
+                    .try_push(span, ((key, capacity.name.as_str()), value))?
+            }
+        }
+        Ok(())
+    }
+
+    pub fn try_extend(
+        &mut self,
+        items: impl Iterator<Item = (K, &'a Usage, SpanUnixNanoSec)>,
+    ) -> AnalyzerResult<()> {
+        for (key, usage, span) in items {
+            self.try_push(key, usage, span)?;
+        }
+        Ok(())
+    }
+
+    pub fn build(self) -> ResourceTimelineByKey<'a, K> {
+        ResourceTimelineByKey {
+            config: self.aggregator.config,
+            data: self.aggregator.finish(),
+        }
     }
 }
 
@@ -294,11 +212,15 @@ mod tests {
 
     use crate::{
         fsm::{
-            collection::InMemoryFsms,
+            Fsm, State,
+            collection::{FsmCollection, InMemoryFsms},
             runtime::{RtFsm, RtTransition},
         },
         resource::{
-            CapacityDecl, Usage, collection::InMemoryResourcesBuilder, runtime::RtResource,
+            CapacityDecl, Usage, Using,
+            collection::{InMemoryResourcesBuilder, ResourceCollection},
+            runtime::RtResource,
+            tree::ResourceTreeNode,
         },
     };
 
@@ -421,17 +343,24 @@ mod tests {
         )
         .unwrap();
 
-        let timeline =
-            ResourceTimelineBinned::try_new_resource(&resources, &fsms, resource_id, config)
-                .unwrap();
+        let mut builder = ResourceTimelineBuilder::try_new(
+            resources
+                .resource_type(resources.resource(resource_id).unwrap().type_name())
+                .unwrap(),
+            resource_id,
+            config,
+        )
+        .unwrap();
+        builder.try_extend(fsms.usages()).unwrap();
+        let timeline = builder.build();
 
         // Config shouldn't be modified.
         assert_eq!(timeline.config, config);
 
         // We should have bin datapoints for the "bytes" capacity.
-        assert!(timeline.capacities_values.contains_key("bytes"));
+        assert!(timeline.data.contains_key("bytes"));
 
-        let values = timeline.capacities_values.get("bytes").unwrap();
+        let values = timeline.data.get("bytes").unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -499,11 +428,19 @@ mod tests {
             );
         }
 
-        let timeline = ResourceTimelineBinned::try_new_group(
-            &resources,
-            &fsms,
-            ROOT_RESOURCE_ID,
-            "test",
+        let group_resources = ResourceTreeNode::try_new(&resources, ROOT_RESOURCE_ID)
+            .unwrap()
+            .iter_leaf_refs(&resources)
+            .filter_map(|maybe_resource| {
+                maybe_resource
+                    .ok()
+                    .and_then(|r| (r.type_name() == "test").then_some(r.id()))
+            })
+            .collect::<HashSet<_>>();
+
+        let mut builder = ResourceTimelineBuilder::try_new(
+            resources.resource_type("test").unwrap(),
+            group_resources,
             BinnedSpan::try_new(
                 SpanNanoSec::try_new(0, 1000).unwrap(),
                 NonZero::try_from(10).unwrap(),
@@ -511,8 +448,10 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
+        builder.try_extend(fsms.usages()).unwrap();
+        let timeline = builder.build();
 
-        let values = timeline.capacities_values.get("bytes").unwrap();
+        let values = timeline.data.get("bytes").unwrap();
 
         // Aggregated, it should produce the same result as
         // test_resource_timeline_aggregated
@@ -589,16 +528,21 @@ mod tests {
         )
         .unwrap();
 
-        let timeline =
-            ResourceTimelineBinned::try_new_resource(&resources, &fsms, resource_id, config)
-                .unwrap();
+        let mut builder = ResourceTimelineBuilder::try_new(
+            resources.resource_type_of(resource_id).unwrap(),
+            resource_id,
+            config,
+        )
+        .unwrap();
+        builder.try_extend(fsms.usages()).unwrap();
+        let timeline = builder.build();
 
         assert_eq!(timeline.config, config);
-        assert!(timeline.capacities_values.contains_key("a"));
-        assert!(timeline.capacities_values.contains_key("b"));
+        assert!(timeline.data.contains_key("a"));
+        assert!(timeline.data.contains_key("b"));
 
-        let a = timeline.capacities_values.get("a").unwrap();
-        let b = timeline.capacities_values.get("b").unwrap();
+        let a = timeline.data.get("a").unwrap();
+        let b = timeline.data.get("b").unwrap();
 
         assert_eq!(
             a[..],
@@ -684,26 +628,32 @@ mod tests {
         )
         .unwrap();
 
-        let timeline = ResourceTimelineBinnedByState::try_new_resource(
-            &resources,
-            &fsms,
+        let mut builder = ResourceTimelineByKeyBuilder::try_new(
+            resources
+                .resource_type(resources.resource(resource_id).unwrap().type_name())
+                .unwrap(),
             resource_id,
-            "test",
             config,
         )
         .unwrap();
+        builder
+            .try_extend(fsms.fsms().flat_map(|fsm| {
+                fsm.states().flat_map(|state| {
+                    state
+                        .usages()
+                        .map(|(usage, span)| (state.name.as_str(), usage, span))
+                })
+            }))
+            .unwrap();
+        let timeline = builder.build();
 
         // Config shouldn't be modified.
         assert_eq!(timeline.config, config);
 
         // For each capacity, we should have values per state
-        assert!(timeline.capacities_states_values.contains_key("bytes"));
-        let bytes = timeline.capacities_states_values.get("bytes").unwrap();
-        assert!(bytes.contains_key("state_a"));
-        assert!(bytes.contains_key("state_b"));
 
-        let state_a_bytes = bytes.get("state_a").unwrap();
-        let state_b_bytes = bytes.get("state_b").unwrap();
+        let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();
+        let state_b_bytes = timeline.data.get(&("state_b", "bytes")).unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -812,19 +762,33 @@ mod tests {
             NonZero::try_from(10).unwrap(),
         )
         .unwrap();
-        let timeline = ResourceTimelineBinnedByState::try_new_group(
-            &resources,
-            &fsms,
-            ROOT_RESOURCE_ID,
-            "test",
-            "test",
+
+        let group_resources = ResourceTreeNode::try_new(&resources, ROOT_RESOURCE_ID)
+            .unwrap()
+            .iter_leaf_refs(&resources)
+            .filter_map(|maybe_resource| {
+                maybe_resource
+                    .ok()
+                    .and_then(|r| (r.type_name() == "test").then_some(r.id()))
+            })
+            .collect::<HashSet<_>>();
+
+        let mut builder = ResourceTimelineByKeyBuilder::try_new(
+            resources.resource_type("test").unwrap(),
+            group_resources,
             config,
         )
         .unwrap();
+        builder
+            .try_extend(fsms.fsms().flat_map(|fsm| {
+                fsm.states()
+                    .flat_map(|s| s.usages().map(|u| (s.name(), u.0, u.1)))
+            }))
+            .unwrap();
+        let timeline = builder.build();
 
-        let bytes = timeline.capacities_states_values.get("bytes").unwrap();
-        let state_a_bytes = bytes.get("state_a").unwrap();
-        let state_b_bytes = bytes.get("state_b").unwrap();
+        let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();
+        let state_b_bytes = timeline.data.get(&("state_b", "bytes")).unwrap();
 
         // If we aggregate over both resources we should get the same answer as
         // in test_resource_timeline_aggregated_multi_state

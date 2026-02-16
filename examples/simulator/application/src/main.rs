@@ -43,6 +43,10 @@ struct Args {
     /// Number of threads per worker thread pool
     #[arg(long, default_value_t = 2)]
     num_threads: usize,
+
+    /// Export events as ndjson files instead of sending to collector
+    #[arg(long, default_value_t = false)]
+    ndjson: bool,
 }
 
 fn initialize_tracing() {
@@ -1015,8 +1019,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = Engine::new();
 
-    let context =
-        SimulatorContext::try_new(ExporterOptions::Collector(Default::default()), engine.id)?;
+    let exporter = if args.ndjson {
+        ExporterOptions::Ndjson
+    } else {
+        ExporterOptions::Collector(Default::default())
+    };
+    let context = SimulatorContext::try_new(exporter, engine.id)?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 

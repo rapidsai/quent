@@ -1,6 +1,6 @@
 //! Collections of resources and resource groups
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use quent_events::{
     Event,
@@ -14,8 +14,10 @@ use uuid::Uuid;
 use crate::{
     AnalyzerError, AnalyzerResult,
     resource::{
-        CapacityDecl, CapacityValue, Resource, ResourceCapacities, ResourceGroup, ResourceTypeDecl,
+        CapacityDecl, CapacityValue, Resource, ResourceCapacities, ResourceGroup,
+        ResourceGroupTypeDecl, ResourceTypeDecl,
         runtime::{RtResource, RtResourceBuilder, RtResourceGroup, RtResourceStateTransition},
+        tree::ResourceTreeNode,
     },
 };
 
@@ -34,6 +36,12 @@ pub trait ResourceCollection {
     /// resource type name.
     fn resource_type(&self, resource_type_name: &str) -> AnalyzerResult<&ResourceTypeDecl>;
 
+    /// Return the [`ResourceTypeDecl`] of the resource type with the provided
+    /// resource .
+    fn resource_type_of(&self, resource_id: Uuid) -> AnalyzerResult<&ResourceTypeDecl> {
+        self.resource_type(self.resource(resource_id)?.type_name())
+    }
+
     /// Return the [`ResourceGroup`] of the resource group with the provided ID.
     fn resource_group(&self, resource_group_id: Uuid) -> AnalyzerResult<&dyn ResourceGroup>;
 
@@ -48,6 +56,67 @@ pub trait ResourceCollection {
         &self,
         resource_group_id: Uuid,
     ) -> AnalyzerResult<impl Iterator<Item = Uuid>>;
+}
+
+/// Convenience function to derive and populate all [`ResourceGroupTypeDecl`]s
+/// by walking the resource tree of a resource collection.
+pub fn derive_resource_group_types(
+    collection: &impl ResourceCollection,
+) -> AnalyzerResult<HashMap<String, ResourceGroupTypeDecl>> {
+    let mut resource_group_types = HashMap::<String, ResourceGroupTypeDecl>::new();
+
+    // Find all root groups (those with no parent)
+    let root_groups: Vec<Uuid> = collection
+        .resource_groups()
+        .filter_map(|group| group.parent_group_id().is_none().then_some(group.id()))
+        .collect();
+
+    // Walk each root group tree
+    for root_group_id in root_groups {
+        let tree = ResourceTreeNode::try_new(collection, root_group_id)?;
+        populate_group_types_from_tree(&tree, collection, &mut resource_group_types)?;
+    }
+
+    Ok(resource_group_types)
+}
+
+fn populate_group_types_from_tree(
+    node: &crate::resource::tree::ResourceTreeNode,
+    collection: &impl ResourceCollection,
+    group_types: &mut HashMap<String, ResourceGroupTypeDecl>,
+) -> AnalyzerResult<()> {
+    match node {
+        ResourceTreeNode::ResourceGroup(group_id, children) => {
+            let group = collection.resource_group(*group_id)?;
+            let group_type = group.type_name();
+
+            // Insert type if not present
+            if !group_types.contains_key(group_type) {
+                group_types.insert(
+                    group_type.to_owned(),
+                    group.resource_group_type_decl(HashSet::new(), HashSet::new()),
+                );
+            }
+
+            // Collect all resource types in this subtree
+            for resource_id in node.iter_leaf_ids() {
+                let resource = collection.resource(resource_id)?;
+                let resource_type = resource.type_name();
+
+                if let Some(group_type_decl) = group_types.get_mut(group_type) {
+                    group_type_decl
+                        .contains_resource_types
+                        .insert(resource_type.to_owned());
+                }
+            }
+
+            for child in children {
+                populate_group_types_from_tree(child, collection, group_types)?;
+            }
+        }
+        ResourceTreeNode::Resource(_) => {}
+    }
+    Ok(())
 }
 
 /// A builder for [`InMemoryResourceCollection`].
@@ -211,13 +280,15 @@ impl InMemoryResourcesBuilder {
     }
 
     pub fn try_build(self) -> AnalyzerResult<InMemoryResources> {
+        let resources: HashMap<Uuid, RtResource> = self
+            .resources
+            .into_iter()
+            .map(|(id, builder)| builder.try_build().map(|resource| (id, resource)))
+            .collect::<AnalyzerResult<_>>()?;
+
         Ok(InMemoryResources {
             resource_types: self.resource_types,
-            resources: self
-                .resources
-                .into_iter()
-                .map(|(id, builder)| builder.try_build().map(|resource| (id, resource)))
-                .collect::<AnalyzerResult<_>>()?,
+            resources,
             resource_groups: self.resource_groups,
         })
     }

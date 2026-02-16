@@ -293,6 +293,15 @@ impl Entity for Task {
     }
 }
 
+impl Task {
+    pub fn operator_id(&self) -> Option<Uuid> {
+        self.sequence.first().and_then(|s| match s {
+            TaskState::Init(state) => Some(state.data.operator_id),
+            _ => None,
+        })
+    }
+}
+
 impl Fsm for Task {
     type StateType = TaskState;
     fn len(&self) -> usize {

@@ -115,7 +115,7 @@ markdown:check:
     - prepare
   script:
     - export PATH="$CARGO_HOME/bin:$PATH"
-    - command -v rumdl || cargo install rumdl --locked
+    - command -v rumdl || cargo install rumdl --locked --version 0.1.21
     - rumdl check --diff --exclude .cargo
   cache:
     key: rumdl-tools

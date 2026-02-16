@@ -3,6 +3,34 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
+/// A type of [`Resource`].
+#[derive(TS, Serialize, Clone, Debug, Default)]
+pub struct ResourceTypeDecl {
+    /// The unique type name for this type of Resource.
+    pub name: String,
+    /// The capacities of this type of Resource.
+    pub capacities: Vec<String>,
+    /// The type names of the entities that used this Resource.
+    pub used_by: Vec<String>,
+}
+
+impl From<&a::resource::ResourceTypeDecl> for ResourceTypeDecl {
+    fn from(value: &a::resource::ResourceTypeDecl) -> Self {
+        Self {
+            name: value.name.clone(),
+            capacities: value
+                .capacities
+                .iter()
+                .map(|cap| match cap.kind {
+                    CapacityType::Occupancy => cap.name.clone(),
+                    CapacityType::Rate => format!("{}/s", cap.name),
+                })
+                .collect(),
+            used_by: value.used_by.iter().cloned().collect(),
+        }
+    }
+}
+
 /// A Resource.
 #[derive(TS, Serialize, Clone, Debug, Default)]
 pub struct Resource {
@@ -38,6 +66,27 @@ impl From<&dyn a::resource::Resource> for Resource {
     }
 }
 
+/// A type of [`ResourceGroup`].
+#[derive(TS, Serialize, Clone, Debug, Default)]
+pub struct ResourceGroupTypeDecl {
+    /// The name of the type of Resource Group
+    pub name: String,
+    /// The type names of the entities that used Resource of this group.
+    pub used_by_entity_types: Vec<String>,
+    /// The type names of the leaf Resources in this group or its children.
+    pub contains_resource_types: Vec<String>,
+}
+
+impl From<&a::resource::ResourceGroupTypeDecl> for ResourceGroupTypeDecl {
+    fn from(value: &a::resource::ResourceGroupTypeDecl) -> Self {
+        Self {
+            name: value.name.clone(),
+            used_by_entity_types: value.used_by_entity_types.iter().cloned().collect(),
+            contains_resource_types: value.contains_resource_types.iter().cloned().collect(),
+        }
+    }
+}
+
 /// A Group of [`Resource`]s.
 #[derive(TS, Serialize, Clone, Debug, Default)]
 pub struct ResourceGroup {
@@ -61,34 +110,6 @@ impl From<&dyn a::resource::ResourceGroup> for ResourceGroup {
             instance_name: value.instance_name().to_owned(),
             type_name: value.type_name().to_owned(),
             parent_group_id: value.parent_group_id(),
-        }
-    }
-}
-
-/// A Group of [`Resource`]s.
-#[derive(TS, Serialize, Clone, Debug, Default)]
-pub struct ResourceTypeDecl {
-    /// The unique type name for this type of Resource.
-    pub name: String,
-    /// The capacities of this type of Resource.
-    pub capacities: Vec<String>,
-    /// The type names of the entities that used this Resource.
-    pub used_by: Vec<String>,
-}
-
-impl From<&a::resource::ResourceTypeDecl> for ResourceTypeDecl {
-    fn from(value: &a::resource::ResourceTypeDecl) -> Self {
-        Self {
-            name: value.name.clone(),
-            capacities: value
-                .capacities
-                .iter()
-                .map(|cap| match cap.kind {
-                    CapacityType::Occupancy => cap.name.clone(),
-                    CapacityType::Rate => format!("{}/s", cap.name),
-                })
-                .collect(),
-            used_by: value.used_by.iter().cloned().collect(),
         }
     }
 }

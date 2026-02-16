@@ -1,11 +1,18 @@
+use quent_simulator_ui::{
+    QueryBundle,
+    timeline::{BulkTimelinesRequest, ResourceTimelineUrlQueryParams, TimelineResponse},
+};
 use ts_rs::TS;
+
+const TS_OUT_DIR: &str = "./ts-bindings/";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Export TypeScript bindings to ts-bindings directory
-    <quent_simulator_ui::QueryBundle as TS>::export_all_to("./ts-bindings/")?;
+    <QueryBundle as TS>::export_all_to(TS_OUT_DIR)?;
 
-    <quent_simulator_ui::ResourceTimelineUrlQueryParams as TS>::export_all_to("./ts-bindings/")?;
-    <quent_simulator_ui::TimelineResponse as TS>::export_all_to("./ts-bindings/")?;
+    <ResourceTimelineUrlQueryParams as TS>::export_all_to(TS_OUT_DIR)?;
+    <TimelineResponse as TS>::export_all_to(TS_OUT_DIR)?;
+    <BulkTimelinesRequest as TS>::export_all_to(TS_OUT_DIR)?;
 
     Ok(())
 }
