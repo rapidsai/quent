@@ -2,8 +2,12 @@ use std::error::Error;
 
 use quent_events::Event;
 use quent_instrumentation::{
-    ChannelResourceObserver, Context, ExporterOptions, MemoryResourceObserver,
-    ProcessorResourceObserver, ResourceGroupObserver,
+    Context, ExporterOptions,
+    resource::{
+        ChannelResourceObserver, MemoryResourceObserver, ProcessorResourceObserver,
+        ResourceGroupObserver,
+    },
+    trace::TraceObserver,
 };
 use quent_query_engine_events::{
     QueryEngineEvent, engine, operator, plan,
@@ -83,6 +87,10 @@ impl SimulatorContext {
         TaskObserver {
             tx: self.inner.events_sender(),
         }
+    }
+
+    pub fn trace_observer(&self, entity_id: Uuid) -> TraceObserver<SimulatorEvent> {
+        TraceObserver::new(self.inner.events_sender(), entity_id)
     }
 }
 

@@ -1,4 +1,4 @@
-use quent_events::resource::ResourceEvent;
+use quent_events::{resource::ResourceEvent, trace::TraceEvent};
 use quent_query_engine_events::QueryEngineEvent;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -108,6 +108,7 @@ pub enum SimulatorEvent {
     QueryEngineEvent(QueryEngineEvent),
     Task(task::TaskEvent),
     Resource(ResourceEvent),
+    Trace(TraceEvent),
     // TODO(johanpel):
     // RecordBatch(record_batch::RecordBatchEvent),
 }
@@ -115,5 +116,11 @@ pub enum SimulatorEvent {
 impl From<ResourceEvent> for SimulatorEvent {
     fn from(event: ResourceEvent) -> Self {
         SimulatorEvent::Resource(event)
+    }
+}
+
+impl From<TraceEvent> for SimulatorEvent {
+    fn from(event: TraceEvent) -> Self {
+        SimulatorEvent::Trace(event)
     }
 }

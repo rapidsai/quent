@@ -9,6 +9,7 @@ pub mod error;
 pub mod fsm;
 pub mod resource;
 pub mod timeline;
+pub mod trace;
 
 pub type AnalyzerResult<T> = std::result::Result<T, AnalyzerError>;
 
@@ -29,10 +30,10 @@ pub trait Instant: Entity {
     fn instant(&self) -> AnalyzerResult<TimeUnixNanoSec>;
 }
 
-/// Trait for entities that are associated with a span of time.
+/// Trait for things that are associated with a span of time.
 ///
 /// Typically represents the entire lifetime of the entity.
-pub trait Span: Entity {
+pub trait Span {
     /// Return the span of time this type is associated with.
     ///
     /// # Errors
