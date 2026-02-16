@@ -54,7 +54,8 @@ The webserver provides a clean HTTP API layer that:
 ./start.sh
 ```
 
-This will start the webserver on `http://localhost:8000` with auto-reload enabled.
+This will start the webserver on `http://localhost:8000` with auto-reload
+enabled.
 
 ### Manual Start
 
@@ -119,7 +120,8 @@ using environment variables:
 
 ### Environment Variables
 
-- `QUENT_ANALYZER_ADDRESS` - Quent analyzer URL (default: `http://localhost:8080`)
+- `QUENT_ANALYZER_ADDRESS` - Quent analyzer URL (default:
+  `http://localhost:8080`)
 - `SERVER_HOST` - Host to bind to (default: `0.0.0.0`)
 - `SERVER_PORT` - Port to bind to (default: `8000`)
 

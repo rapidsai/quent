@@ -7,47 +7,75 @@ import type { Query } from "./Query";
 import type { QueryGroup } from "./QueryGroup";
 import type { Resource } from "./Resource";
 import type { ResourceGroup } from "./ResourceGroup";
+import type { ResourceGroupTypeDecl } from "./ResourceGroupTypeDecl";
 import type { ResourceTypeDecl } from "./ResourceTypeDecl";
 import type { Worker } from "./Worker";
 
 export type QueryEntities = { 
 /**
  * The engine that ran this query.
+ *
+ * Is a Resource Group.
  */
 engine: Engine, 
 /**
  * The group of this query.
+ *
+ * Is a Resource Group.
  */
 query_group: QueryGroup, 
 /**
  * The query.
+ *
+ * Is a Resource Group.
  */
 query: Query, 
 /**
  * The workers of this query.
+ *
+ * Is a Resource Group.
  */
 workers: { [key in string]?: Worker }, 
 /**
  * The plans of this query.
+ *
+ * Is a Resource Group.
  */
 plans: { [key in string]?: Plan }, 
 /**
  * The operators of the plans.
+ *
+ * Is a Resource Group.
  */
 operators: { [key in string]?: Operator }, 
 /**
- * The ports of the operators
+ * The ports of the operators.
+ *
+ * Is a Resource Group.
  */
 ports: { [key in string]?: Port }, 
 /**
- * Miscellaneous resources
+ * Resource group types.
+ *
+ * This includes declarations for:
+ * - [`Engine`]
+ * - [`QueryGroup`]
+ * - [`Query`]
+ * - [`Worker`]
+ * - [`Plan`]
+ * - [`Operator`]
+ * - [`Port`]
+ */
+resource_group_types: { [key in string]?: ResourceGroupTypeDecl }, 
+/**
+ * Application-specific resources
  */
 resources: { [key in string]?: Resource }, 
 /**
- * Miscellaneous resource groups
+ * Application-specific resource types
  */
-resource_groups: { [key in string]?: ResourceGroup }, 
+resource_types: { [key in string]?: ResourceTypeDecl }, 
 /**
- * Miscellaneous resource types
+ * Application-specific resource groups
  */
-resource_types: { [key in string]?: ResourceTypeDecl }, };
+resource_groups: { [key in string]?: ResourceGroup }, };

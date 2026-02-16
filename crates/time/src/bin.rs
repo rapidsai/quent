@@ -93,7 +93,7 @@ impl BinnedSpan {
     }
 
     /// Return an iterator over bin indices that the provided span overlaps.
-    pub fn iter_indices(&self, span: &SpanNanoSec) -> impl Iterator<Item = u64> {
+    pub fn iter_indices(&self, span: &SpanNanoSec) -> std::ops::Range<u64> {
         let start_end = (
             self.index_of(span.start()),
             span.end().checked_sub(1).and_then(|t| self.index_of(t)),
@@ -124,13 +124,24 @@ impl BinnedSpan {
         &self,
         span: &SpanNanoSec,
     ) -> impl Iterator<Item = (u64, TimeNanoSec)> {
-        // TODO(johanpel): this could be optimized by only calling
-        // intersection() for the first and last bin
-        self.iter_indices(span).filter_map(|index| {
-            self.bin(index)
-                .unwrap()
-                .intersection(span)
-                .map(|span| (index, span.duration()))
+        let bin_duration = self.bin_duration.get();
+        let indices = self.iter_indices(span);
+        let start = indices.start;
+        let end = indices.end;
+
+        indices.map(move |index| {
+            if index == start || index == end - 1 {
+                // First or last bin: compute actual intersection duration.
+                // These are the only bins that may be partially covered.
+                let bin_start = span.start().max(self.span.start() + index * bin_duration);
+                let bin_end = span
+                    .end()
+                    .min(self.span.start() + (index + 1) * bin_duration);
+                (index, bin_end - bin_start)
+            } else {
+                // Middle bins are fully covered by span.
+                (index, bin_duration)
+            }
         })
     }
 

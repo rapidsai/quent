@@ -29,4 +29,10 @@ fsm_type_name: string | null,
  * This is required for resource group routes, and is ignored for
  * individual resource timeline routes.
  */
-resource_type_name: string | null, };
+resource_type_name: string | null, 
+/**
+ * Filter the usages of the resource (group) on this operator ID.
+ *
+ * TODO(johanpel): this will only work for FSMs directly referencing this operator.
+ */
+operator_id: string | null, };

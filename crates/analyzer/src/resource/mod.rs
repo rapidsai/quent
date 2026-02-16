@@ -25,6 +25,19 @@ pub trait ResourceGroup: Entity {
     /// If this is None, it is considered the root of the global application's
     /// resource tree.
     fn parent_group_id(&self) -> Option<Uuid>;
+
+    /// Convenience function to create a type decl from this resource group.
+    fn resource_group_type_decl(
+        &self,
+        used_by_entity_types: HashSet<String>,
+        contains_resource_types: HashSet<String>,
+    ) -> ResourceGroupTypeDecl {
+        ResourceGroupTypeDecl {
+            name: self.type_name().to_owned(),
+            used_by_entity_types,
+            contains_resource_types,
+        }
+    }
 }
 
 /// Trait for types that can hold a [`Usage`] of a [`Resource`].
@@ -172,6 +185,18 @@ impl ResourceTypeDecl {
                     .collect::<Vec<_>>()
             )))
     }
+}
+
+/// Declaration of a [`ResourceGroup`] type.
+#[derive(Clone, Debug)]
+pub struct ResourceGroupTypeDecl {
+    /// The unique type name for this type of Resource.
+    pub name: String,
+
+    /// The type names of the entities that used Resources in this group.
+    pub used_by_entity_types: HashSet<String>,
+    /// The type names of the resources that are in this group.
+    pub contains_resource_types: HashSet<String>,
 }
 
 /// A value related to the capacity of a [`Resource`].

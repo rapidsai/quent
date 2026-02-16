@@ -3,11 +3,13 @@
 use std::collections::HashMap;
 
 use quent_query_engine_ui::{Engine, Operator, Plan, PlanTree, Port, Query, QueryGroup, Worker};
-use quent_time::{TimeSec, TimeUnixNanoSec, bin::BinnedSpanSec};
-use quent_ui::{Resource, ResourceGroup, ResourceTypeDecl};
-use serde::{Deserialize, Serialize};
+use quent_time::{TimeSec, TimeUnixNanoSec};
+use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl};
+use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
+
+pub mod timeline;
 
 /// A reference to an entity
 #[derive(TS, Debug, Serialize)]
@@ -26,25 +28,53 @@ pub enum EntityRef {
 #[derive(TS, Debug, Serialize)]
 pub struct QueryEntities {
     /// The engine that ran this query.
+    ///
+    /// Is a Resource Group.
     pub engine: Engine,
     /// The group of this query.
+    ///
+    /// Is a Resource Group.
     pub query_group: QueryGroup,
     /// The query.
+    ///
+    /// Is a Resource Group.
     pub query: Query,
     /// The workers of this query.
+    ///
+    /// Is a Resource Group.
     pub workers: HashMap<Uuid, Worker>,
     /// The plans of this query.
+    ///
+    /// Is a Resource Group.
     pub plans: HashMap<Uuid, Plan>,
     /// The operators of the plans.
+    ///
+    /// Is a Resource Group.
     pub operators: HashMap<Uuid, Operator>,
-    /// The ports of the operators
+    /// The ports of the operators.
+    ///
+    /// Is a Resource Group.
     pub ports: HashMap<Uuid, Port>,
-    /// Miscellaneous resources
+
+    /// Resource group types.
+    ///
+    /// This includes declarations for:
+    /// - [`Engine`]
+    /// - [`QueryGroup`]
+    /// - [`Query`]
+    /// - [`Worker`]
+    /// - [`Plan`]
+    /// - [`Operator`]
+    /// - [`Port`]
+    pub resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
+
+    /// Application-specific resources
     pub resources: HashMap<Uuid, Resource>,
-    /// Miscellaneous resource groups
-    pub resource_groups: HashMap<Uuid, ResourceGroup>,
-    /// Miscellaneous resource types
+    /// Application-specific resource types
     pub resource_types: HashMap<String, ResourceTypeDecl>,
+
+    /// Application-specific resource groups
+    pub resource_groups: HashMap<Uuid, ResourceGroup>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -81,59 +111,4 @@ pub struct ResourceGroupNode {
 pub enum ResourceTree {
     ResourceGroup(ResourceGroupNode),
     Resource(EntityRef),
-}
-
-#[derive(TS, Debug, Serialize)]
-pub struct ResourceTimelineBinned {
-    /// The configuration of the binned timeline.
-    ///
-    /// This may slightly differ from the requested configuration to ensure
-    /// bounds are not exceeded and bin sizes are equal.
-    pub config: BinnedSpanSec,
-    /// Maps a resource capacity name to a vector where each element holds an
-    /// aggregated value of a time bin.
-    pub capacities_values: HashMap<String, Vec<f64>>,
-}
-
-#[derive(TS, Debug, Serialize)]
-pub struct ResourceTimelineBinnedByState {
-    /// The configuration of the binned timeline.
-    ///
-    /// This may slightly differ from the requested configuration to ensure
-    /// bounds are not exceeded and bin sizes are equal.
-    pub config: BinnedSpanSec,
-    /// Maps a resource capacity name to a map of a state name to a vector where
-    /// each element holds an aggregated value of a time bin.
-    pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
-}
-
-#[derive(TS, Debug, Serialize)]
-pub enum TimelineResponse {
-    Binned(ResourceTimelineBinned),
-    BinnedByState(ResourceTimelineBinnedByState),
-}
-
-#[derive(TS, Debug, Deserialize)]
-pub struct ResourceTimelineUrlQueryParams {
-    /// The number of bins.
-    ///
-    /// u16::MAX is large enough when bins are plotted as single pixel wide
-    /// bars, even for insane screen resolutions.
-    pub num_bins: u16,
-    /// Start time in seconds.
-    pub start: f64,
-    /// End time in seconds.
-    pub end: f64,
-
-    /// If set, only include utilizations from FSMs with this type name, and
-    /// aggregate for each state separately.
-    ///
-    /// Can be set for both resource and resource group timelines.
-    pub fsm_type_name: Option<String>,
-
-    /// Sets the resource type for which to provide an aggregated timeline.
-    ///
-    /// This is required for resource group routes, and is ignored for
-    /// individual resource timeline routes.
-    pub resource_type_name: Option<String>,
 }

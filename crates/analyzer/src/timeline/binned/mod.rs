@@ -27,7 +27,7 @@ pub(crate) trait BinnedTimelineAggregator {
     fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> AnalyzerResult<()>;
 
     /// Attempt to return the finished output of this aggregator.
-    fn try_finish(self) -> AnalyzerResult<Self::Output>;
+    fn finish(self) -> Self::Output;
 }
 
 /// A binned timeline built from numeric primitive values associated with a
@@ -74,47 +74,50 @@ impl BinnedTimelineAggregator for UnitAggregator {
         Ok(())
     }
 
-    fn try_finish(self) -> AnalyzerResult<Self::Output> {
-        Ok(self.bins)
+    fn finish(self) -> Self::Output {
+        self.bins
     }
 }
 
 /// A binned timeline built from numeric primitive values associated with a
 /// span and a name.
-pub(crate) struct NamedAggregator<'a> {
+pub(crate) struct KeyedAggregator<Key> {
     config: BinnedSpan,
-    named_bins: HashMap<&'a str, UnitAggregator>,
+    bins: HashMap<Key, UnitAggregator>,
 }
 
-impl NamedAggregator<'_> {
+impl<Key> KeyedAggregator<Key> {
     pub(crate) fn new(config: BinnedSpan) -> Self {
         Self {
             config,
-            named_bins: HashMap::new(),
+            bins: HashMap::new(),
         }
     }
 }
 
-impl<'a> BinnedTimelineAggregator for NamedAggregator<'a> {
-    type Item = (f64, &'a str);
-    type Output = HashMap<&'a str, Vec<f64>>;
+impl<Key> BinnedTimelineAggregator for KeyedAggregator<Key>
+where
+    Key: Eq + std::hash::Hash,
+{
+    type Item = (Key, f64);
+    type Output = HashMap<Key, Vec<f64>>;
 
     fn config(&self) -> BinnedSpan {
         self.config
     }
 
     fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> AnalyzerResult<()> {
-        self.named_bins
-            .entry(item.1)
+        self.bins
+            .entry(item.0)
             .or_insert_with(|| UnitAggregator::new(self.config))
-            .try_push(span, item.0)
+            .try_push(span, item.1)
     }
 
-    fn try_finish(self) -> AnalyzerResult<Self::Output> {
-        self.named_bins
+    fn finish(self) -> Self::Output {
+        self.bins
             .into_iter()
-            .map(|(k, v)| v.try_finish().map(|values| (k, values)))
-            .collect::<AnalyzerResult<_>>()
+            .map(|(k, v)| (k, v.finish()))
+            .collect()
     }
 }
 
@@ -136,7 +139,7 @@ mod tests {
         aggregator.try_push(SpanNanoSec::try_new(0, 30).unwrap(), 10.0)?;
         aggregator.try_push(SpanNanoSec::try_new(20, 60).unwrap(), 10.0)?;
 
-        assert_eq!(aggregator.try_finish().unwrap(), [10.0, 15.0, 10.0, 0.0]);
+        assert_eq!(aggregator.finish(), [10.0, 15.0, 10.0, 0.0]);
 
         Ok(())
     }

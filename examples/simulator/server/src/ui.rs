@@ -3,12 +3,18 @@ use std::num::NonZero;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    routing::get,
+    routing::{get, post},
 };
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_query_engine_ui as ui;
-use quent_simulator_ui::{QueryBundle, ResourceTimelineUrlQueryParams, TimelineResponse};
+use quent_simulator_ui::{
+    QueryBundle,
+    timeline::{
+        BulkTimelinesRequest, BulkTimelinesResponse, ResourceTimelineUrlQueryParams,
+        TimelineResponse,
+    },
+};
 use quent_time::{SpanNanoSec, TimeUnixNanoSec, bin::BinnedSpan};
 use tracing::error;
 use uuid::Uuid;
@@ -142,6 +148,7 @@ async fn resource_timeline(
     Ok(Json(analyzer.resource_timeline(
         resource_id,
         url_query_params.fsm_type_name,
+        url_query_params.operator_id,
         config,
         epoch,
     )?))
@@ -161,6 +168,7 @@ async fn resource_group_timeline(
             resource_group_id,
             &resource_type_name,
             url_query_params.fsm_type_name,
+            url_query_params.operator_id,
             config,
             epoch,
         )?))
@@ -169,6 +177,17 @@ async fn resource_group_timeline(
             "resource type name is not set".to_string(),
         ))?
     }
+}
+
+#[tracing::instrument(skip_all)]
+async fn bulk_timelines(
+    State(state): State<AnalyzerCache>,
+    Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<BulkTimelinesRequest>,
+) -> ServerResult<Json<BulkTimelinesResponse>> {
+    let analyzer = state.get(engine_id).await?;
+    let epoch = analyzer.model.query_engine.query_epoch(query_id)?;
+    Ok(Json(analyzer.bulk_timelines(query_id, request, epoch)?))
 }
 
 // TODO(johanpel): add a context and really cache these analyzers :this-is-fine:
@@ -192,6 +211,10 @@ pub fn routes(cache: AnalyzerCache) -> Router<()> {
         .route(
             "/engine/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline",
             get(resource_group_timeline),
+        )
+        .route(
+            "/engine/{engine_id}/query/{query_id}/bulk_timelines",
+            post(bulk_timelines),
         )
         .with_state(cache)
 }

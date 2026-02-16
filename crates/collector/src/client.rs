@@ -153,11 +153,13 @@ where
                         if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
                             error!("server disconnected during shutdown");
                         }
+                        let pending = grpc_sender.max_capacity() - grpc_sender.capacity();
                         info!(
-                            "client shutting down: {} events pending, {} gRPC messages pending",
-                            event_receiver.len(),
-                            grpc_sender.max_capacity() - grpc_sender.capacity()
+                            "client shutting down: {pending} gRPC messages pending, flushing..."
                         );
+                        // Drop the sender so the gRPC stream receiver sees
+                        // the channel is closed and can complete the stream.
+                        drop(grpc_sender);
                         break
                     },
                     else => {
@@ -223,6 +225,6 @@ impl<T> Drop for Client<T> {
         {
             warn!("grpc collector task failed: {e}");
         }
-        debug!("events_collector_handle completed");
+        info!("client shut down, all gRPC messages flushed");
     }
 }

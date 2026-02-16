@@ -4,8 +4,11 @@ use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity,
     fsm::collection::FsmCollection,
     resource::{
-        Resource, ResourceGroup, ResourceTypeDecl, Usage, Using,
-        collection::{InMemoryResources, InMemoryResourcesBuilder, ResourceCollection},
+        Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl, Usage, Using,
+        collection::{
+            InMemoryResources, InMemoryResourcesBuilder, ResourceCollection,
+            derive_resource_group_types,
+        },
     },
 };
 use quent_events::Event;
@@ -36,6 +39,7 @@ pub struct SimulatorModel {
     pub query_engine: InMemoryEngineModel,
     pub resources: InMemoryResources,
     pub tasks: HashMap<Uuid, Task>,
+    pub resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
 }
 
 /// A view of the simulator model filtered to a specific query
@@ -271,9 +275,10 @@ impl SimulatorModelBuilder {
     }
 
     pub fn try_build(self) -> AnalyzerResult<SimulatorModel> {
-        // Build resourced first. As we iterate over task builders and build all
-        // tasks, we can populate the resources used_by field.
+        // Build resources first. As we iterate over task builders and build all
+        // tasks, we can populate the leaf resources used_by field.
         let mut resources = self.resources.try_build()?;
+        let query_engine = self.query_engine.try_build()?;
 
         let mut tasks = HashMap::<Uuid, Task>::with_capacity(self.tasks.len());
 
@@ -293,10 +298,35 @@ impl SimulatorModelBuilder {
             tasks.insert(task_id, task);
         }
 
-        Ok(SimulatorModel {
-            query_engine: self.query_engine.try_build()?,
+        // Construct the model without group type decls being populated yet, we
+        // will populate it based on the resource tree.
+        let temp_model = SimulatorModel {
+            query_engine,
             resources,
             tasks,
+            resource_group_types: HashMap::new(),
+        };
+        let mut resource_group_types = derive_resource_group_types(&temp_model)?;
+        // Bubble up all the used_by_entity fields in the group type decls.
+        for group_type_decl in resource_group_types.values_mut() {
+            for contained_resource_type in &group_type_decl.contains_resource_types {
+                if let Ok(resource_type) =
+                    temp_model.resources.resource_type(contained_resource_type)
+                {
+                    for entity_type in &resource_type.used_by {
+                        group_type_decl
+                            .used_by_entity_types
+                            .insert(entity_type.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(SimulatorModel {
+            query_engine: temp_model.query_engine,
+            resources: temp_model.resources,
+            tasks: temp_model.tasks,
+            resource_group_types,
         })
     }
 }
