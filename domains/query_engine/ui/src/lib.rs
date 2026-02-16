@@ -279,7 +279,11 @@ impl TryFrom<(&qa::operator::Operator, TimeUnixNanoSec)> for Operator {
         let (operator, _engine_start) = value;
 
         let statistics = operator.statistics.as_ref().map(|s| OperatorStatistics {
-            custom_statistics: s.custom_statistics.clone(),
+            custom_statistics: s
+                .custom_statistics
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         });
 
         Ok(Self {
@@ -288,7 +292,11 @@ impl TryFrom<(&qa::operator::Operator, TimeUnixNanoSec)> for Operator {
             parent_operator_ids: operator.parent_operator_ids.clone(),
             instance_name: operator.instance_name.clone(),
             operator_type_name: operator.operator_type_name.clone(),
-            custom_attributes: operator.custom_attributes.clone(),
+            custom_attributes: operator
+                .custom_attributes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             statistics,
         })
     }
@@ -303,7 +311,11 @@ pub struct PortStatistics {
 impl From<&qa::port::PortStatistics> for PortStatistics {
     fn from(value: &qa::port::PortStatistics) -> Self {
         Self {
-            custom_statistics: value.custom_statistics.clone(),
+            custom_statistics: value
+                .custom_statistics
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         }
     }
 }

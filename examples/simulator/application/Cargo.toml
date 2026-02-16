@@ -8,6 +8,7 @@ clap = {version = "4.5.57", features = ["derive"] }
 petgraph = "0.8.3"
 quent-attributes = { path = "../../../crates/attributes" }
 quent-events = { path = "../../../crates/events" }
+quent-exporter-collector = { path = "../../../crates/exporter/collector" }
 quent-instrumentation = { path = "../../../crates/instrumentation" }
 quent-query-engine-events = { path = "../../../domains/query_engine/events" }
 quent-simulator-events = { path = "../events" }

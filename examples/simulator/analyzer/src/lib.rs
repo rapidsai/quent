@@ -1,7 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    num::NonZero,
-};
+use std::{collections::HashSet, num::NonZero};
+
+use rustc_hash::FxHashMap as HashMap;
+use std::collections::HashMap as StdHashMap;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Span,
@@ -83,12 +83,33 @@ impl Analyzer {
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<Self> {
         let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
-        for event in events {
-            builder.try_push(event)?;
+        {
+            let _span = tracing::info_span!("ingest").entered();
+            for event in events {
+                builder.try_push(event)?;
+            }
         }
-        Ok(Self {
-            model: builder.try_build()?,
-        })
+        let model = {
+            let _span = tracing::info_span!("build").entered();
+            builder.try_build()?
+        };
+
+        let qe = &model.query_engine;
+        tracing::info!(
+            workers = qe.workers.len(),
+            query_groups = qe.query_groups.len(),
+            queries = qe.queries.len(),
+            plans = qe.plans.len(),
+            operators = qe.operators.len(),
+            ports = qe.ports.len(),
+            resources = model.resources.resources.len(),
+            resource_groups = model.resources.resource_groups.len(),
+            resource_types = model.resources.resource_types.len(),
+            resource_group_types = model.resource_group_types.len(),
+            tasks = model.tasks.len(),
+        );
+
+        Ok(Self { model })
     }
 
     pub fn resource_tree(&self, query_id: Uuid) -> AnalyzerResult<ResourceTreeNode> {
@@ -192,7 +213,7 @@ impl Analyzer {
         let filtered_tasks = || {
             self.model
                 .tasks
-                .values()
+                .iter()
                 .filter(move |task| operator_id.is_none_or(|op| task.operator_id() == Some(op)))
         };
 
@@ -219,11 +240,11 @@ impl Analyzer {
                 }
                 let result = builder.build();
                 let config_secs = result.config.try_to_secs_relative(epoch)?;
-                let mut capacities_states_values = HashMap::new();
+                let mut capacities_states_values = StdHashMap::new();
                 for ((state_name, capacity_name), values) in result.data {
                     capacities_states_values
                         .entry(capacity_name.to_owned())
-                        .or_insert_with(HashMap::new)
+                        .or_insert_with(StdHashMap::new)
                         .insert(state_name.to_owned(), values);
                 }
                 Ok(ui::timeline::TimelineResponse::BinnedByState(
@@ -285,7 +306,7 @@ impl Analyzer {
         let filtered_tasks = || {
             self.model
                 .tasks
-                .values()
+                .iter()
                 .filter(move |task| operator_id.is_none_or(|op| task.operator_id() == Some(op)))
         };
 
@@ -312,11 +333,11 @@ impl Analyzer {
                 }
                 let result = builder.build();
                 let config_secs = result.config.try_to_secs_relative(epoch)?;
-                let mut capacities_states_values = HashMap::new();
+                let mut capacities_states_values = StdHashMap::new();
                 for ((state_name, capacity_name), values) in result.data {
                     capacities_states_values
                         .entry(capacity_name.to_owned())
-                        .or_insert_with(HashMap::new)
+                        .or_insert_with(StdHashMap::new)
                         .insert(state_name.to_owned(), values);
                 }
                 Ok(ui::timeline::TimelineResponse::BinnedByState(
@@ -458,7 +479,7 @@ impl Analyzer {
             .iter()
             .enumerate()
             .flat_map(|(i, (_, builder))| builder.id_filter().iter().map(move |&id| (id, i)))
-            .fold(HashMap::new(), |mut acc, (id, i)| {
+            .fold(HashMap::default(), |mut acc, (id, i)| {
                 acc.entry(id).or_default().push(i);
                 acc
             });
@@ -467,13 +488,13 @@ impl Analyzer {
             .iter()
             .enumerate()
             .flat_map(|(i, (_, builder))| builder.id_filter().iter().map(move |&id| (id, i)))
-            .fold(HashMap::new(), |mut acc, (id, i)| {
+            .fold(HashMap::default(), |mut acc, (id, i)| {
                 acc.entry(id).or_default().push(i);
                 acc
             });
 
         // Iterate over all task usages once, routing each usage to matching builders
-        for task in self.model.tasks.values() {
+        for task in self.model.tasks.iter() {
             let task_operator_id = task.operator_id();
             for state in task.states() {
                 for (usage, span) in state.usages() {
@@ -501,7 +522,7 @@ impl Analyzer {
         }
 
         // Collect results.
-        let mut result = HashMap::new();
+        let mut result = HashMap::default();
         for (key, builder) in plain_builders {
             result.insert(
                 key,
@@ -520,12 +541,12 @@ impl Analyzer {
         }
 
         for (key, builder) in per_state_builders {
-            let mut capacities_states_values = HashMap::new();
+            let mut capacities_states_values = std::collections::HashMap::default();
             // Unflatten the keys
             for ((state_name, capacity_name), values) in builder.build().data {
                 capacities_states_values
                     .entry(capacity_name.to_owned())
-                    .or_insert_with(HashMap::new)
+                    .or_insert_with(std::collections::HashMap::new)
                     .insert(state_name.to_owned(), values);
             }
             result.insert(

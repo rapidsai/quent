@@ -1,6 +1,6 @@
 //! Functionality to analyze telemetry to construct timelines with time bins.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
@@ -90,7 +90,7 @@ impl<Key> KeyedAggregator<Key> {
     pub(crate) fn new(config: BinnedSpan) -> Self {
         Self {
             config,
-            bins: HashMap::new(),
+            bins: HashMap::default(),
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_query_engine_events::plan::PlanParent;
@@ -127,7 +127,7 @@ mod tests {
         let leaf_ids = [Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7()];
         let worker_ids = [Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7()];
 
-        let mut plans = HashMap::new();
+        let mut plans = HashMap::default();
 
         let mut trunk0 = Plan::try_new(trunk_ids[0]).unwrap();
         trunk0.parent = Some(PlanParent::Query(query_id));
@@ -168,7 +168,7 @@ mod tests {
         let query_id = Uuid::now_v7();
         let plan_id = Uuid::now_v7();
 
-        let mut plans = HashMap::new();
+        let mut plans = HashMap::default();
         let mut plan = Plan::try_new(plan_id).unwrap();
         plan.parent = Some(PlanParent::Query(query_id));
         plans.insert(plan_id, plan);

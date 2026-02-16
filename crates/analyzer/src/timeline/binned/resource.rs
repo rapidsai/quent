@@ -1,11 +1,9 @@
 //! Binned timelines for resource utilization.
 
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use std::{collections::HashSet, hash::Hash};
 
 use quent_time::{SpanNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec};
+use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
 use crate::{
@@ -20,7 +18,7 @@ fn convert_capacity(
     capacity_value: &CapacityValue,
     resource_type: &ResourceTypeDecl,
 ) -> AnalyzerResult<f64> {
-    let capacity_type = resource_type.try_capacity(&capacity_value.name)?.kind;
+    let capacity_type = resource_type.try_capacity(capacity_value.name)?.kind;
     Ok(capacity_type.reinterpret_capacity_value(capacity_value.value.unwrap_or_default(), span))
 }
 
@@ -101,8 +99,7 @@ where
         for capacity in usage.capacities.iter() {
             if capacity.value.is_some() {
                 let value = convert_capacity(span, capacity, self.resource_type)?;
-                self.aggregator
-                    .try_push(span, (capacity.name.as_str(), value))?
+                self.aggregator.try_push(span, (capacity.name, value))?
             }
         }
         Ok(())
@@ -182,7 +179,7 @@ where
             if capacity.value.is_some() {
                 let value = convert_capacity(span, capacity, self.resource_type)?;
                 self.aggregator
-                    .try_push(span, ((key, capacity.name.as_str()), value))?
+                    .try_push(span, ((key, capacity.name), value))?
             }
         }
         Ok(())

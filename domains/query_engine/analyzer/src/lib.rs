@@ -13,7 +13,9 @@
 //!   like time binned aggregations etc. as well. How modeling rules and
 //!   validation can be expressed in such frameworks is to be investigated.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity,

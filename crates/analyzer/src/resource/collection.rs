@@ -1,6 +1,8 @@
 //! Collections of resources and resource groups
 
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::collections::{HashSet, hash_map::Entry};
+
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_events::{
     Event,
@@ -63,7 +65,7 @@ pub trait ResourceCollection {
 pub fn derive_resource_group_types(
     collection: &impl ResourceCollection,
 ) -> AnalyzerResult<HashMap<String, ResourceGroupTypeDecl>> {
-    let mut resource_group_types = HashMap::<String, ResourceGroupTypeDecl>::new();
+    let mut resource_group_types: HashMap<String, ResourceGroupTypeDecl> = HashMap::default();
 
     // Find all root groups (those with no parent)
     let root_groups: Vec<Uuid> = collection

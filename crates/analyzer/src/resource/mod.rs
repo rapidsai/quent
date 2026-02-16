@@ -202,23 +202,19 @@ pub struct ResourceGroupTypeDecl {
 /// A value related to the capacity of a [`Resource`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct CapacityValue {
-    // TODO(johanpel): consider making this a small index into whats declared at init
-    pub name: String,
+    pub name: &'static str,
     pub value: Option<u64>,
 }
 
 impl CapacityValue {
-    pub fn new(name: impl Into<String>, value: u64) -> Self {
+    pub fn new(name: &'static str, value: u64) -> Self {
         Self {
-            name: name.into(),
+            name,
             value: Some(value),
         }
     }
-    pub fn new_null(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            value: None,
-        }
+    pub fn new_null(name: &'static str) -> Self {
+        Self { name, value: None }
     }
 }
 

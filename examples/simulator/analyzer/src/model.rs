@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity,
@@ -38,7 +38,7 @@ pub struct SimulatorModelBuilder {
 pub struct SimulatorModel {
     pub query_engine: InMemoryEngineModel,
     pub resources: InMemoryResources,
-    pub tasks: HashMap<Uuid, Task>,
+    pub tasks: Vec<Task>,
     pub resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
 }
 
@@ -64,13 +64,13 @@ impl<'a> SimulatorModelQueryView<'a> {
         let mut result = SimulatorModelQueryView {
             query_engine_view,
             resources: &model.resources,
-            tasks: HashMap::new(),
+            tasks: HashMap::default(),
         };
 
         result.tasks = model
             .tasks
             .iter()
-            .map(|(id, task)| (*id, task))
+            .map(|task| (task.id(), task))
             .filter(|(_, task)| {
                 task.usages()
                     .any(|(usage, _)| result.resource(usage.resource).is_ok())
@@ -249,7 +249,7 @@ impl SimulatorModelBuilder {
         Ok(Self {
             query_engine: InMemoryEngineModelBuilder::try_new(engine_id)?,
             resources: InMemoryResourcesBuilder::default(),
-            tasks: HashMap::new(),
+            tasks: HashMap::default(),
         })
     }
 
@@ -265,7 +265,8 @@ impl SimulatorModelBuilder {
                     .tasks
                     .entry(event.id)
                     .or_insert_with(|| TaskBuilder::try_new(event.id).unwrap());
-                task_builder.try_push(Event::new(id, timestamp, t))
+                task_builder.push(Event::new(id, timestamp, t));
+                Ok(())
             }
             SimulatorEvent::QueryEngineEvent(qe) => {
                 self.query_engine.try_push(Event::new(id, timestamp, qe))
@@ -280,9 +281,9 @@ impl SimulatorModelBuilder {
         let mut resources = self.resources.try_build()?;
         let query_engine = self.query_engine.try_build()?;
 
-        let mut tasks = HashMap::<Uuid, Task>::with_capacity(self.tasks.len());
+        let mut tasks = Vec::with_capacity(self.tasks.len());
 
-        for (task_id, task_builder) in self.tasks.into_iter() {
+        for (_task_id, task_builder) in self.tasks.into_iter() {
             let task = task_builder.try_build()?;
             for (usage, _) in task.usages() {
                 let resource_type_name = resources.resource(usage.resource)?.type_name().to_owned();
@@ -295,7 +296,7 @@ impl SimulatorModelBuilder {
                     set.insert(task.type_name().to_owned());
                 }
             }
-            tasks.insert(task_id, task);
+            tasks.push(task);
         }
 
         // Construct the model without group type decls being populated yet, we
@@ -304,7 +305,7 @@ impl SimulatorModelBuilder {
             query_engine,
             resources,
             tasks,
-            resource_group_types: HashMap::new(),
+            resource_group_types: HashMap::default(),
         };
         let mut resource_group_types = derive_resource_group_types(&temp_model)?;
         // Bubble up all the used_by_entity fields in the group type decls.
@@ -336,7 +337,7 @@ impl FsmCollection<Task> for SimulatorModel {
     where
         Task: 'a,
     {
-        self.tasks.values()
+        self.tasks.iter()
     }
 
     fn contains_fsm_type(&self, type_name: &str) -> bool {
@@ -436,6 +437,6 @@ impl SimulatorModel {
 
 impl Using for SimulatorModel {
     fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        self.tasks.values().flat_map(|task| task.usages())
+        self.tasks.iter().flat_map(|task| task.usages())
     }
 }

@@ -10,7 +10,9 @@ quent-analyzer = { path = "../../../crates/analyzer" }
 quent-ui = { path = "../../../crates/ui" }
 quent-collector = { path = "../../../crates/collector", features = ["server"] }
 quent-exporter = { path = "../../../crates/exporter" }
+quent-exporter-msgpack = { path = "../../../crates/exporter/msgpack" }
 quent-exporter-ndjson = { path = "../../../crates/exporter/ndjson" }
+quent-exporter-postcard = { path = "../../../crates/exporter/postcard" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-events = { path = "../events" }

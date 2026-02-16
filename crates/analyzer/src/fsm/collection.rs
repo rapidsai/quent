@@ -1,6 +1,8 @@
 //! Collections of FSMs
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_time::span::SpanUnixNanoSec;
 use uuid::Uuid;

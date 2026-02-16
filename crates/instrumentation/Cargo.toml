@@ -7,7 +7,9 @@ edition.workspace = true
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-collector = { path = "../exporter/collector" }
+quent-exporter-msgpack = { path = "../exporter/msgpack" }
 quent-exporter-ndjson = { path = "../exporter/ndjson" }
+quent-exporter-postcard = { path = "../exporter/postcard" }
 serde.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}

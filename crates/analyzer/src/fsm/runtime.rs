@@ -1,6 +1,8 @@
 //! Run-time defined FSMs (in analysis)
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_attributes::Attribute;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
@@ -216,7 +218,8 @@ impl RtFsmsBuilder {
 
     pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm>> {
         // Build all FSMs.
-        let mut fsms: HashMap<Uuid, RtFsm> = HashMap::with_capacity(self.fsms.capacity());
+        let mut fsms: HashMap<Uuid, RtFsm> =
+            HashMap::with_capacity_and_hasher(self.fsms.capacity(), Default::default());
         let mut fsm_type_names = HashSet::<String>::new();
 
         for (k, fsm) in self.fsms.into_iter() {

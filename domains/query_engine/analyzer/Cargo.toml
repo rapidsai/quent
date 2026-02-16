@@ -8,6 +8,7 @@ quent-analyzer = { path = "../../../crates/analyzer" }
 quent-attributes = { path = "../../../crates/attributes" }
 quent-events = { path = "../../../crates/events" }
 quent-query-engine-events = { path = "../events" }
+rustc-hash.workspace = true
 quent-time = { path = "../../../crates/time" }
 thiserror.workspace = true
 uuid.workspace = true

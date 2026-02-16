@@ -5,7 +5,9 @@ use std::sync::Arc;
 use quent_events::{Event, resource};
 use quent_exporter::Exporter;
 use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
+use quent_exporter_msgpack::MsgpackExporter;
 use quent_exporter_ndjson::NdjsonExporter;
+use quent_exporter_postcard::PostcardExporter;
 use serde::Serialize;
 use tokio::{
     runtime::{Handle, Runtime},
@@ -19,6 +21,8 @@ use uuid::Uuid;
 pub enum ExporterOptions {
     Collector(CollectorExporterOptions),
     Ndjson,
+    Msgpack,
+    Postcard,
 }
 
 pub struct Context<T>
@@ -67,6 +71,8 @@ where
                 Arc::new(handle.block_on(CollectorExporter::new(id, opts))?)
             }
             ExporterOptions::Ndjson => Arc::new(handle.block_on(NdjsonExporter::try_new(id))?),
+            ExporterOptions::Msgpack => Arc::new(handle.block_on(MsgpackExporter::try_new(id))?),
+            ExporterOptions::Postcard => Arc::new(handle.block_on(PostcardExporter::try_new(id))?),
         };
 
         let cancellation_token = CancellationToken::new();

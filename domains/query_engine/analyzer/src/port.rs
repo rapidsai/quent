@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{Entity, resource::ResourceGroup};
 use quent_attributes::{Attribute, Value};

@@ -1,0 +1,14 @@
+[package]
+name = "quent-exporter-postcard"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+postcard.workspace = true
+quent-events = { path = "../../events" }
+quent-exporter = { path = "../" }
+serde.workspace = true
+tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
+uuid.workspace = true
+tracing.workspace = true

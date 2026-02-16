@@ -1,8 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
+use quent_exporter_msgpack::MsgpackImporter;
 use quent_exporter_ndjson::NdjsonImporter;
+use quent_exporter_postcard::PostcardImporter;
 use quent_simulator_analyzer::Analyzer;
+use tracing::info_span;
 use uuid::Uuid;
 
 use crate::error::{ServerError, ServerResult};
@@ -28,8 +31,20 @@ impl AnalyzerCache {
         self.analyzers
             .entry(engine_id)
             .or_try_insert_with(async {
-                let importer = NdjsonImporter::try_new(format!("data/{engine_id}.ndjson"))?;
-                Ok(Analyzer::try_new(engine_id, importer).map(Arc::new)?)
+                let _span = info_span!("load_engine", %engine_id).entered();
+                let postcard_path = format!("data/{engine_id}.postcard");
+                let msgpack_path = format!("data/{engine_id}.msgpack");
+                let ndjson_path = format!("data/{engine_id}.ndjson");
+                if std::path::Path::new(&postcard_path).exists() {
+                    let importer = PostcardImporter::try_new(&postcard_path)?;
+                    Ok(Analyzer::try_new(engine_id, importer).map(Arc::new)?)
+                } else if std::path::Path::new(&msgpack_path).exists() {
+                    let importer = MsgpackImporter::try_new(&msgpack_path)?;
+                    Ok(Analyzer::try_new(engine_id, importer).map(Arc::new)?)
+                } else {
+                    let importer = NdjsonImporter::try_new(&ndjson_path)?;
+                    Ok(Analyzer::try_new(engine_id, importer).map(Arc::new)?)
+                }
             })
             .await
             .map(|v| v.into_value())

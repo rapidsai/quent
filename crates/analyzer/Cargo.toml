@@ -6,6 +6,7 @@ edition.workspace =  true
 [dependencies]
 quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
+rustc-hash.workspace = true
 quent-time = { path = "../time" }
 thiserror.workspace = true
 uuid.workspace = true

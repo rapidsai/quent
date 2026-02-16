@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{Entity, resource::ResourceGroup};
 use quent_attributes::{Attribute, Value};
@@ -49,7 +49,7 @@ impl Operator {
                 parent_operator_ids: Vec::new(),
                 instance_name: None,
                 operator_type_name: None,
-                custom_attributes: HashMap::new(),
+                custom_attributes: HashMap::default(),
                 statistics: None,
             })
         }

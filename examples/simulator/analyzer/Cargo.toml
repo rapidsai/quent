@@ -12,4 +12,6 @@ quent-analyzer = { path = "../../../crates/analyzer" }
 quent-ui = { path = "../../../crates/ui" }
 quent-time = { path = "../../../crates/time" }
 quent-events = { path = "../../../crates/events" }
+rustc-hash.workspace = true
+tracing.workspace = true
 uuid.workspace = true

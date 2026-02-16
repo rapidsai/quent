@@ -9,6 +9,7 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::Attribute;
 use quent_events::resource::{self, channel, memory};
+use quent_exporter_collector::CollectorExporterOptions;
 use quent_instrumentation::ExporterOptions;
 use quent_query_engine_events::{
     engine::{self, EngineImplementationAttributes},
@@ -44,9 +45,17 @@ struct Args {
     #[arg(long, default_value_t = 2)]
     num_threads: usize,
 
-    /// Export events as ndjson files instead of sending to collector
-    #[arg(long, default_value_t = false)]
-    ndjson: bool,
+    /// Exporter format:
+    /// - collector: send events to a collector service over gRPC.
+    /// - postcard: binary format, NOT self-describing, most performant.
+    /// - messagepack: binary self-describing format.
+    /// - ndjson: newline-delimited JSON files (human readable).
+    #[arg(long, default_value = "collector")]
+    exporter: String,
+
+    /// Collector address (only used when --exporter is collector)
+    #[arg(long)]
+    collector_address: Option<String>,
 }
 
 fn initialize_tracing() {
@@ -1019,10 +1028,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = Engine::new();
 
-    let exporter = if args.ndjson {
-        ExporterOptions::Ndjson
-    } else {
-        ExporterOptions::Collector(Default::default())
+    let exporter = match args.exporter.as_str() {
+        "postcard" => ExporterOptions::Postcard,
+        "messagepack" => ExporterOptions::Msgpack,
+        "ndjson" => ExporterOptions::Ndjson,
+        "collector" => ExporterOptions::Collector(CollectorExporterOptions {
+            address: args.collector_address,
+        }),
+        _ => {
+            return Err(format!(
+                "invalid exporter '{}': must be postcard, messagepack, ndjson, or collector",
+                args.exporter
+            )
+            .into());
+        }
     };
     let context = SimulatorContext::try_new(exporter, engine.id)?;
 

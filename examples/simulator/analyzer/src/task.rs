@@ -15,55 +15,52 @@ pub struct TaskTransition(Event<TaskEvent>);
 pub struct InitState {
     pub span: SpanUnixNanoSec,
     pub data: Init,
-    pub usages: Vec<Usage>,
 }
 
 #[derive(Debug)]
 pub struct QueueingState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
 }
 
 #[derive(Debug)]
 pub struct ComputingState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
+    pub usages: [Usage; 2],
 }
 
 #[derive(Debug)]
 pub struct LoadingState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
+    pub usages: [Usage; 3],
 }
 
 #[derive(Debug)]
 pub struct AllocatingMemoryState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
+    pub usages: [Usage; 1],
 }
 
 #[derive(Debug)]
 pub struct AllocatingStorageState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
+    pub usages: [Usage; 1],
 }
 
 #[derive(Debug)]
 pub struct SpillingState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
+    pub usages: [Usage; 2],
 }
 
 #[derive(Debug)]
 pub struct SendingState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
+    pub usages: [Usage; 2],
 }
 
 #[derive(Debug)]
 pub struct FinalizingState {
     pub span: SpanUnixNanoSec,
-    pub usages: Vec<Usage>,
 }
 
 #[derive(Debug)]
@@ -93,15 +90,13 @@ impl Transition for TaskTransition {
             TaskEvent::Init(data) => TaskState::Init(InitState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
                 data,
-                usages: vec![],
             }),
             TaskEvent::Queueing => TaskState::Queueing(QueueingState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: vec![],
             }),
             TaskEvent::Computing(data) => TaskState::Computing(ComputingState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: vec![
+                usages: [
                     Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
                     Usage::new(
                         data.use_main_memory,
@@ -112,7 +107,7 @@ impl Transition for TaskTransition {
             TaskEvent::AllocatingMemory(data) => {
                 TaskState::AllocatingMemory(AllocatingMemoryState {
                     span: SpanUnixNanoSec::try_new(t, end)?,
-                    usages: vec![Usage::new(
+                    usages: [Usage::new(
                         data.use_task_thread,
                         [CapacityValue::new("unit", 1)],
                     )],
@@ -120,7 +115,7 @@ impl Transition for TaskTransition {
             }
             TaskEvent::Loading(data) => TaskState::Loading(LoadingState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: vec![
+                usages: [
                     Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
                     Usage::new(
                         data.use_fs_to_mem,
@@ -135,7 +130,7 @@ impl Transition for TaskTransition {
             TaskEvent::AllocatingStorage(data) => {
                 TaskState::AllocatingStorage(AllocatingStorageState {
                     span: SpanUnixNanoSec::try_new(t, end)?,
-                    usages: vec![Usage::new(
+                    usages: [Usage::new(
                         data.use_task_thread,
                         [CapacityValue::new("unit", 1)],
                     )],
@@ -143,7 +138,7 @@ impl Transition for TaskTransition {
             }
             TaskEvent::Spilling(data) => TaskState::Spilling(SpillingState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: vec![
+                usages: [
                     Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
                     Usage::new(
                         data.use_mem_to_fs,
@@ -153,7 +148,7 @@ impl Transition for TaskTransition {
             }),
             TaskEvent::Sending(data) => TaskState::Sending(SendingState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: vec![
+                usages: [
                     Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
                     Usage::new(
                         data.use_link,
@@ -163,7 +158,6 @@ impl Transition for TaskTransition {
             }),
             TaskEvent::Finalizing => TaskState::Finalizing(FinalizingState {
                 span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: vec![],
             }),
             TaskEvent::Exit => Err(AnalyzerError::FsmExitTransitionConversion)?,
         })
@@ -177,14 +171,13 @@ impl State for TaskState {
             TaskState::Queueing(_) => "queueing",
             TaskState::Computing(_) => "computing",
             TaskState::Loading(_) => "loading",
-            TaskState::AllocatingMemory(_) => "allocating memory",
-            TaskState::AllocatingStorage(_) => "allocating storage",
+            TaskState::AllocatingMemory(_) => "allocating_memory",
+            TaskState::AllocatingStorage(_) => "allocating_storage",
             TaskState::Spilling(_) => "spilling",
             TaskState::Sending(_) => "sending",
             TaskState::Finalizing(_) => "finalizing",
         }
     }
-
     fn span(&self) -> SpanUnixNanoSec {
         match self {
             TaskState::Init(state) => state.span,
@@ -198,24 +191,23 @@ impl State for TaskState {
             TaskState::Finalizing(state) => state.span,
         }
     }
-
     fn attributes(&self) -> impl Iterator<Item = &Attribute> {
         std::iter::empty()
     }
 }
 
-impl Using for TaskState {
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        let (usages, span) = match self {
-            TaskState::Init(state) => (&state.usages, state.span),
-            TaskState::Queueing(state) => (&state.usages, state.span),
+impl TaskState {
+    pub fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
+        let (usages, span): (&[Usage], _) = match self {
+            TaskState::Init(state) => (&[], state.span),
+            TaskState::Queueing(state) => (&[], state.span),
             TaskState::Computing(state) => (&state.usages, state.span),
             TaskState::Loading(state) => (&state.usages, state.span),
             TaskState::AllocatingMemory(state) => (&state.usages, state.span),
             TaskState::AllocatingStorage(state) => (&state.usages, state.span),
             TaskState::Spilling(state) => (&state.usages, state.span),
             TaskState::Sending(state) => (&state.usages, state.span),
-            TaskState::Finalizing(state) => (&state.usages, state.span),
+            TaskState::Finalizing(state) => (&[], state.span),
         };
         usages.iter().map(move |usage| (usage, span))
     }
@@ -235,33 +227,25 @@ impl TaskBuilder {
         } else {
             Ok(Self {
                 id,
-                transitions: Default::default(),
+                transitions: OrderedStateTransitionCollector::default(),
             })
         }
     }
 
-    pub(crate) fn try_push(&mut self, event: Event<TaskEvent>) -> AnalyzerResult<()> {
-        if event.id != self.id {
-            return Err(AnalyzerError::BrokenImpl(
-                "attempt to push task event in wrong task",
-            ));
-        }
-        self.transitions.push(TaskTransition(event));
-        Ok(())
+    pub(crate) fn push(&mut self, event: Event<TaskEvent>) {
+        self.transitions.push(TaskTransition(event))
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<Task> {
         let transitions: Vec<TaskTransition> = self.transitions.try_into()?;
-
-        let mut sequence = Vec::with_capacity(transitions.len() - 1);
-        let mut iter = transitions.into_iter();
-        let mut current = iter.next().unwrap();
-        for next in iter {
-            let next_timestamp = next.timestamp();
-            sequence.push(current.try_into_state(next_timestamp)?);
-            current = next;
+        let len = transitions.len();
+        // Collect end timestamps before consuming transitions.
+        let end_times: Vec<TimeUnixNanoSec> =
+            transitions[1..].iter().map(|t| t.timestamp()).collect();
+        let mut sequence = Vec::with_capacity(len.saturating_sub(1));
+        for (transition, end) in transitions.into_iter().zip(end_times) {
+            sequence.push(transition.try_into_state(end)?);
         }
-
         Ok(Task {
             id: self.id,
             sequence,
