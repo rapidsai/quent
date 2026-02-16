@@ -10,6 +10,7 @@ use quent_analyzer::{
             derive_resource_group_types,
         },
     },
+    trace::RtTraceBuilder,
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{
@@ -30,6 +31,7 @@ use crate::{
 pub struct SimulatorModelBuilder {
     query_engine: InMemoryEngineModelBuilder,
     resources: InMemoryResourcesBuilder,
+    traces: HashMap<Uuid, RtTraceBuilder>,
     tasks: HashMap<Uuid, TaskBuilder>,
 }
 
@@ -250,6 +252,7 @@ impl SimulatorModelBuilder {
             query_engine: InMemoryEngineModelBuilder::try_new(engine_id)?,
             resources: InMemoryResourcesBuilder::default(),
             tasks: HashMap::default(),
+            traces: HashMap::default(),
         })
     }
 
@@ -272,6 +275,14 @@ impl SimulatorModelBuilder {
                 self.query_engine.try_push(Event::new(id, timestamp, qe))
             }
             SimulatorEvent::Resource(r) => self.resources.try_push(Event::new(id, timestamp, r)),
+            SimulatorEvent::Trace(t) => {
+                let trace_builder = self
+                    .traces
+                    .entry(event.id)
+                    .or_insert_with(|| RtTraceBuilder::try_new(event.id).unwrap());
+                trace_builder.push(timestamp, t);
+                Ok(())
+            }
         }
     }
 

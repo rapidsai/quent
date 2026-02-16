@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-collector = { path = "../exporter/collector" }

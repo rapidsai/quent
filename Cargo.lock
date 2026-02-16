@@ -1113,6 +1113,7 @@ dependencies = [
 name = "quent-events"
 version = "0.1.0"
 dependencies = [
+ "quent-attributes",
  "quent-time",
  "serde",
  "serde_json",
@@ -1193,6 +1194,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "petgraph",
+ "quent-attributes",
  "quent-collector",
  "quent-events",
  "quent-exporter",

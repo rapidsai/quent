@@ -679,7 +679,11 @@ impl Worker {
                 use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
             },
         );
-        sleep_long();
+
+        if operator.kind == Physical::JoinLocal {
+            simulate_cudf_trace(context, id)
+        };
+
         if send {
             // Get all other workers and send some data to each of them sequentially.
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
@@ -1017,6 +1021,115 @@ impl Engine {
         engine_obs.exit(self.id);
         info!("Simulated engine shut down.")
     }
+}
+
+fn simulate_cudf_trace(context: &SimulatorContext, task_id: Uuid) {
+    // Nothing in this simulator aims to make too much sense to begin with, so this code is LLM generated.
+    let trace = context.trace_observer(task_id);
+
+    let kernel = trace.span(task_id, "kernel".into(), None);
+    kernel.enter(vec![]);
+
+    // Device memory allocation
+    let alloc = trace.span(task_id, "rmm::alloc".into(), Some(kernel.span_id()));
+    alloc.enter(vec![]);
+    sleep_short();
+    alloc.exit(vec![]);
+    alloc.close();
+
+    // Host-to-device transfer
+    let h2d = trace.span(task_id, "cudf::h2d_copy".into(), Some(kernel.span_id()));
+    h2d.enter(vec![]);
+    sleep_short();
+    h2d.exit(vec![]);
+    h2d.close();
+
+    // Column operations
+    let col_ops = trace.span(task_id, "cudf::column_ops".into(), Some(kernel.span_id()));
+    col_ops.enter(vec![]);
+
+    // Decompress input column
+    let decompress = trace.span(
+        task_id,
+        "nvcomp::decompress".into(),
+        Some(col_ops.span_id()),
+    );
+    decompress.enter(vec![]);
+    sleep_short();
+    decompress.exit(vec![]);
+    decompress.close();
+
+    // Apply filter predicate
+    if rng().random_bool(0.7) {
+        let filter = trace.span(
+            task_id,
+            "cudf::apply_filter".into(),
+            Some(col_ops.span_id()),
+        );
+        filter.enter(vec![]);
+
+        let pred = trace.span(
+            task_id,
+            "cudf::eval_predicate".into(),
+            Some(filter.span_id()),
+        );
+        pred.enter(vec![]);
+        sleep_short();
+        pred.exit(vec![]);
+        pred.close();
+
+        let gather = trace.span(task_id, "cudf::gather".into(), Some(filter.span_id()));
+        gather.enter(vec![]);
+        sleep_short();
+        gather.exit(vec![]);
+        gather.close();
+
+        filter.exit(vec![]);
+        filter.close();
+    }
+
+    // Hash partitioning
+    let hash = trace.span(
+        task_id,
+        "cudf::hash_partition".into(),
+        Some(col_ops.span_id()),
+    );
+    hash.enter(vec![]);
+
+    let murmur = trace.span(task_id, "cudf::murmur_hash".into(), Some(hash.span_id()));
+    murmur.enter(vec![]);
+    sleep_long();
+    murmur.exit(vec![]);
+    murmur.close();
+
+    let scatter = trace.span(task_id, "cudf::scatter".into(), Some(hash.span_id()));
+    scatter.enter(vec![]);
+    sleep_short();
+    scatter.exit(vec![]);
+    scatter.close();
+
+    hash.exit(vec![]);
+    hash.close();
+
+    col_ops.exit(vec![]);
+    col_ops.close();
+
+    // Device-to-host transfer
+    let d2h = trace.span(task_id, "cudf::d2h_copy".into(), Some(kernel.span_id()));
+    d2h.enter(vec![]);
+    sleep_short();
+    d2h.exit(vec![]);
+    d2h.close();
+
+    // Free device memory
+    let free = trace.span(task_id, "rmm::free".into(), Some(kernel.span_id()));
+    free.enter(vec![]);
+    sleep_short();
+    free.exit(vec![]);
+    free.close();
+
+    kernel.exit(vec![]);
+    kernel.close();
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

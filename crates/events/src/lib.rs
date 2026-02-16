@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub mod resource;
+pub mod trace;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event<T> {
