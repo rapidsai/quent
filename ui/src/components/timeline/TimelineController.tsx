@@ -4,14 +4,19 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import { withOpacity } from '@/services/colors';
 import { formatDuration } from '@/services/formatters';
-import { buildBinnedTimelineSeries, connectChart } from '@/lib/timeline.utils';
-import { TIMELINE_SPACING } from './types';
+import {
+  buildBinnedTimelineSeries,
+  connectChart,
+  getTimelineXAxisIntervalMs,
+} from '@/lib/timeline.utils';
+import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { TimelineResponse } from '~quent/types/TimelineResponse';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 const CONTROLLER_HEIGHT = 50;
 const DEFAULT_NUM_BINS = 200;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
+const CONTROLLER_X_MIN_LABELS = 8;
 
 type TimelineControllerProps = {
   /** Start time in nanoseconds (bigint) */
@@ -56,49 +61,65 @@ export function TimelineController({
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 
   const seriesOptions = useMemo(() => {
+    const toTimePoints = (values: number[]) =>
+      values.map((value, index) => [timestamps[index], value] as [number, number]);
+
     const zoomControlSeries = {
       name: 'zoom-control',
       type: 'line',
       xAxisIndex: 1,
-      data: Array(timestamps.length).fill(0),
+      data: toTimePoints(Array(timestamps.length).fill(0)),
       showSymbol: false,
       lineStyle: { width: 0 },
       areaStyle: { opacity: 0 },
       silent: true,
       z: 1,
     };
+    const staticValues: number[] | null = hasSeriesData
+      ? seriesData
+      : Array(timestamps.length).fill(0);
     const staticDisplaySeries = {
       name: 'static-display',
       type: 'line',
       xAxisIndex: 0,
-      data: hasSeriesData ? seriesData : Array(timestamps.length).fill(0),
+      data: toTimePoints(staticValues ?? []),
       showSymbol: false,
       lineStyle: { width: 1, color: colors.rollupTimelineColor },
       areaStyle: { color: withOpacity(colors.rollupTimelineColor, 0.8) },
       silent: true,
       step: 'middle',
+      ...TIMELINE_X_AXIS_ANIMATION,
       z: 1,
     };
     return [zoomControlSeries, staticDisplaySeries];
-  }, [timestamps.length, seriesData, hasSeriesData, colors]);
+  }, [timestamps, hasSeriesData, seriesData, colors.rollupTimelineColor]);
 
   // Static x-axis (index 0): shows labels, ticks, gridlines - not affected by dataZoom
-  const staticXAxisOptions = useMemo(
-    () => ({
-      data: timestamps,
+  const staticXAxisOptions = useMemo(() => {
+    const minTs = timestamps[0] ?? startTimeMillis;
+    const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
+    const interval = getTimelineXAxisIntervalMs(maxTs - minTs, CONTROLLER_X_MIN_LABELS);
+
+    return {
       boundaryGap: false,
-      type: 'category',
+      type: 'value',
       show: true,
+      min: minTs,
+      max: maxTs,
+      interval,
       axisLine: {
         show: true,
         lineStyle: { color: colors.gridBorderColor },
       },
-      axisTick: { show: false },
+      axisTick: { show: true },
       axisLabel: {
         show: true,
+        hideOverlap: false,
         fontSize: 10,
         color: colors.timelineMarkupColor,
-        formatter: (value: number) => formatDuration(value - startTimeMillis),
+        formatter: (value: number) => {
+          return formatDuration(Number(value) - startTimeMillis);
+        },
       },
       splitLine: {
         show: true,
@@ -107,24 +128,29 @@ export function TimelineController({
           type: 'solid',
         },
       },
-    }),
-    [timestamps, startTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]
-  );
+    };
+  }, [timestamps, startTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]);
 
   // Hidden x-axis (index 1): controlled by dataZoom, no visible elements
-  const zoomXAxisOptions = useMemo(
-    () => ({
-      data: timestamps,
+  const zoomXAxisOptions = useMemo(() => {
+    const minTs = timestamps[0] ?? startTimeMillis;
+    const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
+    const interval = getTimelineXAxisIntervalMs(maxTs - minTs, CONTROLLER_X_MIN_LABELS);
+
+    return {
       boundaryGap: false,
-      type: 'category',
+      type: 'value',
       show: false,
+      // These bound and spec the values passed around to the various formatters, etc
+      min: minTs,
+      max: maxTs,
+      interval,
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { show: false },
       splitLine: { show: false },
-    }),
-    [timestamps]
-  );
+    };
+  }, [timestamps, startTimeMillis]);
 
   const yAxisOptions = useMemo(() => {
     if (hasSeriesData) {
@@ -174,6 +200,7 @@ export function TimelineController({
           z: 10,
           xAxisIndex: [1], // Only control the hidden zoom axis (index 1), not the static display axis (index 0)
           realtime: true,
+          filterMode: 'none',
           top: 0,
           height: height - 24,
           brushSelect: true,
@@ -200,8 +227,8 @@ export function TimelineController({
             padding: [2, 4],
             borderRadius: 2,
           },
-          labelFormatter: (_: number, valueStr: string) => {
-            const raw = Number(valueStr);
+          labelFormatter: (tsMilliseconds: number) => {
+            const raw = Number(tsMilliseconds);
             const minTs = timestamps[0] ?? startTimeMillis;
             const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
             const clamped = Math.max(minTs, Math.min(maxTs, raw));
@@ -217,6 +244,7 @@ export function TimelineController({
           type: 'inside',
           xAxisIndex: [1], // Only control the hidden zoom axis
           realtime: true,
+          filterMode: 'none',
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,

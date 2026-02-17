@@ -10,6 +10,7 @@ import { EntityTypeValue, EntityRefKey } from '@/types';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
+import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
 
 export function buildBinnedTimelineSeries(
   data: TimelineResponse,
@@ -39,9 +40,12 @@ export function buildBinnedTimelineSeries(
     const { capacities_values } = data.Binned;
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatterForCapacityType(capacity);
-      if (values) {
-        series[capacity] = { formatter, values, binDuration: bin_duration };
-      }
+      series[capacity] = {
+        color: getColorForKey(capacity),
+        formatter,
+        values: values ?? [],
+        binDuration: bin_duration,
+      };
     }
   } else if ('BinnedByState' in data) {
     const { capacities_states_values } = data.BinnedByState;
@@ -51,6 +55,7 @@ export function buildBinnedTimelineSeries(
         const formatter = getFormatterForCapacityType(capacityType);
         if (values) {
           series[state] = {
+            color: getColorForKey(state),
             binDuration: bin_duration,
             formatter,
             values,
@@ -60,7 +65,71 @@ export function buildBinnedTimelineSeries(
     }
   }
 
+  // Ensures the timeline is cleared when new "all 0" or "no series" data is received
+  if (Object.keys(series).length === 0) {
+    series['empty'] = {
+      color: withOpacity(WHITE, 0),
+      binDuration: bin_duration,
+      formatter: (value: number) => String(value),
+      values: [],
+    };
+  }
   return { timestamps, series };
+}
+
+const SECOND_MS = 1_000;
+const MINUTE_MS = 60 * SECOND_MS;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+const NICE_TIMELINE_INTERVALS_MS = [
+  100,
+  200,
+  500,
+  1 * SECOND_MS,
+  2 * SECOND_MS,
+  5 * SECOND_MS,
+  10 * SECOND_MS,
+  15 * SECOND_MS,
+  30 * SECOND_MS,
+  1 * MINUTE_MS,
+  2 * MINUTE_MS,
+  5 * MINUTE_MS,
+  10 * MINUTE_MS,
+  15 * MINUTE_MS,
+  30 * MINUTE_MS,
+  1 * HOUR_MS,
+  2 * HOUR_MS,
+  3 * HOUR_MS,
+  6 * HOUR_MS,
+  12 * HOUR_MS,
+  1 * DAY_MS,
+  2 * DAY_MS,
+  3 * DAY_MS,
+  7 * DAY_MS,
+  14 * DAY_MS,
+  30 * DAY_MS,
+] as const;
+
+/**
+ * Pick a nice x-axis interval for timeline charts based on visible span.
+ * Supports short spans (seconds) through long spans (multi-day).
+ * `targetSplits` is treated as the minimum number of displayed splits/labels.
+ */
+export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number = 8): number {
+  const safeSpanMs = Math.max(1, spanMs);
+  const minSplits = Math.max(2, targetSplits);
+  // To display at least `minSplits`, interval must be <= span/(minSplits-1).
+  const maxAllowedStep = safeSpanMs / (minSplits - 1);
+
+  // Choose the largest "nice" interval that still satisfies the minimum split count.
+  for (let i = NICE_TIMELINE_INTERVALS_MS.length - 1; i >= 0; i--) {
+    const intervalMs = NICE_TIMELINE_INTERVALS_MS[i]!;
+    if (intervalMs <= maxAllowedStep) return intervalMs;
+  }
+
+  // Fallback for very small spans where even the smallest nice interval is too coarse.
+  return maxAllowedStep;
 }
 
 function getFormatterForCapacityType(capacityType: string): (value: number) => string {

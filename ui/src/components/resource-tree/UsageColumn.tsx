@@ -31,7 +31,6 @@ export function UsageColumn({
     ? queryBundle.entities.resource_types[entityTypeName]?.used_by
     : undefined;
   const fsmTypeName = usedBy?.[0];
-  const instanceName = 'instance_name' in entity ? (entity?.instance_name as string) : undefined;
   const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
   const resourceType =
     item.type === EntityTypeKey.Resource ? EntityTypeKey.Resource : EntityTypeKey.ResourceGroup;
@@ -52,7 +51,6 @@ export function UsageColumn({
         durationSeconds={durationSeconds}
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
-        instanceName={instanceName}
         showTooltip={hoveredTimelineId === item.id}
       />
     </div>

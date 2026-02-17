@@ -4,9 +4,14 @@ import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import { TooltipContent } from './TimelineTooltip';
-import { getColorForKey, withOpacity } from '@/services/colors';
+import { withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
-import { TimelineSeries, DEFAULT_TIMELINE_HEIGHT, TIMELINE_SPACING } from './types';
+import {
+  TimelineSeries,
+  DEFAULT_TIMELINE_HEIGHT,
+  TIMELINE_SPACING,
+  TIMELINE_X_AXIS_ANIMATION,
+} from './types';
 import { connectChart } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
@@ -17,14 +22,12 @@ export function Timeline({
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
-  colorKey,
   showTooltip = true,
 }: {
   startTime: bigint;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
-  colorKey?: string;
   showTooltip?: boolean;
 }) {
   const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
@@ -36,8 +39,8 @@ export function Timeline({
         // Everything alphabetical RN to keep it consistent
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([name, seriesData]) => {
+          const color = seriesData.color;
           // use colorKey for ResourceGroup coloring, otherwise use series name
-          const color = getColorForKey(colorKey ?? name);
           return {
             name,
             type: 'line',
@@ -48,9 +51,10 @@ export function Timeline({
             // Shows on hover
             hoverAnimation: false,
             showSymbol: false,
-            animation: false,
+            // Keep initial render snappy, animate subsequent data updates
+            ...TIMELINE_X_AXIS_ANIMATION,
             cursor: 'default',
-            data: seriesData.values,
+            data: seriesData.values.map((value, index) => [timestamps[index], value]),
             lineStyle: { width: 0 },
             itemStyle: { color },
             areaStyle: { color: withOpacity(color, 0.9) },
@@ -61,7 +65,7 @@ export function Timeline({
           };
         })
     );
-  }, [series, colorKey]);
+  }, [series, timestamps]);
 
   const yAxisOptions = useMemo(
     () => ({
@@ -80,7 +84,9 @@ export function Timeline({
         fontSize: 10,
         color: timelineMarkupColor,
         // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
-        formatter: (value: number) => formatBytes(value, 0),
+        formatter: (value: number) => {
+          return formatBytes(value, 0);
+        },
       },
     }),
     [gridBorderColor, timelineMarkupColor]
@@ -88,11 +94,9 @@ export function Timeline({
 
   const xAxisOptions = useMemo(
     () => ({
-      data: timestamps,
       boundaryGap: false,
-      type: 'category',
+      type: 'time',
       animation: false,
-      interval: 0,
       show: true,
       axisLine: {
         show: true,
@@ -102,11 +106,7 @@ export function Timeline({
       axisTick: { show: false },
       axisLabel: { show: false },
       splitLine: {
-        show: true,
-        lineStyle: {
-          color: gridBorderColor,
-          type: 'solid' as const,
-        },
+        show: false,
       },
       axisPointer: {
         show: true, // Always show the axis pointer line (synced across charts)
@@ -118,7 +118,7 @@ export function Timeline({
         },
       },
     }),
-    [timestamps, timelineMarkupColor, gridBorderColor]
+    [timelineMarkupColor, gridBorderColor]
   );
 
   const gridOptions = useMemo(
@@ -149,11 +149,16 @@ export function Timeline({
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries.map(
-            (p: { color: string; seriesName: string; value: number }) => ({
-              color: p.color,
-              name: p.seriesName,
-              value: p.value,
-            })
+            (p: { color: string; seriesName: string; data: number[] }) => {
+              console.log(p.data);
+              return {
+                color: p.color,
+                name: p.seriesName,
+                // Data is [timestamp, value] for 'time' type x-axis, this changes
+                // if xAxis is changed to 'value' type
+                value: p.data[1],
+              };
+            }
           );
           return renderToStaticMarkup(
             <TooltipContent timestamp={timestamp} series={seriesValues} startTime={startTime} />
@@ -181,6 +186,7 @@ export function Timeline({
           show: false,
           realtime: true,
           xAxisIndex: 'all',
+          filterMode: 'none',
         },
       ],
       xAxis: xAxisOptions,

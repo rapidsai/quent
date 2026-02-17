@@ -1,6 +1,6 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { TimelineController } from './timeline/TimelineController';
 import { collectResourceTypesFromTree } from '@/lib/resource.utils';
@@ -67,6 +67,7 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
       }),
     staleTime: DEFAULT_STALE_TIME,
     enabled: rootResourceGroupId != null && !!rootResourceType,
+    placeholderData: keepPreviousData, // prevents blink between key changes
   });
 
   // Little funky but the tree expects an array of items, so to avoid creating

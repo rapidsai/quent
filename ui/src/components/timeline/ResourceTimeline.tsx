@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   DEFAULT_STALE_TIME,
   fetchResourceTimeline,
@@ -10,6 +10,7 @@ import { useMemo, lazy, Suspense } from 'react';
 import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
 import { TimelineSeries } from './types';
 import { EntityTypeKey } from '@/types';
+import { WHITE, withOpacity } from '@/services/colors';
 
 // Lazy load Timeline to split echarts into a separate chunk
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
@@ -29,6 +30,7 @@ type ResourceTimelineProps = {
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
   empty: {
+    color: withOpacity(WHITE, 0),
     binDuration: 0,
     values: [],
     formatter: (value: number) => `${value}`,
@@ -44,7 +46,6 @@ export function ResourceTimeline({
   durationSeconds,
   fsmTypeName,
   resourceTypeName,
-  instanceName,
   showTooltip = true,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
@@ -64,6 +65,7 @@ export function ResourceTimeline({
       }),
     staleTime: DEFAULT_STALE_TIME,
     enabled: deferredReady,
+    placeholderData: keepPreviousData, // prevents blink between key changes
   });
 
   const { timestamps, series } = useMemo(() => {
@@ -91,7 +93,6 @@ export function ResourceTimeline({
         series={series}
         timestamps={timestamps ?? []}
         startTime={startTime}
-        colorKey={resourceType === EntityTypeKey.ResourceGroup ? instanceName : undefined}
         showTooltip={showTooltip}
       />
     </Suspense>
