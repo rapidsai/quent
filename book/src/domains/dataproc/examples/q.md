@@ -80,25 +80,24 @@ send it to [Memory][memory] of another [Worker][worker].
 - Task (FSM)
   - Relates to:
     - Operator
-  - All states except `initializing`, `queueing`, and `finalizing` claim a
-    [Computation][computation] of one and the same Task Thread.
+  - All states except `queueing` claim a [Computation][computation] of one and
+    the same Task Thread.
   - The `sending` state claims a [Transfer][transfer] of a Link
   - The `loading` state claims a [Transfer][transfer] of a FsToMem
   - The `spilling` state claims a [Transfer][transfer] of a MemToFs
   - State transitions:
 
     ```text
-    ⊙                 -> initializing
-    initializing      -> queueing
+    ⊙                 -> queueing
     queueing          -> allocating memory
-    allocating memory -> allocating storage -> spilling -> allocating memory
-    allocating memory -> loading -> computing
+    allocating memory -> spilling
+    allocating memory -> loading
     allocating memory -> computing
+    spilling          -> loading
+    loading           -> computing
     computing         -> sending
-    sending           -> finalizing
-    sending           -> sending
-    computing         -> finalizing
-    finalizing        -> ⊗
+    sending           -> ⊗
+    computing         -> ⊗
     ```
 
 ### Model relations

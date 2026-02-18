@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use quent_time::bin::BinnedSpanSec;
+use quent_time::{TimeSec, bin::BinnedSpanSec};
+use quent_ui::FiniteStateMachine;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -15,6 +16,8 @@ pub struct ResourceTimelineBinned {
     /// Maps a resource capacity name to a vector where each element holds an
     /// aggregated value of a time bin.
     pub capacities_values: HashMap<String, Vec<f64>>,
+    /// FSMs that have usage spans exceeding the long_entities_threshold.
+    pub long_fsms: Vec<FiniteStateMachine>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -27,6 +30,8 @@ pub struct ResourceTimelineBinnedByState {
     /// Maps a resource capacity name to a map of a state name to a vector where
     /// each element holds an aggregated value of a time bin.
     pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
+    /// FSMs that have usage spans exceeding the long_entities_threshold.
+    pub long_fsms: Vec<FiniteStateMachine>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -60,9 +65,12 @@ pub struct ResourceTimelineUrlQueryParams {
     pub resource_type_name: Option<String>,
 
     /// Filter the usages of the resource (group) on this operator ID.
-    ///
-    /// TODO(johanpel): this will only work for FSMs directly referencing this operator.
+    //
+    // TODO(johanpel): this will only work for FSMs directly referencing this operator.
     pub operator_id: Option<Uuid>,
+    /// If set, fully include entities that have usages exceeding this amount of
+    /// time in seconds.
+    pub long_entities_threshold_s: Option<TimeSec>,
 }
 
 /// Parameters for requesting a resource timeline.
@@ -75,25 +83,32 @@ pub struct ResourceTimelineRequestParams {
     pub fsm_type_name: Option<String>,
 
     /// Filter the usages of the resource on this operator ID.
-    ///
-    /// TODO(johanpel): this will only work for FSMs directly referencing this operator.
+    //
+    // TODO(johanpel): this will only work for FSMs directly referencing this operator.
     pub operator_id: Option<Uuid>,
+    /// If set, fully include entities that have usages exceeding this amount of time.
+    pub long_entities_threshold_s: Option<TimeSec>,
 }
 
 /// Parameters for requesting a resource group timeline.
 #[derive(TS, Debug, Deserialize)]
 pub struct ResourceGroupTimelineRequestParams {
-    /// The type name of the FSM for which to produce the resource utilization timeline.
+    /// The type name of the FSM for which to produce the resource utilization
+    /// timeline.
     ///
     /// If set, only include utilizations from FSMs with this type name, and
     /// aggregate for each state separately.
     pub fsm_type_name: Option<String>,
-    /// The type name of the leaf resources for which to produce the timeline for this group.
+    /// The type name of the leaf resources for which to produce the timeline
+    /// for this group.
     pub resource_type_name: String,
     /// Filter the usages of the leaf resources by this operator ID.
-    ///
-    /// TODO(johanpel): this will only work for FSMs directly referencing this operator.
+    //
+    // TODO(johanpel): this will only work for FSMs directly referencing this operator.
     pub operator_id: Option<Uuid>,
+    /// If set, fully include entities that have usages exceeding this amount of
+    /// time in seconds.
+    pub long_entities_threshold_s: Option<TimeSec>,
 }
 
 #[derive(TS, Debug, Deserialize)]
@@ -109,6 +124,7 @@ pub struct BulkTimelinesRequest {
     pub num_bins: u16,
     pub start: f64,
     pub end: f64,
+    /// A map of resource_(group)_id to a request.
     pub entries: HashMap<Uuid, BulkTimelineRequestParams>,
 }
 
@@ -119,9 +135,11 @@ pub struct BulkTimelinesRequest {
 pub enum BulkTimelineData {
     Binned {
         capacities_values: HashMap<String, Vec<f64>>,
+        long_fsms: Vec<FiniteStateMachine>,
     },
     BinnedByState {
         capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
+        long_fsms: Vec<FiniteStateMachine>,
     },
 }
 

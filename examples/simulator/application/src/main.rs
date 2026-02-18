@@ -91,6 +91,15 @@ fn sleep_long() {
     std::thread::sleep(Duration::from_micros(25));
 }
 
+fn sleep_sometimes_really_long() {
+    // make 1% tasks incredibly slow
+    std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
+        50000
+    } else {
+        25
+    }));
+}
+
 struct Operator<T: Debug> {
     id: Uuid,
     parents: Vec<Uuid>,
@@ -476,12 +485,12 @@ fn lower_logical(
 struct Worker {
     id: Uuid,
     name: String,
-    main_memory: Uuid,
+    memory: Uuid,
     filesystem: Uuid,
     fs_to_mem: Uuid,
     mem_to_fs: Uuid,
-    task_thread_pool: Uuid,
-    task_threads: Vec<Uuid>,
+    thread_pool: Uuid,
+    threads: Vec<Uuid>,
 }
 
 impl Worker {
@@ -489,12 +498,12 @@ impl Worker {
         Self {
             id,
             name,
-            main_memory: Uuid::now_v7(),
+            memory: Uuid::now_v7(),
             filesystem: Uuid::now_v7(),
             fs_to_mem: Uuid::now_v7(),
             mem_to_fs: Uuid::now_v7(),
-            task_thread_pool: Uuid::now_v7(),
-            task_threads: std::iter::repeat_with(Uuid::now_v7)
+            thread_pool: Uuid::now_v7(),
+            threads: std::iter::repeat_with(Uuid::now_v7)
                 .take(num_threads)
                 .collect(),
         }
@@ -529,9 +538,9 @@ impl Worker {
         );
         memory_obs.operating(self.filesystem, Default::default());
 
-        // Main memory pool
+        // Memory pool
         memory_obs.init(
-            self.main_memory,
+            self.memory,
             memory::Init {
                 resource: resource::Resource {
                     type_name: "memory".to_string(),
@@ -540,33 +549,33 @@ impl Worker {
                 },
             },
         );
-        memory_obs.operating(self.main_memory, Default::default());
+        memory_obs.operating(self.memory, Default::default());
 
-        // Filesystem -> Main memory channel
+        // Filesystem -> Memory channel
         channel_obs.init(
             self.fs_to_mem,
             channel::Init {
                 resource: resource::Resource {
-                    type_name: "fs2mem".to_string(),
+                    type_name: "fs_to_mem".to_string(),
                     instance_name: "Filesystem -> Memory".to_string(),
                     parent_group_id: self.id,
                 },
                 source_id: self.filesystem,
-                target_id: self.main_memory,
+                target_id: self.memory,
             },
         );
         channel_obs.operating(self.fs_to_mem, Default::default());
 
-        // Main memory -> Filesystem channel
+        // Memory -> Filesystem channel
         channel_obs.init(
             self.mem_to_fs,
             channel::Init {
                 resource: resource::Resource {
-                    type_name: "mem2fs".to_string(),
+                    type_name: "mem_to_fs".to_string(),
                     instance_name: "Memory -> Filesystem".to_string(),
                     parent_group_id: self.id,
                 },
-                source_id: self.main_memory,
+                source_id: self.memory,
                 target_id: self.filesystem,
             },
         );
@@ -574,21 +583,21 @@ impl Worker {
 
         // Thread pool
         resource_group_obs.group(
-            self.task_thread_pool,
+            self.thread_pool,
             resource::GroupEvent {
-                type_name: "threadpool".to_string(),
+                type_name: "thread_pool".to_string(),
                 instance_name: "Thread Pool".to_string(),
                 parent_group_id: Some(self.id),
             },
         );
-        for (index, thread_id) in self.task_threads.iter().enumerate() {
+        for (index, thread_id) in self.threads.iter().enumerate() {
             processor_obs.init(
                 *thread_id,
                 resource::processor::Init {
                     resource: resource::Resource {
                         type_name: "thread".to_string(),
                         instance_name: format!("Thread {index}"),
-                        parent_group_id: self.task_thread_pool,
+                        parent_group_id: self.thread_pool,
                     },
                 },
             );
@@ -607,14 +616,14 @@ impl Worker {
         let obs = context.task_observer();
 
         let id = Uuid::now_v7();
-        obs.task_initializing(
+        obs.task_queueing(
             id,
-            task::Init {
+            task::Queueing {
                 operator_id: operator.id,
                 instance_name: format!("task-{index}"),
             },
         );
-        obs.task_queueing(id);
+        sleep_long();
         let (spill, load, send) = match operator.kind {
             Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
             Physical::JoinPartition => (false, rng().random_bool(0.5), true),
@@ -626,57 +635,40 @@ impl Worker {
 
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
-        obs.task_allocating_memory(
-            id,
-            task::AllocatingMemory {
-                use_task_thread: thread,
-            },
-        );
+        obs.task_allocating_memory(id, task::Allocating { use_thread: thread });
         sleep_short();
         if spill {
-            obs.task_allocating_storage(
-                id,
-                task::AllocatingStorage {
-                    use_task_thread: thread,
-                },
-            );
-            sleep_short();
             obs.task_spilling(
                 id,
                 task::Spilling {
-                    use_task_thread: thread,
+                    use_thread: thread,
                     use_mem_to_fs: self.mem_to_fs,
                     use_mem_to_fs_bytes: num_bytes,
                 },
             );
-            sleep_long();
-            obs.task_allocating_memory(
-                id,
-                task::AllocatingMemory {
-                    use_task_thread: thread,
-                },
-            );
+            sleep_sometimes_really_long();
+            obs.task_allocating_memory(id, task::Allocating { use_thread: thread });
             sleep_short();
         }
         if load {
             obs.task_loading(
                 id,
                 task::Loading {
-                    use_task_thread: thread,
+                    use_thread: thread,
                     use_fs_to_mem: self.fs_to_mem,
                     use_fs_to_mem_bytes: num_bytes,
-                    use_main_memory: self.main_memory,
-                    use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
+                    use_memory: self.memory,
+                    use_memory_bytes: rng().random_range(0..4) * num_bytes,
                 },
             );
-            sleep_long();
+            sleep_sometimes_really_long();
         }
         obs.task_computing(
             id,
             task::Computing {
-                use_task_thread: thread,
-                use_main_memory: self.main_memory,
-                use_main_memory_bytes: rng().random_range(0..4) * num_bytes,
+                use_thread: thread,
+                use_memory: self.memory,
+                use_memory_bytes: rng().random_range(0..4) * num_bytes,
             },
         );
 
@@ -694,7 +686,7 @@ impl Worker {
                 obs.task_sending(
                     id,
                     task::Sending {
-                        use_task_thread: thread,
+                        use_thread: thread,
                         use_link: link,
                         use_link_bytes: num_bytes,
                     },
@@ -703,8 +695,6 @@ impl Worker {
             }
         }
 
-        obs.task_finalizing(id);
-        sleep_short();
         obs.task_exit(id);
     }
 
@@ -719,12 +709,7 @@ impl Worker {
         physical_plan.declare(context, Some(self.id));
 
         // Log analyzer debug links:
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.main_memory,
-            "Memory",
-        );
+        log_resource_links(engine.id, physical_plan.query_id, self.memory, "Memory");
         log_resource_links(
             engine.id,
             physical_plan.query_id,
@@ -746,10 +731,10 @@ impl Worker {
         log_resource_group_links(
             engine.id,
             physical_plan.query_id,
-            self.task_thread_pool,
+            self.thread_pool,
             "Thread Pool",
         );
-        for (index, thread_id) in self.task_threads.iter().enumerate() {
+        for (index, thread_id) in self.threads.iter().enumerate() {
             log_resource_links(
                 engine.id,
                 physical_plan.query_id,
@@ -769,11 +754,11 @@ impl Worker {
 
         if physical_plan.execute {
             // On each thread, run a bunch of tasks for each operator.
-            let tasks_per_thread_per_op = num_tasks / self.task_threads.len();
+            let tasks_per_thread_per_op = num_tasks / self.threads.len();
             let plan = &physical_plan;
             let nodes = &nodes;
             std::thread::scope(|s| {
-                for (thread_index, thread_id) in self.task_threads.iter().enumerate() {
+                for (thread_index, thread_id) in self.threads.iter().enumerate() {
                     s.spawn({
                         let thread_id = *thread_id;
                         move || {
@@ -883,8 +868,8 @@ impl Worker {
         memory_obs.finalizing(self.filesystem, Default::default());
         memory_obs.exit(self.filesystem, Default::default());
         sleep_long();
-        memory_obs.finalizing(self.main_memory, Default::default());
-        memory_obs.exit(self.main_memory, Default::default());
+        memory_obs.finalizing(self.memory, Default::default());
+        memory_obs.exit(self.memory, Default::default());
         sleep_long();
         channel_obs.finalizing(self.fs_to_mem, Default::default());
         channel_obs.exit(self.fs_to_mem, Default::default());
@@ -892,9 +877,9 @@ impl Worker {
         channel_obs.finalizing(self.mem_to_fs, Default::default());
         channel_obs.exit(self.mem_to_fs, Default::default());
         sleep_long();
-        for task_thread in self.task_threads.iter() {
-            processor_obs.finalizing(*task_thread, Default::default());
-            processor_obs.exit(*task_thread, Default::default());
+        for thread in self.threads.iter() {
+            processor_obs.finalizing(*thread, Default::default());
+            processor_obs.exit(*thread, Default::default());
         }
         sleep_long();
         worker_obs.exit(self.id);
@@ -956,7 +941,7 @@ impl Engine {
             self.network,
             resource::GroupEvent {
                 type_name: "network".to_string(),
-                instance_name: "Network".to_string(),
+                instance_name: "network".to_string(),
                 parent_group_id: Some(self.id),
             },
         );
@@ -969,12 +954,12 @@ impl Engine {
                     up_link_id,
                     channel::Init {
                         resource: resource::Resource {
-                            type_name: "Link".to_string(),
-                            instance_name: format!("Worker {worker_index} -> {other_worker_index}"),
+                            type_name: "link".to_string(),
+                            instance_name: format!("worker {worker_index} -> {other_worker_index}"),
                             parent_group_id: self.network,
                         },
-                        source_id: self.workers.get(&worker_id).unwrap().main_memory,
-                        target_id: self.workers.get(&other_worker_id).unwrap().main_memory,
+                        source_id: self.workers.get(&worker_id).unwrap().memory,
+                        target_id: self.workers.get(&other_worker_id).unwrap().memory,
                     },
                 );
                 channel_obs.operating(up_link_id, channel::Operating {});
@@ -984,12 +969,12 @@ impl Engine {
                     down_link_id,
                     channel::Init {
                         resource: resource::Resource {
-                            type_name: "Link".to_string(),
-                            instance_name: format!("Worker {other_worker_index} -> {worker_index}"),
+                            type_name: "link".to_string(),
+                            instance_name: format!("worker {other_worker_index} -> {worker_index}"),
                             parent_group_id: self.network,
                         },
-                        source_id: self.workers.get(&other_worker_id).unwrap().main_memory,
-                        target_id: self.workers.get(&worker_id).unwrap().main_memory,
+                        source_id: self.workers.get(&other_worker_id).unwrap().memory,
+                        target_id: self.workers.get(&worker_id).unwrap().memory,
                     },
                 );
                 channel_obs.operating(down_link_id, channel::Operating {});
@@ -1220,7 +1205,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     drop(context);
 
-    info!("instrumentation context dropped. exiting...");
-
+    info!("instrumentation context dropped");
+    info!("simulation completed");
     Ok(())
 }

@@ -18,7 +18,6 @@ use quent_query_engine_analyzer::{
 };
 use quent_simulator_events::SimulatorEvent;
 use quent_simulator_ui::EntityRef;
-use quent_time::span::SpanUnixNanoSec;
 use uuid::Uuid;
 
 use quent_query_engine_analyzer as qea;
@@ -36,11 +35,10 @@ pub struct SimulatorModelBuilder {
 }
 
 /// A model of the simulator engine
-#[derive(Debug)]
 pub struct SimulatorModel {
     pub query_engine: InMemoryEngineModel,
     pub resources: InMemoryResources,
-    pub tasks: Vec<Task>,
+    pub tasks: HashMap<Uuid, Task>,
     pub resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
 }
 
@@ -71,11 +69,11 @@ impl<'a> SimulatorModelQueryView<'a> {
 
         result.tasks = model
             .tasks
-            .iter()
+            .values()
             .map(|task| (task.id(), task))
             .filter(|(_, task)| {
                 task.usages()
-                    .any(|(usage, _)| result.resource(usage.resource).is_ok())
+                    .any(|usage| result.resource(usage.resource_id()).is_ok())
             })
             .collect();
         Ok(result)
@@ -292,12 +290,15 @@ impl SimulatorModelBuilder {
         let mut resources = self.resources.try_build()?;
         let query_engine = self.query_engine.try_build()?;
 
-        let mut tasks = Vec::with_capacity(self.tasks.len());
+        let mut tasks = HashMap::default();
 
-        for (_task_id, task_builder) in self.tasks.into_iter() {
+        for (task_id, task_builder) in self.tasks.into_iter() {
             let task = task_builder.try_build()?;
-            for (usage, _) in task.usages() {
-                let resource_type_name = resources.resource(usage.resource)?.type_name().to_owned();
+            for usage in task.usages() {
+                let resource_type_name = resources
+                    .resource(usage.resource_id())?
+                    .type_name()
+                    .to_owned();
                 let set = &mut resources
                     .resource_types
                     .get_mut(&resource_type_name)
@@ -307,7 +308,7 @@ impl SimulatorModelBuilder {
                     set.insert(task.type_name().to_owned());
                 }
             }
-            tasks.push(task);
+            tasks.insert(task_id, task);
         }
 
         // Construct the model without group type decls being populated yet, we
@@ -343,12 +344,12 @@ impl SimulatorModelBuilder {
     }
 }
 
-impl FsmCollection<Task> for SimulatorModel {
+impl FsmCollection<Task, crate::task::TaskTransition> for SimulatorModel {
     fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a Task> + 'a
     where
         Task: 'a,
     {
-        self.tasks.iter()
+        self.tasks.values()
     }
 
     fn contains_fsm_type(&self, type_name: &str) -> bool {
@@ -447,7 +448,7 @@ impl SimulatorModel {
 }
 
 impl Using for SimulatorModel {
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        self.tasks.iter().flat_map(|task| task.usages())
+    fn usages(&self) -> impl Iterator<Item = impl Usage<'_>> {
+        self.tasks.values().flat_map(|task| task.usages())
     }
 }

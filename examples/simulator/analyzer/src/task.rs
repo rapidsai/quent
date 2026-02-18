@@ -1,221 +1,150 @@
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity,
-    fsm::{Fsm, OrderedStateTransitionCollector, State, Transition},
+    fsm::{Fsm, FsmTypeDecl, FsmTypeDeclaration, FsmUsages, Transition},
     resource::{CapacityValue, Usage, Using},
 };
 use quent_attributes::Attribute;
 use quent_events::Event;
-use quent_simulator_events::task::{Init, TaskEvent};
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+use quent_simulator_events::task::{
+    Allocating, Computing, Loading, Queueing, Sending, Spilling, TaskEvent,
+};
+use quent_time::{
+    TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, try_to_secs_relative,
+};
+use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
+use smallvec::{SmallVec, smallvec};
 use uuid::Uuid;
 
-pub struct TaskTransition(Event<TaskEvent>);
-
 #[derive(Debug)]
-pub struct InitState {
-    pub span: SpanUnixNanoSec,
-    pub data: Init,
+pub enum TaskTransitionData {
+    Queueing(Queueing),
+    Computing(Computing),
+    Loading(Loading),
+    Allocating(Allocating),
+    Spilling(Spilling),
+    Sending(Sending),
+    Finalizing,
+    Exit,
 }
 
 #[derive(Debug)]
-pub struct QueueingState {
-    pub span: SpanUnixNanoSec,
+pub struct TaskUsage {
+    pub resource_id: Uuid,
+    pub capacities: SmallVec<[CapacityValue; 3]>,
+}
+
+pub struct TaskUsageWithSpan<'a> {
+    task_id: Uuid,
+    usage: &'a TaskUsage,
+    span: SpanUnixNanoSec,
+}
+
+impl<'a> Usage<'a> for TaskUsageWithSpan<'a> {
+    fn entity_id(&self) -> Uuid {
+        self.task_id
+    }
+    fn resource_id(&self) -> Uuid {
+        self.usage.resource_id
+    }
+    fn capacities(&self) -> impl Iterator<Item = &'a CapacityValue> {
+        self.usage.capacities.iter()
+    }
+    fn span(&self) -> SpanUnixNanoSec {
+        self.span
+    }
 }
 
 #[derive(Debug)]
-pub struct ComputingState {
-    pub span: SpanUnixNanoSec,
-    pub usages: [Usage; 2],
+pub struct TaskTransition {
+    timestamp: TimeUnixNanoSec,
+    data: TaskTransitionData,
+    usages: SmallVec<[TaskUsage; 3]>,
 }
 
-#[derive(Debug)]
-pub struct LoadingState {
-    pub span: SpanUnixNanoSec,
-    pub usages: [Usage; 3],
-}
-
-#[derive(Debug)]
-pub struct AllocatingMemoryState {
-    pub span: SpanUnixNanoSec,
-    pub usages: [Usage; 1],
-}
-
-#[derive(Debug)]
-pub struct AllocatingStorageState {
-    pub span: SpanUnixNanoSec,
-    pub usages: [Usage; 1],
-}
-
-#[derive(Debug)]
-pub struct SpillingState {
-    pub span: SpanUnixNanoSec,
-    pub usages: [Usage; 2],
-}
-
-#[derive(Debug)]
-pub struct SendingState {
-    pub span: SpanUnixNanoSec,
-    pub usages: [Usage; 2],
-}
-
-#[derive(Debug)]
-pub struct FinalizingState {
-    pub span: SpanUnixNanoSec,
-}
-
-#[derive(Debug)]
-pub enum TaskState {
-    Init(InitState),
-    Queueing(QueueingState),
-    Computing(ComputingState),
-    Loading(LoadingState),
-    AllocatingMemory(AllocatingMemoryState),
-    AllocatingStorage(AllocatingStorageState),
-    Spilling(SpillingState),
-    Sending(SendingState),
-    Finalizing(FinalizingState),
+impl Timestamp for TaskTransition {
+    fn timestamp(&self) -> TimeUnixNanoSec {
+        self.timestamp
+    }
 }
 
 impl Transition for TaskTransition {
-    type Target = TaskState;
-
-    fn timestamp(&self) -> TimeUnixNanoSec {
-        self.0.timestamp
-    }
-
-    // TODO(johanpel): would be nice to have some abstractions to simplify this
-    fn try_into_state(self, end: TimeUnixNanoSec) -> AnalyzerResult<Self::Target> {
-        let t = self.timestamp();
-        Ok(match self.0.data {
-            TaskEvent::Init(data) => TaskState::Init(InitState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-                data,
-            }),
-            TaskEvent::Queueing => TaskState::Queueing(QueueingState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-            }),
-            TaskEvent::Computing(data) => TaskState::Computing(ComputingState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: [
-                    Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
-                    Usage::new(
-                        data.use_main_memory,
-                        [CapacityValue::new("bytes", data.use_main_memory_bytes)],
-                    ),
-                ],
-            }),
-            TaskEvent::AllocatingMemory(data) => {
-                TaskState::AllocatingMemory(AllocatingMemoryState {
-                    span: SpanUnixNanoSec::try_new(t, end)?,
-                    usages: [Usage::new(
-                        data.use_task_thread,
-                        [CapacityValue::new("unit", 1)],
-                    )],
-                })
-            }
-            TaskEvent::Loading(data) => TaskState::Loading(LoadingState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: [
-                    Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
-                    Usage::new(
-                        data.use_fs_to_mem,
-                        [CapacityValue::new("bytes", data.use_fs_to_mem_bytes)],
-                    ),
-                    Usage::new(
-                        data.use_main_memory,
-                        [CapacityValue::new("bytes", data.use_main_memory_bytes)],
-                    ),
-                ],
-            }),
-            TaskEvent::AllocatingStorage(data) => {
-                TaskState::AllocatingStorage(AllocatingStorageState {
-                    span: SpanUnixNanoSec::try_new(t, end)?,
-                    usages: [Usage::new(
-                        data.use_task_thread,
-                        [CapacityValue::new("unit", 1)],
-                    )],
-                })
-            }
-            TaskEvent::Spilling(data) => TaskState::Spilling(SpillingState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: [
-                    Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
-                    Usage::new(
-                        data.use_mem_to_fs,
-                        [CapacityValue::new("bytes", data.use_mem_to_fs_bytes)],
-                    ),
-                ],
-            }),
-            TaskEvent::Sending(data) => TaskState::Sending(SendingState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-                usages: [
-                    Usage::new(data.use_task_thread, [CapacityValue::new("unit", 1)]),
-                    Usage::new(
-                        data.use_link,
-                        [CapacityValue::new("bytes", data.use_link_bytes)],
-                    ),
-                ],
-            }),
-            TaskEvent::Finalizing => TaskState::Finalizing(FinalizingState {
-                span: SpanUnixNanoSec::try_new(t, end)?,
-            }),
-            TaskEvent::Exit => Err(AnalyzerError::FsmExitTransitionConversion)?,
-        })
-    }
-}
-
-impl State for TaskState {
     fn name(&self) -> &str {
-        match self {
-            TaskState::Init(_) => "init",
-            TaskState::Queueing(_) => "queueing",
-            TaskState::Computing(_) => "computing",
-            TaskState::Loading(_) => "loading",
-            TaskState::AllocatingMemory(_) => "allocating_memory",
-            TaskState::AllocatingStorage(_) => "allocating_storage",
-            TaskState::Spilling(_) => "spilling",
-            TaskState::Sending(_) => "sending",
-            TaskState::Finalizing(_) => "finalizing",
+        match &self.data {
+            TaskTransitionData::Queueing(_) => "queueing",
+            TaskTransitionData::Computing(_) => "computing",
+            TaskTransitionData::Loading(_) => "loading",
+            TaskTransitionData::Allocating(_) => "allocating",
+            TaskTransitionData::Spilling(_) => "spilling",
+            TaskTransitionData::Sending(_) => "sending",
+            TaskTransitionData::Finalizing => "finalizing",
+            TaskTransitionData::Exit => "exit",
         }
     }
-    fn span(&self) -> SpanUnixNanoSec {
-        match self {
-            TaskState::Init(state) => state.span,
-            TaskState::Queueing(state) => state.span,
-            TaskState::Computing(state) => state.span,
-            TaskState::Loading(state) => state.span,
-            TaskState::AllocatingMemory(state) => state.span,
-            TaskState::AllocatingStorage(state) => state.span,
-            TaskState::Spilling(state) => state.span,
-            TaskState::Sending(state) => state.span,
-            TaskState::Finalizing(state) => state.span,
-        }
-    }
+
     fn attributes(&self) -> impl Iterator<Item = &Attribute> {
         std::iter::empty()
     }
 }
 
-impl TaskState {
-    pub fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        let (usages, span): (&[Usage], _) = match self {
-            TaskState::Init(state) => (&[], state.span),
-            TaskState::Queueing(state) => (&[], state.span),
-            TaskState::Computing(state) => (&state.usages, state.span),
-            TaskState::Loading(state) => (&state.usages, state.span),
-            TaskState::AllocatingMemory(state) => (&state.usages, state.span),
-            TaskState::AllocatingStorage(state) => (&state.usages, state.span),
-            TaskState::Spilling(state) => (&state.usages, state.span),
-            TaskState::Sending(state) => (&state.usages, state.span),
-            TaskState::Finalizing(state) => (&[], state.span),
-        };
-        usages.iter().map(move |usage| (usage, span))
+fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
+    match data {
+        TaskTransitionData::Queueing(_) => SmallVec::new(),
+        TaskTransitionData::Computing(data) => smallvec![
+            TaskUsage {
+                resource_id: data.use_thread,
+                capacities: smallvec![CapacityValue::new("unit", 1)],
+            },
+            TaskUsage {
+                resource_id: data.use_memory,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+            },
+        ],
+        TaskTransitionData::Loading(data) => smallvec![
+            TaskUsage {
+                resource_id: data.use_thread,
+                capacities: smallvec![CapacityValue::new("unit", 1)],
+            },
+            TaskUsage {
+                resource_id: data.use_fs_to_mem,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_mem_bytes)],
+            },
+            TaskUsage {
+                resource_id: data.use_memory,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+            },
+        ],
+        TaskTransitionData::Allocating(data) => smallvec![TaskUsage {
+            resource_id: data.use_thread,
+            capacities: smallvec![CapacityValue::new("unit", 1)],
+        }],
+        TaskTransitionData::Spilling(data) => smallvec![
+            TaskUsage {
+                resource_id: data.use_thread,
+                capacities: smallvec![CapacityValue::new("unit", 1)],
+            },
+            TaskUsage {
+                resource_id: data.use_mem_to_fs,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_fs_bytes)],
+            },
+        ],
+        TaskTransitionData::Sending(data) => smallvec![
+            TaskUsage {
+                resource_id: data.use_thread,
+                capacities: smallvec![CapacityValue::new("unit", 1)],
+            },
+            TaskUsage {
+                resource_id: data.use_link,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_link_bytes)],
+            },
+        ],
+        TaskTransitionData::Finalizing => SmallVec::new(),
+        TaskTransitionData::Exit => SmallVec::new(),
     }
 }
 
 pub(crate) struct TaskBuilder {
     id: Uuid,
-    transitions: OrderedStateTransitionCollector<TaskTransition>,
+    transitions: TimeOrderedCollector<TaskTransition>,
 }
 
 impl TaskBuilder {
@@ -227,28 +156,35 @@ impl TaskBuilder {
         } else {
             Ok(Self {
                 id,
-                transitions: OrderedStateTransitionCollector::default(),
+                transitions: TimeOrderedCollector::default(),
             })
         }
     }
 
     pub(crate) fn push(&mut self, event: Event<TaskEvent>) {
-        self.transitions.push(TaskTransition(event))
+        let data = match event.data {
+            TaskEvent::Queueing(data) => TaskTransitionData::Queueing(data),
+            TaskEvent::Computing(data) => TaskTransitionData::Computing(data),
+            TaskEvent::Allocating(data) => TaskTransitionData::Allocating(data),
+            TaskEvent::Loading(data) => TaskTransitionData::Loading(data),
+            TaskEvent::Spilling(data) => TaskTransitionData::Spilling(data),
+            TaskEvent::Sending(data) => TaskTransitionData::Sending(data),
+            TaskEvent::Exit => TaskTransitionData::Exit,
+        };
+        let usages = create_usages(&data);
+        self.transitions.push(TaskTransition {
+            timestamp: event.timestamp,
+            data,
+            usages,
+        });
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<Task> {
-        let transitions: Vec<TaskTransition> = self.transitions.try_into()?;
-        let len = transitions.len();
-        // Collect end timestamps before consuming transitions.
-        let end_times: Vec<TimeUnixNanoSec> =
-            transitions[1..].iter().map(|t| t.timestamp()).collect();
-        let mut sequence = Vec::with_capacity(len.saturating_sub(1));
-        for (transition, end) in transitions.into_iter().zip(end_times) {
-            sequence.push(transition.try_into_state(end)?);
-        }
+        let transitions: SmallVec<[TaskTransition; 4]> = self.transitions.into_inner().into();
+        // TODO(johanpel): validation goes here
         Ok(Task {
             id: self.id,
-            sequence,
+            transitions,
         })
     }
 }
@@ -256,7 +192,52 @@ impl TaskBuilder {
 #[derive(Debug)]
 pub struct Task {
     id: Uuid,
-    sequence: Vec<TaskState>,
+    // common case is to at least go through:
+    // queueing -> allocating -> computing -> exit
+    // hence space for 6 entries by default
+    transitions: SmallVec<[TaskTransition; 4]>,
+}
+
+impl Task {
+    pub fn operator_id(&self) -> Option<Uuid> {
+        self.transitions.first().and_then(|t| match &t.data {
+            TaskTransitionData::Queueing(data) => Some(data.operator_id),
+            _ => None,
+        })
+    }
+
+    /// Convert this Task to a UI-compatible FSM.
+    pub fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
+        let transitions = self
+            .transitions
+            .iter()
+            .map(|t| {
+                Ok(FsmTransition {
+                    name: t.name().to_string(),
+                    usages: t
+                        .usages
+                        .iter()
+                        .map(|u| FsmUsage {
+                            resource: u.resource_id,
+                            capacities: u
+                                .capacities
+                                .iter()
+                                .map(|c| (c.name.to_string(), c.value))
+                                .collect(),
+                        })
+                        .collect(),
+                    timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
+                })
+            })
+            .collect::<AnalyzerResult<Vec<_>>>()?;
+
+        Ok(FiniteStateMachine {
+            id: self.id,
+            type_name: self.type_name().to_string(),
+            instance_name: self.instance_name().to_string(),
+            transitions,
+        })
+    }
 }
 
 impl Entity for Task {
@@ -267,40 +248,125 @@ impl Entity for Task {
         "task"
     }
     fn instance_name(&self) -> &str {
-        self.sequence
+        self.transitions
             .first()
-            .and_then(|maybe_init| match maybe_init {
-                TaskState::Init(state) => Some(state.data.instance_name.as_str()),
+            .and_then(|t| match &t.data {
+                TaskTransitionData::Queueing(data) => Some(data.instance_name.as_str()),
                 _ => None,
             })
             .unwrap_or_default()
     }
 }
 
-impl Task {
-    pub fn operator_id(&self) -> Option<Uuid> {
-        self.sequence.first().and_then(|s| match s {
-            TaskState::Init(state) => Some(state.data.operator_id),
-            _ => None,
+impl Fsm for Task {
+    type TransitionType = TaskTransition;
+    fn len(&self) -> usize {
+        self.transitions.len().saturating_sub(1)
+    }
+    fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
+        self.transitions.get(index)
+    }
+}
+
+impl<'a> FsmUsages<'a> for Task {
+    fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
+        self.transitions.windows(2).flat_map(move |window| {
+            let name = window[0].name();
+            let start = window[0].timestamp();
+            let end = window[1].timestamp();
+            let span = SpanUnixNanoSec::try_new(start, end).unwrap();
+            window[0].usages.iter().map(move |u| {
+                (
+                    name,
+                    TaskUsageWithSpan {
+                        task_id: self.id,
+                        usage: u,
+                        span,
+                    },
+                )
+            })
         })
     }
 }
 
-impl Fsm for Task {
-    type StateType = TaskState;
-    fn len(&self) -> usize {
-        self.sequence.len()
-    }
-    fn state(&self, index: usize) -> Option<&Self::StateType> {
-        self.sequence.get(index)
-    }
-    fn states(&self) -> impl ExactSizeIterator<Item = &Self::StateType> {
-        self.sequence.iter()
+impl Using for Task {
+    fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
+        self.transitions.windows(2).flat_map(move |window| {
+            let start = window[0].timestamp();
+            let end = window[1].timestamp();
+            let span = SpanUnixNanoSec::try_new(start, end).unwrap();
+            window[0].usages.iter().map(move |u| TaskUsageWithSpan {
+                task_id: self.id,
+                usage: u,
+                span,
+            })
+        })
     }
 }
 
-impl Using for Task {
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        self.sequence.iter().flat_map(|s| s.usages())
+impl FsmTypeDeclaration for Task {
+    fn fsm_type_declaration() -> FsmTypeDecl {
+        use quent_analyzer::fsm::{FsmStateTypeDecl, FsmTransitionDecl};
+
+        let states = vec![
+            FsmStateTypeDecl {
+                name: "queueing".to_string(),
+                usages: vec![],
+            },
+            FsmStateTypeDecl {
+                name: "computing".to_string(),
+                usages: vec!["thread".to_string(), "memory".to_string()],
+            },
+            FsmStateTypeDecl {
+                name: "loading".to_string(),
+                usages: vec![
+                    "thread".to_string(),
+                    "fs_to_mem".to_string(),
+                    "memory".to_string(),
+                ],
+            },
+            FsmStateTypeDecl {
+                name: "allocating".to_string(),
+                usages: vec!["thread".to_string()],
+            },
+            FsmStateTypeDecl {
+                name: "spilling".to_string(),
+                usages: vec!["thread".to_string(), "mem_to_fs".to_string()],
+            },
+            FsmStateTypeDecl {
+                name: "sending".to_string(),
+                usages: vec!["thread".to_string(), "link".to_string()],
+            },
+            FsmStateTypeDecl {
+                name: "exit".to_string(),
+                usages: vec![],
+            },
+        ];
+
+        //                          +------------------------+
+        //                          |                        v
+        // -> queuing -> allocating +----------------+   computing +---> exit
+        //                          |                v       ^     v      ^
+        //                          +-> spilling -> loading -+   sending -+
+
+        let transitions = vec![
+            FsmTransitionDecl::Entry("queueing".to_string()),
+            FsmTransitionDecl::Transition("queueing".to_string(), "allocating".to_string()),
+            FsmTransitionDecl::Transition("allocating".to_string(), "spilling".to_string()),
+            FsmTransitionDecl::Transition("allocating".to_string(), "loading".to_string()),
+            FsmTransitionDecl::Transition("allocating".to_string(), "computing".to_string()),
+            FsmTransitionDecl::Transition("spilling".to_string(), "loading".to_string()),
+            FsmTransitionDecl::Transition("loading".to_string(), "computing".to_string()),
+            FsmTransitionDecl::Transition("computing".to_string(), "sending".to_string()),
+            FsmTransitionDecl::Transition("computing".to_string(), "exit".to_string()),
+            FsmTransitionDecl::Transition("sending".to_string(), "exit".to_string()),
+            FsmTransitionDecl::Exit("exit".to_string()),
+        ];
+
+        FsmTypeDecl {
+            name: "task".to_string(),
+            states,
+            transitions,
+        }
     }
 }

@@ -19,12 +19,11 @@ use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity,
-    fsm::State,
     resource::{Resource, ResourceGroup, ResourceTypeDecl, collection::ResourceCollection},
 };
 use quent_events::Event;
 use quent_query_engine_events::QueryEngineEvent;
-use quent_time::TimeUnixNanoSec;
+use quent_time::{TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
 use crate::{
@@ -279,7 +278,7 @@ impl InMemoryEngineModel {
     pub fn query_epoch(&self, query_id: Uuid) -> AnalyzerResult<TimeUnixNanoSec> {
         self.queries
             .get(&query_id)
-            .and_then(|q| q.sequence.first().map(|init| init.span().start()))
+            .and_then(|q| q.transitions.first().map(|init| init.timestamp()))
             .ok_or(AnalyzerError::Validation(format!(
                 "query {query_id} has no start time"
             )))

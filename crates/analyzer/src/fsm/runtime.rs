@@ -5,88 +5,80 @@ use std::collections::HashSet;
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_attributes::Attribute;
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
+use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult, Entity,
-    fsm::{Fsm, OrderedStateTransitionCollector, State, Transition, collection::InMemoryFsms},
-    resource::{Usage, Using},
+    fsm::{
+        Fsm, FsmStateRef, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmUsages, Transition,
+        collection::InMemoryFsms,
+    },
+    resource::{CapacityValue, Usage, Using, collection::ResourceCollection},
 };
 
+/// A run-time defined [`Usage`] of a [`Resource`] in an [`Fsm`] [`State`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct RtFsmStateUsage {
+    pub resource: Uuid,
+    pub capacities: SmallVec<[CapacityValue; 1]>,
+}
+
+impl RtFsmStateUsage {
+    pub fn new(resource: Uuid, capacities: impl Into<SmallVec<[CapacityValue; 1]>>) -> Self {
+        Self {
+            resource,
+            capacities: capacities.into(),
+        }
+    }
+
+    pub fn unit(resource: Uuid) -> Self {
+        Self {
+            resource,
+            capacities: SmallVec::from([CapacityValue::new("unit", 1)]),
+        }
+    }
+}
+
 /// A run-time defined [`StateTransition`] of an [`Fsm`].
-pub struct RtTransition {
+pub struct RtFsmTransition {
     pub name: String,
-    pub usages: Vec<Usage>,
+    pub usages: Vec<RtFsmStateUsage>,
     pub timestamp: TimeUnixNanoSec,
     pub attributes: Vec<Attribute>,
 }
 
-impl Transition for RtTransition {
-    type Target = RtState;
-
+impl Timestamp for RtFsmTransition {
     fn timestamp(&self) -> TimeUnixNanoSec {
         self.timestamp
     }
-
-    fn try_into_state(self, end: TimeUnixNanoSec) -> AnalyzerResult<Self::Target> {
-        Ok(RtState {
-            name: self.name,
-            usages: self.usages,
-            span: SpanUnixNanoSec::try_new(self.timestamp, end)?,
-            attributes: self.attributes,
-        })
-    }
 }
 
-/// A run-time defined [`State`] of an [`Fsm`].
-#[derive(Clone, Debug)]
-pub struct RtState {
-    pub name: String,
-    pub usages: Vec<Usage>,
-    pub span: SpanUnixNanoSec,
-    pub attributes: Vec<Attribute>,
-}
-
-impl State for RtState {
+impl Transition for RtFsmTransition {
     fn name(&self) -> &str {
-        &self.name
-    }
-    fn span(&self) -> SpanUnixNanoSec {
-        self.span
+        self.name.as_str()
     }
     fn attributes(&self) -> impl Iterator<Item = &Attribute> {
         self.attributes.iter()
     }
 }
 
-impl Using for RtState {
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        self.usages.iter().map(|usage| (usage, self.span))
-    }
-}
-
 /// Builder for run-time defined [`Fsm`]s with [`State`]s of type T.
-pub struct RtFsmBuilder<T>
-where
-    T: Transition,
-{
+pub struct RtFsmBuilder<T> {
     id: Uuid,
     type_name: Option<String>,
     instance_name: Option<String>,
-    transitions: OrderedStateTransitionCollector<T>,
+    transitions: TimeOrderedCollector<T>,
 }
 
-impl<T> RtFsmBuilder<T>
-where
-    T: Transition,
-{
+impl<T> RtFsmBuilder<T> {
     pub fn new(id: Uuid) -> Self {
         Self {
             id,
             type_name: None,
             instance_name: None,
-            transitions: OrderedStateTransitionCollector::default(),
+            transitions: TimeOrderedCollector::default(),
         }
     }
     pub fn set_type_name(&mut self, type_name: String) -> &mut Self {
@@ -97,20 +89,32 @@ where
         self.instance_name = Some(instance_name);
         self
     }
-    pub fn extend(&mut self, states: impl IntoIterator<Item = T>) -> &mut Self {
-        self.transitions.extend(states);
-        self
-    }
-    pub fn push(&mut self, state: T) -> &mut Self {
-        self.transitions.push(state);
-        self
+}
+
+impl<T> RtFsmBuilder<T>
+where
+    T: Timestamp,
+{
+    pub fn push(&mut self, state: T) {
+        self.transitions.push(state)
     }
 }
 
-impl RtFsmBuilder<RtTransition> {
+impl<T> Extend<T> for RtFsmBuilder<T>
+where
+    T: Timestamp,
+{
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.push(item);
+        }
+    }
+}
+
+impl RtFsmBuilder<RtFsmTransition> {
     pub fn try_build(self) -> AnalyzerResult<RtFsm> {
         // Ensure we have >= 2 transitions
-        let transitions: Vec<RtTransition> = self.transitions.try_into()?;
+        let transitions = self.transitions.into_inner();
         // Ensure exit state per spec
         let last_name = &transitions.last().unwrap(/*len checked above*/).name;
         if last_name != "exit" {
@@ -119,19 +123,8 @@ impl RtFsmBuilder<RtTransition> {
                 self.id, last_name,
             )))
         } else {
-            // Convert transitions into states. Ideally we'd use windows()
-            // but transitions are consumed, so manually window over the
-            // states.
-            let mut sequence = Vec::with_capacity(transitions.len() - 1);
-            let mut iter = transitions.into_iter();
-            let mut current = iter.next().unwrap();
-            for next in iter {
-                let next_timestamp = next.timestamp();
-                sequence.push(current.try_into_state(next_timestamp)?);
-                current = next;
-            }
-            // For runtime-defined FSMs, there is no transition logic to check.
-
+            // For runtime-defined FSMs, there is no compile-time defined
+            // transition logic to check.
             Ok(RtFsm {
                 id: self.id,
                 type_name: self.type_name.ok_or_else(|| {
@@ -140,31 +133,89 @@ impl RtFsmBuilder<RtTransition> {
                 instance_name: self.instance_name.ok_or_else(|| {
                     AnalyzerError::IncompleteEntity(format!("fsm {} has no instance name", self.id))
                 })?,
-                sequence,
+                transitions,
             })
         }
     }
 }
 
 /// Run-time defined Finite-State-Machine
-#[derive(Clone, Debug)]
 pub struct RtFsm {
     id: Uuid,
     type_name: String,
     instance_name: String,
-    sequence: Vec<RtState>,
+    transitions: Vec<RtFsmTransition>,
 }
 
 impl Fsm for RtFsm {
-    type StateType = RtState;
-    fn states(&self) -> impl ExactSizeIterator<Item = &Self::StateType> {
-        self.sequence.iter()
-    }
+    type TransitionType = RtFsmTransition;
+
     fn len(&self) -> usize {
-        self.sequence.len()
+        self.transitions.len() - 1 // -1 for the exit transition.
     }
-    fn state(&self, index: usize) -> Option<&Self::StateType> {
-        self.sequence.get(index)
+    fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
+        self.transitions.get(index)
+    }
+}
+
+impl<'a> FsmUsages<'a> for RtFsm {
+    fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
+        self.transitions.windows(2).flat_map(|window| {
+            let name = window[0].name.as_str();
+            let start = window[0].timestamp();
+            let end = window[1].timestamp();
+            let span = SpanUnixNanoSec::try_new(start, end).unwrap();
+            window[0].usages.iter().map(move |u| (name, (u, span)))
+        })
+    }
+}
+
+impl RtFsm {
+    pub fn transitions(&self) -> &[RtFsmTransition] {
+        &self.transitions
+    }
+
+    pub fn try_declaration(
+        &self,
+        resources: &impl ResourceCollection,
+    ) -> AnalyzerResult<FsmTypeDecl> {
+        let mut state_decls: HashMap<&str, FsmStateTypeDecl> = HashMap::default();
+
+        for transition in &self.transitions {
+            let entry = state_decls
+                .entry(transition.name.as_str())
+                .or_insert_with(|| FsmStateTypeDecl {
+                    name: transition.name.clone(),
+                    usages: Vec::new(),
+                });
+            for usage in &transition.usages {
+                let resource = resources.resource(usage.resource)?;
+                let resource_type_name = &resources.resource_type(resource.type_name())?.name;
+                if !entry.usages.contains(resource_type_name) {
+                    entry.usages.push(resource_type_name.clone());
+                }
+            }
+        }
+
+        let mut transitions = Vec::new();
+        if let Some(first_transition) = self.transitions.first() {
+            transitions.push(FsmTransitionDecl::Entry(first_transition.name.clone()));
+        }
+        for window in self.transitions.windows(2) {
+            transitions.push(FsmTransitionDecl::Transition(
+                window[0].name.clone(),
+                window[1].name.clone(),
+            ));
+        }
+        if let Some(last_transition) = self.transitions.last() {
+            transitions.push(FsmTransitionDecl::Exit(last_transition.name.clone()));
+        }
+
+        Ok(FsmTypeDecl {
+            name: self.type_name.clone(),
+            states: state_decls.into_values().collect(),
+            transitions,
+        })
     }
 }
 
@@ -174,7 +225,7 @@ impl RtFsm {
         id: Uuid,
         type_name: impl Into<String>,
         instance_name: impl Into<String>,
-        transitions: impl IntoIterator<Item = RtTransition>,
+        transitions: impl IntoIterator<Item = RtFsmTransition>,
     ) -> AnalyzerResult<RtFsm> {
         let mut builder = RtFsmBuilder::new(id);
         builder.set_type_name(type_name.into());
@@ -197,26 +248,56 @@ impl Entity for RtFsm {
     }
 }
 
+impl<'a> Usage<'a> for (&'a RtFsmStateUsage, SpanUnixNanoSec) {
+    fn entity_id(&self) -> Uuid {
+        self.0.resource
+    }
+    fn resource_id(&self) -> Uuid {
+        self.0.resource
+    }
+    fn capacities(&self) -> impl Iterator<Item = &'a CapacityValue> {
+        self.0.capacities.iter()
+    }
+    fn span(&self) -> SpanUnixNanoSec {
+        self.1
+    }
+}
+
+impl<'a> Using for FsmStateRef<'a, RtFsm, RtFsmTransition> {
+    fn usages<'b>(&'b self) -> impl Iterator<Item = impl Usage<'b>> {
+        let span = self.span();
+        self.fsm.transitions[self.index]
+            .usages
+            .iter()
+            .map(move |usage| (usage, span))
+    }
+}
+
 impl Using for RtFsm {
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
-        self.sequence.iter().flat_map(|state| state.usages())
+    fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
+        self.transitions.windows(2).flat_map(|window| {
+            let start = window[0].timestamp();
+            let end = window[1].timestamp();
+            let span = SpanUnixNanoSec::try_new(start, end).unwrap();
+            window[0].usages.iter().map(move |u| (u, span))
+        })
     }
 }
 
 #[derive(Default)]
 pub struct RtFsmsBuilder {
-    fsms: HashMap<Uuid, RtFsmBuilder<RtTransition>>,
+    fsms: HashMap<Uuid, RtFsmBuilder<RtFsmTransition>>,
 }
 
 impl RtFsmsBuilder {
-    pub fn push(&mut self, id: Uuid, transition: RtTransition) {
+    pub fn push(&mut self, id: Uuid, transition: RtFsmTransition) {
         self.fsms
             .entry(id)
             .or_insert_with(|| RtFsmBuilder::new(id))
             .push(transition);
     }
 
-    pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm>> {
+    pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm, RtFsmTransition>> {
         // Build all FSMs.
         let mut fsms: HashMap<Uuid, RtFsm> =
             HashMap::with_capacity_and_hasher(self.fsms.capacity(), Default::default());
@@ -252,25 +333,25 @@ mod tests {
             "test",
             "test",
             [
-                RtTransition {
+                RtFsmTransition {
                     name: "a".to_string(),
                     usages: vec![],
                     timestamp: 1,
                     attributes: vec![],
                 },
-                RtTransition {
+                RtFsmTransition {
                     name: "b".to_string(),
                     usages: vec![],
                     timestamp: 2,
                     attributes: vec![],
                 },
-                RtTransition {
+                RtFsmTransition {
                     name: "c".to_string(),
                     usages: vec![],
                     timestamp: 3,
                     attributes: vec![],
                 },
-                RtTransition {
+                RtFsmTransition {
                     name: "exit".to_string(),
                     usages: vec![],
                     timestamp: 4,
@@ -314,7 +395,7 @@ mod tests {
                 Uuid::now_v7(),
                 "test",
                 "test",
-                [RtTransition {
+                [RtFsmTransition {
                     name: "a".to_string(),
                     usages: vec![],
                     timestamp: 1,

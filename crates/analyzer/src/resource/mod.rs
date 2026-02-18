@@ -40,34 +40,21 @@ pub trait ResourceGroup: Entity {
     }
 }
 
-/// Trait for types that can hold a [`Usage`] of a [`Resource`].
+/// Trait for types that represent the [`Usage`] of a [`Resource`].
+pub trait Usage<'a> {
+    /// Return the ID of the entity using the resource.
+    fn entity_id(&self) -> Uuid;
+    /// Return the ID of the resource being used.
+    fn resource_id(&self) -> Uuid;
+    /// Return an iterator over the amount of usage for each of the capacities of the resource.
+    fn capacities(&self) -> impl Iterator<Item = &'a CapacityValue>;
+    /// Return the span of time of the usage.
+    fn span(&self) -> SpanUnixNanoSec;
+}
+
+/// Trait for types that can hold multiple [`Usage`]s.
 pub trait Using {
-    /// Return an iterator over all [`Usage`]s and their associated span.
-    ///
-    /// May contain duplicates.
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)>;
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Usage {
-    pub resource: Uuid,
-    pub capacities: SmallVec<[CapacityValue; 1]>,
-}
-
-impl Usage {
-    pub fn new(resource: Uuid, capacities: impl Into<SmallVec<[CapacityValue; 1]>>) -> Self {
-        Self {
-            resource,
-            capacities: capacities.into(),
-        }
-    }
-
-    pub fn unit(resource: Uuid) -> Self {
-        Self {
-            resource,
-            capacities: SmallVec::from([CapacityValue::new("unit", 1)]),
-        }
-    }
+    fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>>;
 }
 
 /// The type of capacity of a Resource.

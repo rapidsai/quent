@@ -4,4 +4,8 @@ import type { BulkTimelineRequestParams } from "./BulkTimelineRequestParams";
 /**
  * A request for timelines in bulk.
  */
-export type BulkTimelinesRequest = { num_bins: number, start: number, end: number, entries: { [key in string]?: BulkTimelineRequestParams }, };
+export type BulkTimelinesRequest = { num_bins: number, start: number, end: number, 
+/**
+ * A map of resource_(group)_id to a request.
+ */
+entries: { [key in string]?: BulkTimelineRequestParams }, };

@@ -14,7 +14,7 @@ use quent_query_engine_events::{
     port::{self, PortEvent},
     query, query_group, worker,
 };
-use quent_simulator_events::SimulatorEvent;
+use quent_simulator_events::{SimulatorEvent, task};
 use uuid::Uuid;
 
 pub struct SimulatorContext {
@@ -318,117 +318,64 @@ pub struct TaskObserver {
 }
 
 impl TaskObserver {
-    pub fn task_initializing(&self, id: Uuid, initializing: quent_simulator_events::task::Init) {
+    pub fn task_queueing(&self, id: Uuid, queueing: task::Queueing) {
         push_event(
             &self.tx,
             Event::new_now(
                 id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Init(initializing)),
+                SimulatorEvent::Task(task::TaskEvent::Queueing(queueing)),
             ),
         )
     }
 
-    pub fn task_queueing(&self, id: Uuid) {
+    pub fn task_computing(&self, id: Uuid, computing: task::Computing) {
         push_event(
             &self.tx,
             Event::new_now(
                 id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Queueing),
+                SimulatorEvent::Task(task::TaskEvent::Computing(computing)),
             ),
         )
     }
 
-    pub fn task_computing(&self, id: Uuid, computing: quent_simulator_events::task::Computing) {
+    pub fn task_allocating_memory(&self, id: Uuid, allocating_memory: task::Allocating) {
         push_event(
             &self.tx,
             Event::new_now(
                 id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Computing(
-                    computing,
-                )),
+                SimulatorEvent::Task(task::TaskEvent::Allocating(allocating_memory)),
             ),
         )
     }
 
-    pub fn task_allocating_memory(
-        &self,
-        id: Uuid,
-        allocating_memory: quent_simulator_events::task::AllocatingMemory,
-    ) {
+    pub fn task_loading(&self, id: Uuid, loading: task::Loading) {
+        push_event(
+            &self.tx,
+            Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Loading(loading))),
+        )
+    }
+
+    pub fn task_spilling(&self, id: Uuid, spilling: task::Spilling) {
         push_event(
             &self.tx,
             Event::new_now(
                 id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::AllocatingMemory(
-                    allocating_memory,
-                )),
+                SimulatorEvent::Task(task::TaskEvent::Spilling(spilling)),
             ),
         )
     }
 
-    pub fn task_loading(&self, id: Uuid, loading: quent_simulator_events::task::Loading) {
+    pub fn task_sending(&self, id: Uuid, sending: task::Sending) {
         push_event(
             &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Loading(loading)),
-            ),
-        )
-    }
-
-    pub fn task_allocating_storage(
-        &self,
-        id: Uuid,
-        allocating_storage: quent_simulator_events::task::AllocatingStorage,
-    ) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::AllocatingStorage(
-                    allocating_storage,
-                )),
-            ),
-        )
-    }
-
-    pub fn task_spilling(&self, id: Uuid, spilling: quent_simulator_events::task::Spilling) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Spilling(spilling)),
-            ),
-        )
-    }
-
-    pub fn task_sending(&self, id: Uuid, sending: quent_simulator_events::task::Sending) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Sending(sending)),
-            ),
-        )
-    }
-
-    pub fn task_finalizing(&self, id: Uuid) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Finalizing),
-            ),
+            Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Sending(sending))),
         )
     }
 
     pub fn task_exit(&self, id: Uuid) {
         push_event(
             &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(quent_simulator_events::task::TaskEvent::Exit),
-            ),
+            Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Exit)),
         )
     }
 }

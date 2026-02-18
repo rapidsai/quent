@@ -1,4 +1,5 @@
-use quent_analyzer::{self as a, resource::CapacityType};
+use quent_analyzer::{self as a, Entity, resource::CapacityType};
+use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
@@ -111,5 +112,82 @@ impl From<&dyn a::resource::ResourceGroup> for ResourceGroup {
             type_name: value.type_name().to_owned(),
             parent_group_id: value.parent_group_id(),
         }
+    }
+}
+
+/// A capacity value used by an FSM state.
+#[derive(TS, Serialize, Clone, Debug)]
+pub struct FsmUsage {
+    /// The resource ID being used.
+    pub resource: Uuid,
+    /// The capacities being used (name, optional value).
+    pub capacities: Vec<(String, Option<u64>)>,
+}
+
+impl From<&a::fsm::runtime::RtFsmStateUsage> for FsmUsage {
+    fn from(value: &a::fsm::runtime::RtFsmStateUsage) -> Self {
+        Self {
+            resource: value.resource,
+            capacities: value
+                .capacities
+                .iter()
+                .map(|c| (c.name.to_string(), c.value))
+                .collect(),
+        }
+    }
+}
+
+/// A transition in an FSM.
+#[derive(TS, Serialize, Clone, Debug)]
+pub struct FsmTransition {
+    /// The name of the state this transition enters.
+    pub name: String,
+    /// The usages of this state.
+    pub usages: Vec<FsmUsage>,
+    /// The timestamp in seconds relative to an epoch.
+    pub timestamp: TimeSec,
+}
+
+impl FsmTransition {
+    pub fn try_from_rt(
+        value: &a::fsm::runtime::RtFsmTransition,
+        epoch: TimeUnixNanoSec,
+    ) -> Result<Self, quent_time::TimeError> {
+        Ok(Self {
+            name: value.name.clone(),
+            usages: value.usages.iter().map(FsmUsage::from).collect(),
+            timestamp: try_to_secs_relative(value.timestamp, epoch)?,
+        })
+    }
+}
+
+/// A run-time defined Finite-State-Machine.
+#[derive(TS, Serialize, Clone, Debug)]
+pub struct FiniteStateMachine {
+    /// The ID of this FSM.
+    pub id: Uuid,
+    /// The type name of this FSM.
+    pub type_name: String,
+    /// The instance name of this FSM.
+    pub instance_name: String,
+    /// The transitions of this FSM.
+    pub transitions: Vec<FsmTransition>,
+}
+
+impl FiniteStateMachine {
+    pub fn try_from_rt(
+        value: &a::fsm::runtime::RtFsm,
+        epoch: TimeUnixNanoSec,
+    ) -> Result<Self, quent_time::TimeError> {
+        Ok(Self {
+            id: value.id(),
+            type_name: value.type_name().to_owned(),
+            instance_name: value.instance_name().to_owned(),
+            transitions: value
+                .transitions()
+                .iter()
+                .map(|t| FsmTransition::try_from_rt(t, epoch))
+                .collect::<Result<Vec<_>, _>>()?,
+        })
     }
 }
