@@ -15,7 +15,7 @@ use quent_simulator_ui::{
         TimelineResponse,
     },
 };
-use quent_time::{SpanNanoSec, TimeUnixNanoSec, bin::BinnedSpan};
+use quent_time::{SpanNanoSec, TimeUnixNanoSec, bin::BinnedSpan, to_nanosecs};
 use tracing::error;
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ use crate::{
 };
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     let entries = match std::fs::read_dir("data") {
         Ok(entries) => entries,
@@ -65,7 +65,7 @@ async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     Ok(Json(ids))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn engine(
     State(state): State<AnalyzerCache>,
     Path(engine_id): Path<Uuid>,
@@ -75,7 +75,7 @@ async fn engine(
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn list_query_groups(
     State(state): State<AnalyzerCache>,
     Path(engine_id): Path<Uuid>,
@@ -93,7 +93,7 @@ async fn list_query_groups(
 }
 
 // TODO(johanpel): pagination
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn list_queries(
     State(state): State<AnalyzerCache>,
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
@@ -110,7 +110,7 @@ async fn list_queries(
     Ok(Json(queries))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn query(
     State(state): State<AnalyzerCache>,
     Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
@@ -136,7 +136,7 @@ fn try_make_binned_span(
     Ok(binned_span)
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn resource_timeline(
     State(state): State<AnalyzerCache>,
     Path((engine_id, query_id, resource_id)): Path<(Uuid, Uuid, Uuid)>,
@@ -150,11 +150,12 @@ async fn resource_timeline(
         url_query_params.fsm_type_name,
         url_query_params.operator_id,
         config,
+        url_query_params.long_entities_threshold_s.map(to_nanosecs),
         epoch,
     )?))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn resource_group_timeline(
     State(state): State<AnalyzerCache>,
     Path((engine_id, query_id, resource_group_id)): Path<(Uuid, Uuid, Uuid)>,
@@ -170,6 +171,7 @@ async fn resource_group_timeline(
             url_query_params.fsm_type_name,
             url_query_params.operator_id,
             config,
+            url_query_params.long_entities_threshold_s.map(to_nanosecs),
             epoch,
         )?))
     } else {
@@ -179,7 +181,7 @@ async fn resource_group_timeline(
     }
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, err)]
 async fn bulk_timelines(
     State(state): State<AnalyzerCache>,
     Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
@@ -187,7 +189,9 @@ async fn bulk_timelines(
 ) -> ServerResult<Json<BulkTimelinesResponse>> {
     let analyzer = state.get(engine_id).await?;
     let epoch = analyzer.model.query_engine.query_epoch(query_id)?;
-    Ok(Json(analyzer.bulk_timelines(query_id, request, epoch)?))
+    Ok(Json(
+        analyzer.request_timelines_bulk(query_id, request, epoch)?,
+    ))
 }
 
 // TODO(johanpel): add a context and really cache these analyzers :this-is-fine:

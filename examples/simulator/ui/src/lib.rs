@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use quent_analyzer::fsm::FsmTypeDecl;
 use quent_query_engine_ui::{Engine, Operator, Plan, PlanTree, Port, Query, QueryGroup, Worker};
 use quent_time::{TimeSec, TimeUnixNanoSec};
 use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl};
@@ -75,6 +76,9 @@ pub struct QueryEntities {
 
     /// Application-specific resource groups
     pub resource_groups: HashMap<Uuid, ResourceGroup>,
+
+    /// Application-specific FSMs
+    pub fsm_types: HashMap<String, FsmTypeDecl>,
 }
 
 #[derive(TS, Debug, Serialize)]

@@ -59,12 +59,17 @@ pub fn timestamp() -> TimeUnixNanoSec {
 }
 
 /// Convert a nanosecond timestamp to seconds.
-pub fn to_secs(timestamp: TimeNanoSec) -> f64 {
-    timestamp as f64 * 1e-9
+pub fn to_secs(time: TimeNanoSec) -> TimeSec {
+    time as f64 * 1e-9
+}
+
+/// Convert a seconds timestamp to nanoseconda.
+pub fn to_nanosecs(time: TimeSec) -> TimeNanoSec {
+    (time * 1e9) as u64
 }
 
 /// Convert a nanosecond timestamp to seconds, relative to some epoch.
-pub fn try_to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> Result<f64> {
+pub fn try_to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> Result<TimeSec> {
     timestamp.checked_sub(epoch)
         .ok_or_else(|| {
             TimeError::InvalidArgument(format!(
@@ -72,4 +77,54 @@ pub fn try_to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> Resul
             ))
         })
         .map(to_secs)
+}
+
+pub trait Timestamp {
+    fn timestamp(&self) -> TimeUnixNanoSec;
+}
+
+/// Maintains a timestamp-ordered sequence of items.
+///
+/// Optimized for when the common case is that items arrive in timestamp order,
+/// in which case [`Self::push`] is O(1). Out-of-order items are inserted via
+/// binary search (O(log n) search + O(n) insertion).
+pub struct TimeOrderedCollector<T>(Vec<T>);
+
+impl<T> Default for TimeOrderedCollector<T> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<T> TimeOrderedCollector<T>
+where
+    T: Timestamp,
+{
+    pub fn push(&mut self, state: T) {
+        if let Some(last) = self.0.last()
+            && last.timestamp() <= state.timestamp()
+        {
+            self.0.push(state);
+        } else {
+            let pos = self
+                .0
+                .partition_point(|s| s.timestamp() < state.timestamp());
+            self.0.insert(pos, state);
+        }
+    }
+
+    pub fn into_inner(self) -> Vec<T> {
+        self.0
+    }
+}
+
+impl<T> Extend<T> for TimeOrderedCollector<T>
+where
+    T: Timestamp,
+{
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for transition in iter {
+            self.push(transition)
+        }
+    }
 }

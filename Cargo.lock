@@ -1073,8 +1073,10 @@ dependencies = [
  "quent-events",
  "quent-time",
  "rustc-hash",
+ "serde",
  "smallvec",
  "thiserror",
+ "ts-rs",
  "uuid",
 ]
 
@@ -1283,6 +1285,7 @@ dependencies = [
  "quent-time",
  "quent-ui",
  "rustc-hash",
+ "smallvec",
  "tracing",
  "uuid",
 ]
@@ -1344,6 +1347,7 @@ dependencies = [
 name = "quent-simulator-ui"
 version = "0.1.0"
 dependencies = [
+ "quent-analyzer",
  "quent-query-engine-ui",
  "quent-time",
  "quent-ui",

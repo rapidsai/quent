@@ -123,6 +123,14 @@ where
                     }
                 }
             }
+
+            // Flush the exporter when stream ends normally
+            if let Some(exporter) = exporters.get(&engine_id) {
+                match exporter.force_flush().await {
+                    Ok(_) => (),
+                    Err(e) => warn!("unable to flush exporter after stream completion: {e}"),
+                }
+            }
         });
         let _ = export_join_handle.await;
         Ok(Response::new(proto::CollectEventResponse {}))

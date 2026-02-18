@@ -1,11 +1,10 @@
 //! Types shared with the UI.
 
-use quent_analyzer::fsm::State;
 use quent_analyzer::{AnalyzerError, Entity};
 use quent_attributes::{Attribute, Value};
-use quent_query_engine_analyzer::{self as qa, query::QueryState};
+use quent_query_engine_analyzer::{self as qa};
 use quent_query_engine_events as qe;
-use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
+use quent_time::{TimeSec, TimeUnixNanoSec, Timestamp, try_to_secs_relative};
 use serde::Serialize;
 use std::collections::HashMap;
 use ts_rs::TS;
@@ -118,27 +117,32 @@ impl TryFrom<&qa::query::Query> for Query {
     type Error = AnalyzerError;
 
     fn try_from(query: &qa::query::Query) -> Result<Self, Self::Error> {
+        use qa::query::QueryTransition;
+        use quent_analyzer::fsm::Fsm;
+
         let mut start_unix_ns = None;
         let mut planning_s = None;
         let mut executing_s = None;
         let mut completed_s = None;
 
-        if let Some(init) = query.sequence.first() {
-            // Sanity check
-            assert!(matches!(init, QueryState::Init(_)));
-            start_unix_ns = Some(init.span().start());
+        if let Some(init) = query.transition(0) {
+            start_unix_ns = Some(init.timestamp());
 
-            for state in &query.sequence {
-                match state {
-                    qa::query::QueryState::Planning(span) => {
-                        planning_s = Some(try_to_secs_relative(span.start(), init.span().start())?);
+            for i in 0..query.len() {
+                if let Some(transition) = query.transition(i) {
+                    match transition {
+                        QueryTransition::Planning(ts) => {
+                            planning_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
+                        }
+                        QueryTransition::Executing(ts) => {
+                            executing_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
+                            if let Some(exit) = query.transition(i + 1) {
+                                completed_s =
+                                    Some(try_to_secs_relative(exit.timestamp(), init.timestamp())?);
+                            }
+                        }
+                        _ => {}
                     }
-                    qa::query::QueryState::Executing(span) => {
-                        executing_s =
-                            Some(try_to_secs_relative(span.start(), init.span().start())?);
-                        completed_s = Some(try_to_secs_relative(span.end(), init.span().start())?);
-                    }
-                    _ => {}
                 }
             }
         }

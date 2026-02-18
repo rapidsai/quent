@@ -8,62 +8,54 @@ pub mod task {
     use super::*;
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Init {
+    pub struct Queueing {
         pub operator_id: Uuid,
         pub instance_name: String,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Computing {
-        pub use_task_thread: Uuid,
-        pub use_main_memory: Uuid,
-        pub use_main_memory_bytes: u64,
+        pub use_thread: Uuid,
+        pub use_memory: Uuid,
+        pub use_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct AllocatingMemory {
-        pub use_task_thread: Uuid,
+    pub struct Allocating {
+        pub use_thread: Uuid,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Loading {
-        pub use_task_thread: Uuid,
+        pub use_thread: Uuid,
         pub use_fs_to_mem: Uuid,
         pub use_fs_to_mem_bytes: u64,
-        pub use_main_memory: Uuid,
-        pub use_main_memory_bytes: u64,
-    }
-
-    #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct AllocatingStorage {
-        pub use_task_thread: Uuid,
+        pub use_memory: Uuid,
+        pub use_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Spilling {
-        pub use_task_thread: Uuid,
+        pub use_thread: Uuid,
         pub use_mem_to_fs: Uuid,
         pub use_mem_to_fs_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Sending {
-        pub use_task_thread: Uuid,
+        pub use_thread: Uuid,
         pub use_link: Uuid,
         pub use_link_bytes: u64,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum TaskEvent {
-        Init(Init),
-        Queueing,
+        Queueing(Queueing),
         Computing(Computing),
-        AllocatingMemory(AllocatingMemory),
+        Allocating(Allocating),
         Loading(Loading),
-        AllocatingStorage(AllocatingStorage),
         Spilling(Spilling),
         Sending(Sending),
-        Finalizing,
         Exit,
     }
 }

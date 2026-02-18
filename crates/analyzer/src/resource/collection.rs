@@ -18,7 +18,7 @@ use crate::{
     resource::{
         CapacityDecl, CapacityValue, Resource, ResourceCapacities, ResourceGroup,
         ResourceGroupTypeDecl, ResourceTypeDecl,
-        runtime::{RtResource, RtResourceBuilder, RtResourceGroup, RtResourceStateTransition},
+        runtime::{RtResource, RtResourceBuilder, RtResourceGroup, RtResourceTransition},
         tree::ResourceTreeNode,
     },
 };
@@ -130,7 +130,6 @@ pub struct InMemoryResourcesBuilder {
 }
 
 /// An in-memory collection of [`Resource`]s and [`ResourceGroup`]s.
-#[derive(Debug)]
 pub struct InMemoryResources {
     pub resource_types: HashMap<String, ResourceTypeDecl>,
     pub resources: HashMap<Uuid, RtResource>,
@@ -177,14 +176,14 @@ impl InMemoryResourcesBuilder {
                 MemoryEvent::Init(init) => {
                     self.insert_memory_resource(&init.resource.type_name);
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Init(timestamp));
+                    bld.push(RtResourceTransition::Init(timestamp));
                     bld.set_type_name(init.resource.type_name);
                     bld.set_instance_name(Some(init.resource.instance_name));
                     bld.set_parent_group_id(init.resource.parent_group_id);
                 }
                 MemoryEvent::Operating(operating) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Operating(
+                    bld.push(RtResourceTransition::Operating(
                         timestamp,
                         ResourceCapacities(vec![CapacityValue::new(
                             "bytes",
@@ -194,65 +193,65 @@ impl InMemoryResourcesBuilder {
                 }
                 MemoryEvent::Resizing(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Resizing(timestamp));
+                    bld.push(RtResourceTransition::Resizing(timestamp));
                 }
                 MemoryEvent::Finalizing(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Finalizing(timestamp));
+                    bld.push(RtResourceTransition::Finalizing(timestamp));
                 }
                 MemoryEvent::Exit(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Exit(timestamp));
+                    bld.push(RtResourceTransition::Exit(timestamp));
                 }
             },
             ResourceEvent::Processor(processor_resource_event) => match processor_resource_event {
                 ProcessorEvent::Init(init) => {
                     self.insert_processor_resource(&init.resource.type_name);
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Init(timestamp));
+                    bld.push(RtResourceTransition::Init(timestamp));
                     bld.set_type_name(init.resource.type_name);
                     bld.set_instance_name(Some(init.resource.instance_name));
                     bld.set_parent_group_id(init.resource.parent_group_id);
                 }
                 ProcessorEvent::Operating(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Operating(
+                    bld.push(RtResourceTransition::Operating(
                         timestamp,
                         ResourceCapacities(vec![]),
                     ));
                 }
                 ProcessorEvent::Finalizing(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Finalizing(timestamp));
+                    bld.push(RtResourceTransition::Finalizing(timestamp));
                 }
                 ProcessorEvent::Exit(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Exit(timestamp));
+                    bld.push(RtResourceTransition::Exit(timestamp));
                 }
             },
             ResourceEvent::Channel(channel_resource_event) => match channel_resource_event {
                 ChannelEvent::Init(init) => {
                     self.insert_channel_resource(&init.resource.type_name);
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Init(timestamp));
+                    bld.push(RtResourceTransition::Init(timestamp));
                     bld.set_type_name(init.resource.type_name);
                     bld.set_instance_name(Some(init.resource.instance_name));
                     bld.set_parent_group_id(init.resource.parent_group_id);
                 }
                 ChannelEvent::Operating(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Operating(
+                    bld.push(RtResourceTransition::Operating(
                         timestamp,
                         ResourceCapacities(vec![]),
                     ));
                 }
                 ChannelEvent::Finalizing(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Finalizing(timestamp));
+                    bld.push(RtResourceTransition::Finalizing(timestamp));
                 }
                 ChannelEvent::Exit(_) => {
                     let bld = self.try_builder(id)?;
-                    bld.push(RtResourceStateTransition::Exit(timestamp));
+                    bld.push(RtResourceTransition::Exit(timestamp));
                 }
             },
             ResourceEvent::Group(group_event) => {

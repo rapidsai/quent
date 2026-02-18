@@ -1,65 +1,86 @@
 //! FSM-related functionality
 
 use quent_attributes::Attribute;
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+use quent_time::{Timestamp, span::SpanUnixNanoSec};
+#[cfg(feature = "ts")]
+use serde::Serialize;
+#[cfg(feature = "ts")]
+use ts_rs::TS;
 
-use crate::{AnalyzerResult, Entity, Span, error::AnalyzerError};
+use crate::{AnalyzerResult, Entity, Span, error::AnalyzerError, resource::Usage};
 
 pub mod collection;
 pub mod runtime;
 
-/// Trait for types that represent an FSM state.
-pub trait State {
-    /// Return the unique name of the state.
+/// Trait for types that represent an [`Fsm`] [`State`] transition.
+pub trait Transition: Timestamp {
+    /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-    /// Return the span of time of this state.
-    fn span(&self) -> SpanUnixNanoSec;
-    /// Return an iterator over arbitrary key-value attributes associated with the state.
+    /// Return an iterator over arbitrary key-value attributes associated with
+    /// this transition.
     fn attributes(&self) -> impl Iterator<Item = &Attribute>;
 }
 
-/// Trait for types that represent an FSM state transition.
-pub trait Transition {
-    type Target: State;
-
-    /// Return the timestamp of the transition.
-    fn timestamp(&self) -> TimeUnixNanoSec;
-    /// Attempt to turn this transition into a [`Self::StateType`]
-    fn try_into_state(self, end: TimeUnixNanoSec) -> AnalyzerResult<Self::Target>;
-}
-
-/// Trait for types that are an FSM.
+/// Trait for types that represent a Finite State Machine (FSM).
+///
+/// An FSM is modeled as a sequence of transitions between uniquely named
+/// states. Each FSM must have at least two transition, some entry transition
+/// and an exit transition. The number of states is always one less than the
+/// number of transitions.
 pub trait Fsm: Entity {
-    /// The type of the states of this FSM.
+    /// The type of transitions stored by this FSM.
     ///
-    /// Must implement [`State`].
-    type StateType: State;
+    /// This associated type enables dyn-free access to underlying transition
+    /// data.
+    type TransitionType: Transition;
 
-    /// Return the number of states.
+    /// Return the number of states in this FSM.
+    ///
+    /// This is always the number of transitions - 1, since the final transition
+    /// must be into the special exit state.
     fn len(&self) -> usize;
 
-    /// Return true if this FSM has no states, which means it is incomplete.
+    /// Return true if this FSM has no states (meaning the model of whatever it
+    /// represents is incomplete).
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Return a reference to the index-th state.
+    /// Return a reference to the transition at the given index.
     ///
-    /// If the index is out of bounds, this returns None.
-    fn state(&self, index: usize) -> Option<&Self::StateType>;
+    /// Returns `None` if the index is out of bounds.
+    fn transition(&self, index: usize) -> Option<&Self::TransitionType>;
 
-    /// Return an iterator over all states.
-    fn states(&self) -> impl ExactSizeIterator<Item = &Self::StateType>;
-
-    /// Return the first state.
-    fn first(&self) -> Option<&Self::StateType> {
-        (!self.is_empty()).then(|| self.state(0).unwrap())
+    /// Return a reference to the state at the given index.
+    ///
+    /// The state spans from transition `index` to transition `index + 1`.
+    /// Returns `None` if the index is out of bounds.
+    fn state<'a>(&'a self, index: usize) -> Option<FsmStateRef<'a, Self, Self::TransitionType>> {
+        (self.len() > index).then_some(FsmStateRef { fsm: self, index })
     }
 
-    /// Return the last state.
-    fn last(&self) -> Option<&Self::StateType> {
-        (!self.is_empty()).then(|| self.state(self.len() - 1).unwrap())
+    /// Return an iterator over all states in this FSM.
+    fn states<'a>(
+        &'a self,
+    ) -> impl ExactSizeIterator<Item = FsmStateRef<'a, Self, Self::TransitionType>> {
+        (0..self.len()).map(|index| self.state(index).unwrap())
     }
+
+    /// Return the first state, if the FSM is not empty.
+    fn first<'a>(&'a self) -> Option<FsmStateRef<'a, Self, Self::TransitionType>> {
+        self.state(0)
+    }
+
+    /// Return the last state, if the FSM is not empty.
+    fn last<'a>(&'a self) -> Option<FsmStateRef<'a, Self, Self::TransitionType>> {
+        self.state(self.len() - 1)
+    }
+}
+
+/// Trait for FSMs that have resource usages associated with their states.
+pub trait FsmUsages<'a>: Fsm {
+    /// Return an iterator over all usages with their associated state names.
+    fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)>;
 }
 
 impl<U> Span for U
@@ -79,66 +100,74 @@ where
     }
 }
 
-/// Collects state transitions and inserts them in time order.
-// The common case is for events to arrive in order, so a simple Vec
-// will suffice to make the vast majority of ordered insertions fast.
-//
-// TODO(johanpel): since many FSMs have a known exact number of transitions,
-// consider backing this with a SmallVec, requiring a const generic.
-pub struct OrderedStateTransitionCollector<T>(Vec<T>)
+#[derive(Clone)]
+pub struct FsmStateRef<'a, F, T>
 where
-    T: Transition;
-
-impl<T> Default for OrderedStateTransitionCollector<T>
-where
+    F: Fsm<TransitionType = T> + ?Sized,
     T: Transition,
 {
-    fn default() -> Self {
-        Self(Default::default())
+    fsm: &'a F,
+    index: usize,
+}
+
+impl<'a, F, T> FsmStateRef<'a, F, T>
+where
+    F: Fsm<TransitionType = T>,
+    T: Transition,
+{
+    pub fn name(&self) -> &str {
+        self.fsm.transition(self.index).unwrap().name()
+    }
+
+    pub fn span(&self) -> SpanUnixNanoSec {
+        let start = self.fsm.transition(self.index).unwrap().timestamp();
+        let end = self.fsm.transition(self.index + 1).unwrap().timestamp();
+        SpanUnixNanoSec::try_new(start, end).unwrap()
+    }
+
+    pub fn attributes(&self) -> impl Iterator<Item = &Attribute> {
+        self.fsm.transition(self.index).unwrap().attributes()
     }
 }
 
-impl<T> OrderedStateTransitionCollector<T>
-where
-    T: Transition,
-{
-    pub fn push(&mut self, state: T) {
-        if let Some(last) = self.0.last()
-            && last.timestamp() <= state.timestamp()
-        {
-            self.0.push(state);
-        } else {
-            let pos = self
-                .0
-                .binary_search_by(|s| s.timestamp().cmp(&state.timestamp()))
-                .unwrap_or_else(|i| i);
-            self.0.insert(pos, state);
-        }
-    }
+/// Trait for FSM types to deliver a run-time definition of their states and possible transitions.
+pub trait FsmTypeDeclaration {
+    fn fsm_type_declaration() -> FsmTypeDecl;
 }
 
-impl<T> Extend<T> for OrderedStateTransitionCollector<T>
-where
-    T: Transition,
-{
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        for transition in iter {
-            self.push(transition)
-        }
-    }
+/// A declaration of an FSM state.
+#[derive(Debug)]
+#[cfg_attr(feature = "ts", derive(Serialize, TS))]
+pub struct FsmStateTypeDecl {
+    /// The name of this FSM state.
+    pub name: String,
+    // TODO(johanpel): figure out how to best do this
+    // The attributes this FSM state can have.
+    // pub attributes: Vec<Attribute>,
+    /// The names of the resource types this FSM state can use.
+    pub usages: Vec<String>,
 }
 
-impl<T: Transition> TryFrom<OrderedStateTransitionCollector<T>> for Vec<T> {
-    type Error = AnalyzerError;
+/// A declaration of an FSM state transition.
+#[derive(Debug)]
+#[cfg_attr(feature = "ts", derive(Serialize, TS))]
+pub enum FsmTransitionDecl {
+    /// Initial transition into the state with this name.
+    Entry(String),
+    /// Transition from a state to a state with these names (from, to).
+    Transition(String, String),
+    /// Exit transition from the state with this name.
+    Exit(String),
+}
 
-    fn try_from(value: OrderedStateTransitionCollector<T>) -> AnalyzerResult<Self> {
-        if value.0.len() >= 2 {
-            Ok(value.0)
-        } else {
-            Err(AnalyzerError::IncompleteFsm(format!(
-                "number of state transitions must be >= 2, is {}",
-                value.0.len()
-            )))
-        }
-    }
+/// A declaration of an FSM type.
+#[derive(Debug)]
+#[cfg_attr(feature = "ts", derive(Serialize, TS))]
+pub struct FsmTypeDecl {
+    /// The name of this FSM type.
+    pub name: String,
+    /// The states of this FSM type.
+    pub states: Vec<FsmStateTypeDecl>,
+    /// The possible transitions of this FSM type.
+    pub transitions: Vec<FsmTransitionDecl>,
 }

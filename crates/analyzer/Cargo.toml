@@ -3,11 +3,17 @@ name = "quent-analyzer"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+default = []
+ts = ["serde", "ts-rs"]
+
 [dependencies]
 quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
-rustc-hash.workspace = true
 quent-time = { path = "../time" }
+rustc-hash.workspace = true
+serde = { workspace = true, optional = true }
+smallvec = { workspace = true, features = ["serde"] }
 thiserror.workspace = true
-uuid.workspace = true
-smallvec = {workspace = true, features = ["serde"] }
+ts-rs = { workspace = true, optional = true }
+uuid.workspace=true

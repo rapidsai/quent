@@ -3,41 +3,42 @@
 use std::collections::HashSet;
 
 use rustc_hash::FxHashMap as HashMap;
-
-use quent_time::span::SpanUnixNanoSec;
 use uuid::Uuid;
 
 use crate::{
-    fsm::Fsm,
+    fsm::{Fsm, Transition},
     resource::{Usage, Using},
 };
 
 /// Trait for types that hold a collection of [`Fsm`]s.
-pub trait FsmCollection<T>
+pub trait FsmCollection<F, T>
 where
-    T: Fsm,
+    F: Fsm<TransitionType = T>,
+    T: Transition,
 {
-    fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a
+    fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a F> + 'a
     where
-        T: 'a;
+        F: 'a;
 
     fn contains_fsm_type(&self, type_name: &str) -> bool;
 }
 
 /// An in-memory collection of [`Fsm`]s.
-pub struct InMemoryFsms<T>
+pub struct InMemoryFsms<F, T>
 where
-    T: Fsm,
+    F: Fsm<TransitionType = T>,
+    T: Transition,
 {
-    pub fsms: HashMap<Uuid, T>,
+    pub fsms: HashMap<Uuid, F>,
     pub fsm_type_names: HashSet<String>,
 }
 
-impl<T> FsmCollection<T> for InMemoryFsms<T>
+impl<F, T> FsmCollection<F, T> for InMemoryFsms<F, T>
 where
-    T: Fsm,
+    F: Fsm<TransitionType = T>,
+    T: Transition,
 {
-    fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a
+    fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a F> + 'a
     where
         T: 'a,
     {
@@ -49,19 +50,21 @@ where
     }
 }
 
-impl<T> Using for InMemoryFsms<T>
+impl<F, T> Using for InMemoryFsms<F, T>
 where
-    T: Fsm + Using,
+    F: Fsm<TransitionType = T> + Using,
+    T: Transition,
 {
-    fn usages(&self) -> impl Iterator<Item = (&Usage, SpanUnixNanoSec)> {
+    fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         self.fsms.values().flat_map(|fsm| fsm.usages())
     }
 }
 
 #[cfg(test)]
-impl<T> InMemoryFsms<T>
+impl<F, T> InMemoryFsms<F, T>
 where
-    T: Fsm,
+    F: Fsm<TransitionType = T>,
+    T: Transition,
 {
     pub(crate) fn new() -> Self {
         Self {
@@ -69,7 +72,7 @@ where
             fsm_type_names: Default::default(),
         }
     }
-    pub(crate) fn insert(&mut self, fsm: T) {
+    pub(crate) fn insert(&mut self, fsm: F) {
         self.fsm_type_names.insert(fsm.type_name().to_owned());
         self.fsms.insert(fsm.id(), fsm);
     }

@@ -13,7 +13,9 @@ export type ResourceTimelineRequestParams = {
 fsm_type_name: string | null, 
 /**
  * Filter the usages of the resource on this operator ID.
- *
- * TODO(johanpel): this will only work for FSMs directly referencing this operator.
  */
-operator_id: string | null, };
+operator_id: string | null, 
+/**
+ * If set, fully include entities that have usages exceeding this amount of time.
+ */
+long_entities_threshold_s: number | null, };

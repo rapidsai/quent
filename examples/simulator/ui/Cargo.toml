@@ -10,3 +10,4 @@ serde.workspace = true
 ts-rs.workspace = true
 uuid.workspace = true
 quent-time = { path = "../../../crates/time" }
+quent-analyzer = { path = "../../../crates/analyzer", features = [ "ts" ]}

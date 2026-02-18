@@ -1,6 +1,6 @@
 //! Type definitions of entity events.
 
-use quent_time::{TimeUnixNanoSec, timestamp};
+use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -49,5 +49,11 @@ impl<T> Event<T> {
             timestamp: self.timestamp,
             data: f(self.data),
         }
+    }
+}
+
+impl<T> Timestamp for Event<T> {
+    fn timestamp(&self) -> TimeUnixNanoSec {
+        self.timestamp
     }
 }

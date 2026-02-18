@@ -1,9 +1,9 @@
 //! Binned timelines for resource utilization.
 
-use std::{collections::HashSet, hash::Hash};
+use std::hash::Hash;
 
-use quent_time::{SpanNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec};
-use rustc_hash::FxHashMap as HashMap;
+use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use uuid::Uuid;
 
 use crate::{
@@ -26,91 +26,63 @@ fn convert_capacity(
 pub struct ResourceTimeline<'a> {
     pub config: BinnedSpan,
     pub data: HashMap<&'a str, Vec<f64>>,
+    pub long_entities: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ResourceTimelineByKey<'a, K> {
     pub config: BinnedSpan,
     pub data: HashMap<(K, &'a str), Vec<f64>>,
+    pub long_entities: Vec<Uuid>,
 }
 
-pub trait ResourceIdFilter {
-    fn accepts(&self, id: Uuid) -> bool;
-}
-
-impl ResourceIdFilter for Uuid {
-    fn accepts(&self, id: Uuid) -> bool {
-        *self == id
-    }
-}
-
-impl ResourceIdFilter for HashSet<Uuid> {
-    fn accepts(&self, id: Uuid) -> bool {
-        self.contains(&id)
-    }
-}
-
-pub struct ResourceTimelineBuilder<'a, F>
-where
-    F: ResourceIdFilter,
-{
+pub struct ResourceTimelineBuilder<'a> {
     resource_type: &'a ResourceTypeDecl,
-    id_filter: F,
     aggregator: KeyedAggregator<&'a str>,
+    long_entities: HashSet<Uuid>,
+    long_entities_threshold: Option<TimeNanoSec>,
 }
 
-impl<'a, F> ResourceTimelineBuilder<'a, F>
-where
-    F: ResourceIdFilter,
-{
+impl<'a> ResourceTimelineBuilder<'a> {
     pub fn try_new(
         resource_type: &'a ResourceTypeDecl,
-        id_filter: F,
         config: BinnedSpan,
+        long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
         // Construct the aggregator.
         let aggregator = KeyedAggregator::new(config);
         Ok(Self {
-            id_filter,
             resource_type,
             aggregator,
+            long_entities: HashSet::default(),
+            long_entities_threshold,
         })
     }
 
-    pub fn id_filter(&self) -> &F {
-        &self.id_filter
-    }
-
-    pub fn try_push(&mut self, usage: &'a Usage, span: SpanUnixNanoSec) -> AnalyzerResult<()> {
-        if self.id_filter.accepts(usage.resource) {
-            self.try_push_prefiltered(usage, span)?;
-        }
-        Ok(())
-    }
-
-    /// Push a usage without checking the id filter.
-    /// Caller must guarantee that `usage.resource` is accepted by this builder.
-    pub fn try_push_prefiltered(
-        &mut self,
-        usage: &'a Usage,
-        span: SpanUnixNanoSec,
-    ) -> AnalyzerResult<()> {
+    pub fn try_push(&mut self, usage: &impl Usage<'a>) -> AnalyzerResult<()> {
         // TODO(johanpel): perf is fine for now but at some point we want to consider preventing all the hashmaps.
-        for capacity in usage.capacities.iter() {
+        for capacity in usage.capacities() {
             if capacity.value.is_some() {
-                let value = convert_capacity(span, capacity, self.resource_type)?;
-                self.aggregator.try_push(span, (capacity.name, value))?
+                let value = convert_capacity(usage.span(), capacity, self.resource_type)?;
+                self.aggregator
+                    .try_push(usage.span(), (capacity.name, value))?
             }
+        }
+
+        if let Some(threshold) = self.long_entities_threshold
+            && usage.span().duration() > threshold
+        {
+            self.long_entities.insert(usage.entity_id());
         }
         Ok(())
     }
 
     pub fn try_extend(
         &mut self,
-        items: impl Iterator<Item = (&'a Usage, SpanUnixNanoSec)>,
+        items: impl Iterator<Item = impl Usage<'a>>,
     ) -> AnalyzerResult<()> {
-        for (usage, span) in items {
-            self.try_push(usage, span)?
+        for usage in items {
+            self.try_push(&usage)?
         }
         Ok(())
     }
@@ -119,78 +91,60 @@ where
         ResourceTimeline {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
+            long_entities: self.long_entities.into_iter().collect(),
         }
     }
 }
 
-pub struct ResourceTimelineByKeyBuilder<'a, F, K>
-where
-    F: ResourceIdFilter,
-{
+pub struct ResourceTimelineByKeyBuilder<'a, K> {
     resource_type: &'a ResourceTypeDecl,
-    id_filter: F,
     aggregator: KeyedAggregator<(K, &'a str)>,
+    long_entities: HashSet<Uuid>,
+    long_entities_threshold: Option<TimeNanoSec>,
 }
 
-impl<'a, F, K> ResourceTimelineByKeyBuilder<'a, F, K>
+impl<'a, K> ResourceTimelineByKeyBuilder<'a, K>
 where
-    F: ResourceIdFilter,
-    K: Eq + Hash + Copy,
+    K: Eq + Hash + Clone,
 {
     pub fn try_new(
         resource_type: &'a ResourceTypeDecl,
-        id_filter: F,
         config: BinnedSpan,
+        long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
         let aggregator = KeyedAggregator::new(config);
 
         Ok(Self {
             resource_type,
-            id_filter,
             aggregator,
+            long_entities: HashSet::default(),
+            long_entities_threshold,
         })
     }
 
-    pub fn id_filter(&self) -> &F {
-        &self.id_filter
-    }
-
-    pub fn try_push(
-        &mut self,
-        key: K,
-        usage: &'a Usage,
-        span: SpanUnixNanoSec,
-    ) -> AnalyzerResult<()> {
-        if self.id_filter.accepts(usage.resource) {
-            self.try_push_prefiltered(key, usage, span)?;
-        }
-        Ok(())
-    }
-
-    /// Push a usage without checking the id filter.
-    /// Caller must guarantee that `usage.resource` is accepted by this builder.
-    pub fn try_push_prefiltered(
-        &mut self,
-        key: K,
-        usage: &'a Usage,
-        span: SpanUnixNanoSec,
-    ) -> AnalyzerResult<()> {
-        for capacity in usage.capacities.iter() {
+    pub fn try_push(&mut self, key: K, usage: &impl Usage<'a>) -> AnalyzerResult<()> {
+        for capacity in usage.capacities() {
             if capacity.value.is_some() {
-                let value = convert_capacity(span, capacity, self.resource_type)?;
+                let value = convert_capacity(usage.span(), capacity, self.resource_type)?;
                 self.aggregator
-                    .try_push(span, ((key, capacity.name), value))?
+                    .try_push(usage.span(), ((key.clone(), capacity.name), value))?
             }
+        }
+
+        if let Some(threshold) = self.long_entities_threshold
+            && usage.span().duration() > threshold
+        {
+            self.long_entities.insert(usage.entity_id());
         }
         Ok(())
     }
 
     pub fn try_extend(
         &mut self,
-        items: impl Iterator<Item = (K, &'a Usage, SpanUnixNanoSec)>,
+        items: impl Iterator<Item = (K, impl Usage<'a>)>,
     ) -> AnalyzerResult<()> {
-        for (key, usage, span) in items {
-            self.try_push(key, usage, span)?;
+        for (key, usage) in items {
+            self.try_push(key, &usage)?;
         }
         Ok(())
     }
@@ -199,6 +153,7 @@ where
         ResourceTimelineByKey {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
+            long_entities: self.long_entities.into_iter().collect(),
         }
     }
 }
@@ -209,12 +164,12 @@ mod tests {
 
     use crate::{
         fsm::{
-            Fsm, State,
+            FsmUsages,
             collection::{FsmCollection, InMemoryFsms},
-            runtime::{RtFsm, RtTransition},
+            runtime::{RtFsm, RtFsmStateUsage, RtFsmTransition},
         },
         resource::{
-            CapacityDecl, Usage, Using,
+            CapacityDecl, Using,
             collection::{InMemoryResourcesBuilder, ResourceCollection},
             runtime::RtResource,
             tree::ResourceTreeNode,
@@ -300,7 +255,7 @@ mod tests {
             .unwrap();
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm>::new();
+        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
@@ -313,16 +268,16 @@ mod tests {
                     "test",
                     "test",
                     [
-                        RtTransition {
+                        RtFsmTransition {
                             name: "using".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "exit".into(),
                             usages: vec![],
                             timestamp: end,
@@ -344,11 +299,13 @@ mod tests {
             resources
                 .resource_type(resources.resource(resource_id).unwrap().type_name())
                 .unwrap(),
-            resource_id,
             config,
+            None,
         )
         .unwrap();
-        builder.try_extend(fsms.usages()).unwrap();
+        builder
+            .try_extend(fsms.usages().filter(|u| u.resource_id() == resource_id))
+            .unwrap();
         let timeline = builder.build();
 
         // Config shouldn't be modified.
@@ -387,7 +344,7 @@ mod tests {
             .unwrap();
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm>::new();
+        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
@@ -400,9 +357,9 @@ mod tests {
                     "test",
                     "test",
                     [
-                        RtTransition {
+                        RtFsmTransition {
                             name: "using".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
                                 } else {
@@ -413,7 +370,7 @@ mod tests {
                             timestamp: start,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "exit".into(),
                             usages: vec![],
                             timestamp: end,
@@ -437,15 +394,20 @@ mod tests {
 
         let mut builder = ResourceTimelineBuilder::try_new(
             resources.resource_type("test").unwrap(),
-            group_resources,
             BinnedSpan::try_new(
                 SpanNanoSec::try_new(0, 1000).unwrap(),
                 NonZero::try_from(10).unwrap(),
             )
             .unwrap(),
+            None,
         )
         .unwrap();
-        builder.try_extend(fsms.usages()).unwrap();
+        builder
+            .try_extend(
+                fsms.usages()
+                    .filter(|u| group_resources.contains(&u.resource_id())),
+            )
+            .unwrap();
         let timeline = builder.build();
 
         let values = timeline.data.get("bytes").unwrap();
@@ -470,7 +432,7 @@ mod tests {
             .unwrap();
         let mut resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm>::new();
+        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
 
         // Add a resource with 2 capacities.
         resources.insert_type(ResourceTypeDecl::new(
@@ -485,7 +447,7 @@ mod tests {
             instance_name: "test".into(),
             type_name: "test".into(),
             parent_group_id: ROOT_RESOURCE_ID,
-            sequence: vec![],
+            transitions: vec![],
         });
 
         // Spawn 2 FSMs using both capacities
@@ -497,9 +459,9 @@ mod tests {
                     "test",
                     "test",
                     [
-                        RtTransition {
+                        RtFsmTransition {
                             name: "using".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 &[CapacityValue::new("a", 250), CapacityValue::new("b", 1)]
                                     as &[CapacityValue],
@@ -507,7 +469,7 @@ mod tests {
                             timestamp: i * 250,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "exit".into(),
                             usages: vec![],
                             timestamp: 1000 - i * 250,
@@ -527,11 +489,13 @@ mod tests {
 
         let mut builder = ResourceTimelineBuilder::try_new(
             resources.resource_type_of(resource_id).unwrap(),
-            resource_id,
             config,
+            None,
         )
         .unwrap();
-        builder.try_extend(fsms.usages()).unwrap();
+        builder
+            .try_extend(fsms.usages().filter(|u| u.resource_id() == resource_id))
+            .unwrap();
         let timeline = builder.build();
 
         assert_eq!(timeline.config, config);
@@ -576,7 +540,7 @@ mod tests {
             .unwrap();
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm>::new();
+        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs with 2 usage states
         for i in 0..4 {
@@ -589,25 +553,25 @@ mod tests {
                     "test",
                     "test",
                     [
-                        RtTransition {
+                        RtFsmTransition {
                             name: "state_a".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "state_b".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("bytes", 42)],
                             )],
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "exit".into(),
                             usages: vec![],
                             timestamp: end,
@@ -629,19 +593,19 @@ mod tests {
             resources
                 .resource_type(resources.resource(resource_id).unwrap().type_name())
                 .unwrap(),
-            resource_id,
             config,
+            None,
         )
         .unwrap();
-        builder
-            .try_extend(fsms.fsms().flat_map(|fsm| {
-                fsm.states().flat_map(|state| {
-                    state
-                        .usages()
-                        .map(|(usage, span)| (state.name.as_str(), usage, span))
-                })
-            }))
-            .unwrap();
+
+        for fsm in fsms.fsms() {
+            for (state_name, usage) in fsm.usages_with_state_names() {
+                if usage.resource_id() == resource_id {
+                    builder.try_push(state_name, &usage).unwrap();
+                }
+            }
+        }
+
         let timeline = builder.build();
 
         // Config shouldn't be modified.
@@ -703,7 +667,7 @@ mod tests {
             .unwrap();
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm>::new();
+        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
 
         // Produce the same utilization as previous test but spread it out across two leaf resources.
         for i in 0..4 {
@@ -716,9 +680,9 @@ mod tests {
                     "test",
                     "test",
                     [
-                        RtTransition {
+                        RtFsmTransition {
                             name: "state_a".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
                                 } else {
@@ -729,9 +693,9 @@ mod tests {
                             timestamp: start,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "state_b".into(),
-                            usages: vec![Usage::new(
+                            usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
                                 } else {
@@ -742,7 +706,7 @@ mod tests {
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
                         },
-                        RtTransition {
+                        RtFsmTransition {
                             name: "exit".into(),
                             usages: vec![],
                             timestamp: end,
@@ -772,16 +736,17 @@ mod tests {
 
         let mut builder = ResourceTimelineByKeyBuilder::try_new(
             resources.resource_type("test").unwrap(),
-            group_resources,
             config,
+            None,
         )
         .unwrap();
-        builder
-            .try_extend(fsms.fsms().flat_map(|fsm| {
-                fsm.states()
-                    .flat_map(|s| s.usages().map(|u| (s.name(), u.0, u.1)))
-            }))
-            .unwrap();
+        for fsm in fsms.fsms() {
+            for (state_name, usage) in fsm.usages_with_state_names() {
+                if group_resources.contains(&usage.resource_id()) {
+                    builder.try_push(state_name, &usage).unwrap();
+                }
+            }
+        }
         let timeline = builder.build();
 
         let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();

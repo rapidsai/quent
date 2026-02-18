@@ -15,3 +15,4 @@ quent-events = { path = "../../../crates/events" }
 rustc-hash.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+smallvec.workspace = true
