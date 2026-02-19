@@ -1,5 +1,5 @@
 import ELK from 'elkjs';
-import { useCallback, useLayoutEffect, MouseEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, MouseEvent, type RefObject } from 'react';
 import {
   Background,
   ReactFlow,
@@ -89,10 +89,12 @@ const FlowLayout = ({
   data,
   queryId,
   engineId,
+  containerRef,
 }: {
   data: DAGData;
   queryId: string;
   engineId: string;
+  containerRef: RefObject<HTMLDivElement | null>;
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -145,6 +147,17 @@ const FlowLayout = ({
     [navigate, engineId, queryId]
   );
 
+  // Re-fit view when the react-flow container is resized
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      if (nodes.length > 0) fitView({ padding: 0.1, minZoom: 0.1 });
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, fitView, nodes.length]);
+
   // Calculate and apply layout
   useLayoutEffect(() => {
     const applyLayout = async () => {
@@ -183,10 +196,11 @@ const FlowLayout = ({
 };
 
 export const DAGChart = ({ data, queryId, engineId, height = '100%' }: DAGProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   return (
-    <div style={{ width: '100%', height }}>
+    <div ref={containerRef} style={{ width: '100%', height }}>
       <ReactFlowProvider>
-        <FlowLayout data={data} queryId={queryId} engineId={engineId} />
+        <FlowLayout data={data} queryId={queryId} engineId={engineId} containerRef={containerRef} />
       </ReactFlowProvider>
     </div>
   );
