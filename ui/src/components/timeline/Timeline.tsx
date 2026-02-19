@@ -156,7 +156,6 @@ export function Timeline({
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries.map(
             (p: { color: string; seriesName: string; data: number[] }) => {
-              console.log(p.data);
               return {
                 color: p.color,
                 name: p.seriesName,
