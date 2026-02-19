@@ -12,6 +12,7 @@ type UsageColumnProps = {
   setHoveredTimelineId: React.Dispatch<React.SetStateAction<string | null>>;
   startTime: bigint;
   durationSeconds: number;
+  zoomState: { startPct: number; endPct: number };
 };
 
 export function UsageColumn({
@@ -23,6 +24,7 @@ export function UsageColumn({
   setHoveredTimelineId,
   startTime,
   durationSeconds,
+  zoomState,
 }: UsageColumnProps): React.ReactNode {
   const entity = item?.entity ?? {};
   // Look up FSM type name from the resource type's used_by field
@@ -52,6 +54,7 @@ export function UsageColumn({
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
         showTooltip={hoveredTimelineId === item.id}
+        zoomState={zoomState}
       />
     </div>
   );

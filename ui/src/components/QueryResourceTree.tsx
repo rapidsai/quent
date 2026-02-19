@@ -1,5 +1,5 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { TimelineController } from './timeline/TimelineController';
@@ -30,6 +30,17 @@ interface QueryResourceTreeProps {
 export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+  const [zoomState, setZoomState] = useState({ startPct: 0, endPct: 100 });
+  const [debouncedZoomState, setDebouncedZoomState] = useState(zoomState);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedZoomState(zoomState), 150);
+    return () => clearTimeout(timer);
+  }, [zoomState]);
+
+  const handleZoomChange = useCallback(({ start, end }: { start: number; end: number }) => {
+    setZoomState({ startPct: start, endPct: end });
+  }, []);
 
   const rootItem = useMemo(
     () => transformResourceTree(entities, resourceTree),
@@ -63,6 +74,7 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
         num_bins: NUM_TIMELINE_BINS,
         start: 0,
         end: durationSeconds,
+        duration: durationSeconds,
         resource_type_name: rootResourceType,
       }),
     staleTime: DEFAULT_STALE_TIME,
@@ -108,6 +120,7 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
               durationSeconds={durationSeconds}
               numBins={NUM_TIMELINE_BINS}
               timelineData={rootTimelineData}
+              onZoomChange={handleZoomChange}
             />
           </div>
         ),
@@ -121,6 +134,7 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
             setHoveredTimelineId={setHoveredTimelineId}
             startTime={startTime}
             durationSeconds={durationSeconds}
+            zoomState={debouncedZoomState}
           />
         ),
       },
@@ -134,6 +148,8 @@ export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     hoveredTimelineId,
+    debouncedZoomState,
+    handleZoomChange,
   ]);
 
   return (

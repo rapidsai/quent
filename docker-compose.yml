@@ -35,6 +35,11 @@ services:
       - server
     ports:
       - "8000:8000"
+      - "5678:5678"  # Debugpy port
     restart: unless-stopped
     environment:
       QUENT_ANALYZER_ADDRESS: "http://server:8080"
+      DEBUG_MODE: ${DEBUG_MODE:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
+    volumes:
+      - ./webserver/webserver:/app/webserver

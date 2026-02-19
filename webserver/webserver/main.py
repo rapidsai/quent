@@ -2,11 +2,21 @@
 Main application entry point.
 Sets up FastAPI app with middleware and routers.
 """
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .routers import engines
+
+# Configure application logging so that logger.debug() etc. are visible.
+# Uvicorn's --log-level only affects uvicorn's logs; app loggers use the root logger.
+_level = getattr(logging, settings.LOG_LEVEL, logging.INFO)
+logging.basicConfig(
+    level=_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 app = FastAPI(
     title="Quent Webserver",

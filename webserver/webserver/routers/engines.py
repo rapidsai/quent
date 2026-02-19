@@ -8,6 +8,10 @@ from typing import Any
 from fastapi import APIRouter, Path, Query
 
 from ..client import rust_client
+from ..timeline_caching import (
+    get_timeline_bins,
+    get_timeline_bins_for_resource_group,
+)
 
 router = APIRouter(prefix="/engines", tags=["engines"])
 
@@ -74,6 +78,7 @@ async def get_resource_timeline(
         ..., description="Start time in seconds relative to query start"
     ),
     end: float = Query(..., description="End time in seconds relative to query start"),
+    duration: float = Query(..., description="Total query duration in seconds"),
     fsm_type_name: str | None = Query(
         None,
         description="Optional FSM type name to aggregate by state. If not provided, aggregates across all states.",
@@ -83,11 +88,9 @@ async def get_resource_timeline(
     Fetches timeline of utilization of a single resource.
     Returns bins in which utilization is aggregated across all FSM states, or per state if fsm_type_name is provided.
     """
-    query_params = f"?num_bins={num_bins}&start={start}&end={end}"
-    if fsm_type_name:
-        query_params += f"&fsm_type_name={fsm_type_name}"
-    return rust_client.get(
-        f"/analyzer/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline{query_params}"
+    return await get_timeline_bins(
+        num_bins, start, end, duration,
+        engine_id, query_id, resource_id, fsm_type_name
     )
 
 
@@ -101,6 +104,7 @@ async def get_resource_group_timeline(
         ..., description="Start time in seconds relative to query start"
     ),
     end: float = Query(..., description="End time in seconds relative to query start"),
+    duration: float = Query(..., description="Total query duration in seconds"),
     resource_type_name: str = Query(
         ..., description="Resource type name for aggregation"
     ),
@@ -113,9 +117,7 @@ async def get_resource_group_timeline(
     Fetches timeline resource utilization of all resource with the same type under a resource group.
     Returns bins in which utilization is aggregated across all FSM states, or per state if fsm_type_name is provided.
     """
-    query_params = f"?num_bins={num_bins}&start={start}&end={end}&resource_type_name={resource_type_name}"
-    if fsm_type_name:
-        query_params += f"&fsm_type_name={fsm_type_name}"
-    return rust_client.get(
-        f"/analyzer/engine/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline{query_params}"
+    return await get_timeline_bins_for_resource_group(
+        num_bins, start, end, duration,
+        engine_id, query_id, resource_group_id, resource_type_name, fsm_type_name
     )

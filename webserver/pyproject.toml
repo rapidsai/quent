@@ -59,3 +59,9 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError",
 ]
+
+[dependency-groups]
+dev = [
+    "debugpy>=1.8.20",
+    "python-lsp-server>=1.14.0",
+]

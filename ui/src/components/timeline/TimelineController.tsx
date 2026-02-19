@@ -1,14 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import { withOpacity } from '@/services/colors';
 import { formatDuration } from '@/services/formatters';
-import {
-  buildBinnedTimelineSeries,
-  connectChart,
-  getTimelineXAxisIntervalMs,
-} from '@/lib/timeline.utils';
+import { buildBinnedTimelineSeries, getTimelineXAxisIntervalMs } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { TimelineResponse } from '~quent/types/TimelineResponse';
 import { useTimelineChartColors } from './useTimelineChartColors';
@@ -17,6 +13,12 @@ const CONTROLLER_HEIGHT = 50;
 const DEFAULT_NUM_BINS = 200;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
 const CONTROLLER_X_MIN_LABELS = 8;
+
+interface DataZoomPayload {
+  start?: number;
+  end?: number;
+  batch?: Array<{ start?: number; end?: number }>;
+}
 
 type TimelineControllerProps = {
   /** Start time in nanoseconds (bigint) */
@@ -28,6 +30,8 @@ type TimelineControllerProps = {
   height?: number;
   /** Optional timeline data to render on the static display (e.g. overlay from root resource group) */
   timelineData?: TimelineResponse | null;
+  /** Callback fired when the user drags the zoom handles */
+  onZoomChange?: (event: { start: number; end: number }) => void;
 };
 
 export function TimelineController({
@@ -36,6 +40,7 @@ export function TimelineController({
   numBins = DEFAULT_NUM_BINS,
   height = CONTROLLER_HEIGHT,
   timelineData,
+  onZoomChange,
 }: TimelineControllerProps) {
   const colors = useTimelineChartColors();
 
@@ -56,6 +61,18 @@ export function TimelineController({
       return { timestamps: ts, seriesData: null };
     }
   }, [timelineData, startTime, startTimeMillis, durationSeconds, numBins]);
+
+  const handleDataZoom = useCallback(
+    (params: DataZoomPayload) => {
+      if (!onZoomChange) return;
+      const { start, end } =
+        params.start !== undefined && params.end !== undefined ? params : (params.batch?.[0] ?? {});
+      if (start !== undefined && end !== undefined) {
+        onZoomChange({ start, end });
+      }
+    },
+    [onZoomChange]
+  );
 
   // Create series: zoom control first (drawn behind), then static display on top with higher z
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
@@ -271,7 +288,7 @@ export function TimelineController({
       echarts={echarts}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
-      onChartReady={connectChart}
+      onEvents={onZoomChange ? { dataZoom: handleDataZoom } : undefined}
       notMerge={false}
       lazyUpdate
       opts={{ renderer: 'canvas' }}

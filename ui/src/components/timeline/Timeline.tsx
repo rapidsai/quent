@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
+import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
 import { withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
@@ -16,6 +17,11 @@ import { connectChart } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
+
+export interface DataZoomEvent {
+  start: number;
+  end: number;
+}
 
 export function Timeline({
   startTime,
@@ -200,7 +206,9 @@ export function Timeline({
       echarts={echarts}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
-      onChartReady={connectChart}
+      onChartReady={instance => {
+        connectChart(instance as unknown as EChartsInstance);
+      }}
       notMerge={false}
       lazyUpdate
     />

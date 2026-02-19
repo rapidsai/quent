@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import {
   DEFAULT_STALE_TIME,
   fetchResourceTimeline,
@@ -26,6 +26,7 @@ type ResourceTimelineProps = {
   resourceTypeName?: string;
   instanceName?: string;
   showTooltip?: boolean;
+  zoomState?: { startPct: number; endPct: number };
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -47,19 +48,42 @@ export function ResourceTimeline({
   fsmTypeName,
   resourceTypeName,
   showTooltip = true,
+  zoomState,
 }: ResourceTimelineProps) {
+  // Convert zoom percentages to absolute time values
+  const { start, end } = useMemo(() => {
+    const sp = zoomState?.startPct ?? 0;
+    const ep = zoomState?.endPct ?? 100;
+    return {
+      start: (sp / 100) * durationSeconds,
+      end: (ep / 100) * durationSeconds,
+    };
+  }, [zoomState, durationSeconds]);
+
   const deferredReady = useDeferredReady();
+
   const queryFunction =
     resourceType === EntityTypeKey.ResourceGroup
       ? fetchResourceGroupTimeline
       : fetchResourceTimeline;
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName, resourceTypeName],
+    queryKey: [
+      'resourceTimeline',
+      engineId,
+      queryId,
+      resourceId,
+      { start, end },
+      fsmTypeName,
+      resourceTypeName,
+      durationSeconds,
+    ],
     queryFn: () =>
       queryFunction(engineId, queryId, resourceId, {
         num_bins: 200,
-        start: 0,
-        end: durationSeconds,
+        start,
+        end,
+        duration: durationSeconds,
         ...(fsmTypeName && { fsm_type_name: fsmTypeName }),
         ...(resourceTypeName && { resource_type_name: resourceTypeName }),
       }),
@@ -86,7 +110,6 @@ export function ResourceTimeline({
     );
   }
 
-  // This should render a timeline one way or another
   return (
     <Suspense fallback={<TimelineSkeleton />}>
       <Timeline

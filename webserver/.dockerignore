@@ -32,5 +32,4 @@ htmlcov/
 CLAUDE.md
 .DS_Store
 *.log
-start.sh
 TEST.md

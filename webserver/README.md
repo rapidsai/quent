@@ -180,21 +180,74 @@ The HTTP client (`webserver/client.py`) automatically handles common errors:
 
 ### Debugging
 
-To see detailed logs, configure logging in `webserver/main.py`:
+#### Interactive Debugging with debugpy
 
-```python
-import logging
+The Docker container runs with `debugpy` listening on port `5678`, allowing you to attach a debugger and set breakpoints.
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+##### VS Code
+
+VS Code users can debug with hot reload enabled (default mode). The debugpy subprocess debugging works automatically:
+
+1. Use the provided `.vscode/launch.json` configuration
+2. Start containers normally: `docker compose up` (from project root)
+3. In VS Code: Run → Start Debugging → "Python: Attach to Docker Webserver"
+4. Set breakpoints and debug!
+
+##### Emacs / Vim / Other DAP Clients
+
+Due to limitations in how some DAP clients handle subprocess debugging with uvicorn's `--reload` flag, you'll need to disable hot reload when debugging:
+
+1. **Stop the webserver:**
+   ```bash
+   docker compose stop webserver
+   ```
+
+2. **Start in debug mode (no reload):**
+
+   **Option A: Using docker-compose (recommended):**
+   ```bash
+   docker compose run --rm --service-ports -e DEBUG_MODE=true webserver
+   ```
+
+   **Option B: Using docker directly:**
+   ```bash
+   docker run -d --name quent-webserver \
+     --network quent_default \
+     -p 8000:8000 -p 5678:5678 \
+     -e QUENT_ANALYZER_ADDRESS="http://server:8080" \
+     -e DEBUG_MODE=true \
+     -v $(pwd)/webserver:/app/webserver \
+     quent-webserver
+   ```
+
+3. **Attach your debugger**
+4. **Restart the container** to reload code changes during debugging
+
+**Switch back to development mode (with hot reload):**
+
+When you're done debugging, stop the debug container and restart normally:
+
+```bash
+# Stop debug mode container
+docker compose stop webserver
+# Or: docker stop quent-webserver && docker rm quent-webserver
+
+# Restart in development mode (with hot reload)
+docker compose up webserver
 ```
 
-Or use print statements for quick debugging:
+**Why the difference?** VS Code's Python extension has built-in support for debugging subprocesses spawned by uvicorn's reloader. Other DAP clients may not handle this automatically, requiring you to disable the reloader (`DEBUG_MODE=true`) for breakpoints to work reliably.
 
-```python
-print(f"Debug: {variable}")  # Will show in terminal
+#### Logging
+
+Debug-level logs are suppressed by default. To enable them, pass `--log-level debug` to uvicorn:
+
+```bash
+# Manual start
+uv run uvicorn webserver.main:app --port 8000 --log-level debug
+
+# Docker Compose — add to the webserver command in docker-compose.yml
+command: uvicorn webserver.main:app --host 0.0.0.0 --port 8000 --log-level debug
 ```
 
 ## Testing

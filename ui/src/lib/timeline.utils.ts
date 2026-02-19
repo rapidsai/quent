@@ -20,12 +20,12 @@ export function buildBinnedTimelineSeries(
   series: TimelineSeries;
 } {
   const config = 'Binned' in data ? data.Binned.config : data.BinnedByState.config;
-  const { bin_duration, num_bins } = config;
+  const { bin_duration, num_bins, span } = config;
 
   // Generate timestamps from span.start, incrementing by bin_duration
   const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
-  const startTimeMillis = Number(startTime / 1_000_000n);
+  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
   for (let i = 0; i < numBinsNumber; i++) {
     const timestampMillis: number = startTimeMillis + i * bin_duration * 1_000;
     // Convert from nanoseconds to milliseconds for JS Date compatibility
@@ -152,21 +152,32 @@ function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
   return null;
 }
 
-export const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
-  // Sync zoom state from any existing chart in the group before connecting
+/**
+ * Get the current zoom state from any existing chart in the group.
+ * Returns null if no charts exist or no zoom state is set.
+ */
+export function getChartGroupZoomState(
+  chartGroup: string = CHART_GROUP
+): { start: number; end: number } | null {
   const existingInstance = findExistingChartInGroup(chartGroup);
   if (existingInstance) {
     const existingOption = existingInstance.getOption();
     const dataZoomOption = existingOption.dataZoom as Array<{ start?: number; end?: number }>;
 
-    if (dataZoomOption && dataZoomOption[0]) {
-      const { start, end } = dataZoomOption[0];
-      if (start !== undefined && end !== undefined) {
-        instance.setOption({
-          dataZoom: [{ start, end }],
-        });
-      }
+    if (dataZoomOption?.[0]?.start !== undefined && dataZoomOption?.[0]?.end !== undefined) {
+      return { start: dataZoomOption[0].start, end: dataZoomOption[0].end };
     }
+  }
+  return null;
+}
+
+export const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+  // Sync zoom state from any existing chart in the group before connecting
+  const zoomState = getChartGroupZoomState(chartGroup);
+  if (zoomState) {
+    instance.setOption({
+      dataZoom: [zoomState],
+    });
   }
 
   // Activate the dataZoom brush tool by default
