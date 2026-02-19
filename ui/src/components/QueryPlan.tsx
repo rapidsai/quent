@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
 
@@ -90,37 +91,47 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
-      <div className="border-b border-border bg-card shadow-sm">
-        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border">
-          <Network className="h-4 w-4 text-primary" />
-          <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
-          <div className="text-xs text-muted-foreground">
-            {queryBundle.entities.query_group.instance_name} -{' '}
-            {queryBundle.entities.query.instance_name}
-          </div>
+      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-card shadow-sm flex-shrink-0">
+        <Network className="h-4 w-4 text-primary" />
+        <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
+        <div className="text-xs text-muted-foreground">
+          {queryBundle.entities.query_group.instance_name} -{' '}
+          {queryBundle.entities.query.instance_name}
         </div>
-        <div className="overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none] max-h-40">
+      </div>
+
+      <ResizablePanelGroup orientation="vertical" className="flex-1">
+        <ResizablePanel
+          defaultSize={15}
+          minSize={5}
+          className="overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none]"
+        >
           <TreeView<QueryPlanDataItem>
             data={treeData}
             initialSelectedItemId={planId}
             onSelectChange={handlePlanSelect}
             renderItem={renderItem}
           />
-        </div>
-      </div>
+        </ResizablePanel>
 
-      {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
-      <div className="flex-1 overflow-hidden">
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              Loading visualization...
-            </div>
-          }
-        >
-          <DAGChart data={dagData} queryId={queryId} engineId={engineId} height="100%" />
-        </Suspense>
-      </div>
+        <ResizableHandle
+          withHandle
+          className="h-px w-full after:left-0 after:top-1/2 after:h-1 after:w-full after:-translate-y-1/2 after:translate-x-0 [&>div]:rotate-90 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+
+        {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
+        <ResizablePanel defaultSize={75} className="overflow-hidden">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Loading visualization...
+              </div>
+            }
+          >
+            <DAGChart data={dagData} queryId={queryId} engineId={engineId} height="100%" />
+          </Suspense>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
