@@ -43,6 +43,13 @@ variables:
         - "**/*.proto"
         - .gitlab-ci.yml
 
+# Rules for when to run markdown jobs
+.markdown_rules:
+  rules:
+    - changes:
+        - "**/*.md"
+        - .gitlab-ci.yml
+
 # Install system dependencies needed for Rust builds
 .install_protoc:
   before_script:
@@ -110,7 +117,7 @@ rust:clippy:
 markdown:check:
   stage: lint
   image: rust:latest
-  extends: .rust_rules
+  extends: .markdown_rules
   needs:
     - prepare
   script:

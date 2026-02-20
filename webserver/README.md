@@ -182,11 +182,13 @@ The HTTP client (`webserver/client.py`) automatically handles common errors:
 
 #### Interactive Debugging with debugpy
 
-The Docker container runs with `debugpy` listening on port `5678`, allowing you to attach a debugger and set breakpoints.
+The Docker container runs with `debugpy` listening on port `5678`, allowing you
+to attach a debugger and set breakpoints.
 
 ##### VS Code
 
-VS Code users can debug with hot reload enabled (default mode). The debugpy subprocess debugging works automatically:
+VS Code users can debug with hot reload enabled (default mode). The debugpy
+subprocess debugging works automatically:
 
 1. Use the provided `.vscode/launch.json` configuration
 2. Start containers normally: `docker compose up` (from project root)
@@ -195,9 +197,11 @@ VS Code users can debug with hot reload enabled (default mode). The debugpy subp
 
 ##### Emacs / Vim / Other DAP Clients
 
-Due to limitations in how some DAP clients handle subprocess debugging with uvicorn's `--reload` flag, you'll need to disable hot reload when debugging:
+Due to limitations in how some DAP clients handle subprocess debugging with
+uvicorn's `--reload` flag, you'll need to disable hot reload when debugging:
 
 1. **Stop the webserver:**
+
    ```bash
    docker compose stop webserver
    ```
@@ -205,11 +209,13 @@ Due to limitations in how some DAP clients handle subprocess debugging with uvic
 2. **Start in debug mode (no reload):**
 
    **Option A: Using docker-compose (recommended):**
+
    ```bash
    docker compose run --rm --service-ports -e DEBUG_MODE=true webserver
    ```
 
    **Option B: Using docker directly:**
+
    ```bash
    docker run -d --name quent-webserver \
      --network quent_default \
@@ -236,11 +242,15 @@ docker compose stop webserver
 docker compose up webserver
 ```
 
-**Why the difference?** VS Code's Python extension has built-in support for debugging subprocesses spawned by uvicorn's reloader. Other DAP clients may not handle this automatically, requiring you to disable the reloader (`DEBUG_MODE=true`) for breakpoints to work reliably.
+**Why the difference?** VS Code's Python extension has built-in support for
+debugging subprocesses spawned by uvicorn's reloader. Other DAP clients may not
+handle this automatically, requiring you to disable the reloader
+(`DEBUG_MODE=true`) for breakpoints to work reliably.
 
 #### Logging
 
-Debug-level logs are suppressed by default. To enable them, pass `--log-level debug` to uvicorn:
+Debug-level logs are suppressed by default. To enable them, pass
+`--log-level debug` to uvicorn:
 
 ```bash
 # Manual start
