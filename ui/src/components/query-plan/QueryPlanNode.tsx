@@ -1,8 +1,10 @@
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cn } from '@/lib/utils';
+import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
+  nodeId: string;
   label: string;
   operationType: string;
   metadata?: Record<string, unknown>;
@@ -34,7 +36,7 @@ const operationStyles: Record<string, string> = {
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const styleClass = operationStyles[data.operationType] || operationStyles.other;
 
-  return (
+  const nodeContent = (
     <div
       className={cn(
         'px-4 py-2 rounded-lg border-2 shadow-md min-w-[180px] max-w-[250px]',
@@ -58,6 +60,16 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
     </div>
   );
+
+    return (
+      <OperatorStatisticsPopup
+        nodeId={data.nodeId}
+        operatorLabel={data.label}
+        operationType={data.operationType}
+      >
+        {nodeContent}
+      </OperatorStatisticsPopup>
+    );
 });
 
 QueryPlanNode.displayName = 'QueryPlanNode';

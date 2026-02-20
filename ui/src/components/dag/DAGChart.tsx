@@ -106,10 +106,12 @@ const FlowLayout = ({
     const nodesWithOutgoing = new Set(data.edges.map(e => e.source));
 
     const flowNodes: Node<QueryPlanNodeData>[] = data.nodes.map(node => {
+      console.log(node);
       return {
         id: node.id,
         type: node.type,
         data: {
+          nodeId: node.id,
           label: node.label,
           operationType: node.type,
           metadata: node.metadata,

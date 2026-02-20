@@ -3,8 +3,6 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 export interface OperatorStatisticsPopupProps {
   children: React.ReactNode;
   nodeId: string;
-  engineId: string;
-  queryId: string;
   operatorLabel: string;
   operationType: string;
 }
@@ -12,8 +10,6 @@ export interface OperatorStatisticsPopupProps {
 export const OperatorStatisticsPopup = ({
   children,
   nodeId,
-  engineId,
-  queryId,
   operatorLabel,
   operationType,
 }: OperatorStatisticsPopupProps) => {
@@ -32,9 +28,7 @@ export const OperatorStatisticsPopup = ({
         </div>
         <div className="text-xs text-muted-foreground font-mono truncate">{nodeId}</div>
         {/* TODO: fetch and render operator statistics using nodeId, engineId, queryId */}
-        <div className="text-xs text-muted-foreground mt-1">
-          engine: {engineId.slice(0, 8)}… · query: {queryId.slice(0, 8)}…
-        </div>
+        <div className="text-xs text-muted-foreground mt-1">engine: … · query: …</div>
       </HoverCardContent>
     </HoverCard>
   );
