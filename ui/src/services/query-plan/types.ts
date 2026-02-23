@@ -41,3 +41,13 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
 }
+
+export type StatValue = string | number | boolean | null;
+type TaggedStatValue = Record<string, StatValue>;
+export type CustomStatistics = Record<string, TaggedStatValue>;
+
+export interface RawNodeStatistics {
+  statistics?: {
+    custom_statistics?: CustomStatistics;
+  };
+}

@@ -2,7 +2,8 @@ import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cn } from '@/lib/utils';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
-import { QueryPlanNodeData } from 'services/query-plan/types';
+import { QueryPlanNodeData } from '@/services/query-plan/types';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
 const operationStyles: Record<string, string> = {
   source: 'bg-blue-100 border-blue-500 text-blue-900',
@@ -27,6 +28,7 @@ const operationStyles: Record<string, string> = {
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const styleClass = operationStyles[data.operationType] || operationStyles.other;
+  const statistics = parseCustomStatistics(data.metadata?.rawNode);
 
   const nodeContent = (
     <div
@@ -55,7 +57,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   return (
     <OperatorStatisticsPopup
-      data={data}
+      data={statistics}
       nodeId={data.nodeId}
       operatorLabel={data.label}
       operationType={data.operationType}

@@ -1,32 +1,12 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { QueryPlanNodeData } from 'services/query-plan/types';
+import { StatValue, RawNodeStatistics } from '@/services/query-plan/types';
 
 export interface OperatorStatisticsPopupProps {
   children: React.ReactNode;
-  data: QueryPlanNodeData;
+  data: Array<{ key: string; value: StatValue }>;
   nodeId: string;
   operatorLabel: string;
   operationType: string;
-}
-
-type StatValue = string | number | boolean | null;
-type TaggedStatValue = Record<string, StatValue>;
-type CustomStatistics = Record<string, TaggedStatValue>;
-
-interface RawNodeStatistics {
-  statistics?: {
-    custom_statistics?: CustomStatistics;
-  };
-}
-
-function parseCustomStatistics(rawNode: unknown): Array<{ key: string; value: StatValue }> {
-  const statistics = (rawNode as RawNodeStatistics)?.statistics?.custom_statistics;
-  if (!statistics) return [];
-
-  return Object.entries(statistics).map(([key, tagged]) => ({
-    key,
-    value: Object.values(tagged)[0] ?? null,
-  }));
 }
 
 export const OperatorStatisticsPopup = ({
@@ -36,8 +16,7 @@ export const OperatorStatisticsPopup = ({
   operatorLabel,
   operationType,
 }: OperatorStatisticsPopupProps) => {
-  const stats = parseCustomStatistics(data.metadata?.rawNode);
-
+  console.log(data);
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       {/* nodrag/nopan prevents ReactFlow from intercepting mouse events on the trigger */}
@@ -52,9 +31,9 @@ export const OperatorStatisticsPopup = ({
           </span>
         </div>
         <div className="text-xs text-muted-foreground font-mono truncate">{nodeId}</div>
-        {stats.length > 0 && (
+        {data.length > 0 && (
           <div className="mt-1 flex flex-col gap-1 border-t pt-1.5">
-            {stats.map(({ key, value }) => (
+            {data.map(({ key, value }) => (
               <div key={key} className="flex items-center justify-between text-xs">
                 <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
                 <span className="text-muted-foreground ml-1 font-mono">{String(value)}</span>
