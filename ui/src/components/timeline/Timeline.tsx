@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -13,14 +13,20 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart } from '@/lib/timeline.utils';
+import {
+  connectChart,
+  registerAxisPointerSync,
+  unregisterAxisPointerSync,
+} from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
-export interface DataZoomEvent {
-  start: number;
-  end: number;
+export interface XAxisRange {
+  /** xAxis min in milliseconds */
+  min: number;
+  /** xAxis max in milliseconds */
+  max: number;
 }
 
 export function Timeline({
@@ -29,12 +35,15 @@ export function Timeline({
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
+  xAxisRange,
 }: {
   startTime: bigint;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
   showTooltip?: boolean;
+  /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
+  xAxisRange?: XAxisRange;
 }) {
   const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
 
@@ -46,18 +55,15 @@ export function Timeline({
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([name, seriesData]) => {
           const color = seriesData.color;
-          // use colorKey for ResourceGroup coloring, otherwise use series name
           return {
             name,
             type: 'line',
-            stack: 'total', // Stack all series with the same stack name
+            stack: 'total',
             step: 'middle',
             symbol: 'circle',
             symbolSize: 4,
-            // Shows on hover
             hoverAnimation: false,
             showSymbol: false,
-            // Keep initial render snappy, animate subsequent data updates
             ...TIMELINE_X_AXIS_ANIMATION,
             cursor: 'default',
             data: seriesData.values.map((value, index) => [timestamps[index], value]),
@@ -65,8 +71,8 @@ export function Timeline({
             itemStyle: { color },
             areaStyle: { color: withOpacity(color, 0.9) },
             emphasis: {
-              disabled: true, // Disable emphasis state
-              focus: 'none', // Don't dim other series
+              disabled: true,
+              focus: 'none',
             },
           };
         })
@@ -104,6 +110,7 @@ export function Timeline({
       type: 'time',
       animation: false,
       show: true,
+      ...(xAxisRange && { min: xAxisRange.min, max: xAxisRange.max }),
       axisLine: {
         show: true,
         onZero: true,
@@ -115,16 +122,16 @@ export function Timeline({
         show: false,
       },
       axisPointer: {
-        show: true, // Always show the axis pointer line (synced across charts)
+        show: true,
         type: 'line',
-        label: { show: false }, // Don't show the x-axis value label
+        label: { show: false },
         lineStyle: {
           type: 'dashed',
           color: timelineMarkupColor,
         },
       },
     }),
-    [timelineMarkupColor, gridBorderColor]
+    [timelineMarkupColor, gridBorderColor, xAxisRange]
   );
 
   const gridOptions = useMemo(
@@ -141,10 +148,10 @@ export function Timeline({
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       tooltip: {
-        show: showTooltip,
+        show: true,
+        showContent: showTooltip,
         trigger: 'axis',
-        transitionDuration: 0, // Disable tooltip animation
-        // We will style the tooltip in the component
+        transitionDuration: 0,
         backgroundColor: 'transparent',
         borderWidth: 0,
         padding: 0,
@@ -156,12 +163,9 @@ export function Timeline({
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries.map(
             (p: { color: string; seriesName: string; data: number[] }) => {
-              console.log(p.data);
               return {
                 color: p.color,
                 name: p.seriesName,
-                // Data is [timestamp, value] for 'time' type x-axis, this changes
-                // if xAxis is changed to 'value' type
                 value: p.data[1],
               };
             }
@@ -178,37 +182,59 @@ export function Timeline({
         link: [{ xAxisIndex: 'all' }],
       },
       grid: gridOptions,
-      toolbox: {
-        show: false, // Hide the toolbox UI, but feature is activated via dispatchAction
-        feature: {
-          dataZoom: {
-            yAxisIndex: 'none', // Only zoom x-axis
-          },
-        },
-      },
-      dataZoom: [
-        {
-          type: 'slider',
-          show: false,
-          realtime: true,
-          xAxisIndex: 'all',
-          filterMode: 'none',
-        },
-      ],
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
       series: seriesOptions,
+      ...(xAxisRange
+        ? {}
+        : {
+            toolbox: {
+              show: false,
+              feature: { dataZoom: { yAxisIndex: 'none' } },
+            },
+            dataZoom: [
+              {
+                type: 'slider',
+                show: false,
+                realtime: true,
+                xAxisIndex: 'all',
+                filterMode: 'none',
+              },
+            ],
+          }),
     } as EChartsOption;
-  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, startTime, showTooltip]);
+  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, startTime, showTooltip, xAxisRange]);
+
+  const instanceRef = useRef<EChartsInstance | null>(null);
+
+  const handleChartReady = useCallback(
+    (instance: EChartsInstance) => {
+      instanceRef.current = instance;
+      if (xAxisRange) {
+        registerAxisPointerSync(instance);
+      } else {
+        connectChart(instance);
+        registerAxisPointerSync(instance);
+      }
+    },
+    [xAxisRange]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (instanceRef.current) {
+        unregisterAxisPointerSync(instanceRef.current);
+        instanceRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <ReactECharts
       echarts={echarts}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
-      onChartReady={instance => {
-        connectChart(instance as unknown as EChartsInstance);
-      }}
+      onChartReady={handleChartReady}
       notMerge={false}
       lazyUpdate
     />

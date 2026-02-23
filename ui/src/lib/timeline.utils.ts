@@ -6,11 +6,25 @@ import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.uti
 import { TimelineResponse } from '~quent/types/TimelineResponse';
 import { QueryEntities } from '~quent/types/QueryEntities';
 import { ResourceTree } from '~quent/types/ResourceTree';
-import { EntityTypeValue, EntityRefKey } from '@/types';
+import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
+import type { BulkTimelineData } from '~quent/types/BulkTimelineData';
+import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
+import type { BulkTimelineRequestParams } from '~quent/types/BulkTimelineRequestParams';
+
+const MAX_TIMELINE_BINS = 200;
+
+/**
+ * Computes the number of bins such that each bin is >= 1ms wide.
+ * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
+ */
+export function getAdaptiveNumBins(windowSeconds: number): number {
+  const windowMs = windowSeconds * 1_000;
+  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.floor(windowMs)));
+}
 
 export function buildBinnedTimelineSeries(
   data: TimelineResponse,
@@ -22,14 +36,11 @@ export function buildBinnedTimelineSeries(
   const config = 'Binned' in data ? data.Binned.config : data.BinnedByState.config;
   const { bin_duration, num_bins, span } = config;
 
-  // Generate timestamps from span.start, incrementing by bin_duration
   const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
   const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
   for (let i = 0; i < numBinsNumber; i++) {
-    const timestampMillis: number = startTimeMillis + i * bin_duration * 1_000;
-    // Convert from nanoseconds to milliseconds for JS Date compatibility
-    timestamps.push(Math.round(timestampMillis));
+    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
   }
 
   // Build series based on data type
@@ -191,6 +202,115 @@ export const connectChart = (instance: EChartsInstance, chartGroup: string = CHA
   connect(chartGroup);
 };
 
+/* Axis pointer sync — manual crosshair sync across disconnected charts
+ *
+ * Charts that use xAxisRange (windowed) can't use echarts.connect() because
+ * it would also sync dataZoom. Instead we manually broadcast showTip/hideTip
+ * by converting a shared timestamp to each chart's local pixel coordinate.
+ *
+ */
+
+interface AxisPointerEntry {
+  instance: EChartsInstance;
+  xAxisIndex: number;
+  onMouseMove: (e: { offsetX: number }) => void;
+  onGlobalOut: () => void;
+}
+
+const axisPointerRegistry = new Set<AxisPointerEntry>();
+let isBroadcasting = false;
+
+function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
+  if (isBroadcasting) return;
+  isBroadcasting = true;
+  try {
+    axisPointerRegistry.forEach(({ instance, xAxisIndex }) => {
+      if (instance === source) return;
+      try {
+        const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
+        if (pixel != null && isFinite(pixel)) {
+          instance.dispatchAction({
+            type: 'showTip',
+            x: pixel,
+            y: instance.getHeight() / 2,
+          });
+        }
+      } catch {
+        // Target chart may not be ready or value out of range
+      }
+    });
+  } finally {
+    isBroadcasting = false;
+  }
+}
+
+function broadcastHidePointer(source: EChartsInstance) {
+  if (isBroadcasting) return;
+  isBroadcasting = true;
+  try {
+    axisPointerRegistry.forEach(({ instance }) => {
+      if (instance === source) return;
+      try {
+        instance.dispatchAction({ type: 'hideTip' });
+      } catch {
+        // Ignore disposed instances
+      }
+    });
+  } finally {
+    isBroadcasting = false;
+  }
+}
+
+/**
+ * Register a chart instance for manual axis pointer sync.
+ * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
+ * regardless of tooltip/axisPointer configuration differences.
+ * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
+ */
+export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 0) {
+  const onMouseMove = (e: { offsetX: number }) => {
+    try {
+      const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
+      if (value != null && isFinite(value as number)) {
+        broadcastShowPointer(instance, value as number);
+      }
+    } catch {
+      // Chart grid not ready
+    }
+  };
+
+  const onGlobalOut = () => {
+    broadcastHidePointer(instance);
+  };
+
+  const zr = instance.getZr();
+  zr.on('mousemove', onMouseMove);
+  zr.on('globalout', onGlobalOut);
+
+  const entry = { instance, xAxisIndex, onMouseMove, onGlobalOut };
+  axisPointerRegistry.add(entry);
+
+  (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;
+}
+
+/** Unregister a chart instance from axis pointer sync. */
+export function unregisterAxisPointerSync(instance: EChartsInstance) {
+  const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
+    | AxisPointerEntry
+    | undefined;
+  if (!entry) return;
+
+  axisPointerRegistry.delete(entry);
+
+  const zr = instance.getZr?.();
+  if (zr) {
+    zr.off('mousemove', entry.onMouseMove);
+    zr.off('globalout', entry.onGlobalOut);
+  }
+
+  delete (instance as unknown as Record<string, unknown>).__axisPointerEntry;
+}
+
 // Helper function to lookup entity from QueryEntities
 const lookupEntity = (
   entities: QueryEntities,
@@ -242,3 +362,103 @@ export const transformResourceTree = (
     availableResourceTypes: undefined,
   };
 };
+
+/**
+ * Convert a BulkTimelineData entry + shared config into a TimelineResponse
+ * so existing buildBinnedTimelineSeries can consume it.
+ */
+export function bulkEntryToTimelineResponse(
+  data: BulkTimelineData,
+  config: BinnedSpanSec
+): TimelineResponse {
+  if (data.type === 'Binned') {
+    return {
+      Binned: {
+        config,
+        capacities_values: data.capacities_values,
+        long_fsms: data.long_fsms,
+      },
+    };
+  }
+  return {
+    BinnedByState: {
+      config,
+      capacities_states_values: data.capacities_states_values,
+      long_fsms: data.long_fsms,
+    },
+  };
+}
+
+/** Recursively find a TreeTableItem by id */
+export function findItemById(root: TreeTableItem, id: string): TreeTableItem | undefined {
+  if (root.id === id) return root;
+  if (root.children) {
+    for (const child of root.children) {
+      const found = findItemById(child, id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/** Look up the FSM type name for a tree item from the query entities */
+function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string | null {
+  const entity = item.entity;
+  const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
+  const usedBy = entityTypeName ? entities.resource_types[entityTypeName]?.used_by : undefined;
+  return usedBy?.[0] ?? null;
+}
+
+/** Build BulkTimelineRequestParams for a single tree item */
+export function buildBulkParamsForItem(
+  item: TreeTableItem,
+  selectedTypes: Map<string, string>,
+  entities: QueryEntities
+): BulkTimelineRequestParams {
+  const fsmTypeName = lookupFsmTypeName(item, entities);
+  const isGroup = item.type !== EntityTypeKey.Resource;
+
+  if (isGroup) {
+    const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+    return {
+      resource_type_name: resourceTypeName,
+      fsm_type_name: fsmTypeName,
+      operator_id: null,
+      long_entities_threshold_s: null,
+    };
+  }
+
+  return {
+    fsm_type_name: fsmTypeName,
+    operator_id: null,
+    long_entities_threshold_s: null,
+  };
+}
+
+/**
+ * Collect all visible rows and their bulk request params.
+ * A row is visible if it's the root or all of its ancestors are expanded.
+ */
+export function collectVisibleEntries(
+  items: TreeTableItem[],
+  expandedIds: Set<string>,
+  selectedTypes: Map<string, string>,
+  entities: QueryEntities
+): Record<string, BulkTimelineRequestParams> {
+  const result: Record<string, BulkTimelineRequestParams> = {};
+
+  function walk(item: TreeTableItem) {
+    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities);
+
+    if (item.children && expandedIds.has(item.id)) {
+      for (const child of item.children) {
+        walk(child);
+      }
+    }
+  }
+
+  for (const item of items) {
+    walk(item);
+  }
+  return result;
+}

@@ -1,6 +1,9 @@
 use quent_simulator_ui::{
     QueryBundle,
-    timeline::{BulkTimelinesRequest, ResourceTimelineUrlQueryParams, TimelineResponse},
+    timeline::{
+        BulkTimelinesRequest, BulkTimelinesResponse, ResourceTimelineUrlQueryParams,
+        TimelineResponse,
+    },
 };
 use ts_rs::TS;
 
@@ -13,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     <ResourceTimelineUrlQueryParams as TS>::export_all_to(TS_OUT_DIR)?;
     <TimelineResponse as TS>::export_all_to(TS_OUT_DIR)?;
     <BulkTimelinesRequest as TS>::export_all_to(TS_OUT_DIR)?;
+    <BulkTimelinesResponse as TS>::export_all_to(TS_OUT_DIR)?;
 
     Ok(())
 }

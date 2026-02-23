@@ -19,7 +19,7 @@ export const TIMELINE_SPACING = {
 
 // Shared axis animation settings for timeline charts.
 export const TIMELINE_X_AXIS_ANIMATION = {
-  animation: true,
+  animation: false,
   animationDuration: 50,
   animationDurationUpdate: 100,
   animationEasingUpdate: 'cubicOut',

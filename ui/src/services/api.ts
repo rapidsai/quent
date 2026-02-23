@@ -7,6 +7,8 @@ import { QueryBundle } from '~quent/types/QueryBundle';
 import { TimelineResponse } from '~quent/types/TimelineResponse';
 import { QueryGroup } from '~quent/types/QueryGroup';
 import { Query } from '~quent/types/Query';
+import { BulkTimelinesRequest } from '~quent/types/BulkTimelinesRequest';
+import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
@@ -182,4 +184,17 @@ export async function fetchResourceGroupTimeline(
     `/engines/${engineId}/query/${queryId}/resource_group/${resourceGroupId}/timeline`,
     { params }
   );
+}
+
+export async function fetchBulkTimelines(
+  engineId: string,
+  queryId: string,
+  request: BulkTimelinesRequest
+): Promise<BulkTimelinesResponse> {
+  return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/query/${queryId}/timelines`, {
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  });
 }

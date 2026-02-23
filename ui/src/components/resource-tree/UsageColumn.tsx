@@ -1,18 +1,22 @@
+import { useAtomValue, useSetAtom } from 'jotai';
 import { EntityTypeKey } from '@/types';
 import { QueryBundle } from '~quent/types/QueryBundle';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
+import {
+  timelineDataAtom,
+  xAxisRangeAtom,
+  isTimelineHoveredAtom,
+  hoveredTimelineIdAtom,
+} from '@/atoms/timeline';
 
 type UsageColumnProps = {
   item: TreeTableItem;
   engineId: string;
   queryBundle: QueryBundle;
   selectedTypes: Map<string, string>;
-  hoveredTimelineId: string | null;
-  setHoveredTimelineId: React.Dispatch<React.SetStateAction<string | null>>;
   startTime: bigint;
   durationSeconds: number;
-  zoomState: { startPct: number; endPct: number };
 };
 
 export function UsageColumn({
@@ -20,14 +24,15 @@ export function UsageColumn({
   engineId,
   queryBundle,
   selectedTypes,
-  hoveredTimelineId,
-  setHoveredTimelineId,
   startTime,
   durationSeconds,
-  zoomState,
 }: UsageColumnProps): React.ReactNode {
+  const timelineData = useAtomValue(timelineDataAtom(item.id));
+  const xAxisRange = useAtomValue(xAxisRangeAtom);
+  const isHovered = useAtomValue(isTimelineHoveredAtom(item.id));
+  const setHoveredId = useSetAtom(hoveredTimelineIdAtom);
+
   const entity = item?.entity ?? {};
-  // Look up FSM type name from the resource type's used_by field
   const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
   const usedBy = entityTypeName
     ? queryBundle.entities.resource_types[entityTypeName]?.used_by
@@ -39,8 +44,8 @@ export function UsageColumn({
 
   return (
     <div
-      onMouseEnter={() => setHoveredTimelineId(item.id)}
-      onMouseLeave={() => setHoveredTimelineId(null)}
+      onMouseEnter={() => setHoveredId(item.id)}
+      onMouseLeave={() => setHoveredId(null)}
       onClick={e => e.stopPropagation()}
       className="h-full w-full"
     >
@@ -53,8 +58,9 @@ export function UsageColumn({
         durationSeconds={durationSeconds}
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
-        showTooltip={hoveredTimelineId === item.id}
-        zoomState={zoomState}
+        showTooltip={isHovered}
+        preloadedData={timelineData}
+        xAxisRange={xAxisRange}
       />
     </div>
   );

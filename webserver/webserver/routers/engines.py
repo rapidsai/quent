@@ -5,7 +5,7 @@ Handles all endpoints related to engines, workers, query groups, and queries.
 
 from typing import Any
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Body, Path, Query
 
 from ..client import rust_client
 from ..timeline_caching import (
@@ -120,4 +120,20 @@ async def get_resource_group_timeline(
     return await get_timeline_bins_for_resource_group(
         num_bins, start, end, duration,
         engine_id, query_id, resource_group_id, resource_type_name, fsm_type_name
+    )
+
+
+
+@router.post("/{engine_id}/query/{query_id}/timelines")
+async def get_timelines(
+    request: Any = Body(...),
+    engine_id: str = Path(..., description="The engine ID"),
+    query_id: str = Path(..., description="The query ID"),
+) -> Any:
+    """
+    Fetches multiple resource/resource-group timelines in one request.
+    """
+    return rust_client.post(
+        f"/analyzer/engine/{engine_id}/query/{query_id}/bulk_timelines",
+        json=request,
     )

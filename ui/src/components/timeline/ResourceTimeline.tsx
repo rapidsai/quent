@@ -1,18 +1,21 @@
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   DEFAULT_STALE_TIME,
   fetchResourceTimeline,
   fetchResourceGroupTimeline,
 } from '@/services/api';
+import { useAtomValue } from 'jotai';
+import { bulkInitializedAtom } from '@/atoms/timeline';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
-import { buildBinnedTimelineSeries } from '@/lib/timeline.utils';
+import { buildBinnedTimelineSeries, getAdaptiveNumBins } from '@/lib/timeline.utils';
 import { TimelineSeries } from './types';
 import { EntityTypeKey } from '@/types';
 import { WHITE, withOpacity } from '@/services/colors';
+import type { TimelineResponse } from '~quent/types/TimelineResponse';
+import type { XAxisRange } from './Timeline';
 
-// Lazy load Timeline to split echarts into a separate chunk
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
 type ResourceTimelineProps = {
@@ -21,12 +24,16 @@ type ResourceTimelineProps = {
   resourceId: string;
   resourceType: string;
   startTime: bigint;
+  /** Total query duration in seconds — required by the timeline API */
   durationSeconds: number;
   fsmTypeName?: string | undefined;
   resourceTypeName?: string;
   instanceName?: string;
   showTooltip?: boolean;
-  zoomState?: { startPct: number; endPct: number };
+  /** Pre-fetched timeline data from bulk endpoint; skips individual fetch when present */
+  preloadedData?: TimelineResponse;
+  /** When set, constrains the xAxis to this window (server-side zoom) */
+  xAxisRange?: XAxisRange;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -48,49 +55,36 @@ export function ResourceTimeline({
   fsmTypeName,
   resourceTypeName,
   showTooltip = true,
-  zoomState,
+  preloadedData,
+  xAxisRange,
 }: ResourceTimelineProps) {
-  // Convert zoom percentages to absolute time values
-  const { start, end } = useMemo(() => {
-    const sp = zoomState?.startPct ?? 0;
-    const ep = zoomState?.endPct ?? 100;
-    return {
-      start: (sp / 100) * durationSeconds,
-      end: (ep / 100) * durationSeconds,
-    };
-  }, [zoomState, durationSeconds]);
-
   const deferredReady = useDeferredReady();
+  const bulkInitialized = useAtomValue(bulkInitializedAtom);
 
   const queryFunction =
     resourceType === EntityTypeKey.ResourceGroup
       ? fetchResourceGroupTimeline
       : fetchResourceTimeline;
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: [
-      'resourceTimeline',
-      engineId,
-      queryId,
-      resourceId,
-      { start, end },
-      fsmTypeName,
-      resourceTypeName,
-      durationSeconds,
-    ],
+  const {
+    data: fetchedData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['resourceTimeline', engineId, queryId, resourceId, fsmTypeName, resourceTypeName],
     queryFn: () =>
       queryFunction(engineId, queryId, resourceId, {
-        num_bins: 200,
-        start,
-        end,
+        num_bins: getAdaptiveNumBins(durationSeconds),
+        start: 0,
+        end: durationSeconds,
         duration: durationSeconds,
         ...(fsmTypeName && { fsm_type_name: fsmTypeName }),
         ...(resourceTypeName && { resource_type_name: resourceTypeName }),
       }),
     staleTime: DEFAULT_STALE_TIME,
-    enabled: deferredReady,
-    placeholderData: keepPreviousData, // prevents blink between key changes
+    enabled: deferredReady && bulkInitialized && !preloadedData,
   });
+
+  const data = preloadedData ?? fetchedData;
 
   const { timestamps, series } = useMemo(() => {
     return data
@@ -98,7 +92,7 @@ export function ResourceTimeline({
       : { timestamps: [], series: EMPTY_TIMELINE_SERIES };
   }, [data, startTime]);
 
-  if (!deferredReady || isLoading) {
+  if (!preloadedData && (!deferredReady || isLoading)) {
     return <TimelineSkeleton />;
   }
 
@@ -117,6 +111,7 @@ export function ResourceTimeline({
         timestamps={timestamps ?? []}
         startTime={startTime}
         showTooltip={showTooltip}
+        xAxisRange={xAxisRange}
       />
     </Suspense>
   );

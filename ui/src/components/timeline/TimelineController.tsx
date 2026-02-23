@@ -1,23 +1,29 @@
-import { useMemo, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
+import type { EChartsInstance } from 'echarts-for-react';
 import { withOpacity } from '@/services/colors';
 import { formatDuration } from '@/services/formatters';
-import { buildBinnedTimelineSeries, getTimelineXAxisIntervalMs } from '@/lib/timeline.utils';
+import {
+  buildBinnedTimelineSeries,
+  connectChart,
+  getAdaptiveNumBins,
+  getTimelineXAxisIntervalMs,
+  registerAxisPointerSync,
+  unregisterAxisPointerSync,
+} from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { TimelineResponse } from '~quent/types/TimelineResponse';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 const CONTROLLER_HEIGHT = 50;
-const DEFAULT_NUM_BINS = 200;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
 const CONTROLLER_X_MIN_LABELS = 8;
 
-interface DataZoomPayload {
-  start?: number;
-  end?: number;
-  batch?: Array<{ start?: number; end?: number }>;
+export interface ZoomRange {
+  start: number;
+  end: number;
 }
 
 type TimelineControllerProps = {
@@ -25,26 +31,22 @@ type TimelineControllerProps = {
   startTime: bigint;
   /** Duration in seconds */
   durationSeconds: number;
-  /** Number of bins to match child timelines */
-  numBins?: number;
   height?: number;
   /** Optional timeline data to render on the static display (e.g. overlay from root resource group) */
   timelineData?: TimelineResponse | null;
-  /** Callback fired when the user drags the zoom handles */
-  onZoomChange?: (event: { start: number; end: number }) => void;
+  /** Called when the zoom/pan range changes, with start/end in seconds */
+  onZoomChange?: (range: ZoomRange) => void;
 };
 
 export function TimelineController({
   startTime,
   durationSeconds,
-  numBins = DEFAULT_NUM_BINS,
   height = CONTROLLER_HEIGHT,
   timelineData,
   onZoomChange,
 }: TimelineControllerProps) {
   const colors = useTimelineChartColors();
 
-  // Start time in milliseconds for formatting
   const startTimeMillis = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
 
   const { timestamps, seriesData } = useMemo(() => {
@@ -54,27 +56,13 @@ export function TimelineController({
       const values = entries.length > 0 ? entries[0][1].values : null;
       return { timestamps: ts, seriesData: values };
     } else {
+      const numBins = getAdaptiveNumBins(durationSeconds);
       const binDurationMs = (durationSeconds * 1000) / numBins;
-      const ts = Array.from({ length: numBins }, (_, i) =>
-        Math.round(startTimeMillis + i * binDurationMs)
-      );
+      const ts = Array.from({ length: numBins }, (_, i) => startTimeMillis + i * binDurationMs);
       return { timestamps: ts, seriesData: null };
     }
-  }, [timelineData, startTime, startTimeMillis, durationSeconds, numBins]);
+  }, [timelineData, startTime, startTimeMillis, durationSeconds]);
 
-  const handleDataZoom = useCallback(
-    (params: DataZoomPayload) => {
-      if (!onZoomChange) return;
-      const { start, end } =
-        params.start !== undefined && params.end !== undefined ? params : (params.batch?.[0] ?? {});
-      if (start !== undefined && end !== undefined) {
-        onZoomChange({ start, end });
-      }
-    },
-    [onZoomChange]
-  );
-
-  // Create series: zoom control first (drawn behind), then static display on top with higher z
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 
   const seriesOptions = useMemo(() => {
@@ -86,10 +74,11 @@ export function TimelineController({
       type: 'line',
       xAxisIndex: 1,
       data: toTimePoints(Array(timestamps.length).fill(0)),
-      showSymbol: false,
+      symbol: 'none',
       lineStyle: { width: 0 },
       areaStyle: { opacity: 0 },
       silent: true,
+      emphasis: { disabled: true },
       z: 1,
     };
     const staticValues: number[] | null = hasSeriesData
@@ -100,10 +89,11 @@ export function TimelineController({
       type: 'line',
       xAxisIndex: 0,
       data: toTimePoints(staticValues ?? []),
-      showSymbol: false,
+      symbol: 'none',
       lineStyle: { width: 1, color: colors.rollupTimelineColor },
       areaStyle: { color: withOpacity(colors.rollupTimelineColor, 0.8) },
       silent: true,
+      emphasis: { disabled: true },
       step: 'middle',
       ...TIMELINE_X_AXIS_ANIMATION,
       z: 1,
@@ -111,7 +101,6 @@ export function TimelineController({
     return [zoomControlSeries, staticDisplaySeries];
   }, [timestamps, hasSeriesData, seriesData, colors.rollupTimelineColor]);
 
-  // Static x-axis (index 0): shows labels, ticks, gridlines - not affected by dataZoom
   const staticXAxisOptions = useMemo(() => {
     const minTs = timestamps[0] ?? startTimeMillis;
     const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
@@ -145,10 +134,20 @@ export function TimelineController({
           type: 'solid',
         },
       },
+      axisPointer: {
+        show: true,
+        type: 'line',
+        snap: false,
+        label: { show: false },
+        handle: { show: false },
+        lineStyle: {
+          type: 'dashed',
+          color: colors.timelineMarkupColor,
+        },
+      },
     };
   }, [timestamps, startTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]);
 
-  // Hidden x-axis (index 1): controlled by dataZoom, no visible elements
   const zoomXAxisOptions = useMemo(() => {
     const minTs = timestamps[0] ?? startTimeMillis;
     const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
@@ -158,7 +157,6 @@ export function TimelineController({
       boundaryGap: false,
       type: 'value',
       show: false,
-      // These bound and spec the values passed around to the various formatters, etc
       min: minTs,
       max: maxTs,
       interval,
@@ -194,7 +192,7 @@ export function TimelineController({
   const gridOptions = useMemo(
     () => ({
       ...TIMELINE_SPACING,
-      bottom: 20, // Make room for x-axis labels
+      bottom: 20,
       backgroundColor: colors.controllerGridBackgroundColor,
       borderWidth: 1,
       borderColor: colors.gridBorderColor,
@@ -205,7 +203,7 @@ export function TimelineController({
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
-      tooltip: { show: false },
+      tooltip: { show: true, showContent: false, trigger: 'axis' },
       axisPointer: {
         link: [{ xAxisIndex: 'all' }],
       },
@@ -215,7 +213,7 @@ export function TimelineController({
           type: 'slider',
           show: true,
           z: 10,
-          xAxisIndex: [1], // Only control the hidden zoom axis (index 1), not the static display axis (index 0)
+          xAxisIndex: [1],
           realtime: true,
           filterMode: 'none',
           top: 0,
@@ -259,11 +257,11 @@ export function TimelineController({
         },
         {
           type: 'inside',
-          xAxisIndex: [1], // Only control the hidden zoom axis
+          xAxisIndex: [1],
           realtime: true,
           filterMode: 'none',
           zoomOnMouseWheel: true,
-          moveOnMouseMove: true,
+          moveOnMouseMove: false,
           moveOnMouseWheel: false,
         },
       ],
@@ -283,12 +281,57 @@ export function TimelineController({
     startTimeMillis,
   ]);
 
+  const handleDataZoom = useMemo(() => {
+    if (!onZoomChange) return undefined;
+    return {
+      dataZoom: (params: {
+        start?: number;
+        end?: number;
+        batch?: Array<{ start?: number; end?: number }>;
+      }) => {
+        let start: number | undefined;
+        let end: number | undefined;
+        if (params.start !== undefined && params.end !== undefined) {
+          start = params.start;
+          end = params.end;
+        } else if (params.batch?.[0]) {
+          start = params.batch[0].start;
+          end = params.batch[0].end;
+        }
+        if (start !== undefined && end !== undefined) {
+          onZoomChange({
+            start: (start / 100) * durationSeconds,
+            end: (end / 100) * durationSeconds,
+          });
+        }
+      },
+    };
+  }, [onZoomChange, durationSeconds]);
+
+  const instanceRef = useRef<EChartsInstance | null>(null);
+
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    instanceRef.current = instance;
+    connectChart(instance);
+    registerAxisPointerSync(instance, 0);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (instanceRef.current) {
+        unregisterAxisPointerSync(instanceRef.current);
+        instanceRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <ReactECharts
       echarts={echarts}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
-      onEvents={onZoomChange ? { dataZoom: handleDataZoom } : undefined}
+      onChartReady={handleChartReady}
+      onEvents={handleDataZoom}
       notMerge={false}
       lazyUpdate
       opts={{ renderer: 'canvas' }}
