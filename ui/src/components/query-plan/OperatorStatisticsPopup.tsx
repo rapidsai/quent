@@ -9,6 +9,26 @@ export interface OperatorStatisticsPopupProps {
   operationType: string;
 }
 
+type StatValue = string | number | boolean | null;
+type TaggedStatValue = Record<string, StatValue>;
+type CustomStatistics = Record<string, TaggedStatValue>;
+
+interface RawNodeStatistics {
+  statistics?: {
+    custom_statistics?: CustomStatistics;
+  };
+}
+
+function parseCustomStatistics(rawNode: unknown): Array<{ key: string; value: StatValue }> {
+  const statistics = (rawNode as RawNodeStatistics)?.statistics?.custom_statistics;
+  if (!statistics) return [];
+
+  return Object.entries(statistics).map(([key, tagged]) => ({
+    key,
+    value: Object.values(tagged)[0] ?? null,
+  }));
+}
+
 export const OperatorStatisticsPopup = ({
   children,
   data,
@@ -16,8 +36,8 @@ export const OperatorStatisticsPopup = ({
   operatorLabel,
   operationType,
 }: OperatorStatisticsPopupProps) => {
-  const metadata = data.metadata.rawNode;
-  console.log(metadata.statistics);
+  const stats = parseCustomStatistics(data.metadata?.rawNode);
+
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       {/* nodrag/nopan prevents ReactFlow from intercepting mouse events on the trigger */}
@@ -32,8 +52,16 @@ export const OperatorStatisticsPopup = ({
           </span>
         </div>
         <div className="text-xs text-muted-foreground font-mono truncate">{nodeId}</div>
-        {/* TODO: fetch and render operator statistics using nodeId, engineId, queryId */}
-        <div className="text-xs text-muted-foreground mt-1">engine: … · query: …</div>
+        {stats.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1 border-t pt-1.5">
+            {stats.map(({ key, value }) => (
+              <div key={key} className="flex items-center justify-between text-xs">
+                <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+                <span className="text-muted-foreground ml-1 font-mono">{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </HoverCardContent>
     </HoverCard>
   );
