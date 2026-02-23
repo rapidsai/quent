@@ -2,15 +2,7 @@ import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cn } from '@/lib/utils';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
-
-export interface QueryPlanNodeData extends Record<string, unknown> {
-  nodeId: string;
-  label: string;
-  operationType: string;
-  metadata?: Record<string, unknown>;
-  hasIncoming?: boolean;
-  hasOutgoing?: boolean;
-}
+import { QueryPlanNodeData } from 'services/query-plan/types';
 
 const operationStyles: Record<string, string> = {
   source: 'bg-blue-100 border-blue-500 text-blue-900',
@@ -61,15 +53,16 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     </div>
   );
 
-    return (
-      <OperatorStatisticsPopup
-        nodeId={data.nodeId}
-        operatorLabel={data.label}
-        operationType={data.operationType}
-      >
-        {nodeContent}
-      </OperatorStatisticsPopup>
-    );
+  return (
+    <OperatorStatisticsPopup
+      data={data}
+      nodeId={data.nodeId}
+      operatorLabel={data.label}
+      operationType={data.operationType}
+    >
+      {nodeContent}
+    </OperatorStatisticsPopup>
+  );
 });
 
 QueryPlanNode.displayName = 'QueryPlanNode';

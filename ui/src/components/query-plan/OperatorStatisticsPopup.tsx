@@ -1,7 +1,9 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { QueryPlanNodeData } from 'services/query-plan/types';
 
 export interface OperatorStatisticsPopupProps {
   children: React.ReactNode;
+  data: QueryPlanNodeData;
   nodeId: string;
   operatorLabel: string;
   operationType: string;
@@ -9,10 +11,13 @@ export interface OperatorStatisticsPopupProps {
 
 export const OperatorStatisticsPopup = ({
   children,
+  data,
   nodeId,
   operatorLabel,
   operationType,
 }: OperatorStatisticsPopupProps) => {
+  const metadata = data.metadata.rawNode;
+  console.log(metadata.statistics);
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       {/* nodrag/nopan prevents ReactFlow from intercepting mouse events on the trigger */}

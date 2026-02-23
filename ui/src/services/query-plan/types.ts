@@ -32,3 +32,12 @@ export interface DAGData {
   edges: DAGEdge[];
   queryData: QueryPlanDataItem[];
 }
+
+export interface QueryPlanNodeData extends Record<string, unknown> {
+  nodeId: string;
+  label: string;
+  operationType: string;
+  metadata?: Record<string, unknown>;
+  hasIncoming?: boolean;
+  hasOutgoing?: boolean;
+}
