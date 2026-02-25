@@ -66,6 +66,48 @@ def test_successful_post_request(mock_request, client_instance):
 
 @pytest.mark.unit
 @patch("webserver.client.requests.request")
+def test_successful_put_request(mock_request, client_instance):
+    """Test successful POST request."""
+    mock_response = Mock()
+    mock_response.json.return_value = {"created": True}
+    mock_response.raise_for_status = Mock()
+    mock_request.return_value = mock_response
+
+    result = client_instance.put("/test", json={"data": "test"})
+
+    assert result == {"created": True}
+    mock_request.assert_called_once_with(
+        method="PUT",
+        url="http://test-backend:8080/test",
+        params=None,
+        json={"data": "test"},
+        timeout=30,
+    )
+
+
+@pytest.mark.unit
+@patch("webserver.client.requests.request")
+def test_successful_delete_request(mock_request, client_instance):
+    """Test successful DELETE request."""
+    mock_response = Mock()
+    mock_response.json.return_value = {"deleted": True}
+    mock_response.raise_for_status = Mock()
+    mock_request.return_value = mock_response
+
+    result = client_instance.delete("/test")
+
+    assert result == {"deleted": True}
+    mock_request.assert_called_once_with(
+        method="DELETE",
+        url="http://test-backend:8080/test",
+        params=None,
+        json=None,
+        timeout=30,
+    )
+
+
+@pytest.mark.unit
+@patch("webserver.client.requests.request")
 def test_timeout_error(mock_request, client_instance):
     """Test handling of timeout errors."""
     mock_request.side_effect = requests.exceptions.Timeout()

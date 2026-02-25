@@ -12,9 +12,10 @@ workflow:
     # Run on default branch
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# Add UI jobs
+# Add UI and webserver jobs
 include:
   - local: "ui/.gitlab-ci.yml"
+  - local: "webserver/.gitlab-ci.yml"
 
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
