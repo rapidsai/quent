@@ -1,4 +1,11 @@
-# Quent: QUery ENgine Telemetry
+# ⚠️ THIS REPOSITORY HAS MOVED ⚠️
+
+## 👉 [github.com/rapidsai/quent](https://github.com/rapidsai/quent) 👈
+
+This GitLab repository is here for archival purposes only and no longer
+maintained. All development continues on GitHub.
+
+## Quent: QUery ENgine Telemetry
 
 (working title)
 
