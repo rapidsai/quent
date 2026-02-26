@@ -103,7 +103,7 @@ const FlowLayout = ({
   const navigate = useNavigate();
   const hasUserInteracted = useRef(false);
 
-  const handleMoveStart = useCallback<OnMoveStart>((event) => {
+  const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
       hasUserInteracted.current = true;
     }
