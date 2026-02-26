@@ -102,8 +102,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel
-          defaultSize={15}
-          minSize={5}
+          defaultSize="15%"
+          minSize="10%"
+          collapsible
+          collapsedSize="0%"
           className="overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none]"
         >
           <TreeView<QueryPlanDataItem>
@@ -117,7 +119,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
-        <ResizablePanel defaultSize={75} className="overflow-hidden">
+        <ResizablePanel defaultSize="75%" minSize="25%" collapsible collapsedSize="0%" className="overflow-hidden">
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full text-muted-foreground">
