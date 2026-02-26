@@ -32,7 +32,13 @@ function ProfileLayout() {
         )}
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel defaultSize="67%" minSize="20%" collapsible collapsedSize="0%" className="overflow-y-auto h-[calc(100vh-4rem)]">
+      <ResizablePanel
+        defaultSize="67%"
+        minSize="20%"
+        collapsible
+        collapsedSize="0%"
+        className="overflow-y-auto h-[calc(100vh-4rem)]"
+      >
         <Outlet />
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -10,6 +10,7 @@ import {
   MarkerType,
   type Node,
   type Edge,
+  type OnMoveStart,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { DAGData } from '@/services/query-plan/types';
@@ -102,7 +103,7 @@ const FlowLayout = ({
   const navigate = useNavigate();
   const hasUserInteracted = useRef(false);
 
-  const handleMoveStart = useCallback((event: MouseEvent | TouchEvent) => {
+  const handleMoveStart = useCallback<OnMoveStart>((event) => {
     if (event !== null) {
       hasUserInteracted.current = true;
     }

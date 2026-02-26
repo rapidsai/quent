@@ -119,7 +119,13 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
-        <ResizablePanel defaultSize="75%" minSize="25%" collapsible collapsedSize="0%" className="overflow-hidden">
+        <ResizablePanel
+          defaultSize="75%"
+          minSize="25%"
+          collapsible
+          collapsedSize="0%"
+          className="overflow-hidden"
+        >
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full text-muted-foreground">
