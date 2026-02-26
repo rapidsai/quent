@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-navigation-menu": "^1.2.14",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.0.2",

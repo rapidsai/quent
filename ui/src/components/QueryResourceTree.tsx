@@ -33,7 +33,7 @@ interface QueryResourceTreeProps {
 
 export function QueryResourceTree(props: QueryResourceTreeProps) {
   return (
-    <Provider>
+    <Provider key={props.queryBundle.query_id}>
       <QueryResourceTreeContent {...props} />
     </Provider>
   );
