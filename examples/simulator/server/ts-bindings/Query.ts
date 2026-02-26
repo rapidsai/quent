@@ -11,7 +11,7 @@ id: string,
 /**
  * The ID of the [`super::query_group::QueryGroup`] this query is part of.
  */
-query_group_id: string | null, 
+query_group_id: string, 
 /**
  * A name for this [`Query`].
  */

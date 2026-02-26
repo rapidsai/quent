@@ -3,10 +3,11 @@ import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
 import { queryClient } from '@/lib/queryClient';
 import { createFileRoute } from '@tanstack/react-router';
 import { QueryBundle } from '~quent/types/QueryBundle';
+import type { EntityRef } from '~quent/types/EntityRef';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/')({
   component: QueryIndex,
-  loader: async ({ params }): Promise<QueryBundle> => {
+  loader: async ({ params }): Promise<QueryBundle<EntityRef>> => {
     const { engineId, queryId } = params;
     // Use ensureQueryData to populate React Query cache (avoids duplicate fetches)
     return await queryClient.ensureQueryData(queryBundleQueryOptions({ engineId, queryId }));

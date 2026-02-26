@@ -4,3 +4,4 @@ target/
 .idea
 .zed
 .claude
+tarpaulin-report.html

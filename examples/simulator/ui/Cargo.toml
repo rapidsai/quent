@@ -4,10 +4,8 @@ version.workspace = true
 edition.workspace =  true
 
 [dependencies]
-quent-ui = { path = "../../../crates/ui" }
-quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
+quent-analyzer = { path = "../../../crates/analyzer", features = [ "ts" ]}
+quent-time = { path = "../../../crates/time" }
 serde.workspace = true
 ts-rs.workspace = true
 uuid.workspace = true
-quent-time = { path = "../../../crates/time" }
-quent-analyzer = { path = "../../../crates/analyzer", features = [ "ts" ]}

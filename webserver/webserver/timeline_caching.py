@@ -83,6 +83,7 @@ def find_overlapping_chunks(chunks: list[dict], start_pct: float, end_pct: float
 async def fetch_chunk_with_cache(
     cache_key: str,
     fetch_url: str,
+    fetch_body: dict,
     ttl_seconds: int = 3600
 ) -> Any:
     """
@@ -94,7 +95,7 @@ async def fetch_chunk_with_cache(
         return cached_chunk
 
     logger.debug("Cache miss: %s", cache_key)
-    chunk_data = await asyncio.to_thread(rust_client.get, fetch_url)
+    chunk_data = await asyncio.to_thread(lambda: rust_client.post(fetch_url, json=fetch_body))
 
     timeline_cache.set(cache_key, chunk_data, ttl_seconds=ttl_seconds)
 
@@ -108,20 +109,15 @@ def combine_chunk_result_data(
 ) -> dict:
     """
     Combine multiple timeline chunk data into a single response.
+    Each chunk is a SingleTimelineResponse: { 'config': BinnedSpanSec, 'data': ResourceTimeline }
+    Returns a SingleTimelineResponse-shaped dict.
     """
     if not chunks:
         raise ValueError("No chunks to combine")
 
-    is_binned_by_state = 'BinnedByState' in chunks[0]
+    is_binned_by_state = 'BinnedByState' in chunks[0]['data']
 
-    chunk_data = []
-    for chunk in chunks:
-        if is_binned_by_state:
-            chunk_data.append(chunk['BinnedByState'])
-        else:
-            chunk_data.append(chunk['Binned'])
-
-    sorted_chunks = sorted(chunk_data, key=lambda c: c['config']['span']['start'])
+    sorted_chunks = sorted(chunks, key=lambda c: c['config']['span']['start'])
     bin_duration = sorted_chunks[0]['config']['bin_duration']
 
     # Extract relevant data values from each chunk
@@ -151,8 +147,10 @@ def combine_chunk_result_data(
         total_bins += bins_to_extract
 
         # Finally, extract and store data values from this chunk
+        inner = chunk['data']['BinnedByState'] if is_binned_by_state else chunk['data']['Binned']
+
         if is_binned_by_state:
-            for capacity_name, states_dict in chunk['capacities_states_values'].items():
+            for capacity_name, states_dict in inner['capacities_states_values'].items():
                 if capacity_name not in combined_values:
                     combined_values[capacity_name] = {}
 
@@ -164,7 +162,7 @@ def combine_chunk_result_data(
                         values[start_idx:end_idx]
                     )
         else:
-            for capacity_name, values in chunk['capacities_values'].items():
+            for capacity_name, values in inner['capacities_values'].items():
                 if capacity_name not in combined_values:
                     combined_values[capacity_name] = []
 
@@ -180,17 +178,25 @@ def combine_chunk_result_data(
     }
 
     if is_binned_by_state:
-        result = {
+        return {
             'config': result_config,
-            'capacities_states_values': combined_values
+            'data': {
+                'BinnedByState': {
+                    'capacities_states_values': combined_values,
+                    'long_fsms': [],
+                }
+            }
         }
-        return {'BinnedByState': result}
     else:
-        result = {
+        return {
             'config': result_config,
-            'capacities_values': combined_values
+            'data': {
+                'Binned': {
+                    'capacities_values': combined_values,
+                    'long_fsms': [],
+                }
+            }
         }
-        return {'Binned': result}
 
 
 async def _fetch_timeline_with_chunks(
@@ -202,7 +208,7 @@ async def _fetch_timeline_with_chunks(
     query_id: str,
     resource_id: str,
     resource_type: str,  # "resource" or "resource_group"
-    fsm_type_name: str | None = None,
+    entity_type_name: str | None = None,
     resource_type_name: str | None = None
 ) -> Any:
     """
@@ -228,42 +234,66 @@ async def _fetch_timeline_with_chunks(
 
     tasks = []
     for chunk in required_chunks:
-        # convert chunk percentage boundaries to absolute time values
+        # Convert chunk percentage boundaries to absolute time values
         chunk_start_time = (chunk['start'] / 100.0) * duration
         chunk_end_time = (chunk['end'] / 100.0) * duration
 
-        # Build query params based on resource type
-        query_params = f"?num_bins={chunk['num_bins']}&start={chunk_start_time}&end={chunk_end_time}"
+        # Build POST body for this chunk
         if resource_type == "resource_group":
-            query_params += f"&resource_type_name={resource_type_name}"
-        if fsm_type_name:
-            query_params += f"&fsm_type_name={fsm_type_name}"
+            entry = {
+                'ResourceGroup': {
+                    'resource_group_id': resource_id,
+                    'resource_type_name': resource_type_name,
+                    'long_entities_threshold_s': None,
+                    'entity_filter': {'entity_type_name': entity_type_name},
+                    'app_params': {'operator_id': None},
+                }
+            }
+        else:
+            entry = {
+                'Resource': {
+                    'resource_id': resource_id,
+                    'long_entities_threshold_s': None,
+                    'entity_filter': {'entity_type_name': entity_type_name},
+                    'application': {'operator_id': None},
+                }
+            }
+
+        fetch_body = {
+            'config': {
+                'num_bins': chunk['num_bins'],
+                'start': chunk_start_time,
+                'end': chunk_end_time,
+            },
+            'entry': entry,
+            'app_params': {'query_id': query_id},
+        }
 
         # Generate cache key for this chunk (different format for resource vs resource_group)
         if resource_type == "resource_group":
             cache_key = (
                 f"chunk:resource_group:{engine_id}:{query_id}:{resource_id}:"
                 f"z{zoom_level}:c{chunk['chunk_index']}:"
-                f"{chunk_start_time:.3f}:{chunk_end_time:.3f}:{chunk['num_bins']}:{resource_type_name}:{fsm_type_name}"
+                f"{chunk_start_time:.3f}:{chunk_end_time:.3f}:{chunk['num_bins']}:{resource_type_name}:{entity_type_name}"
             )
         else:
             cache_key = (
                 f"chunk:resource:{engine_id}:{query_id}:{resource_id}:"
                 f"z{zoom_level}:c{chunk['chunk_index']}:"
-                f"{chunk_start_time:.3f}:{chunk_end_time:.3f}:{chunk['num_bins']}:{fsm_type_name}"
+                f"{chunk_start_time:.3f}:{chunk_end_time:.3f}:{chunk['num_bins']}:{entity_type_name}"
             )
 
-        fetch_url = f"/analyzer/engine/{engine_id}/query/{query_id}/{resource_type}/{resource_id}/timeline{query_params}"
-        logger.debug("[%s] Fetching chunk %d: %s", log_prefix, chunk['chunk_index'], query_params)
+        fetch_url = f"/analyzer/engine/{engine_id}/timeline/single"
+        logger.debug("[%s] Fetching chunk %d: start=%.3f end=%.3f", log_prefix, chunk['chunk_index'], chunk_start_time, chunk_end_time)
 
-        task = fetch_chunk_with_cache(cache_key, fetch_url)
+        task = fetch_chunk_with_cache(cache_key, fetch_url, fetch_body)
         tasks.append(task)
 
     result_data = await asyncio.gather(*tasks)
 
     combined_result = combine_chunk_result_data(result_data, start, end)
 
-    combined_bins = combined_result.get('Binned', combined_result.get('BinnedByState', {})).get('config', {}).get('num_bins', 0)
+    combined_bins = combined_result.get('config', {}).get('num_bins', 0)
     logger.debug(
         "[%s] Combined %d chunks for %s %s | range: %.9f - %.9f (%.2f%% - %.2f%%) | bins: %d",
         log_prefix, len(result_data), resource_type, resource_id, start, end, start_pct, end_pct, combined_bins
@@ -279,7 +309,7 @@ async def get_timeline_bins(
     engine_id: str,
     query_id: str,
     resource_id: str,
-    fsm_type_name: str | None
+    entity_type_name: str | None
 ) -> Any:
     return await _fetch_timeline_with_chunks(
         num_bins=num_bins,
@@ -290,7 +320,7 @@ async def get_timeline_bins(
         query_id=query_id,
         resource_id=resource_id,
         resource_type="resource",
-        fsm_type_name=fsm_type_name
+        entity_type_name=entity_type_name
     )
 
 
@@ -303,7 +333,7 @@ async def get_timeline_bins_for_resource_group(
     query_id: str,
     resource_group_id: str,
     resource_type_name: str,
-    fsm_type_name: str | None
+    entity_type_name: str | None
 ) -> Any:
     return await _fetch_timeline_with_chunks(
         num_bins=num_bins,
@@ -314,6 +344,6 @@ async def get_timeline_bins_for_resource_group(
         query_id=query_id,
         resource_id=resource_group_id,
         resource_type="resource_group",
-        fsm_type_name=fsm_type_name,
+        entity_type_name=entity_type_name,
         resource_type_name=resource_type_name
     )

@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/quent/data
-    command: /quent/quent-simulator-server
+    command: "/quent/quent-simulator-server --log-level debug"
 
   simulator:
     image: quent

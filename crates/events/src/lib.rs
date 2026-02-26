@@ -18,7 +18,7 @@ pub struct Event<T> {
 }
 
 impl<T> Event<T> {
-    #[inline]
+    #[inline(always)]
     pub fn new_now(id: Uuid, data: T) -> Self {
         Self {
             id,
@@ -27,27 +27,12 @@ impl<T> Event<T> {
         }
     }
 
+    #[inline(always)]
     pub fn new(id: Uuid, timestamp: TimeUnixNanoSec, data: T) -> Self {
         Self {
             id,
             timestamp,
             data,
-        }
-    }
-
-    pub fn with_data<U>(&self, data: U) -> Event<U> {
-        Event {
-            id: self.id,
-            timestamp: self.timestamp,
-            data,
-        }
-    }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Event<U> {
-        Event {
-            id: self.id,
-            timestamp: self.timestamp,
-            data: f(self.data),
         }
     }
 }

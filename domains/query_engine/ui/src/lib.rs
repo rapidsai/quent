@@ -1,10 +1,10 @@
 //! Types shared with the UI.
 
-use quent_analyzer::{AnalyzerError, Entity};
+use quent_analyzer::fsm::FsmTypeDecl;
 use quent_attributes::{Attribute, Value};
-use quent_query_engine_analyzer::{self as qa};
 use quent_query_engine_events as qe;
-use quent_time::{TimeSec, TimeUnixNanoSec, Timestamp, try_to_secs_relative};
+use quent_time::{TimeSec, TimeUnixNanoSec};
+use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl};
 use serde::Serialize;
 use std::collections::HashMap;
 use ts_rs::TS;
@@ -46,28 +46,6 @@ pub struct Engine {
     pub implementation: Option<EngineImplementationAttributes>,
 }
 
-impl TryFrom<&qa::engine::Engine> for Engine {
-    type Error = AnalyzerError;
-
-    fn try_from(engine: &qa::engine::Engine) -> Result<Self, Self::Error> {
-        let duration_s = if let Some(start) = engine.start_time_unix_ns
-            && let Some(end) = engine.end_time_unix_ns
-        {
-            Some(try_to_secs_relative(end, start)?)
-        } else {
-            None
-        };
-
-        Ok(Self {
-            id: engine.id,
-            start_time_unix_ns: engine.start_time_unix_ns,
-            duration_s,
-            instance_name: engine.instance_name.clone(),
-            implementation: engine.implementation.as_ref().map(|i| i.into()),
-        })
-    }
-}
-
 /// A group of [`Query`]s.
 #[derive(TS, Debug, Serialize)]
 pub struct QueryGroup {
@@ -79,23 +57,13 @@ pub struct QueryGroup {
     pub engine_id: Option<Uuid>,
 }
 
-impl From<&qa::query_group::QueryGroup> for QueryGroup {
-    fn from(query_group: &qa::query_group::QueryGroup) -> Self {
-        Self {
-            id: query_group.id(),
-            instance_name: query_group.instance_name.clone(),
-            engine_id: query_group.engine_id,
-        }
-    }
-}
-
 /// A [`Query`] executed by an [`Engine`].
 #[derive(TS, Debug, Serialize)]
 pub struct Query {
     /// The ID of this [`Query`].
     pub id: Uuid,
     /// The ID of the [`super::query_group::QueryGroup`] this query is part of.
-    pub query_group_id: Option<Uuid>,
+    pub query_group_id: Uuid,
     /// A name for this [`Query`].
     pub instance_name: Option<String>,
 
@@ -111,52 +79,6 @@ pub struct Query {
     /// The time relative to the start time at which the engine started
     /// completed executing this query.
     pub completed_s: Option<TimeSec>,
-}
-
-impl TryFrom<&qa::query::Query> for Query {
-    type Error = AnalyzerError;
-
-    fn try_from(query: &qa::query::Query) -> Result<Self, Self::Error> {
-        use qa::query::QueryTransition;
-        use quent_analyzer::fsm::Fsm;
-
-        let mut start_unix_ns = None;
-        let mut planning_s = None;
-        let mut executing_s = None;
-        let mut completed_s = None;
-
-        if let Some(init) = query.transition(0) {
-            start_unix_ns = Some(init.timestamp());
-
-            for i in 0..query.len() {
-                if let Some(transition) = query.transition(i) {
-                    match transition {
-                        QueryTransition::Planning(ts) => {
-                            planning_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
-                        }
-                        QueryTransition::Executing(ts) => {
-                            executing_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
-                            if let Some(exit) = query.transition(i + 1) {
-                                completed_s =
-                                    Some(try_to_secs_relative(exit.timestamp(), init.timestamp())?);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            id: query.id,
-            query_group_id: query.query_group_id,
-            instance_name: query.instance_name.clone(),
-            start_unix_ns,
-            planning_s,
-            executing_s,
-            completed_s,
-        })
-    }
 }
 
 /// A worker that executed a leaf [`Plan`].
@@ -175,28 +97,13 @@ pub struct Worker {
     pub end_unix_ns: Option<TimeUnixNanoSec>,
 }
 
-impl TryFrom<(&qa::worker::Worker, TimeUnixNanoSec)> for Worker {
-    type Error = AnalyzerError;
-
-    fn try_from(value: (&qa::worker::Worker, TimeUnixNanoSec)) -> Result<Self, Self::Error> {
-        let (worker, _engine_start) = value;
-        Ok(Self {
-            id: worker.id,
-            parent_engine_id: worker.parent_engine_id,
-            instance_name: worker.instance_name.clone(),
-            start_unix_ns: worker.start_unix_ns,
-            end_unix_ns: worker.end_unix_ns,
-        })
-    }
-}
-
 /// An edge between two [`Operator`] [`Port`]s.
 #[derive(TS, Debug, Serialize)]
 pub struct Edge {
     /// The [`Port`] that produced the data flowing over this edge.
-    source: Uuid,
+    pub source: Uuid,
     /// The [`Port`] that consumed the data flowing over this edge.
-    target: Uuid,
+    pub target: Uuid,
 }
 
 /// A plan for executing a [`Query`].
@@ -205,46 +112,18 @@ pub struct Edge {
 #[derive(TS, Debug, Serialize)]
 pub struct Plan {
     /// The ID of this [`Plan`].
-    id: Uuid,
+    pub id: Uuid,
     /// The name of this [`Plan`].
-    instance_name: Option<String>,
+    pub instance_name: Option<String>,
     /// The ID of the parent [`Plan`], if any.
-    parent: Option<Uuid>,
+    pub parent: Option<Uuid>,
     /// The ID of the [`super::worker::Worker`] that executed this [`Plan`].
     ///
     /// If this level of [`Plan`] was not directly executed by a [`Worker`],
     /// then this is set to None.
-    worker_id: Option<Uuid>,
+    pub worker_id: Option<Uuid>,
     /// The [`Edge`]s between [`Operator`] [`Port`]s of this [`Plan`].
-    edges: Vec<Edge>,
-}
-
-impl TryFrom<(&qa::plan::Plan, TimeUnixNanoSec)> for Plan {
-    type Error = AnalyzerError;
-
-    fn try_from(value: (&qa::plan::Plan, TimeUnixNanoSec)) -> Result<Self, Self::Error> {
-        let (plan, _engine_start) = value;
-
-        let parent = plan.parent.as_ref().map(|p| match p {
-            qe::plan::PlanParent::Query(uuid) => *uuid,
-            qe::plan::PlanParent::Plan(uuid) => *uuid,
-        });
-
-        Ok(Self {
-            id: plan.id,
-            instance_name: plan.instance_name.clone(),
-            parent,
-            worker_id: plan.worker_id,
-            edges: plan
-                .edges
-                .iter()
-                .map(|e| Edge {
-                    source: e.source,
-                    target: e.target,
-                })
-                .collect(),
-        })
-    }
+    pub edges: Vec<Edge>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -276,52 +155,10 @@ pub struct Operator {
     pub statistics: Option<OperatorStatistics>,
 }
 
-impl TryFrom<(&qa::operator::Operator, TimeUnixNanoSec)> for Operator {
-    type Error = AnalyzerError;
-
-    fn try_from(value: (&qa::operator::Operator, TimeUnixNanoSec)) -> Result<Self, Self::Error> {
-        let (operator, _engine_start) = value;
-
-        let statistics = operator.statistics.as_ref().map(|s| OperatorStatistics {
-            custom_statistics: s
-                .custom_statistics
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-        });
-
-        Ok(Self {
-            id: operator.id,
-            plan_id: operator.plan_id,
-            parent_operator_ids: operator.parent_operator_ids.clone(),
-            instance_name: operator.instance_name.clone(),
-            operator_type_name: operator.operator_type_name.clone(),
-            custom_attributes: operator
-                .custom_attributes
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            statistics,
-        })
-    }
-}
-
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
     /// Custom statistics
     pub custom_statistics: HashMap<String, Option<Value>>,
-}
-
-impl From<&qa::port::PortStatistics> for PortStatistics {
-    fn from(value: &qa::port::PortStatistics) -> Self {
-        Self {
-            custom_statistics: value
-                .custom_statistics
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-        }
-    }
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -336,20 +173,6 @@ pub struct Port {
     pub statistics: Option<PortStatistics>,
 }
 
-impl TryFrom<(&qa::port::Port, TimeUnixNanoSec)> for Port {
-    type Error = AnalyzerError;
-
-    fn try_from(value: (&qa::port::Port, TimeUnixNanoSec)) -> Result<Self, Self::Error> {
-        let (port, _engine_start) = value;
-        Ok(Self {
-            id: port.id,
-            operator_id: port.operator_id,
-            instance_name: port.instance_name.clone(),
-            statistics: port.statistics.as_ref().map(Into::into),
-        })
-    }
-}
-
 #[derive(TS, Debug, Serialize)]
 pub struct PlanTree {
     /// The ID of the plan at this node in the tree.
@@ -360,12 +183,77 @@ pub struct PlanTree {
     pub children: Vec<PlanTree>,
 }
 
-impl From<&qa::plan::tree::PlanTree> for PlanTree {
-    fn from(tree: &qa::plan::tree::PlanTree) -> Self {
-        Self {
-            id: tree.id,
-            worker: tree.worker,
-            children: tree.children.iter().map(Into::into).collect(),
-        }
-    }
+#[derive(TS, Debug, Serialize)]
+pub struct QueryEntities {
+    /// The engine that ran this query.
+    ///
+    /// Is a Resource Group.
+    pub engine: Engine,
+    /// The group of this query.
+    ///
+    /// Is a Resource Group.
+    pub query_group: QueryGroup,
+    /// The query.
+    ///
+    /// Is a Resource Group.
+    pub query: Query,
+    /// The workers of this query.
+    ///
+    /// Is a Resource Group.
+    pub workers: HashMap<Uuid, Worker>,
+    /// The plans of this query.
+    ///
+    /// Is a Resource Group.
+    pub plans: HashMap<Uuid, Plan>,
+    /// The operators of the plans.
+    ///
+    /// Is a Resource Group.
+    pub operators: HashMap<Uuid, Operator>,
+    /// The ports of the operators.
+    ///
+    /// Is a Resource Group.
+    pub ports: HashMap<Uuid, Port>,
+
+    /// Application-specific resource types
+    pub resource_types: HashMap<String, ResourceTypeDecl>,
+    /// Resource group types.
+    ///
+    /// This includes declarations for:
+    /// - [`Engine`]
+    /// - [`QueryGroup`]
+    /// - [`Query`]
+    /// - [`Worker`]
+    /// - [`Plan`]
+    /// - [`Operator`]
+    /// - [`Port`]
+    pub resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
+    /// Application-specific resources
+    pub resources: HashMap<Uuid, Resource>,
+    /// Application-specific resource groups
+    pub resource_groups: HashMap<Uuid, ResourceGroup>,
+
+    /// Application-specific FSMs
+    pub fsm_types: HashMap<String, FsmTypeDecl>,
+}
+
+#[derive(TS, Serialize)]
+pub struct QueryBundle<E> {
+    /// The ID of the query.
+    pub query_id: Uuid,
+    /// Maps with entities that are involved in this query.
+    pub entities: QueryEntities,
+
+    /// A tree of plans involved in the execution of this query.
+    pub plan_tree: PlanTree,
+    /// A tree of resources involved in the execution of this query.
+    pub resource_tree: ResourceTree<E>,
+
+    /// A list of unique operator type names.
+    pub unique_operator_names: Vec<String>,
+
+    /// The number of nanoseconds passed since the Unix epoch at which the
+    /// engine started executing this query.
+    pub start_time_unix_ns: TimeUnixNanoSec,
+    /// The duration of this query, in seconds.
+    pub duration_s: TimeSec,
 }

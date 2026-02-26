@@ -14,7 +14,7 @@ import {
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
-import type { TimelineResponse } from '~quent/types/TimelineResponse';
+import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 const CONTROLLER_HEIGHT = 50;
@@ -33,7 +33,7 @@ type TimelineControllerProps = {
   durationSeconds: number;
   height?: number;
   /** Optional timeline data to render on the static display (e.g. overlay from root resource group) */
-  timelineData?: TimelineResponse | null;
+  timelineData?: SingleTimelineResponse | null;
   /** Called when the zoom/pan range changes, with start/end in seconds */
   onZoomChange?: (range: ZoomRange) => void;
 };
@@ -51,7 +51,11 @@ export function TimelineController({
 
   const { timestamps, seriesData } = useMemo(() => {
     if (timelineData) {
-      const { timestamps: ts, series } = buildBinnedTimelineSeries(timelineData, startTime);
+      const { timestamps: ts, series } = buildBinnedTimelineSeries(
+        timelineData.data,
+        timelineData.config,
+        startTime
+      );
       const entries = Object.entries(series);
       const values = entries.length > 0 ? entries[0][1].values : null;
       return { timestamps: ts, seriesData: values };

@@ -3,17 +3,18 @@ import { TreeTableItem } from '@/components/resource-tree/types';
 import { formatBytes } from '@/services/formatters';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
-import { TimelineResponse } from '~quent/types/TimelineResponse';
+import type { ResourceTimeline } from '~quent/types/ResourceTimeline';
 import { QueryEntities } from '~quent/types/QueryEntities';
 import { ResourceTree } from '~quent/types/ResourceTree';
+import type { EntityRef } from '~quent/types/EntityRef';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
-import type { BulkTimelineData } from '~quent/types/BulkTimelineData';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
-import type { BulkTimelineRequestParams } from '~quent/types/BulkTimelineRequestParams';
+import type { TimelineRequest } from '~quent/types/TimelineRequest';
+import type { TaskFilter } from '~quent/types/TaskFilter';
 
 const MAX_TIMELINE_BINS = 200;
 
@@ -23,17 +24,17 @@ const MAX_TIMELINE_BINS = 200;
  */
 export function getAdaptiveNumBins(windowSeconds: number): number {
   const windowMs = windowSeconds * 1_000;
-  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.floor(windowMs)));
+  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
 }
 
 export function buildBinnedTimelineSeries(
-  data: TimelineResponse,
+  data: ResourceTimeline,
+  config: BinnedSpanSec,
   startTime: bigint
 ): {
   timestamps: number[];
   series: TimelineSeries;
 } {
-  const config = 'Binned' in data ? data.Binned.config : data.BinnedByState.config;
   const { bin_duration, num_bins, span } = config;
 
   const timestamps: number[] = [];
@@ -317,7 +318,9 @@ const lookupEntity = (
   entityType: EntityRefKey,
   entityId: string
 ): EntityTypeValue | undefined => {
-  const entityKey = entityRefToEntitiesKey(entityType) as keyof QueryEntities;
+  const entityKey = entityRefToEntitiesKey(entityType);
+  if (!entityKey) return undefined; // handles Task and future unknown EntityRef variants
+
   const entityValue = entities[entityKey];
 
   // SingleEntity (Engine | Query | QueryGroup): single object with id
@@ -331,7 +334,7 @@ const lookupEntity = (
 
 export const transformResourceTree = (
   entities: QueryEntities,
-  resourceTree: ResourceTree
+  resourceTree: ResourceTree<EntityRef>
 ): TreeTableItem => {
   if ('ResourceGroup' in resourceTree) {
     const node = resourceTree.ResourceGroup;
@@ -363,32 +366,6 @@ export const transformResourceTree = (
   };
 };
 
-/**
- * Convert a BulkTimelineData entry + shared config into a TimelineResponse
- * so existing buildBinnedTimelineSeries can consume it.
- */
-export function bulkEntryToTimelineResponse(
-  data: BulkTimelineData,
-  config: BinnedSpanSec
-): TimelineResponse {
-  if (data.type === 'Binned') {
-    return {
-      Binned: {
-        config,
-        capacities_values: data.capacities_values,
-        long_fsms: data.long_fsms,
-      },
-    };
-  }
-  return {
-    BinnedByState: {
-      config,
-      capacities_states_values: data.capacities_states_values,
-      long_fsms: data.long_fsms,
-    },
-  };
-}
-
 /** Recursively find a TreeTableItem by id */
 export function findItemById(root: TreeTableItem, id: string): TreeTableItem | undefined {
   if (root.id === id) return root;
@@ -409,29 +386,35 @@ function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string
   return usedBy?.[0] ?? null;
 }
 
-/** Build BulkTimelineRequestParams for a single tree item */
+/** Build TimelineRequest params for a single tree item */
 export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
   entities: QueryEntities
-): BulkTimelineRequestParams {
+): TimelineRequest<TaskFilter> {
   const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
 
   if (isGroup) {
     const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
     return {
-      resource_type_name: resourceTypeName,
-      fsm_type_name: fsmTypeName,
-      operator_id: null,
-      long_entities_threshold_s: null,
+      ResourceGroup: {
+        resource_group_id: item.id,
+        resource_type_name: resourceTypeName,
+        long_entities_threshold_s: null,
+        entity_filter: { entity_type_name: fsmTypeName },
+        app_params: { operator_id: null },
+      },
     };
   }
 
   return {
-    fsm_type_name: fsmTypeName,
-    operator_id: null,
-    long_entities_threshold_s: null,
+    Resource: {
+      resource_id: item.id,
+      long_entities_threshold_s: null,
+      entity_filter: { entity_type_name: fsmTypeName },
+      application: { operator_id: null },
+    },
   };
 }
 
@@ -444,8 +427,8 @@ export function collectVisibleEntries(
   expandedIds: Set<string>,
   selectedTypes: Map<string, string>,
   entities: QueryEntities
-): Record<string, BulkTimelineRequestParams> {
-  const result: Record<string, BulkTimelineRequestParams> = {};
+): Record<string, TimelineRequest<TaskFilter>> {
+  const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
     result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities);

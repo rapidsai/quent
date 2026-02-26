@@ -22,19 +22,22 @@ from webserver.timeline_caching import (
 
 @pytest.fixture
 def binned_chunk_factory():
-    """Factory for creating Binned timeline chunk response dicts."""
+    """Factory for creating Binned timeline chunk response dicts (SingleTimelineResponse shape)."""
     def _make(start: float, end: float, num_bins: int = 10, capacity_values: dict | None = None):
         bin_duration = (end - start) / num_bins if num_bins > 0 else 1.0
         return {
-            'Binned': {
-                'config': {
-                    'span': {'start': start, 'end': end},
-                    'bin_duration': bin_duration,
-                    'num_bins': num_bins,
-                },
-                'capacities_values': capacity_values or {
-                    'memory': [float(i) for i in range(num_bins)]
-                },
+            'config': {
+                'span': {'start': start, 'end': end},
+                'bin_duration': bin_duration,
+                'num_bins': num_bins,
+            },
+            'data': {
+                'Binned': {
+                    'capacities_values': capacity_values or {
+                        'memory': [float(i) for i in range(num_bins)]
+                    },
+                    'long_fsms': [],
+                }
             }
         }
     return _make
@@ -42,22 +45,25 @@ def binned_chunk_factory():
 
 @pytest.fixture
 def binned_by_state_chunk_factory():
-    """Factory for creating BinnedByState timeline chunk response dicts."""
+    """Factory for creating BinnedByState timeline chunk response dicts (SingleTimelineResponse shape)."""
     def _make(start: float, end: float, num_bins: int = 10):
         bin_duration = (end - start) / num_bins if num_bins > 0 else 1.0
         return {
-            'BinnedByState': {
-                'config': {
-                    'span': {'start': start, 'end': end},
-                    'bin_duration': bin_duration,
-                    'num_bins': num_bins,
-                },
-                'capacities_states_values': {
-                    'cpu': {
-                        'running': [float(i) for i in range(num_bins)],
-                        'idle': [float(i) * 0.5 for i in range(num_bins)],
-                    }
-                },
+            'config': {
+                'span': {'start': start, 'end': end},
+                'bin_duration': bin_duration,
+                'num_bins': num_bins,
+            },
+            'data': {
+                'BinnedByState': {
+                    'capacities_states_values': {
+                        'cpu': {
+                            'running': [float(i) for i in range(num_bins)],
+                            'idle': [float(i) * 0.5 for i in range(num_bins)],
+                        }
+                    },
+                    'long_fsms': [],
+                }
             }
         }
     return _make
@@ -258,12 +264,12 @@ def test_overlapping_preserves_chunk_data():
 @pytest.mark.unit
 async def test_fetch_cache_hit_returns_cached_value():
     """A cache hit should return the stored value without touching the backend."""
-    cached_data = {'Binned': {'data': 'cached'}}
+    cached_data = {'config': {}, 'data': {'Binned': {'capacities_values': {}}}}
     mock_cache = MagicMock()
     mock_cache.get.return_value = cached_data
 
     with patch('webserver.timeline_caching.timeline_cache', mock_cache):
-        result = await fetch_chunk_with_cache('test-key', '/test/url')
+        result = await fetch_chunk_with_cache('test-key', '/test/url', {'config': {}})
 
     assert result == cached_data
     mock_cache.get.assert_called_once_with('test-key')
@@ -273,7 +279,7 @@ async def test_fetch_cache_hit_returns_cached_value():
 @pytest.mark.unit
 async def test_fetch_cache_miss_calls_backend():
     """A cache miss should fetch from the backend via asyncio.to_thread."""
-    fetched_data = {'Binned': {'data': 'fresh'}}
+    fetched_data = {'config': {}, 'data': {'Binned': {'capacities_values': {}}}}
     mock_cache = MagicMock()
     mock_cache.get.return_value = None
 
@@ -282,7 +288,7 @@ async def test_fetch_cache_miss_calls_backend():
         patch('webserver.timeline_caching.asyncio.to_thread', new_callable=AsyncMock) as mock_thread,
     ):
         mock_thread.return_value = fetched_data
-        result = await fetch_chunk_with_cache('test-key', '/test/url')
+        result = await fetch_chunk_with_cache('test-key', '/test/url', {'config': {}})
 
     assert result == fetched_data
 
@@ -290,7 +296,7 @@ async def test_fetch_cache_miss_calls_backend():
 @pytest.mark.unit
 async def test_fetch_cache_miss_stores_result():
     """After a cache miss the fetched value should be stored with the correct TTL."""
-    fetched_data = {'Binned': {'data': 'fresh'}}
+    fetched_data = {'config': {}, 'data': {'Binned': {'capacities_values': {}}}}
     mock_cache = MagicMock()
     mock_cache.get.return_value = None
 
@@ -299,27 +305,26 @@ async def test_fetch_cache_miss_stores_result():
         patch('webserver.timeline_caching.asyncio.to_thread', new_callable=AsyncMock) as mock_thread,
     ):
         mock_thread.return_value = fetched_data
-        await fetch_chunk_with_cache('test-key', '/test/url')
+        await fetch_chunk_with_cache('test-key', '/test/url', {'config': {}})
 
     mock_cache.set.assert_called_once_with('test-key', fetched_data, ttl_seconds=3600)
 
 
 @pytest.mark.unit
 async def test_fetch_cache_miss_uses_rust_client():
-    """asyncio.to_thread should be called with rust_client.get and the fetch URL."""
+    """asyncio.to_thread should invoke rust_client.post with the URL and body."""
     mock_cache = MagicMock()
     mock_cache.get.return_value = None
     mock_rust_client = MagicMock()
+    mock_rust_client.post.return_value = {}
 
     with (
         patch('webserver.timeline_caching.timeline_cache', mock_cache),
         patch('webserver.timeline_caching.rust_client', mock_rust_client),
-        patch('webserver.timeline_caching.asyncio.to_thread', new_callable=AsyncMock) as mock_thread,
     ):
-        mock_thread.return_value = {}
-        await fetch_chunk_with_cache('key', '/analyzer/test?a=1')
+        await fetch_chunk_with_cache('key', '/analyzer/test', {'config': {'num_bins': 200}})
 
-    mock_thread.assert_called_once_with(mock_rust_client.get, '/analyzer/test?a=1')
+    mock_rust_client.post.assert_called_once_with('/analyzer/test', json={'config': {'num_bins': 200}})
 
 
 @pytest.mark.unit
@@ -333,7 +338,7 @@ async def test_fetch_custom_ttl_passed_to_cache():
         patch('webserver.timeline_caching.asyncio.to_thread', new_callable=AsyncMock) as mock_thread,
     ):
         mock_thread.return_value = {'x': 1}
-        await fetch_chunk_with_cache('key', '/url', ttl_seconds=7200)
+        await fetch_chunk_with_cache('key', '/url', {'config': {}}, ttl_seconds=7200)
 
     mock_cache.set.assert_called_once_with('key', {'x': 1}, ttl_seconds=7200)
 
@@ -352,11 +357,9 @@ def test_combine_single_binned_full_range(binned_chunk_factory):
     chunk = binned_chunk_factory(start=0.0, end=10.0, num_bins=10)
     result = combine_chunk_result_data([chunk], start=0.0, end=10.0)
 
-    assert 'Binned' in result
-    binned = result['Binned']
-    assert binned['config']['span'] == {'start': 0.0, 'end': 10.0}
-    assert binned['config']['num_bins'] == 10
-    assert binned['capacities_values']['memory'] == [float(i) for i in range(10)]
+    assert result['config']['span'] == {'start': 0.0, 'end': 10.0}
+    assert result['config']['num_bins'] == 10
+    assert result['data']['Binned']['capacities_values']['memory'] == [float(i) for i in range(10)]
 
 
 @pytest.mark.unit
@@ -366,10 +369,9 @@ def test_combine_single_binned_partial_range(binned_chunk_factory):
     chunk = binned_chunk_factory(start=0.0, end=10.0, num_bins=10)
     result = combine_chunk_result_data([chunk], start=2.0, end=8.0)
 
-    binned = result['Binned']
-    assert binned['config']['span'] == {'start': 2.0, 'end': 8.0}
-    assert binned['config']['num_bins'] == 6
-    assert binned['capacities_values']['memory'] == [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+    assert result['config']['span'] == {'start': 2.0, 'end': 8.0}
+    assert result['config']['num_bins'] == 6
+    assert result['data']['Binned']['capacities_values']['memory'] == [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
 
 
 @pytest.mark.unit
@@ -381,10 +383,9 @@ def test_combine_two_binned_chunks_full_range(binned_chunk_factory):
                                   capacity_values={'memory': [5.0, 6.0, 7.0, 8.0, 9.0]})
 
     result = combine_chunk_result_data([chunk0, chunk1], start=0.0, end=10.0)
-    binned = result['Binned']
 
-    assert binned['config']['num_bins'] == 10
-    assert binned['capacities_values']['memory'] == [float(i) for i in range(10)]
+    assert result['config']['num_bins'] == 10
+    assert result['data']['Binned']['capacities_values']['memory'] == [float(i) for i in range(10)]
 
 
 @pytest.mark.unit
@@ -396,7 +397,7 @@ def test_combine_chunks_sorted_by_start_time(binned_chunk_factory):
                                   capacity_values={'memory': [0.0, 1.0, 2.0, 3.0, 4.0]})
 
     result = combine_chunk_result_data([chunk1, chunk0], start=0.0, end=10.0)
-    assert result['Binned']['capacities_values']['memory'] == [float(i) for i in range(10)]
+    assert result['data']['Binned']['capacities_values']['memory'] == [float(i) for i in range(10)]
 
 
 @pytest.mark.unit
@@ -405,9 +406,8 @@ def test_combine_non_overlapping_chunk_excluded(binned_chunk_factory):
     chunk = binned_chunk_factory(start=0.0, end=5.0, num_bins=5)
     result = combine_chunk_result_data([chunk], start=5.0, end=10.0)
 
-    binned = result['Binned']
-    assert binned['config']['num_bins'] == 0
-    assert binned['capacities_values'] == {}
+    assert result['config']['num_bins'] == 0
+    assert result['data']['Binned']['capacities_values'] == {}
 
 
 @pytest.mark.unit
@@ -415,7 +415,7 @@ def test_combine_result_config_span(binned_chunk_factory):
     """Result config span reflects the requested start/end, not the chunk boundaries."""
     chunk = binned_chunk_factory(start=0.0, end=10.0, num_bins=10)
     result = combine_chunk_result_data([chunk], start=3.0, end=7.0)
-    assert result['Binned']['config']['span'] == {'start': 3.0, 'end': 7.0}
+    assert result['config']['span'] == {'start': 3.0, 'end': 7.0}
 
 
 @pytest.mark.unit
@@ -423,7 +423,7 @@ def test_combine_result_config_bin_duration_from_first_chunk(binned_chunk_factor
     """bin_duration in the result is taken from the first (sorted) chunk's config."""
     chunk = binned_chunk_factory(start=0.0, end=10.0, num_bins=10)
     result = combine_chunk_result_data([chunk], start=0.0, end=10.0)
-    assert result['Binned']['config']['bin_duration'] == pytest.approx(1.0)
+    assert result['config']['bin_duration'] == pytest.approx(1.0)
 
 
 @pytest.mark.unit
@@ -437,7 +437,7 @@ def test_combine_multiple_capacities(binned_chunk_factory):
         }
     )
     result = combine_chunk_result_data([chunk], start=0.0, end=5.0)
-    binned = result['Binned']
+    binned = result['data']['Binned']
     assert binned['capacities_values']['memory'] == [1.0, 2.0, 3.0, 4.0, 5.0]
     assert binned['capacities_values']['cpu'] == [10.0, 20.0, 30.0, 40.0, 50.0]
 
@@ -448,9 +448,9 @@ def test_combine_single_binned_by_state_full_range(binned_by_state_chunk_factory
     chunk = binned_by_state_chunk_factory(start=0.0, end=10.0, num_bins=10)
     result = combine_chunk_result_data([chunk], start=0.0, end=10.0)
 
-    assert 'BinnedByState' in result
-    data = result['BinnedByState']
-    assert data['config']['num_bins'] == 10
+    assert 'BinnedByState' in result['data']
+    assert result['config']['num_bins'] == 10
+    data = result['data']['BinnedByState']
     assert len(data['capacities_states_values']['cpu']['running']) == 10
     assert len(data['capacities_states_values']['cpu']['idle']) == 10
 
@@ -462,8 +462,8 @@ def test_combine_binned_by_state_partial_range(binned_by_state_chunk_factory):
     chunk = binned_by_state_chunk_factory(start=0.0, end=10.0, num_bins=10)
     result = combine_chunk_result_data([chunk], start=0.0, end=5.0)
 
-    data = result['BinnedByState']
-    assert data['config']['num_bins'] == 5
+    assert result['config']['num_bins'] == 5
+    data = result['data']['BinnedByState']
     assert len(data['capacities_states_values']['cpu']['running']) == 5
 
 
@@ -474,9 +474,9 @@ def test_combine_two_binned_by_state_chunks(binned_by_state_chunk_factory):
     chunk1 = binned_by_state_chunk_factory(start=5.0, end=10.0, num_bins=5)
 
     result = combine_chunk_result_data([chunk0, chunk1], start=0.0, end=10.0)
-    data = result['BinnedByState']
 
-    assert data['config']['num_bins'] == 10
+    assert result['config']['num_bins'] == 10
+    data = result['data']['BinnedByState']
     assert len(data['capacities_states_values']['cpu']['running']) == 10
     assert len(data['capacities_states_values']['cpu']['idle']) == 10
 
@@ -485,15 +485,21 @@ def test_combine_two_binned_by_state_chunks(binned_by_state_chunk_factory):
 
 # Shared mock return value for combine_chunk_result_data in these tests
 _MOCK_COMBINED = {
-    'Binned': {
-        'config': {'span': {'start': 0.0, 'end': 100.0}, 'bin_duration': 0.5, 'num_bins': 200},
-        'capacities_values': {},
+    'config': {'span': {'start': 0.0, 'end': 100.0}, 'bin_duration': 0.5, 'num_bins': 200},
+    'data': {
+        'Binned': {
+            'capacities_values': {},
+            'long_fsms': [],
+        }
     }
 }
 _MOCK_CHUNK = {
-    'Binned': {
-        'config': {'span': {'start': 0.0, 'end': 50.0}, 'bin_duration': 0.25, 'num_bins': 200},
-        'capacities_values': {},
+    'config': {'span': {'start': 0.0, 'end': 50.0}, 'bin_duration': 0.25, 'num_bins': 200},
+    'data': {
+        'Binned': {
+            'capacities_values': {},
+            'long_fsms': [],
+        }
     }
 }
 
@@ -554,7 +560,7 @@ async def test_fetch_timeline_resource_cache_keys():
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
             resource_type='resource',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     # 0-100% at full range → zoom level 2 → chunks [0-50], [50-100]
@@ -565,8 +571,8 @@ async def test_fetch_timeline_resource_cache_keys():
 
 
 @pytest.mark.unit
-async def test_fetch_timeline_resource_cache_key_with_fsm_type():
-    """fsm_type_name must appear in the resource cache key."""
+async def test_fetch_timeline_resource_cache_key_with_entity_type():
+    """entity_type_name must appear in the resource cache key."""
     with (
         patch('webserver.timeline_caching.fetch_chunk_with_cache', new_callable=AsyncMock) as mock_fetch,
         patch('webserver.timeline_caching.combine_chunk_result_data', return_value=_MOCK_COMBINED),
@@ -576,7 +582,7 @@ async def test_fetch_timeline_resource_cache_key_with_fsm_type():
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
             resource_type='resource',
-            fsm_type_name='QueryFsm',
+            entity_type_name='QueryFsm',
         )
 
     cache_key_0 = mock_fetch.call_args_list[0][0][0]
@@ -596,7 +602,7 @@ async def test_fetch_timeline_resource_group_cache_keys():
             engine_id='eng1', query_id='q1', resource_id='rg1',
             resource_type='resource_group',
             resource_type_name='thread',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     cache_key_0 = mock_fetch.call_args_list[0][0][0]
@@ -604,7 +610,7 @@ async def test_fetch_timeline_resource_group_cache_keys():
 
 
 @pytest.mark.unit
-async def test_fetch_timeline_resource_group_cache_key_with_fsm_type():
+async def test_fetch_timeline_resource_group_cache_key_with_entity_type():
     with (
         patch('webserver.timeline_caching.fetch_chunk_with_cache', new_callable=AsyncMock) as mock_fetch,
         patch('webserver.timeline_caching.combine_chunk_result_data', return_value=_MOCK_COMBINED),
@@ -615,7 +621,7 @@ async def test_fetch_timeline_resource_group_cache_key_with_fsm_type():
             engine_id='eng1', query_id='q1', resource_id='rg1',
             resource_type='resource_group',
             resource_type_name='thread',
-            fsm_type_name='QueryFsm',
+            entity_type_name='QueryFsm',
         )
 
     cache_key_0 = mock_fetch.call_args_list[0][0][0]
@@ -624,7 +630,7 @@ async def test_fetch_timeline_resource_group_cache_key_with_fsm_type():
 
 @pytest.mark.unit
 async def test_fetch_timeline_resource_fetch_url():
-    """Fetch URL for resource type must target the correct endpoint."""
+    """Fetch URL for resource type must target the single timeline endpoint."""
     with (
         patch('webserver.timeline_caching.fetch_chunk_with_cache', new_callable=AsyncMock) as mock_fetch,
         patch('webserver.timeline_caching.combine_chunk_result_data', return_value=_MOCK_COMBINED),
@@ -634,19 +640,16 @@ async def test_fetch_timeline_resource_fetch_url():
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
             resource_type='resource',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     fetch_url_0 = mock_fetch.call_args_list[0][0][1]
-    assert fetch_url_0 == (
-        '/analyzer/engine/eng1/query/q1/resource/res1/timeline'
-        '?num_bins=200&start=0.0&end=50.0'
-    )
+    assert fetch_url_0 == '/analyzer/engine/eng1/timeline/single'
 
 
 @pytest.mark.unit
 async def test_fetch_timeline_resource_group_fetch_url():
-    """Fetch URL for resource_group must include resource_type_name query param."""
+    """Fetch URL for resource_group uses the same single timeline endpoint."""
     with (
         patch('webserver.timeline_caching.fetch_chunk_with_cache', new_callable=AsyncMock) as mock_fetch,
         patch('webserver.timeline_caching.combine_chunk_result_data', return_value=_MOCK_COMBINED),
@@ -657,17 +660,16 @@ async def test_fetch_timeline_resource_group_fetch_url():
             engine_id='eng1', query_id='q1', resource_id='rg1',
             resource_type='resource_group',
             resource_type_name='thread',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     fetch_url_0 = mock_fetch.call_args_list[0][0][1]
-    assert 'resource_group/rg1/timeline' in fetch_url_0
-    assert 'resource_type_name=thread' in fetch_url_0
+    assert fetch_url_0 == '/analyzer/engine/eng1/timeline/single'
 
 
 @pytest.mark.unit
-async def test_fetch_timeline_fsm_type_in_fetch_url():
-    """When fsm_type_name is provided it must appear in all fetch URLs."""
+async def test_fetch_timeline_entity_type_in_body():
+    """When entity_type_name is provided it must appear in all fetch bodies."""
     with (
         patch('webserver.timeline_caching.fetch_chunk_with_cache', new_callable=AsyncMock) as mock_fetch,
         patch('webserver.timeline_caching.combine_chunk_result_data', return_value=_MOCK_COMBINED),
@@ -677,16 +679,18 @@ async def test_fetch_timeline_fsm_type_in_fetch_url():
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
             resource_type='resource',
-            fsm_type_name='QueryFsm',
+            entity_type_name='QueryFsm',
         )
 
     for call in mock_fetch.call_args_list:
-        assert 'fsm_type_name=QueryFsm' in call[0][1]
+        body = call[0][2]
+        entry = body['entry']['Resource']
+        assert entry['entity_filter']['entity_type_name'] == 'QueryFsm'
 
 
 @pytest.mark.unit
-async def test_fetch_timeline_no_fsm_type_excluded_from_url():
-    """When fsm_type_name is None it must NOT appear in fetch URLs."""
+async def test_fetch_timeline_no_entity_type_is_none_in_body():
+    """When entity_type_name is None it must be None in the body's entity_filter."""
     with (
         patch('webserver.timeline_caching.fetch_chunk_with_cache', new_callable=AsyncMock) as mock_fetch,
         patch('webserver.timeline_caching.combine_chunk_result_data', return_value=_MOCK_COMBINED),
@@ -696,11 +700,13 @@ async def test_fetch_timeline_no_fsm_type_excluded_from_url():
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
             resource_type='resource',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     for call in mock_fetch.call_args_list:
-        assert 'fsm_type_name' not in call[0][1]
+        body = call[0][2]
+        entry = body['entry']['Resource']
+        assert entry['entity_filter']['entity_type_name'] is None
 
 
 @pytest.mark.unit
@@ -751,36 +757,36 @@ async def test_fetch_timeline_correct_chunk_count_for_zoom():
 @pytest.mark.unit
 async def test_get_timeline_bins_delegates_correctly():
     """get_timeline_bins must call _fetch_timeline_with_chunks with resource_type='resource'."""
-    expected = {'Binned': {}}
+    expected = {'config': {}, 'data': {'Binned': {}}}
     with patch('webserver.timeline_caching._fetch_timeline_with_chunks', new_callable=AsyncMock) as mock_fetch:
         mock_fetch.return_value = expected
         result = await get_timeline_bins(
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
-            fsm_type_name='MyFsm',
+            entity_type_name='MyFsm',
         )
 
     mock_fetch.assert_called_once_with(
         num_bins=200, start=0.0, end=100.0, duration=100.0,
         engine_id='eng1', query_id='q1', resource_id='res1',
         resource_type='resource',
-        fsm_type_name='MyFsm',
+        entity_type_name='MyFsm',
     )
     assert result == expected
 
 
 @pytest.mark.unit
-async def test_get_timeline_bins_passes_none_fsm_type():
+async def test_get_timeline_bins_passes_none_entity_type():
     with patch('webserver.timeline_caching._fetch_timeline_with_chunks', new_callable=AsyncMock) as mock_fetch:
         mock_fetch.return_value = {}
         await get_timeline_bins(
             num_bins=200, start=0.0, end=10.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_id='res1',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     _, kwargs = mock_fetch.call_args
-    assert kwargs['fsm_type_name'] is None
+    assert kwargs['entity_type_name'] is None
     assert kwargs['resource_type'] == 'resource'
 
 
@@ -789,21 +795,21 @@ async def test_get_timeline_bins_passes_none_fsm_type():
 @pytest.mark.unit
 async def test_get_timeline_bins_resource_group_delegates_correctly():
     """get_timeline_bins_for_resource_group passes resource_group_id as resource_id."""
-    expected = {'BinnedByState': {}}
+    expected = {'config': {}, 'data': {'BinnedByState': {}}}
     with patch('webserver.timeline_caching._fetch_timeline_with_chunks', new_callable=AsyncMock) as mock_fetch:
         mock_fetch.return_value = expected
         result = await get_timeline_bins_for_resource_group(
             num_bins=200, start=0.0, end=100.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_group_id='rg1',
             resource_type_name='thread',
-            fsm_type_name='QueryFsm',
+            entity_type_name='QueryFsm',
         )
 
     mock_fetch.assert_called_once_with(
         num_bins=200, start=0.0, end=100.0, duration=100.0,
         engine_id='eng1', query_id='q1', resource_id='rg1',
         resource_type='resource_group',
-        fsm_type_name='QueryFsm',
+        entity_type_name='QueryFsm',
         resource_type_name='thread',
     )
     assert result == expected
@@ -818,11 +824,11 @@ async def test_get_timeline_bins_resource_group_passes_resource_group_id():
             num_bins=200, start=0.0, end=10.0, duration=100.0,
             engine_id='eng1', query_id='q1', resource_group_id='rg-xyz',
             resource_type_name='memory',
-            fsm_type_name=None,
+            entity_type_name=None,
         )
 
     _, kwargs = mock_fetch.call_args
     assert kwargs['resource_id'] == 'rg-xyz'
     assert kwargs['resource_type'] == 'resource_group'
     assert kwargs['resource_type_name'] == 'memory'
-    assert kwargs['fsm_type_name'] is None
+    assert kwargs['entity_type_name'] is None

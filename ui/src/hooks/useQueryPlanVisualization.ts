@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { QueryBundle } from '~quent/types/QueryBundle';
+import type { EntityRef } from '~quent/types/EntityRef';
 import type { QueryPlanDataItem, DAGNode, DAGEdge } from '@/services/query-plan/types';
 import { getTreeData, getPlanDAG } from '@/services/query-plan/query-bundle-transformer';
 
@@ -16,7 +17,7 @@ interface UseQueryPlanVisualizationResult {
 }
 
 export const useQueryPlanVisualization = (
-  queryBundle: QueryBundle | undefined,
+  queryBundle: QueryBundle<EntityRef> | undefined,
   planId: string
 ): UseQueryPlanVisualizationResult => {
   const treeData = useMemo(() => {

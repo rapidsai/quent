@@ -1,12 +1,15 @@
 import { atom } from 'jotai';
 import { atomFamily } from 'jotai-family';
-import type { TimelineResponse } from '~quent/types/TimelineResponse';
-import type { BulkTimelineRequestParams } from '~quent/types/BulkTimelineRequestParams';
+import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
+import type { TimelineRequest } from '~quent/types/TimelineRequest';
+import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { XAxisRange } from '@/components/timeline/Timeline';
 
 /** Per-item timeline data — each row subscribes to its own atom */
-export const timelineDataAtom = atomFamily(() => atom<TimelineResponse | undefined>(undefined));
+export const timelineDataAtom = atomFamily(() =>
+  atom<SingleTimelineResponse | undefined>(undefined)
+);
 
 /** Immediate zoom range — updated on every zoom gesture */
 export const zoomRangeAtom = atom<ZoomRange>({ start: 0, end: 0 });
@@ -42,4 +45,4 @@ export const xAxisRangeAtom = atom<XAxisRange>(get => {
 export const bulkInitializedAtom = atom(false);
 
 /** Visible entries for bulk fetch — set in useEffect, read imperatively via store.get() */
-export const visibleEntriesAtom = atom<Record<string, BulkTimelineRequestParams>>({});
+export const visibleEntriesAtom = atom<Record<string, TimelineRequest<TaskFilter>>>({});
