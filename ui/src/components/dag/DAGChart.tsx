@@ -100,6 +100,13 @@ const FlowLayout = ({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
   const navigate = useNavigate();
+  const hasUserInteracted = useRef(false);
+
+  const handleMoveStart = useCallback((event: MouseEvent | TouchEvent) => {
+    if (event !== null) {
+      hasUserInteracted.current = true;
+    }
+  }, []);
 
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
@@ -147,12 +154,15 @@ const FlowLayout = ({
     [navigate, engineId, queryId]
   );
 
-  // Re-fit view when the react-flow container is resized
+  // Re-fit view when the react-flow container is resized, but only if the user
+  // hasn't interacted with the chart (to maintain any focus states applied)
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const observer = new ResizeObserver(() => {
-      if (nodes.length > 0) fitView({ padding: 0.1, minZoom: 0.1 });
+      if (nodes.length > 0 && !hasUserInteracted.current) {
+        fitView({ padding: 0.1, minZoom: 0.1 });
+      }
     });
     observer.observe(container);
     return () => observer.disconnect();
@@ -160,6 +170,8 @@ const FlowLayout = ({
 
   // Calculate and apply layout
   useLayoutEffect(() => {
+    hasUserInteracted.current = false;
+
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
       const layoutResult = await calculateLayout(flowNodes, flowEdges);
@@ -181,6 +193,7 @@ const FlowLayout = ({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
+      onMoveStart={handleMoveStart}
       nodeTypes={nodeTypes}
       fitView
       minZoom={0.1}
