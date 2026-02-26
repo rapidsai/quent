@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAtomValue, useStore } from 'jotai';
-import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
+import { fetchBulkTimelines } from '@/services/api';
 import type { QueryEntities } from '~quent/types/QueryEntities';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
@@ -12,37 +12,21 @@ import {
   buildBulkParamsForItem,
   collectVisibleEntries,
   getAdaptiveNumBins,
+  getResourceTypeName,
+  setOperatorOnEntries,
 } from '@/lib/timeline.utils';
 import {
+  timelineCacheKey,
   timelineDataAtom,
   zoomRangeAtom,
   debouncedZoomRangeAtom,
   bulkInitializedAtom,
   visibleEntriesAtom,
 } from '@/atoms/timeline';
+import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { useBulkTimelineFetch } from './useBulkTimelineFetch';
 
 const ZOOM_DEBOUNCE_MS = 150;
-
-// useExpandedIds — tracks which tree nodes are expanded
-export function useExpandedIds(initialId?: string) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    return initialId ? new Set([initialId]) : new Set();
-  });
-
-  const handleExpandChange = useCallback((itemId: string, isExpanded: boolean) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev);
-      if (isExpanded) {
-        next.add(itemId);
-      } else {
-        next.delete(itemId);
-      }
-      return next;
-    });
-  }, []);
-
-  return { expandedIds, handleExpandChange } as const;
-}
 
 // useBulkTimelines — manages bulk fetching via Jotai atoms + TanStack Query
 export function useBulkTimelines({
@@ -63,6 +47,8 @@ export function useBulkTimelines({
   const store = useStore();
   const queryClient = useQueryClient();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
 
   useEffect(() => {
     return () => {
@@ -70,48 +56,42 @@ export function useBulkTimelines({
     };
   }, []);
 
-  // Compute visible entries and store in atom after commit
-  const visibleEntries = useMemo(
-    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities),
+  const baseVisibleEntries = useMemo(
+    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, null),
     [rootItem, expandedIds, selectedTypes, entities]
   );
   useEffect(() => {
-    store.set(visibleEntriesAtom, visibleEntries);
-  }, [visibleEntries, store]);
+    store.set(visibleEntriesAtom, baseVisibleEntries);
+  }, [baseVisibleEntries, store]);
 
-  // Read debounced zoom range reactively — drives the useQuery key.
   const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
 
-  // Full fetch fires on mount and whenever the debounced zoomRange settles.
-  const { data: bulkData } = useQuery({
-    queryKey: ['bulkTimelines', engineId, queryId, debouncedZoomRange],
-    queryFn: () => {
-      const entries = store.get(visibleEntriesAtom);
-      const windowSec = debouncedZoomRange.end - debouncedZoomRange.start;
-      return fetchBulkTimelines(engineId, {
-        config: {
-          num_bins: getAdaptiveNumBins(windowSec),
-          start: debouncedZoomRange.start,
-          end: debouncedZoomRange.end,
-        },
-        entries,
-        app_params: { query_id: queryId },
-      });
-    },
-    staleTime: DEFAULT_STALE_TIME,
-    placeholderData: keepPreviousData,
+  // Base bulk fetch (unfiltered, operator_id: null)
+  const baseBulkData = useBulkTimelineFetch({
+    engineId,
+    queryId,
+    debouncedZoomRange,
+    baseEntries: baseVisibleEntries,
   });
 
-  // Distribute bulk results to per-item atoms.
+  // Operator bulk fetch (filtered, only when an operator is selected)
+  const operatorBulkData = useBulkTimelineFetch({
+    engineId,
+    queryId,
+    debouncedZoomRange,
+    baseEntries: baseVisibleEntries,
+    operatorId,
+    enabled: operatorId != null,
+  });
+
+  /* Once our base data is loaded and operator data if we have an operator id set
+   * we can make the bulk data initialized true (allows single timelines to fetch themselves)
+   */
   useEffect(() => {
-    if (!bulkData) return;
-    for (const [id, entry] of Object.entries(bulkData.entries)) {
-      if (entry?.status === 'ok') {
-        store.set(timelineDataAtom(id), { data: entry.data, config: bulkData.config });
-      }
+    if (baseBulkData && (operatorId != null ? operatorBulkData : true)) {
+      store.set(bulkInitializedAtom, true);
     }
-    store.set(bulkInitializedAtom, true);
-  }, [bulkData, store]);
+  }, [baseBulkData, operatorId, operatorBulkData, store]);
 
   // Zoom change handler — stable, uses store imperatively
   const handleZoomChange = useCallback(
@@ -127,7 +107,7 @@ export function useBulkTimelines({
     [store]
   );
 
-  // Expand handler — reads from store imperatively
+  // Expand handler — fetches base + operator data for newly expanded children
   const handleExpand = useCallback(
     async (itemId: string, isExpanded: boolean) => {
       if (!isExpanded) return;
@@ -135,43 +115,77 @@ export function useBulkTimelines({
       const item = findItemById(rootItem, itemId);
       if (!item?.children) return;
 
-      const newEntries: Record<string, TimelineRequest<TaskFilter>> = {};
+      const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children) {
-        if (!store.get(timelineDataAtom(child.id))) {
-          newEntries[child.id] = buildBulkParamsForItem(child, selectedTypes, entities);
+        const params = buildBulkParamsForItem(child, selectedTypes, entities, null);
+        const resourceTypeName = getResourceTypeName(params);
+        const key = timelineCacheKey(child.id, resourceTypeName);
+        if (!store.get(timelineDataAtom(key))) {
+          newBaseEntries[child.id] = params;
         }
       }
 
-      if (Object.keys(newEntries).length === 0) return;
+      if (Object.keys(newBaseEntries).length === 0) return;
 
       const zoom = store.get(debouncedZoomRangeAtom);
       const windowSec = zoom.end - zoom.start;
+
       try {
-        const response = await fetchBulkTimelines(engineId, {
+        const baseRequest = fetchBulkTimelines(engineId, {
           config: {
             num_bins: getAdaptiveNumBins(windowSec),
             start: zoom.start,
             end: zoom.end,
           },
-          entries: newEntries,
+          entries: newBaseEntries,
           app_params: { query_id: queryId },
         });
-        for (const [id, entry] of Object.entries(response.entries)) {
+
+        const operatorRequest = operatorId
+          ? fetchBulkTimelines(engineId, {
+              config: {
+                num_bins: getAdaptiveNumBins(windowSec),
+                start: zoom.start,
+                end: zoom.end,
+              },
+              entries: setOperatorOnEntries(newBaseEntries, operatorId),
+              app_params: { query_id: queryId },
+            })
+          : null;
+
+        const [baseResponse, operatorResponse] = await Promise.all([baseRequest, operatorRequest]);
+
+        for (const [id, entry] of Object.entries(baseResponse.entries)) {
           if (entry?.status === 'ok') {
-            store.set(timelineDataAtom(id), { data: entry.data, config: response.config });
+            const resourceTypeName = getResourceTypeName(newBaseEntries[id]);
+            const key = timelineCacheKey(id, resourceTypeName);
+            store.set(timelineDataAtom(key), { data: entry.data, config: baseResponse.config });
+          }
+        }
+
+        if (operatorResponse && operatorId) {
+          for (const [id, entry] of Object.entries(operatorResponse.entries)) {
+            if (entry?.status === 'ok') {
+              const resourceTypeName = getResourceTypeName(newBaseEntries[id]);
+              const key = timelineCacheKey(id, resourceTypeName, operatorId);
+              store.set(timelineDataAtom(key), {
+                data: entry.data,
+                config: operatorResponse.config,
+              });
+            }
           }
         }
       } catch {
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [rootItem, selectedTypes, entities, engineId, queryId, store]
+    [rootItem, selectedTypes, entities, operatorId, engineId, queryId, store]
   );
 
-  // Re-fetch a single item (e.g. after resource type change)
   const invalidateItem = useCallback(
-    (itemId: string) => {
-      store.set(timelineDataAtom(itemId), undefined);
+    (itemId: string, resourceTypeName: string) => {
+      store.set(timelineDataAtom(timelineCacheKey(itemId, resourceTypeName)), undefined);
+      // TODO: (joe) Do we still need this?
       queryClient.invalidateQueries({
         queryKey: ['bulkTimelines', engineId, queryId],
         refetchType: 'none',

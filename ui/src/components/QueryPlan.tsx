@@ -1,9 +1,11 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
+import { useAtom } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
+import { selectedPlanIdAtom } from '@/atoms/dag';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -11,7 +13,7 @@ const DAGChart = lazy(() =>
 );
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
-  const [planId, setPlanId] = useState<string>('');
+  const [planId, setPlanId] = useAtom(selectedPlanIdAtom);
 
   const {
     data: queryBundle,
@@ -32,7 +34,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     if (queryBundle && !planId) {
       setPlanId(queryBundle.plan_tree.id);
     }
-  }, [queryBundle, planId]);
+  }, [queryBundle, planId, setPlanId]);
 
   // handle loading and error states
   if (queryBundleLoading) {
@@ -118,7 +120,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
             </div>
           }
         >
-          <DAGChart data={dagData} queryId={queryId} engineId={engineId} height="100%" />
+          <DAGChart data={dagData} height="100%" />
         </Suspense>
       </div>
     </div>

@@ -15,6 +15,10 @@ const DATAZOOM_HANDLE_OPACITY = 0.3;
 const DATAZOOM_FILLER_OPACITY = 0.2;
 const DATAZOOM_EMPHASIS_HANDLE_OPACITY = 0.5;
 const DATAZOOM_LABEL_BACKGROUND_OPACITY = 0.5;
+const OVERLAY_OPACITY = 0.9;
+const OVERLAY_OPACITY_DARK = 0.6;
+const OVERLAY_LIGHTEN = 0.6;
+const OVERLAY_LIGHTEN_DARK = 0.4;
 
 /**
  * Theme-dependent colors for timeline ECharts (Timeline + TimelineController).
@@ -57,6 +61,9 @@ export function useTimelineChartColors() {
         timelineMarkupColor,
         DATAZOOM_EMPHASIS_HANDLE_OPACITY
       ),
+
+      overlayOpacity: theme === THEME_DARK ? OVERLAY_OPACITY_DARK : OVERLAY_OPACITY,
+      overlayLighten: theme === THEME_DARK ? OVERLAY_LIGHTEN_DARK : OVERLAY_LIGHTEN,
     };
   }, [theme]);
 }

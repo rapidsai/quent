@@ -151,5 +151,21 @@ export function resetColorAssignments(): void {
   usedIndices.clear();
 }
 
+/**
+ * Lighten a hex color by blending it toward white.
+ * @param hex - Hex color string (e.g., '#5470c6')
+ * @param amount - Blend amount between 0 (no change) and 1 (pure white)
+ */
+export function lightenColor(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const t = Math.min(1, Math.max(0, amount));
+  const lr = Math.round(r + (255 - r) * t);
+  const lg = Math.round(g + (255 - g) * t);
+  const lb = Math.round(b + (255 - b) * t);
+  return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`;
+}
+
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';

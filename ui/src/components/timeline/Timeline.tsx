@@ -45,39 +45,40 @@ export function Timeline({
   /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
   xAxisRange?: XAxisRange;
 }) {
-  const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
+  const { timelineMarkupColor, gridBorderColor, gridBackgroundColor, overlayOpacity } =
+    useTimelineChartColors();
 
   const seriesOptions = useMemo(() => {
-    return (
-      Object.entries(series)
-        // TODO(joe): How should we sort series within the timeline?
-        // Everything alphabetical RN to keep it consistent
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([name, seriesData]) => {
-          const color = seriesData.color;
-          return {
-            name,
-            type: 'line',
-            stack: 'total',
-            step: 'middle',
-            symbol: 'circle',
-            symbolSize: 4,
-            hoverAnimation: false,
-            showSymbol: false,
-            ...TIMELINE_X_AXIS_ANIMATION,
-            cursor: 'default',
-            data: seriesData.values.map((value, index) => [timestamps[index], value]),
-            lineStyle: { width: 0 },
-            itemStyle: { color },
-            areaStyle: { color: withOpacity(color, 0.9) },
-            emphasis: {
-              disabled: true,
-              focus: 'none',
-            },
-          };
-        })
-    );
-  }, [series, timestamps]);
+    return Object.entries(series)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, seriesData]) => {
+        const color = seriesData.color;
+        const isOverlay = seriesData.isOverlay ?? false;
+        return {
+          name,
+          type: 'line',
+          stack: isOverlay ? `overlay-total` : 'total',
+          step: 'middle',
+          symbol: 'circle',
+          symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
+          hoverAnimation: false,
+          showSymbol: false,
+          ...TIMELINE_X_AXIS_ANIMATION,
+          cursor: 'default',
+          data: seriesData.values.map((value, index) => [timestamps[index], value]),
+          lineStyle: { width: 0 },
+          itemStyle: { color },
+          areaStyle: {
+            color: withOpacity(isOverlay ? '#FF0000' : color, isOverlay ? 1 : 0.9),
+          },
+          z: isOverlay ? 5 : 2,
+          emphasis: {
+            disabled: true,
+            focus: 'none',
+          },
+        };
+      });
+  }, [series, timestamps, overlayOpacity]);
 
   const yAxisOptions = useMemo(
     () => ({
@@ -124,6 +125,7 @@ export function Timeline({
       axisPointer: {
         show: true,
         type: 'line',
+        animation: false,
         label: { show: false },
         lineStyle: {
           type: 'dashed',
@@ -167,6 +169,7 @@ export function Timeline({
                 color: p.color,
                 name: p.seriesName,
                 value: p.data[1],
+                isOverlay: series[p.seriesName]?.isOverlay ?? false,
               };
             }
           );
@@ -203,7 +206,16 @@ export function Timeline({
             ],
           }),
     } as EChartsOption;
-  }, [seriesOptions, yAxisOptions, xAxisOptions, gridOptions, startTime, showTooltip, xAxisRange]);
+  }, [
+    showTooltip,
+    gridOptions,
+    xAxisOptions,
+    yAxisOptions,
+    seriesOptions,
+    xAxisRange,
+    startTime,
+    series,
+  ]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
 

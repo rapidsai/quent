@@ -6,7 +6,16 @@ import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { XAxisRange } from '@/components/timeline/Timeline';
 
-/** Per-item timeline data — each row subscribes to its own atom */
+/** Build a composite cache key for per-item timeline data */
+export function timelineCacheKey(
+  resourceId: string,
+  resourceTypeName: string,
+  operatorId: string | null = null
+): string {
+  return `${resourceId}|${resourceTypeName}|${operatorId ?? ''}`;
+}
+
+/** Per-item timeline data keyed by `timelineCacheKey(resourceId, resourceTypeName, operatorId)` */
 export const timelineDataAtom = atomFamily(() =>
   atom<SingleTimelineResponse | undefined>(undefined)
 );

@@ -1,7 +1,6 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Provider } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { TimelineController } from './timeline/TimelineController';
@@ -17,7 +16,8 @@ import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
-import { useExpandedIds, useBulkTimelines } from '@/hooks/useBulkTimelines';
+import { useExpandedIds } from '@/hooks/useExpandedIds';
+import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -31,15 +31,7 @@ interface QueryResourceTreeProps {
   queryBundle: QueryBundle<EntityRef>;
 }
 
-export function QueryResourceTree(props: QueryResourceTreeProps) {
-  return (
-    <Provider>
-      <QueryResourceTreeContent {...props} />
-    </Provider>
-  );
-}
-
-function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
+export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
 
@@ -66,7 +58,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
 
-  const { handleZoomChange, handleExpand, invalidateItem } = useBulkTimelines({
+  const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
     queryId: queryBundle.query_id,
     rootItem,
@@ -133,7 +125,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
             onTypeChange={(itemId, newType) => {
               setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-              invalidateItem(itemId);
               if (itemId === rootItem.id) {
                 setRootResourceType(newType);
               }
@@ -176,7 +167,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     handleZoomChange,
-    invalidateItem,
   ]);
 
   return (

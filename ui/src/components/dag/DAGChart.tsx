@@ -12,9 +12,10 @@ import {
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { useNavigate } from '@tanstack/react-router';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 
 const elk = new ELK();
 
@@ -49,8 +50,6 @@ const nodeTypes = {
 
 interface DAGProps {
   data: DAGData;
-  queryId: string;
-  engineId: string;
   height?: string;
 }
 
@@ -85,19 +84,13 @@ async function calculateLayout(
   };
 }
 
-const FlowLayout = ({
-  data,
-  queryId,
-  engineId,
-}: {
-  data: DAGData;
-  queryId: string;
-  engineId: string;
-}) => {
+const FlowLayout = ({ data }: { data: DAGData }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
-  const navigate = useNavigate();
+  const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
+  const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
 
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
@@ -112,7 +105,7 @@ const FlowLayout = ({
         data: {
           label: node.label,
           operationType: node.type,
-          metadata: node.metadata,
+          metadata: node.metadata as QueryPlanNodeData['metadata'],
           hasIncoming: nodesWithIncoming.has(node.id),
           hasOutgoing: nodesWithOutgoing.has(node.id),
         },
@@ -145,12 +138,15 @@ const FlowLayout = ({
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
-      navigate({
-        to: '/profile/engine/$engineId/query/$queryId/node/$nodeId',
-        params: { engineId, queryId, nodeId: node.id },
-      });
+      if (selectedNodeIds.has(node.id)) {
+        setSelectedNodeIds(new Set());
+        setSelectedOperatorLabel(null);
+      } else {
+        setSelectedNodeIds(new Set([node.id]));
+        setSelectedOperatorLabel(node.data.label);
+      }
     },
-    [navigate, engineId, queryId]
+    [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
   );
 
   // Calculate and apply layout
@@ -191,11 +187,11 @@ const FlowLayout = ({
   );
 };
 
-export const DAGChart = ({ data, queryId, engineId, height = '100%' }: DAGProps) => {
+export const DAGChart = ({ data, height = '100%' }: DAGProps) => {
   return (
     <div style={{ width: '100%', height }}>
       <ReactFlowProvider>
-        <FlowLayout data={data} queryId={queryId} engineId={engineId} />
+        <FlowLayout data={data} />
       </ReactFlowProvider>
     </div>
   );

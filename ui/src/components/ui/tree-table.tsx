@@ -44,10 +44,9 @@ const AccordionTrigger = React.forwardRef<
     isSelected?: boolean;
     isOpen?: boolean;
   }
->(({ className, children, level = 0, isSelected, isOpen, ...props }, ref) => {
+>(({ className, children, level = 0, isOpen, ...props }, ref) => {
   const chevronLeft = 10 + level * 20;
 
-  const selectedAttr = isSelected ? 'true' : 'false';
   const chevronAttr = isOpen ? 'true' : 'false';
   const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
 
@@ -59,7 +58,6 @@ const AccordionTrigger = React.forwardRef<
           `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative ${rowSurfaceClasses}`,
           className
         )}
-        data-selected={selectedAttr}
         {...props}
       >
         <div className="w-2.5 shrink-0" />
@@ -252,7 +250,6 @@ const TreeLeaf = React.forwardRef<
     ref
   ) => {
     const isSelected = selectedItemId === item.id;
-    const dataSelected = isSelected ? 'true' : 'false';
 
     return (
       <div
@@ -264,7 +261,6 @@ const TreeLeaf = React.forwardRef<
           isSelected && selectedTreeVariants(),
           item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
         )}
-        data-selected={dataSelected}
         onClick={() => {
           if (item.disabled) return;
           handleSelectChange(item);
