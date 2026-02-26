@@ -114,10 +114,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           />
         </ResizablePanel>
 
-        <ResizableHandle
-          withHandle
-          className="h-px w-full after:left-0 after:top-1/2 after:h-1 after:w-full after:-translate-y-1/2 after:translate-x-0 [&>div]:rotate-90 focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
+        <ResizableHandle withHandle />
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
         <ResizablePanel defaultSize={75} className="overflow-hidden">
