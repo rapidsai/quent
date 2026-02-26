@@ -1071,6 +1071,7 @@ version = "0.1.0"
 dependencies = [
  "quent-attributes",
  "quent-events",
+ "quent-exporter",
  "quent-time",
  "rustc-hash",
  "serde",
@@ -1224,8 +1225,11 @@ dependencies = [
  "quent-attributes",
  "quent-events",
  "quent-query-engine-events",
+ "quent-query-engine-ui",
  "quent-time",
+ "quent-ui",
  "rustc-hash",
+ "serde",
  "thiserror",
  "uuid",
 ]
@@ -1240,14 +1244,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-query-engine-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "moka",
+ "quent-analyzer",
+ "quent-collector",
+ "quent-exporter",
+ "quent-query-engine-analyzer",
+ "quent-query-engine-ui",
+ "quent-time",
+ "quent-ui",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "quent-query-engine-ui"
 version = "0.1.0"
 dependencies = [
  "quent-analyzer",
  "quent-attributes",
- "quent-query-engine-analyzer",
  "quent-query-engine-events",
  "quent-time",
+ "quent-ui",
  "serde",
  "ts-rs",
  "uuid",
@@ -1279,7 +1308,12 @@ dependencies = [
  "quent-analyzer",
  "quent-attributes",
  "quent-events",
+ "quent-exporter",
+ "quent-exporter-msgpack",
+ "quent-exporter-ndjson",
+ "quent-exporter-postcard",
  "quent-query-engine-analyzer",
+ "quent-query-engine-ui",
  "quent-simulator-events",
  "quent-simulator-ui",
  "quent-time",
@@ -1317,30 +1351,17 @@ name = "quent-simulator-server"
 version = "0.1.0"
 dependencies = [
  "axum",
- "moka",
- "quent-analyzer",
- "quent-collector",
- "quent-exporter",
- "quent-exporter-msgpack",
- "quent-exporter-ndjson",
- "quent-exporter-postcard",
+ "clap",
+ "quent-query-engine-server",
  "quent-query-engine-ui",
  "quent-simulator-analyzer",
  "quent-simulator-events",
  "quent-simulator-ui",
- "quent-time",
  "quent-ui",
- "serde",
- "serde_json",
- "thiserror",
  "tokio",
- "tokio-stream",
- "tonic",
- "tower-http",
  "tracing",
  "tracing-subscriber",
  "ts-rs",
- "uuid",
 ]
 
 [[package]]
@@ -1348,9 +1369,7 @@ name = "quent-simulator-ui"
 version = "0.1.0"
 dependencies = [
  "quent-analyzer",
- "quent-query-engine-ui",
  "quent-time",
- "quent-ui",
  "serde",
  "ts-rs",
  "uuid",

@@ -1,8 +1,6 @@
 //! Exporter sending events to a Collector service
 
-use quent_collector::{
-    client::Client, default::QUENT_COLLECTOR_PORT, env::QUENT_COLLECTOR_ADDRESS,
-};
+use quent_collector::client::Client;
 use quent_events::Event;
 use quent_exporter::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
@@ -10,7 +8,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Default)]
 pub struct CollectorExporterOptions {
-    pub address: Option<String>,
+    pub address: String,
 }
 
 #[derive(Debug)]
@@ -26,11 +24,7 @@ where
         engine_id: Uuid,
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let address = options.address.unwrap_or(
-            std::env::var(QUENT_COLLECTOR_ADDRESS)
-                .unwrap_or_else(|_| format!("http://[::]:{}", QUENT_COLLECTOR_PORT)),
-        );
-        let client = Client::new(engine_id, address).await?;
+        let client = Client::new(engine_id, options.address).await?;
         Ok(Self { client })
     }
 }

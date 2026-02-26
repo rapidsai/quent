@@ -1,5 +1,6 @@
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle } from '~quent/types/QueryBundle';
+import type { EntityRef } from '~quent/types/EntityRef';
 import { Operator } from '~quent/types/Operator';
 import { Port } from '~quent/types/Port';
 import { Plan } from '~quent/types/Plan';
@@ -12,13 +13,15 @@ interface PlanTreeNode extends PlanTree {
 /**
  * Validate that a query bundle has the required structure
  */
-export const validateQueryBundle = (bundle: QueryBundle): bundle is QueryBundle =>
+export const validateQueryBundle = (
+  bundle: QueryBundle<EntityRef>
+): bundle is QueryBundle<EntityRef> =>
   typeof bundle === 'object' && bundle !== null && Object.keys(bundle?.entities?.plans).length > 0;
 
 /**
  * Retrieve the operator node entity from a port id
  */
-const getNodeEntity = (bundle: QueryBundle, id: string): DAGNode | undefined => {
+const getNodeEntity = (bundle: QueryBundle<EntityRef>, id: string): DAGNode | undefined => {
   // Find associated port
   if (bundle?.entities?.ports?.[id]) {
     const port: Port = bundle?.entities?.ports?.[id];
@@ -62,7 +65,7 @@ const transformNodeForTreeView = (node: PlanTreeNode, plans: Plan[]): QueryPlanD
 /**
  * Transform the plan_tree into TreeView format for query plan explorer
  */
-export const getTreeData = (bundle: QueryBundle): QueryPlanDataItem[] => {
+export const getTreeData = (bundle: QueryBundle<EntityRef>): QueryPlanDataItem[] => {
   if (!validateQueryBundle(bundle)) {
     throw new Error('Invalid QueryBundle format');
   }
@@ -77,7 +80,7 @@ export const getTreeData = (bundle: QueryBundle): QueryPlanDataItem[] => {
  * Transform specified query plan into DAG visualization data
  */
 export const getPlanDAG = (
-  bundle: QueryBundle,
+  bundle: QueryBundle<EntityRef>,
   planId: string
 ): { nodes: DAGNode[]; edges: DAGEdge[] } => {
   if (!validateQueryBundle(bundle)) {

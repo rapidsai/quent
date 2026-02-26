@@ -3,7 +3,7 @@ import type { PlanTree } from "./PlanTree";
 import type { QueryEntities } from "./QueryEntities";
 import type { ResourceTree } from "./ResourceTree";
 
-export type QueryBundle = { 
+export type QueryBundle<E> = { 
 /**
  * The ID of the query.
  */
@@ -19,7 +19,7 @@ plan_tree: PlanTree,
 /**
  * A tree of resources involved in the execution of this query.
  */
-resource_tree: ResourceTree, 
+resource_tree: ResourceTree<E>, 
 /**
  * A list of unique operator type names.
  */

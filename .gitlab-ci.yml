@@ -12,9 +12,10 @@ workflow:
     # Run on default branch
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# Add UI jobs
+# Add UI and webserver jobs
 include:
   - local: "ui/.gitlab-ci.yml"
+  - local: "webserver/.gitlab-ci.yml"
 
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
@@ -41,6 +42,13 @@ variables:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
         - "**/*.proto"
+        - .gitlab-ci.yml
+
+# Rules for when to run markdown jobs
+.markdown_rules:
+  rules:
+    - changes:
+        - "**/*.md"
         - .gitlab-ci.yml
 
 # Install system dependencies needed for Rust builds
@@ -110,7 +118,7 @@ rust:clippy:
 markdown:check:
   stage: lint
   image: rust:latest
-  extends: .rust_rules
+  extends: .markdown_rules
   needs:
     - prepare
   script:

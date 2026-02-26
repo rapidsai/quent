@@ -4,6 +4,8 @@ use quent_analyzer::{Entity, resource::ResourceGroup};
 use quent_attributes::{Attribute, Value};
 use quent_events::Event;
 use quent_query_engine_events::operator::OperatorEvent;
+use quent_query_engine_ui as ui;
+use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -77,6 +79,30 @@ impl Operator {
                         .collect(),
                 });
             }
+        }
+    }
+
+    pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Operator {
+        let statistics = self.statistics.as_ref().map(|s| ui::OperatorStatistics {
+            custom_statistics: s
+                .custom_statistics
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        });
+
+        ui::Operator {
+            id: self.id,
+            plan_id: self.plan_id,
+            parent_operator_ids: self.parent_operator_ids.clone(),
+            instance_name: self.instance_name.clone(),
+            operator_type_name: self.operator_type_name.clone(),
+            custom_attributes: self
+                .custom_attributes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            statistics,
         }
     }
 }

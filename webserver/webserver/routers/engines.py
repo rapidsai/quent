@@ -5,7 +5,7 @@ Handles all endpoints related to engines, workers, query groups, and queries.
 
 from typing import Any
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Body, HTTPException, Path, Query
 
 from ..client import rust_client
 from ..timeline_caching import (
@@ -68,56 +68,57 @@ async def get_query(
     return rust_client.get(f"/analyzer/engine/{engine_id}/query/{query_id}")
 
 
-@router.get("/{engine_id}/query/{query_id}/resource/{resource_id}/timeline")
-async def get_resource_timeline(
+@router.post("/{engine_id}/timeline/single")
+async def get_single_timeline(
+    request: Any = Body(...),
     engine_id: str = Path(..., description="The engine ID"),
-    query_id: str = Path(..., description="The query ID"),
-    resource_id: str = Path(..., description="The resource ID"),
-    num_bins: int = Query(..., description="Number of bins for aggregation"),
-    start: float = Query(
-        ..., description="Start time in seconds relative to query start"
-    ),
-    end: float = Query(..., description="End time in seconds relative to query start"),
-    duration: float = Query(..., description="Total query duration in seconds"),
-    fsm_type_name: str | None = Query(
-        None,
-        description="Optional FSM type name to aggregate by state. If not provided, aggregates across all states.",
-    ),
+    duration: float = Query(..., description="Total query duration in seconds (for cache chunking)"),
 ) -> Any:
     """
-    Fetches timeline of utilization of a single resource.
-    Returns bins in which utilization is aggregated across all FSM states, or per state if fsm_type_name is provided.
+    Fetches a single resource or resource-group timeline with chunk-based caching.
     """
-    return await get_timeline_bins(
-        num_bins, start, end, duration,
-        engine_id, query_id, resource_id, fsm_type_name
-    )
+    config = request['config']
+    query_id = request['app_params']['query_id']
+    entry = request['entry']
+
+    if 'Resource' in entry:
+        resource = entry['Resource']
+        return await get_timeline_bins(
+            num_bins=config['num_bins'],
+            start=config['start'],
+            end=config['end'],
+            duration=duration,
+            engine_id=engine_id,
+            query_id=query_id,
+            resource_id=resource['resource_id'],
+            entity_type_name=resource['entity_filter']['entity_type_name'],
+        )
+    elif 'ResourceGroup' in entry:
+        resource_group = entry['ResourceGroup']
+        return await get_timeline_bins_for_resource_group(
+            num_bins=config['num_bins'],
+            start=config['start'],
+            end=config['end'],
+            duration=duration,
+            engine_id=engine_id,
+            query_id=query_id,
+            resource_group_id=resource_group['resource_group_id'],
+            resource_type_name=resource_group['resource_type_name'],
+            entity_type_name=resource_group['entity_filter']['entity_type_name'],
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Unknown entry type in timeline request")
 
 
-@router.get("/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline")
-async def get_resource_group_timeline(
+@router.post("/{engine_id}/timeline/bulk")
+async def get_bulk_timelines(
+    request: Any = Body(...),
     engine_id: str = Path(..., description="The engine ID"),
-    query_id: str = Path(..., description="The query ID"),
-    resource_group_id: str = Path(..., description="The resource group ID"),
-    num_bins: int = Query(..., description="Number of bins for aggregation"),
-    start: float = Query(
-        ..., description="Start time in seconds relative to query start"
-    ),
-    end: float = Query(..., description="End time in seconds relative to query start"),
-    duration: float = Query(..., description="Total query duration in seconds"),
-    resource_type_name: str = Query(
-        ..., description="Resource type name for aggregation"
-    ),
-    fsm_type_name: str | None = Query(
-        None,
-        description="Optional FSM type name to aggregate by state. If not provided, aggregates across all states.",
-    ),
 ) -> Any:
     """
-    Fetches timeline resource utilization of all resource with the same type under a resource group.
-    Returns bins in which utilization is aggregated across all FSM states, or per state if fsm_type_name is provided.
+    Fetches multiple resource/resource-group timelines in one request (passthrough, no caching).
     """
-    return await get_timeline_bins_for_resource_group(
-        num_bins, start, end, duration,
-        engine_id, query_id, resource_group_id, resource_type_name, fsm_type_name
+    return rust_client.post(
+        f"/analyzer/engine/{engine_id}/timeline/bulk",
+        json=request,
     )

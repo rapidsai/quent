@@ -1,7 +1,8 @@
 use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::ResourceGroup};
 use quent_events::Event;
 use quent_query_engine_events::engine::{EngineEvent, EngineImplementationAttributes};
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+use quent_query_engine_ui as ui;
+use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec, try_to_secs_relative};
 use uuid::Uuid;
 
 /// An [`Engine`] represents the top-level [`Entity`] of the query engine model.
@@ -43,6 +44,24 @@ impl Engine {
             }
             EngineEvent::Exit => self.end_time_unix_ns = Some(event.timestamp),
         }
+    }
+
+    pub fn to_ui(&self) -> AnalyzerResult<ui::Engine> {
+        let duration_s = if let Some(start) = self.start_time_unix_ns
+            && let Some(end) = self.end_time_unix_ns
+        {
+            Some(try_to_secs_relative(end, start)?)
+        } else {
+            None
+        };
+
+        Ok(ui::Engine {
+            id: self.id,
+            start_time_unix_ns: self.start_time_unix_ns,
+            duration_s,
+            instance_name: self.instance_name.clone(),
+            implementation: self.implementation.as_ref().map(|i| i.into()),
+        })
     }
 }
 

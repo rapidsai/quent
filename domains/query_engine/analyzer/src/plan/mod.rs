@@ -1,6 +1,7 @@
 use quent_analyzer::{Entity, resource::ResourceGroup};
 use quent_events::Event;
 use quent_query_engine_events::plan::{Edge, PlanEvent, PlanParent};
+use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
 pub mod tree;
@@ -48,6 +49,28 @@ impl Plan {
         self.worker_id = event.data.worker_id;
         self.parent = Some(event.data.parent);
         self.instance_name = Some(event.data.instance_name);
+    }
+
+    pub fn to_ui(&self) -> ui::Plan {
+        let parent = self.parent.as_ref().map(|p| match p {
+            PlanParent::Query(uuid) => *uuid,
+            PlanParent::Plan(uuid) => *uuid,
+        });
+
+        ui::Plan {
+            id: self.id,
+            instance_name: self.instance_name.clone(),
+            parent,
+            worker_id: self.worker_id,
+            edges: self
+                .edges
+                .iter()
+                .map(|e| ui::Edge {
+                    source: e.source,
+                    target: e.target,
+                })
+                .collect(),
+        }
     }
 }
 

@@ -1,0 +1,25 @@
+[package]
+name = "quent-query-engine-server"
+version.workspace = true
+edition.workspace =  true
+
+[dependencies]
+axum = { version = "0.8.7" }
+moka = { version = "0.12.13", features = ["future"] }
+quent-analyzer = { path = "../../../crates/analyzer" }
+quent-ui = { path = "../../../crates/ui" }
+quent-collector = { path = "../../../crates/collector", features = ["server"] }
+quent-exporter = { path = "../../../crates/exporter" }
+quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
+quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
+quent-time = { path = "../../../crates/time" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
+tokio-stream.workspace = true
+tonic.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+tracing.workspace = true
+uuid.workspace = true

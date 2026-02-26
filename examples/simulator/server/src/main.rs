@@ -1,103 +1,89 @@
 use std::net::ToSocketAddrs;
 
-use axum::Router;
-use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
+use clap::Parser;
+use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
+use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_events::SimulatorEvent;
 use tokio::net::TcpListener;
-use tonic::transport::Server as GrpcServer;
-use tower_http::cors::CorsLayer;
-use tracing::info;
-
-use crate::cache::AnalyzerCache;
 
 mod defaults {
-    pub(crate) const QUENT_ANALYZER_PORT: u16 = 8080;
+    /// Default collector socket address to listen on.
+    pub(crate) const QUENT_COLLECTOR_ADDRESS: &str = "[::]:7836";
+    /// Default analyzer socket address to listen on.
+    pub(crate) const QUENT_ANALYZER_ADDRESS: &str = "[::]:8080";
 }
-pub(crate) mod cache;
-pub(crate) mod error;
-mod ui;
 
-fn initialize_tracing() {
-    use tracing_subscriber::{
-        EnvFilter,
-        fmt::{self, format::FmtSpan},
-        layer::SubscriberExt,
-        registry,
-        util::SubscriberInitExt,
-    };
-    registry()
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("debug,h2=off,tonic=off")),
-        )
-        .with(
-            fmt::layer()
-                .with_target(true)
-                .with_span_events(FmtSpan::CLOSE)
-                .with_writer(std::io::stderr),
-        )
-        .init();
+mod env {
+    /// Collector socket address environment variable name.
+    pub(crate) const QUENT_COLLECTOR_ADDRESS: &str = "QUENT_COLLECTOR_ADDRESS";
+    /// Analyzer socket address environment variable name.
+    pub(crate) const QUENT_ANALYZER_ADDRESS: &str = "QUENT_ANALYZER_ADDRESS";
+    /// Optional CORS address environment variable name.
+    pub(crate) const QUENT_ANALYZER_CORS_ADDRESS: &str = "QUENT_ANALYZER_CORS_ADDRESS";
+}
+
+#[derive(Parser)]
+struct Args {
+    /// Log level filter (e.g. "debug", "info", "warn", "error").
+    /// Overridden by the RUST_LOG environment variable if set.
+    #[arg(long, default_value = "info")]
+    log_level: String,
+
+    /// Socket address for the collector gRPC server (e.g. "[::]:7836").
+    /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
+    #[arg(long, default_value = defaults::QUENT_COLLECTOR_ADDRESS, env = env::QUENT_COLLECTOR_ADDRESS)]
+    collector_address: String,
+
+    /// Socket address for the analyzer HTTP server (e.g. "[::]:8080").
+    /// Overridden by the QUENT_ANALYZER_ADDRESS environment variable if set.
+    #[arg(long, default_value = defaults::QUENT_ANALYZER_ADDRESS, env = env::QUENT_ANALYZER_ADDRESS)]
+    analyzer_address: String,
+
+    /// Address to allow CORS requests from (e.g. "http://localhost:5173").
+    /// If not set, CORS is disabled.
+    /// Overridden by the QUENT_CORS_ADDRESS environment variable if set.
+    #[arg(long, env = env::QUENT_ANALYZER_CORS_ADDRESS)]
+    cors_address: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    initialize_tracing();
+    let Args {
+        log_level,
+        cors_address,
+        collector_address,
+        analyzer_address,
+    } = Args::parse();
 
-    // Spawn gRPC services
-    let grpc_address = format!("[::]:{}", quent_collector::default::QUENT_COLLECTOR_PORT)
+    initialize_tracing(&log_level);
+
+    let collector_addr = collector_address
         .to_socket_addrs()?
         .next()
-        .unwrap();
-
-    let collector = CollectorService::<SimulatorEvent>::default();
-
-    let grpc_server = async {
-        GrpcServer::builder()
-            .add_service(CollectorServer::new(collector))
-            .serve(grpc_address)
+        .ok_or_else(|| format!("unable to resolve socket address: {collector_address}"))?;
+    let collector = async {
+        collector_service::<SimulatorEvent>()?
+            .serve(collector_addr)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
     };
-    info!("gRPC server listening on {grpc_address}");
 
-    // HTTP services
-    let http_addr = format!("[::]:{}", defaults::QUENT_ANALYZER_PORT)
+    let analyzer_addr = analyzer_address
         .to_socket_addrs()?
         .next()
-        .unwrap();
-
-    let cors = CorsLayer::new()
-        .allow_origin(
-            "http://localhost:5173"
-                .parse::<axum::http::HeaderValue>()
-                .unwrap(),
-        )
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers([axum::http::header::CONTENT_TYPE]);
-
-    let cache = AnalyzerCache::new();
-
-    let http_routes = Router::new()
-        .nest("/analyzer", ui::routes(cache))
-        .layer(cors);
-    let http_server = async {
+        .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
+    let analyzer = async {
         axum::serve(
-            TcpListener::bind(http_addr).await?,
-            http_routes.into_make_service(),
+            TcpListener::bind(analyzer_addr).await?,
+            analyzer_service_router::<SimulatorUiAnalyzer>(cors_address)?.into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())
     };
-    info!("HTTP server listening on {http_addr}");
 
-    info!("send SIGINT (e.g. ctrl+c) to exit");
+    tracing::info!("listening on {collector_addr} and {analyzer_addr}");
 
-    tokio::try_join!(grpc_server, http_server)?;
-    info!("shutting down...");
+    tokio::try_join!(collector, analyzer)?;
 
     Ok(())
 }

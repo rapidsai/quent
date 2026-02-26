@@ -11,6 +11,7 @@ ts = ["serde", "ts-rs"]
 quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
 quent-time = { path = "../time" }
+quent-exporter = { path = "../exporter" }
 rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
 smallvec = { workspace = true, features = ["serde"] }

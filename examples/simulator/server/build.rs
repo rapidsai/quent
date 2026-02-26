@@ -1,6 +1,8 @@
-use quent_simulator_ui::{
-    QueryBundle,
-    timeline::{BulkTimelinesRequest, ResourceTimelineUrlQueryParams, TimelineResponse},
+use quent_query_engine_ui::QueryBundle;
+use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
+use quent_ui::timeline::{
+    request::{BulkTimelineRequest, SingleTimelineRequest},
+    response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
 use ts_rs::TS;
 
@@ -8,11 +10,12 @@ const TS_OUT_DIR: &str = "./ts-bindings/";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Export TypeScript bindings to ts-bindings directory
-    <QueryBundle as TS>::export_all_to(TS_OUT_DIR)?;
+    <QueryBundle<EntityRef> as TS>::export_all_to(TS_OUT_DIR)?;
 
-    <ResourceTimelineUrlQueryParams as TS>::export_all_to(TS_OUT_DIR)?;
-    <TimelineResponse as TS>::export_all_to(TS_OUT_DIR)?;
-    <BulkTimelinesRequest as TS>::export_all_to(TS_OUT_DIR)?;
+    <SingleTimelineRequest<QueryFilter, TaskFilter> as TS>::export_all_to(TS_OUT_DIR)?;
+    <SingleTimelineResponse as TS>::export_all_to(TS_OUT_DIR)?;
+    <BulkTimelineRequest<QueryFilter, TaskFilter> as TS>::export_all_to(TS_OUT_DIR)?;
+    <BulkTimelinesResponse as TS>::export_all_to(TS_OUT_DIR)?;
 
     Ok(())
 }

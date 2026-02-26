@@ -1,0 +1,34 @@
+variables:
+  PYTHON_VERSION: '3.12'
+
+.setup-python: &setup-python
+  image: python:${PYTHON_VERSION}-slim
+  tags:
+    - os/linux
+  cache:
+    key:
+      files:
+        - webserver/pyproject.toml
+    paths:
+      - webserver/.pip-cache
+  before_script:
+    - cd webserver
+    - pip install --cache-dir .pip-cache -e ".[dev]"
+  rules:
+    - changes:
+        - webserver/**/*
+        - .gitlab-ci.yml
+
+webserver:test:
+  stage: test
+  <<: *setup-python
+  script:
+    - pytest --cov-report=xml --junitxml=junit.xml
+  coverage: '/TOTAL.*\s+([\d\.]+)%/'
+  artifacts:
+    when: always
+    reports:
+      junit: webserver/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: webserver/coverage.xml

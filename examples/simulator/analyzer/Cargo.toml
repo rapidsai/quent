@@ -5,6 +5,7 @@ edition.workspace =  true
 
 [dependencies]
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
+quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-attributes = { path = "../../../crates/attributes" }
 quent-simulator-events = { path = "../events" }
 quent-simulator-ui = { path = "../ui" }
@@ -12,6 +13,10 @@ quent-analyzer = { path = "../../../crates/analyzer" }
 quent-ui = { path = "../../../crates/ui" }
 quent-time = { path = "../../../crates/time" }
 quent-events = { path = "../../../crates/events" }
+quent-exporter = { path = "../../../crates/exporter" }
+quent-exporter-msgpack = { path = "../../../crates/exporter/msgpack" }
+quent-exporter-ndjson = { path = "../../../crates/exporter/ndjson" }
+quent-exporter-postcard = { path = "../../../crates/exporter/postcard" }
 rustc-hash.workspace = true
 tracing.workspace = true
 uuid.workspace = true

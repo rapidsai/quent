@@ -125,6 +125,14 @@ const FlowLayout = ({
           hasIncoming: nodesWithIncoming.has(node.id),
           hasOutgoing: nodesWithOutgoing.has(node.id),
         },
+        style: {
+          width: 'auto',
+          minWidth: 200,
+          background: 'transparent',
+          boxShadow: 'none',
+          border: 0,
+          padding: 0,
+        },
         position: { x: 0, y: 0 }, // Will be set by layout
       };
     });
@@ -194,6 +202,7 @@ const FlowLayout = ({
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
       onMoveStart={handleMoveStart}
+      proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       fitView
       minZoom={0.1}

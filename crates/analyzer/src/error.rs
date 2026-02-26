@@ -3,6 +3,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum AnalyzerError {
+    #[error("importer error: {0}")]
+    Importer(#[from] quent_exporter::ImporterError),
     #[error("validation error: {0}")]
     Validation(String),
     #[error("invalid id: {0}")]

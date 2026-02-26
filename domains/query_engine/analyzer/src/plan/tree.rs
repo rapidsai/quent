@@ -2,6 +2,7 @@ use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_query_engine_events::plan::PlanParent;
+use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
 use crate::plan::Plan;
@@ -31,7 +32,7 @@ pub struct PlanTree {
 }
 
 impl PlanTree {
-    fn build(current_plan_id: Uuid, plans: &HashMap<Uuid, Plan>) -> AnalyzerResult<PlanTree> {
+    fn build(current_plan_id: Uuid, plans: &HashMap<Uuid, &Plan>) -> AnalyzerResult<PlanTree> {
         let plan = plans
             .get(&current_plan_id)
             .ok_or(AnalyzerError::InvalidId(current_plan_id))?;
@@ -63,7 +64,12 @@ impl PlanTree {
         })
     }
 
-    pub fn try_new(plans: &HashMap<Uuid, Plan>, query_id: Uuid) -> AnalyzerResult<Self> {
+    pub fn try_new<'a>(
+        plans: impl Iterator<Item = &'a Plan>,
+        query_id: Uuid,
+    ) -> AnalyzerResult<Self> {
+        let plans: HashMap<Uuid, &Plan> = plans.map(|p| (p.id, p)).collect();
+
         let root_plans: Vec<_> = plans
             .values()
             .filter(|p| {
@@ -92,7 +98,15 @@ impl PlanTree {
             )));
         }
 
-        Self::build(root_plans[0].id, plans)
+        Self::build(root_plans[0].id, &plans)
+    }
+
+    pub fn to_ui(&self) -> ui::PlanTree {
+        ui::PlanTree {
+            id: self.id,
+            worker: self.worker,
+            children: self.children.iter().map(|c| c.to_ui()).collect(),
+        }
     }
 
     /// Return an iterator over [`PlanTree`] nodes in depth-first pre-order.
@@ -144,7 +158,7 @@ mod tests {
             plans.insert(leaf_ids[i], leaf);
         }
 
-        let tree = PlanTree::try_new(&plans, query_id).unwrap();
+        let tree = PlanTree::try_new(plans.values(), query_id).unwrap();
 
         assert_eq!(tree.id, trunk_ids[0]);
         assert_eq!(tree.children.len(), 1);
@@ -173,7 +187,7 @@ mod tests {
         plan.parent = Some(PlanParent::Query(query_id));
         plans.insert(plan_id, plan);
 
-        let result = PlanTree::try_new(&plans, query_id);
+        let result = PlanTree::try_new(plans.values(), query_id);
 
         assert!(matches!(result, Err(AnalyzerError::Validation(_))));
     }
