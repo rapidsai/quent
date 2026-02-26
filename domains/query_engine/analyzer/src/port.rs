@@ -4,6 +4,8 @@ use quent_analyzer::{Entity, resource::ResourceGroup};
 use quent_attributes::{Attribute, Value};
 use quent_events::Event;
 use quent_query_engine_events::port::PortEvent;
+use quent_query_engine_ui as ui;
+use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -59,6 +61,21 @@ impl Port {
                         .collect(),
                 });
             }
+        }
+    }
+
+    pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Port {
+        ui::Port {
+            id: self.id,
+            operator_id: self.operator_id,
+            instance_name: self.instance_name.clone(),
+            statistics: self.statistics.as_ref().map(|s| ui::PortStatistics {
+                custom_statistics: s
+                    .custom_statistics
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+            }),
         }
     }
 }

@@ -1,6 +1,7 @@
 use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::ResourceGroup};
 use quent_events::Event;
 use quent_query_engine_events::worker::WorkerEvent;
+use quent_query_engine_ui as ui;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
@@ -45,6 +46,16 @@ impl Worker {
                 self.instance_name = Some(init.instance_name);
             }
             WorkerEvent::Exit => self.end_unix_ns = Some(event.timestamp),
+        }
+    }
+
+    pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Worker {
+        ui::Worker {
+            id: self.id,
+            parent_engine_id: self.parent_engine_id,
+            instance_name: self.instance_name.clone(),
+            start_unix_ns: self.start_unix_ns,
+            end_unix_ns: self.end_unix_ns,
         }
     }
 }

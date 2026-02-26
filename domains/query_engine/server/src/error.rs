@@ -7,8 +7,6 @@ use thiserror::Error;
 pub(crate) enum ServerError {
     #[error("analyzer error: {0}")]
     Analyzer(#[from] AnalyzerError),
-    #[error("URL query parameters error: {0}")]
-    UrlQueryParams(String),
     #[error("importer error: {0}")]
     Importer(#[from] ImporterError),
     #[error("i/o error: {0}")]
@@ -22,7 +20,6 @@ pub(crate) type ServerResult<T> = std::result::Result<T, ServerError>;
 impl From<ServerError> for StatusCode {
     fn from(value: ServerError) -> Self {
         match value {
-            ServerError::UrlQueryParams(_) => StatusCode::BAD_REQUEST,
             ServerError::Importer(_)
             | ServerError::Analyzer(_)
             | ServerError::Io(_)

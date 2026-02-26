@@ -1,8 +1,13 @@
-use quent_analyzer::{self as a, Entity, resource::CapacityType};
+use quent_analyzer::{
+    self as a, AnalyzerResult, Entity, Model,
+    resource::{CapacityType, tree::ResourceTreeNode},
+};
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
+
+pub mod timeline;
 
 /// A type of [`Resource`].
 #[derive(TS, Serialize, Clone, Debug, Default)]
@@ -111,6 +116,55 @@ impl From<&dyn a::resource::ResourceGroup> for ResourceGroup {
             instance_name: value.instance_name().to_owned(),
             type_name: value.type_name().to_owned(),
             parent_group_id: value.parent_group_id(),
+        }
+    }
+}
+
+/// A resource group node in a resource tree.
+#[derive(TS, Serialize)]
+pub struct ResourceGroupNode<T> {
+    pub id: T,
+    pub children: Vec<ResourceTree<T>>,
+}
+
+/// A tree of resources.
+#[derive(TS, Serialize)]
+pub enum ResourceTree<T> {
+    ResourceGroup(ResourceGroupNode<T>),
+    Resource(T),
+}
+
+pub fn convert_resource_tree<M>(
+    node: ResourceTreeNode,
+    model: &M,
+) -> AnalyzerResult<Option<ResourceTree<<M as Model>::EntityIdType>>>
+where
+    M: Model,
+    <M as Model>::EntityIdType: TS + Serialize,
+{
+    match node {
+        ResourceTreeNode::ResourceGroup(id, children) => {
+            let entity_ref = model.try_entity_ref(id)?;
+            let children: Vec<ResourceTree<<M as Model>::EntityIdType>> = children
+                .into_iter()
+                .map(|child| convert_resource_tree(child, model))
+                .collect::<AnalyzerResult<Vec<Option<ResourceTree<<M as Model>::EntityIdType>>>>>()?
+                .into_iter()
+                .flatten()
+                .collect();
+            if !children.is_empty() {
+                Ok(Some(ResourceTree::ResourceGroup(ResourceGroupNode {
+                    id: entity_ref,
+                    children,
+                })))
+            } else {
+                Ok(None)
+            }
+        }
+        ResourceTreeNode::Resource(id) => {
+            // Try query engine entities first, otherwise it's a simulator resource
+            let entity_ref = model.try_entity_ref(id)?;
+            Ok(Some(ResourceTree::Resource(entity_ref)))
         }
     }
 }

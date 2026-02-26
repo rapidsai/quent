@@ -53,9 +53,14 @@ struct Args {
     #[arg(long, default_value = "collector")]
     exporter: String,
 
-    /// Collector address (only used when --exporter is collector)
-    #[arg(long)]
-    collector_address: Option<String>,
+    /// Collector address (when --exporter is collector)
+    /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
+    #[arg(
+        long,
+        default_value = "http://localhost:7836",
+        env = "QUENT_COLLECTOR_ADDRESS"
+    )]
+    collector_address: String,
 }
 
 fn initialize_tracing() {

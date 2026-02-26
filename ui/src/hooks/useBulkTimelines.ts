@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAtomValue, useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
-import type { BulkTimelineRequestParams } from '~quent/types/BulkTimelineRequestParams';
 import type { QueryEntities } from '~quent/types/QueryEntities';
+import type { TimelineRequest } from '~quent/types/TimelineRequest';
+import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import {
-  bulkEntryToTimelineResponse,
   findItemById,
   buildBulkParamsForItem,
   collectVisibleEntries,
@@ -61,6 +61,7 @@ export function useBulkTimelines({
   entities: QueryEntities;
 }) {
   const store = useStore();
+  const queryClient = useQueryClient();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
@@ -87,22 +88,26 @@ export function useBulkTimelines({
     queryFn: () => {
       const entries = store.get(visibleEntriesAtom);
       const windowSec = debouncedZoomRange.end - debouncedZoomRange.start;
-      return fetchBulkTimelines(engineId, queryId, {
-        num_bins: getAdaptiveNumBins(windowSec),
-        start: debouncedZoomRange.start,
-        end: debouncedZoomRange.end,
+      return fetchBulkTimelines(engineId, {
+        config: {
+          num_bins: getAdaptiveNumBins(windowSec),
+          start: debouncedZoomRange.start,
+          end: debouncedZoomRange.end,
+        },
         entries,
+        app_params: { query_id: queryId },
       });
     },
     staleTime: DEFAULT_STALE_TIME,
+    placeholderData: keepPreviousData,
   });
 
   // Distribute bulk results to per-item atoms.
   useEffect(() => {
     if (!bulkData) return;
-    for (const [id, entry] of Object.entries(bulkData.resources)) {
+    for (const [id, entry] of Object.entries(bulkData.entries)) {
       if (entry?.status === 'ok') {
-        store.set(timelineDataAtom(id), bulkEntryToTimelineResponse(entry.data, bulkData.config));
+        store.set(timelineDataAtom(id), { data: entry.data, config: bulkData.config });
       }
     }
     store.set(bulkInitializedAtom, true);
@@ -130,7 +135,7 @@ export function useBulkTimelines({
       const item = findItemById(rootItem, itemId);
       if (!item?.children) return;
 
-      const newEntries: Record<string, BulkTimelineRequestParams> = {};
+      const newEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children) {
         if (!store.get(timelineDataAtom(child.id))) {
           newEntries[child.id] = buildBulkParamsForItem(child, selectedTypes, entities);
@@ -142,18 +147,18 @@ export function useBulkTimelines({
       const zoom = store.get(debouncedZoomRangeAtom);
       const windowSec = zoom.end - zoom.start;
       try {
-        const response = await fetchBulkTimelines(engineId, queryId, {
-          num_bins: getAdaptiveNumBins(windowSec),
-          start: zoom.start,
-          end: zoom.end,
+        const response = await fetchBulkTimelines(engineId, {
+          config: {
+            num_bins: getAdaptiveNumBins(windowSec),
+            start: zoom.start,
+            end: zoom.end,
+          },
           entries: newEntries,
+          app_params: { query_id: queryId },
         });
-        for (const [id, entry] of Object.entries(response.resources)) {
+        for (const [id, entry] of Object.entries(response.entries)) {
           if (entry?.status === 'ok') {
-            store.set(
-              timelineDataAtom(id),
-              bulkEntryToTimelineResponse(entry.data, response.config)
-            );
+            store.set(timelineDataAtom(id), { data: entry.data, config: response.config });
           }
         }
       } catch {
@@ -165,10 +170,14 @@ export function useBulkTimelines({
 
   // Re-fetch a single item (e.g. after resource type change)
   const invalidateItem = useCallback(
-    async (itemId: string) => {
+    (itemId: string) => {
       store.set(timelineDataAtom(itemId), undefined);
+      queryClient.invalidateQueries({
+        queryKey: ['bulkTimelines', engineId, queryId],
+        refetchType: 'none',
+      });
     },
-    [store]
+    [store, queryClient, engineId, queryId]
   );
 
   return { handleZoomChange, handleExpand, invalidateItem } as const;

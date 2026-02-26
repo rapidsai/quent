@@ -6,7 +6,8 @@ use quent_analyzer::{
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_query_engine_events::query::QueryEvent;
-use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp};
+use quent_query_engine_ui as ui;
+use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, try_to_secs_relative};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -48,7 +49,7 @@ pub struct Query {
     /// The ID of this [`Query`].
     pub id: Uuid,
     /// The ID of the [`super::query_group::QueryGroup`] this query is part of.
-    pub query_group_id: Option<Uuid>,
+    pub query_group_id: Uuid,
     /// A name for this [`Query`].
     pub instance_name: Option<String>,
     /// The sequence of state transitions this [`Query`] went through.
@@ -125,7 +126,9 @@ impl QueryBuilder {
                 QueryTransition::Exit(_),
             ) => Ok(Query {
                 id: self.id,
-                query_group_id: self.query_group_id,
+                query_group_id: self.query_group_id.ok_or_else(|| {
+                    AnalyzerError::Validation(format!("query {} has no group id", self.id,))
+                })?,
                 instance_name: self.instance_name,
                 transitions,
             }),
@@ -134,6 +137,47 @@ impl QueryBuilder {
                 transitions
             ))),
         }
+    }
+}
+
+impl Query {
+    pub fn to_ui(&self) -> AnalyzerResult<ui::Query> {
+        let mut start_unix_ns = None;
+        let mut planning_s = None;
+        let mut executing_s = None;
+        let mut completed_s = None;
+
+        if let Some(init) = self.transition(0) {
+            start_unix_ns = Some(init.timestamp());
+
+            for i in 0..self.len() {
+                if let Some(transition) = self.transition(i) {
+                    match transition {
+                        QueryTransition::Planning(ts) => {
+                            planning_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
+                        }
+                        QueryTransition::Executing(ts) => {
+                            executing_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
+                            if let Some(exit) = self.transition(i + 1) {
+                                completed_s =
+                                    Some(try_to_secs_relative(exit.timestamp(), init.timestamp())?);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Ok(ui::Query {
+            id: self.id,
+            query_group_id: self.query_group_id,
+            instance_name: self.instance_name.clone(),
+            start_unix_ns,
+            planning_s,
+            executing_s,
+            completed_s,
+        })
     }
 }
 
@@ -163,6 +207,6 @@ impl Fsm for Query {
 
 impl ResourceGroup for Query {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.query_group_id
+        Some(self.query_group_id)
     }
 }

@@ -11,12 +11,16 @@ import { TreeTableItem } from './resource-tree/types';
 import { ResourceColumn } from './resource-tree/ResourceColumn';
 import { UsageColumn } from './resource-tree/UsageColumn';
 import { QueryBundle } from '~quent/types/QueryBundle';
-import { fetchResourceGroupTimeline, DEFAULT_STALE_TIME } from '@/services/api';
+import type { EntityRef } from '~quent/types/EntityRef';
+import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
+import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
+import type { QueryFilter } from '~quent/types/QueryFilter';
+import type { TaskFilter } from '~quent/types/TaskFilter';
 import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
 import { useExpandedIds, useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
 
-function getRootResourceGroupId(resourceTree: ResourceTree): string | null {
+function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
   const [, entityId] = Object.entries(resourceTree.ResourceGroup.id)[0] as [EntityRefKey, string];
   return entityId;
@@ -24,7 +28,7 @@ function getRootResourceGroupId(resourceTree: ResourceTree): string | null {
 
 interface QueryResourceTreeProps {
   engineId: string;
-  queryBundle: QueryBundle;
+  queryBundle: QueryBundle<EntityRef>;
 }
 
 export function QueryResourceTree(props: QueryResourceTreeProps) {
@@ -89,14 +93,26 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
       durationSeconds,
       rootResourceType,
     ],
-    queryFn: () =>
-      fetchResourceGroupTimeline(engineId, queryBundle.query_id, rootResourceGroupId!, {
-        num_bins: getAdaptiveNumBins(durationSeconds),
-        start: 0,
-        end: durationSeconds,
-        duration: durationSeconds,
-        resource_type_name: rootResourceType,
-      }),
+    queryFn: () => {
+      const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
+        config: {
+          num_bins: getAdaptiveNumBins(durationSeconds),
+          start: 0,
+          end: durationSeconds,
+        },
+        entry: {
+          ResourceGroup: {
+            resource_group_id: rootResourceGroupId!,
+            resource_type_name: rootResourceType,
+            long_entities_threshold_s: null,
+            entity_filter: { entity_type_name: null },
+            app_params: { operator_id: null },
+          },
+        },
+        app_params: { query_id: queryBundle.query_id },
+      };
+      return fetchSingleTimeline(engineId, request, durationSeconds);
+    },
     staleTime: DEFAULT_STALE_TIME,
     enabled: rootResourceGroupId != null && !!rootResourceType,
     placeholderData: keepPreviousData,

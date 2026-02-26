@@ -56,6 +56,10 @@ operators: { [key in string]?: Operator },
  */
 ports: { [key in string]?: Port }, 
 /**
+ * Application-specific resource types
+ */
+resource_types: { [key in string]?: ResourceTypeDecl }, 
+/**
  * Resource group types.
  *
  * This includes declarations for:
@@ -72,10 +76,6 @@ resource_group_types: { [key in string]?: ResourceGroupTypeDecl },
  * Application-specific resources
  */
 resources: { [key in string]?: Resource }, 
-/**
- * Application-specific resource types
- */
-resource_types: { [key in string]?: ResourceTypeDecl }, 
 /**
  * Application-specific resource groups
  */

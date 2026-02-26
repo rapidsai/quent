@@ -1,6 +1,7 @@
 import { DEFAULT_STALE_TIME, fetchQueryBundle } from '@/services/api';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import type { QueryBundle } from '~quent/types/QueryBundle';
+import type { EntityRef } from '~quent/types/EntityRef';
 
 interface QueryBundleParams {
   engineId: string;
@@ -15,8 +16,8 @@ interface QueryBundleParams {
 export const queryBundleQueryOptions = ({ engineId, queryId }: QueryBundleParams) =>
   queryOptions({
     queryKey: ['queryBundle', engineId, queryId],
-    queryFn: async (): Promise<QueryBundle> => {
-      return fetchQueryBundle(engineId, queryId) as Promise<QueryBundle>;
+    queryFn: async (): Promise<QueryBundle<EntityRef>> => {
+      return fetchQueryBundle(engineId, queryId) as Promise<QueryBundle<EntityRef>>;
     },
     staleTime: DEFAULT_STALE_TIME,
     retry: 2,

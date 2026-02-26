@@ -1,6 +1,7 @@
 import { useAtomValue, useSetAtom } from 'jotai';
 import { EntityTypeKey } from '@/types';
 import { QueryBundle } from '~quent/types/QueryBundle';
+import type { EntityRef } from '~quent/types/EntityRef';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
 import {
@@ -13,7 +14,7 @@ import {
 type UsageColumnProps = {
   item: TreeTableItem;
   engineId: string;
-  queryBundle: QueryBundle;
+  queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
   startTime: bigint;
   durationSeconds: number;

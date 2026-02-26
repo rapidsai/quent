@@ -1,6 +1,7 @@
 use quent_analyzer::{Entity, resource::ResourceGroup};
 use quent_events::Event;
 use quent_query_engine_events::query_group::QueryGroupEvent;
+use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
 /// A QueryGroup is an entity that groups [`super::query::Query`]s
@@ -32,6 +33,14 @@ impl QueryGroup {
     pub fn push(&mut self, event: Event<QueryGroupEvent>) {
         self.engine_id = Some(event.data.engine_id);
         self.instance_name = Some(event.data.instance_name);
+    }
+
+    pub fn to_ui(&self) -> ui::QueryGroup {
+        ui::QueryGroup {
+            id: self.id(),
+            instance_name: self.instance_name.clone(),
+            engine_id: self.engine_id,
+        }
     }
 }
 

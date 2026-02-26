@@ -3,12 +3,16 @@
  * Replace these with actual API endpoints
  */
 
-import { QueryBundle } from '~quent/types/QueryBundle';
-import { TimelineResponse } from '~quent/types/TimelineResponse';
-import { QueryGroup } from '~quent/types/QueryGroup';
-import { Query } from '~quent/types/Query';
-import { BulkTimelinesRequest } from '~quent/types/BulkTimelinesRequest';
-import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
+import type { QueryBundle } from '~quent/types/QueryBundle';
+import type { QueryGroup } from '~quent/types/QueryGroup';
+import type { Query } from '~quent/types/Query';
+import type { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
+import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
+import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
+import type { BulkTimelineRequest } from '~quent/types/BulkTimelineRequest';
+import type { QueryFilter } from '~quent/types/QueryFilter';
+import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { EntityRef } from '~quent/types/EntityRef';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
@@ -146,8 +150,11 @@ export async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): 
  * Fetch query bundle from API endpoint
  * @param queryId - The query ID to fetch the bundle for
  */
-export async function fetchQueryBundle(engineId: string, queryId: string): Promise<QueryBundle> {
-  return apiFetch<QueryBundle>(`/engines/${engineId}/query/${queryId}`);
+export async function fetchQueryBundle(
+  engineId: string,
+  queryId: string
+): Promise<QueryBundle<EntityRef>> {
+  return apiFetch<QueryBundle<EntityRef>>(`/engines/${engineId}/query/${queryId}`);
 }
 
 export async function fetchListEngines(): Promise<string[]> {
@@ -162,36 +169,25 @@ export async function fetchListQueries(engineId: string, coordinatorId: string):
   return apiFetch<Query[]>(`/engines/${engineId}/query_group/${coordinatorId}/queries`);
 }
 
-export async function fetchResourceTimeline(
+export async function fetchSingleTimeline(
   engineId: string,
-  queryId: string,
-  resourceId: string,
-  params?: Record<string, string | number | boolean>
-): Promise<TimelineResponse> {
-  return apiFetch<TimelineResponse>(
-    `/engines/${engineId}/query/${queryId}/resource/${resourceId}/timeline`,
-    { params }
-  );
-}
-
-export async function fetchResourceGroupTimeline(
-  engineId: string,
-  queryId: string,
-  resourceGroupId: string,
-  params?: Record<string, string | number | boolean>
-): Promise<TimelineResponse> {
-  return apiFetch<TimelineResponse>(
-    `/engines/${engineId}/query/${queryId}/resource_group/${resourceGroupId}/timeline`,
-    { params }
-  );
+  request: SingleTimelineRequest<QueryFilter, TaskFilter>,
+  durationSeconds: number
+): Promise<SingleTimelineResponse> {
+  return apiFetch<SingleTimelineResponse>(`/engines/${engineId}/timeline/single`, {
+    params: { duration: durationSeconds },
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  });
 }
 
 export async function fetchBulkTimelines(
   engineId: string,
-  queryId: string,
-  request: BulkTimelinesRequest
+  request: BulkTimelineRequest<QueryFilter, TaskFilter>
 ): Promise<BulkTimelinesResponse> {
-  return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/query/${queryId}/timelines`, {
+  return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
     fetchOptions: {
       method: 'POST',
       body: JSON.stringify(request),
