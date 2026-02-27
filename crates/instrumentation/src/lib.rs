@@ -36,16 +36,16 @@ pub enum ExporterOptions {
 #[derive(Debug)]
 pub struct EventSender<T> {
     tx: Option<UnboundedSender<Event<T>>>,
-    /// Flag set to prevent potentially massive log spam from subseQUENT sender
-    /// errors after first.
-    disable_error_log: AtomicBool,
+    /// Flag shared across clones to prevent potentially massive log spam from
+    /// subseQUENT sender errors after the first.
+    disable_error_log: Arc<AtomicBool>,
 }
 
 impl<T> Clone for EventSender<T> {
     fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
-            disable_error_log: AtomicBool::new(self.disable_error_log.load(Ordering::Relaxed)),
+            disable_error_log: Arc::clone(&self.disable_error_log),
         }
     }
 }
@@ -93,7 +93,7 @@ where
                     handle: None,
                     events_sender: EventSender {
                         tx: None,
-                        disable_error_log: AtomicBool::new(false),
+                        disable_error_log: Arc::new(AtomicBool::new(false)),
                     },
                     exporter: None,
                     cancellation_token: CancellationToken::new(),
@@ -170,7 +170,7 @@ where
             handle: Some(handle),
             events_sender: EventSender {
                 tx: Some(events_sender),
-                disable_error_log: AtomicBool::new(false),
+                disable_error_log: Arc::new(AtomicBool::new(false)),
             },
             exporter: Some(exporter),
             cancellation_token,
