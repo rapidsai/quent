@@ -18,53 +18,31 @@ on:
       - ".github/workflows/rust.yml"
 
 env:
+  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  fmt:
-    name: Format
+  rust:
+    name: Rust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal --component rustfmt
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - uses: Mozilla-Actions/sccache-action@v0.0.7
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo fmt --all -- --check
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal --component clippy
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-clippy-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-
-  check:
-    name: Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-check-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - run: cargo check --workspace --all-targets --all-features --locked
+      - run: cargo test --workspace --all-features --locked --all-targets
+      - run: cargo build --workspace --all-features --locked --release
 
   markdown:
     name: Markdown
@@ -80,41 +58,3 @@ jobs:
       - if: steps.rumdl-cache.outputs.cache-hit != 'true'
         run: cargo install rumdl --locked --version 0.1.21
       - run: rumdl check --diff --exclude .cargo
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [check, clippy]
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-build-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - run: cargo build --workspace --all-features --locked --release
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: [check]
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-test-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - run: cargo test --workspace --all-features --locked --all-targets
