@@ -31,7 +31,11 @@ interface QueryResourceTreeProps {
   queryBundle: QueryBundle<EntityRef>;
 }
 
-export function QueryResourceTree({ queryBundle, engineId }: QueryResourceTreeProps) {
+export function QueryResourceTree(props: QueryResourceTreeProps) {
+  return <QueryResourceTreeContent {...props} />;
+}
+
+function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
 

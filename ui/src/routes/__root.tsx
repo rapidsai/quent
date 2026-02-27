@@ -2,6 +2,7 @@ import { createRootRoute, Link, Outlet, useRouterState } from '@tanstack/react-r
 import { TanStackRouterDevtools } from '@tanstack/router-devtools';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NavBarNavigator } from '@/components/NavBarNavigator';
 import { Button } from '@/components/ui/button';
 import {
   NavigationMenu,
@@ -32,6 +33,9 @@ function RootComponent() {
                 <h1 className="text-2xl font-bold text-primary">
                   PACHA <span className="font-extralight">UI</span>
                 </h1>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <NavBarNavigator />
               </div>
               <div className="flex items-center gap-2">
                 <NavigationMenu>

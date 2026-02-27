@@ -1,5 +1,5 @@
 import ELK from 'elkjs';
-import { useCallback, useLayoutEffect, MouseEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, MouseEvent, type RefObject } from 'react';
 import {
   Background,
   ReactFlow,
@@ -10,6 +10,7 @@ import {
   MarkerType,
   type Node,
   type Edge,
+  type OnMoveStart,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -84,13 +85,26 @@ async function calculateLayout(
   };
 }
 
-const FlowLayout = ({ data }: { data: DAGData }) => {
+const FlowLayout = ({
+  data,
+  containerRef,
+}: {
+  data: DAGData;
+  containerRef: RefObject<HTMLDivElement | null>;
+}) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const hasUserInteracted = useRef(false);
+
+  const handleMoveStart = useCallback<OnMoveStart>(event => {
+    if (event !== null) {
+      hasUserInteracted.current = true;
+    }
+  }, []);
 
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
@@ -149,8 +163,24 @@ const FlowLayout = ({ data }: { data: DAGData }) => {
     [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
   );
 
+  // Re-fit view when the react-flow container is resized, but only if the user
+  // hasn't interacted with the chart (to maintain any focus states applied)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      if (nodes.length > 0 && !hasUserInteracted.current) {
+        fitView({ padding: 0.1, minZoom: 0.1 });
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, fitView, nodes.length]);
+
   // Calculate and apply layout
   useLayoutEffect(() => {
+    hasUserInteracted.current = false;
+
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
       const layoutResult = await calculateLayout(flowNodes, flowEdges);
@@ -172,6 +202,7 @@ const FlowLayout = ({ data }: { data: DAGData }) => {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
+      onMoveStart={handleMoveStart}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       fitView
@@ -188,10 +219,11 @@ const FlowLayout = ({ data }: { data: DAGData }) => {
 };
 
 export const DAGChart = ({ data, height = '100%' }: DAGProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   return (
-    <div style={{ width: '100%', height }}>
+    <div ref={containerRef} style={{ width: '100%', height }}>
       <ReactFlowProvider>
-        <FlowLayout data={data} />
+        <FlowLayout data={data} containerRef={containerRef} />
       </ReactFlowProvider>
     </div>
   );

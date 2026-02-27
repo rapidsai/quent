@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 import { Provider } from 'jotai';
 import { QueryPlan } from '@/components/QueryPlan';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 export const Route = createFileRoute('/profile/engine/$engineId')({
   component: ProfileLayout,
@@ -22,8 +23,8 @@ function ProfileLayout() {
 
   return (
     <Provider key={queryId ?? ''}>
-      <div className="grid grid-cols-[1fr_2fr] h-full">
-        <div className="border-r">
+      <ResizablePanelGroup orientation="horizontal" className="h-full">
+        <ResizablePanel defaultSize="33%" minSize="15%" collapsible collapsedSize="0%">
           {queryId && queryId !== '' ? (
             <QueryPlan queryId={queryId} engineId={engineId} />
           ) : (
@@ -31,11 +32,18 @@ function ProfileLayout() {
               Select a query to view the execution plan
             </div>
           )}
-        </div>
-        <div className="overflow-y-auto h-[calc(100vh-4rem)] w-full">
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel
+          defaultSize="67%"
+          minSize="20%"
+          collapsible
+          collapsedSize="0%"
+          className="overflow-y-auto h-[calc(100vh-4rem)]"
+        >
           <Outlet />
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </Provider>
   );
 }
