@@ -5,7 +5,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
-import { withOpacity } from '@/services/colors';
+import { createStripePattern } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
 import {
   TimelineSeries,
@@ -45,10 +45,13 @@ export function Timeline({
   /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
   xAxisRange?: XAxisRange;
 }) {
-  const { timelineMarkupColor, gridBorderColor, gridBackgroundColor, overlayOpacity } =
-    useTimelineChartColors();
+  const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
 
   const seriesOptions = useMemo(() => {
+    const numOverlays = Object.values(series).reduce(
+      (acc, curr) => acc + (curr.isOverlay ? 1 : 0),
+      0
+    );
     return Object.entries(series)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, seriesData]) => {
@@ -66,10 +69,21 @@ export function Timeline({
           ...TIMELINE_X_AXIS_ANIMATION,
           cursor: 'default',
           data: seriesData.values.map((value, index) => [timestamps[index], value]),
-          lineStyle: { width: 0 },
+          lineStyle: {
+            width: isOverlay ? 1 : 0,
+            color: numOverlays > 1 && isOverlay ? '#AAAAAA' : color,
+            opacity: 1,
+          },
           itemStyle: { color },
           areaStyle: {
-            color: withOpacity(isOverlay ? '#FF0000' : color, isOverlay ? 1 : 0.9),
+            // color: isOverlay
+            //   ? {
+            //       image: createStripePattern(numOverlays > 1 ? '#AAAAAA' : color),
+            //       repeat: 'repeat',
+            //     }
+            //   : color,
+            color: numOverlays > 1 && isOverlay ? '#AAAAAA' : color,
+            opacity: 0.8,
           },
           z: isOverlay ? 5 : 2,
           emphasis: {
@@ -78,7 +92,7 @@ export function Timeline({
           },
         };
       });
-  }, [series, timestamps, overlayOpacity]);
+  }, [series, timestamps]);
 
   const yAxisOptions = useMemo(
     () => ({

@@ -167,5 +167,57 @@ export function lightenColor(hex: string, amount: number): string {
   return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`;
 }
 
+/**
+ * Create a diagonal stripe canvas pattern for use in ECharts areaStyle/itemStyle.
+ * Alternates between the given color and a darkened variant at -45deg.
+ * @param hex - Base hex color
+ * @param stripeWidth - Width of each stripe band in px (default 4)
+ */
+export function createStripePattern(hex: string, stripeWidth = 4): HTMLCanvasElement {
+  const dark = darkenColor(hex, 0.2);
+  const size = stripeWidth * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = hex;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(0, size);
+  ctx.lineTo(size, 0);
+  ctx.lineTo(size, stripeWidth);
+  ctx.lineTo(stripeWidth, size);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(stripeWidth, 0);
+  ctx.lineTo(0, stripeWidth);
+  ctx.closePath();
+  ctx.fill();
+
+  return canvas;
+}
+
+/**
+ * Darken a hex color by blending it toward black.
+ * @param hex - Hex color string (e.g., '#5470c6')
+ * @param amount - Blend amount between 0 (no change) and 1 (pure black)
+ */
+export function darkenColor(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const t = Math.min(1, Math.max(0, amount));
+  const dr = Math.round(r * (1 - t));
+  const dg = Math.round(g * (1 - t));
+  const db = Math.round(b * (1 - t));
+  return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`;
+}
+
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';
