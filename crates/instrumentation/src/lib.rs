@@ -7,7 +7,10 @@ use quent_exporter_msgpack::MsgpackExporter;
 use quent_exporter_ndjson::NdjsonExporter;
 use quent_exporter_postcard::PostcardExporter;
 use serde::Serialize;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use tokio::{
     runtime::{Handle, Runtime},
     sync::mpsc::{UnboundedSender, unbounded_channel},
@@ -31,20 +34,30 @@ pub enum ExporterOptions {
 /// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
 /// channel or event-forwarding overhead.
 #[derive(Debug)]
-pub struct EventSender<T>(Option<UnboundedSender<Event<T>>>);
+pub struct EventSender<T> {
+    tx: Option<UnboundedSender<Event<T>>>,
+    /// Flag set to prevent potentially massive log spam from subseQUENT sender
+    /// errors after first.
+    disable_error_log: AtomicBool,
+}
 
 impl<T> Clone for EventSender<T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            tx: self.tx.clone(),
+            disable_error_log: AtomicBool::new(self.disable_error_log.load(Ordering::Relaxed)),
+        }
     }
 }
 
 impl<T> EventSender<T> {
     pub fn send(&self, event: Event<T>) {
-        if let Some(tx) = &self.0
-            && let Err(e) = tx.send(event) {
-                warn!("unable to send event: {e}");
-            }
+        if let Some(tx) = &self.tx
+            && tx.send(event).is_err()
+            && !self.disable_error_log.swap(true, Ordering::Relaxed)
+        {
+            tracing::error!("unable to send event, suppressing further errors");
+        }
     }
 }
 
@@ -78,7 +91,10 @@ where
                 debug!("using noop exporter");
                 return Ok(Context {
                     handle: None,
-                    events_sender: EventSender(None),
+                    events_sender: EventSender {
+                        tx: None,
+                        disable_error_log: AtomicBool::new(false),
+                    },
                     exporter: None,
                     cancellation_token: CancellationToken::new(),
                     forwarder_handle: None,
@@ -152,7 +168,10 @@ where
 
         Ok(Context {
             handle: Some(handle),
-            events_sender: EventSender(Some(events_sender)),
+            events_sender: EventSender {
+                tx: Some(events_sender),
+                disable_error_log: AtomicBool::new(false),
+            },
             exporter: Some(exporter),
             cancellation_token,
             forwarder_handle: Some(forwarder_handle),
@@ -182,9 +201,10 @@ where
 
             // Flush the exporter to ensure all events are sent
             if let Some(exporter) = &self.exporter
-                && let Err(e) = handle.block_on(exporter.force_flush()) {
-                    warn!("failed to flush exporter: {e}");
-                }
+                && let Err(e) = handle.block_on(exporter.force_flush())
+            {
+                warn!("failed to flush exporter: {e}");
+            }
         }
     }
 }
@@ -205,7 +225,7 @@ mod tests {
         assert!(ctx._runtime.is_none());
 
         let sender = ctx.events_sender();
-        assert!(sender.0.is_none());
+        assert!(sender.tx.is_none());
 
         sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
         sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
