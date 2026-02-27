@@ -1,12 +1,12 @@
 import { useEffect, lazy, Suspense } from 'react';
-import { useAtom } from 'jotai';
+import { useAtom, useSetAtom } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
-import { selectedPlanIdAtom } from '@/atoms/dag';
+import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -15,6 +15,7 @@ const DAGChart = lazy(() =>
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const [planId, setPlanId] = useAtom(selectedPlanIdAtom);
+  const setHoveredWorkerId = useSetAtom(hoveredWorkerIdAtom);
 
   const {
     data: queryBundle,
@@ -72,7 +73,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   const renderItem = ({ item, hasChildren }: { item: QueryPlanDataItem; hasChildren: boolean }) => {
     return (
-      <div className="flex flex-col items-start py-0.5 pl-1">
+      <div
+        className="flex flex-col items-start py-0.5 pl-1"
+        onMouseEnter={() => item.workerId && setHoveredWorkerId(item.workerId)}
+        onMouseLeave={() => setHoveredWorkerId(null)}
+      >
         {singleQueryPlan ? (
           <span className="text-xs">Query: {item.queryId}</span>
         ) : (
@@ -104,7 +109,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel
-          defaultSize="15%"
+          defaultSize="20%"
           minSize="10%"
           collapsible
           collapsedSize="0%"

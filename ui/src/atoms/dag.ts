@@ -8,3 +8,6 @@ export const selectedOperatorLabelAtom = atom<string | null>(null);
 
 /** The currently selected plan ID in the query plan tree view */
 export const selectedPlanIdAtom = atom<string>('');
+
+/** Worker ID of the query plan tree item currently being hovered */
+export const hoveredWorkerIdAtom = atom<string | null>(null);

@@ -139,6 +139,7 @@ const TreeNode = ({
   defaultLeafIcon,
   renderItem,
   onExpandChange,
+  highlightedItemIds,
   level = 0,
 }: {
   item: TreeTableDataItem;
@@ -149,16 +150,16 @@ const TreeNode = ({
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  highlightedItemIds?: Set<string>;
   level?: number;
 }) => {
-  // Expand by default if in expandedItemIds OR if item has expanded: true
   const itemExpanded = (item as { expanded?: boolean }).expanded;
   const shouldExpandByDefault = expandedItemIds.includes(item.id) || itemExpanded === true;
   const [value, setValue] = useState(shouldExpandByDefault ? [item.id] : []);
   const hasChildren = !!item.children?.length;
   const isSelected = selectedItemId === item.id;
   const isOpen = value.includes(item.id);
-
+  const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
   const handleValueChange = useCallback(
     (newValue: string[]) => {
       const wasExpanded = value.includes(item.id);
@@ -178,7 +179,7 @@ const TreeNode = ({
           level={level}
           isSelected={isSelected}
           isOpen={isOpen}
-          className={cn(treeVariants(), isSelected && selectedTreeVariants())}
+          className={cn(treeVariants(), isSelected && selectedTreeVariants(), isHighlighted && 'bg-primary/10')}
           onClick={() => {
             handleSelectChange(item);
             item.onClick?.();
@@ -216,6 +217,7 @@ const TreeNode = ({
             defaultNodeIcon={defaultNodeIcon}
             renderItem={renderItem}
             onExpandChange={onExpandChange}
+            highlightedItemIds={highlightedItemIds}
             level={level + 1}
           />
         </AccordionContent>
@@ -234,6 +236,7 @@ const TreeLeaf = React.forwardRef<
     handleSelectChange: (item: TreeTableDataItem | undefined) => void;
     defaultLeafIcon?: IconComponent;
     renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+    highlightedItemIds?: Set<string>;
   }
 >(
   (
@@ -245,11 +248,13 @@ const TreeLeaf = React.forwardRef<
       handleSelectChange,
       defaultLeafIcon,
       renderItem,
+      highlightedItemIds,
       ...props
     },
     ref
   ) => {
     const isSelected = selectedItemId === item.id;
+    const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
 
     return (
       <div
@@ -259,6 +264,7 @@ const TreeLeaf = React.forwardRef<
           treeVariants(),
           className,
           isSelected && selectedTreeVariants(),
+          isHighlighted && 'bg-primary/10',
           item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
         )}
         onClick={() => {
@@ -305,6 +311,7 @@ type TreeItemProps = {
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  highlightedItemIds?: Set<string>;
   level?: number;
   className?: string;
 };
@@ -321,6 +328,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
       defaultLeafIcon,
       renderItem,
       onExpandChange,
+      highlightedItemIds,
       level,
       ...props
     },
@@ -345,6 +353,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
                   defaultLeafIcon={defaultLeafIcon}
                   renderItem={renderItem}
                   onExpandChange={onExpandChange}
+                  highlightedItemIds={highlightedItemIds}
                 />
               ) : (
                 <TreeLeaf
@@ -354,6 +363,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
                   handleSelectChange={handleSelectChange}
                   defaultLeafIcon={defaultLeafIcon}
                   renderItem={renderItem}
+                  highlightedItemIds={highlightedItemIds}
                 />
               )}
             </li>
@@ -375,6 +385,7 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   defaultNodeIcon?: IconComponent;
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+  highlightedItemIds?: Set<string>;
 };
 
 const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
@@ -389,6 +400,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       defaultNodeIcon,
       className,
       renderItem,
+      highlightedItemIds,
       ...props
     },
     ref
@@ -444,6 +456,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
           defaultNodeIcon={defaultNodeIcon}
           renderItem={renderItem}
           onExpandChange={onExpandChange}
+          highlightedItemIds={highlightedItemIds}
           level={0}
           {...props}
         />

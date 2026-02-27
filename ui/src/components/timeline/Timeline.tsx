@@ -69,11 +69,12 @@ export function Timeline({
           ...TIMELINE_X_AXIS_ANIMATION,
           cursor: 'default',
           data: seriesData.values.map((value, index) => [timestamps[index], value]),
-          lineStyle: {
-            width: isOverlay ? 1 : 0,
-            color: numOverlays > 1 && isOverlay ? '#AAAAAA' : color,
-            opacity: 1,
-          },
+          lineStyle: { width: 0 },
+          // {
+          //   width: isOverlay ? 1 : 0,
+          //   color: numOverlays > 1 && isOverlay ? '#BBBBBB' : color,
+          //   opacity: 1,
+          // },
           itemStyle: { color },
           areaStyle: {
             // color: isOverlay
@@ -83,7 +84,7 @@ export function Timeline({
             //     }
             //   : color,
             color: numOverlays > 1 && isOverlay ? '#AAAAAA' : color,
-            opacity: 0.8,
+            opacity: 1,
           },
           z: isOverlay ? 5 : 2,
           emphasis: {
