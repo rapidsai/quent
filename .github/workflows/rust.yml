@@ -19,7 +19,6 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
-  SCCACHE_GHA_ENABLED: true
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
@@ -30,7 +29,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
-      - uses: Mozilla-Actions/sccache-action@v0.0.9
       - uses: actions/cache@v4
         with:
           path: |
