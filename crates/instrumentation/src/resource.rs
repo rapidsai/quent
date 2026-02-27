@@ -96,9 +96,9 @@ where
     pub fn finalizing(&self, id: Uuid, finalizing: resource::processor::Finalizing) {
         self.tx.send(Event::new_now(
             id,
-            resource::ResourceEvent::Processor(
-                resource::processor::ProcessorEvent::Finalizing(finalizing),
-            )
+            resource::ResourceEvent::Processor(resource::processor::ProcessorEvent::Finalizing(
+                finalizing,
+            ))
             .into(),
         ))
     }
@@ -138,10 +138,8 @@ where
     pub fn operating(&self, id: Uuid, operating: resource::channel::Operating) {
         self.tx.send(Event::new_now(
             id,
-            resource::ResourceEvent::Channel(resource::channel::ChannelEvent::Operating(
-                operating,
-            ))
-            .into(),
+            resource::ResourceEvent::Channel(resource::channel::ChannelEvent::Operating(operating))
+                .into(),
         ))
     }
 
@@ -180,7 +178,9 @@ where
     }
 
     pub fn group(&self, id: Uuid, group: resource::GroupEvent) {
-        self.tx
-            .send(Event::new_now(id, resource::ResourceEvent::Group(group).into()))
+        self.tx.send(Event::new_now(
+            id,
+            resource::ResourceEvent::Group(group).into(),
+        ))
     }
 }

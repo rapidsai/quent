@@ -22,7 +22,7 @@ pub struct SimulatorContext {
 }
 
 impl SimulatorContext {
-    pub fn try_new(exporter: ExporterOptions, id: Uuid) -> Result<Self, Box<dyn Error>> {
+    pub fn try_new(exporter: Option<ExporterOptions>, id: Uuid) -> Result<Self, Box<dyn Error>> {
         Context::try_new(exporter, id).map(|inner| Self { inner })
     }
 

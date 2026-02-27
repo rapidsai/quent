@@ -25,7 +25,6 @@ pub enum ExporterOptions {
     Ndjson,
     Msgpack,
     Postcard,
-    Noop,
 }
 
 /// Wrapper around an optional channel sender. When the inner sender is `None`
@@ -42,11 +41,10 @@ impl<T> Clone for EventSender<T> {
 
 impl<T> EventSender<T> {
     pub fn send(&self, event: Event<T>) {
-        if let Some(tx) = &self.0 {
-            if let Err(e) = tx.send(event) {
+        if let Some(tx) = &self.0
+            && let Err(e) = tx.send(event) {
                 warn!("unable to send event: {e}");
             }
-        }
     }
 }
 
@@ -72,22 +70,23 @@ where
     T: Serialize + Send + std::fmt::Debug + 'static,
 {
     pub fn try_new(
-        exporter: ExporterOptions,
+        exporter: Option<ExporterOptions>,
         id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        // Early exit with a noop context entirely. There is no need to
-        // potentially spawn a runtime, etc.
-        if matches!(exporter, ExporterOptions::Noop) {
-            debug!("using noop exporter");
-            return Ok(Context {
-                handle: None,
-                events_sender: EventSender(None),
-                exporter: None,
-                cancellation_token: CancellationToken::new(),
-                forwarder_handle: None,
-                _runtime: None,
-            });
-        }
+        let exporter = match exporter {
+            None => {
+                debug!("using noop exporter");
+                return Ok(Context {
+                    handle: None,
+                    events_sender: EventSender(None),
+                    exporter: None,
+                    cancellation_token: CancellationToken::new(),
+                    forwarder_handle: None,
+                    _runtime: None,
+                });
+            }
+            Some(exporter) => exporter,
+        };
 
         let (runtime, handle) = if let Ok(handle) = Handle::try_current() {
             debug!("using existing async runtime");
@@ -112,7 +111,6 @@ where
             ExporterOptions::Ndjson => Arc::new(handle.block_on(NdjsonExporter::try_new(id))?),
             ExporterOptions::Msgpack => Arc::new(handle.block_on(MsgpackExporter::try_new(id))?),
             ExporterOptions::Postcard => Arc::new(handle.block_on(PostcardExporter::try_new(id))?),
-            ExporterOptions::Noop => unreachable!(),
         };
 
         let cancellation_token = CancellationToken::new();
@@ -183,11 +181,10 @@ where
             }
 
             // Flush the exporter to ensure all events are sent
-            if let Some(exporter) = &self.exporter {
-                if let Err(e) = handle.block_on(exporter.force_flush()) {
+            if let Some(exporter) = &self.exporter
+                && let Err(e) = handle.block_on(exporter.force_flush()) {
                     warn!("failed to flush exporter: {e}");
                 }
-            }
         }
     }
 }
@@ -201,7 +198,7 @@ mod tests {
 
     #[test]
     fn noop_exporter() {
-        let ctx = Context::<TestEvent>::try_new(ExporterOptions::Noop, Uuid::now_v7()).unwrap();
+        let ctx = Context::<TestEvent>::try_new(None, Uuid::now_v7()).unwrap();
         assert!(ctx.handle.is_none());
         assert!(ctx.exporter.is_none());
         assert!(ctx.forwarder_handle.is_none());
