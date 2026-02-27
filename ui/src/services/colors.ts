@@ -173,7 +173,7 @@ export function lightenColor(hex: string, amount: number): string {
  * @param hex - Base hex color
  * @param stripeWidth - Width of each stripe band in px (default 4)
  */
-export function createStripePattern(hex: string, stripeWidth = 4): HTMLCanvasElement {
+export function createStripePattern(hex: string, stripeWidth = 3): HTMLCanvasElement {
   const dark = darkenColor(hex, 0.2);
   const size = stripeWidth * 2;
   const canvas = document.createElement('canvas');
@@ -199,6 +199,70 @@ export function createStripePattern(hex: string, stripeWidth = 4): HTMLCanvasEle
   ctx.lineTo(0, stripeWidth);
   ctx.closePath();
   ctx.fill();
+
+  return canvas;
+}
+
+/**
+ * Create a dotted canvas pattern for use in ECharts areaStyle/itemStyle.
+ * Draws evenly spaced dots of a darkened color on the base color.
+ * @param hex - Base hex color
+ * @param dotRadius - Radius of each dot in px (default 1.5)
+ * @param spacing - Distance between dot centers in px (default 6)
+ */
+export function createDotPattern(hex: string, dotRadius = 1, spacing = 3): HTMLCanvasElement {
+  const dark = darkenColor(hex, 0.3);
+  const canvas = document.createElement('canvas');
+  canvas.width = spacing;
+  canvas.height = spacing;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = hex;
+  ctx.fillRect(0, 0, spacing, spacing);
+
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.arc(spacing / 2, spacing / 2, dotRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  return canvas;
+}
+
+/**
+ * Create a crosshatch canvas pattern for use in ECharts areaStyle/itemStyle.
+ * Draws thin diagonal lines in both directions over the base color.
+ * @param hex - Base hex color
+ * @param lineWidth - Width of each hatch line in px (default 1)
+ * @param spacing - Distance between lines in px (default 6)
+ */
+export function createCrosshatchPattern(
+  hex: string,
+  lineWidth = 2,
+  spacing = 6
+): HTMLCanvasElement {
+  const dark = darkenColor(hex, 0.25);
+  const canvas = document.createElement('canvas');
+  canvas.width = spacing;
+  canvas.height = spacing;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = hex;
+  ctx.fillRect(0, 0, spacing, spacing);
+
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lineWidth;
+
+  // Top-left to bottom-right
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(spacing, spacing);
+  ctx.stroke();
+
+  // Bottom-left to top-right
+  ctx.beginPath();
+  ctx.moveTo(0, spacing);
+  ctx.lineTo(spacing, 0);
+  ctx.stroke();
 
   return canvas;
 }

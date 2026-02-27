@@ -5,7 +5,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
-import { createStripePattern } from '@/services/colors';
+import { createDotPattern, createStripePattern, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
 import {
   TimelineSeries,
@@ -70,20 +70,14 @@ export function Timeline({
           cursor: 'default',
           data: seriesData.values.map((value, index) => [timestamps[index], value]),
           lineStyle: { width: 0 },
-          // {
-          //   width: isOverlay ? 1 : 0,
-          //   color: numOverlays > 1 && isOverlay ? '#BBBBBB' : color,
-          //   opacity: 1,
-          // },
           itemStyle: { color },
           areaStyle: {
-            // color: isOverlay
-            //   ? {
-            //       image: createStripePattern(numOverlays > 1 ? '#AAAAAA' : color),
-            //       repeat: 'repeat',
-            //     }
-            //   : color,
-            color: numOverlays > 1 && isOverlay ? '#AAAAAA' : color,
+            color: isOverlay
+              ? {
+                  image: createStripePattern(color),
+                  repeat: 'repeat',
+                }
+              : color,
             opacity: 1,
           },
           z: isOverlay ? 5 : 2,
