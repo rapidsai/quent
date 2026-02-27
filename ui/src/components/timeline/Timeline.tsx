@@ -5,7 +5,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
-import { createDotPattern, createStripePattern, withOpacity } from '@/services/colors';
+import { createStripePattern } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
 import {
   TimelineSeries,
@@ -48,10 +48,6 @@ export function Timeline({
   const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
 
   const seriesOptions = useMemo(() => {
-    const numOverlays = Object.values(series).reduce(
-      (acc, curr) => acc + (curr.isOverlay ? 1 : 0),
-      0
-    );
     return Object.entries(series)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, seriesData]) => {

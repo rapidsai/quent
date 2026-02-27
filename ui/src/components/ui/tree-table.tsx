@@ -179,7 +179,11 @@ const TreeNode = ({
           level={level}
           isSelected={isSelected}
           isOpen={isOpen}
-          className={cn(treeVariants(), isSelected && selectedTreeVariants(), isHighlighted && 'bg-primary/10')}
+          className={cn(
+            treeVariants(),
+            isSelected && selectedTreeVariants(),
+            isHighlighted && 'bg-primary/10'
+          )}
           onClick={() => {
             handleSelectChange(item);
             item.onClick?.();

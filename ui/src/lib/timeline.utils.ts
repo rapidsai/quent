@@ -212,8 +212,6 @@ function getFormatterForCapacityType(capacityType: string): (value: number) => s
   switch (capacityType) {
     case 'bytes':
       return (value: number) => formatBytes(value, 0);
-    case 'link':
-      return (value: number) => formatBytes(value, 0) + '/s';
     default:
       return (value: number) => String(value);
   }

@@ -1,9 +1,8 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useAtomValue } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
-import { hoveredWorkerIdAtom } from '@/atoms/dag';
+import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { TimelineController } from './timeline/TimelineController';
 import { collectResourceTypesFromTree } from '@/lib/resource.utils';
@@ -40,7 +39,6 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
-  const hoveredWorkerId = useAtomValue(hoveredWorkerIdAtom);
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
@@ -57,28 +55,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     [resourceTree, entities]
   );
 
-  const highlightedItemIds = useMemo(() => {
-    if (!hoveredWorkerId) return undefined;
-    const ids = new Set<string>();
-    function collectSubtree(items: TreeTableItem[]) {
-      for (const item of items) {
-        ids.add(item.id);
-        if (item.children) collectSubtree(item.children);
-      }
-    }
-    function find(items: TreeTableItem[]): boolean {
-      for (const item of items) {
-        if (item.id === hoveredWorkerId) {
-          collectSubtree([item]);
-          return true;
-        }
-        if (item.children && find(item.children)) return true;
-      }
-      return false;
-    }
-    find([rootItem]);
-    return ids.size > 0 ? ids : undefined;
-  }, [hoveredWorkerId, rootItem]);
+  const highlightedItemIds = useHighlightedItemIds(rootItem);
 
   const resourceTypeOptions = useMemo(() => collectResourceTypesFromTree([rootItem]), [rootItem]);
 
