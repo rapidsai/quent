@@ -25,15 +25,38 @@ pub enum ExporterOptions {
     Ndjson,
     Msgpack,
     Postcard,
+    Noop,
+}
+
+/// Wrapper around an optional channel sender. When the inner sender is `None`
+/// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
+/// channel or event-forwarding overhead.
+#[derive(Debug)]
+pub struct EventSender<T>(Option<UnboundedSender<Event<T>>>);
+
+impl<T> Clone for EventSender<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> EventSender<T> {
+    pub fn send(&self, event: Event<T>) {
+        if let Some(tx) = &self.0 {
+            if let Err(e) = tx.send(event) {
+                warn!("unable to send event: {e}");
+            }
+        }
+    }
 }
 
 pub struct Context<T>
 where
     T: Serialize + Send + std::fmt::Debug + 'static,
 {
-    handle: Handle,
-    events_sender: UnboundedSender<Event<T>>,
-    exporter: Arc<dyn Exporter<T>>,
+    handle: Option<Handle>,
+    events_sender: EventSender<T>,
+    exporter: Option<Arc<dyn Exporter<T>>>,
     cancellation_token: CancellationToken,
     forwarder_handle: Option<JoinHandle<()>>,
 
@@ -52,6 +75,20 @@ where
         exporter: ExporterOptions,
         id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        // Early exit with a noop context entirely. There is no need to
+        // potentially spawn a runtime, etc.
+        if matches!(exporter, ExporterOptions::Noop) {
+            debug!("using noop exporter");
+            return Ok(Context {
+                handle: None,
+                events_sender: EventSender(None),
+                exporter: None,
+                cancellation_token: CancellationToken::new(),
+                forwarder_handle: None,
+                _runtime: None,
+            });
+        }
+
         let (runtime, handle) = if let Ok(handle) = Handle::try_current() {
             debug!("using existing async runtime");
             (None, handle)
@@ -75,6 +112,7 @@ where
             ExporterOptions::Ndjson => Arc::new(handle.block_on(NdjsonExporter::try_new(id))?),
             ExporterOptions::Msgpack => Arc::new(handle.block_on(MsgpackExporter::try_new(id))?),
             ExporterOptions::Postcard => Arc::new(handle.block_on(PostcardExporter::try_new(id))?),
+            ExporterOptions::Noop => unreachable!(),
         };
 
         let cancellation_token = CancellationToken::new();
@@ -115,24 +153,17 @@ where
         });
 
         Ok(Context {
-            handle,
-            events_sender,
-            exporter,
+            handle: Some(handle),
+            events_sender: EventSender(Some(events_sender)),
+            exporter: Some(exporter),
             cancellation_token,
             forwarder_handle: Some(forwarder_handle),
             _runtime: runtime,
         })
     }
 
-    pub fn events_sender(&self) -> UnboundedSender<Event<T>> {
+    pub fn events_sender(&self) -> EventSender<T> {
         self.events_sender.clone()
-    }
-
-    pub fn push_event(sender: &UnboundedSender<Event<T>>, event: Event<T>) {
-        match sender.send(event) {
-            Ok(_) => (),
-            Err(e) => warn!("unable to send event: {e}"),
-        }
     }
 }
 
@@ -143,16 +174,44 @@ where
     fn drop(&mut self) {
         self.cancellation_token.cancel();
 
-        // Wait for the forwarder to finish processing remaining events
-        if let Some(forwarder_handle) = self.forwarder_handle.take()
-            && let Err(e) = self.handle.block_on(forwarder_handle)
-        {
-            warn!("forwarder task failed: {e}");
-        }
+        if let Some(handle) = &self.handle {
+            // Wait for the forwarder to finish processing remaining events
+            if let Some(forwarder_handle) = self.forwarder_handle.take()
+                && let Err(e) = handle.block_on(forwarder_handle)
+            {
+                warn!("forwarder task failed: {e}");
+            }
 
-        // Flush the exporter to ensure all events are sent
-        if let Err(e) = self.handle.block_on(self.exporter.force_flush()) {
-            warn!("failed to flush exporter: {e}");
+            // Flush the exporter to ensure all events are sent
+            if let Some(exporter) = &self.exporter {
+                if let Err(e) = handle.block_on(exporter.force_flush()) {
+                    warn!("failed to flush exporter: {e}");
+                }
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, serde::Serialize)]
+    struct TestEvent;
+
+    #[test]
+    fn noop_exporter() {
+        let ctx = Context::<TestEvent>::try_new(ExporterOptions::Noop, Uuid::now_v7()).unwrap();
+        assert!(ctx.handle.is_none());
+        assert!(ctx.exporter.is_none());
+        assert!(ctx.forwarder_handle.is_none());
+        assert!(ctx._runtime.is_none());
+
+        let sender = ctx.events_sender();
+        assert!(sender.0.is_none());
+
+        sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
+        sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
+        drop(ctx);
     }
 }
