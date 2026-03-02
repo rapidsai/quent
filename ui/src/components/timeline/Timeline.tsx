@@ -52,9 +52,7 @@ export function Timeline({
   const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
 
   const seriesOptions = useMemo(() => {
-    const sortedEntries = Object.entries(series).sort((a, b) =>
-      a[0].localeCompare(b[0])
-    );
+    const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allSeries: any[] = sortedEntries.map(([name, seriesData]) => {
@@ -128,8 +126,11 @@ export function Timeline({
       allSeries.push({
         name: '__marks__',
         type: 'line',
-        data: [[tsMin, 0], [tsMax, 0]],
-        z: 20,
+        data: [
+          [tsMin, 0],
+          [tsMax, 0],
+        ],
+        z: 50,
         symbol: 'none',
         showSymbol: false,
         lineStyle: { width: 0, opacity: 0 },
@@ -230,18 +231,24 @@ export function Timeline({
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries
             .filter((p: { seriesName: string }) => p.seriesName !== '__marks__')
-            .map(
-              (p: { color: string; seriesName: string; data: number[] }) => {
-                return {
-                  color: p.color,
-                  name: p.seriesName,
-                  value: p.data[1],
-                  isOverlay: series[p.seriesName]?.isOverlay ?? false,
-                };
-              }
-            );
+            .map((p: { color: string; seriesName: string; data: number[] }) => {
+              return {
+                color: p.color,
+                name: p.seriesName,
+                value: p.data[1],
+                isOverlay: series[p.seriesName]?.isOverlay ?? false,
+              };
+            });
+          const activeMarks = marks
+            ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
+            .map(m => ({ label: m.label, stateName: m.stateName }));
           return renderToStaticMarkup(
-            <TooltipContent timestamp={timestamp} series={seriesValues} startTime={startTime} />
+            <TooltipContent
+              timestamp={timestamp}
+              series={seriesValues}
+              startTime={startTime}
+              activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
+            />
           );
         },
       },
@@ -270,6 +277,14 @@ export function Timeline({
                 xAxisIndex: 'all',
                 filterMode: 'none',
               },
+              {
+                type: 'inside',
+                xAxisIndex: 0,
+                filterMode: 'none',
+                zoomOnMouseWheel: false,
+                moveOnMouseMove: false,
+                moveOnMouseWheel: false,
+              },
             ],
           }),
     } as EChartsOption;
@@ -282,6 +297,7 @@ export function Timeline({
     xAxisRange,
     startTime,
     series,
+    marks,
   ]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
