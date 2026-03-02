@@ -20,7 +20,7 @@ impl<T> CollectorExporter<T>
 where
     T: Serialize + Send + std::fmt::Debug + 'static,
 {
-    pub async fn new(
+    pub async fn try_new(
         engine_id: Uuid,
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {

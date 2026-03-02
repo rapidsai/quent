@@ -2,10 +2,14 @@
 //!
 use quent_events::Event;
 use quent_exporter::Exporter;
-use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
+use quent_exporter_collector::CollectorExporter;
+pub use quent_exporter_collector::CollectorExporterOptions;
 use quent_exporter_msgpack::MsgpackExporter;
+pub use quent_exporter_msgpack::MsgpackExporterOptions;
 use quent_exporter_ndjson::NdjsonExporter;
+pub use quent_exporter_ndjson::NdjsonExporterOptions;
 use quent_exporter_postcard::PostcardExporter;
+pub use quent_exporter_postcard::PostcardExporterOptions;
 use serde::Serialize;
 use std::sync::{
     Arc,
@@ -25,9 +29,9 @@ pub mod trace;
 
 pub enum ExporterOptions {
     Collector(CollectorExporterOptions),
-    Ndjson,
-    Msgpack,
-    Postcard,
+    Ndjson(NdjsonExporterOptions),
+    Msgpack(MsgpackExporterOptions),
+    Postcard(PostcardExporterOptions),
 }
 
 /// Wrapper around an optional channel sender. When the inner sender is `None`
@@ -122,11 +126,17 @@ where
         debug!("constructing exporter");
         let exporter: Arc<dyn Exporter<T>> = match exporter {
             ExporterOptions::Collector(opts) => {
-                Arc::new(handle.block_on(CollectorExporter::new(id, opts))?)
+                Arc::new(handle.block_on(CollectorExporter::try_new(id, opts))?)
             }
-            ExporterOptions::Ndjson => Arc::new(handle.block_on(NdjsonExporter::try_new(id))?),
-            ExporterOptions::Msgpack => Arc::new(handle.block_on(MsgpackExporter::try_new(id))?),
-            ExporterOptions::Postcard => Arc::new(handle.block_on(PostcardExporter::try_new(id))?),
+            ExporterOptions::Ndjson(opts) => {
+                Arc::new(handle.block_on(NdjsonExporter::try_new(id, opts))?)
+            }
+            ExporterOptions::Msgpack(opts) => {
+                Arc::new(handle.block_on(MsgpackExporter::try_new(id, opts))?)
+            }
+            ExporterOptions::Postcard(opts) => {
+                Arc::new(handle.block_on(PostcardExporter::try_new(id, opts))?)
+            }
         };
 
         let cancellation_token = CancellationToken::new();

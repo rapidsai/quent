@@ -4,7 +4,7 @@ use std::{str::FromStr, sync::Arc};
 
 use dashmap::DashMap;
 use quent_exporter::Exporter;
-use quent_exporter_ndjson::NdjsonExporter;
+use quent_exporter_ndjson::{NdjsonExporter, NdjsonExporterOptions};
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
@@ -70,7 +70,7 @@ where
                         let exporter = if exporters.contains_key(&engine_id) {
                             Arc::clone(&exporters.get(&engine_id).unwrap())
                         } else {
-                            let exporter = match NdjsonExporter::try_new(engine_id).await {
+                            let exporter = match NdjsonExporter::try_new(engine_id, NdjsonExporterOptions { output_dir: "data".into() }).await {
                                 Ok(exporter) => exporter,
                                 Err(e) => {
                                     error!("unable to construct exporter: {e}");

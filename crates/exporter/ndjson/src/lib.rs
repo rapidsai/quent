@@ -2,7 +2,7 @@
 use std::{
     io::{BufRead, BufReader},
     marker::PhantomData,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use quent_events::Event;
@@ -17,16 +17,19 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug)]
+pub struct NdjsonExporterOptions {
+    pub output_dir: PathBuf,
+}
+
+#[derive(Debug)]
 pub struct NdjsonExporter {
     writer: Mutex<BufWriter<File>>,
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(engine_id: Uuid) -> ExporterResult<Self> {
-        // TODO(johanpel): path config
-        let path = format!("data/{}.ndjson", engine_id);
-
-        debug!("exporting to \"{path}\"");
+    pub async fn try_new(engine_id: Uuid, options: NdjsonExporterOptions) -> ExporterResult<Self> {
+        let path = options.output_dir.join(format!("{}.ndjson", engine_id));
+        debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)

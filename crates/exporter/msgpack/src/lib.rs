@@ -2,7 +2,7 @@
 //!
 //! File format: sequence of length-prefixed records.
 //! Each record: [4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]
-use std::{io::BufReader, marker::PhantomData, path::Path};
+use std::{io::BufReader, marker::PhantomData, path::{Path, PathBuf}};
 
 use quent_events::Event;
 use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
@@ -16,14 +16,19 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug)]
+pub struct MsgpackExporterOptions {
+    pub output_dir: PathBuf,
+}
+
+#[derive(Debug)]
 pub struct MsgpackExporter {
     writer: Mutex<BufWriter<File>>,
 }
 
 impl MsgpackExporter {
-    pub async fn try_new(engine_id: Uuid) -> ExporterResult<Self> {
-        let path = format!("data/{}.msgpack", engine_id);
-        debug!("exporting to \"{path}\"");
+    pub async fn try_new(engine_id: Uuid, options: MsgpackExporterOptions) -> ExporterResult<Self> {
+        let path = options.output_dir.join(format!("{}.msgpack", engine_id));
+        debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
