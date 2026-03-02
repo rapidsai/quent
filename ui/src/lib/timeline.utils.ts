@@ -19,6 +19,9 @@ import type { TaskFilter } from '~quent/types/TaskFilter';
 
 const MAX_TIMELINE_BINS = 200;
 
+/** Entities with usage spans shorter than this (in seconds) are excluded from timelines. */
+export const LONG_ENTITIES_THRESHOLD_S = 0.01;
+
 /**
  * Computes the number of bins such that each bin is >= 1ms wide.
  * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
@@ -466,7 +469,7 @@ export function buildBulkParamsForItem(
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName,
-        long_entities_threshold_s: null,
+        long_entities_threshold_s: LONG_ENTITIES_THRESHOLD_S,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
       },
@@ -476,7 +479,7 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: null,
+      long_entities_threshold_s: LONG_ENTITIES_THRESHOLD_S,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
     },
