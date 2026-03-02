@@ -18,6 +18,11 @@ const DATAZOOM_LABEL_BACKGROUND_OPACITY = 0.5;
 const OVERLAY_LIGHTEN = 0.6;
 const OVERLAY_LIGHTEN_DARK = 0.4;
 
+const MARK_AREA_FILL_OPACITY = 0.12;
+const MARK_AREA_BORDER_OPACITY = 0.75;
+const MARK_LABEL_TEXT_COLOR = WHITE;
+const MARK_LABEL_TEXT_COLOR_DARK = WHITE;
+
 /**
  * Theme-dependent colors for timeline ECharts (Timeline + TimelineController).
  * Centralizes all color constants and decisions so all timeline components stay in sync
@@ -61,6 +66,11 @@ export function useTimelineChartColors() {
       ),
 
       overlayLighten: theme === THEME_DARK ? OVERLAY_LIGHTEN_DARK : OVERLAY_LIGHTEN,
+
+      markAreaFillOpacity: MARK_AREA_FILL_OPACITY,
+      markAreaBorderOpacity: MARK_AREA_BORDER_OPACITY,
+      markLabelTextColor:
+        theme === THEME_DARK ? MARK_LABEL_TEXT_COLOR_DARK : MARK_LABEL_TEXT_COLOR,
     };
   }, [theme]);
 }

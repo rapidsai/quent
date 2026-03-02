@@ -18,7 +18,7 @@ import {
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
-  LONG_ENTITIES_THRESHOLD_S,
+  getLongEntitiesThreshold,
 } from '@/lib/timeline.utils';
 import { TimelineSeries, TimelineMark } from './types';
 import { EntityTypeKey } from '@/types';
@@ -109,9 +109,10 @@ export function ResourceTimeline({
       const isGroup = resourceType === EntityTypeKey.ResourceGroup;
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
+      const windowSeconds = end - start;
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
         config: {
-          num_bins: getAdaptiveNumBins(end - start),
+          num_bins: getAdaptiveNumBins(windowSeconds),
           start,
           end,
         },
@@ -120,7 +121,7 @@ export function ResourceTimeline({
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: LONG_ENTITIES_THRESHOLD_S,
+                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
               },
@@ -128,7 +129,7 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: LONG_ENTITIES_THRESHOLD_S,
+                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
               },
@@ -181,7 +182,6 @@ export function ResourceTimeline({
     overlayPreloadedData,
     startTime,
     operatorLabel,
-    resourceId,
     overlayLighten,
   ]);
 

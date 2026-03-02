@@ -20,8 +20,7 @@ import type { TaskFilter } from '~quent/types/TaskFilter';
 
 const MAX_TIMELINE_BINS = 200;
 
-/** Entities with usage spans shorter than this (in seconds) are excluded from timelines. */
-export const LONG_ENTITIES_THRESHOLD_S = 0.05;
+const LONG_ENTITIES_BIN_MULTIPLIER = 10;
 
 /**
  * Computes the number of bins such that each bin is >= 1ms wide.
@@ -30,6 +29,12 @@ export const LONG_ENTITIES_THRESHOLD_S = 0.05;
 export function getAdaptiveNumBins(windowSeconds: number): number {
   const windowMs = windowSeconds * 1_000;
   return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+}
+
+/** Threshold for "long" entities: 10x the current bin duration in seconds. */
+export function getLongEntitiesThreshold(windowSeconds: number): number {
+  const numBins = getAdaptiveNumBins(windowSeconds);
+  return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 
 export function buildBinnedTimelineSeries(
@@ -501,10 +506,12 @@ export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
-  operatorId: string | null = null
+  operatorId: string | null = null,
+  windowSeconds?: number
 ): TimelineRequest<TaskFilter> {
   const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
+  const threshold = windowSeconds != null ? getLongEntitiesThreshold(windowSeconds) : null;
 
   if (isGroup) {
     const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
@@ -512,7 +519,7 @@ export function buildBulkParamsForItem(
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName,
-        long_entities_threshold_s: LONG_ENTITIES_THRESHOLD_S,
+        long_entities_threshold_s: threshold,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
       },
@@ -522,7 +529,7 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: LONG_ENTITIES_THRESHOLD_S,
+      long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
     },
@@ -538,12 +545,13 @@ export function collectVisibleEntries(
   expandedIds: Set<string>,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
-  operatorId: string | null = null
+  operatorId: string | null = null,
+  windowSeconds?: number
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, operatorId);
+    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, operatorId, windowSeconds);
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

@@ -49,7 +49,14 @@ export function Timeline({
   /** Annotation marks rendered as mark areas on the first series */
   marks?: TimelineMark[];
 }) {
-  const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
+  const {
+    timelineMarkupColor,
+    gridBorderColor,
+    gridBackgroundColor,
+    markAreaFillOpacity,
+    markAreaBorderOpacity,
+    markLabelTextColor,
+  } = useTimelineChartColors();
 
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
@@ -104,18 +111,20 @@ export function Timeline({
             name: m.label,
             xAxis: m.xStart,
             itemStyle: {
-              color: withOpacity(stateColor, 0.12),
-              borderColor: withOpacity(stateColor, 0.75),
+              color: withOpacity(stateColor, markAreaFillOpacity),
+              borderColor: withOpacity(stateColor, markAreaBorderOpacity),
               borderWidth: 1,
+              z: 50,
             },
             label: {
               show: true,
               position: 'insideTop',
               fontSize: 9,
               fontWeight: 500,
-              color: '#ffffff',
-              backgroundColor: withOpacity(stateColor, 0.75),
+              color: markLabelTextColor,
+              backgroundColor: withOpacity(stateColor, markAreaBorderOpacity),
               borderRadius: 2,
+              z: 50,
               padding: [1, 3],
             },
           },
@@ -144,7 +153,7 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [series, timestamps, marks]);
+  }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
 
   const yAxisOptions = useMemo(
     () => ({
