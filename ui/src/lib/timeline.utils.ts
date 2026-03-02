@@ -18,7 +18,7 @@ import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 
-const MAX_TIMELINE_BINS = 200;
+const MAX_TIMELINE_BINS = 400;
 
 const LONG_ENTITIES_BIN_MULTIPLIER = 10;
 
@@ -551,7 +551,13 @@ export function collectVisibleEntries(
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, operatorId, windowSeconds);
+    result[item.id] = buildBulkParamsForItem(
+      item,
+      selectedTypes,
+      entities,
+      operatorId,
+      windowSeconds
+    );
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {
