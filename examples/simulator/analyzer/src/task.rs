@@ -9,7 +9,7 @@ use quent_simulator_events::task::{
     Allocating, Computing, Loading, Queueing, Sending, Spilling, TaskEvent,
 };
 use quent_time::{
-    TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, try_to_secs_relative,
+    TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative,
 };
 use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
 use smallvec::{SmallVec, smallvec};
@@ -207,36 +207,34 @@ impl Task {
     }
 
     /// Convert this Task to a UI-compatible FSM.
-    pub fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
+    pub fn to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> FiniteStateMachine {
         let transitions = self
             .transitions
             .iter()
-            .map(|t| {
-                Ok(FsmTransition {
-                    name: t.name().to_string(),
-                    usages: t
-                        .usages
-                        .iter()
-                        .map(|u| FsmUsage {
-                            resource: u.resource_id,
-                            capacities: u
-                                .capacities
-                                .iter()
-                                .map(|c| (c.name.to_string(), c.value))
-                                .collect(),
-                        })
-                        .collect(),
-                    timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
-                })
+            .map(|t| FsmTransition {
+                name: t.name().to_string(),
+                usages: t
+                    .usages
+                    .iter()
+                    .map(|u| FsmUsage {
+                        resource: u.resource_id,
+                        capacities: u
+                            .capacities
+                            .iter()
+                            .map(|c| (c.name.to_string(), c.value))
+                            .collect(),
+                    })
+                    .collect(),
+                timestamp: to_secs_relative(t.timestamp(), epoch),
             })
-            .collect::<AnalyzerResult<Vec<_>>>()?;
+            .collect();
 
-        Ok(FiniteStateMachine {
+        FiniteStateMachine {
             id: self.id,
             type_name: self.type_name().to_string(),
             instance_name: self.instance_name().to_string(),
             transitions,
-        })
+        }
     }
 }
 

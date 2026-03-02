@@ -2,7 +2,7 @@ use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::Reso
 use quent_events::Event;
 use quent_query_engine_events::engine::{EngineEvent, EngineImplementationAttributes};
 use quent_query_engine_ui as ui;
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec, try_to_secs_relative};
+use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec, to_secs_relative};
 use uuid::Uuid;
 
 /// An [`Engine`] represents the top-level [`Entity`] of the query engine model.
@@ -50,7 +50,7 @@ impl Engine {
         let duration_s = if let Some(start) = self.start_time_unix_ns
             && let Some(end) = self.end_time_unix_ns
         {
-            Some(try_to_secs_relative(end, start)?)
+            Some(to_secs_relative(end, start))
         } else {
             None
         };

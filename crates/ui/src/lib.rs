@@ -2,7 +2,7 @@ use quent_analyzer::{
     self as a, AnalyzerResult, Entity, Model,
     resource::{CapacityType, tree::ResourceTreeNode},
 };
-use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
+use quent_time::{TimeSec, TimeUnixNanoSec, to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
@@ -203,15 +203,12 @@ pub struct FsmTransition {
 }
 
 impl FsmTransition {
-    pub fn try_from_rt(
-        value: &a::fsm::runtime::RtFsmTransition,
-        epoch: TimeUnixNanoSec,
-    ) -> Result<Self, quent_time::TimeError> {
-        Ok(Self {
+    pub fn from_rt(value: &a::fsm::runtime::RtFsmTransition, epoch: TimeUnixNanoSec) -> Self {
+        Self {
             name: value.name.clone(),
             usages: value.usages.iter().map(FsmUsage::from).collect(),
-            timestamp: try_to_secs_relative(value.timestamp, epoch)?,
-        })
+            timestamp: to_secs_relative(value.timestamp, epoch),
+        }
     }
 }
 
@@ -229,19 +226,16 @@ pub struct FiniteStateMachine {
 }
 
 impl FiniteStateMachine {
-    pub fn try_from_rt(
-        value: &a::fsm::runtime::RtFsm,
-        epoch: TimeUnixNanoSec,
-    ) -> Result<Self, quent_time::TimeError> {
-        Ok(Self {
+    pub fn from_rt(value: &a::fsm::runtime::RtFsm, epoch: TimeUnixNanoSec) -> Self {
+        Self {
             id: value.id(),
             type_name: value.type_name().to_owned(),
             instance_name: value.instance_name().to_owned(),
             transitions: value
                 .transitions()
                 .iter()
-                .map(|t| FsmTransition::try_from_rt(t, epoch))
-                .collect::<Result<Vec<_>, _>>()?,
-        })
+                .map(|t| FsmTransition::from_rt(t, epoch))
+                .collect(),
+        }
     }
 }
