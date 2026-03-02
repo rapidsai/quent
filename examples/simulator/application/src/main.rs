@@ -1132,15 +1132,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut engine = Engine::new();
 
     let exporter = match args.exporter.as_str() {
-        "postcard" => ExporterOptions::Postcard,
-        "messagepack" => ExporterOptions::Msgpack,
-        "ndjson" => ExporterOptions::Ndjson,
-        "collector" => ExporterOptions::Collector(CollectorExporterOptions {
+        "postcard" => Some(ExporterOptions::Postcard),
+        "messagepack" => Some(ExporterOptions::Msgpack),
+        "ndjson" => Some(ExporterOptions::Ndjson),
+        "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
-        }),
+        })),
+        "none" => None,
         _ => {
             return Err(format!(
-                "invalid exporter '{}': must be postcard, messagepack, ndjson, or collector",
+                "invalid exporter '{}': must be postcard, messagepack, ndjson, collector, or none",
                 args.exporter
             )
             .into());
