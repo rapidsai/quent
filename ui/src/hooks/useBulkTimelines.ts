@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAtomValue, useStore } from 'jotai';
-import { fetchBulkTimelines } from '@/services/api';
+import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
 import type { QueryEntities } from '~quent/types/QueryEntities';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
@@ -71,7 +71,7 @@ export function useBulkTimelines({
     engineId,
     queryId,
     debouncedZoomRange,
-    baseEntries: baseVisibleEntries,
+    entries: baseVisibleEntries,
   });
 
   // Operator bulk fetch (filtered, only when an operator is selected)
@@ -79,7 +79,7 @@ export function useBulkTimelines({
     engineId,
     queryId,
     debouncedZoomRange,
-    baseEntries: baseVisibleEntries,
+    entries: baseVisibleEntries,
     operatorId,
     enabled: operatorId != null,
   });
@@ -130,26 +130,34 @@ export function useBulkTimelines({
       const zoom = store.get(debouncedZoomRangeAtom);
       const windowSec = zoom.end - zoom.start;
 
+      const bulkConfig = {
+        num_bins: getAdaptiveNumBins(windowSec),
+        start: zoom.start,
+        end: zoom.end,
+      };
+
       try {
-        const baseRequest = fetchBulkTimelines(engineId, {
-          config: {
-            num_bins: getAdaptiveNumBins(windowSec),
-            start: zoom.start,
-            end: zoom.end,
-          },
-          entries: newBaseEntries,
-          app_params: { query_id: queryId },
+        const baseRequest = queryClient.fetchQuery({
+          queryKey: ['bulkTimelines', engineId, queryId, zoom, null, newBaseEntries],
+          queryFn: () =>
+            fetchBulkTimelines(engineId, {
+              config: bulkConfig,
+              entries: newBaseEntries,
+              app_params: { query_id: queryId },
+            }),
+          staleTime: DEFAULT_STALE_TIME,
         });
 
         const operatorRequest = operatorId
-          ? fetchBulkTimelines(engineId, {
-              config: {
-                num_bins: getAdaptiveNumBins(windowSec),
-                start: zoom.start,
-                end: zoom.end,
-              },
-              entries: setOperatorOnEntries(newBaseEntries, operatorId),
-              app_params: { query_id: queryId },
+          ? queryClient.fetchQuery({
+              queryKey: ['bulkTimelines', engineId, queryId, zoom, operatorId, newBaseEntries],
+              queryFn: () =>
+                fetchBulkTimelines(engineId, {
+                  config: bulkConfig,
+                  entries: setOperatorOnEntries(newBaseEntries, operatorId),
+                  app_params: { query_id: queryId },
+                }),
+              staleTime: DEFAULT_STALE_TIME,
             })
           : null;
 
@@ -179,20 +187,8 @@ export function useBulkTimelines({
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [rootItem, selectedTypes, entities, operatorId, engineId, queryId, store]
+    [rootItem, selectedTypes, entities, operatorId, engineId, queryId, store, queryClient]
   );
 
-  const invalidateItem = useCallback(
-    (itemId: string, resourceTypeName: string) => {
-      store.set(timelineDataAtom(timelineCacheKey(itemId, resourceTypeName)), undefined);
-      // TODO: (joe) Do we still need this?
-      queryClient.invalidateQueries({
-        queryKey: ['bulkTimelines', engineId, queryId],
-        refetchType: 'none',
-      });
-    },
-    [store, queryClient, engineId, queryId]
-  );
-
-  return { handleZoomChange, handleExpand, invalidateItem } as const;
+  return { handleZoomChange, handleExpand } as const;
 }

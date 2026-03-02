@@ -10,7 +10,8 @@ import {
   getResourceTypeName,
   setOperatorOnEntries,
 } from '@/lib/timeline.utils';
-import { timelineCacheKey, timelineDataAtom, visibleEntriesAtom } from '@/atoms/timeline';
+import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
+import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 
 /**
  * Fetches bulk timeline data and distributes results to per-item Jotai atoms.
@@ -20,25 +21,25 @@ export function useBulkTimelineFetch({
   engineId,
   queryId,
   debouncedZoomRange,
-  baseEntries,
+  entries,
   operatorId,
   enabled = true,
 }: {
   engineId: string;
   queryId: string;
   debouncedZoomRange: ZoomRange;
-  baseEntries: Record<string, TimelineRequest<TaskFilter>>;
+  entries: Record<string, TimelineRequest<TaskFilter>>;
   operatorId?: string | null;
   enabled?: boolean;
 }) {
   const store = useStore();
 
-  const { data } = useQuery({
-    queryKey: ['bulkTimelines', engineId, queryId, debouncedZoomRange, operatorId, baseEntries],
+  const { data } = useQuery<BulkTimelinesResponse>({
+    queryKey: ['bulkTimelines', engineId, queryId, debouncedZoomRange, operatorId, entries],
     queryFn: () => {
-      let entries = store.get(visibleEntriesAtom);
+      let _entries = entries;
       if (operatorId) {
-        entries = setOperatorOnEntries(entries, operatorId);
+        _entries = setOperatorOnEntries(entries, operatorId);
       }
       const windowSec = debouncedZoomRange.end - debouncedZoomRange.start;
       return fetchBulkTimelines(engineId, {
@@ -47,7 +48,7 @@ export function useBulkTimelineFetch({
           start: debouncedZoomRange.start,
           end: debouncedZoomRange.end,
         },
-        entries,
+        entries: _entries,
         app_params: { query_id: queryId },
       });
     },
@@ -58,17 +59,16 @@ export function useBulkTimelineFetch({
 
   useEffect(() => {
     if (!data) return;
-    const currentEntries = store.get(visibleEntriesAtom);
     for (const [id, entry] of Object.entries(data.entries)) {
       if (entry?.status === 'ok') {
-        const resourceTypeName = getResourceTypeName(currentEntries[id]);
+        const resourceTypeName = getResourceTypeName(entries[id]);
         store.set(timelineDataAtom(timelineCacheKey(id, resourceTypeName, operatorId)), {
           data: entry.data,
           config: data.config,
         });
       }
     }
-  }, [data, store, operatorId]);
+  }, [data, store, operatorId, entries]);
 
   return data;
 }
