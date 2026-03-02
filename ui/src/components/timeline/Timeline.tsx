@@ -5,10 +5,11 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
-import { createStripePattern } from '@/services/colors';
+import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
 import {
   TimelineSeries,
+  TimelineMark,
   DEFAULT_TIMELINE_HEIGHT,
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
@@ -36,6 +37,7 @@ export function Timeline({
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
   xAxisRange,
+  marks,
 }: {
   startTime: bigint;
   series: TimelineSeries;
@@ -44,46 +46,104 @@ export function Timeline({
   showTooltip?: boolean;
   /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
   xAxisRange?: XAxisRange;
+  /** Annotation marks rendered as mark areas on the first series */
+  marks?: TimelineMark[];
 }) {
   const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
 
   const seriesOptions = useMemo(() => {
-    return Object.entries(series)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([name, seriesData]) => {
-        const color = seriesData.color;
-        const isOverlay = seriesData.isOverlay ?? false;
-        return {
-          name,
-          type: 'line',
-          stack: isOverlay ? `overlay-total` : 'total',
-          step: 'middle',
-          symbol: 'circle',
-          symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
-          hoverAnimation: false,
-          showSymbol: false,
-          ...TIMELINE_X_AXIS_ANIMATION,
-          cursor: 'default',
-          data: seriesData.values.map((value, index) => [timestamps[index], value]),
-          lineStyle: { width: 0 },
-          itemStyle: { color },
-          areaStyle: {
-            color: isOverlay
-              ? {
-                  image: createStripePattern(color),
-                  repeat: 'repeat',
-                }
-              : color,
-            opacity: 1,
+    const sortedEntries = Object.entries(series).sort((a, b) =>
+      a[0].localeCompare(b[0])
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allSeries: any[] = sortedEntries.map(([name, seriesData]) => {
+      const color = seriesData.color;
+      const isOverlay = seriesData.isOverlay ?? false;
+
+      return {
+        name,
+        type: 'line',
+        stack: isOverlay ? `overlay-total` : 'total',
+        step: 'middle',
+        symbol: 'circle',
+        symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
+        hoverAnimation: false,
+        showSymbol: false,
+        ...TIMELINE_X_AXIS_ANIMATION,
+        cursor: 'default',
+        data: seriesData.values.map((value, index) => [timestamps[index], value]),
+        lineStyle: { width: 0 },
+        itemStyle: { color },
+        areaStyle: {
+          color: isOverlay
+            ? {
+                image: createStripePattern(color),
+                repeat: 'repeat',
+              }
+            : color,
+          opacity: 1,
+        },
+        z: isOverlay ? 5 : 2,
+        emphasis: {
+          disabled: true,
+          focus: 'none',
+        },
+      };
+    });
+
+    if (marks && marks.length > 0 && timestamps.length >= 2) {
+      const tsMin = timestamps[0];
+      const tsMax = timestamps[timestamps.length - 1];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const markAreaData: any[][] = [];
+
+      for (const m of marks) {
+        const stateColor = getColorForKey(m.stateName);
+        markAreaData.push([
+          {
+            name: m.label,
+            xAxis: m.xStart,
+            itemStyle: {
+              color: withOpacity(stateColor, 0.12),
+              borderColor: withOpacity(stateColor, 0.75),
+              borderWidth: 1,
+            },
+            label: {
+              show: true,
+              position: 'insideTop',
+              fontSize: 9,
+              fontWeight: 500,
+              color: '#ffffff',
+              backgroundColor: withOpacity(stateColor, 0.75),
+              borderRadius: 2,
+              padding: [1, 3],
+            },
           },
-          z: isOverlay ? 5 : 2,
-          emphasis: {
-            disabled: true,
-            focus: 'none',
-          },
-        };
+          { xAxis: m.xEnd },
+        ]);
+      }
+
+      allSeries.push({
+        name: '__marks__',
+        type: 'line',
+        data: [[tsMin, 0], [tsMax, 0]],
+        z: 20,
+        symbol: 'none',
+        showSymbol: false,
+        lineStyle: { width: 0, opacity: 0 },
+        tooltip: { show: false },
+        markArea: {
+          silent: true,
+          animation: false,
+          data: markAreaData,
+        },
       });
-  }, [series, timestamps]);
+    }
+
+    return allSeries;
+  }, [series, timestamps, marks]);
 
   const yAxisOptions = useMemo(
     () => ({
@@ -168,16 +228,18 @@ export function Timeline({
         formatter: function (hoveredSeries: unknown) {
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
-          const seriesValues = hoveredSeries.map(
-            (p: { color: string; seriesName: string; data: number[] }) => {
-              return {
-                color: p.color,
-                name: p.seriesName,
-                value: p.data[1],
-                isOverlay: series[p.seriesName]?.isOverlay ?? false,
-              };
-            }
-          );
+          const seriesValues = hoveredSeries
+            .filter((p: { seriesName: string }) => p.seriesName !== '__marks__')
+            .map(
+              (p: { color: string; seriesName: string; data: number[] }) => {
+                return {
+                  color: p.color,
+                  name: p.seriesName,
+                  value: p.data[1],
+                  isOverlay: series[p.seriesName]?.isOverlay ?? false,
+                };
+              }
+            );
           return renderToStaticMarkup(
             <TooltipContent timestamp={timestamp} series={seriesValues} startTime={startTime} />
           );

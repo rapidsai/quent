@@ -13,12 +13,14 @@ import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
+  buildTimelineMarks,
+  getLongFsms,
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
   LONG_ENTITIES_THRESHOLD_S,
 } from '@/lib/timeline.utils';
-import { TimelineSeries } from './types';
+import { TimelineSeries, TimelineMark } from './types';
 import { EntityTypeKey } from '@/types';
 import { WHITE, withOpacity } from '@/services/colors';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
@@ -140,12 +142,18 @@ export function ResourceTimeline({
     placeholderData: keepPreviousData,
   });
 
-  const { timestamps, series } = useMemo(() => {
+  const { timestamps, series, marks } = useMemo<{
+    timestamps: number[];
+    series: TimelineSeries;
+    marks?: TimelineMark[];
+  }>(() => {
     const data = preloadedData ?? fetchedData;
     if (!data || (operatorId != null && !overlayPreloadedData))
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
     const base = buildBinnedTimelineSeries(data.data, data.config, startTime);
+    const longFsms = getLongFsms(data.data);
+    const timelineMarks = buildTimelineMarks(longFsms, startTime);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -160,11 +168,12 @@ export function ResourceTimeline({
         return {
           timestamps: base.timestamps,
           series: mergeOverlaySeries(base.series, opResult.series, operatorLabel, overlayLighten),
+          marks: timelineMarks,
         };
       }
     }
 
-    return base;
+    return { ...base, marks: timelineMarks };
   }, [
     preloadedData,
     fetchedData,
@@ -172,6 +181,7 @@ export function ResourceTimeline({
     overlayPreloadedData,
     startTime,
     operatorLabel,
+    resourceId,
     overlayLighten,
   ]);
 
@@ -195,6 +205,7 @@ export function ResourceTimeline({
         startTime={startTime}
         showTooltip={showTooltip}
         xAxisRange={xAxisRange}
+        marks={marks}
       />
     </Suspense>
   );

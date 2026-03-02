@@ -1,4 +1,4 @@
-import { TimelineSeries } from '@/components/timeline/types';
+import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import { formatBytes } from '@/services/formatters';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
@@ -14,13 +14,14 @@ import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { getColorForKey, lightenColor, WHITE, withOpacity } from '@/services/colors';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
+import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 
 const MAX_TIMELINE_BINS = 200;
 
 /** Entities with usage spans shorter than this (in seconds) are excluded from timelines. */
-export const LONG_ENTITIES_THRESHOLD_S = 0.01;
+export const LONG_ENTITIES_THRESHOLD_S = 0.05;
 
 /**
  * Computes the number of bins such that each bin is >= 1ms wide.
@@ -96,6 +97,48 @@ export function buildBinnedTimelineSeries(
 /** Extract the config from a SingleTimelineResponse */
 export function getTimelineConfig(response: SingleTimelineResponse): BinnedSpanSec {
   return response.config;
+}
+
+/** Extract long_fsms from a ResourceTimeline response. */
+export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
+  if ('Binned' in data) return data.Binned.long_fsms;
+  if ('BinnedByState' in data) return data.BinnedByState.long_fsms;
+  return [];
+}
+
+/**
+ * Convert long_fsms into a flat array of timeline marks.
+ * Each pair of consecutive transitions defines a time range for the state
+ * entered by the first transition.
+ */
+export function buildTimelineMarks(
+  longFsms: FiniteStateMachine[],
+  startTime: bigint
+): TimelineMark[] | undefined {
+  if (longFsms.length === 0) return undefined;
+
+  const startTimeMs = Number(startTime / 1_000_000n);
+  const marks: TimelineMark[] = [];
+
+  for (const fsm of longFsms) {
+    const label = fsm.instance_name || fsm.id;
+    for (let i = 0; i < fsm.transitions.length - 1; i++) {
+      const transition = fsm.transitions[i];
+      const next = fsm.transitions[i + 1];
+      const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
+      const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+      if (xEnd <= xStart) continue;
+
+      marks.push({
+        label,
+        stateName: transition.name,
+        xStart,
+        xEnd,
+      });
+    }
+  }
+
+  return marks.length > 0 ? marks : undefined;
 }
 
 /**
