@@ -2,7 +2,7 @@ use std::error::Error;
 
 use quent_events::Event;
 use quent_instrumentation::{
-    Context, ExporterOptions,
+    Context, EventSender, ExporterOptions,
     resource::{
         ChannelResourceObserver, MemoryResourceObserver, ProcessorResourceObserver,
         ResourceGroupObserver,
@@ -22,7 +22,7 @@ pub struct SimulatorContext {
 }
 
 impl SimulatorContext {
-    pub fn try_new(exporter: ExporterOptions, id: Uuid) -> Result<Self, Box<dyn Error>> {
+    pub fn try_new(exporter: Option<ExporterOptions>, id: Uuid) -> Result<Self, Box<dyn Error>> {
         Context::try_new(exporter, id).map(|inner| Self { inner })
     }
 
@@ -94,16 +94,13 @@ impl SimulatorContext {
     }
 }
 
-fn push_event(
-    tx: &tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
-    event: Event<SimulatorEvent>,
-) {
-    Context::push_event(tx, event)
+fn push_event(tx: &EventSender<SimulatorEvent>, event: Event<SimulatorEvent>) {
+    tx.send(event)
 }
 
 #[derive(Clone)]
 pub struct EngineObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl EngineObserver {
@@ -134,7 +131,7 @@ impl EngineObserver {
 
 #[derive(Clone)]
 pub struct QueryGroupObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl QueryGroupObserver {
@@ -151,7 +148,7 @@ impl QueryGroupObserver {
 
 #[derive(Clone)]
 pub struct WorkerObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl WorkerObserver {
@@ -182,7 +179,7 @@ impl WorkerObserver {
 
 #[derive(Clone)]
 pub struct QueryObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl QueryObserver {
@@ -235,7 +232,7 @@ impl QueryObserver {
 
 #[derive(Clone)]
 pub struct PlanObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl PlanObserver {
@@ -252,7 +249,7 @@ impl PlanObserver {
 
 #[derive(Clone)]
 pub struct OperatorObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl OperatorObserver {
@@ -283,7 +280,7 @@ impl OperatorObserver {
 
 #[derive(Clone)]
 pub struct PortObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl PortObserver {
@@ -314,7 +311,7 @@ impl PortObserver {
 
 #[derive(Clone)]
 pub struct TaskObserver {
-    tx: tokio::sync::mpsc::UnboundedSender<Event<SimulatorEvent>>,
+    tx: EventSender<SimulatorEvent>,
 }
 
 impl TaskObserver {
