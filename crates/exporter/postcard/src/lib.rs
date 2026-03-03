@@ -5,7 +5,7 @@
 use std::{io::BufReader, marker::PhantomData, path::{Path, PathBuf}};
 
 use quent_events::Event;
-use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -15,7 +15,7 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostcardExporterOptions {
     pub output_dir: PathBuf,
 }
@@ -27,10 +27,10 @@ pub struct PostcardExporter {
 
 impl PostcardExporter {
     pub async fn try_new(
-        engine_id: Uuid,
+        application_id: Uuid,
         options: PostcardExporterOptions,
     ) -> ExporterResult<Self> {
-        let path = options.output_dir.join(format!("{}.postcard", engine_id));
+        let path = options.output_dir.join(format!("{}.postcard", application_id));
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
@@ -84,6 +84,8 @@ impl<T> PostcardImporter<T> {
         })
     }
 }
+
+impl<T> Importer<T> for PostcardImporter<T> where T: for<'de> Deserialize<'de> {}
 
 impl<T> Iterator for PostcardImporter<T>
 where

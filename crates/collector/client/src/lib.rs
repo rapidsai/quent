@@ -1,4 +1,4 @@
-//! A gRPC-base client that can send [`Event`]s to a collector.
+//! A gRPC-based client that can send [`Event`]s to a collector.
 
 use std::time::Duration;
 
@@ -18,7 +18,7 @@ use thiserror::Error;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::proto::{CollectEventRequest, collector_client::CollectorClient};
+use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
 
 #[derive(Debug, Error)]
 pub enum CollectorError {
@@ -49,7 +49,7 @@ impl<T> Client<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub async fn new(engine_id: Uuid, address: String) -> CollectorResult<Client<T>> {
+    pub async fn new(application_id: Uuid, address: String) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -172,11 +172,11 @@ where
 
         debug!("opening stream ...");
 
-        // Add the engine id to the metadata of the request, so the collector knows which engine id this all belongs to.
+        // Add the application id to the metadata of the request, so the collector knows which engine id this all belongs to.
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
-            "engine-id",
-            engine_id.to_string().parse().expect("valid metadata value"),
+            "application-id",
+            application_id.to_string().parse().expect("valid metadata value"),
         );
 
         let mut cloned_client = client.clone();

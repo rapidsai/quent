@@ -5,7 +5,7 @@
 use std::{io::BufReader, marker::PhantomData, path::{Path, PathBuf}};
 
 use quent_events::Event;
-use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -15,7 +15,7 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
     pub output_dir: PathBuf,
 }
@@ -26,8 +26,8 @@ pub struct MsgpackExporter {
 }
 
 impl MsgpackExporter {
-    pub async fn try_new(engine_id: Uuid, options: MsgpackExporterOptions) -> ExporterResult<Self> {
-        let path = options.output_dir.join(format!("{}.msgpack", engine_id));
+    pub async fn try_new(application_id: Uuid, options: MsgpackExporterOptions) -> ExporterResult<Self> {
+        let path = options.output_dir.join(format!("{}.msgpack", application_id));
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
@@ -81,6 +81,8 @@ impl<T> MsgpackImporter<T> {
         })
     }
 }
+
+impl<T> Importer<T> for MsgpackImporter<T> where T: for<'de> Deserialize<'de> {}
 
 impl<T> Iterator for MsgpackImporter<T>
 where

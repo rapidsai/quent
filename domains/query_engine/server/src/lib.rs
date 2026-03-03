@@ -1,7 +1,8 @@
 //! Utilities for server implementations
 
 use axum::Router as AxumRouter;
-use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
+use quent_collector::server::{CollectorService, CollectorServiceOptions};
+use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
@@ -35,12 +36,14 @@ pub fn initialize_tracing(log_level: &str) {
         .init();
 }
 
-pub fn collector_service<E>() -> Result<Router, Box<dyn std::error::Error>>
+pub fn collector_service<E>(
+    options: CollectorServiceOptions,
+) -> Result<Router, Box<dyn std::error::Error>>
 where
     E: Serialize + Send + Sync + std::fmt::Debug + 'static,
     for<'de> E: Deserialize<'de>,
 {
-    let collector = CollectorService::<E>::default();
+    let collector = CollectorService::<E>::new(options);
     Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))
 }
 

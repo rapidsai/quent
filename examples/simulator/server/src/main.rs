@@ -1,6 +1,8 @@
-use std::net::ToSocketAddrs;
+use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
+use quent_collector::server::CollectorServiceOptions;
+use quent_exporter::ExporterOptions;
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_events::SimulatorEvent;
@@ -16,6 +18,10 @@ mod defaults {
 mod env {
     /// Collector socket address environment variable name.
     pub(crate) const QUENT_COLLECTOR_ADDRESS: &str = "QUENT_COLLECTOR_ADDRESS";
+    /// Collector output directory environment variable name.
+    pub(crate) const QUENT_COLLECTOR_OUTPUT_DIR: &str = "QUENT_COLLECTOR_OUTPUT_DIR";
+    /// Exporter type environment variable name.
+    pub(crate) const QUENT_COLLECTOR_EXPORTER: &str = "QUENT_COLLECTOR_EXPORTER";
     /// Analyzer socket address environment variable name.
     pub(crate) const QUENT_ANALYZER_ADDRESS: &str = "QUENT_ANALYZER_ADDRESS";
     /// Optional CORS address environment variable name.
@@ -33,6 +39,16 @@ struct Args {
     /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
     #[arg(long, default_value = defaults::QUENT_COLLECTOR_ADDRESS, env = env::QUENT_COLLECTOR_ADDRESS)]
     collector_address: String,
+
+    /// Exporter format for collected event data (ndjson, msgpack, postcard).
+    /// Overridden by the QUENT_COLLECTOR_EXPORTER environment variable if set.
+    #[arg(long, default_value = "ndjson", env = env::QUENT_COLLECTOR_EXPORTER)]
+    exporter: String,
+
+    /// Output directory for collected event data.
+    /// Overridden by the QUENT_COLLECTOR_OUTPUT_DIR environment variable if set.
+    #[arg(long, default_value = "data", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
+    output_dir: PathBuf,
 
     /// Socket address for the analyzer HTTP server (e.g. "[::]:8080").
     /// Overridden by the QUENT_ANALYZER_ADDRESS environment variable if set.
@@ -52,6 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log_level,
         cors_address,
         collector_address,
+        exporter,
+        output_dir,
         analyzer_address,
     } = Args::parse();
 
@@ -61,8 +79,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_socket_addrs()?
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {collector_address}"))?;
+
+    let exporter_kind = match exporter.as_str() {
+        "ndjson" => ExporterOptions::Ndjson { output_dir },
+        "msgpack" => ExporterOptions::Msgpack { output_dir },
+        "postcard" => ExporterOptions::Postcard { output_dir },
+        other => return Err(format!("unknown exporter: {other}").into()),
+    };
+
+    let collector_options = CollectorServiceOptions {
+        exporter: exporter_kind,
+    };
     let collector = async {
-        collector_service::<SimulatorEvent>()?
+        collector_service::<SimulatorEvent>(collector_options)?
             .serve(collector_addr)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })

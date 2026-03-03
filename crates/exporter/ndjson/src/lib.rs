@@ -6,7 +6,7 @@ use std::{
 };
 
 use quent_events::Event;
-use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -16,7 +16,7 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
     pub output_dir: PathBuf,
 }
@@ -27,8 +27,8 @@ pub struct NdjsonExporter {
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(engine_id: Uuid, options: NdjsonExporterOptions) -> ExporterResult<Self> {
-        let path = options.output_dir.join(format!("{}.ndjson", engine_id));
+    pub async fn try_new(application_id: Uuid, options: NdjsonExporterOptions) -> ExporterResult<Self> {
+        let path = options.output_dir.join(format!("{}.ndjson", application_id));
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
@@ -83,6 +83,8 @@ impl<T> NdjsonImporter<T> {
         })
     }
 }
+
+impl<T> Importer<T> for NdjsonImporter<T> where T: for<'de> Deserialize<'de> {}
 
 impl<T> Iterator for NdjsonImporter<T>
 where

@@ -11,6 +11,3 @@ quent-time = { path = "../time" }
 quent-attributes = { path = "../attributes" }
 uuid = { workspace = true, features = ["serde"] }
 serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

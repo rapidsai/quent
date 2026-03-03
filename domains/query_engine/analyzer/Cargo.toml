@@ -12,6 +12,4 @@ quent-query-engine-ui = { path = "../ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui"}
 rustc-hash.workspace = true
-thiserror.workspace = true
 uuid.workspace = true
-serde.workspace = true

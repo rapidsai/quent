@@ -1,8 +1,9 @@
 use std::error::Error;
 
 use quent_events::Event;
+use quent_exporter::ExporterOptions;
 use quent_instrumentation::{
-    Context, EventSender, ExporterOptions,
+    Context, EventSender,
     resource::{
         ChannelResourceObserver, MemoryResourceObserver, ProcessorResourceObserver,
         ResourceGroupObserver,
