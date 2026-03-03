@@ -4,6 +4,7 @@ import { useAtomValue } from 'jotai';
 import {
   bulkInitializedAtom,
   debouncedZoomRangeAtom,
+  hideTasksAtom,
   timelineCacheKey,
   timelineDataAtom,
 } from '@/atoms/timeline';
@@ -77,6 +78,7 @@ export function ResourceTimeline({
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
   const bulkInitialized = useAtomValue(bulkInitializedAtom);
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
+  const hideTasks = useAtomValue(hideTasksAtom);
 
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
@@ -205,7 +207,7 @@ export function ResourceTimeline({
         startTime={startTime}
         showTooltip={showTooltip}
         xAxisRange={xAxisRange}
-        marks={marks}
+        marks={hideTasks ? undefined : marks}
       />
     </Suspense>
   );

@@ -24,6 +24,7 @@ import {
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -181,13 +182,18 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   ]);
 
   return (
-    <TreeTable<TreeTableItem>
-      data={treeData}
-      columns={columns}
-      initialSelectedItemId={rootItem.id}
-      columnWidths={[275, 'auto']}
-      onExpandChange={onExpandChange}
-      highlightedItemIds={highlightedItemIds}
-    />
+    <div className="flex flex-col h-full w-full">
+      <TimelineToolbar durationSeconds={durationSeconds} />
+      <div className="flex-1 min-h-0">
+        <TreeTable<TreeTableItem>
+          data={treeData}
+          columns={columns}
+          initialSelectedItemId={rootItem.id}
+          columnWidths={[275, 'auto']}
+          onExpandChange={onExpandChange}
+          highlightedItemIds={highlightedItemIds}
+        />
+      </div>
+    </div>
   );
 }

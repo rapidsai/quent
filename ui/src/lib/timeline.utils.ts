@@ -122,25 +122,19 @@ export function buildTimelineMarks(
   if (longFsms.length === 0) return undefined;
 
   const startTimeMs = Number(startTime / 1_000_000n);
-  const marks: TimelineMark[] = [];
 
-  for (const fsm of longFsms) {
+  const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
-    for (let i = 0; i < fsm.transitions.length - 1; i++) {
-      const transition = fsm.transitions[i];
-      const next = fsm.transitions[i + 1];
-      const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
-      const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
-      if (xEnd <= xStart) continue;
-
-      marks.push({
-        label,
-        stateName: transition.name,
-        xStart,
-        xEnd,
-      });
-    }
-  }
+    return fsm.transitions
+      .slice(0, -1)
+      .map((transition, i) => {
+        const next = fsm.transitions[i + 1];
+        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
+        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+        return { label, stateName: transition.name, xStart, xEnd };
+      })
+      .filter(m => m.xEnd > m.xStart);
+  });
 
   return marks.length > 0 ? marks : undefined;
 }

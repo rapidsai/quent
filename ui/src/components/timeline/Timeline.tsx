@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
+import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
 import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
@@ -61,8 +62,7 @@ export function Timeline({
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allSeries: any[] = sortedEntries.map(([name, seriesData]) => {
+    const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
       const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
 
@@ -153,27 +153,36 @@ export function Timeline({
   }, [seriesOptions.length]);
 
   const yAxisOptions = useMemo(
-    () => ({
-      type: 'value',
-      splitNumber: 1,
-      show: true,
-      axisLine: {
+    () => [
+      {
+        type: 'value',
+        splitNumber: 1,
         show: true,
-        lineStyle: { color: gridBorderColor },
-      },
-      axisTick: { show: false },
-      splitLine: { show: false },
-      axisLabel: {
-        show: true,
-        margin: 8,
-        fontSize: 10,
-        color: timelineMarkupColor,
-        // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
-        formatter: (value: number) => {
-          return formatBytes(value, 0);
+        axisLine: {
+          show: true,
+          lineStyle: { color: gridBorderColor },
+        },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: {
+          show: true,
+          margin: 8,
+          fontSize: 10,
+          color: timelineMarkupColor,
+          // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
+          formatter: (value: number) => {
+            return formatBytes(value, 0);
+          },
         },
       },
-    }),
+      {
+        type: 'value',
+        show: false,
+        min: 0,
+        max: 1,
+        gridIndex: 0,
+      },
+    ],
     [gridBorderColor, timelineMarkupColor]
   );
 
@@ -266,16 +275,7 @@ export function Timeline({
       },
       grid: gridOptions,
       xAxis: xAxisOptions,
-      yAxis: [
-        yAxisOptions,
-        {
-          type: 'value',
-          show: false,
-          min: 0,
-          max: 1,
-          gridIndex: 0,
-        },
-      ],
+      yAxis: yAxisOptions,
       series: seriesOptions,
       ...(xAxisRange
         ? {}
@@ -291,14 +291,6 @@ export function Timeline({
                 realtime: true,
                 xAxisIndex: 'all',
                 filterMode: 'none',
-              },
-              {
-                type: 'inside',
-                xAxisIndex: 0,
-                filterMode: 'none',
-                zoomOnMouseWheel: false,
-                moveOnMouseMove: false,
-                moveOnMouseWheel: false,
               },
             ],
           }),

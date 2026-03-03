@@ -98,7 +98,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
-      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-card shadow-sm flex-shrink-0">
+      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-card flex-shrink-0">
         <Network className="h-4 w-4 text-primary" />
         <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
         <div className="text-xs text-muted-foreground">

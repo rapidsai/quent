@@ -3,6 +3,7 @@ import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
+import { useAtomValue } from 'jotai';
 import { withOpacity } from '@/services/colors';
 import { formatDuration } from '@/services/formatters';
 import {
@@ -16,6 +17,7 @@ import {
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import { useTimelineChartColors } from './useTimelineChartColors';
+import { zoomRangeAtom } from '@/atoms/timeline';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
@@ -304,6 +306,7 @@ export function TimelineController({
           end = params.batch[0].end;
         }
         if (start !== undefined && end !== undefined) {
+          selfTriggeredRef.current = true;
           onZoomChange({
             start: (start / 100) * durationSeconds,
             end: (end / 100) * durationSeconds,
@@ -314,6 +317,28 @@ export function TimelineController({
   }, [onZoomChange, durationSeconds]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
+  const selfTriggeredRef = useRef(false);
+
+  const zoomRange = useAtomValue(zoomRangeAtom);
+
+  useEffect(() => {
+    if (selfTriggeredRef.current) {
+      selfTriggeredRef.current = false;
+      return;
+    }
+    const instance = instanceRef.current;
+    if (!instance || durationSeconds === 0) return;
+
+    const startPct = (zoomRange.start / durationSeconds) * 100;
+    const endPct = (zoomRange.end / durationSeconds) * 100;
+
+    instance.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 0,
+      start: startPct,
+      end: endPct,
+    });
+  }, [zoomRange, durationSeconds]);
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
