@@ -69,8 +69,7 @@ export function useTimelineChartColors() {
 
       markAreaFillOpacity: MARK_AREA_FILL_OPACITY,
       markAreaBorderOpacity: MARK_AREA_BORDER_OPACITY,
-      markLabelTextColor:
-        theme === THEME_DARK ? MARK_LABEL_TEXT_COLOR_DARK : MARK_LABEL_TEXT_COLOR,
+      markLabelTextColor: theme === THEME_DARK ? MARK_LABEL_TEXT_COLOR_DARK : MARK_LABEL_TEXT_COLOR,
     };
   }, [theme]);
 }
