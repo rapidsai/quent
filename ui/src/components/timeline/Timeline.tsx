@@ -66,6 +66,7 @@ export function Timeline({
             opacity: 1,
           },
           z: isOverlay ? 5 : 2,
+          sampling: 'lttb',
           emphasis: {
             disabled: true,
             focus: 'none',
@@ -146,6 +147,7 @@ export function Timeline({
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
+      animation: false,
       tooltip: {
         show: true,
         showContent: showTooltip,
@@ -188,12 +190,13 @@ export function Timeline({
       series: seriesOptions,
       dataZoom: [
         { type: 'slider', show: false, realtime: true, filterMode: 'none' },
-        { type: 'inside', zoomLock: true, zoomOnMouseWheel: false, filterMode: 'none' },
+        { type: 'inside', zoomLock: true, zoomOnMouseWheel: false, throttle: 30, filterMode: 'none' },
         {
           type: 'inside',
           zoomOnMouseWheel: 'shift',
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
+          throttle: 30,
           filterMode: 'none',
         },
       ],
