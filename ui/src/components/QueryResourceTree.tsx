@@ -16,10 +16,15 @@ import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
+import {
+  transformResourceTree,
+  getAdaptiveNumBins,
+  getLongEntitiesThreshold,
+} from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -103,7 +108,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
             resource_type_name: rootResourceType,
-            long_entities_threshold_s: null,
+            long_entities_threshold_s: getLongEntitiesThreshold(durationSeconds),
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
           },
@@ -177,13 +182,18 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   ]);
 
   return (
-    <TreeTable<TreeTableItem>
-      data={treeData}
-      columns={columns}
-      initialSelectedItemId={rootItem.id}
-      columnWidths={[275, 'auto']}
-      onExpandChange={onExpandChange}
-      highlightedItemIds={highlightedItemIds}
-    />
+    <div className="flex flex-col h-full w-full">
+      <TimelineToolbar durationSeconds={durationSeconds} />
+      <div className="flex-1 min-h-0">
+        <TreeTable<TreeTableItem>
+          data={treeData}
+          columns={columns}
+          initialSelectedItemId={rootItem.id}
+          columnWidths={[275, 'auto']}
+          onExpandChange={onExpandChange}
+          highlightedItemIds={highlightedItemIds}
+        />
+      </div>
+    </div>
   );
 }
