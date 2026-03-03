@@ -40,7 +40,7 @@ export const OperatorStatisticsPopup = ({
                       <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
                       <div className="ml-2 flex flex-col gap-0.5">
                         {value.map((item, i) => (
-                          <span key={i} className="text-muted-foreground font-mono">{item}</span>
+                          <span key={i} className="text-muted-foreground font-mono whitespace-pre-line">{item}</span>
                         ))}
                       </div>
                     </div>

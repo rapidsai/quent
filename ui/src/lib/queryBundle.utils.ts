@@ -26,7 +26,7 @@ export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEnti
 
 function unwrapToString(val: unknown): string {
   const result = unwrapTaggedValue(val);
-  return Array.isArray(result) ? result.join(', ') : String(result ?? '');
+  return Array.isArray(result) ? result.join('\n') : String(result ?? '');
 }
 
 function unwrapTaggedValue(val: unknown): StatValue {
