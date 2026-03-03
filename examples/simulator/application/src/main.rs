@@ -807,39 +807,108 @@ impl Worker {
         }
 
         // Set some stats
+        macro_rules! attr {
+            (u64 $name:expr, $range:expr) => { Attribute::u64($name, rng().random_range($range)) };
+            (u32 $name:expr, $val:expr) => { Attribute::u32($name, $val) };
+            (f64 $name:expr, $range:expr) => { Attribute::f64($name, rng().random_range($range)) };
+            (str $name:expr, $val:expr) => { Attribute::string($name, $val) };
+            (pick $name:expr, $($choice:expr),+) => {
+                Attribute::string($name, *rng().sample(Choose::new(&[$($choice),+]).unwrap()))
+            };
+        }
+
         let op_obs = context.operator_observer();
         let port_obs = context.port_observer();
         for node_idx in nodes.iter() {
             let op = &physical_plan.dag[*node_idx];
-            let mut attributes = vec![Attribute::u64(
-                "tasks_processed",
-                op.tasks_processed.load(Ordering::Relaxed),
-            )];
+            let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
+
+            // Common metrics for all operators
+            let mut attributes = vec![
+                Attribute::u64("tasks_processed", tasks_processed),
+                attr!(u64 "wall_time_ns",       100_000..5_000_000_000),
+                attr!(u64 "cpu_time_ns",        50_000..4_000_000_000),
+                attr!(u64 "peak_memory_bytes",  1024..512 * 1024 * 1024),
+                attr!(u64 "output_rows",        0..10_000_000),
+                attr!(u64 "output_bytes",       0..2u64 * 1024 * 1024 * 1024),
+                attr!(u64 "input_rows",         0..50_000_000),
+                attr!(u64 "input_bytes",        0..4u64 * 1024 * 1024 * 1024),
+                attr!(u64 "num_batches",        1..2048),
+                attr!(f64 "avg_batch_rows",     64.0..65536.0),
+            ];
 
             match op.kind {
-                Physical::FileSystemScan => {
-                    attributes.push(Attribute::string("file_name", "/dev/null"))
-                }
-                Physical::JoinPartition => {
-                    attributes.push(Attribute::u64(
-                        "average_partition_size_bytes",
-                        rng().random_range(1..1024 * 1024 * 1024),
-                    ));
-                    attributes.push(Attribute::string(
-                        "join_strategy",
-                        *rng().sample(Choose::new(&["broadcast", "hash partition"]).unwrap()),
-                    ))
-                }
-                Physical::JoinLocal => (),
-                Physical::Sort => attributes.push(Attribute::string(
-                    "direction",
-                    *rng().sample(Choose::new(&["asc", "desc"]).unwrap()),
-                )),
-                Physical::Limit => attributes.push(Attribute::u32("amount", 42)),
-                Physical::Output => attributes.push(Attribute::string(
-                    "sink",
-                    *rng().sample(Choose::new(&["file", "memory"]).unwrap()),
-                )),
+                Physical::FileSystemScan => attributes.extend([
+                    attr!(str "file_name",              "/dev/null"),
+                    attr!(u64 "files_scanned",          1..256),
+                    attr!(u64 "bytes_read",             1024..8u64 * 1024 * 1024 * 1024),
+                    attr!(u64 "row_groups_read",        1..1024),
+                    attr!(u64 "row_groups_skipped",     0..512),
+                    attr!(u64 "pages_read",             1..8192),
+                    attr!(u64 "pages_decompressed",     1..8192),
+                    attr!(u64 "io_wait_ns",             10_000..2_000_000_000),
+                    attr!(f64 "io_throughput_mbs",      50.0..6000.0),
+                    attr!(u64 "decompress_time_ns",     10_000..500_000_000),
+                    attr!(u64 "predicate_filter_time_ns", 0..100_000_000),
+                    attr!(f64 "predicate_selectivity",  0.001..1.0),
+                    attr!(u64 "null_count",             0..100_000),
+                    attr!(u64 "columns_projected",      1..64),
+                ]),
+                Physical::JoinPartition => attributes.extend([
+                    attr!(u64  "average_partition_size_bytes", 1..1024 * 1024 * 1024),
+                    attr!(pick "join_strategy",          "broadcast", "hash partition"),
+                    attr!(u64  "num_partitions",         2..256),
+                    attr!(u64  "partition_time_ns",      100_000..1_000_000_000),
+                    attr!(u64  "hash_time_ns",           50_000..500_000_000),
+                    attr!(f64  "partition_skew",         0.0..5.0),
+                    attr!(u64  "max_partition_rows",     100..1_000_000),
+                    attr!(u64  "min_partition_rows",     0..10_000),
+                    attr!(u64  "build_side_bytes",       1024..2u64 * 1024 * 1024 * 1024),
+                    attr!(u64  "probe_side_bytes",       1024..4u64 * 1024 * 1024 * 1024),
+                    attr!(u64  "network_bytes_sent",     0..2u64 * 1024 * 1024 * 1024),
+                    attr!(u64  "network_time_ns",        0..2_000_000_000),
+                ]),
+                Physical::JoinLocal => attributes.extend([
+                    attr!(u64 "hash_table_size_bytes",   1024..2u64 * 1024 * 1024 * 1024),
+                    attr!(u64 "hash_table_entries",      100..50_000_000),
+                    attr!(u64 "build_time_ns",           100_000..2_000_000_000),
+                    attr!(u64 "probe_time_ns",           100_000..3_000_000_000),
+                    attr!(u64 "build_rows",              100..10_000_000),
+                    attr!(u64 "probe_rows",              100..50_000_000),
+                    attr!(u64 "match_rows",              0..10_000_000),
+                    attr!(f64 "hash_collision_rate",     0.0..0.3),
+                    attr!(u64 "spill_count",             0..32),
+                    attr!(u64 "spill_bytes",             0..4u64 * 1024 * 1024 * 1024),
+                    attr!(u64 "bloom_filter_size_bytes", 0..64 * 1024 * 1024),
+                    attr!(f64 "bloom_filter_fpr",        0.001..0.1),
+                ]),
+                Physical::Sort => attributes.extend([
+                    attr!(pick "direction",              "asc", "desc"),
+                    attr!(u64  "sort_keys",              1..8),
+                    attr!(u64  "comparison_count",       1000..500_000_000),
+                    attr!(u64  "merge_passes",           1..16),
+                    attr!(u64  "run_count",              1..512),
+                    attr!(u64  "spill_count",            0..64),
+                    attr!(u64  "spill_bytes",            0..4u64 * 1024 * 1024 * 1024),
+                    attr!(u64  "merge_time_ns",          100_000..2_000_000_000),
+                    attr!(f64  "avg_key_length_bytes",   4.0..256.0),
+                    attr!(f64  "presorted_fraction",     0.0..1.0),
+                ]),
+                Physical::Limit => attributes.extend([
+                    attr!(u32 "amount",                  42),
+                    attr!(u64 "rows_inspected",          42..10_000_000),
+                    attr!(u64 "rows_emitted",            1..43),
+                    attr!(f64 "early_termination_ratio", 0.0..1.0),
+                ]),
+                Physical::Output => attributes.extend([
+                    attr!(pick "sink",                   "file", "memory"),
+                    attr!(u64  "rows_written",           0..10_000_000),
+                    attr!(u64  "bytes_written",          0..4u64 * 1024 * 1024 * 1024),
+                    attr!(u64  "flush_count",            1..128),
+                    attr!(u64  "flush_time_ns",          10_000..500_000_000),
+                    attr!(f64  "compression_ratio",      0.1..0.9),
+                    attr!(u64  "serialization_time_ns",  10_000..1_000_000_000),
+                ]),
             }
             op_obs.statistics(
                 op.id,
