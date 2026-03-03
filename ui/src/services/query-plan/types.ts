@@ -42,9 +42,9 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   hasOutgoing?: boolean;
 }
 
-export type StatValue = string | number | boolean | null;
-type TaggedStatValue = Record<string, StatValue>;
-export type CustomStatistics = Record<string, TaggedStatValue>;
+export type StatValue = string | number | boolean | null | string[];
+type TaggedStatValue = Record<string, unknown>;
+export type CustomStatistics = Record<string, TaggedStatValue | null>;
 
 export interface RawNodeStatistics {
   statistics?: {

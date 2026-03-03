@@ -24,12 +24,43 @@ export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEnti
   return ENTITY_REF_TO_ENTITIES_KEY[entityRef];
 }
 
+function unwrapToString(val: unknown): string {
+  const result = unwrapTaggedValue(val);
+  return Array.isArray(result) ? result.join(', ') : String(result ?? '');
+}
+
+function unwrapTaggedValue(val: unknown): StatValue {
+  switch (true) {
+    case val === null || val === undefined:
+      return null;
+    case typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean':
+      return val as StatValue;
+    case Array.isArray(val):
+      return (val as unknown[]).map(unwrapToString);
+    case typeof val === 'object': {
+      const obj = val as Record<string, unknown>;
+      const keys = Object.keys(obj);
+      // Attribute shape: { key: string, value: Value }
+      if (keys.length === 2 && 'key' in obj && 'value' in obj) {
+        return `${obj.key}: ${unwrapToString(obj.value)}`;
+      }
+      // Tagged value: { Tag: innerValue }
+      if (keys.length === 1) {
+        return unwrapTaggedValue(Object.values(obj)[0]);
+      }
+      return JSON.stringify(val);
+    }
+    default:
+      return String(val);
+  }
+}
+
 export function parseCustomStatistics(rawNode: unknown): Array<{ key: string; value: StatValue }> {
   const statistics = (rawNode as RawNodeStatistics)?.statistics?.custom_statistics;
   if (!statistics) return [];
 
   return Object.entries(statistics).map(([key, tagged]) => ({
     key,
-    value: Object.values(tagged)[0] ?? null,
+    value: tagged ? unwrapTaggedValue(Object.values(tagged)[0]) : null,
   }));
 }
