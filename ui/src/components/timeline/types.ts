@@ -8,6 +8,14 @@ export type TimelineSeriesEntry = {
 
 export type TimelineSeries = Record<string, TimelineSeriesEntry>;
 
+/** A single annotation mark on the timeline. */
+export type TimelineMark = {
+  label: string;
+  stateName: string;
+  xStart: number;
+  xEnd: number;
+};
+
 export const DEFAULT_TIMELINE_HEIGHT = 75;
 
 // left/right spacing needs to be consistent across all timelines

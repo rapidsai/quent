@@ -4,6 +4,7 @@ import { useAtomValue } from 'jotai';
 import {
   bulkInitializedAtom,
   debouncedZoomRangeAtom,
+  hideTasksAtom,
   timelineCacheKey,
   timelineDataAtom,
 } from '@/atoms/timeline';
@@ -13,11 +14,14 @@ import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
+  buildTimelineMarks,
+  getLongFsms,
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
+  getLongEntitiesThreshold,
 } from '@/lib/timeline.utils';
-import { TimelineSeries } from './types';
+import { TimelineSeries, TimelineMark } from './types';
 import { EntityTypeKey } from '@/types';
 import { WHITE, withOpacity } from '@/services/colors';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
@@ -74,6 +78,7 @@ export function ResourceTimeline({
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
   const bulkInitialized = useAtomValue(bulkInitializedAtom);
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
+  const hideTasks = useAtomValue(hideTasksAtom);
 
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
@@ -106,9 +111,10 @@ export function ResourceTimeline({
       const isGroup = resourceType === EntityTypeKey.ResourceGroup;
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
+      const windowSeconds = end - start;
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
         config: {
-          num_bins: getAdaptiveNumBins(end - start),
+          num_bins: getAdaptiveNumBins(windowSeconds),
           start,
           end,
         },
@@ -117,7 +123,7 @@ export function ResourceTimeline({
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: null,
+                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
               },
@@ -125,7 +131,7 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: null,
+                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
               },
@@ -139,12 +145,18 @@ export function ResourceTimeline({
     placeholderData: keepPreviousData,
   });
 
-  const { timestamps, series } = useMemo(() => {
+  const { timestamps, series, marks } = useMemo<{
+    timestamps: number[];
+    series: TimelineSeries;
+    marks?: TimelineMark[];
+  }>(() => {
     const data = preloadedData ?? fetchedData;
     if (!data || (operatorId != null && !overlayPreloadedData))
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
     const base = buildBinnedTimelineSeries(data.data, data.config, startTime);
+    const longFsms = getLongFsms(data.data);
+    const timelineMarks = buildTimelineMarks(longFsms, startTime);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -159,11 +171,12 @@ export function ResourceTimeline({
         return {
           timestamps: base.timestamps,
           series: mergeOverlaySeries(base.series, opResult.series, operatorLabel, overlayLighten),
+          marks: timelineMarks,
         };
       }
     }
 
-    return base;
+    return { ...base, marks: timelineMarks };
   }, [
     preloadedData,
     fetchedData,
@@ -194,6 +207,7 @@ export function ResourceTimeline({
         startTime={startTime}
         showTooltip={showTooltip}
         xAxisRange={xAxisRange}
+        marks={hideTasks ? undefined : marks}
       />
     </Suspense>
   );

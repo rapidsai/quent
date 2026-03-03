@@ -1,6 +1,7 @@
 import { EntityRefKey } from '@/types';
 import { QueryEntities } from '~quent/types/QueryEntities';
-import { StatValue, RawNodeStatistics } from '@/services/query-plan/types';
+import { Operator } from '~quent/types/Operator';
+import { StatValue } from '@/services/query-plan/types';
 
 // Maps entity ref string to a key in the entities object.
 // Task has no corresponding collection in QueryEntities, so it is omitted.
@@ -56,11 +57,11 @@ function unwrapTaggedValue(val: unknown): StatValue {
 }
 
 export function parseCustomStatistics(rawNode: unknown): Array<{ key: string; value: StatValue }> {
-  const statistics = (rawNode as RawNodeStatistics)?.statistics?.custom_statistics;
+  const statistics = (rawNode as Operator)?.statistics?.custom_statistics;
   if (!statistics) return [];
 
   return Object.entries(statistics).map(([key, tagged]) => ({
     key,
-    value: tagged ? unwrapTaggedValue(Object.values(tagged)[0]) : null,
+    value: tagged ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0]) : null,
   }));
 }
