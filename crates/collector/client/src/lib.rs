@@ -176,7 +176,10 @@ where
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
             "application-id",
-            application_id.to_string().parse().expect("valid metadata value"),
+            application_id
+                .to_string()
+                .parse()
+                .expect("valid metadata value"),
         );
 
         let mut cloned_client = client.clone();

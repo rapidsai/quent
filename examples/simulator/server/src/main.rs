@@ -4,8 +4,8 @@ use clap::Parser;
 use quent_collector::server::CollectorServiceOptions;
 use quent_exporter::{
     ExporterOptions, ImporterOptions, MsgpackExporterOptions, MsgpackImporterOptions,
-    NdjsonExporterOptions, NdjsonImporterOptions, PostcardExporterOptions,
-    PostcardImporterOptions, create_importer,
+    NdjsonExporterOptions, NdjsonImporterOptions, PostcardExporterOptions, PostcardImporterOptions,
+    create_importer,
 };
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
@@ -113,20 +113,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let msgpack_path = importer_output_dir.join(format!("{engine_id}.msgpack"));
         let ndjson_path = importer_output_dir.join(format!("{engine_id}.ndjson"));
         let kind = if postcard_path.exists() {
-            ImporterOptions::Postcard(PostcardImporterOptions { path: postcard_path })
+            ImporterOptions::Postcard(PostcardImporterOptions {
+                path: postcard_path,
+            })
         } else if msgpack_path.exists() {
             ImporterOptions::Msgpack(MsgpackImporterOptions { path: msgpack_path })
         } else {
             ImporterOptions::Ndjson(NdjsonImporterOptions { path: ndjson_path })
         };
-        Ok(Box::new(create_importer::<SimulatorEvent>(&kind)?)
-            as Box<dyn Iterator<Item = _>>)
+        Ok(Box::new(create_importer::<SimulatorEvent>(&kind)?) as Box<dyn Iterator<Item = _>>)
     };
 
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router::<SimulatorUiAnalyzer>(importer, cors_address)?
+            analyzer_service_router::<SimulatorUiAnalyzer>(Box::new(importer), cors_address)?
                 .into_make_service(),
         )
         .await?;

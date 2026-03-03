@@ -27,8 +27,13 @@ pub struct NdjsonExporter {
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(application_id: Uuid, options: NdjsonExporterOptions) -> ExporterResult<Self> {
-        let path = options.output_dir.join(format!("{}.ndjson", application_id));
+    pub async fn try_new(
+        application_id: Uuid,
+        options: NdjsonExporterOptions,
+    ) -> ExporterResult<Self> {
+        let path = options
+            .output_dir
+            .join(format!("{}.ndjson", application_id));
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)

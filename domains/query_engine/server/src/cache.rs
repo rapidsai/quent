@@ -9,16 +9,16 @@ use uuid::Uuid;
 
 use crate::error::{ServerError, ServerResult};
 
+pub type ImporterFn<A> = dyn Fn(Uuid) -> AnalyzerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
+    + Send
+    + Sync;
+
 pub struct AnalyzerCache<A>
 where
     A: UiAnalyzer,
 {
     analyzers: Cache<Uuid, Arc<A>>,
-    importer: Arc<
-        dyn Fn(Uuid) -> AnalyzerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
-            + Send
-            + Sync,
-    >,
+    importer: Arc<ImporterFn<A>>,
 }
 
 impl<A> Clone for AnalyzerCache<A>
@@ -37,21 +37,13 @@ impl<A> AnalyzerCache<A>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    pub(crate) fn new(
-        importer: impl Fn(
-            Uuid,
-        )
-            -> AnalyzerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
-        + Send
-        + Sync
-        + 'static,
-    ) -> Self {
+    pub(crate) fn new(importer: Box<ImporterFn<A>>) -> Self {
         Self {
             analyzers: Cache::builder()
                 .max_capacity(32)
                 .time_to_idle(Duration::from_hours(24))
                 .build(),
-            importer: Arc::new(importer),
+            importer: Arc::from(importer),
         }
     }
 

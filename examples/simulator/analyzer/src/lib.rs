@@ -56,7 +56,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<Self> {
-
         let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
         {
             let _span = tracing::info_span!("ingest").entered();

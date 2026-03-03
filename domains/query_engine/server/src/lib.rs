@@ -1,5 +1,6 @@
 //! Utilities for server implementations
 
+use crate::cache::AnalyzerCache;
 use axum::Router as AxumRouter;
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
@@ -7,9 +8,6 @@ use quent_query_engine_analyzer::ui::UiAnalyzer;
 use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
-use uuid::Uuid;
-
-use crate::cache::AnalyzerCache;
 
 mod cache;
 mod error;
@@ -49,7 +47,7 @@ where
 }
 
 pub fn analyzer_service_router<A>(
-    importer: impl Fn(Uuid) -> quent_analyzer::AnalyzerResult<Box<dyn Iterator<Item = quent_events::Event<<A as UiAnalyzer>::Event>>>> + Send + Sync + 'static,
+    importer: Box<cache::ImporterFn<A>>,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where

@@ -77,18 +77,16 @@ where
                         let exporter = if exporters.contains_key(&application_id) {
                             Arc::clone(&exporters.get(&application_id).unwrap())
                         } else {
-                            let exporter = match create_exporter::<T>(
-                                exporter_kind.clone(),
-                                application_id,
-                            )
-                            .await
-                            {
-                                Ok(exporter) => exporter,
-                                Err(e) => {
-                                    error!("unable to construct exporter: {e}");
-                                    break;
-                                }
-                            };
+                            let exporter =
+                                match create_exporter::<T>(exporter_kind.clone(), application_id)
+                                    .await
+                                {
+                                    Ok(exporter) => exporter,
+                                    Err(e) => {
+                                        error!("unable to construct exporter: {e}");
+                                        break;
+                                    }
+                                };
                             exporters.insert(application_id, Arc::clone(&exporter));
                             exporter
                         };

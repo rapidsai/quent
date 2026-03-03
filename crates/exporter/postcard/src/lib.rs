@@ -30,7 +30,9 @@ impl PostcardExporter {
         application_id: Uuid,
         options: PostcardExporterOptions,
     ) -> ExporterResult<Self> {
-        let path = options.output_dir.join(format!("{}.postcard", application_id));
+        let path = options
+            .output_dir
+            .join(format!("{}.postcard", application_id));
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)

@@ -26,8 +26,13 @@ pub struct MsgpackExporter {
 }
 
 impl MsgpackExporter {
-    pub async fn try_new(application_id: Uuid, options: MsgpackExporterOptions) -> ExporterResult<Self> {
-        let path = options.output_dir.join(format!("{}.msgpack", application_id));
+    pub async fn try_new(
+        application_id: Uuid,
+        options: MsgpackExporterOptions,
+    ) -> ExporterResult<Self> {
+        let path = options
+            .output_dir
+            .join(format!("{}.msgpack", application_id));
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
