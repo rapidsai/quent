@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -13,11 +13,7 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import {
-  connectChart,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
-} from '@/lib/timeline.utils';
+import { connectChart } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
@@ -191,10 +187,10 @@ export function Timeline({
       series: seriesOptions,
       dataZoom: [
         { type: 'slider', show: false, realtime: true, filterMode: 'none' },
-        { type: 'inside', zoomLock: true, filterMode: 'none' },
+        { type: 'inside', zoomLock: true, zoomOnMouseWheel: false, filterMode: 'none' },
         {
           type: 'inside',
-          zoomOnMouseWheel: 'ctrl',
+          zoomOnMouseWheel: 'shift',
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
           filterMode: 'none',
@@ -208,16 +204,6 @@ export function Timeline({
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
-    registerAxisPointerSync(instance);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (instanceRef.current) {
-        unregisterAxisPointerSync(instanceRef.current);
-        instanceRef.current = null;
-      }
-    };
   }, []);
 
   return (
