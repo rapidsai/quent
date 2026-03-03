@@ -1,4 +1,5 @@
 use quent_analyzer::AnalyzerResult;
+use quent_events::Event;
 use quent_query_engine_ui as ui;
 use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
@@ -11,11 +12,15 @@ use crate::QueryEngineModel;
 /// Trait for types that can analyze query engine telemetry for the purpose of
 /// visualization in a UI.
 pub trait UiAnalyzer {
+    type Event;
     type EntityRef;
     type TimelineGlobalParams;
     type TimelineParams;
 
-    fn try_new(engine_id: Uuid) -> AnalyzerResult<Self>
+    fn try_new(
+        engine_id: Uuid,
+        events: impl Iterator<Item = Event<Self::Event>>,
+    ) -> AnalyzerResult<Self>
     where
         Self: Sized;
 

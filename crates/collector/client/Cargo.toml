@@ -1,0 +1,17 @@
+[package]
+name = "quent-collector-client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ciborium = "0.2.2"
+quent-collector-proto = { path = "../proto" }
+quent-events = { path = "../../events" }
+serde.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+uuid.workspace = true

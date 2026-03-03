@@ -2,11 +2,11 @@
 use std::{
     io::{BufRead, BufReader},
     marker::PhantomData,
-    path::Path,
+    path::PathBuf,
 };
 
 use quent_events::Event;
-use quent_exporter::{Exporter, ExporterError, ExporterResult, ImporterResult};
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -16,17 +16,25 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
+#[derive(Debug, Clone)]
+pub struct NdjsonExporterOptions {
+    pub output_dir: PathBuf,
+}
+
 #[derive(Debug)]
 pub struct NdjsonExporter {
     writer: Mutex<BufWriter<File>>,
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(engine_id: Uuid) -> ExporterResult<Self> {
-        // TODO(johanpel): path config
-        let path = format!("data/{}.ndjson", engine_id);
-
-        debug!("exporting to \"{path}\"");
+    pub async fn try_new(
+        application_id: Uuid,
+        options: NdjsonExporterOptions,
+    ) -> ExporterResult<Self> {
+        let path = options
+            .output_dir
+            .join(format!("{}.ndjson", application_id));
+        debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -66,20 +74,27 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct NdjsonImporterOptions {
+    pub path: PathBuf,
+}
+
 pub struct NdjsonImporter<T> {
     reader: BufReader<std::fs::File>,
     _phantom: PhantomData<T>,
 }
 
 impl<T> NdjsonImporter<T> {
-    pub fn try_new(path: impl AsRef<Path>) -> ImporterResult<Self> {
-        let file = std::fs::File::open(path)?;
+    pub fn try_new(options: &NdjsonImporterOptions) -> ImporterResult<Self> {
+        let file = std::fs::File::open(&options.path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),
         })
     }
 }
+
+impl<T> Importer<T> for NdjsonImporter<T> where T: for<'de> Deserialize<'de> {}
 
 impl<T> Iterator for NdjsonImporter<T>
 where

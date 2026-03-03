@@ -1,10 +1,12 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
+import { useAtom, useSetAtom } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
+import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -12,7 +14,8 @@ const DAGChart = lazy(() =>
 );
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
-  const [planId, setPlanId] = useState<string>('');
+  const [planId, setPlanId] = useAtom(selectedPlanIdAtom);
+  const setHoveredWorkerId = useSetAtom(hoveredWorkerIdAtom);
 
   const {
     data: queryBundle,
@@ -33,7 +36,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     if (queryBundle && !planId) {
       setPlanId(queryBundle.plan_tree.id);
     }
-  }, [queryBundle, planId]);
+  }, [queryBundle, planId, setPlanId]);
 
   // handle loading and error states
   if (queryBundleLoading) {
@@ -70,7 +73,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   const renderItem = ({ item, hasChildren }: { item: QueryPlanDataItem; hasChildren: boolean }) => {
     return (
-      <div className="flex flex-col items-start py-0.5 pl-1">
+      <div
+        className="flex flex-col items-start py-0.5 pl-1"
+        onMouseEnter={() => item.workerId && setHoveredWorkerId(item.workerId)}
+        onMouseLeave={() => setHoveredWorkerId(null)}
+      >
         {singleQueryPlan ? (
           <span className="text-xs">Query: {item.queryId}</span>
         ) : (
@@ -102,8 +109,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel
-          defaultSize={20}
-          minSize={5}
+          defaultSize="20%"
+          minSize="10%"
+          collapsible
+          collapsedSize="0%"
           className="overflow-y-auto [&::-webkit-scrollbar]:w-0 [scrollbar-width:none] [-ms-overflow-style:none]"
         >
           <TreeView<QueryPlanDataItem>
@@ -114,13 +123,16 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           />
         </ResizablePanel>
 
-        <ResizableHandle
-          withHandle
-          className="h-px w-full after:left-0 after:top-1/2 after:h-1 after:w-full after:-translate-y-1/2 after:translate-x-0 [&>div]:rotate-90 focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
+        <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
-        <ResizablePanel defaultSize={75} className="overflow-hidden">
+        <ResizablePanel
+          defaultSize="75%"
+          minSize="25%"
+          collapsible
+          collapsedSize="0%"
+          className="overflow-hidden"
+        >
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -128,7 +140,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               </div>
             }
           >
-            <DAGChart data={dagData} queryId={queryId} engineId={engineId} height="100%" />
+            <DAGChart data={dagData} height="100%" />
           </Suspense>
         </ResizablePanel>
       </ResizablePanelGroup>

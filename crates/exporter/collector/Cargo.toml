@@ -6,8 +6,7 @@ edition.workspace =  true
 [dependencies]
 async-trait.workspace = true
 serde.workspace = true
-quent-collector = { path = "../../collector", features = ["client"] }
+quent-collector-client = { path = "../../collector/client" }
 quent-events = { path = "../../events" }
-quent-exporter = { path = "../" }
-tokio.workspace = true
+quent-exporter-types = { path = "../types" }
 uuid.workspace = true
