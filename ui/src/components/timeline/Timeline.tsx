@@ -158,6 +158,7 @@ export function Timeline({
         confine: true,
         appendToBody: true,
         formatter: function (hoveredSeries: unknown) {
+          if (isDraggingRef.current) return '';
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries.map(
@@ -200,10 +201,19 @@ export function Timeline({
   }, [showTooltip, gridOptions, xAxisOptions, yAxisOptions, seriesOptions, startTime, series]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
+  const isDraggingRef = useRef(false);
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
+
+    instance.getDom().addEventListener('pointerdown', () => {
+      isDraggingRef.current = true;
+      instance.dispatchAction({ type: 'hideTip' });
+    });
+    instance.getDom().addEventListener('pointerup', () => {
+      isDraggingRef.current = false;
+    });
   }, []);
 
   return (
