@@ -1,11 +1,8 @@
 //! Quent Instrumentation API
 //!
 use quent_events::Event;
-use quent_exporter::Exporter;
-use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
-use quent_exporter_msgpack::MsgpackExporter;
-use quent_exporter_ndjson::NdjsonExporter;
-use quent_exporter_postcard::PostcardExporter;
+use quent_exporter::{ExporterOptions, create_exporter};
+use quent_exporter_types::Exporter;
 use serde::Serialize;
 use std::sync::{
     Arc,
@@ -22,13 +19,6 @@ use uuid::Uuid;
 
 pub mod resource;
 pub mod trace;
-
-pub enum ExporterOptions {
-    Collector(CollectorExporterOptions),
-    Ndjson,
-    Msgpack,
-    Postcard,
-}
 
 /// Wrapper around an optional channel sender. When the inner sender is `None`
 /// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
@@ -86,7 +76,7 @@ where
         exporter: Option<ExporterOptions>,
         id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let exporter = match exporter {
+        let kind = match exporter {
             None => {
                 debug!("using noop exporter");
                 return Ok(Context {
@@ -101,7 +91,7 @@ where
                     _runtime: None,
                 });
             }
-            Some(exporter) => exporter,
+            Some(kind) => kind,
         };
 
         let (runtime, handle) = if let Ok(handle) = Handle::try_current() {
@@ -120,14 +110,7 @@ where
         let (events_sender, mut events_receiver) = unbounded_channel();
 
         debug!("constructing exporter");
-        let exporter: Arc<dyn Exporter<T>> = match exporter {
-            ExporterOptions::Collector(opts) => {
-                Arc::new(handle.block_on(CollectorExporter::new(id, opts))?)
-            }
-            ExporterOptions::Ndjson => Arc::new(handle.block_on(NdjsonExporter::try_new(id))?),
-            ExporterOptions::Msgpack => Arc::new(handle.block_on(MsgpackExporter::try_new(id))?),
-            ExporterOptions::Postcard => Arc::new(handle.block_on(PostcardExporter::try_new(id))?),
-        };
+        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind, id))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();

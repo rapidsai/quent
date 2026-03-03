@@ -7,7 +7,7 @@ edition.workspace = true
 async-trait.workspace = true
 postcard.workspace = true
 quent-events = { path = "../../events" }
-quent-exporter = { path = "../" }
+quent-exporter-types = { path = "../types" }
 serde.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
 uuid.workspace = true

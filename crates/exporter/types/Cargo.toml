@@ -1,0 +1,10 @@
+[package]
+name = "quent-exporter-types"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+quent-events = { path = "../../events" }
+serde.workspace = true
+thiserror.workspace = true

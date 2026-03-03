@@ -1,11 +1,20 @@
 [package]
 name = "quent-exporter"
 version.workspace = true
-edition.workspace =  true
+edition.workspace = true
+
+[features]
+default = ["ndjson", "msgpack", "postcard", "collector"]
+ndjson = ["dep:quent-exporter-ndjson"]
+msgpack = ["dep:quent-exporter-msgpack"]
+postcard = ["dep:quent-exporter-postcard"]
+collector = ["dep:quent-exporter-collector"]
 
 [dependencies]
-quent-events = {path = "../events" }
+quent-exporter-types = { path = "types" }
+quent-exporter-collector = { path = "collector", optional = true }
+quent-exporter-msgpack = { path = "msgpack", optional = true }
+quent-exporter-ndjson = { path = "ndjson", optional = true }
+quent-exporter-postcard = { path = "postcard", optional = true }
 serde.workspace = true
-async-trait.workspace = true
 uuid.workspace = true
-thiserror.workspace = true

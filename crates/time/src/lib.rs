@@ -69,6 +69,8 @@ pub fn to_nanosecs(time: TimeSec) -> TimeNanoSec {
 }
 
 /// Convert a nanosecond timestamp to seconds, relative to some epoch.
+///
+/// Does not allow the timestamp to fall before the epoch.
 pub fn try_to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> Result<TimeSec> {
     timestamp.checked_sub(epoch)
         .ok_or_else(|| {
@@ -77,6 +79,18 @@ pub fn try_to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> Resul
             ))
         })
         .map(to_secs)
+}
+
+/// Convert a nanosecond timestamp to seconds, relative to some epoch.
+///
+/// Allows the timestamp to fall before the epoch, in which case a negative
+/// value is returned.
+pub fn to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> TimeSec {
+    if timestamp >= epoch {
+        to_secs(timestamp - epoch)
+    } else {
+        -to_secs(epoch - timestamp)
+    }
 }
 
 pub trait Timestamp {
