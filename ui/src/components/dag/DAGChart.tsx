@@ -13,9 +13,10 @@ import {
   type OnMoveStart,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { useNavigate } from '@tanstack/react-router';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 
 const elk = new ELK();
 
@@ -50,8 +51,6 @@ const nodeTypes = {
 
 interface DAGProps {
   data: DAGData;
-  queryId: string;
-  engineId: string;
   height?: string;
 }
 
@@ -88,19 +87,17 @@ async function calculateLayout(
 
 const FlowLayout = ({
   data,
-  queryId,
-  engineId,
   containerRef,
 }: {
   data: DAGData;
-  queryId: string;
-  engineId: string;
   containerRef: RefObject<HTMLDivElement | null>;
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
-  const navigate = useNavigate();
+  const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
+  const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hasUserInteracted = useRef(false);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
@@ -122,7 +119,7 @@ const FlowLayout = ({
         data: {
           label: node.label,
           operationType: node.type,
-          metadata: node.metadata,
+          metadata: node.metadata as QueryPlanNodeData['metadata'],
           hasIncoming: nodesWithIncoming.has(node.id),
           hasOutgoing: nodesWithOutgoing.has(node.id),
         },
@@ -155,12 +152,15 @@ const FlowLayout = ({
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
-      navigate({
-        to: '/profile/engine/$engineId/query/$queryId/node/$nodeId',
-        params: { engineId, queryId, nodeId: node.id },
-      });
+      if (selectedNodeIds.has(node.id)) {
+        setSelectedNodeIds(new Set());
+        setSelectedOperatorLabel(null);
+      } else {
+        setSelectedNodeIds(new Set([node.id]));
+        setSelectedOperatorLabel(node.data.label);
+      }
     },
-    [navigate, engineId, queryId]
+    [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
   );
 
   // Re-fit view when the react-flow container is resized, but only if the user
@@ -218,12 +218,12 @@ const FlowLayout = ({
   );
 };
 
-export const DAGChart = ({ data, queryId, engineId, height = '100%' }: DAGProps) => {
+export const DAGChart = ({ data, height = '100%' }: DAGProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={containerRef} style={{ width: '100%', height }}>
       <ReactFlowProvider>
-        <FlowLayout data={data} queryId={queryId} engineId={engineId} containerRef={containerRef} />
+        <FlowLayout data={data} containerRef={containerRef} />
       </ReactFlowProvider>
     </div>
   );

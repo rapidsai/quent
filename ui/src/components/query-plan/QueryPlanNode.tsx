@@ -1,52 +1,133 @@
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { cn } from '@/lib/utils';
+import { cva } from 'class-variance-authority';
+import { useAtomValue } from 'jotai';
+import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { Operator } from '~quent/types/Operator';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
   operationType: string;
-  metadata?: Record<string, unknown>;
+  metadata?: { rawNode?: Operator };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
 }
 
-const operationStyles: Record<string, string> = {
-  source: 'bg-blue-100 border-blue-500 text-blue-900',
-  scan: 'bg-blue-100 border-blue-500 text-blue-900',
-  filesystemscan: 'bg-blue-100 border-blue-500 text-blue-900',
-  join: 'bg-purple-100 border-purple-500 text-purple-900',
-  joinlocal: 'bg-purple-100 border-purple-500 text-purple-900',
-  joinpartition: 'bg-purple-100 border-purple-500 text-purple-900',
-  aggregate: 'bg-green-100 border-green-500 text-green-900',
-  exchange: 'bg-orange-100 border-orange-500 text-orange-900',
-  output: 'bg-red-100 border-red-500 text-red-900',
-  stage: 'bg-indigo-100 border-indigo-600 text-indigo-900 font-bold',
-  local: 'bg-amber-100 border-amber-500 text-amber-900',
-  project: 'bg-teal-100 border-teal-500 text-teal-900',
-  filter: 'bg-cyan-100 border-cyan-500 text-cyan-900',
-  sort: 'bg-violet-100 border-violet-500 text-violet-900',
-  limit: 'bg-pink-100 border-pink-500 text-pink-900',
-  union: 'bg-emerald-100 border-emerald-500 text-emerald-900',
-  other: 'bg-gray-100 border-gray-500 text-gray-900',
-  default: 'bg-gray-100 border-gray-500 text-gray-900',
-};
+const nodeVariants = cva(
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition-colors cursor-pointer text-foreground',
+  {
+    variants: {
+      operationType: {
+        source:
+          'bg-blue-100/15 border-blue-500 hover:bg-blue-100/30 [--glow-color:var(--color-blue-500)]',
+        scan: 'bg-blue-100/15 border-blue-500 hover:bg-blue-100/30 [--glow-color:var(--color-blue-500)]',
+        filesystemscan:
+          'bg-blue-100/15 border-blue-500 hover:bg-blue-100/30 [--glow-color:var(--color-blue-500)]',
+        join: 'bg-purple-100/15 border-purple-500 hover:bg-purple-100/30 [--glow-color:var(--color-purple-500)]',
+        joinlocal:
+          'bg-purple-100/15 border-purple-500 hover:bg-purple-100/30 [--glow-color:var(--color-purple-500)]',
+        joinpartition:
+          'bg-purple-100/15 border-purple-500 hover:bg-purple-100/30 [--glow-color:var(--color-purple-500)]',
+        aggregate:
+          'bg-green-100/15 border-green-500 hover:bg-green-100/30 [--glow-color:var(--color-green-500)]',
+        exchange:
+          'bg-orange-100/15 border-orange-500 hover:bg-orange-100/30 [--glow-color:var(--color-orange-500)]',
+        output:
+          'bg-red-100/15 border-red-500 hover:bg-red-100/30 [--glow-color:var(--color-red-500)]',
+        stage:
+          'bg-indigo-100/15 border-indigo-600 hover:bg-indigo-100/30 [--glow-color:var(--color-indigo-600)] font-bold',
+        local:
+          'bg-amber-100/15 border-amber-500 hover:bg-amber-100/30 [--glow-color:var(--color-amber-500)]',
+        project:
+          'bg-teal-100/15 border-teal-500 hover:bg-teal-100/30 [--glow-color:var(--color-teal-500)]',
+        filter:
+          'bg-cyan-100/15 border-cyan-500 hover:bg-cyan-100/30 [--glow-color:var(--color-cyan-500)]',
+        sort: 'bg-violet-100/15 border-violet-500 hover:bg-violet-100/30 [--glow-color:var(--color-violet-500)]',
+        limit:
+          'bg-pink-100/15 border-pink-500 hover:bg-pink-100/30 [--glow-color:var(--color-pink-500)]',
+        union:
+          'bg-emerald-100/15 border-emerald-500 hover:bg-emerald-100/30 [--glow-color:var(--color-emerald-500)]',
+        other:
+          'bg-gray-100/15 border-gray-500 hover:bg-gray-100/30 [--glow-color:var(--color-gray-500)]',
+      },
+      selected: {
+        true: 'shadow-glow',
+        false: 'shadow-md',
+      },
+    },
+    compoundVariants: [
+      {
+        operationType: ['source', 'scan', 'filesystemscan'],
+        selected: true,
+        class: 'bg-blue-100/30',
+      },
+      {
+        operationType: ['join', 'joinlocal', 'joinpartition'],
+        selected: true,
+        class: 'bg-purple-100/30',
+      },
+      { operationType: 'aggregate', selected: true, class: 'bg-green-100/30' },
+      { operationType: 'exchange', selected: true, class: 'bg-orange-100/30' },
+      { operationType: 'output', selected: true, class: 'bg-red-100/30' },
+      { operationType: 'stage', selected: true, class: 'bg-indigo-100/30' },
+      { operationType: 'local', selected: true, class: 'bg-amber-100/30' },
+      { operationType: 'project', selected: true, class: 'bg-teal-100/30' },
+      { operationType: 'filter', selected: true, class: 'bg-cyan-100/30' },
+      { operationType: 'sort', selected: true, class: 'bg-violet-100/30' },
+      { operationType: 'limit', selected: true, class: 'bg-pink-100/30' },
+      { operationType: 'union', selected: true, class: 'bg-emerald-100/30' },
+      { operationType: 'other', selected: true, class: 'bg-gray-100/30' },
+    ],
+    defaultVariants: {
+      operationType: 'other',
+      selected: false,
+    },
+  }
+);
+
+type OperationType = NonNullable<Parameters<typeof nodeVariants>[0]>['operationType'];
+
+const validOperationTypes: Set<string> = new Set([
+  'source',
+  'scan',
+  'filesystemscan',
+  'join',
+  'joinlocal',
+  'joinpartition',
+  'aggregate',
+  'exchange',
+  'output',
+  'stage',
+  'local',
+  'project',
+  'filter',
+  'sort',
+  'limit',
+  'union',
+  'other',
+]);
+
+function resolveOperationType(type: string): OperationType {
+  return (validOperationTypes.has(type) ? type : 'other') as OperationType;
+}
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  const styleClass = operationStyles[data.operationType] || operationStyles.other;
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
 
   return (
     <div
-      className={cn(
-        'px-4 py-2 rounded-lg border-2 shadow-md min-w-[180px] max-w-[250px]',
-        styleClass
-      )}
+      className={nodeVariants({
+        operationType: resolveOperationType(data.operationType),
+        selected: isSelected,
+      })}
       style={{ zIndex: 10 }}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
       )}
 
-      <div className="text-sm font-semibold break-words text-center">{data.label}</div>
+      <div className="text-sm font-normal break-words text-center">{data.label}</div>
 
       {data.hasOutgoing && (
         <Handle

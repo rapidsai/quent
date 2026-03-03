@@ -102,6 +102,7 @@ export function TimelineController({
       ...TIMELINE_X_AXIS_ANIMATION,
       z: 1,
     };
+
     return [zoomControlSeries, staticDisplaySeries];
   }, [timestamps, hasSeriesData, seriesData, colors.rollupTimelineColor]);
 
