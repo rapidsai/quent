@@ -9,6 +9,7 @@ import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
+  nodeId: string;
   operationType: string;
   metadata?: { rawNode?: Operator };
   hasIncoming?: boolean;
