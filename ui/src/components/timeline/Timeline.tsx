@@ -97,59 +97,50 @@ export function Timeline({
       };
     });
 
-    if (marks && marks.length > 0 && timestamps.length >= 2) {
-      const tsMin = timestamps[0];
-      const tsMax = timestamps[timestamps.length - 1];
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const markAreaData: any[][] = [];
-
+    if (marks && marks?.length > 0) {
       for (const m of marks) {
         const stateColor = getColorForKey(m.stateName);
-        markAreaData.push([
-          {
-            name: m.label,
-            xAxis: m.xStart,
-            itemStyle: {
-              color: withOpacity(stateColor, markAreaFillOpacity),
-              borderColor: withOpacity(stateColor, markAreaBorderOpacity),
-              borderWidth: 1,
-              z: 50,
+        allSeries.push({
+          name: `__mark_${m.label}_${m.stateName}`,
+          type: 'line',
+          step: 'middle',
+          data: [
+            [m.xStart, 0],
+            {
+              value: [m.xStart, 1],
+              label: {
+                show: true,
+                formatter: () => m.label,
+                position: [0, 0],
+                fontSize: 9,
+                fontWeight: 500,
+                color: markLabelTextColor,
+                backgroundColor: withOpacity(stateColor, markAreaBorderOpacity),
+                borderRadius: 2,
+                padding: [1, 3],
+              },
             },
-            label: {
-              show: true,
-              position: 'insideTop',
-              fontSize: 9,
-              fontWeight: 500,
-              color: markLabelTextColor,
-              backgroundColor: withOpacity(stateColor, markAreaBorderOpacity),
-              borderRadius: 2,
-              z: 50,
-              padding: [1, 3],
-            },
+            [m.xEnd, 1],
+            [m.xEnd, 0],
+          ],
+          zlevel: 1,
+          label: { show: false },
+          symbolSize: 0,
+          lineStyle: {
+            width: 1,
+            color: withOpacity(stateColor, markAreaBorderOpacity),
           },
-          { xAxis: m.xEnd },
-        ]);
-      }
+          areaStyle: {
+            color: withOpacity(stateColor, markAreaFillOpacity),
+            opacity: 1,
+          },
 
-      allSeries.push({
-        name: '__marks__',
-        type: 'line',
-        data: [
-          [tsMin, 0],
-          [tsMax, 0],
-        ],
-        z: 50,
-        symbol: 'none',
-        showSymbol: false,
-        lineStyle: { width: 0, opacity: 0 },
-        tooltip: { show: false },
-        markArea: {
+          tooltip: { show: false },
           silent: true,
           animation: false,
-          data: markAreaData,
-        },
-      });
+          yAxisIndex: 1,
+        });
+      }
     }
 
     return allSeries;
@@ -269,7 +260,16 @@ export function Timeline({
       },
       grid: gridOptions,
       xAxis: xAxisOptions,
-      yAxis: yAxisOptions,
+      yAxis: [
+        yAxisOptions,
+        {
+          type: 'value',
+          show: false,
+          min: 0,
+          max: 1,
+          gridIndex: 0,
+        },
+      ],
       series: seriesOptions,
       ...(xAxisRange
         ? {}
