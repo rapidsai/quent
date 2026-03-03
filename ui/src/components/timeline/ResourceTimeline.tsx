@@ -24,9 +24,7 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import type { XAxisRange } from './Timeline';
 import { useTimelineChartColors } from './useTimelineChartColors';
-import type { ZoomRange } from './TimelineController';
 
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
@@ -43,10 +41,6 @@ type ResourceTimelineProps = {
   showTooltip?: boolean;
   /** Pre-fetched timeline data from bulk endpoint; skips individual fetch when present */
   preloadedData?: SingleTimelineResponse;
-  /** When set, fetches only this time window instead of the full duration */
-  zoomRange?: ZoomRange;
-  /** When set, constrains the xAxis to this window (server-side zoom) */
-  xAxisRange?: XAxisRange;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -68,7 +62,6 @@ export function ResourceTimeline({
   fsmTypeName,
   resourceTypeName,
   showTooltip = true,
-  xAxisRange,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
@@ -192,8 +185,8 @@ export function ResourceTimeline({
         series={series}
         timestamps={timestamps ?? []}
         startTime={startTime}
+        durationSeconds={durationSeconds}
         showTooltip={showTooltip}
-        xAxisRange={xAxisRange}
       />
     </Suspense>
   );

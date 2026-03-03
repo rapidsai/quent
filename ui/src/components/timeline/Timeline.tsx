@@ -22,28 +22,21 @@ import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
-export interface XAxisRange {
-  /** xAxis min in milliseconds */
-  min: number;
-  /** xAxis max in milliseconds */
-  max: number;
-}
-
 export function Timeline({
   startTime,
+  durationSeconds,
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
-  xAxisRange,
 }: {
   startTime: bigint;
+  /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
+  durationSeconds: number;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
   showTooltip?: boolean;
-  /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
-  xAxisRange?: XAxisRange;
 }) {
   const { timelineMarkupColor, gridBorderColor, gridBackgroundColor } = useTimelineChartColors();
 
@@ -110,13 +103,16 @@ export function Timeline({
     [gridBorderColor, timelineMarkupColor]
   );
 
+  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+
   const xAxisOptions = useMemo(
     () => ({
       boundaryGap: false,
       type: 'time',
       animation: false,
       show: true,
-      ...(xAxisRange && { min: xAxisRange.min, max: xAxisRange.max }),
+      min: startTimeMs,
+      max: startTimeMs + durationSeconds * 1_000,
       axisLine: {
         show: true,
         onZero: true,
@@ -138,7 +134,7 @@ export function Timeline({
         },
       },
     }),
-    [timelineMarkupColor, gridBorderColor, xAxisRange]
+    [timelineMarkupColor, gridBorderColor, startTimeMs, durationSeconds]
   );
 
   const gridOptions = useMemo(
@@ -193,49 +189,27 @@ export function Timeline({
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
       series: seriesOptions,
-      ...(xAxisRange
-        ? {}
-        : {
-            toolbox: {
-              show: false,
-              feature: { dataZoom: { yAxisIndex: 'none' } },
-            },
-            dataZoom: [
-              {
-                type: 'slider',
-                show: false,
-                realtime: true,
-                xAxisIndex: 'all',
-                filterMode: 'none',
-              },
-            ],
-          }),
+      dataZoom: [
+        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        { type: 'inside', zoomLock: true, filterMode: 'none' },
+        {
+          type: 'inside',
+          zoomOnMouseWheel: 'ctrl',
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          filterMode: 'none',
+        },
+      ],
     } as EChartsOption;
-  }, [
-    showTooltip,
-    gridOptions,
-    xAxisOptions,
-    yAxisOptions,
-    seriesOptions,
-    xAxisRange,
-    startTime,
-    series,
-  ]);
+  }, [showTooltip, gridOptions, xAxisOptions, yAxisOptions, seriesOptions, startTime, series]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
 
-  const handleChartReady = useCallback(
-    (instance: EChartsInstance) => {
-      instanceRef.current = instance;
-      if (xAxisRange) {
-        registerAxisPointerSync(instance);
-      } else {
-        connectChart(instance);
-        registerAxisPointerSync(instance);
-      }
-    },
-    [xAxisRange]
-  );
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    instanceRef.current = instance;
+    connectChart(instance, CHART_GROUP, false);
+    registerAxisPointerSync(instance);
+  }, []);
 
   useEffect(() => {
     return () => {
