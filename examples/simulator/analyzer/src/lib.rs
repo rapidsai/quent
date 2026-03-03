@@ -212,7 +212,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
         let config = request.config.try_into_binned_span(epoch)?;
-        let config_secs = config.to_secs_relative(epoch);
+        let config_secs = config.try_to_secs_relative(epoch)?;
 
         match request.entry {
             TimelineRequest::Resource(req) => {
@@ -324,7 +324,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
         let config = request.config.try_into_binned_span(epoch)?;
-        let config_secs = config.to_secs_relative(epoch);
+        let config_secs = config.try_to_secs_relative(epoch)?;
 
         // Construct a query view.
         let view = self.model.query_view(request.app_params.query_id)?;
@@ -585,14 +585,14 @@ impl SimulatorUiAnalyzer {
         &self,
         entity_ids: &[Uuid],
         epoch: TimeUnixNanoSec,
-    ) -> Vec<FiniteStateMachine> {
+    ) -> AnalyzerResult<Vec<FiniteStateMachine>> {
         entity_ids
             .iter()
             .filter_map(|&id| {
                 self.model
                     .tasks
                     .get(&id)
-                    .map(|task| task.to_ui_fsm(epoch))
+                    .map(|task| task.try_to_ui_fsm(epoch))
             })
             .collect()
     }
@@ -608,7 +608,7 @@ impl SimulatorUiAnalyzer {
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch);
+        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
             capacities_values,
             long_fsms,
@@ -628,7 +628,7 @@ impl SimulatorUiAnalyzer {
                 .or_insert_with(StdHashMap::new)
                 .insert(state_name.to_owned(), values);
         }
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch);
+        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {
                 capacities_states_values,

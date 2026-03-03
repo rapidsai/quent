@@ -69,9 +69,14 @@ pub fn to_nanosecs(time: TimeSec) -> TimeNanoSec {
 }
 
 /// Convert a nanosecond timestamp to seconds, relative to some epoch.
-/// Timestamps before the epoch are clamped to 0.
-pub fn to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> TimeSec {
-    to_secs(timestamp.saturating_sub(epoch))
+pub fn try_to_secs_relative(timestamp: TimeNanoSec, epoch: TimeNanoSec) -> Result<TimeSec> {
+    timestamp.checked_sub(epoch)
+        .ok_or_else(|| {
+            TimeError::InvalidArgument(format!(
+                "unable to convert to seconds relative to epoch - the epoch {epoch} occurs later than {timestamp}"
+            ))
+        })
+        .map(to_secs)
 }
 
 pub trait Timestamp {

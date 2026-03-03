@@ -145,15 +145,14 @@ impl BinnedSpan {
         })
     }
 
-    /// Convert this BinnedSpan into [`BinnedSpanSec`] with
+    /// Attempt to convert this BinnedSpan into [`BinnedSpanSec`] with
     /// timestamps relative to the provided epoch.
-    /// Timestamps before the epoch are clamped to 0.
-    pub fn to_secs_relative(&self, epoch: TimeNanoSec) -> BinnedSpanSec {
-        BinnedSpanSec {
-            span: self.span.to_secs_relative(epoch),
+    pub fn try_to_secs_relative(&self, epoch: TimeNanoSec) -> Result<BinnedSpanSec> {
+        Ok(BinnedSpanSec {
+            span: self.span.try_to_secs_relative(epoch)?,
             bin_duration: to_secs(self.bin_duration.get()),
             num_bins: self.num_bins.get(),
-        }
+        })
     }
 }
 

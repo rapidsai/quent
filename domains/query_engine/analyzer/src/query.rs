@@ -7,7 +7,7 @@ use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_query_engine_events::query::QueryEvent;
 use quent_query_engine_ui as ui;
-use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, to_secs_relative};
+use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, try_to_secs_relative};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -154,13 +154,13 @@ impl Query {
                 if let Some(transition) = self.transition(i) {
                     match transition {
                         QueryTransition::Planning(ts) => {
-                            planning_s = Some(to_secs_relative(*ts, init.timestamp()));
+                            planning_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
                         }
                         QueryTransition::Executing(ts) => {
-                            executing_s = Some(to_secs_relative(*ts, init.timestamp()));
+                            executing_s = Some(try_to_secs_relative(*ts, init.timestamp())?);
                             if let Some(exit) = self.transition(i + 1) {
                                 completed_s =
-                                    Some(to_secs_relative(exit.timestamp(), init.timestamp()));
+                                    Some(try_to_secs_relative(exit.timestamp(), init.timestamp())?);
                             }
                         }
                         _ => {}

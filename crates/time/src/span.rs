@@ -1,4 +1,4 @@
-use crate::{Result, TimeError, TimeNanoSec, TimeSec, TimeUnixNanoSec, to_secs_relative};
+use crate::{Result, TimeError, TimeNanoSec, TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 
 /// A span of time represented as a half-open interval [start, end) over
 /// a discrete number of nanoseconds.
@@ -104,12 +104,11 @@ impl SpanNanoSec {
     }
 
     /// Convert self to a [`SpanSec`], relative to the provided epoch.
-    /// Timestamps before the epoch are clamped to 0.
-    pub fn to_secs_relative(&self, epoch: TimeNanoSec) -> SpanSec {
-        SpanSec {
-            start: to_secs_relative(self.start, epoch),
-            end: to_secs_relative(self.end, epoch),
-        }
+    pub fn try_to_secs_relative(&self, epoch: TimeNanoSec) -> Result<SpanSec> {
+        Ok(SpanSec {
+            start: try_to_secs_relative(self.start, epoch)?,
+            end: try_to_secs_relative(self.end, epoch)?,
+        })
     }
 
     /// Extend this span such that it includes all timestamps of both self and
