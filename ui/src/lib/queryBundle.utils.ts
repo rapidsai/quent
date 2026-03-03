@@ -62,6 +62,8 @@ export function parseCustomStatistics(rawNode: unknown): Array<{ key: string; va
 
   return Object.entries(statistics).map(([key, tagged]) => ({
     key,
-    value: tagged ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0]) : null,
+    value: tagged
+      ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0])
+      : null,
   }));
 }
