@@ -117,6 +117,7 @@ const FlowLayout = ({
         id: node.id,
         type: node.type,
         data: {
+          nodeId: node.id,
           label: node.label,
           operationType: node.type,
           metadata: node.metadata as QueryPlanNodeData['metadata'],
