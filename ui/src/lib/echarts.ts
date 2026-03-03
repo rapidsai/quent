@@ -22,6 +22,7 @@ import {
   DataZoomInsideComponent,
   DataZoomSliderComponent,
   ToolboxComponent,
+  MarkAreaComponent,
 } from 'echarts/components';
 import type {
   TitleComponentOption,
@@ -29,6 +30,7 @@ import type {
   GridComponentOption,
   DataZoomComponentOption,
   ToolboxComponentOption,
+  MarkAreaComponentOption,
 } from 'echarts/components';
 
 // Renderer - use Canvas for better performance (SVG available if needed)
@@ -46,6 +48,7 @@ echarts.use([
   DataZoomInsideComponent,
   DataZoomSliderComponent,
   ToolboxComponent,
+  MarkAreaComponent,
   // Renderer
   CanvasRenderer,
 ]);
@@ -58,6 +61,7 @@ export type EChartsOption = ComposeOption<
   | GridComponentOption
   | DataZoomComponentOption
   | ToolboxComponentOption
+  | MarkAreaComponentOption
 >;
 
 // Re-export echarts instance and types
