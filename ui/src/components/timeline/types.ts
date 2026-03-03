@@ -1,7 +1,12 @@
-export type TimelineSeries = Record<
-  string,
-  { binDuration: number; formatter: (value: number) => string; values: number[]; color: string }
->;
+export type TimelineSeriesEntry = {
+  binDuration: number;
+  formatter: (value: number) => string;
+  values: number[];
+  color: string;
+  isOverlay?: boolean;
+};
+
+export type TimelineSeries = Record<string, TimelineSeriesEntry>;
 
 export const DEFAULT_TIMELINE_HEIGHT = 75;
 
