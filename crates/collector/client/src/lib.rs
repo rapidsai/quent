@@ -172,7 +172,7 @@ where
 
         debug!("opening stream ...");
 
-        // Add the application id to the metadata of the request, so the collector knows which engine id this all belongs to.
+        // Add the application id to the metadata of the request, so the collector knows which application this belongs to.
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
             "application-id",

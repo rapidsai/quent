@@ -62,7 +62,7 @@ where
 
         let application_id = Uuid::from_str(application_id_str).map_err(|e| {
             Status::invalid_argument(format!(
-                "metadata value for key \"engine-id\" is not a UUID: {e}"
+                "metadata value for key \"application-id\" is not a UUID: {e}"
             ))
         })?;
 
