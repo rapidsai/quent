@@ -4,14 +4,15 @@ version.workspace = true
 edition.workspace =  true
 
 [dependencies]
+axum = { version = "0.8.7" }
+clap = { version = "4.5", features = ["derive", "env"] }
+quent-exporter = { path = "../../../crates/exporter" }
+quent-collector = { path = "../../../crates/collector/server" }
+quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-events = { path = "../events" }
-quent-query-engine-server = { path = "../../../domains/query_engine/server" }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-tracing.workspace = true
-clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
-axum = { version = "0.8.7" }
+tracing.workspace = true
 
 [build-dependencies]
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

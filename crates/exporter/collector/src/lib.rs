@@ -1,12 +1,12 @@
 //! Exporter sending events to a Collector service
 
-use quent_collector::client::Client;
+use quent_collector_client::Client;
 use quent_events::Event;
-use quent_exporter::{Exporter, ExporterError, ExporterResult};
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
     pub address: String,
 }
@@ -20,11 +20,11 @@ impl<T> CollectorExporter<T>
 where
     T: Serialize + Send + std::fmt::Debug + 'static,
 {
-    pub async fn new(
-        engine_id: Uuid,
+    pub async fn try_new(
+        application_id: Uuid,
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(engine_id, options.address).await?;
+        let client = Client::new(application_id, options.address).await?;
         Ok(Self { client })
     }
 }
