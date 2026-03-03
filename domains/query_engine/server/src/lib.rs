@@ -7,6 +7,7 @@ use quent_query_engine_analyzer::ui::UiAnalyzer;
 use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
+use uuid::Uuid;
 
 use crate::cache::AnalyzerCache;
 
@@ -48,6 +49,7 @@ where
 }
 
 pub fn analyzer_service_router<A>(
+    importer: impl Fn(Uuid) -> quent_analyzer::AnalyzerResult<Box<dyn Iterator<Item = quent_events::Event<<A as UiAnalyzer>::Event>>>> + Send + Sync + 'static,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
@@ -58,7 +60,7 @@ where
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
-    let cache = AnalyzerCache::<A>::new();
+    let cache = AnalyzerCache::<A>::new(importer);
 
     let mut http_routes = axum::Router::new().nest("/analyzer", ui::routes(cache));
 

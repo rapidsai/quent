@@ -1,12 +1,5 @@
 //! Umbrella crate providing unified exporter/importer creation.
-//!
-//! Concrete exporter/importer types live in their own sub-crates
-//! (`quent-exporter-ndjson`, etc.). Shared traits and errors live in
-//! `quent-exporter-types`. This crate provides [`ExporterOptions`],
-//! [`ImporterOptions`], and factory functions that dispatch to the
-//! appropriate sub-crate based on the selected variant.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
@@ -21,28 +14,37 @@ use uuid::Uuid;
 )))]
 compile_error!("at least one exporter feature must be enabled");
 
-/// Selects which exporter to use, carrying per-exporter options.
+#[cfg(feature = "collector")]
+pub use quent_exporter_collector::CollectorExporterOptions;
+#[cfg(feature = "msgpack")]
+pub use quent_exporter_msgpack::{MsgpackExporterOptions, MsgpackImporterOptions};
+#[cfg(feature = "ndjson")]
+pub use quent_exporter_ndjson::{NdjsonExporterOptions, NdjsonImporterOptions};
+#[cfg(feature = "postcard")]
+pub use quent_exporter_postcard::{PostcardExporterOptions, PostcardImporterOptions};
+
+/// Selects an exporter and its options.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     #[cfg(feature = "ndjson")]
-    Ndjson { output_dir: PathBuf },
+    Ndjson(NdjsonExporterOptions),
     #[cfg(feature = "msgpack")]
-    Msgpack { output_dir: PathBuf },
+    Msgpack(MsgpackExporterOptions),
     #[cfg(feature = "postcard")]
-    Postcard { output_dir: PathBuf },
+    Postcard(PostcardExporterOptions),
     #[cfg(feature = "collector")]
-    Collector { address: String },
+    Collector(CollectorExporterOptions),
 }
 
-/// Selects which importer to use.
+/// Selects an importer and its options.
 #[derive(Debug, Clone)]
 pub enum ImporterOptions {
     #[cfg(feature = "ndjson")]
-    Ndjson(PathBuf),
+    Ndjson(NdjsonImporterOptions),
     #[cfg(feature = "msgpack")]
-    Msgpack(PathBuf),
+    Msgpack(MsgpackImporterOptions),
     #[cfg(feature = "postcard")]
-    Postcard(PathBuf),
+    Postcard(PostcardImporterOptions),
 }
 
 /// Construct an importer from [`ImporterOptions`].
@@ -52,23 +54,23 @@ where
 {
     match kind {
         #[cfg(feature = "ndjson")]
-        ImporterOptions::Ndjson(path) => Ok(Box::new(
-            quent_exporter_ndjson::NdjsonImporter::try_new(path)?,
+        ImporterOptions::Ndjson(options) => Ok(Box::new(
+            quent_exporter_ndjson::NdjsonImporter::try_new(options)?,
         ) as Box<dyn Importer<T>>),
         #[cfg(feature = "msgpack")]
-        ImporterOptions::Msgpack(path) => Ok(Box::new(
-            quent_exporter_msgpack::MsgpackImporter::try_new(path)?,
+        ImporterOptions::Msgpack(options) => Ok(Box::new(
+            quent_exporter_msgpack::MsgpackImporter::try_new(options)?,
         ) as Box<dyn Importer<T>>),
         #[cfg(feature = "postcard")]
-        ImporterOptions::Postcard(path) => Ok(Box::new(
-            quent_exporter_postcard::PostcardImporter::try_new(path)?,
+        ImporterOptions::Postcard(options) => Ok(Box::new(
+            quent_exporter_postcard::PostcardImporter::try_new(options)?,
         ) as Box<dyn Importer<T>>),
     }
 }
 
 /// Construct an exporter from [`ExporterOptions`].
 pub async fn create_exporter<T>(
-    kind: &ExporterOptions,
+    kind: ExporterOptions,
     application_id: Uuid,
 ) -> ExporterResult<Arc<dyn Exporter<T>>>
 where
@@ -76,45 +78,22 @@ where
 {
     match kind {
         #[cfg(feature = "ndjson")]
-        ExporterOptions::Ndjson { output_dir } => Ok(Arc::new(
-            quent_exporter_ndjson::NdjsonExporter::try_new(
-                application_id,
-                quent_exporter_ndjson::NdjsonExporterOptions {
-                    output_dir: output_dir.clone(),
-                },
-            )
-            .await?,
+        ExporterOptions::Ndjson(options) => Ok(Arc::new(
+            quent_exporter_ndjson::NdjsonExporter::try_new(application_id, options).await?,
         ) as Arc<dyn Exporter<T>>),
         #[cfg(feature = "msgpack")]
-        ExporterOptions::Msgpack { output_dir } => Ok(Arc::new(
-            quent_exporter_msgpack::MsgpackExporter::try_new(
-                application_id,
-                quent_exporter_msgpack::MsgpackExporterOptions {
-                    output_dir: output_dir.clone(),
-                },
-            )
-            .await?,
+        ExporterOptions::Msgpack(options) => Ok(Arc::new(
+            quent_exporter_msgpack::MsgpackExporter::try_new(application_id, options).await?,
         ) as Arc<dyn Exporter<T>>),
         #[cfg(feature = "postcard")]
-        ExporterOptions::Postcard { output_dir } => Ok(Arc::new(
-            quent_exporter_postcard::PostcardExporter::try_new(
-                application_id,
-                quent_exporter_postcard::PostcardExporterOptions {
-                    output_dir: output_dir.clone(),
-                },
-            )
-            .await?,
+        ExporterOptions::Postcard(options) => Ok(Arc::new(
+            quent_exporter_postcard::PostcardExporter::try_new(application_id, options).await?,
         ) as Arc<dyn Exporter<T>>),
         #[cfg(feature = "collector")]
-        ExporterOptions::Collector { address } => Ok(Arc::new(
-            quent_exporter_collector::CollectorExporter::try_new(
-                application_id,
-                quent_exporter_collector::CollectorExporterOptions {
-                    address: address.clone(),
-                },
-            )
-            .await
-            .map_err(|e| ExporterError::Collector(e.to_string()))?,
+        ExporterOptions::Collector(options) => Ok(Arc::new(
+            quent_exporter_collector::CollectorExporter::try_new(application_id, options)
+                .await
+                .map_err(|e| ExporterError::Collector(e.to_string()))?,
         ) as Arc<dyn Exporter<T>>),
     }
 }

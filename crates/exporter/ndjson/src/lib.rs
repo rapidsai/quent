@@ -2,7 +2,7 @@
 use std::{
     io::{BufRead, BufReader},
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use quent_events::Event;
@@ -69,14 +69,19 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct NdjsonImporterOptions {
+    pub path: PathBuf,
+}
+
 pub struct NdjsonImporter<T> {
     reader: BufReader<std::fs::File>,
     _phantom: PhantomData<T>,
 }
 
 impl<T> NdjsonImporter<T> {
-    pub fn try_new(path: impl AsRef<Path>) -> ImporterResult<Self> {
-        let file = std::fs::File::open(path)?;
+    pub fn try_new(options: &NdjsonImporterOptions) -> ImporterResult<Self> {
+        let file = std::fs::File::open(&options.path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),

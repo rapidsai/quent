@@ -2,7 +2,7 @@
 //!
 //! File format: sequence of length-prefixed records.
 //! Each record: [4 bytes: payload length as u32 BE][payload: postcard-encoded Event<T>]
-use std::{io::BufReader, marker::PhantomData, path::{Path, PathBuf}};
+use std::{io::BufReader, marker::PhantomData, path::PathBuf};
 
 use quent_events::Event;
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
@@ -70,14 +70,19 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PostcardImporterOptions {
+    pub path: PathBuf,
+}
+
 pub struct PostcardImporter<T> {
     reader: BufReader<std::fs::File>,
     _phantom: PhantomData<T>,
 }
 
 impl<T> PostcardImporter<T> {
-    pub fn try_new(path: impl AsRef<Path>) -> ImporterResult<Self> {
-        let file = std::fs::File::open(path)?;
+    pub fn try_new(options: &PostcardImporterOptions) -> ImporterResult<Self> {
+        let file = std::fs::File::open(&options.path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),

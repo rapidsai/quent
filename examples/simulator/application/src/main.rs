@@ -9,7 +9,10 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::Attribute;
 use quent_events::resource::{self, channel, memory};
-use quent_exporter::ExporterOptions;
+use quent_exporter::{
+    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
+    PostcardExporterOptions,
+};
 use quent_query_engine_events::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
@@ -1131,18 +1134,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut engine = Engine::new();
 
     let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::Postcard {
+        "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
             output_dir: "data".into(),
-        }),
-        "messagepack" => Some(ExporterOptions::Msgpack {
+        })),
+        "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
             output_dir: "data".into(),
-        }),
-        "ndjson" => Some(ExporterOptions::Ndjson {
+        })),
+        "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
             output_dir: "data".into(),
-        }),
-        "collector" => Some(ExporterOptions::Collector {
+        })),
+        "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
-        }),
+        })),
         "none" => None,
         _ => {
             return Err(format!(

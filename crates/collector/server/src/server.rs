@@ -78,7 +78,7 @@ where
                             Arc::clone(&exporters.get(&application_id).unwrap())
                         } else {
                             let exporter = match create_exporter::<T>(
-                                &exporter_kind,
+                                exporter_kind.clone(),
                                 application_id,
                             )
                             .await

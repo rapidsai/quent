@@ -7,7 +7,6 @@ edition.workspace =  true
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-attributes = { path = "../../../crates/attributes" }
 quent-events = { path = "../../../crates/events" }
-quent-exporter = { path = "../../../crates/exporter" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-simulator-events = { path = "../events" }

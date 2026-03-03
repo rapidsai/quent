@@ -110,7 +110,7 @@ where
         let (events_sender, mut events_receiver) = unbounded_channel();
 
         debug!("constructing exporter");
-        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(&kind, id))?;
+        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind, id))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();

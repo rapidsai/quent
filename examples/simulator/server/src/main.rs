@@ -2,7 +2,11 @@ use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
 use quent_collector::server::CollectorServiceOptions;
-use quent_exporter::ExporterOptions;
+use quent_exporter::{
+    ExporterOptions, ImporterOptions, MsgpackExporterOptions, MsgpackImporterOptions,
+    NdjsonExporterOptions, NdjsonImporterOptions, PostcardExporterOptions,
+    PostcardImporterOptions, create_importer,
+};
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_events::SimulatorEvent;
@@ -80,10 +84,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {collector_address}"))?;
 
+    let importer_output_dir = output_dir.clone();
+
     let exporter_kind = match exporter.as_str() {
-        "ndjson" => ExporterOptions::Ndjson { output_dir },
-        "msgpack" => ExporterOptions::Msgpack { output_dir },
-        "postcard" => ExporterOptions::Postcard { output_dir },
+        "ndjson" => ExporterOptions::Ndjson(NdjsonExporterOptions { output_dir }),
+        "msgpack" => ExporterOptions::Msgpack(MsgpackExporterOptions { output_dir }),
+        "postcard" => ExporterOptions::Postcard(PostcardExporterOptions { output_dir }),
         other => return Err(format!("unknown exporter: {other}").into()),
     };
 
@@ -101,10 +107,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_socket_addrs()?
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
+
+    let importer = move |engine_id| {
+        let postcard_path = importer_output_dir.join(format!("{engine_id}.postcard"));
+        let msgpack_path = importer_output_dir.join(format!("{engine_id}.msgpack"));
+        let ndjson_path = importer_output_dir.join(format!("{engine_id}.ndjson"));
+        let kind = if postcard_path.exists() {
+            ImporterOptions::Postcard(PostcardImporterOptions { path: postcard_path })
+        } else if msgpack_path.exists() {
+            ImporterOptions::Msgpack(MsgpackImporterOptions { path: msgpack_path })
+        } else {
+            ImporterOptions::Ndjson(NdjsonImporterOptions { path: ndjson_path })
+        };
+        Ok(Box::new(create_importer::<SimulatorEvent>(&kind)?)
+            as Box<dyn Iterator<Item = _>>)
+    };
+
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router::<SimulatorUiAnalyzer>(cors_address)?.into_make_service(),
+            analyzer_service_router::<SimulatorUiAnalyzer>(importer, cors_address)?
+                .into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())
