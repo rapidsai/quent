@@ -1,0 +1,26 @@
+services:
+  server:
+    build:
+      context: ..        # or path to your Rust project root
+      dockerfile: deploy/Dockerfile.server.template
+    ports:
+      - "8080:8080"
+      - "7836:7836"
+    volumes:
+      - ./data:/app/data
+    # Adjust args to match your server's CLI:
+    # command: /app/server --log-level info
+
+  webserver:
+    build:
+      # Builds the UI + webserver image directly from the quent repo.
+      # Replace with the actual repo URL and branch/tag:
+      context: https://github.com/org/quent.git#main
+      dockerfile: Dockerfile.webserver
+    ports:
+      - "8000:8000"
+    environment:
+      QUENT_ANALYZER_ADDRESS: "http://server:8080"
+      LOG_LEVEL: "INFO"
+    depends_on:
+      - server

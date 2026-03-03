@@ -13,10 +13,10 @@ from ..timeline_caching import (
     get_timeline_bins_for_resource_group,
 )
 
-router = APIRouter(prefix="/engines", tags=["engines"])
+router = APIRouter(prefix="/engines", tags=["engines"], redirect_slashes=False)
 
 
-@router.get("/")
+@router.get("")
 async def list_engines() -> Any:
     """
     List all available engines.

@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+
+# Template Dockerfile for building a Rust quent-server.
+# Copy this into your project and replace the placeholders below.
+
+FROM rust:1.91-trixie AS builder
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends protobuf-compiler
+COPY . .
+# Replace with your package name:
+RUN cargo build --release -p your-quent-server
+
+FROM debian:trixie-slim AS runtime
+WORKDIR /app
+# Replace with your binary name:
+COPY --from=builder /build/target/release/your-quent-server /app/server
+EXPOSE 8080 7836
+CMD ["/app/server"]

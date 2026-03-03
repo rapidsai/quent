@@ -26,6 +26,11 @@ class Settings:
     SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
     SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
 
+    # Directory containing built UI static assets. In the Docker image this
+    # defaults to /app/static; locally the directory typically doesn't exist,
+    # so no static files are served.
+    STATIC_DIR: str = os.getenv("STATIC_DIR", "/app/static")
+
     # Application log level (DEBUG, INFO, WARNING, ERROR). Used by Python logging module.
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
 

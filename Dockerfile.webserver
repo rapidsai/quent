@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+
+# Stage 1: Build UI static assets
+FROM node:24-slim AS ui-builder
+
+WORKDIR /build
+
+# Enable corepack for pnpm
+RUN corepack enable
+
+# Copy UI source and ts-bindings (needed by ~quent/types vite alias)
+COPY ui/ ./ui/
+COPY examples/simulator/server/ts-bindings/ ./examples/simulator/server/ts-bindings/
+
+WORKDIR /build/ui
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+
+# Stage 2: Python webserver with built UI
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+COPY webserver/pyproject.toml webserver/uv.lock webserver/README.md ./
+RUN uv sync --frozen --no-dev
+
+COPY webserver/webserver ./webserver
+
+# Copy built UI assets
+COPY --from=ui-builder /build/ui/dist /app/static
+
+EXPOSE 8000
+
+CMD ["uv", "run", "uvicorn", "webserver.main:app", "--host", "0.0.0.0", "--port", "8000"]
