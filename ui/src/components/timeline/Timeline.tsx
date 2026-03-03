@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -111,13 +111,13 @@ export function Timeline({
               label: {
                 show: true,
                 formatter: () => m.label,
-                position: [0, 0],
+                position: [0, -5],
                 fontSize: 9,
                 fontWeight: 500,
                 color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, markAreaBorderOpacity),
-                borderRadius: 2,
-                padding: [1, 3],
+                backgroundColor: withOpacity(stateColor, 1),
+                borderRadius: 1,
+                padding: [1, 2],
               },
             },
             [m.xEnd, 1],
@@ -145,6 +145,12 @@ export function Timeline({
 
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
+
+  const [prevSeriesCount, setPrevSeriesCount] = useState(seriesOptions.length);
+  const notMerge = seriesOptions.length < prevSeriesCount;
+  useEffect(() => {
+    setPrevSeriesCount(seriesOptions.length);
+  }, [seriesOptions.length]);
 
   const yAxisOptions = useMemo(
     () => ({
@@ -339,7 +345,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
-      notMerge={false}
+      notMerge={notMerge}
       lazyUpdate
     />
   );

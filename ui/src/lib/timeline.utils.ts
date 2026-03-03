@@ -19,7 +19,7 @@ import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 
 const MAX_TIMELINE_BINS = 400;
-const LONG_ENTITIES_BIN_MULTIPLIER = 20;
+const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
 /**
  * Computes the number of bins such that each bin is >= 1ms wide.
