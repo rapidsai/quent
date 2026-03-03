@@ -71,6 +71,7 @@ impl<'a> ResourceTimelineBuilder<'a> {
 
         if let Some(threshold) = self.long_entities_threshold
             && usage.span().duration() > threshold
+            && usage.span().intersects(&self.aggregator.config.span)
         {
             self.long_entities.insert(usage.entity_id());
         }
@@ -133,6 +134,7 @@ where
 
         if let Some(threshold) = self.long_entities_threshold
             && usage.span().duration() > threshold
+            && usage.span().intersects(&self.aggregator.config.span)
         {
             self.long_entities.insert(usage.entity_id());
         }
@@ -784,5 +786,77 @@ mod tests {
                 42.0 * 1.0,
             ],
         );
+    }
+
+    /// Don't include long entities outside the window.
+    #[test]
+    fn test_long_entities_outside_window_excluded() {
+        let resource_id = Uuid::now_v7();
+
+        let mut resources = InMemoryResourcesBuilder::default();
+        resources
+            .try_extend(
+                root_resource_event()
+                    .into_iter()
+                    .chain(memory_events(resource_id)),
+            )
+            .unwrap();
+        let resources = resources.try_build().unwrap();
+
+        // Config window: [1000, 2000], threshold: 100 ns (all spans below exceed it)
+        let config = BinnedSpan::try_new(
+            SpanNanoSec::try_new(1000, 2000).unwrap(),
+            NonZero::try_from(10).unwrap(),
+        )
+        .unwrap();
+        let threshold = 100u64;
+
+        let resource_type = resources
+            .resource_type(resources.resource(resource_id).unwrap().type_name())
+            .unwrap();
+
+        let make_fsm = |start, end| {
+            RtFsm::try_new(
+                Uuid::now_v7(),
+                "test",
+                "test",
+                [
+                    RtFsmTransition {
+                        name: "using".into(),
+                        usages: vec![RtFsmStateUsage::new(
+                            resource_id,
+                            [CapacityValue::new("bytes", 1)],
+                        )],
+                        timestamp: start,
+                        attributes: vec![],
+                    },
+                    RtFsmTransition {
+                        name: "exit".into(),
+                        usages: vec![],
+                        timestamp: end,
+                        attributes: vec![],
+                    },
+                ],
+            )
+            .unwrap()
+        };
+
+        let mut outside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        outside_fsms.insert(make_fsm(0, 500));
+        outside_fsms.insert(make_fsm(2500, 3000));
+
+        let mut outside_builder =
+            ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
+        outside_builder.try_extend(outside_fsms.usages()).unwrap();
+        assert!(!outside_builder.build().long_entities.contains(&resource_id));
+
+        let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        inside_fsms.insert(make_fsm(500, 1500));
+        inside_fsms.insert(make_fsm(1100, 1900));
+
+        let mut inside_builder =
+            ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
+        inside_builder.try_extend(inside_fsms.usages()).unwrap();
+        assert!(inside_builder.build().long_entities.contains(&resource_id));
     }
 }
