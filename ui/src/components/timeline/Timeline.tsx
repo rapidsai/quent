@@ -163,16 +163,14 @@ export function Timeline({
           if (isDraggingRef.current) return '';
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
-          const seriesValues = hoveredSeries.map(
-            (p: { color: string; seriesName: string; data: number[] }) => {
-              return {
-                color: p.color,
-                name: p.seriesName,
-                value: p.data[1],
-                isOverlay: series[p.seriesName]?.isOverlay ?? false,
-              };
-            }
-          );
+          const seriesValues = hoveredSeries
+            .filter((p: { data?: number[] }) => p.data != null)
+            .map((p: { color: string; seriesName: string; data: number[] }) => ({
+              color: p.color,
+              name: p.seriesName,
+              value: p.data[1],
+              isOverlay: series[p.seriesName]?.isOverlay ?? false,
+            }));
           return renderToStaticMarkup(
             <TooltipContent timestamp={timestamp} series={seriesValues} startTime={startTime} />
           );
