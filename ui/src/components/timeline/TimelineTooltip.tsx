@@ -1,4 +1,5 @@
 import { formatBytes, formatDuration } from '@/services/formatters';
+import { getColorForKey } from '@/services/colors';
 import { cn } from '@/lib/utils';
 
 interface TooltipSeries {
@@ -125,14 +126,37 @@ function buildBarSegments(bar: StateBar): {
   return { segments, overlayPct };
 }
 
+function ActiveMarksSection({ marks }: { marks: { label: string; stateName: string }[] }) {
+  if (marks.length === 0) return null;
+  return (
+    <div className="mt-1 pt-1 border-t border-border">
+      {marks.map((m, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <span
+            className="w-2 h-2 rounded-xs shrink-0 border"
+            style={{
+              backgroundColor: getColorForKey(m.stateName) + '20',
+              borderColor: getColorForKey(m.stateName) + 'cc',
+            }}
+          />
+          <span className="text-muted-foreground">{m.label}</span>
+          <span className="text-foreground font-medium ml-auto">{m.stateName}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OverlayBarTooltip({
   timestamp,
   bars,
   startTime,
+  activeMarks,
 }: {
   timestamp: number;
   bars: StateBar[];
   startTime: bigint;
+  activeMarks?: { label: string; stateName: string }[];
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -209,6 +233,7 @@ function OverlayBarTooltip({
             );
           })()}
       </div>
+      {activeMarks && <ActiveMarksSection marks={activeMarks} />}
     </div>
   );
 }
@@ -217,10 +242,12 @@ export function TooltipContent({
   timestamp,
   series,
   startTime,
+  activeMarks,
 }: {
   timestamp: number;
   series: TooltipSeries[];
   startTime: bigint;
+  activeMarks?: { label: string; stateName: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 
@@ -242,7 +269,14 @@ export function TooltipContent({
       };
     });
 
-    return <OverlayBarTooltip timestamp={timestamp} bars={bars} startTime={startTime} />;
+    return (
+      <OverlayBarTooltip
+        timestamp={timestamp}
+        bars={bars}
+        startTime={startTime}
+        activeMarks={activeMarks}
+      />
+    );
   }
 
   return (
@@ -260,6 +294,7 @@ export function TooltipContent({
           series={{ name: 'Total', value: series.reduce((acc, s) => acc + s.value, 0) }}
         />
       </section>
+      {activeMarks && <ActiveMarksSection marks={activeMarks} />}
     </div>
   );
 }

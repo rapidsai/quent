@@ -56,15 +56,17 @@ export function useBulkTimelines({
     };
   }, []);
 
+  const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
+  const windowSeconds = debouncedZoomRange.end - debouncedZoomRange.start;
+
   const baseVisibleEntries = useMemo(
-    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, null),
-    [rootItem, expandedIds, selectedTypes, entities]
+    () =>
+      collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, null, windowSeconds),
+    [rootItem, expandedIds, selectedTypes, entities, windowSeconds]
   );
   useEffect(() => {
     store.set(visibleEntriesAtom, baseVisibleEntries);
   }, [baseVisibleEntries, store]);
-
-  const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
 
   // Base bulk fetch (unfiltered, operator_id: null)
   const baseBulkData = useBulkTimelineFetch({
@@ -117,7 +119,7 @@ export function useBulkTimelines({
 
       const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children) {
-        const params = buildBulkParamsForItem(child, selectedTypes, entities, null);
+        const params = buildBulkParamsForItem(child, selectedTypes, entities, null, windowSeconds);
         const resourceTypeName = getResourceTypeName(params);
         const key = timelineCacheKey(child.id, resourceTypeName);
         if (!store.get(timelineDataAtom(key))) {
@@ -187,7 +189,17 @@ export function useBulkTimelines({
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [rootItem, selectedTypes, entities, operatorId, engineId, queryId, store, queryClient]
+    [
+      rootItem,
+      store,
+      selectedTypes,
+      entities,
+      windowSeconds,
+      queryClient,
+      engineId,
+      queryId,
+      operatorId,
+    ]
   );
 
   return { handleZoomChange, handleExpand } as const;
