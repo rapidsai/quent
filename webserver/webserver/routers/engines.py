@@ -17,11 +17,11 @@ router = APIRouter(prefix="/engines", tags=["engines"])
 
 
 @router.get("/")
-async def list_engines() -> Any:
+async def list_engines(with_metadata: bool = Query(False, description="Include engine metadata")) -> Any:
     """
     List all available engines.
     """
-    return rust_client.get("/analyzer/list_engines")
+    return rust_client.get("/analyzer/list_engines", params={"with_metadata": str(with_metadata).lower()})
 
 
 @router.get("/{engine_id}")
