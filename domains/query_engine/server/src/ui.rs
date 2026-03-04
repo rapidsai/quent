@@ -11,50 +11,19 @@ use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
-use tracing::error;
 use uuid::Uuid;
 
 use crate::{cache::AnalyzerCache, error::ServerResult};
 
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all, err)]
-async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
-    let entries = match std::fs::read_dir("data") {
-        Ok(entries) => entries,
-        Err(e) => {
-            error!("unable read directory: {e}");
-            Err(e)?
-        }
-    };
-
-    let mut ids = Vec::new();
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(e) => {
-                error!("entry error: {e}");
-                Err(e)?
-            }
-        };
-        let path = entry.path();
-
-        if !path.is_file() {
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some("ndjson") {
-            continue;
-        }
-        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-            match Uuid::parse_str(stem) {
-                Ok(uuid) => ids.push(uuid),
-                Err(_) => {
-                    continue;
-                }
-            }
-        }
-    }
-
-    Ok(Json(ids))
+async fn list_engines<A>(
+    State(state): State<AnalyzerCache<A>>,
+) -> ServerResult<Json<Vec<Uuid>>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    Ok(Json(state.list()?))
 }
 
 #[tracing::instrument(skip_all, err)]

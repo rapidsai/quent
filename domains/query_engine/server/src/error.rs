@@ -4,7 +4,7 @@ use quent_exporter_types::ImporterError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum ServerError {
+pub enum ServerError {
     #[error("analyzer error: {0}")]
     Analyzer(#[from] AnalyzerError),
     #[error("importer error: {0}")]
@@ -15,7 +15,7 @@ pub(crate) enum ServerError {
     Cache(String),
 }
 
-pub(crate) type ServerResult<T> = std::result::Result<T, ServerError>;
+pub type ServerResult<T> = std::result::Result<T, ServerError>;
 
 impl From<ServerError> for StatusCode {
     fn from(value: ServerError) -> Self {

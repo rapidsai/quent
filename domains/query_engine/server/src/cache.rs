@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
-use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use tracing::info_span;
@@ -9,9 +8,11 @@ use uuid::Uuid;
 
 use crate::error::{ServerError, ServerResult};
 
-pub type ImporterFn<A> = dyn Fn(Uuid) -> AnalyzerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
+pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
     + Send
     + Sync;
+
+pub type ListerFn = dyn Fn() -> ServerResult<Vec<Uuid>> + Send + Sync;
 
 pub struct AnalyzerCache<A>
 where
@@ -19,6 +20,7 @@ where
 {
     analyzers: Cache<Uuid, Arc<A>>,
     importer: Arc<ImporterFn<A>>,
+    lister: Arc<ListerFn>,
 }
 
 impl<A> Clone for AnalyzerCache<A>
@@ -29,6 +31,7 @@ where
         Self {
             analyzers: self.analyzers.clone(),
             importer: Arc::clone(&self.importer),
+            lister: Arc::clone(&self.lister),
         }
     }
 }
@@ -37,14 +40,19 @@ impl<A> AnalyzerCache<A>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    pub(crate) fn new(importer: Box<ImporterFn<A>>) -> Self {
+    pub(crate) fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
         Self {
             analyzers: Cache::builder()
                 .max_capacity(32)
                 .time_to_idle(Duration::from_hours(24))
                 .build(),
             importer: Arc::from(importer),
+            lister: Arc::from(lister),
         }
+    }
+
+    pub(crate) fn list(&self) -> ServerResult<Vec<Uuid>> {
+        (self.lister)()
     }
 
     pub(crate) async fn get(&self, engine_id: Uuid) -> ServerResult<Arc<A>> {
