@@ -100,9 +100,8 @@ impl TimelineCache {
                 continue;
             }
 
-            let cache_key = format!(
-                "{engine_id}:{params_hash:x}:z{zoom_level}:c{chunk_idx}:{num_bins}"
-            );
+            let cache_key =
+                format!("{engine_id}:{params_hash:x}:z{zoom_level}:c{chunk_idx}:{num_bins}");
 
             if let Some(cached) = self.chunks.get(&cache_key).await {
                 debug!("timeline chunk cache hit: {cache_key}");
@@ -246,11 +245,7 @@ fn combine_chunks(
     }
 }
 
-fn overlap_indices(
-    chunk: &SingleTimelineResponse,
-    req_start: f64,
-    req_end: f64,
-) -> (usize, usize) {
+fn overlap_indices(chunk: &SingleTimelineResponse, req_start: f64, req_end: f64) -> (usize, usize) {
     let chunk_start = chunk.config.span.start();
     let chunk_end = chunk.config.span.end();
     let bin_duration = chunk.config.bin_duration;

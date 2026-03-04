@@ -1,10 +1,6 @@
 //! Utilities for server implementations
 
-use crate::{
-    analyzer_cache::AnalyzerCache,
-    state::ServiceState,
-    timeline_cache::TimelineCache,
-};
+use crate::{analyzer_cache::AnalyzerCache, state::ServiceState, timeline_cache::TimelineCache};
 use axum::Router as AxumRouter;
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
@@ -77,8 +73,8 @@ where
         use utoipa::OpenApi;
         use utoipa_swagger_ui::SwaggerUi;
         let api = ui::ApiDoc::openapi();
-        http_routes = http_routes
-            .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
+        http_routes =
+            http_routes.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
     }
 
     if let Some(cors) = cors {
