@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use moka::future::Cache;
 use quent_events::Event;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
 
@@ -53,6 +54,22 @@ where
 
     pub(crate) fn list(&self) -> ServerResult<Vec<Uuid>> {
         (self.lister)()
+    }
+
+    pub(crate) async fn list_with_metadata(&self) -> ServerResult<Vec<ui::Engine>> {
+        let ids = self.list()?;
+        let importer = Arc::clone(&self.importer);
+        tokio::task::spawn_blocking(move || {
+            let _span = info_span!("list_with_metadata").entered();
+            ids.into_iter()
+                .map(|id| {
+                    let events = importer(id)?;
+                    Ok(A::extract_engine(id, events)?)
+                })
+                .collect()
+        })
+        .await
+        .map_err(|e| ServerError::Cache(format!("blocking task panicked: {e}")))?
     }
 
     pub(crate) async fn get(&self, engine_id: Uuid) -> ServerResult<Arc<A>> {

@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post},
 };
 
@@ -11,19 +11,32 @@ use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{cache::AnalyzerCache, error::ServerResult};
+
+#[derive(Deserialize)]
+struct ListEnginesQuery {
+    #[serde(default)]
+    with_metadata: bool,
+}
 
 // TODO(johanpel): pagination
 #[tracing::instrument(skip_all, err)]
 async fn list_engines<A>(
     State(state): State<AnalyzerCache<A>>,
-) -> ServerResult<Json<Vec<Uuid>>>
+    Query(query): Query<ListEnginesQuery>,
+) -> ServerResult<Json<Vec<ui::Engine>>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    Ok(Json(state.list()?))
+    if query.with_metadata {
+        Ok(Json(state.list_with_metadata().await?))
+    } else {
+        let ids = state.list()?;
+        Ok(Json(ids.into_iter().map(ui::Engine::new).collect()))
+    }
 }
 
 #[tracing::instrument(skip_all, err)]

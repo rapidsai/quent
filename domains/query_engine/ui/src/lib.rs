@@ -37,13 +37,29 @@ pub struct Engine {
     /// The ID of this [`Engine`].
     pub id: Uuid,
     /// The timestamp at which this [`Engine`] started.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_time_unix_ns: Option<TimeUnixNanoSec>,
     /// The duration for which this [`Engine`] was alive.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_s: Option<TimeSec>,
     /// The name of this [`Engine`] instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_name: Option<String>,
     /// Details about the Engine implementation.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation: Option<EngineImplementationAttributes>,
+}
+
+impl Engine {
+    pub fn new(id: Uuid) -> Self {
+        Self {
+            id,
+            start_time_unix_ns: None,
+            duration_s: None,
+            instance_name: None,
+            implementation: None,
+        }
+    }
 }
 
 /// A group of [`Query`]s.

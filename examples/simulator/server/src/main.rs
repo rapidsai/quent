@@ -156,8 +156,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router::<SimulatorUiAnalyzer>(Box::new(importer), Box::new(lister), cors_address)?
-                .into_make_service(),
+            analyzer_service_router::<SimulatorUiAnalyzer>(
+                Box::new(importer),
+                Box::new(lister),
+                cors_address,
+            )?
+            .into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())
