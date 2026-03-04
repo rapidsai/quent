@@ -4,9 +4,12 @@ import { cva } from 'class-variance-authority';
 import { useAtomValue } from 'jotai';
 import { selectedNodeIdsAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
+import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
+  nodeId: string;
   operationType: string;
   metadata?: { rawNode?: Operator };
   hasIncoming?: boolean;
@@ -114,8 +117,9 @@ function resolveOperationType(type: string): OperationType {
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
+  const statistics = parseCustomStatistics(data.metadata?.rawNode);
 
-  return (
+  const nodeContent = (
     <div
       className={nodeVariants({
         operationType: resolveOperationType(data.operationType),
@@ -138,6 +142,17 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         />
       )}
     </div>
+  );
+
+  return (
+    <OperatorStatisticsPopup
+      data={statistics}
+      nodeId={data.nodeId}
+      operatorLabel={data.label}
+      operationType={data.operationType}
+    >
+      {nodeContent}
+    </OperatorStatisticsPopup>
   );
 });
 
