@@ -52,6 +52,31 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
     type TimelineGlobalParams = QueryFilter;
     type TimelineParams = TaskFilter;
 
+    fn extract_engine(
+        engine_id: Uuid,
+        events: impl Iterator<Item = Event<SimulatorEvent>>,
+    ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
+        use quent_query_engine_events::{QueryEngineEvent, engine::EngineEvent};
+        for event in events {
+            if let SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Engine(EngineEvent::Init(
+                init,
+            ))) = event.data
+            {
+                return Ok(quent_query_engine_ui::Engine {
+                    id: engine_id,
+                    start_time_unix_ns: Some(event.timestamp),
+                    duration_s: None,
+                    instance_name: init.instance_name,
+                    implementation: init
+                        .implementation
+                        .as_ref()
+                        .map(quent_query_engine_ui::EngineImplementationAttributes::from),
+                });
+            }
+        }
+        Ok(quent_query_engine_ui::Engine::new(engine_id))
+    }
+
     fn try_new(
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
