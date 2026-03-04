@@ -14,10 +14,10 @@ use quent_ui::timeline::{
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{cache::AnalyzerCache, error::ServerResult};
+use crate::{error::ServerResult, state::ServiceState};
 
 #[cfg(feature = "ui")]
-mod embedded {
+pub(crate) mod embedded {
     use axum::{
         http::{StatusCode, header},
         response::IntoResponse,
@@ -115,13 +115,13 @@ async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn engine<A>(
-    State(state): State<AnalyzerCache<A>>,
+    State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
 ) -> ServerResult<Json<ui::Engine>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.get(engine_id).await?;
+    let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(analyzer.query_engine_model().engine()?.to_ui()?))
 }
 
@@ -140,13 +140,13 @@ where
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn list_query_groups<A>(
-    State(state): State<AnalyzerCache<A>>,
+    State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
 ) -> ServerResult<Json<Vec<ui::QueryGroup>>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.get(engine_id).await?;
+    let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(
         analyzer
             .query_engine_model()
@@ -172,13 +172,13 @@ where
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn list_queries<A>(
-    State(state): State<AnalyzerCache<A>>,
+    State(state): State<ServiceState<A>>,
     Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
 ) -> ServerResult<Json<Vec<ui::Query>>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.get(engine_id).await?;
+    let analyzer = state.analyzers.get(engine_id).await?;
     let queries = analyzer
         .query_engine_model()
         .queries()
@@ -203,13 +203,13 @@ where
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn query<A>(
-    State(state): State<AnalyzerCache<A>>,
+    State(state): State<ServiceState<A>>,
     Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
 ) -> ServerResult<Json<ui::QueryBundle<<A as UiAnalyzer>::EntityRef>>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.get(engine_id).await?;
+    let analyzer = state.analyzers.get(engine_id).await?;
     let query_bundle = analyzer.query_bundle(query_id)?;
     Ok(Json(query_bundle))
 }
@@ -229,7 +229,7 @@ where
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn single_timeline<A>(
-    State(state): State<AnalyzerCache<A>>,
+    State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
     Json(request): Json<
         SingleTimelineRequest<
@@ -240,9 +240,16 @@ async fn single_timeline<A>(
 ) -> ServerResult<Json<SingleTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Clone,
+    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Clone,
 {
-    let analyzer = state.get(engine_id).await?;
-    Ok(Json(analyzer.single_resource_timeline(request)?))
+    let analyzer = state.analyzers.get(engine_id).await?;
+    Ok(Json(
+        state
+            .timelines
+            .cached_single_timeline(&*analyzer, engine_id, request)
+            .await?,
+    ))
 }
 
 /// Fetch multiple resource/resource-group timelines in one request.
@@ -260,7 +267,7 @@ where
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn bulk_timelines<A>(
-    State(state): State<AnalyzerCache<A>>,
+    State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
     Json(request): Json<
         BulkTimelineRequest<
@@ -272,7 +279,7 @@ async fn bulk_timelines<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.get(engine_id).await?;
+    let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(analyzer.bulk_resource_timeline(request)?))
 }
 
@@ -295,12 +302,12 @@ where
 )]
 pub(crate) struct ApiDoc;
 
-pub fn routes<A>(cache: AnalyzerCache<A>) -> Router<()>
+pub fn routes<A>(state: ServiceState<A>) -> Router<()>
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
@@ -315,5 +322,5 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
-        .with_state(cache)
+        .with_state(state)
 }

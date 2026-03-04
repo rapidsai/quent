@@ -132,6 +132,31 @@ pub struct SpanSec {
     end: TimeSec,
 }
 
+impl SpanSec {
+    /// Construct a new SpanSec.
+    pub fn new(start: TimeSec, end: TimeSec) -> Self {
+        Self { start, end }
+    }
+
+    /// Return the start time of this Span.
+    #[inline]
+    pub fn start(&self) -> TimeSec {
+        self.start
+    }
+
+    /// Return the end time of this Span.
+    #[inline]
+    pub fn end(&self) -> TimeSec {
+        self.end
+    }
+
+    /// Return the duration of this Span.
+    #[inline]
+    pub fn duration(&self) -> TimeSec {
+        self.end - self.start
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::timestamp;

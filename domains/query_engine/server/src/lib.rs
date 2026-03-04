@@ -1,6 +1,10 @@
 //! Utilities for server implementations
 
-use crate::cache::AnalyzerCache;
+use crate::{
+    analyzer_cache::AnalyzerCache,
+    state::ServiceState,
+    timeline_cache::TimelineCache,
+};
 use axum::Router as AxumRouter;
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
@@ -9,8 +13,10 @@ use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
 
-mod cache;
+mod analyzer_cache;
 mod error;
+mod state;
+mod timeline_cache;
 mod ui;
 
 pub fn initialize_tracing(log_level: &str) {
@@ -47,20 +53,23 @@ where
 }
 
 pub fn analyzer_service_router<A>(
-    importer: Box<cache::ImporterFn<A>>,
+    importer: Box<analyzer_cache::ImporterFn<A>>,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
-    let cache = AnalyzerCache::<A>::new(importer);
+    let state = ServiceState {
+        analyzers: AnalyzerCache::<A>::new(importer),
+        timelines: TimelineCache::new(),
+    };
 
-    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(cache));
+    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(state));
 
     #[cfg(feature = "swagger")]
     {
