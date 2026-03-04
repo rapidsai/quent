@@ -5,8 +5,8 @@ edition.workspace = true
 
 [dependencies]
 quent-events = { path = "../../../crates/events" }
+quent-exporter = { path = "../../../crates/exporter" }
 quent-simulator-events = { path = "../events" }
 quent-instrumentation = { path = "../../../crates/instrumentation" }
 quent-query-engine-events = { path = "../../../domains/query_engine/events" }
 uuid.workspace = true
-tokio.workspace = true

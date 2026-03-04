@@ -5,7 +5,6 @@ edition.workspace =  true
 
 [dependencies]
 quent-analyzer = { path = "../../../crates/analyzer", features = [ "ts" ]}
-quent-time = { path = "../../../crates/time" }
 serde.workspace = true
 ts-rs.workspace = true
 uuid.workspace = true

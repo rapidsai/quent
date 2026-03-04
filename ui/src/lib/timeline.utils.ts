@@ -1,4 +1,4 @@
-import { TimelineSeries } from '@/components/timeline/types';
+import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import { formatBytes } from '@/services/formatters';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
@@ -11,12 +11,15 @@ import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
-import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
+import { getColorForKey, lightenColor, WHITE, withOpacity } from '@/services/colors';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
+import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
+import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 
-const MAX_TIMELINE_BINS = 200;
+const MAX_TIMELINE_BINS = 400;
+const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
 /**
  * Computes the number of bins such that each bin is >= 1ms wide.
@@ -25,6 +28,12 @@ const MAX_TIMELINE_BINS = 200;
 export function getAdaptiveNumBins(windowSeconds: number): number {
   const windowMs = windowSeconds * 1_000;
   return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+}
+
+/** Threshold for "long" entities: 10x the current bin duration in seconds. */
+export function getLongEntitiesThreshold(windowSeconds: number): number {
+  const numBins = getAdaptiveNumBins(windowSeconds);
+  return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 
 export function buildBinnedTimelineSeries(
@@ -87,6 +96,105 @@ export function buildBinnedTimelineSeries(
     };
   }
   return { timestamps, series };
+}
+
+/** Extract the config from a SingleTimelineResponse */
+export function getTimelineConfig(response: SingleTimelineResponse): BinnedSpanSec {
+  return response.config;
+}
+
+/** Extract long_fsms from a ResourceTimeline response. */
+export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
+  if ('Binned' in data) return data.Binned.long_fsms;
+  if ('BinnedByState' in data) return data.BinnedByState.long_fsms;
+  return [];
+}
+
+/**
+ * Convert long_fsms into a flat array of timeline marks.
+ * Each pair of consecutive transitions defines a time range for the state
+ * entered by the first transition.
+ */
+export function buildTimelineMarks(
+  longFsms: FiniteStateMachine[],
+  startTime: bigint
+): TimelineMark[] | undefined {
+  if (longFsms.length === 0) return undefined;
+
+  const startTimeMs = Number(startTime / 1_000_000n);
+
+  const marks = longFsms.flatMap(fsm => {
+    const label = fsm.instance_name || fsm.id;
+    return fsm.transitions
+      .slice(0, -1)
+      .map((transition, i) => {
+        const next = fsm.transitions[i + 1];
+        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
+        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+        return { label, stateName: transition.name, xStart, xEnd };
+      })
+      .filter(m => m.xEnd > m.xStart);
+  });
+
+  return marks.length > 0 ? marks : undefined;
+}
+
+/**
+ * Merge overlay series into base series for overlay rendering.
+ * Each overlay series entry gets a lightened color, an `isOverlay` flag,
+ * and a tooltip name of "{state} ({overlayLabel})".
+ */
+export function mergeOverlaySeries(
+  baseSeries: TimelineSeries,
+  overlaySeries: TimelineSeries,
+  overlayLabel: string,
+  lightenAmount: number
+): TimelineSeries {
+  const merged: TimelineSeries = { ...baseSeries };
+  for (const [state, overlayEntry] of Object.entries(overlaySeries)) {
+    const baseEntry = baseSeries[state];
+    const baseColor = baseEntry?.color ?? overlayEntry.color;
+    const overlayName = `${state} (${overlayLabel})`;
+    merged[overlayName] = {
+      ...overlayEntry,
+      color: lightenColor(baseColor, lightenAmount),
+      isOverlay: true,
+    };
+  }
+  return merged;
+}
+
+/** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
+export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefined): string {
+  if (!params) return '';
+  if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
+  return '';
+}
+
+/** Clone entries and set operator_id on each TimelineRequest */
+export function setOperatorOnEntries(
+  baseEntries: Record<string, TimelineRequest<TaskFilter>>,
+  operatorId: string
+): Record<string, TimelineRequest<TaskFilter>> {
+  const result: Record<string, TimelineRequest<TaskFilter>> = {};
+  for (const [id, entry] of Object.entries(baseEntries)) {
+    if ('ResourceGroup' in entry) {
+      result[id] = {
+        ResourceGroup: {
+          ...entry.ResourceGroup,
+          app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+        },
+      };
+    } else {
+      result[id] = {
+        Resource: {
+          ...entry.Resource,
+          application: { ...entry.Resource.application, operator_id: operatorId },
+        },
+      };
+    }
+  }
+  return result;
 }
 
 const SECOND_MS = 1_000;
@@ -390,10 +498,13 @@ function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string
 export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
-  entities: QueryEntities
+  entities: QueryEntities,
+  operatorId: string | null = null,
+  windowSeconds?: number
 ): TimelineRequest<TaskFilter> {
   const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
+  const threshold = windowSeconds != null ? getLongEntitiesThreshold(windowSeconds) : null;
 
   if (isGroup) {
     const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
@@ -401,9 +512,9 @@ export function buildBulkParamsForItem(
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName,
-        long_entities_threshold_s: null,
+        long_entities_threshold_s: threshold,
         entity_filter: { entity_type_name: fsmTypeName },
-        app_params: { operator_id: null },
+        app_params: { operator_id: operatorId },
       },
     };
   }
@@ -411,9 +522,9 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: null,
+      long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
-      application: { operator_id: null },
+      application: { operator_id: operatorId },
     },
   };
 }
@@ -426,12 +537,20 @@ export function collectVisibleEntries(
   items: TreeTableItem[],
   expandedIds: Set<string>,
   selectedTypes: Map<string, string>,
-  entities: QueryEntities
+  entities: QueryEntities,
+  operatorId: string | null = null,
+  windowSeconds?: number
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities);
+    result[item.id] = buildBulkParamsForItem(
+      item,
+      selectedTypes,
+      entities,
+      operatorId,
+      windowSeconds
+    );
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

@@ -4,12 +4,7 @@ import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
-import {
-  timelineDataAtom,
-  xAxisRangeAtom,
-  isTimelineHoveredAtom,
-  hoveredTimelineIdAtom,
-} from '@/atoms/timeline';
+import { xAxisRangeAtom, isTimelineHoveredAtom, hoveredTimelineIdAtom } from '@/atoms/timeline';
 
 type UsageColumnProps = {
   item: TreeTableItem;
@@ -28,7 +23,6 @@ export function UsageColumn({
   startTime,
   durationSeconds,
 }: UsageColumnProps): React.ReactNode {
-  const timelineData = useAtomValue(timelineDataAtom(item.id));
   const xAxisRange = useAtomValue(xAxisRangeAtom);
   const isHovered = useAtomValue(isTimelineHoveredAtom(item.id));
   const setHoveredId = useSetAtom(hoveredTimelineIdAtom);
@@ -42,7 +36,6 @@ export function UsageColumn({
   const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
   const resourceType =
     item.type === EntityTypeKey.Resource ? EntityTypeKey.Resource : EntityTypeKey.ResourceGroup;
-
   return (
     <div
       onMouseEnter={() => setHoveredId(item.id)}
@@ -60,7 +53,6 @@ export function UsageColumn({
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
         showTooltip={isHovered}
-        preloadedData={timelineData}
         xAxisRange={xAxisRange}
       />
     </div>

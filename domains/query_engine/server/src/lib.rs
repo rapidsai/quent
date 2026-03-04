@@ -1,13 +1,13 @@
 //! Utilities for server implementations
 
+use crate::cache::AnalyzerCache;
 use axum::Router as AxumRouter;
-use quent_collector::{proto::collector_server::CollectorServer, server::CollectorService};
+use quent_collector::server::{CollectorService, CollectorServiceOptions};
+use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
-
-use crate::cache::AnalyzerCache;
 
 mod cache;
 mod error;
@@ -35,16 +35,19 @@ pub fn initialize_tracing(log_level: &str) {
         .init();
 }
 
-pub fn collector_service<E>() -> Result<Router, Box<dyn std::error::Error>>
+pub fn collector_service<E>(
+    options: CollectorServiceOptions,
+) -> Result<Router, Box<dyn std::error::Error>>
 where
     E: Serialize + Send + Sync + std::fmt::Debug + 'static,
     for<'de> E: Deserialize<'de>,
 {
-    let collector = CollectorService::<E>::default();
+    let collector = CollectorService::<E>::new(options);
     Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))
 }
 
 pub fn analyzer_service_router<A>(
+    importer: Box<cache::ImporterFn<A>>,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
@@ -55,7 +58,7 @@ where
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
-    let cache = AnalyzerCache::<A>::new();
+    let cache = AnalyzerCache::<A>::new(importer);
 
     let mut http_routes = axum::Router::new().nest("/analyzer", ui::routes(cache));
 

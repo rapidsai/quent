@@ -9,7 +9,7 @@ use quent_simulator_events::task::{
     Allocating, Computing, Loading, Queueing, Sending, Spilling, TaskEvent,
 };
 use quent_time::{
-    TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, try_to_secs_relative,
+    TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative,
 };
 use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
 use smallvec::{SmallVec, smallvec};
@@ -226,7 +226,7 @@ impl Task {
                                 .collect(),
                         })
                         .collect(),
-                    timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
+                    timestamp: to_secs_relative(t.timestamp(), epoch),
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;

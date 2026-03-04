@@ -1,6 +1,4 @@
-use quent_exporter_msgpack::MsgpackImporter;
-use quent_exporter_ndjson::NdjsonImporter;
-use quent_exporter_postcard::PostcardImporter;
+use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_ui::{QueryBundle, QueryEntities};
@@ -30,7 +28,6 @@ use quent_analyzer::{
         ResourceTimelineByKeyBuilder,
     },
 };
-use quent_events::Event;
 use quent_simulator_events::SimulatorEvent;
 use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, to_nanosecs, to_secs};
@@ -50,26 +47,15 @@ pub struct SimulatorUiAnalyzer {
 }
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
+    type Event = SimulatorEvent;
     type EntityRef = EntityRef;
     type TimelineGlobalParams = QueryFilter;
     type TimelineParams = TaskFilter;
 
-    fn try_new(engine_id: Uuid) -> AnalyzerResult<Self> {
-        // TODO(johanpel): make this path configurable, probably through env
-
-        // Try to import with all known importers.
-        let postcard_path = format!("data/{engine_id}.postcard");
-        let msgpack_path = format!("data/{engine_id}.msgpack");
-        let ndjson_path = format!("data/{engine_id}.ndjson");
-        let events: Box<dyn Iterator<Item = Event<SimulatorEvent>>> =
-            if std::path::Path::new(&postcard_path).exists() {
-                Box::new(PostcardImporter::try_new(&postcard_path)?)
-            } else if std::path::Path::new(&msgpack_path).exists() {
-                Box::new(MsgpackImporter::try_new(&msgpack_path)?)
-            } else {
-                Box::new(NdjsonImporter::try_new(&ndjson_path)?)
-            };
-
+    fn try_new(
+        engine_id: Uuid,
+        events: impl Iterator<Item = Event<SimulatorEvent>>,
+    ) -> AnalyzerResult<Self> {
         let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
         {
             let _span = tracing::info_span!("ingest").entered();

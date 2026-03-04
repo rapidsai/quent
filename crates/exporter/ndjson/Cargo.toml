@@ -6,7 +6,7 @@ edition.workspace =  true
 [dependencies]
 async-trait.workspace = true
 quent-events = { path = "../../events" }
-quent-exporter = { path = "../" }
+quent-exporter-types = { path = "../types" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}

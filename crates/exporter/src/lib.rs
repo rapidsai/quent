@@ -1,35 +1,99 @@
-//! Basic traits for Exporter implementations
+//! Umbrella crate providing unified exporter/importer creation.
 
-use quent_events::Event;
-use serde::Serialize;
-use thiserror::Error;
+use std::sync::Arc;
 
-#[derive(Debug, Error)]
-pub enum ExporterError {
-    #[error("i/o error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("flush error: {0}")]
-    Flush(String),
-    #[error("serde error: {0}")]
-    Serde(String),
-    #[error("collector error: {0}")]
-    Collector(String),
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[cfg(not(any(
+    feature = "ndjson",
+    feature = "msgpack",
+    feature = "postcard",
+    feature = "collector"
+)))]
+compile_error!("at least one exporter feature must be enabled");
+
+#[cfg(feature = "collector")]
+pub use quent_exporter_collector::CollectorExporterOptions;
+#[cfg(feature = "msgpack")]
+pub use quent_exporter_msgpack::{MsgpackExporterOptions, MsgpackImporterOptions};
+#[cfg(feature = "ndjson")]
+pub use quent_exporter_ndjson::{NdjsonExporterOptions, NdjsonImporterOptions};
+#[cfg(feature = "postcard")]
+pub use quent_exporter_postcard::{PostcardExporterOptions, PostcardImporterOptions};
+
+/// Selects an exporter and its options.
+#[derive(Debug, Clone)]
+pub enum ExporterOptions {
+    #[cfg(feature = "ndjson")]
+    Ndjson(NdjsonExporterOptions),
+    #[cfg(feature = "msgpack")]
+    Msgpack(MsgpackExporterOptions),
+    #[cfg(feature = "postcard")]
+    Postcard(PostcardExporterOptions),
+    #[cfg(feature = "collector")]
+    Collector(CollectorExporterOptions),
 }
 
-#[derive(Error, Debug)]
-pub enum ImporterError {
-    #[error("i/o error: {0}")]
-    IoError(#[from] std::io::Error),
+/// Selects an importer and its options.
+#[derive(Debug, Clone)]
+pub enum ImporterOptions {
+    #[cfg(feature = "ndjson")]
+    Ndjson(NdjsonImporterOptions),
+    #[cfg(feature = "msgpack")]
+    Msgpack(MsgpackImporterOptions),
+    #[cfg(feature = "postcard")]
+    Postcard(PostcardImporterOptions),
 }
 
-pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
-pub type ImporterResult<T> = std::result::Result<T, ImporterError>;
-
-#[async_trait::async_trait]
-pub trait Exporter<T>: Send + Sync + std::fmt::Debug
+/// Construct an importer from [`ImporterOptions`].
+pub fn create_importer<T>(kind: &ImporterOptions) -> ImporterResult<Box<dyn Importer<T>>>
 where
-    T: Serialize + Send,
+    T: for<'de> Deserialize<'de> + 'static,
 {
-    async fn push(&self, event: Event<T>) -> ExporterResult<()>;
-    async fn force_flush(&self) -> ExporterResult<()>;
+    match kind {
+        #[cfg(feature = "ndjson")]
+        ImporterOptions::Ndjson(options) => Ok(Box::new(
+            quent_exporter_ndjson::NdjsonImporter::try_new(options)?,
+        ) as Box<dyn Importer<T>>),
+        #[cfg(feature = "msgpack")]
+        ImporterOptions::Msgpack(options) => Ok(Box::new(
+            quent_exporter_msgpack::MsgpackImporter::try_new(options)?,
+        ) as Box<dyn Importer<T>>),
+        #[cfg(feature = "postcard")]
+        ImporterOptions::Postcard(options) => Ok(Box::new(
+            quent_exporter_postcard::PostcardImporter::try_new(options)?,
+        ) as Box<dyn Importer<T>>),
+    }
+}
+
+/// Construct an exporter from [`ExporterOptions`].
+pub async fn create_exporter<T>(
+    kind: ExporterOptions,
+    application_id: Uuid,
+) -> ExporterResult<Arc<dyn Exporter<T>>>
+where
+    T: Serialize + Send + std::fmt::Debug + 'static,
+{
+    match kind {
+        #[cfg(feature = "ndjson")]
+        ExporterOptions::Ndjson(options) => Ok(Arc::new(
+            quent_exporter_ndjson::NdjsonExporter::try_new(application_id, options).await?,
+        ) as Arc<dyn Exporter<T>>),
+        #[cfg(feature = "msgpack")]
+        ExporterOptions::Msgpack(options) => Ok(Arc::new(
+            quent_exporter_msgpack::MsgpackExporter::try_new(application_id, options).await?,
+        ) as Arc<dyn Exporter<T>>),
+        #[cfg(feature = "postcard")]
+        ExporterOptions::Postcard(options) => Ok(Arc::new(
+            quent_exporter_postcard::PostcardExporter::try_new(application_id, options).await?,
+        ) as Arc<dyn Exporter<T>>),
+        #[cfg(feature = "collector")]
+        ExporterOptions::Collector(options) => Ok(Arc::new(
+            quent_exporter_collector::CollectorExporter::try_new(application_id, options)
+                .await
+                .map_err(|e| ExporterError::Collector(e.to_string()))?,
+        ) as Arc<dyn Exporter<T>>),
+    }
 }

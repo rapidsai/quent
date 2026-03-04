@@ -1,8 +1,8 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Provider } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
+import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { TimelineController } from './timeline/TimelineController';
 import { collectResourceTypesFromTree } from '@/lib/resource.utils';
@@ -16,9 +16,15 @@ import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
-import { useExpandedIds, useBulkTimelines } from '@/hooks/useBulkTimelines';
+import {
+  transformResourceTree,
+  getAdaptiveNumBins,
+  getLongEntitiesThreshold,
+} from '@/lib/timeline.utils';
+import { useExpandedIds } from '@/hooks/useExpandedIds';
+import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -32,11 +38,7 @@ interface QueryResourceTreeProps {
 }
 
 export function QueryResourceTree(props: QueryResourceTreeProps) {
-  return (
-    <Provider>
-      <QueryResourceTreeContent {...props} />
-    </Provider>
-  );
+  return <QueryResourceTreeContent {...props} />;
 }
 
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
@@ -58,6 +60,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     [resourceTree, entities]
   );
 
+  const highlightedItemIds = useHighlightedItemIds(rootItem);
+
   const resourceTypeOptions = useMemo(() => collectResourceTypesFromTree([rootItem]), [rootItem]);
 
   const [rootResourceType, setRootResourceType] = useState<string>(resourceTypeOptions[0] || '');
@@ -66,7 +70,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
 
-  const { handleZoomChange, handleExpand, invalidateItem } = useBulkTimelines({
+  const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
     queryId: queryBundle.query_id,
     rootItem,
@@ -104,7 +108,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
             resource_type_name: rootResourceType,
-            long_entities_threshold_s: null,
+            long_entities_threshold_s: getLongEntitiesThreshold(durationSeconds),
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
           },
@@ -133,7 +137,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
             onTypeChange={(itemId, newType) => {
               setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-              invalidateItem(itemId);
               if (itemId === rootItem.id) {
                 setRootResourceType(newType);
               }
@@ -176,16 +179,21 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     handleZoomChange,
-    invalidateItem,
   ]);
 
   return (
-    <TreeTable<TreeTableItem>
-      data={treeData}
-      columns={columns}
-      initialSelectedItemId={rootItem.id}
-      columnWidths={[275, 'auto']}
-      onExpandChange={onExpandChange}
-    />
+    <div className="flex flex-col h-full w-full">
+      <TimelineToolbar durationSeconds={durationSeconds} />
+      <div className="flex-1 min-h-0">
+        <TreeTable<TreeTableItem>
+          data={treeData}
+          columns={columns}
+          initialSelectedItemId={rootItem.id}
+          columnWidths={[275, 'auto']}
+          onExpandChange={onExpandChange}
+          highlightedItemIds={highlightedItemIds}
+        />
+      </div>
+    </div>
   );
 }
