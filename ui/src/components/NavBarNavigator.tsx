@@ -150,7 +150,7 @@ export function NavBarNavigator() {
       <BreadcrumbDropdown
         label={engine}
         activeId={engineId}
-        items={engines?.map(id => ({ id, label: id }))}
+        items={engines?.map(e => ({ id: e.id, label: e.instance_name ?? e.id }))}
         onSelect={handleEngineChange}
       />
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />

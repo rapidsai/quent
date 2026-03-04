@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post},
 };
 
@@ -11,7 +11,7 @@ use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
-use tracing::error;
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{error::ServerResult, state::ServiceState};
@@ -51,6 +51,12 @@ pub(crate) mod embedded {
     }
 }
 
+#[derive(Deserialize)]
+struct ListEnginesQuery {
+    #[serde(default)]
+    with_metadata: bool,
+}
+
 // TODO(johanpel): pagination
 /// List all available engines.
 #[cfg_attr(feature = "swagger", utoipa::path(
@@ -62,43 +68,19 @@ pub(crate) mod embedded {
     )
 ))]
 #[tracing::instrument(skip_all, err)]
-async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
-    let entries = match std::fs::read_dir("data") {
-        Ok(entries) => entries,
-        Err(e) => {
-            error!("unable read directory: {e}");
-            Err(e)?
-        }
-    };
-
-    let mut ids = Vec::new();
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(e) => {
-                error!("entry error: {e}");
-                Err(e)?
-            }
-        };
-        let path = entry.path();
-
-        if !path.is_file() {
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some("ndjson") {
-            continue;
-        }
-        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-            match Uuid::parse_str(stem) {
-                Ok(uuid) => ids.push(uuid),
-                Err(_) => {
-                    continue;
-                }
-            }
-        }
+async fn list_engines<A>(
+    State(state): State<ServiceState<A>>,
+    Query(query): Query<ListEnginesQuery>,
+) -> ServerResult<Json<Vec<ui::Engine>>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    if query.with_metadata {
+        Ok(Json(state.analyzers.list_with_metadata().await?))
+    } else {
+        let ids = state.analyzers.list()?;
+        Ok(Json(ids.into_iter().map(ui::Engine::new).collect()))
     }
-
-    Ok(Json(ids))
 }
 
 /// Get details for a specific engine.
@@ -278,9 +260,13 @@ async fn bulk_timelines<A>(
 ) -> ServerResult<Json<BulkTimelinesResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + 'static,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(analyzer.bulk_resource_timeline(request)?))
+    let response =
+        tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request)).await??;
+    Ok(Json(response))
 }
 
 #[cfg(feature = "swagger")]

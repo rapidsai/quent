@@ -1,5 +1,7 @@
 use std::{net::ToSocketAddrs, path::PathBuf};
 
+use uuid::Uuid;
+
 use clap::Parser;
 use quent_collector::server::CollectorServiceOptions;
 use quent_exporter::{
@@ -85,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or_else(|| format!("unable to resolve socket address: {collector_address}"))?;
 
     let importer_output_dir = output_dir.clone();
+    let lister_output_dir = output_dir.clone();
 
     let exporter_kind = match exporter.as_str() {
         "ndjson" => ExporterOptions::Ndjson(NdjsonExporterOptions { output_dir }),
@@ -108,6 +111,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
 
+    let lister = move || {
+        let extensions = ["ndjson", "msgpack", "postcard"];
+        let mut ids = std::collections::HashSet::new();
+        for entry in std::fs::read_dir(&lister_output_dir)? {
+            let path = entry?.path();
+            if !path.is_file() {
+                continue;
+            }
+            let has_known_ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|ext| extensions.contains(&ext));
+            if !has_known_ext {
+                continue;
+            }
+            if let Some(id) = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+            {
+                ids.insert(id);
+            }
+        }
+        Ok(ids.into_iter().collect())
+    };
+
     let importer = move |engine_id| {
         let postcard_path = importer_output_dir.join(format!("{engine_id}.postcard"));
         let msgpack_path = importer_output_dir.join(format!("{engine_id}.msgpack"));
@@ -129,6 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             TcpListener::bind(analyzer_addr).await?,
             analyzer_service_router::<SimulatorUiAnalyzer>(
                 Box::new(importer),
+                Box::new(lister),
                 cors_address,
             )?
             .into_make_service(),

@@ -17,6 +17,7 @@ quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-events = { path = "../events" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
+uuid.workspace = true
 
 [build-dependencies]
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

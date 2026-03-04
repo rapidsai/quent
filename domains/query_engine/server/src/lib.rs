@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
 
-mod analyzer_cache;
-mod error;
+pub mod analyzer_cache;
+pub mod error;
 mod state;
 mod timeline_cache;
 mod ui;
@@ -54,6 +54,7 @@ where
 
 pub fn analyzer_service_router<A>(
     importer: Box<analyzer_cache::ImporterFn<A>>,
+    lister: Box<analyzer_cache::ListerFn>,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
@@ -65,7 +66,7 @@ where
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
     let state = ServiceState {
-        analyzers: AnalyzerCache::<A>::new(importer),
+        analyzers: AnalyzerCache::<A>::new(importer, lister),
         timelines: TimelineCache::new(),
     };
 
