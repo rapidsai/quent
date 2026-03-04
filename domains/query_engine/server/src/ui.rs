@@ -133,9 +133,13 @@ async fn single_timeline<A>(
 ) -> ServerResult<Json<SingleTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + 'static,
 {
     let analyzer = state.get(engine_id).await?;
-    Ok(Json(analyzer.single_resource_timeline(request)?))
+    let response =
+        tokio::task::spawn_blocking(move || analyzer.single_resource_timeline(request)).await??;
+    Ok(Json(response))
 }
 
 #[tracing::instrument(skip_all, err)]
@@ -151,9 +155,13 @@ async fn bulk_timelines<A>(
 ) -> ServerResult<Json<BulkTimelinesResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + 'static,
 {
     let analyzer = state.get(engine_id).await?;
-    Ok(Json(analyzer.bulk_resource_timeline(request)?))
+    let response =
+        tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request)).await??;
+    Ok(Json(response))
 }
 
 pub fn routes<A>(cache: AnalyzerCache<A>) -> Router<()>

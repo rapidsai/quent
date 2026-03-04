@@ -13,6 +13,8 @@ pub(crate) enum ServerError {
     Io(#[from] std::io::Error),
     #[error("cache error: {0}")]
     Cache(String),
+    #[error("task join error: {0}")]
+    Join(#[from] tokio::task::JoinError),
 }
 
 pub(crate) type ServerResult<T> = std::result::Result<T, ServerError>;
@@ -23,7 +25,8 @@ impl From<ServerError> for StatusCode {
             ServerError::Importer(_)
             | ServerError::Analyzer(_)
             | ServerError::Io(_)
-            | ServerError::Cache(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ServerError::Cache(_)
+            | ServerError::Join(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
