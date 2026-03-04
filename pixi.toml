@@ -1,0 +1,10 @@
+[workspace]
+name = "quent"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64", "osx-64"]
+
+[dependencies]
+rust = ">=1.93"
+nodejs = ">=22"
+pnpm = ">=10"
+protobuf = ">=5"
