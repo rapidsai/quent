@@ -21,13 +21,9 @@ import type { TaskFilter } from '~quent/types/TaskFilter';
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
-/**
- * Computes the number of bins such that each bin is >= 1ms wide.
- * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
- */
-export function getAdaptiveNumBins(windowSeconds: number): number {
-  const windowMs = windowSeconds * 1_000;
-  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+/** Always request the maximum number of bins for best resolution. */
+export function getAdaptiveNumBins(_windowSeconds: number): number {
+  return MAX_TIMELINE_BINS;
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
@@ -38,8 +34,7 @@ export function getLongEntitiesThreshold(windowSeconds: number): number {
 
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
-  config: BinnedSpanSec,
-  startTime: bigint
+  config: BinnedSpanSec
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -48,9 +43,8 @@ export function buildBinnedTimelineSeries(
 
   const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
-  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
   for (let i = 0; i < numBinsNumber; i++) {
-    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
+    timestamps.push(span.start + i * bin_duration);
   }
 
   // Build series based on data type
@@ -116,12 +110,9 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  * entered by the first transition.
  */
 export function buildTimelineMarks(
-  longFsms: FiniteStateMachine[],
-  startTime: bigint
+  longFsms: FiniteStateMachine[]
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
-
-  const startTimeMs = Number(startTime / 1_000_000n);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -129,9 +120,12 @@ export function buildTimelineMarks(
       .slice(0, -1)
       .map((transition, i) => {
         const next = fsm.transitions[i + 1];
-        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
-        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
-        return { label, stateName: transition.name, xStart, xEnd };
+        return {
+          label,
+          stateName: transition.name,
+          xStart: transition.timestamp,
+          xEnd: next.timestamp,
+        };
       })
       .filter(m => m.xEnd > m.xStart);
   });
@@ -252,6 +246,17 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   return maxAllowedStep;
 }
 
+/** Convert a timestamp to the nearest bin index using arithmetic (O(1), assumes regular bins). */
+export function timestampToIndex(
+  firstBinTimestamp: number,
+  binDuration: number,
+  numBins: number,
+  target: number
+): number {
+  if (numBins === 0 || binDuration === 0) return 0;
+  return Math.max(0, Math.min(numBins - 1, Math.round((target - firstBinTimestamp) / binDuration)));
+}
+
 function getFormatterForCapacityType(capacityType: string): (value: number) => string {
   switch (capacityType) {
     case 'bytes':
@@ -311,17 +316,18 @@ export const connectChart = (instance: EChartsInstance, chartGroup: string = CHA
   connect(chartGroup);
 };
 
-/* Axis pointer sync — manual crosshair sync across disconnected charts
+/* Axis pointer sync — manual crosshair sync across charts
  *
- * Charts that use xAxisRange (windowed) can't use echarts.connect() because
- * it would also sync dataZoom. Instead we manually broadcast showTip/hideTip
- * by converting a shared timestamp to each chart's local pixel coordinate.
- *
+ * With category axes, convertFromPixel returns a category index (possibly
+ * fractional). Each chart stores firstBinTimestamp + binDuration so we can
+ * convert: source category index → timestamp → target category index → pixel.
  */
 
 interface AxisPointerEntry {
   instance: EChartsInstance;
   xAxisIndex: number;
+  firstBinTimestamp: number;
+  binDuration: number;
   onMouseMove: (e: { offsetX: number }) => void;
   onGlobalOut: () => void;
 }
@@ -329,14 +335,15 @@ interface AxisPointerEntry {
 const axisPointerRegistry = new Set<AxisPointerEntry>();
 let isBroadcasting = false;
 
-function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
+function broadcastShowPointer(source: EChartsInstance, timestamp: number) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
-    axisPointerRegistry.forEach(({ instance, xAxisIndex }) => {
+    axisPointerRegistry.forEach(({ instance, xAxisIndex, firstBinTimestamp, binDuration }) => {
       if (instance === source) return;
       try {
-        const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
+        const targetIdx = (timestamp - firstBinTimestamp) / binDuration;
+        const pixel = instance.convertToPixel({ xAxisIndex }, targetIdx);
         if (pixel != null && isFinite(pixel)) {
           instance.dispatchAction({
             type: 'showTip',
@@ -372,16 +379,27 @@ function broadcastHidePointer(source: EChartsInstance) {
 
 /**
  * Register a chart instance for manual axis pointer sync.
- * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
- * regardless of tooltip/axisPointer configuration differences.
+ * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync.
  * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
+ * @param firstBinTimestamp The first category timestamp (seconds offset from query start).
+ * @param binDuration The duration of each bin in seconds.
  */
-export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 0) {
+export function registerAxisPointerSync(
+  instance: EChartsInstance,
+  xAxisIndex: number,
+  firstBinTimestamp: number,
+  binDuration: number
+) {
   const onMouseMove = (e: { offsetX: number }) => {
     try {
-      const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
-      if (value != null && isFinite(value as number)) {
-        broadcastShowPointer(instance, value as number);
+      const catIndex = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
+      if (catIndex != null && isFinite(catIndex as number)) {
+        const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
+          | AxisPointerEntry
+          | undefined;
+        if (!entry) return;
+        const ts = entry.firstBinTimestamp + (catIndex as number) * entry.binDuration;
+        broadcastShowPointer(instance, ts);
       }
     } catch {
       // Chart grid not ready
@@ -396,10 +414,25 @@ export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 
   zr.on('mousemove', onMouseMove);
   zr.on('globalout', onGlobalOut);
 
-  const entry = { instance, xAxisIndex, onMouseMove, onGlobalOut };
+  const entry = { instance, xAxisIndex, firstBinTimestamp, binDuration, onMouseMove, onGlobalOut };
   axisPointerRegistry.add(entry);
 
   (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;
+}
+
+/** Update the bin parameters for an already-registered chart instance. */
+export function updateAxisPointerBinning(
+  instance: EChartsInstance,
+  firstBinTimestamp: number,
+  binDuration: number
+) {
+  const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
+    | AxisPointerEntry
+    | undefined;
+  if (entry) {
+    entry.firstBinTimestamp = firstBinTimestamp;
+    entry.binDuration = binDuration;
+  }
 }
 
 /** Unregister a chart instance from axis pointer sync. */

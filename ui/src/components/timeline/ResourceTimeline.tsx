@@ -28,7 +28,6 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import type { XAxisRange } from './Timeline';
 import { useTimelineChartColors } from './useTimelineChartColors';
 import type { ZoomRange } from './TimelineController';
 
@@ -39,7 +38,6 @@ type ResourceTimelineProps = {
   queryId: string;
   resourceId: string;
   resourceType: string;
-  startTime: bigint;
   durationSeconds: number;
   fsmTypeName?: string | undefined;
   resourceTypeName?: string;
@@ -49,8 +47,6 @@ type ResourceTimelineProps = {
   preloadedData?: SingleTimelineResponse;
   /** When set, fetches only this time window instead of the full duration */
   zoomRange?: ZoomRange;
-  /** When set, constrains the xAxis to this window (server-side zoom) */
-  xAxisRange?: XAxisRange;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -67,12 +63,10 @@ export function ResourceTimeline({
   queryId,
   resourceId,
   resourceType,
-  startTime,
   durationSeconds,
   fsmTypeName,
   resourceTypeName,
   showTooltip = true,
-  xAxisRange,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
@@ -154,9 +148,9 @@ export function ResourceTimeline({
     if (!data || (operatorId != null && !overlayPreloadedData))
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
-    const base = buildBinnedTimelineSeries(data.data, data.config, startTime);
+    const base = buildBinnedTimelineSeries(data.data, data.config);
     const longFsms = getLongFsms(data.data);
-    const timelineMarks = buildTimelineMarks(longFsms, startTime);
+    const timelineMarks = buildTimelineMarks(longFsms);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -165,8 +159,7 @@ export function ResourceTimeline({
       if (baseEqualsOpsSpan) {
         const opResult = buildBinnedTimelineSeries(
           overlayPreloadedData.data,
-          overlayPreloadedData.config,
-          startTime
+          overlayPreloadedData.config
         );
         return {
           timestamps: base.timestamps,
@@ -182,7 +175,6 @@ export function ResourceTimeline({
     fetchedData,
     operatorId,
     overlayPreloadedData,
-    startTime,
     operatorLabel,
     overlayLighten,
   ]);
@@ -204,9 +196,7 @@ export function ResourceTimeline({
       <Timeline
         series={series}
         timestamps={timestamps ?? []}
-        startTime={startTime}
         showTooltip={showTooltip}
-        xAxisRange={xAxisRange}
         marks={hideTasks ? undefined : marks}
       />
     </Suspense>

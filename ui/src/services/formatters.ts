@@ -111,8 +111,14 @@ export function formatDuration(ms: number, decimals: number = 2): string {
   const absMs = Math.abs(ms);
   const sign = ms < 0 ? '-' : '';
 
+  if (absMs < 0.001) {
+    return `${sign}${(absMs * 1_000_000).toFixed(decimals)}ns`;
+  }
+  if (absMs < 1) {
+    return `${sign}${(absMs * 1_000).toFixed(decimals)}µs`;
+  }
   if (absMs < MS_PER_SECOND) {
-    return `${sign}${absMs.toFixed(0)}ms`;
+    return `${sign}${absMs.toFixed(decimals)}ms`;
   }
   if (absMs < MS_PER_MINUTE) {
     return `${sign}${(absMs / MS_PER_SECOND).toFixed(decimals)}s`;

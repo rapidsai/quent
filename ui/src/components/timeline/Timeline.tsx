@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -16,37 +16,26 @@ import {
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
 import {
-  connectChart,
+  timestampToIndex,
   registerAxisPointerSync,
+  updateAxisPointerBinning,
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
-export interface XAxisRange {
-  /** xAxis min in milliseconds */
-  min: number;
-  /** xAxis max in milliseconds */
-  max: number;
-}
-
 export function Timeline({
-  startTime,
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
-  xAxisRange,
   marks,
 }: {
-  startTime: bigint;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
   showTooltip?: boolean;
-  /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
-  xAxisRange?: XAxisRange;
   /** Annotation marks rendered as mark areas on the first series */
   marks?: TimelineMark[];
 }) {
@@ -72,12 +61,12 @@ export function Timeline({
         stack: isOverlay ? `overlay-total` : 'total',
         step: 'middle',
         symbol: 'circle',
-        symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
+        symbolSize: (value: number) => (value === 0 || isOverlay ? 0 : 4),
         hoverAnimation: false,
         showSymbol: false,
         ...TIMELINE_X_AXIS_ANIMATION,
         cursor: 'default',
-        data: seriesData.values.map((value, index) => [timestamps[index], value]),
+        data: seriesData.values,
         lineStyle: { width: 0 },
         itemStyle: { color },
         areaStyle: {
@@ -97,32 +86,45 @@ export function Timeline({
       };
     });
 
-    if (marks && marks?.length > 0) {
+    const binDuration = timestamps.length >= 2 ? timestamps[1]! - timestamps[0]! : 1;
+    const firstTs = timestamps[0] ?? 0;
+
+    if (marks && marks.length > 0) {
       for (const m of marks) {
         const stateColor = getColorForKey(m.stateName);
+        const startIdx = timestampToIndex(firstTs, binDuration, timestamps.length, m.xStart);
+        const endIdx = timestampToIndex(firstTs, binDuration, timestamps.length, m.xEnd);
+
+        const markData: (number | null | { value: number; label: Record<string, unknown> })[] =
+          new Array(timestamps.length).fill(null);
+
+        if (startIdx > 0) markData[startIdx - 1] = 0;
+        for (let i = startIdx; i <= endIdx && i < timestamps.length; i++) {
+          markData[i] =
+            i === startIdx
+              ? {
+                  value: 1,
+                  label: {
+                    show: true,
+                    formatter: () => m.label,
+                    position: [0, -5],
+                    fontSize: 9,
+                    fontWeight: 500,
+                    color: markLabelTextColor,
+                    backgroundColor: withOpacity(stateColor, 1),
+                    borderRadius: 1,
+                    padding: [1, 2],
+                  },
+                }
+              : 1;
+        }
+        if (endIdx + 1 < timestamps.length) markData[endIdx + 1] = 0;
+
         allSeries.push({
           name: `__mark_${m.label}_${m.stateName}`,
           type: 'line',
           step: 'middle',
-          data: [
-            [m.xStart, 0],
-            {
-              value: [m.xStart, 1],
-              label: {
-                show: true,
-                formatter: () => m.label,
-                position: [0, -5],
-                fontSize: 9,
-                fontWeight: 500,
-                color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, 1),
-                borderRadius: 1,
-                padding: [1, 2],
-              },
-            },
-            [m.xEnd, 1],
-            [m.xEnd, 0],
-          ],
+          data: markData as (number | null)[],
           zlevel: 1,
           label: { show: false },
           symbolSize: 0,
@@ -134,7 +136,6 @@ export function Timeline({
             color: withOpacity(stateColor, markAreaFillOpacity),
             opacity: 1,
           },
-
           tooltip: { show: false },
           silent: true,
           animation: false,
@@ -146,18 +147,11 @@ export function Timeline({
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
 
-  const [prevSeriesCount, setPrevSeriesCount] = useState(seriesOptions.length);
-  const notMerge = seriesOptions.length < prevSeriesCount;
-  useEffect(() => {
-    setPrevSeriesCount(seriesOptions.length);
-  }, [seriesOptions.length]);
-
   const yAxisOptions = useMemo(
     () => [
       {
         type: 'value',
         min: 0,
-        // Adds a 10% padding to the top of the bars
         max: (value: { max: number }) => value.max * 1.1 || 1,
         splitNumber: 1,
         show: true,
@@ -191,11 +185,11 @@ export function Timeline({
 
   const xAxisOptions = useMemo(
     () => ({
+      type: 'category',
       boundaryGap: false,
-      type: 'time',
+      data: timestamps,
       animation: false,
       show: true,
-      ...(xAxisRange && { min: xAxisRange.min, max: xAxisRange.max }),
       axisLine: {
         show: true,
         onZero: true,
@@ -203,9 +197,7 @@ export function Timeline({
       },
       axisTick: { show: false },
       axisLabel: { show: false },
-      splitLine: {
-        show: false,
-      },
+      splitLine: { show: false },
       axisPointer: {
         show: true,
         type: 'line',
@@ -217,7 +209,7 @@ export function Timeline({
         },
       },
     }),
-    [timelineMarkupColor, gridBorderColor, xAxisRange]
+    [timestamps, timelineMarkupColor, gridBorderColor]
   );
 
   const gridOptions = useMemo(
@@ -248,12 +240,15 @@ export function Timeline({
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries
-            .filter((p: { seriesName: string }) => p.seriesName !== '__marks__')
-            .map((p: { color: string; seriesName: string; data: number[] }) => {
+            .filter(
+              (p: { seriesName: string; data?: unknown }) =>
+                !p.seriesName.startsWith('__mark_') && p.data != null
+            )
+            .map((p: { color: string; seriesName: string; data: number }) => {
               return {
                 color: p.color,
                 name: p.seriesName,
-                value: p.data[1],
+                value: p.data,
                 isOverlay: series[p.seriesName]?.isOverlay ?? false,
               };
             });
@@ -262,9 +257,8 @@ export function Timeline({
             .map(m => ({ label: m.label, stateName: m.stateName }));
           return renderToStaticMarkup(
             <TooltipContent
-              timestamp={timestamp}
+              timestampSec={timestamp}
               series={seriesValues}
-              startTime={startTime}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
             />
           );
@@ -280,50 +274,27 @@ export function Timeline({
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
       series: seriesOptions,
-      ...(xAxisRange
-        ? {}
-        : {
-            toolbox: {
-              show: false,
-              feature: { dataZoom: { yAxisIndex: 'none' } },
-            },
-            dataZoom: [
-              {
-                type: 'slider',
-                show: false,
-                realtime: true,
-                xAxisIndex: 'all',
-                filterMode: 'none',
-              },
-            ],
-          }),
     } as EChartsOption;
-  }, [
-    showTooltip,
-    gridOptions,
-    xAxisOptions,
-    yAxisOptions,
-    seriesOptions,
-    xAxisRange,
-    startTime,
-    series,
-    marks,
-  ]);
+  }, [showTooltip, gridOptions, xAxisOptions, yAxisOptions, seriesOptions, series, marks]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
+
+  const firstTimestamp = timestamps[0] ?? 0;
+  const binDuration = timestamps.length >= 2 ? timestamps[1]! - timestamps[0]! : 1;
 
   const handleChartReady = useCallback(
     (instance: EChartsInstance) => {
       instanceRef.current = instance;
-      if (xAxisRange) {
-        registerAxisPointerSync(instance);
-      } else {
-        connectChart(instance);
-        registerAxisPointerSync(instance);
-      }
+      registerAxisPointerSync(instance, 0, firstTimestamp, binDuration);
     },
-    [xAxisRange]
+    [firstTimestamp, binDuration]
   );
+
+  useEffect(() => {
+    if (instanceRef.current) {
+      updateAxisPointerBinning(instanceRef.current, firstTimestamp, binDuration);
+    }
+  }, [firstTimestamp, binDuration]);
 
   useEffect(() => {
     return () => {
@@ -340,7 +311,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
-      notMerge={notMerge}
+      notMerge={false}
       lazyUpdate
     />
   );
