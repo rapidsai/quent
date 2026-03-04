@@ -17,6 +17,15 @@ use uuid::Uuid;
 use crate::{cache::AnalyzerCache, error::ServerResult};
 
 // TODO(johanpel): pagination
+/// List all available engines.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/analyzer/list_engines",
+    tag = "engines",
+    responses(
+        (status = 200, description = "List of all available engine UUIDs", body = [String])
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     let entries = match std::fs::read_dir("data") {
@@ -57,6 +66,18 @@ async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
     Ok(Json(ids))
 }
 
+/// Get details for a specific engine.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/analyzer/engine/{engine_id}",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    responses(
+        (status = 200, description = "Engine details", body = Object)
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn engine<A>(
     State(state): State<AnalyzerCache<A>>,
@@ -70,6 +91,18 @@ where
 }
 
 // TODO(johanpel): pagination
+/// List all query groups for a given engine.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/analyzer/engine/{engine_id}/list_query_groups",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    responses(
+        (status = 200, description = "List of query groups for the engine", body = [Object])
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn list_query_groups<A>(
     State(state): State<AnalyzerCache<A>>,
@@ -89,6 +122,19 @@ where
 }
 
 // TODO(johanpel): pagination
+/// List all queries for a specific query group.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/analyzer/engine/{engine_id}/query_group/{query_group_id}/list_queries",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID"),
+        ("query_group_id" = Uuid, Path, description = "The query group ID")
+    ),
+    responses(
+        (status = 200, description = "List of queries in the query group", body = [Object])
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn list_queries<A>(
     State(state): State<AnalyzerCache<A>>,
@@ -107,6 +153,19 @@ where
     Ok(Json(queries))
 }
 
+/// Fetch the query plan for a given query.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/analyzer/engine/{engine_id}/query/{query_id}",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID"),
+        ("query_id" = Uuid, Path, description = "The query ID")
+    ),
+    responses(
+        (status = 200, description = "Query bundle with entities, plan tree, and resource tree", body = Object)
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn query<A>(
     State(state): State<AnalyzerCache<A>>,
@@ -120,6 +179,19 @@ where
     Ok(Json(query_bundle))
 }
 
+/// Fetch a single resource or resource-group timeline.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/analyzer/engine/{engine_id}/timeline/single",
+    tag = "timelines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Single resource timeline with binned data", body = Object)
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn single_timeline<A>(
     State(state): State<AnalyzerCache<A>>,
@@ -138,6 +210,19 @@ where
     Ok(Json(analyzer.single_resource_timeline(request)?))
 }
 
+/// Fetch multiple resource/resource-group timelines in one request.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/analyzer/engine/{engine_id}/timeline/bulk",
+    tag = "timelines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Bulk resource timelines", body = Object)
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn bulk_timelines<A>(
     State(state): State<AnalyzerCache<A>>,
@@ -155,6 +240,25 @@ where
     let analyzer = state.get(engine_id).await?;
     Ok(Json(analyzer.bulk_resource_timeline(request)?))
 }
+
+#[cfg(feature = "swagger")]
+#[derive(utoipa::OpenApi)]
+#[openapi(
+    paths(
+        list_engines,
+        engine,
+        list_query_groups,
+        list_queries,
+        query,
+        single_timeline,
+        bulk_timelines,
+    ),
+    tags(
+        (name = "engines", description = "Engine, query group, and query management"),
+        (name = "timelines", description = "Resource timeline data"),
+    )
+)]
+pub(crate) struct ApiDoc;
 
 pub fn routes<A>(cache: AnalyzerCache<A>) -> Router<()>
 where

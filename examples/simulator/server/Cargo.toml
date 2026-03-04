@@ -3,6 +3,9 @@ name = "quent-simulator-server"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+swagger = ["quent-query-engine-server/swagger"]
+
 [dependencies]
 axum = { version = "0.8.7" }
 clap = { version = "4.5", features = ["derive", "env"] }

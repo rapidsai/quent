@@ -62,6 +62,15 @@ where
 
     let mut http_routes = axum::Router::new().nest("/analyzer", ui::routes(cache));
 
+    #[cfg(feature = "swagger")]
+    {
+        use utoipa::OpenApi;
+        use utoipa_swagger_ui::SwaggerUi;
+        let api = ui::ApiDoc::openapi();
+        http_routes = http_routes
+            .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
+    }
+
     if let Some(cors) = cors {
         let cors = CorsLayer::new()
             .allow_origin(cors.parse::<axum::http::HeaderValue>().unwrap())

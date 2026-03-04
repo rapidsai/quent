@@ -3,6 +3,9 @@ name = "quent-query-engine-server"
 version.workspace = true
 edition.workspace =  true
 
+[features]
+swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
+
 [dependencies]
 axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future"] }
@@ -21,4 +24,6 @@ tonic.workspace = true
 tower-http = { version = "0.6", features = ["cors"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 tracing.workspace = true
+utoipa = { version = "5", features = ["axum_extras", "uuid"], optional = true }
+utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
 uuid.workspace = true
