@@ -5,6 +5,7 @@ edition.workspace =  true
 
 [features]
 swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
+ui = ["dep:mime_guess", "dep:rust-embed"]
 
 [dependencies]
 axum = { version = "0.8.7" }
@@ -27,3 +28,5 @@ tracing.workspace = true
 utoipa = { version = "5", features = ["axum_extras", "uuid"], optional = true }
 utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
 uuid.workspace = true
+mime_guess = { version = "2", optional = true }
+rust-embed = { version = "8", optional = true }

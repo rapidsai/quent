@@ -16,11 +16,46 @@ use uuid::Uuid;
 
 use crate::{cache::AnalyzerCache, error::ServerResult};
 
+#[cfg(feature = "ui")]
+mod embedded {
+    use axum::{
+        http::{StatusCode, header},
+        response::IntoResponse,
+    };
+    use rust_embed::Embed;
+
+    #[derive(Embed)]
+    #[folder = "../../../ui/dist/"]
+    struct UiAssets;
+
+    pub async fn serve(uri: axum::http::Uri) -> impl IntoResponse {
+        let path = uri.path().trim_start_matches('/');
+        let file = UiAssets::get(path).or_else(|| UiAssets::get("index.html"));
+        match file {
+            Some(content) => {
+                let mime = mime_guess::from_path(if path.is_empty() || !path.contains('.') {
+                    "index.html"
+                } else {
+                    path
+                })
+                .first_or_octet_stream();
+                (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, mime.as_ref().to_string())],
+                    content.data.into_owned(),
+                )
+                    .into_response()
+            }
+            None => StatusCode::NOT_FOUND.into_response(),
+        }
+    }
+}
+
 // TODO(johanpel): pagination
 /// List all available engines.
 #[cfg_attr(feature = "swagger", utoipa::path(
     get,
-    path = "/analyzer/list_engines",
+    path = "/api/engines",
     tag = "engines",
     responses(
         (status = 200, description = "List of all available engine UUIDs", body = [String])
@@ -69,7 +104,7 @@ async fn list_engines() -> ServerResult<Json<Vec<Uuid>>> {
 /// Get details for a specific engine.
 #[cfg_attr(feature = "swagger", utoipa::path(
     get,
-    path = "/analyzer/engine/{engine_id}",
+    path = "/api/engines/{engine_id}",
     tag = "engines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID")
@@ -94,7 +129,7 @@ where
 /// List all query groups for a given engine.
 #[cfg_attr(feature = "swagger", utoipa::path(
     get,
-    path = "/analyzer/engine/{engine_id}/list_query_groups",
+    path = "/api/engines/{engine_id}/query-groups",
     tag = "engines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID")
@@ -125,7 +160,7 @@ where
 /// List all queries for a specific query group.
 #[cfg_attr(feature = "swagger", utoipa::path(
     get,
-    path = "/analyzer/engine/{engine_id}/query_group/{query_group_id}/list_queries",
+    path = "/api/engines/{engine_id}/query_group/{query_group_id}/queries",
     tag = "engines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID"),
@@ -156,7 +191,7 @@ where
 /// Fetch the query plan for a given query.
 #[cfg_attr(feature = "swagger", utoipa::path(
     get,
-    path = "/analyzer/engine/{engine_id}/query/{query_id}",
+    path = "/api/engines/{engine_id}/query/{query_id}",
     tag = "engines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID"),
@@ -182,7 +217,7 @@ where
 /// Fetch a single resource or resource-group timeline.
 #[cfg_attr(feature = "swagger", utoipa::path(
     post,
-    path = "/analyzer/engine/{engine_id}/timeline/single",
+    path = "/api/engines/{engine_id}/timeline/single",
     tag = "timelines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID")
@@ -213,7 +248,7 @@ where
 /// Fetch multiple resource/resource-group timelines in one request.
 #[cfg_attr(feature = "swagger", utoipa::path(
     post,
-    path = "/analyzer/engine/{engine_id}/timeline/bulk",
+    path = "/api/engines/{engine_id}/timeline/bulk",
     tag = "timelines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID")
@@ -270,18 +305,15 @@ where
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
     Router::new()
-        .route("/list_engines", get(list_engines))
-        .route("/engine/{engine_id}", get(engine))
+        .route("/", get(list_engines))
+        .route("/{engine_id}", get(engine))
+        .route("/{engine_id}/query-groups", get(list_query_groups))
         .route(
-            "/engine/{engine_id}/list_query_groups",
-            get(list_query_groups),
-        )
-        .route(
-            "/engine/{engine_id}/query_group/{query_group_id}/list_queries",
+            "/{engine_id}/query_group/{query_group_id}/queries",
             get(list_queries),
         )
-        .route("/engine/{engine_id}/query/{query_id}", get(query))
-        .route("/engine/{engine_id}/timeline/single", post(single_timeline))
-        .route("/engine/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route("/{engine_id}/query/{query_id}", get(query))
+        .route("/{engine_id}/timeline/single", post(single_timeline))
+        .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
         .with_state(cache)
 }

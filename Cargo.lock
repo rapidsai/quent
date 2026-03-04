@@ -1507,6 +1507,7 @@ name = "quent-query-engine-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "mime_guess",
  "moka",
  "quent-analyzer",
  "quent-collector",
@@ -1516,6 +1517,7 @@ dependencies = [
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
  "quent-ui",
+ "rust-embed",
  "serde",
  "thiserror",
  "tokio",

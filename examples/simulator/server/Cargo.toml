@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace =  true
 
 [features]
+ui = ["quent-query-engine-server/ui"]
 swagger = ["quent-query-engine-server/swagger"]
 
 [dependencies]

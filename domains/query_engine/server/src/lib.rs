@@ -60,7 +60,7 @@ where
 {
     let cache = AnalyzerCache::<A>::new(importer);
 
-    let mut http_routes = axum::Router::new().nest("/analyzer", ui::routes(cache));
+    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(cache));
 
     #[cfg(feature = "swagger")]
     {
@@ -81,6 +81,11 @@ where
             ])
             .allow_headers([axum::http::header::CONTENT_TYPE]);
         http_routes = http_routes.layer(cors);
+    }
+
+    #[cfg(feature = "ui")]
+    {
+        http_routes = http_routes.fallback(axum::routing::get(ui::embedded::serve));
     }
 
     Ok(http_routes)
