@@ -240,12 +240,9 @@ export function TimelineController({
             padding: [2, 4],
             borderRadius: 2,
           },
-          labelFormatter: (value: string) => {
-            const raw = Number(value);
-            const minTs = timestamps[0] ?? 0;
-            const maxTs = timestamps[timestamps.length - 1] ?? 0;
-            const clamped = Math.max(minTs, Math.min(maxTs, raw));
-            return formatDuration(clamped * 1000);
+          labelFormatter: (index: number) => {
+            const ts = timestamps[Math.round(index)] ?? 0;
+            return formatDuration(ts * 1000);
           },
           emphasis: {
             handleStyle: {

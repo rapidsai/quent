@@ -311,7 +311,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
-      notMerge={false}
+      notMerge
       lazyUpdate
     />
   );
