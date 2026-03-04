@@ -1,27 +1,7 @@
 # Modeling Concepts
 
-> 🚧 WORK IN PROGRESS 🚧
->
-> TODO:
->
-> Could haves:
->
-> - logs-like specification
-> - metrics-like specification
-> - traces as FSMs
-
-This section specifies basic concepts used to model applications. The intent of
-these concepts is to model applications guided by application developers.
-
-Models of applications constructed with these concepts dictate an
-instrumentation API that is used to emit application telemetry.
-
-By modeling applications with these concepts, it becomes easier to store,
-analyze and visualize the telemetry emitted through such an instrumentation API.
-A basic set of resource-oriented visualizations can be automatically provided
-from just applying these concepts.
-
-The basic concepts are:
+This section specifies the basic concepts used to model applications. The
+basic concepts are:
 
 - [Attributes][attributes]
 - [Timestamp, Span, and Duration][time]
@@ -57,4 +37,4 @@ capitalized, e.g. [Entity][entity], [Timestamp][timestamp],
 [time]: ./time.md
 [timestamp]: ./time.md#timestamp
 [transition]: ./fsm.md#transition
-[usage]: ./resource.md#use
+[usage]: ./resource.md#usage

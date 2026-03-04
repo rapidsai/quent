@@ -694,6 +694,8 @@ impl Worker {
                     id,
                     task::Sending {
                         use_thread: thread,
+                        use_memory: self.memory,
+                        use_memory_bytes: num_bytes,
                         use_link: link,
                         use_link_bytes: num_bytes,
                     },

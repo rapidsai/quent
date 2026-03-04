@@ -2,11 +2,13 @@
 
 An Entity is any discrete run-time construct that can be traced, measured, or in
 some other way produce telemetry that is potentially useful to understand the
-peformance characteristics of an engine.
+performance characteristics of an application.
 
 Must have:
 
 - `id: uuid`
+- `type_name: string`: the name of the type of this Entity.
+- `instance_name: string`: the name of this specific instance of the Entity.
 
 Notes:
 
@@ -16,7 +18,7 @@ Notes:
 
 Rationale:
 
-- Using UUIDs pratically prevents the need to synchronize between various
+- Using UUIDs practically prevents the need to synchronize between various
   producers of telemetry to produce unique identifiers, especially when they are
   originating from a distributed system.
 

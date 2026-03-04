@@ -10,7 +10,8 @@ Every State must have a name representable as a `string`.
 Every State name is unique within the scope of an FSM.
 
 An FSM must have at least two States, including the [Exit][exit]
-[State][state].
+[State][state]. The first [Transition][transition] event of an FSM defines
+its initial State.
 
 ### Exit
 

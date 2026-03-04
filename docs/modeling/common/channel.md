@@ -3,19 +3,16 @@
 A Channel is a [Resource][resource] responsible for transferring data between
 two [Entities][entity].
 
+A Channel has a `Rate`-type [Capacity][capacity] of bytes.
+
 Must have:
 
-- `capacity_bytes: option<T>`: where T is some unsigned integer.
+- `capacity_bytes: option<u64>`: a `Rate`-type capacity. `none` if unbounded.
 - `source_id: uuid`: the ID of the [Entity][entity] the Channel receives from.
 - `target_id: uuid`: the ID of the [Entity][entity] the Channel sends to.
 
-> TODO: how to specify we're dealing with a bandwidth type of capacity, if
-> known? It can simply be unbounded for now. Perhaps its best to specify
-> throughput-type capacities as a separate thing.
->
-> TODO: for now a channel is unidirectional and bidi can be constructed as a
-> resource group for example, but perhaps a more elaborate common model for
-> channels could be concieved
+A Channel is unidirectional. Bidirectional communication can be modeled as two
+Channels (or as a [Resource Group][resource-group] containing two Channels).
 
 ## Transfer
 
@@ -25,6 +22,8 @@ Must have:
 
 - `used_bytes: u64`: the number of bytes sent over the channel
 
+[capacity]: ../resource.md#capacity
 [entity]: ../entity.md
 [resource]: ../resource.md
-[usage]: ../resource.md#use
+[resource-group]: ../resource_group.md
+[usage]: ../resource.md#usage

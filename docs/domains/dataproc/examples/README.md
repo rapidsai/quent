@@ -1,3 +1,4 @@
 # Examples
 
-- [Q](./q.md) - a contrived example for which telemetry is simulated.
+- [Simulator](./simulator.md) - a simulated engine found in
+  `examples/simulator/`.

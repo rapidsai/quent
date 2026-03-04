@@ -42,21 +42,23 @@ list of 8-bit unsigned integers (`list<u8>`) to capture binary data.
 
 This specification explicitly forbids the use of architecture-specific
 pointer-sized integers (such as `usize` in Rust, or `size_t` in C++).
+This ensures telemetry is portable and deterministically serializable across
+architectures with different pointer widths.
 
 ## Keys
 
 If constructs described in this specification allow having arbitrary run-time
 defined [Attributes][attributes], the names of arbitrary keys (of
-engine-specific key-value pairs not defined by this speciciation) must be of the
-type `string`.
+application-specific key-value pairs not defined by this specification) must be
+of the type `string`.
 
 Names of predefined keys shall use alphanumeric characters (A..Z, a..z, 0..9)
 and underscores (`_`) only, starting with a non-digit.
 
 ## Nullability
 
-Atribute values may be optional, also known as nullable, i.e. their value may
-not exist. To denote nullability, this specification will denote such atrributes
+Attribute values may be optional, also known as nullable, i.e. their value may
+not exist. To denote nullability, this specification will denote such attributes
 as being of type `option<T>` where `T` is the non-null value type, or list them
 under a "may have" section. Null values are expressed as `none`.
 

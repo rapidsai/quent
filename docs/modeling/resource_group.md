@@ -1,7 +1,7 @@
 # Resource Group
 
-A Resource Group is an [Entity][entity] represents a hierarchical grouping over
-a set of [Resources][resource] and other Resource Groups.
+A Resource Group is an [Entity][entity] that represents a hierarchical grouping
+over a set of [Resources][resource] and other Resource Groups.
 
 Must have:
 
@@ -11,7 +11,7 @@ May have:
 
 - `parent_group_id: option<uuid>`: the id of the parent resource group, if any.
 
-Exaclty one Resource Group must exist for which `parent_group_id` is null.
+Exactly one Resource Group must exist for which `parent_group_id` is null.
 
 ## Notes
 
@@ -41,9 +41,29 @@ memory in a GPU-accelerator scenario, it typically would not make sense to
 aggregate `byte` [Capacities][capacity] of separate pools dedicated to allocate
 in either memory. Thus, different types of `LeafPool` [Resources][resource]
 should be modeled, e.g. a `HostLeafPool` and a `GPULeafPool`, so the total
-number of `bytes` are aggregated and visualized seperately.
+number of `bytes` are aggregated and visualized separately.
+
+### Domain entities as Resource Groups
+
+In domain-specific models (e.g. the query engine domain), domain entities
+themselves may implement the Resource Group interface. For example, in the query
+engine domain, Engine, Query, Plan, Operator, and Port all act as Resource
+Groups, forming a hierarchy:
+
+```text
+Engine (root, parent_group_id=None)
+├── Worker (parent=engine)
+├── QueryGroup (parent=engine)
+│   └── Query (parent=query_group)
+│       └── Plan (parent=query or worker)
+│           └── Operator (parent=plan)
+│               └── Port (parent=operator)
+└── Application Resources (memory, processor, channels)
+```
+
+This allows resource usages to be aggregated at any level of the hierarchy.
 
 [capacity]: ./resource.md#capacity
 [entity]: ./entity.md
 [resource]: ./resource.md
-[usage]: ./resource.md#use
+[usage]: ./resource.md#usage

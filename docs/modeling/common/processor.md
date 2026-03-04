@@ -7,4 +7,4 @@ A Processor is a [Unit Resource][unit-resource] responsible for computation.
 A Computation is a [Usage][usage] of a Processor.
 
 [unit-resource]: ../resource.md#unit-resource
-[usage]: ../resource.md#use
+[usage]: ../resource.md#usage

@@ -2,6 +2,7 @@
 
 [Introduction](./README.md)
 
+- [Telemetry](./telemetry.md)
 - [Modeling Concepts](./modeling/README.md)
   - [Attributes](./modeling/attributes.md)
   - [Time-related concepts](./modeling/time.md)
@@ -13,8 +14,7 @@
     - [Processor](./modeling/common/processor.md)
     - [Memory](./modeling/common/memory.md)
     - [Channel](./modeling/common/channel.md)
-- [Telemetry](./telemetry.md)
 - [Domain-Specific Models](./domains/README.md)
   - [Data Processing / Query Engines](./domains/dataproc/README.md)
   - [Examples](./domains/dataproc/examples/README.md)
-    - [Q (simulated engine)](./domains/dataproc/examples/q.md)
+    - [Simulator](./domains/dataproc/examples/simulator.md)
