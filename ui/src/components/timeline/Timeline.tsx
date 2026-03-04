@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -48,6 +48,8 @@ export function Timeline({
     markLabelTextColor,
   } = useTimelineChartColors();
 
+  const maxMarkCountRef = useRef(0);
+
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -87,11 +89,15 @@ export function Timeline({
       };
     });
 
-    if (marks && marks?.length > 0) {
-      for (const m of marks) {
+    const markCount = marks?.length ?? 0;
+    maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
+
+    for (let i = 0; i < maxMarkCountRef.current; i++) {
+      const m = marks?.[i];
+      if (m) {
         const stateColor = getColorForKey(m.stateName);
         allSeries.push({
-          name: `__mark_${m.label}_${m.stateName}`,
+          name: `__mark_${i}`,
           type: 'line',
           step: 'middle',
           data: [
@@ -129,17 +135,25 @@ export function Timeline({
           animation: false,
           yAxisIndex: 1,
         });
+      } else {
+        allSeries.push({
+          name: `__mark_${i}`,
+          type: 'line',
+          data: [],
+          zlevel: 1,
+          symbolSize: 0,
+          lineStyle: { width: 0 },
+          areaStyle: { opacity: 0 },
+          tooltip: { show: false },
+          silent: true,
+          animation: false,
+          yAxisIndex: 1,
+        });
       }
     }
 
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
-
-  const [prevSeriesCount, setPrevSeriesCount] = useState(seriesOptions.length);
-  const notMerge = seriesOptions.length < prevSeriesCount;
-  useEffect(() => {
-    setPrevSeriesCount(seriesOptions.length);
-  }, [seriesOptions.length]);
 
   const yAxisOptions = useMemo(
     () => [
@@ -244,7 +258,7 @@ export function Timeline({
           const seriesValues = hoveredSeries
             .filter(
               (p: { seriesName: string; data?: number[] }) =>
-                p.seriesName !== '__marks__' && p.data != null
+                !p.seriesName.startsWith('__mark_') && p.data != null
             )
             .map((p: { color: string; seriesName: string; data: number[] }) => {
               return {
@@ -329,7 +343,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
-      notMerge={notMerge}
+      notMerge={false}
       lazyUpdate
     />
   );
