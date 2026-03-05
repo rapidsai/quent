@@ -2,7 +2,7 @@
 name = "quent-simulator-instrumentation"
 version.workspace = true
 edition.workspace = true
-
+publish.workspace = true
 [dependencies]
 quent-events = { path = "../../../crates/events" }
 quent-exporter = { path = "../../../crates/exporter" }

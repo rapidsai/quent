@@ -5,7 +5,7 @@ use quent_attributes::{Attribute, Value};
 use quent_events::Event;
 use quent_query_engine_events::operator::OperatorEvent;
 use quent_query_engine_ui as ui;
-use quent_time::TimeUnixNanoSec;
+use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -32,10 +32,12 @@ pub struct Operator {
     /// The custom attributes of this [`Operator`].
     pub custom_attributes: HashMap<String, Option<Value>>,
     /// The statistics of this [`Operator`].
-    ///
-    /// These are attributes that are typically gathered after the work
-    /// described by an [`Operator`] has completed.
     pub statistics: Option<OperatorStatistics>,
+
+    /// The span of time between the first moment an operator started processing
+    /// an input, and the latest moment at which an operator finished producing
+    /// an output (excluding any potential back-pressure).
+    pub active_span: Option<SpanUnixNanoSec>,
 }
 
 impl Operator {
@@ -53,6 +55,7 @@ impl Operator {
                 operator_type_name: None,
                 custom_attributes: HashMap::default(),
                 statistics: None,
+                active_span: None,
             })
         }
     }
@@ -82,7 +85,7 @@ impl Operator {
         }
     }
 
-    pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Operator {
+    pub fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Operator {
         let statistics = self.statistics.as_ref().map(|s| ui::OperatorStatistics {
             custom_statistics: s
                 .custom_statistics
@@ -103,6 +106,9 @@ impl Operator {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
             statistics,
+            active_span: self
+                .active_span
+                .and_then(|span| span.try_to_secs_relative(epoch).ok()),
         }
     }
 }
