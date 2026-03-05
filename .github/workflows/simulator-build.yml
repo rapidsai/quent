@@ -2,7 +2,7 @@
 # Unlike rust.yml (which runs checks, clippy, and tests), this workflow
 # verifies that the complete production binary builds successfully using
 # both pixi-managed toolchains and Docker.
-name: Build
+name: Simulator Build
 
 on:
   push:
