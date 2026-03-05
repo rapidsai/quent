@@ -23,8 +23,6 @@ use crate::error::ServerResult;
 
 /// Target number of chunks visible in the current view range.
 const TARGET_CHUNKS_PER_VIEW: u64 = 2;
-/// Maximum zoom level (number of chunks the timeline is divided into).
-const MAX_ZOOM_LEVEL: u64 = 10;
 
 /// Key identifying a cached timeline chunk.
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -104,21 +102,21 @@ impl TimelineCache {
             hasher.finish()
         };
 
-        // Fetch overlapping chunks from cache or compute them.
+        // Compute the range of chunk indices that overlap the request.
+        let first_chunk =
+            ((req_span.start().saturating_sub(epoch)) / chunk_duration).min(zoom_level - 1);
+        let last_chunk =
+            ((req_span.end().saturating_sub(1).saturating_sub(epoch)) / chunk_duration)
+                .min(zoom_level - 1);
+
         let mut chunk_responses: Vec<SingleTimelineResponse> = Vec::new();
-        for chunk_idx in 0..zoom_level {
+        for chunk_idx in first_chunk..=last_chunk {
             let chunk_start = epoch + chunk_idx * chunk_duration;
             let chunk_end = if chunk_idx == zoom_level - 1 {
                 engine_span.end()
             } else {
                 epoch + (chunk_idx + 1) * chunk_duration
             };
-
-            let chunk_span = SpanNanoSec::try_new(chunk_start, chunk_end)?;
-
-            if !chunk_span.intersects(&req_span) {
-                continue;
-            }
 
             let cache_key = ChunkCacheKey {
                 engine_id,
@@ -174,8 +172,7 @@ fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec)
     if view_duration == 0 {
         return 1;
     }
-    let target = (total_duration * TARGET_CHUNKS_PER_VIEW) / view_duration;
-    target.clamp(1, MAX_ZOOM_LEVEL)
+    ((total_duration * TARGET_CHUNKS_PER_VIEW) / view_duration).max(1)
 }
 
 fn combine_chunks(
