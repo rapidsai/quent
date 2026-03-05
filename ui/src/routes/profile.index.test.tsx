@@ -10,7 +10,11 @@ describe('EngineSelectionPage', () => {
     // Set up default handlers for the profile page API endpoints
     server.use(
       http.get(`${API_BASE}/engines`, () => {
-        return HttpResponse.json(['engine-1', 'engine-2', 'engine-3']);
+        return HttpResponse.json([
+          { id: 'engine-1', instance_name: 'engine-1' },
+          { id: 'engine-2', instance_name: 'engine-2' },
+          { id: 'engine-3', instance_name: 'engine-3' },
+        ]);
       }),
       http.get(`${API_BASE}/engines/:engineId/query-groups`, ({ params }) => {
         const { engineId } = params;

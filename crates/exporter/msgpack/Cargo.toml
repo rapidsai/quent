@@ -2,7 +2,7 @@
 name = "quent-exporter-msgpack"
 version.workspace = true
 edition.workspace = true
-
+publish.workspace = true
 [dependencies]
 async-trait.workspace = true
 quent-events = { path = "../../events" }

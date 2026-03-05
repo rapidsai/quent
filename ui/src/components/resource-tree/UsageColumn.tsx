@@ -11,6 +11,7 @@ type UsageColumnProps = {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
+  startTime: bigint;
   durationSeconds: number;
 };
 
@@ -19,6 +20,7 @@ export function UsageColumn({
   engineId,
   queryBundle,
   selectedTypes,
+  startTime,
   durationSeconds,
 }: UsageColumnProps): React.ReactNode {
   const isHovered = useAtomValue(isTimelineHoveredAtom(item.id));
@@ -45,6 +47,7 @@ export function UsageColumn({
         queryId={queryBundle.query_id}
         resourceId={item.id}
         resourceType={resourceType}
+        startTime={startTime}
         durationSeconds={durationSeconds}
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}

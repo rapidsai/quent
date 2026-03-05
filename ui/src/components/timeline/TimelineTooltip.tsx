@@ -148,12 +148,14 @@ function ActiveMarksSection({ marks }: { marks: { label: string; stateName: stri
 }
 
 function OverlayBarTooltip({
-  timestampSec,
+  timestamp,
   bars,
+  startTime,
   activeMarks,
 }: {
-  timestampSec: number;
+  timestamp: number;
   bars: StateBar[];
+  startTime: bigint;
   activeMarks?: { label: string; stateName: string }[];
 }) {
   const visibleBars = bars
@@ -168,7 +170,7 @@ function OverlayBarTooltip({
       )}
     >
       <div className="font-semibold mb-1.5 text-muted-foreground">
-        {formatDuration(timestampSec * 1000)}
+        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
       </div>
       <div
         className="grid items-center gap-x-1.5 gap-y-1"
@@ -237,12 +239,14 @@ function OverlayBarTooltip({
 }
 
 export function TooltipContent({
-  timestampSec,
+  timestamp,
   series,
+  startTime,
   activeMarks,
 }: {
-  timestampSec: number;
+  timestamp: number;
   series: TooltipSeries[];
+  startTime: bigint;
   activeMarks?: { label: string; stateName: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
@@ -267,8 +271,9 @@ export function TooltipContent({
 
     return (
       <OverlayBarTooltip
-        timestampSec={timestampSec}
+        timestamp={timestamp}
         bars={bars}
+        startTime={startTime}
         activeMarks={activeMarks}
       />
     );
@@ -277,7 +282,7 @@ export function TooltipContent({
   return (
     <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
       <div className="font-semibold mb-1 text-muted-foreground">
-        {formatDuration(timestampSec * 1000)}
+        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
       </div>
       <ul>
         {series

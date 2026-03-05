@@ -79,8 +79,8 @@ export function EngineSelectionPage() {
                 </SelectItem>
               ) : (
                 enginesList.data?.map(engine => (
-                  <SelectItem key={engine} value={engine}>
-                    {engine}
+                  <SelectItem key={engine.id} value={engine.id}>
+                    {engine.instance_name ?? engine.id}
                   </SelectItem>
                 ))
               )}

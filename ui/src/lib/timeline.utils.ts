@@ -17,13 +17,18 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
-/** Always request the maximum number of bins for best resolution. */
-export function getAdaptiveNumBins(_windowSeconds: number): number {
-  return MAX_TIMELINE_BINS;
+/**
+ * Computes the number of bins such that each bin is >= 1ms wide.
+ * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
+ */
+export function getAdaptiveNumBins(windowSeconds: number): number {
+  const windowMs = windowSeconds * 1_000;
+  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
@@ -34,7 +39,8 @@ export function getLongEntitiesThreshold(windowSeconds: number): number {
 
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
-  config: BinnedSpanSec
+  config: BinnedSpanSec,
+  startTime: bigint
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -43,8 +49,9 @@ export function buildBinnedTimelineSeries(
 
   const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
+  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
   for (let i = 0; i < numBinsNumber; i++) {
-    timestamps.push(span.start + i * bin_duration);
+    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
   }
 
   // Build series based on data type
@@ -110,9 +117,12 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  * entered by the first transition.
  */
 export function buildTimelineMarks(
-  longFsms: FiniteStateMachine[]
+  longFsms: FiniteStateMachine[],
+  startTime: bigint
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
+
+  const startTimeMs = Number(startTime / 1_000_000n);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -120,12 +130,9 @@ export function buildTimelineMarks(
       .slice(0, -1)
       .map((transition, i) => {
         const next = fsm.transitions[i + 1];
-        return {
-          label,
-          stateName: transition.name,
-          xStart: transition.timestamp,
-          xEnd: next.timestamp,
-        };
+        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
+        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+        return { label, stateName: transition.name, xStart, xEnd };
       })
       .filter(m => m.xEnd > m.xStart);
   });
@@ -246,17 +253,6 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   return maxAllowedStep;
 }
 
-/** Convert a timestamp to the nearest bin index using arithmetic (O(1), assumes regular bins). */
-export function timestampToIndex(
-  firstBinTimestamp: number,
-  binDuration: number,
-  numBins: number,
-  target: number
-): number {
-  if (numBins === 0 || binDuration === 0) return 0;
-  return Math.max(0, Math.min(numBins - 1, Math.round((target - firstBinTimestamp) / binDuration)));
-}
-
 function getFormatterForCapacityType(capacityType: string): (value: number) => string {
   switch (capacityType) {
     case 'bytes':
@@ -296,7 +292,11 @@ export function getChartGroupZoomState(
   return null;
 }
 
-export const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+export const connectChart = (
+  instance: EChartsInstance,
+  chartGroup: string = CHART_GROUP,
+  activateBrushSelect = true
+) => {
   // Sync zoom state from any existing chart in the group before connecting
   const zoomState = getChartGroupZoomState(chartGroup);
   if (zoomState) {
@@ -305,12 +305,13 @@ export const connectChart = (instance: EChartsInstance, chartGroup: string = CHA
     });
   }
 
-  // Activate the dataZoom brush tool by default
-  instance.dispatchAction({
-    type: 'takeGlobalCursor',
-    key: 'dataZoomSelect',
-    dataZoomSelectActive: true,
-  });
+  if (activateBrushSelect) {
+    instance.dispatchAction({
+      type: 'takeGlobalCursor',
+      key: 'dataZoomSelect',
+      dataZoomSelectActive: true,
+    });
+  }
 
   instance.group = chartGroup;
   connect(chartGroup);
@@ -318,16 +319,14 @@ export const connectChart = (instance: EChartsInstance, chartGroup: string = CHA
 
 /* Axis pointer sync — manual crosshair sync across charts
  *
- * With category axes, convertFromPixel returns a category index (possibly
- * fractional). Each chart stores firstBinTimestamp + binDuration so we can
- * convert: source category index → timestamp → target category index → pixel.
+ * We manually broadcast showTip/hideTip by converting a shared timestamp
+ * to each chart's local pixel coordinate, since the controller uses a
+ * different xAxis type (value) than the resource timelines (time).
  */
 
 interface AxisPointerEntry {
   instance: EChartsInstance;
   xAxisIndex: number;
-  firstBinTimestamp: number;
-  binDuration: number;
   onMouseMove: (e: { offsetX: number }) => void;
   onGlobalOut: () => void;
 }
@@ -335,15 +334,14 @@ interface AxisPointerEntry {
 const axisPointerRegistry = new Set<AxisPointerEntry>();
 let isBroadcasting = false;
 
-function broadcastShowPointer(source: EChartsInstance, timestamp: number) {
+function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
-    axisPointerRegistry.forEach(({ instance, xAxisIndex, firstBinTimestamp, binDuration }) => {
+    axisPointerRegistry.forEach(({ instance, xAxisIndex }) => {
       if (instance === source) return;
       try {
-        const targetIdx = (timestamp - firstBinTimestamp) / binDuration;
-        const pixel = instance.convertToPixel({ xAxisIndex }, targetIdx);
+        const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
         if (pixel != null && isFinite(pixel)) {
           instance.dispatchAction({
             type: 'showTip',
@@ -379,27 +377,16 @@ function broadcastHidePointer(source: EChartsInstance) {
 
 /**
  * Register a chart instance for manual axis pointer sync.
- * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync.
+ * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
+ * regardless of tooltip/axisPointer configuration differences.
  * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
- * @param firstBinTimestamp The first category timestamp (seconds offset from query start).
- * @param binDuration The duration of each bin in seconds.
  */
-export function registerAxisPointerSync(
-  instance: EChartsInstance,
-  xAxisIndex: number,
-  firstBinTimestamp: number,
-  binDuration: number
-) {
+export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 0) {
   const onMouseMove = (e: { offsetX: number }) => {
     try {
-      const catIndex = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
-      if (catIndex != null && isFinite(catIndex as number)) {
-        const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
-          | AxisPointerEntry
-          | undefined;
-        if (!entry) return;
-        const ts = entry.firstBinTimestamp + (catIndex as number) * entry.binDuration;
-        broadcastShowPointer(instance, ts);
+      const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
+      if (value != null && isFinite(value as number)) {
+        broadcastShowPointer(instance, value as number);
       }
     } catch {
       // Chart grid not ready
@@ -414,25 +401,10 @@ export function registerAxisPointerSync(
   zr.on('mousemove', onMouseMove);
   zr.on('globalout', onGlobalOut);
 
-  const entry = { instance, xAxisIndex, firstBinTimestamp, binDuration, onMouseMove, onGlobalOut };
+  const entry = { instance, xAxisIndex, onMouseMove, onGlobalOut };
   axisPointerRegistry.add(entry);
 
   (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;
-}
-
-/** Update the bin parameters for an already-registered chart instance. */
-export function updateAxisPointerBinning(
-  instance: EChartsInstance,
-  firstBinTimestamp: number,
-  binDuration: number
-) {
-  const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
-    | AxisPointerEntry
-    | undefined;
-  if (entry) {
-    entry.firstBinTimestamp = firstBinTimestamp;
-    entry.binDuration = binDuration;
-  }
 }
 
 /** Unregister a chart instance from axis pointer sync. */
@@ -532,12 +504,12 @@ export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
-  operatorId: string | null = null,
-  windowSeconds?: number
+  config: TimelineConfig,
+  operatorId: string | null = null
 ): TimelineRequest<TaskFilter> {
   const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
-  const threshold = windowSeconds != null ? getLongEntitiesThreshold(windowSeconds) : null;
+  const threshold = getLongEntitiesThreshold(config.end - config.start);
 
   if (isGroup) {
     const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
@@ -548,6 +520,7 @@ export function buildBulkParamsForItem(
         long_entities_threshold_s: threshold,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
+        config,
       },
     };
   }
@@ -558,6 +531,7 @@ export function buildBulkParamsForItem(
       long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
+      config,
     },
   };
 }
@@ -571,19 +545,13 @@ export function collectVisibleEntries(
   expandedIds: Set<string>,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
-  operatorId: string | null = null,
-  windowSeconds?: number
+  config: TimelineConfig,
+  operatorId: string | null = null
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(
-      item,
-      selectedTypes,
-      entities,
-      operatorId,
-      windowSeconds
-    );
+    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, config, operatorId);
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

@@ -29,7 +29,6 @@ import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import { useTimelineChartColors } from './useTimelineChartColors';
-import type { ZoomRange } from './TimelineController';
 
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
@@ -38,6 +37,7 @@ type ResourceTimelineProps = {
   queryId: string;
   resourceId: string;
   resourceType: string;
+  startTime: bigint;
   durationSeconds: number;
   fsmTypeName?: string | undefined;
   resourceTypeName?: string;
@@ -45,8 +45,6 @@ type ResourceTimelineProps = {
   showTooltip?: boolean;
   /** Pre-fetched timeline data from bulk endpoint; skips individual fetch when present */
   preloadedData?: SingleTimelineResponse;
-  /** When set, fetches only this time window instead of the full duration */
-  zoomRange?: ZoomRange;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -63,6 +61,7 @@ export function ResourceTimeline({
   queryId,
   resourceId,
   resourceType,
+  startTime,
   durationSeconds,
   fsmTypeName,
   resourceTypeName,
@@ -106,12 +105,12 @@ export function ResourceTimeline({
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
       const windowSeconds = end - start;
+      const config = {
+        num_bins: getAdaptiveNumBins(windowSeconds),
+        start,
+        end,
+      };
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
-        config: {
-          num_bins: getAdaptiveNumBins(windowSeconds),
-          start,
-          end,
-        },
         entry: isGroup
           ? {
               ResourceGroup: {
@@ -120,6 +119,7 @@ export function ResourceTimeline({
                 long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
+                config,
               },
             }
           : {
@@ -128,6 +128,7 @@ export function ResourceTimeline({
                 long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
+                config,
               },
             },
         app_params: { query_id: queryId },
@@ -148,9 +149,9 @@ export function ResourceTimeline({
     if (!data || (operatorId != null && !overlayPreloadedData))
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
-    const base = buildBinnedTimelineSeries(data.data, data.config);
+    const base = buildBinnedTimelineSeries(data.data, data.config, startTime);
     const longFsms = getLongFsms(data.data);
-    const timelineMarks = buildTimelineMarks(longFsms);
+    const timelineMarks = buildTimelineMarks(longFsms, startTime);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -159,7 +160,8 @@ export function ResourceTimeline({
       if (baseEqualsOpsSpan) {
         const opResult = buildBinnedTimelineSeries(
           overlayPreloadedData.data,
-          overlayPreloadedData.config
+          overlayPreloadedData.config,
+          startTime
         );
         return {
           timestamps: base.timestamps,
@@ -175,6 +177,7 @@ export function ResourceTimeline({
     fetchedData,
     operatorId,
     overlayPreloadedData,
+    startTime,
     operatorLabel,
     overlayLighten,
   ]);
@@ -196,6 +199,8 @@ export function ResourceTimeline({
       <Timeline
         series={series}
         timestamps={timestamps ?? []}
+        startTime={startTime}
+        durationSeconds={durationSeconds}
         showTooltip={showTooltip}
         marks={hideTasks ? undefined : marks}
       />

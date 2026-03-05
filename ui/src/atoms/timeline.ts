@@ -36,6 +36,9 @@ export const isTimelineHoveredAtom = atomFamily((itemId: string) =>
   atom(get => get(hoveredTimelineIdAtom) === itemId)
 );
 
+/** Start time in milliseconds — set once per query, never changes */
+export const startTimeMsAtom = atom(0);
+
 /** Flips to true after the first bulk fetch completes — gates individual fallback queries */
 export const bulkInitializedAtom = atom(false);
 

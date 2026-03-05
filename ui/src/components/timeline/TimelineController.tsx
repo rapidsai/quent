@@ -10,8 +10,8 @@ import {
   buildBinnedTimelineSeries,
   connectChart,
   getAdaptiveNumBins,
+  getTimelineXAxisIntervalMs,
   registerAxisPointerSync,
-  updateAxisPointerBinning,
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
@@ -29,6 +29,8 @@ export interface ZoomRange {
 }
 
 type TimelineControllerProps = {
+  /** Start time in nanoseconds (bigint) */
+  startTime: bigint;
   /** Duration in seconds */
   durationSeconds: number;
   height?: number;
@@ -39,6 +41,7 @@ type TimelineControllerProps = {
 };
 
 export function TimelineController({
+  startTime,
   durationSeconds,
   height = CONTROLLER_HEIGHT,
   timelineData,
@@ -46,31 +49,37 @@ export function TimelineController({
 }: TimelineControllerProps) {
   const colors = useTimelineChartColors();
 
+  const startTimeMillis = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+
   const { timestamps, seriesData } = useMemo(() => {
     if (timelineData) {
       const { timestamps: ts, series } = buildBinnedTimelineSeries(
         timelineData.data,
-        timelineData.config
+        timelineData.config,
+        startTime
       );
       const entries = Object.entries(series);
       const values = entries.length > 0 ? entries[0][1].values : null;
       return { timestamps: ts, seriesData: values };
     } else {
       const numBins = getAdaptiveNumBins(durationSeconds);
-      const binDurationSec = durationSeconds / numBins;
-      const ts = Array.from({ length: numBins }, (_, i) => i * binDurationSec);
+      const binDurationMs = (durationSeconds * 1000) / numBins;
+      const ts = Array.from({ length: numBins }, (_, i) => startTimeMillis + i * binDurationMs);
       return { timestamps: ts, seriesData: null };
     }
-  }, [timelineData, durationSeconds]);
+  }, [timelineData, startTime, startTimeMillis, durationSeconds]);
 
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 
   const seriesOptions = useMemo(() => {
+    const toTimePoints = (values: number[]) =>
+      values.map((value, index) => [timestamps[index], value] as [number, number]);
+
     const zoomControlSeries = {
       name: 'zoom-control',
       type: 'line',
       xAxisIndex: 1,
-      data: Array(timestamps.length).fill(0),
+      data: toTimePoints(Array(timestamps.length).fill(0)),
       symbol: 'none',
       lineStyle: { width: 0 },
       areaStyle: { opacity: 0 },
@@ -85,7 +94,7 @@ export function TimelineController({
       name: 'static-display',
       type: 'line',
       xAxisIndex: 0,
-      data: staticValues ?? [],
+      data: toTimePoints(staticValues ?? []),
       symbol: 'none',
       lineStyle: { width: 1, color: colors.rollupTimelineColor },
       areaStyle: { color: withOpacity(colors.rollupTimelineColor, 0.8) },
@@ -99,38 +108,34 @@ export function TimelineController({
     return [zoomControlSeries, staticDisplaySeries];
   }, [timestamps, hasSeriesData, seriesData, colors.rollupTimelineColor]);
 
-  const labelInterval = useMemo(
-    () => Math.max(0, Math.floor(timestamps.length / CONTROLLER_X_MIN_LABELS) - 1),
-    [timestamps]
-  );
+  const staticXAxisOptions = useMemo(() => {
+    const minTs = timestamps[0] ?? startTimeMillis;
+    const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
+    const interval = getTimelineXAxisIntervalMs(maxTs - minTs, CONTROLLER_X_MIN_LABELS);
 
-  const staticXAxisOptions = useMemo(
-    () => ({
-      type: 'category',
+    return {
       boundaryGap: false,
-      data: timestamps,
+      type: 'value',
       show: true,
+      min: minTs,
+      max: maxTs,
+      interval,
       axisLine: {
         show: true,
         lineStyle: { color: colors.gridBorderColor },
       },
-      axisTick: {
-        show: true,
-        interval: labelInterval,
-      },
+      axisTick: { show: true },
       axisLabel: {
         show: true,
         hideOverlap: false,
-        interval: labelInterval,
         fontSize: 10,
         color: colors.timelineMarkupColor,
-        formatter: (value: string) => {
-          return formatDuration(Number(value) * 1000);
+        formatter: (value: number) => {
+          return formatDuration(Number(value) - startTimeMillis);
         },
       },
       splitLine: {
         show: true,
-        interval: labelInterval,
         lineStyle: {
           color: colors.gridBorderColor,
           type: 'solid',
@@ -147,23 +152,27 @@ export function TimelineController({
           color: colors.timelineMarkupColor,
         },
       },
-    }),
-    [timestamps, labelInterval, colors.timelineMarkupColor, colors.gridBorderColor]
-  );
+    };
+  }, [timestamps, startTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]);
 
-  const zoomXAxisOptions = useMemo(
-    () => ({
-      type: 'category',
+  const zoomXAxisOptions = useMemo(() => {
+    const minTs = timestamps[0] ?? startTimeMillis;
+    const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
+    const interval = getTimelineXAxisIntervalMs(maxTs - minTs, CONTROLLER_X_MIN_LABELS);
+
+    return {
       boundaryGap: false,
-      data: timestamps,
+      type: 'value',
       show: false,
+      min: minTs,
+      max: maxTs,
+      interval,
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { show: false },
       splitLine: { show: false },
-    }),
-    [timestamps]
-  );
+    };
+  }, [timestamps, startTimeMillis]);
 
   const yAxisOptions = useMemo(() => {
     if (hasSeriesData) {
@@ -240,15 +249,27 @@ export function TimelineController({
             padding: [2, 4],
             borderRadius: 2,
           },
-          labelFormatter: (index: number) => {
-            const ts = timestamps[Math.round(index)] ?? 0;
-            return formatDuration(ts * 1000);
+          labelFormatter: (tsMilliseconds: number) => {
+            const raw = Number(tsMilliseconds);
+            const minTs = timestamps[0] ?? startTimeMillis;
+            const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
+            const clamped = Math.max(minTs, Math.min(maxTs, raw));
+            return formatDuration(clamped - startTimeMillis);
           },
           emphasis: {
             handleStyle: {
               color: colors.dataZoomEmphasisHandleColor,
             },
           },
+        },
+        {
+          type: 'inside',
+          xAxisIndex: [1],
+          realtime: true,
+          filterMode: 'none',
+          zoomLock: true,
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
         },
         {
           type: 'inside',
@@ -273,6 +294,7 @@ export function TimelineController({
     yAxisOptions,
     seriesOptions,
     timestamps,
+    startTimeMillis,
   ]);
 
   const handleDataZoom = useMemo(() => {
@@ -327,20 +349,11 @@ export function TimelineController({
     });
   }, [zoomRange, durationSeconds]);
 
-  const firstTimestamp = timestamps[0] ?? 0;
-  const binDuration = timestamps.length >= 2 ? timestamps[1]! - timestamps[0]! : 1;
-
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance);
-    registerAxisPointerSync(instance, 0, firstTimestamp, binDuration);
-  }, [firstTimestamp, binDuration]);
-
-  useEffect(() => {
-    if (instanceRef.current) {
-      updateAxisPointerBinning(instanceRef.current, firstTimestamp, binDuration);
-    }
-  }, [firstTimestamp, binDuration]);
+    registerAxisPointerSync(instance, 0);
+  }, []);
 
   useEffect(() => {
     return () => {

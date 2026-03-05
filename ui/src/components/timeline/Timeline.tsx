@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -15,23 +15,23 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import {
-  timestampToIndex,
-  registerAxisPointerSync,
-  updateAxisPointerBinning,
-  unregisterAxisPointerSync,
-} from '@/lib/timeline.utils';
+import { connectChart } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
 export function Timeline({
+  startTime,
+  durationSeconds,
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
   marks,
 }: {
+  startTime: bigint;
+  /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
+  durationSeconds: number;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
@@ -48,6 +48,8 @@ export function Timeline({
     markLabelTextColor,
   } = useTimelineChartColors();
 
+  const maxMarkCountRef = useRef(0);
+
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -61,12 +63,12 @@ export function Timeline({
         stack: isOverlay ? `overlay-total` : 'total',
         step: 'middle',
         symbol: 'circle',
-        symbolSize: (value: number) => (value === 0 || isOverlay ? 0 : 4),
+        symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
         hoverAnimation: false,
         showSymbol: false,
         ...TIMELINE_X_AXIS_ANIMATION,
         cursor: 'default',
-        data: seriesData.values,
+        data: seriesData.values.map((value, index) => [timestamps[index], value]),
         lineStyle: { width: 0 },
         itemStyle: { color },
         areaStyle: {
@@ -79,6 +81,7 @@ export function Timeline({
           opacity: 1,
         },
         z: isOverlay ? 5 : 2,
+        sampling: 'lttb',
         emphasis: {
           disabled: true,
           focus: 'none',
@@ -86,45 +89,36 @@ export function Timeline({
       };
     });
 
-    const binDuration = timestamps.length >= 2 ? timestamps[1]! - timestamps[0]! : 1;
-    const firstTs = timestamps[0] ?? 0;
+    const markCount = marks?.length ?? 0;
+    maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
 
-    if (marks && marks.length > 0) {
-      for (const m of marks) {
+    for (let i = 0; i < maxMarkCountRef.current; i++) {
+      const m = marks?.[i];
+      if (m) {
         const stateColor = getColorForKey(m.stateName);
-        const startIdx = timestampToIndex(firstTs, binDuration, timestamps.length, m.xStart);
-        const endIdx = timestampToIndex(firstTs, binDuration, timestamps.length, m.xEnd);
-
-        const markData: (number | null | { value: number; label: Record<string, unknown> })[] =
-          new Array(timestamps.length).fill(null);
-
-        if (startIdx > 0) markData[startIdx - 1] = 0;
-        for (let i = startIdx; i <= endIdx && i < timestamps.length; i++) {
-          markData[i] =
-            i === startIdx
-              ? {
-                  value: 1,
-                  label: {
-                    show: true,
-                    formatter: () => m.label,
-                    position: [0, -5],
-                    fontSize: 9,
-                    fontWeight: 500,
-                    color: markLabelTextColor,
-                    backgroundColor: withOpacity(stateColor, 1),
-                    borderRadius: 1,
-                    padding: [1, 2],
-                  },
-                }
-              : 1;
-        }
-        if (endIdx + 1 < timestamps.length) markData[endIdx + 1] = 0;
-
         allSeries.push({
-          name: `__mark_${m.label}_${m.stateName}`,
+          name: `__mark_${i}`,
           type: 'line',
           step: 'middle',
-          data: markData as (number | null)[],
+          data: [
+            [m.xStart, 0],
+            {
+              value: [m.xStart, 1],
+              label: {
+                show: true,
+                formatter: () => m.label,
+                position: [0, -5],
+                fontSize: 9,
+                fontWeight: 500,
+                color: markLabelTextColor,
+                backgroundColor: withOpacity(stateColor, 1),
+                borderRadius: 1,
+                padding: [1, 2],
+              },
+            },
+            [m.xEnd, 1],
+            [m.xEnd, 0],
+          ],
           zlevel: 1,
           label: { show: false },
           symbolSize: 0,
@@ -141,6 +135,20 @@ export function Timeline({
           animation: false,
           yAxisIndex: 1,
         });
+      } else {
+        allSeries.push({
+          name: `__mark_${i}`,
+          type: 'line',
+          data: [],
+          zlevel: 1,
+          symbolSize: 0,
+          lineStyle: { width: 0 },
+          areaStyle: { opacity: 0 },
+          tooltip: { show: false },
+          silent: true,
+          animation: false,
+          yAxisIndex: 1,
+        });
       }
     }
 
@@ -152,6 +160,7 @@ export function Timeline({
       {
         type: 'value',
         min: 0,
+        // Adds a 10% padding to the top of the bars
         max: (value: { max: number }) => value.max * 1.1 || 1,
         splitNumber: 1,
         show: true,
@@ -183,13 +192,16 @@ export function Timeline({
     [gridBorderColor, timelineMarkupColor]
   );
 
+  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+
   const xAxisOptions = useMemo(
     () => ({
-      type: 'category',
       boundaryGap: false,
-      data: timestamps,
+      type: 'time',
       animation: false,
       show: true,
+      min: startTimeMs,
+      max: startTimeMs + durationSeconds * 1_000,
       axisLine: {
         show: true,
         onZero: true,
@@ -197,7 +209,9 @@ export function Timeline({
       },
       axisTick: { show: false },
       axisLabel: { show: false },
-      splitLine: { show: false },
+      splitLine: {
+        show: false,
+      },
       axisPointer: {
         show: true,
         type: 'line',
@@ -209,7 +223,7 @@ export function Timeline({
         },
       },
     }),
-    [timestamps, timelineMarkupColor, gridBorderColor]
+    [timelineMarkupColor, gridBorderColor, startTimeMs, durationSeconds]
   );
 
   const gridOptions = useMemo(
@@ -225,6 +239,7 @@ export function Timeline({
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
+      animation: false,
       tooltip: {
         show: true,
         showContent: showTooltip,
@@ -237,18 +252,19 @@ export function Timeline({
         confine: true,
         appendToBody: true,
         formatter: function (hoveredSeries: unknown) {
+          if (isDraggingRef.current) return '';
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries
             .filter(
-              (p: { seriesName: string; data?: unknown }) =>
+              (p: { seriesName: string; data?: number[] }) =>
                 !p.seriesName.startsWith('__mark_') && p.data != null
             )
-            .map((p: { color: string; seriesName: string; data: number }) => {
+            .map((p: { color: string; seriesName: string; data: number[] }) => {
               return {
                 color: p.color,
                 name: p.seriesName,
-                value: p.data,
+                value: p.data[1],
                 isOverlay: series[p.seriesName]?.isOverlay ?? false,
               };
             });
@@ -257,8 +273,9 @@ export function Timeline({
             .map(m => ({ label: m.label, stateName: m.stateName }));
           return renderToStaticMarkup(
             <TooltipContent
-              timestampSec={timestamp}
+              timestamp={timestamp}
               series={seriesValues}
+              startTime={startTime}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
             />
           );
@@ -274,35 +291,50 @@ export function Timeline({
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
       series: seriesOptions,
+      dataZoom: [
+        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'inside',
+          zoomLock: true,
+          zoomOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+        },
+        {
+          type: 'inside',
+          zoomOnMouseWheel: 'shift',
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+        },
+      ],
     } as EChartsOption;
-  }, [showTooltip, gridOptions, xAxisOptions, yAxisOptions, seriesOptions, series, marks]);
+  }, [
+    showTooltip,
+    gridOptions,
+    xAxisOptions,
+    yAxisOptions,
+    seriesOptions,
+    startTime,
+    series,
+    marks,
+  ]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
+  const isDraggingRef = useRef(false);
 
-  const firstTimestamp = timestamps[0] ?? 0;
-  const binDuration = timestamps.length >= 2 ? timestamps[1]! - timestamps[0]! : 1;
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    instanceRef.current = instance;
+    connectChart(instance, CHART_GROUP, false);
 
-  const handleChartReady = useCallback(
-    (instance: EChartsInstance) => {
-      instanceRef.current = instance;
-      registerAxisPointerSync(instance, 0, firstTimestamp, binDuration);
-    },
-    [firstTimestamp, binDuration]
-  );
-
-  useEffect(() => {
-    if (instanceRef.current) {
-      updateAxisPointerBinning(instanceRef.current, firstTimestamp, binDuration);
-    }
-  }, [firstTimestamp, binDuration]);
-
-  useEffect(() => {
-    return () => {
-      if (instanceRef.current) {
-        unregisterAxisPointerSync(instanceRef.current);
-        instanceRef.current = null;
-      }
-    };
+    instance.getDom().addEventListener('pointerdown', () => {
+      isDraggingRef.current = true;
+      instance.dispatchAction({ type: 'hideTip' });
+    });
+    instance.getDom().addEventListener('pointerup', () => {
+      isDraggingRef.current = false;
+    });
   }, []);
 
   return (
@@ -311,7 +343,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
-      notMerge
+      notMerge={false}
       lazyUpdate
     />
   );

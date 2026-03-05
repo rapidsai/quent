@@ -52,6 +52,31 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
     type TimelineGlobalParams = QueryFilter;
     type TimelineParams = TaskFilter;
 
+    fn extract_engine(
+        engine_id: Uuid,
+        events: impl Iterator<Item = Event<SimulatorEvent>>,
+    ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
+        use quent_query_engine_events::{QueryEngineEvent, engine::EngineEvent};
+        for event in events {
+            if let SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Engine(EngineEvent::Init(
+                init,
+            ))) = event.data
+            {
+                return Ok(quent_query_engine_ui::Engine {
+                    id: engine_id,
+                    start_time_unix_ns: Some(event.timestamp),
+                    duration_s: None,
+                    instance_name: init.instance_name,
+                    implementation: init
+                        .implementation
+                        .as_ref()
+                        .map(quent_query_engine_ui::EngineImplementationAttributes::from),
+                });
+            }
+        }
+        Ok(quent_query_engine_ui::Engine::new(engine_id))
+    }
+
     fn try_new(
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
@@ -197,7 +222,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let epoch = self
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
-        let config = request.config.try_into_binned_span(epoch)?;
+        let config = request.entry.config().clone().try_into_binned_span(epoch)?;
         let config_secs = config.try_to_secs_relative(epoch)?;
 
         match request.entry {
@@ -309,8 +334,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let epoch = self
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
-        let config = request.config.try_into_binned_span(epoch)?;
-        let config_secs = config.try_to_secs_relative(epoch)?;
 
         // Construct a query view.
         let view = self.model.query_view(request.app_params.query_id)?;
@@ -334,6 +357,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         )> = Vec::new();
 
         for (entry_id, entry) in request.entries {
+            let entry_config = entry.config().clone().try_into_binned_span(epoch)?;
             let BulkEntryPrep {
                 resource_type,
                 resource_id_filter,
@@ -346,7 +370,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     entry_id,
                     ResourceTimelineByKeyBuilder::try_new(
                         resource_type,
-                        config,
+                        entry_config,
                         long_entities_threshold,
                     )?,
                     resource_id_filter,
@@ -357,7 +381,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     entry_id,
                     ResourceTimelineBuilder::try_new(
                         resource_type,
-                        config,
+                        entry_config,
                         long_entities_threshold,
                     )?,
                     resource_id_filter,
@@ -449,28 +473,31 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // Collect results for all requests.
         let mut entries = std::collections::HashMap::default();
         for (entry_id, builder, _, _) in plain_builders {
+            let built = builder.build();
+            let config = built.config.try_to_secs_relative(epoch)?;
             entries.insert(
                 entry_id,
                 BulkTimelinesResponseEntry::Ok {
                     message: String::new(),
-                    data: self.timeline_to_ui(builder.build(), epoch)?,
+                    config,
+                    data: self.timeline_to_ui(built, epoch)?,
                 },
             );
         }
         for (key, builder, _, _) in per_state_builders {
+            let built = builder.build();
+            let config = built.config.try_to_secs_relative(epoch)?;
             entries.insert(
                 key,
                 BulkTimelinesResponseEntry::Ok {
                     message: String::new(),
-                    data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
+                    config,
+                    data: self.timeline_to_ui_keyed(built, epoch)?,
                 },
             );
         }
 
-        Ok(BulkTimelinesResponse {
-            config: config_secs,
-            entries,
-        })
+        Ok(BulkTimelinesResponse { entries })
     }
 }
 
@@ -589,6 +616,7 @@ impl SimulatorUiAnalyzer {
         result: ResourceTimeline,
         epoch: TimeUnixNanoSec,
     ) -> AnalyzerResult<UiResourceTimeline> {
+        let config = result.config.try_to_secs_relative(epoch)?;
         let capacities_values = result
             .data
             .into_iter()
@@ -596,6 +624,7 @@ impl SimulatorUiAnalyzer {
             .collect();
         let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
+            config,
             capacities_values,
             long_fsms,
         }))
@@ -607,6 +636,7 @@ impl SimulatorUiAnalyzer {
         result: ResourceTimelineByKey<&str>,
         epoch: TimeUnixNanoSec,
     ) -> AnalyzerResult<UiResourceTimeline> {
+        let config = result.config.try_to_secs_relative(epoch)?;
         let mut capacities_states_values = StdHashMap::new();
         for ((state_name, capacity_name), values) in result.data {
             capacities_states_values
@@ -617,6 +647,7 @@ impl SimulatorUiAnalyzer {
         let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {
+                config,
                 capacities_states_values,
                 long_fsms,
             },

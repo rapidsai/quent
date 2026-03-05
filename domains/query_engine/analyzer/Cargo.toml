@@ -2,7 +2,7 @@
 name = "quent-query-engine-analyzer"
 version.workspace = true
 edition.workspace =  true
-
+publish.workspace = true
 [dependencies]
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-attributes = { path = "../../../crates/attributes" }

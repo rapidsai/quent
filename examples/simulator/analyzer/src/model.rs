@@ -275,7 +275,7 @@ impl SimulatorModelBuilder {
         // Build resources first. As we iterate over task builders and build all
         // tasks, we can populate the leaf resources used_by field.
         let mut resources = self.arbitrary_resources.try_build()?;
-        let query_engine = self.query_engine.try_build()?;
+        let mut query_engine = self.query_engine.try_build()?;
 
         let mut tasks = HashMap::default();
 
@@ -295,6 +295,16 @@ impl SimulatorModelBuilder {
                     set.insert(task.type_name().to_owned());
                 }
             }
+            if let Some(operator_id) = task.operator_id()
+                && let Some(task_span) = task.active_span()
+                && let Some(operator) = query_engine.operators.get_mut(&operator_id)
+            {
+                operator.active_span = Some(match operator.active_span {
+                    None => task_span,
+                    Some(existing) => existing.extend(&task_span),
+                });
+            }
+
             tasks.insert(task_id, task);
         }
 

@@ -24,6 +24,22 @@ pub trait UiAnalyzer {
     where
         Self: Sized;
 
+    /// Extract engine metadata from an event stream without fully building the model.
+    ///
+    /// Iterates events until the engine init event is found, then returns a
+    /// partial [`Engine`](ui::Engine) (without `duration_s`).
+    ///
+    /// The common case is for this event to be on of the first events ever
+    /// flushed, so it will typically be found early.
+    // TODO(johanpel): still this function should be used with care. We need
+    // some form of an engine index.
+    fn extract_engine(
+        engine_id: Uuid,
+        events: impl Iterator<Item = Event<Self::Event>>,
+    ) -> AnalyzerResult<ui::Engine>
+    where
+        Self: Sized;
+
     /// Deliver a UI-friendly [`QueryBundle`] with all high-level yet
     /// non-volumous information related to this query.
     fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle<Self::EntityRef>>;

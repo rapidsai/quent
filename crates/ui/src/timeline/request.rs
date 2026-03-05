@@ -3,12 +3,12 @@ use std::{collections::HashMap, num::NonZero};
 use quent_time::{
     TimeError, TimeSec, TimeUnixNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec, to_nanosecs,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
 /// Configuration of the window and number of bins of a timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineConfig {
     /// The number of bins for binned timelines.
     pub num_bins: u16,
@@ -35,7 +35,7 @@ impl TimelineConfig {
     }
 }
 
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct EntityFilter {
     /// If set, only include utilizations from entities with this type name.
     ///
@@ -46,7 +46,7 @@ pub struct EntityFilter {
 }
 
 /// Parameters for requesting a resource timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceTimelineRequest<TimelineParams> {
     /// The ID of the resource
     pub resource_id: Uuid,
@@ -56,10 +56,12 @@ pub struct ResourceTimelineRequest<TimelineParams> {
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
     pub application: TimelineParams,
+    /// The configuration of the window and number of bins.
+    pub config: TimelineConfig,
 }
 
 /// Parameters for requesting a resource group timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceGroupTimelineRequest<TimelineParams> {
     /// The ID of the resource group
     pub resource_group_id: Uuid,
@@ -73,10 +75,12 @@ pub struct ResourceGroupTimelineRequest<TimelineParams> {
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
     pub app_params: TimelineParams,
+    /// The configuration of the window and number of bins.
+    pub config: TimelineConfig,
 }
 
 /// Timeline request parameters unrelated to timing or binning.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub enum TimelineRequest<TimelineParams> {
     /// Request for a resource timeline.
     Resource(ResourceTimelineRequest<TimelineParams>),
@@ -84,11 +88,27 @@ pub enum TimelineRequest<TimelineParams> {
     ResourceGroup(ResourceGroupTimelineRequest<TimelineParams>),
 }
 
+impl<T> TimelineRequest<T> {
+    pub fn config(&self) -> &TimelineConfig {
+        match self {
+            Self::Resource(r) => &r.config,
+            Self::ResourceGroup(rg) => &rg.config,
+        }
+    }
+
+    pub fn with_config(self, config: TimelineConfig) -> Self {
+        match self {
+            Self::Resource(r) => Self::Resource(ResourceTimelineRequest { config, ..r }),
+            Self::ResourceGroup(rg) => {
+                Self::ResourceGroup(ResourceGroupTimelineRequest { config, ..rg })
+            }
+        }
+    }
+}
+
 /// Request for a single timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct SingleTimelineRequest<GlobalParams, TimelineParams> {
-    /// The configuration of the window and number of bins.
-    pub config: TimelineConfig,
     /// The timeline requested.
     pub entry: TimelineRequest<TimelineParams>,
     /// Global application-specific parameters, e.g. filters.
@@ -98,8 +118,6 @@ pub struct SingleTimelineRequest<GlobalParams, TimelineParams> {
 /// Request for a bulk of timelines.
 #[derive(TS, Debug, Deserialize)]
 pub struct BulkTimelineRequest<GlobalParams, TimelineParams> {
-    /// The configuration of the window and number of bins.
-    pub config: TimelineConfig,
     /// The list of timelines requested.
     pub entries: HashMap<String, TimelineRequest<TimelineParams>>,
     /// Global application-specific parameters, e.g. filters.

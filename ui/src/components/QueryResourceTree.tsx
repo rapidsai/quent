@@ -23,7 +23,7 @@ import {
 } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import { zoomRangeAtom, debouncedZoomRangeAtom } from '@/atoms/timeline';
+import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -45,11 +45,14 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
 
+  const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
+  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
 
   useHydrateAtoms([
     [zoomRangeAtom, { start: 0, end: durationSeconds }],
     [debouncedZoomRangeAtom, { start: 0, end: durationSeconds }],
+    [startTimeMsAtom, startTimeMs],
   ]);
 
   const rootItem = useMemo(
@@ -96,11 +99,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     ],
     queryFn: () => {
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
-        config: {
-          num_bins: getAdaptiveNumBins(durationSeconds),
-          start: 0,
-          end: durationSeconds,
-        },
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
@@ -108,6 +106,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             long_entities_threshold_s: getLongEntitiesThreshold(durationSeconds),
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
+            config: {
+              num_bins: getAdaptiveNumBins(durationSeconds),
+              start: 0,
+              end: durationSeconds,
+            },
           },
         },
         app_params: { query_id: queryBundle.query_id },
@@ -148,6 +151,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         subHeaderContent: (
           <div className="h-full overflow-hidden flex items-center py-2">
             <TimelineController
+              startTime={startTime}
               durationSeconds={durationSeconds}
               timelineData={rootTimelineData}
               onZoomChange={handleZoomChange}
@@ -160,12 +164,14 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             engineId={engineId}
             queryBundle={queryBundle}
             selectedTypes={selectedTypes}
+            startTime={startTime}
             durationSeconds={durationSeconds}
           />
         ),
       },
     ] satisfies Column<TreeTableItem>[];
   }, [
+    startTime,
     durationSeconds,
     rootTimelineData,
     selectedTypes,
