@@ -15,6 +15,7 @@ pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Ev
 
 pub type ListerFn = dyn Fn() -> ServerResult<Vec<Uuid>> + Send + Sync;
 
+/// Cache for analyzer instances, keyed by engine ID.
 pub struct AnalyzerCache<A>
 where
     A: UiAnalyzer,

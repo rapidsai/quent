@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::FiniteStateMachine;
 
-#[derive(TS, Debug, Serialize)]
+#[derive(TS, Debug, Clone, Serialize)]
 pub struct ResourceTimelineBinned {
     /// Maps a resource capacity name to a vector where each element holds an
     /// aggregated value of a time bin.
@@ -15,7 +15,7 @@ pub struct ResourceTimelineBinned {
     pub long_fsms: Vec<FiniteStateMachine>,
 }
 
-#[derive(TS, Debug, Serialize)]
+#[derive(TS, Debug, Clone, Serialize)]
 pub struct ResourceTimelineBinnedByState {
     /// Maps a resource capacity name to a map of a state name to a vector where
     /// each element holds an aggregated value of a time bin.
@@ -24,13 +24,13 @@ pub struct ResourceTimelineBinnedByState {
     pub long_fsms: Vec<FiniteStateMachine>,
 }
 
-#[derive(TS, Debug, Serialize)]
+#[derive(TS, Debug, Clone, Serialize)]
 pub enum ResourceTimeline {
     Binned(ResourceTimelineBinned),
     BinnedByState(ResourceTimelineBinnedByState),
 }
 
-#[derive(TS, Debug, Serialize)]
+#[derive(TS, Debug, Clone, Serialize)]
 pub struct SingleTimelineResponse {
     /// The configuration of the binned timeline.
     ///
