@@ -3,7 +3,7 @@
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_attributes::{Attribute, Value};
 use quent_query_engine_events as qe;
-use quent_time::{TimeSec, TimeUnixNanoSec};
+use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -169,6 +169,15 @@ pub struct Operator {
     /// These are attributes that are typically gathered after the work
     /// described by an [`Operator`] has completed.
     pub statistics: Option<OperatorStatistics>,
+
+    /// The span of time between the first moment an operator started processing
+    /// an input, and the latest moment at which an operator finished producing
+    /// an output (excluding any potential back-pressure).
+    ///
+    /// There may have been gaps in this span in which this operator was not
+    /// actively using any resources. Thus, this spann of time does NOT repesent
+    /// e.g. "CPU time" spent.
+    pub active_span: Option<SpanSec>,
 }
 
 #[derive(TS, Debug, Serialize)]
