@@ -28,6 +28,7 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+      - run: pixi install
       - run: pixi run cargo build -p quent-simulator-server --features ui,swagger --locked --release
 
   docker:
