@@ -241,7 +241,7 @@ fn combine_chunks(
         .try_to_secs_relative(epoch)?;
 
         Ok(SingleTimelineResponse {
-            config: config,
+            config,
             data: ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
                 config,
                 capacities_states_values: combined,
@@ -279,7 +279,7 @@ fn combine_chunks(
         .try_to_secs_relative(epoch)?;
 
         Ok(SingleTimelineResponse {
-            config: config,
+            config,
             data: ResourceTimeline::Binned(ResourceTimelineBinned {
                 config,
                 capacities_values: combined,
