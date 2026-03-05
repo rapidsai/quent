@@ -175,7 +175,7 @@ pub struct Operator {
     /// an output (excluding any potential back-pressure).
     ///
     /// There may have been gaps in this span in which this operator was not
-    /// actively using any resources. Thus, this spann of time does NOT repesent
+    /// actively using any resources. Thus, this span of time does NOT represent
     /// e.g. "CPU time" spent.
     pub active_span: Option<SpanSec>,
 }
