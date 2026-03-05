@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -15,38 +15,27 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import {
-  connectChart,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
-} from '@/lib/timeline.utils';
+import { connectChart } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
-export interface XAxisRange {
-  /** xAxis min in milliseconds */
-  min: number;
-  /** xAxis max in milliseconds */
-  max: number;
-}
-
 export function Timeline({
   startTime,
+  durationSeconds,
   series,
   timestamps,
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
-  xAxisRange,
   marks,
 }: {
   startTime: bigint;
+  /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
+  durationSeconds: number;
   series: TimelineSeries;
   timestamps: number[];
   height?: number;
   showTooltip?: boolean;
-  /** When set, the chart renders as a standalone window (no connect/dataZoom) bounded by these limits */
-  xAxisRange?: XAxisRange;
   /** Annotation marks rendered as mark areas on the first series */
   marks?: TimelineMark[];
 }) {
@@ -58,6 +47,8 @@ export function Timeline({
     markAreaBorderOpacity,
     markLabelTextColor,
   } = useTimelineChartColors();
+
+  const maxMarkCountRef = useRef(0);
 
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
@@ -90,6 +81,7 @@ export function Timeline({
           opacity: 1,
         },
         z: isOverlay ? 5 : 2,
+        sampling: 'lttb',
         emphasis: {
           disabled: true,
           focus: 'none',
@@ -97,11 +89,15 @@ export function Timeline({
       };
     });
 
-    if (marks && marks?.length > 0) {
-      for (const m of marks) {
+    const markCount = marks?.length ?? 0;
+    maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
+
+    for (let i = 0; i < maxMarkCountRef.current; i++) {
+      const m = marks?.[i];
+      if (m) {
         const stateColor = getColorForKey(m.stateName);
         allSeries.push({
-          name: `__mark_${m.label}_${m.stateName}`,
+          name: `__mark_${i}`,
           type: 'line',
           step: 'middle',
           data: [
@@ -134,7 +130,20 @@ export function Timeline({
             color: withOpacity(stateColor, markAreaFillOpacity),
             opacity: 1,
           },
-
+          tooltip: { show: false },
+          silent: true,
+          animation: false,
+          yAxisIndex: 1,
+        });
+      } else {
+        allSeries.push({
+          name: `__mark_${i}`,
+          type: 'line',
+          data: [],
+          zlevel: 1,
+          symbolSize: 0,
+          lineStyle: { width: 0 },
+          areaStyle: { opacity: 0 },
           tooltip: { show: false },
           silent: true,
           animation: false,
@@ -145,12 +154,6 @@ export function Timeline({
 
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
-
-  const [prevSeriesCount, setPrevSeriesCount] = useState(seriesOptions.length);
-  const notMerge = seriesOptions.length < prevSeriesCount;
-  useEffect(() => {
-    setPrevSeriesCount(seriesOptions.length);
-  }, [seriesOptions.length]);
 
   const yAxisOptions = useMemo(
     () => [
@@ -189,13 +192,16 @@ export function Timeline({
     [gridBorderColor, timelineMarkupColor]
   );
 
+  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+
   const xAxisOptions = useMemo(
     () => ({
       boundaryGap: false,
       type: 'time',
       animation: false,
       show: true,
-      ...(xAxisRange && { min: xAxisRange.min, max: xAxisRange.max }),
+      min: startTimeMs,
+      max: startTimeMs + durationSeconds * 1_000,
       axisLine: {
         show: true,
         onZero: true,
@@ -217,7 +223,7 @@ export function Timeline({
         },
       },
     }),
-    [timelineMarkupColor, gridBorderColor, xAxisRange]
+    [timelineMarkupColor, gridBorderColor, startTimeMs, durationSeconds]
   );
 
   const gridOptions = useMemo(
@@ -233,6 +239,7 @@ export function Timeline({
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
+      animation: false,
       tooltip: {
         show: true,
         showContent: showTooltip,
@@ -245,10 +252,14 @@ export function Timeline({
         confine: true,
         appendToBody: true,
         formatter: function (hoveredSeries: unknown) {
+          if (isDraggingRef.current) return '';
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries
-            .filter((p: { seriesName: string }) => p.seriesName !== '__marks__')
+            .filter(
+              (p: { seriesName: string; data?: number[] }) =>
+                !p.seriesName.startsWith('__mark_') && p.data != null
+            )
             .map((p: { color: string; seriesName: string; data: number[] }) => {
               return {
                 color: p.color,
@@ -280,23 +291,24 @@ export function Timeline({
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
       series: seriesOptions,
-      ...(xAxisRange
-        ? {}
-        : {
-            toolbox: {
-              show: false,
-              feature: { dataZoom: { yAxisIndex: 'none' } },
-            },
-            dataZoom: [
-              {
-                type: 'slider',
-                show: false,
-                realtime: true,
-                xAxisIndex: 'all',
-                filterMode: 'none',
-              },
-            ],
-          }),
+      dataZoom: [
+        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'inside',
+          zoomLock: true,
+          zoomOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+        },
+        {
+          type: 'inside',
+          zoomOnMouseWheel: 'shift',
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+        },
+      ],
     } as EChartsOption;
   }, [
     showTooltip,
@@ -304,34 +316,25 @@ export function Timeline({
     xAxisOptions,
     yAxisOptions,
     seriesOptions,
-    xAxisRange,
     startTime,
     series,
     marks,
   ]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);
+  const isDraggingRef = useRef(false);
 
-  const handleChartReady = useCallback(
-    (instance: EChartsInstance) => {
-      instanceRef.current = instance;
-      if (xAxisRange) {
-        registerAxisPointerSync(instance);
-      } else {
-        connectChart(instance);
-        registerAxisPointerSync(instance);
-      }
-    },
-    [xAxisRange]
-  );
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    instanceRef.current = instance;
+    connectChart(instance, CHART_GROUP, false);
 
-  useEffect(() => {
-    return () => {
-      if (instanceRef.current) {
-        unregisterAxisPointerSync(instanceRef.current);
-        instanceRef.current = null;
-      }
-    };
+    instance.getDom().addEventListener('pointerdown', () => {
+      isDraggingRef.current = true;
+      instance.dispatchAction({ type: 'hideTip' });
+    });
+    instance.getDom().addEventListener('pointerup', () => {
+      isDraggingRef.current = false;
+    });
   }, []);
 
   return (
@@ -340,7 +343,7 @@ export function Timeline({
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
-      notMerge={notMerge}
+      notMerge={false}
       lazyUpdate
     />
   );

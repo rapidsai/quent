@@ -55,7 +55,7 @@ const AccordionTrigger = React.forwardRef<
       <AccordionPrimitive.Trigger
         ref={ref}
         className={cn(
-          `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative ${rowSurfaceClasses}`,
+          `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative outline-none ${rowSurfaceClasses}`,
           className
         )}
         {...props}
@@ -264,7 +264,7 @@ const TreeLeaf = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          `flex text-left items-center before:right-1 text-foreground w-full min-w-0 px-0 relative ${rowSurfaceClasses}`,
+          `flex text-left items-center before:right-1 text-foreground w-full min-w-0 px-0 relative outline-none ${rowSurfaceClasses}`,
           treeVariants(),
           className,
           isSelected && selectedTreeVariants(),
@@ -706,7 +706,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   };
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full select-none">
       <div
         ref={containerRef}
         className={cn(

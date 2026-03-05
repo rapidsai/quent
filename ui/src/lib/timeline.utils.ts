@@ -292,7 +292,11 @@ export function getChartGroupZoomState(
   return null;
 }
 
-export const connectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+export const connectChart = (
+  instance: EChartsInstance,
+  chartGroup: string = CHART_GROUP,
+  activateBrushSelect = true
+) => {
   // Sync zoom state from any existing chart in the group before connecting
   const zoomState = getChartGroupZoomState(chartGroup);
   if (zoomState) {
@@ -301,23 +305,23 @@ export const connectChart = (instance: EChartsInstance, chartGroup: string = CHA
     });
   }
 
-  // Activate the dataZoom brush tool by default
-  instance.dispatchAction({
-    type: 'takeGlobalCursor',
-    key: 'dataZoomSelect',
-    dataZoomSelectActive: true,
-  });
+  if (activateBrushSelect) {
+    instance.dispatchAction({
+      type: 'takeGlobalCursor',
+      key: 'dataZoomSelect',
+      dataZoomSelectActive: true,
+    });
+  }
 
   instance.group = chartGroup;
   connect(chartGroup);
 };
 
-/* Axis pointer sync — manual crosshair sync across disconnected charts
+/* Axis pointer sync — manual crosshair sync across charts
  *
- * Charts that use xAxisRange (windowed) can't use echarts.connect() because
- * it would also sync dataZoom. Instead we manually broadcast showTip/hideTip
- * by converting a shared timestamp to each chart's local pixel coordinate.
- *
+ * We manually broadcast showTip/hideTip by converting a shared timestamp
+ * to each chart's local pixel coordinate, since the controller uses a
+ * different xAxis type (value) than the resource timelines (time).
  */
 
 interface AxisPointerEntry {
