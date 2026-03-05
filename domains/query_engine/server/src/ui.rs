@@ -64,7 +64,7 @@ struct ListEnginesQuery {
     path = "/api/engines",
     tag = "engines",
     responses(
-        (status = 200, description = "List of all available engine UUIDs", body = [String])
+        (status = 200, description = "List of engines, optionally with metadata via ?with_metadata=true", body = [Object])
     )
 ))]
 #[tracing::instrument(skip_all, err)]

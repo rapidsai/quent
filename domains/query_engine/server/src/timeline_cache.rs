@@ -7,7 +7,7 @@ use std::{
 use moka::future::Cache;
 use quent_analyzer::Span;
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
-use quent_time::to_secs;
+use quent_time::{SpanNanoSec, TimeNanoSec, to_nanosecs, to_secs_relative};
 use quent_ui::timeline::{
     request::{SingleTimelineRequest, TimelineConfig},
     response::{
@@ -22,9 +22,9 @@ use uuid::Uuid;
 use crate::error::ServerResult;
 
 /// Target number of chunks visible in the current view range.
-const TARGET_CHUNKS_PER_VIEW: u32 = 2;
+const TARGET_CHUNKS_PER_VIEW: u64 = 2;
 /// Maximum zoom level (number of chunks the timeline is divided into).
-const MAX_ZOOM_LEVEL: u32 = 10;
+const MAX_ZOOM_LEVEL: u64 = 10;
 
 /// Cache for timeline chunk responses.
 #[derive(Clone)]
@@ -56,25 +56,31 @@ impl TimelineCache {
         <A as UiAnalyzer>::TimelineGlobalParams: Serialize + Clone,
         <A as UiAnalyzer>::TimelineParams: Serialize + Clone,
     {
-        // Get total engine duration in seconds.
         let engine_span = analyzer.query_engine_model().engine()?.span()?;
-        let duration_s = to_secs(engine_span.duration());
+        let engine_duration = engine_span.duration();
+        let epoch = engine_span.start();
 
-        if duration_s <= 0.0 {
+        if engine_duration == 0 {
             return Ok(analyzer.single_resource_timeline(request)?);
         }
 
-        let req_start = request.config.start;
-        let req_end = request.config.end;
+        // Convert request seconds to absolute nanoseconds.
+        let req_start = epoch + to_nanosecs(request.config.start);
+        let req_end = epoch + to_nanosecs(request.config.end);
+        let req_span = match SpanNanoSec::try_new(req_start, req_end) {
+            Ok(span) => span,
+            Err(_) => return Ok(analyzer.single_resource_timeline(request)?),
+        };
+
         let num_bins = request.config.num_bins;
-        let view_range = req_end - req_start;
+        let view_duration = req_span.duration();
 
-        if view_range <= 0.0 {
+        if view_duration == 0 {
             return Ok(analyzer.single_resource_timeline(request)?);
         }
 
-        let zoom_level = determine_zoom_level(view_range, duration_s);
-        let chunk_size_s = duration_s / zoom_level as f64;
+        let zoom_level = determine_zoom_level(view_duration, engine_duration);
+        let chunk_duration = engine_duration / zoom_level;
 
         // Hash the entry + app_params for cache key construction.
         let params_hash = {
@@ -88,15 +94,17 @@ impl TimelineCache {
         // Fetch overlapping chunks from cache or compute them.
         let mut chunk_responses: Vec<SingleTimelineResponse> = Vec::new();
         for chunk_idx in 0..zoom_level {
-            let chunk_start = chunk_idx as f64 * chunk_size_s;
+            let chunk_start = epoch + chunk_idx * chunk_duration;
             let chunk_end = if chunk_idx == zoom_level - 1 {
-                duration_s
+                engine_span.end()
             } else {
-                (chunk_idx + 1) as f64 * chunk_size_s
+                epoch + (chunk_idx + 1) * chunk_duration
             };
 
-            // Skip non-overlapping chunks.
-            if chunk_start >= req_end || chunk_end <= req_start {
+            let chunk_span = SpanNanoSec::try_new(chunk_start, chunk_end)
+                .expect("chunk boundaries are always valid");
+
+            if !chunk_span.intersects(&req_span) {
                 continue;
             }
 
@@ -111,11 +119,12 @@ impl TimelineCache {
 
             debug!("timeline chunk cache miss: {cache_key}");
 
+            // Convert chunk span back to relative seconds for the request.
             let chunk_request = SingleTimelineRequest {
                 config: TimelineConfig {
                     num_bins,
-                    start: chunk_start,
-                    end: chunk_end,
+                    start: to_secs_relative(chunk_start, epoch),
+                    end: to_secs_relative(chunk_end, epoch),
                 },
                 entry: request.entry.clone(),
                 app_params: request.app_params.clone(),
@@ -130,27 +139,29 @@ impl TimelineCache {
             return Ok(analyzer.single_resource_timeline(request)?);
         }
 
+        // Convert request back to relative seconds for combining.
+        let req_start_s = to_secs_relative(req_start, epoch);
+        let req_end_s = to_secs_relative(req_end, epoch);
+
         if chunk_responses.len() == 1 {
             let chunk = chunk_responses.into_iter().next().unwrap();
-            if (chunk.config.span.start() - req_start).abs() < 1e-9
-                && (chunk.config.span.end() - req_end).abs() < 1e-9
+            if (chunk.config.span.start() - req_start_s).abs() < 1e-9
+                && (chunk.config.span.end() - req_end_s).abs() < 1e-9
             {
                 return Ok(chunk);
             }
-            // Single chunk but needs slicing.
-            return Ok(combine_chunks(&[chunk], req_start, req_end));
+            return Ok(combine_chunks(&[chunk], req_start_s, req_end_s));
         }
 
-        Ok(combine_chunks(&chunk_responses, req_start, req_end))
+        Ok(combine_chunks(&chunk_responses, req_start_s, req_end_s))
     }
 }
 
-fn determine_zoom_level(view_range: f64, total_duration: f64) -> u32 {
-    if view_range <= 0.0 {
+fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec) -> u64 {
+    if view_duration == 0 {
         return 1;
     }
-    let view_pct = (view_range / total_duration) * 100.0;
-    let target = ((100.0 * TARGET_CHUNKS_PER_VIEW as f64) / view_pct) as u32;
+    let target = (total_duration * TARGET_CHUNKS_PER_VIEW) / view_duration;
     target.clamp(1, MAX_ZOOM_LEVEL)
 }
 
