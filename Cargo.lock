@@ -1325,6 +1325,7 @@ dependencies = [
  "quent-attributes",
  "quent-events",
  "quent-query-engine-analyzer",
+ "quent-query-engine-events",
  "quent-query-engine-ui",
  "quent-simulator-events",
  "quent-simulator-ui",
@@ -1375,6 +1376,7 @@ dependencies = [
  "tokio",
  "tracing",
  "ts-rs",
+ "uuid",
 ]
 
 [[package]]

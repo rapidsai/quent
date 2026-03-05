@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
 
-mod cache;
-mod error;
+pub mod cache;
+pub mod error;
 mod ui;
 
 pub fn initialize_tracing(log_level: &str) {
@@ -48,6 +48,7 @@ where
 
 pub fn analyzer_service_router<A>(
     importer: Box<cache::ImporterFn<A>>,
+    lister: Box<cache::ListerFn>,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
@@ -58,7 +59,7 @@ where
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
-    let cache = AnalyzerCache::<A>::new(importer);
+    let cache = AnalyzerCache::<A>::new(importer, lister);
 
     let mut http_routes = axum::Router::new().nest("/analyzer", ui::routes(cache));
 

@@ -18,7 +18,7 @@ def test_list_engines(client, mock_rust_client, sample_engine_data):
     assert isinstance(data, list)
     assert len(data) == 1
     assert data[0]["id"] == "engine-1"
-    mock_rust_client.get.assert_called_once_with("/analyzer/list_engines")
+    mock_rust_client.get.assert_called_once_with("/analyzer/list_engines", params={"with_metadata": "false"})
 
 
 @pytest.mark.unit
