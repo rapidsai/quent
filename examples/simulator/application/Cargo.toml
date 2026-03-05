@@ -2,7 +2,7 @@
 name = "quent-simulator"
 version.workspace = true
 edition.workspace =  true
-
+publish.workspace = true
 [dependencies]
 clap = {version = "4.5.57", features = ["derive", "env"] }
 petgraph = "0.8.3"

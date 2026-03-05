@@ -2,7 +2,7 @@
 name = "quent-exporter"
 version.workspace = true
 edition.workspace = true
-
+publish.workspace = true
 [features]
 default = ["ndjson", "msgpack", "postcard", "collector"]
 ndjson = ["dep:quent-exporter-ndjson"]

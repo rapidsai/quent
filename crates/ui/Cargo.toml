@@ -2,7 +2,7 @@
 name = "quent-ui"
 version.workspace = true
 edition.workspace =  true
-
+publish.workspace = true
 [dependencies]
 quent-analyzer = { path = "../analyzer" }
 quent-time = { path = "../time", features = ["ts"] }

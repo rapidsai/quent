@@ -2,7 +2,7 @@
 name = "quent-exporter-postcard"
 version.workspace = true
 edition.workspace = true
-
+publish.workspace = true
 [dependencies]
 async-trait.workspace = true
 postcard.workspace = true
