@@ -134,8 +134,19 @@ pub struct SpanSec {
 
 impl SpanSec {
     /// Construct a new SpanSec.
-    pub fn new(start: TimeSec, end: TimeSec) -> Self {
-        Self { start, end }
+    ///
+    /// `start` must precede `end`, otherwise this function will return an
+    /// error.
+    ///
+    /// If the start and end time is equal, the duration of this span is zero.
+    pub fn try_new(start: TimeSec, end: TimeSec) -> Result<SpanSec> {
+        if end < start {
+            Err(TimeError::InvalidArgument(format!(
+                "Span cannot be constructed with end ({end}) preceding start ({start})"
+            )))
+        } else {
+            Ok(Self { start, end })
+        }
     }
 
     /// Return the start time of this Span.

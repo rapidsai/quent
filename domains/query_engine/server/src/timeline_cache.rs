@@ -7,7 +7,7 @@ use std::{
 use moka::future::Cache;
 use quent_analyzer::Span;
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
-use quent_time::{SpanNanoSec, TimeNanoSec, to_nanosecs, to_secs_relative};
+use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan, to_nanosecs, to_secs_relative};
 use quent_ui::timeline::{
     request::{SingleTimelineRequest, TimelineConfig},
     response::{
@@ -26,10 +26,20 @@ const TARGET_CHUNKS_PER_VIEW: u64 = 2;
 /// Maximum zoom level (number of chunks the timeline is divided into).
 const MAX_ZOOM_LEVEL: u64 = 10;
 
+/// Key identifying a cached timeline chunk.
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+struct ChunkCacheKey {
+    engine_id: Uuid,
+    params_hash: u64,
+    zoom_level: u64,
+    chunk_idx: u64,
+    num_bins: u16,
+}
+
 /// Cache for timeline chunk responses.
 #[derive(Clone)]
 pub struct TimelineCache {
-    chunks: Cache<String, SingleTimelineResponse>,
+    chunks: Cache<ChunkCacheKey, SingleTimelineResponse>,
 }
 
 impl TimelineCache {
@@ -72,6 +82,9 @@ impl TimelineCache {
             Err(_) => return Ok(analyzer.single_resource_timeline(request)?),
         };
 
+        // Each chunk uses the same num_bins, so the combined result may contain
+        // up to zoom_level * num_bins bins. The response config reflects the
+        // actual count, and the frontend adapts accordingly.
         let num_bins = request.config.num_bins;
         let view_duration = req_span.duration();
 
@@ -84,8 +97,8 @@ impl TimelineCache {
 
         // Hash the entry + app_params for cache key construction.
         let params_hash = {
-            let serialized =
-                serde_json::to_string(&(&request.entry, &request.app_params)).unwrap_or_default();
+            let serialized = serde_json::to_string(&(&request.entry, &request.app_params))
+                .map_err(|e| crate::error::ServerError::Cache(e.to_string()))?;
             let mut hasher = DefaultHasher::new();
             serialized.hash(&mut hasher);
             hasher.finish()
@@ -101,23 +114,27 @@ impl TimelineCache {
                 epoch + (chunk_idx + 1) * chunk_duration
             };
 
-            let chunk_span = SpanNanoSec::try_new(chunk_start, chunk_end)
-                .expect("chunk boundaries are always valid");
+            let chunk_span = SpanNanoSec::try_new(chunk_start, chunk_end)?;
 
             if !chunk_span.intersects(&req_span) {
                 continue;
             }
 
-            let cache_key =
-                format!("{engine_id}:{params_hash:x}:z{zoom_level}:c{chunk_idx}:{num_bins}");
+            let cache_key = ChunkCacheKey {
+                engine_id,
+                params_hash,
+                zoom_level,
+                chunk_idx,
+                num_bins,
+            };
 
             if let Some(cached) = self.chunks.get(&cache_key).await {
-                debug!("timeline chunk cache hit: {cache_key}");
+                debug!("timeline chunk cache hit: {cache_key:?}");
                 chunk_responses.push(cached);
                 continue;
             }
 
-            debug!("timeline chunk cache miss: {cache_key}");
+            debug!("timeline chunk cache miss: {cache_key:?}");
 
             // Convert chunk span back to relative seconds for the request.
             let chunk_request = SingleTimelineRequest {
@@ -139,21 +156,17 @@ impl TimelineCache {
             return Ok(analyzer.single_resource_timeline(request)?);
         }
 
-        // Convert request back to relative seconds for combining.
-        let req_start_s = to_secs_relative(req_start, epoch);
-        let req_end_s = to_secs_relative(req_end, epoch);
-
         if chunk_responses.len() == 1 {
             let chunk = chunk_responses.into_iter().next().unwrap();
-            if (chunk.config.span.start() - req_start_s).abs() < 1e-9
-                && (chunk.config.span.end() - req_end_s).abs() < 1e-9
-            {
+            let chunk_start_ns = epoch + to_nanosecs(chunk.config.span.start());
+            let chunk_end_ns = epoch + to_nanosecs(chunk.config.span.end());
+            if chunk_start_ns == req_span.start() && chunk_end_ns == req_span.end() {
                 return Ok(chunk);
             }
-            return Ok(combine_chunks(&[chunk], req_start_s, req_end_s));
+            return combine_chunks(&[chunk], req_span, epoch);
         }
 
-        Ok(combine_chunks(&chunk_responses, req_start_s, req_end_s))
+        combine_chunks(&chunk_responses, req_span, epoch)
     }
 }
 
@@ -167,20 +180,34 @@ fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec)
 
 fn combine_chunks(
     chunks: &[SingleTimelineResponse],
-    req_start: f64,
-    req_end: f64,
-) -> SingleTimelineResponse {
+    req_span: SpanNanoSec,
+    epoch: TimeNanoSec,
+) -> ServerResult<SingleTimelineResponse> {
     let mut sorted: Vec<&SingleTimelineResponse> = chunks.iter().collect();
     sorted.sort_by(|a, b| {
         a.config
             .span
             .start()
             .partial_cmp(&b.config.span.start())
-            .unwrap()
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let bin_duration = sorted[0].config.bin_duration;
     let is_binned_by_state = matches!(&sorted[0].data, ResourceTimeline::BinnedByState(_));
+
+    // Collect long_fsms from all chunks, deduplicated by ID.
+    let mut seen_fsm_ids = std::collections::HashSet::new();
+    let mut long_fsms = Vec::new();
+    for chunk in &sorted {
+        let chunk_fsms = match &chunk.data {
+            ResourceTimeline::Binned(data) => &data.long_fsms,
+            ResourceTimeline::BinnedByState(data) => &data.long_fsms,
+        };
+        for fsm in chunk_fsms {
+            if seen_fsm_ids.insert(fsm.id) {
+                long_fsms.push(fsm.clone());
+            }
+        }
+    }
 
     if is_binned_by_state {
         let mut combined: std::collections::HashMap<
@@ -190,7 +217,7 @@ fn combine_chunks(
         let mut total_bins: u64 = 0;
 
         for chunk in &sorted {
-            let (start_idx, end_idx) = overlap_indices(chunk, req_start, req_end);
+            let (start_idx, end_idx) = overlap_indices(chunk, &req_span, epoch);
             if start_idx >= end_idx {
                 continue;
             }
@@ -209,24 +236,30 @@ fn combine_chunks(
             }
         }
 
-        SingleTimelineResponse {
-            config: quent_time::bin::BinnedSpanSec {
-                span: quent_time::span::SpanSec::new(req_start, req_end),
-                bin_duration,
-                num_bins: total_bins,
-            },
+        let config = BinnedSpan::try_new(
+            req_span,
+            std::num::NonZero::try_from(total_bins).map_err(|e| {
+                quent_time::TimeError::InvalidArgument(format!(
+                    "combined bins must be > 0: {e}"
+                ))
+            })?,
+        )?
+        .try_to_secs_relative(epoch)?;
+
+        Ok(SingleTimelineResponse {
+            config,
             data: ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
                 capacities_states_values: combined,
-                long_fsms: Vec::new(),
+                long_fsms,
             }),
-        }
+        })
     } else {
         let mut combined: std::collections::HashMap<String, Vec<f64>> =
             std::collections::HashMap::new();
         let mut total_bins: u64 = 0;
 
         for chunk in &sorted {
-            let (start_idx, end_idx) = overlap_indices(chunk, req_start, req_end);
+            let (start_idx, end_idx) = overlap_indices(chunk, &req_span, epoch);
             if start_idx >= end_idx {
                 continue;
             }
@@ -242,35 +275,50 @@ fn combine_chunks(
             }
         }
 
-        SingleTimelineResponse {
-            config: quent_time::bin::BinnedSpanSec {
-                span: quent_time::span::SpanSec::new(req_start, req_end),
-                bin_duration,
-                num_bins: total_bins,
-            },
+        let config = BinnedSpan::try_new(
+            req_span,
+            std::num::NonZero::try_from(total_bins).map_err(|e| {
+                quent_time::TimeError::InvalidArgument(format!(
+                    "combined bins must be > 0: {e}"
+                ))
+            })?,
+        )?
+        .try_to_secs_relative(epoch)?;
+
+        Ok(SingleTimelineResponse {
+            config,
             data: ResourceTimeline::Binned(ResourceTimelineBinned {
                 capacities_values: combined,
-                long_fsms: Vec::new(),
+                long_fsms,
             }),
-        }
+        })
     }
 }
 
-fn overlap_indices(chunk: &SingleTimelineResponse, req_start: f64, req_end: f64) -> (usize, usize) {
-    let chunk_start = chunk.config.span.start();
-    let chunk_end = chunk.config.span.end();
-    let bin_duration = chunk.config.bin_duration;
+fn overlap_indices(
+    chunk: &SingleTimelineResponse,
+    req_span: &SpanNanoSec,
+    epoch: TimeNanoSec,
+) -> (usize, usize) {
+    let chunk_start = epoch + to_nanosecs(chunk.config.span.start());
+    let chunk_end = epoch + to_nanosecs(chunk.config.span.end());
+    let bin_duration_ns = to_nanosecs(chunk.config.bin_duration);
     let num_bins = chunk.config.num_bins as usize;
 
-    if chunk_end <= req_start || chunk_start >= req_end || bin_duration <= 0.0 {
+    let chunk_span = match SpanNanoSec::try_new(chunk_start, chunk_end) {
+        Ok(s) => s,
+        Err(_) => return (0, 0),
+    };
+
+    if !chunk_span.intersects(req_span) || bin_duration_ns == 0 {
         return (0, 0);
     }
 
-    let overlap_start = req_start.max(chunk_start);
-    let overlap_end = req_end.min(chunk_end);
+    let overlap_start = req_span.start().max(chunk_start);
+    let overlap_end = req_span.end().min(chunk_end);
 
-    let start_idx = ((overlap_start - chunk_start) / bin_duration).round() as usize;
-    let end_idx = ((overlap_end - chunk_start) / bin_duration).round() as usize;
+    let start_idx = ((overlap_start - chunk_start) / bin_duration_ns) as usize;
+    let end_idx = (overlap_end - chunk_start).div_ceil(bin_duration_ns) as usize;
 
     (start_idx.min(num_bins), end_idx.min(num_bins))
 }

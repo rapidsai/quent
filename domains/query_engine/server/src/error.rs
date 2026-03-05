@@ -15,6 +15,8 @@ pub enum ServerError {
     Cache(String),
     #[error("task join error: {0}")]
     Join(#[from] tokio::task::JoinError),
+    #[error("time error: {0}")]
+    Time(#[from] quent_time::TimeError),
 }
 
 pub type ServerResult<T> = std::result::Result<T, ServerError>;
@@ -26,7 +28,8 @@ impl From<ServerError> for StatusCode {
             | ServerError::Analyzer(_)
             | ServerError::Io(_)
             | ServerError::Cache(_)
-            | ServerError::Join(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ServerError::Join(_)
+            | ServerError::Time(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
