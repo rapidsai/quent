@@ -2,7 +2,7 @@
 name = "quent-query-engine-server"
 version.workspace = true
 edition.workspace =  true
-
+publish.workspace = true
 [features]
 swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
 ui = ["dep:mime_guess", "dep:rust-embed"]
