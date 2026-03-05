@@ -105,9 +105,9 @@ impl TimelineCache {
         // Compute the range of chunk indices that overlap the request.
         let first_chunk =
             ((req_span.start().saturating_sub(epoch)) / chunk_duration).min(zoom_level - 1);
-        let last_chunk =
-            ((req_span.end().saturating_sub(1).saturating_sub(epoch)) / chunk_duration)
-                .min(zoom_level - 1);
+        let last_chunk = ((req_span.end().saturating_sub(1).saturating_sub(epoch))
+            / chunk_duration)
+            .min(zoom_level - 1);
 
         let mut chunk_responses: Vec<SingleTimelineResponse> = Vec::new();
         for chunk_idx in first_chunk..=last_chunk {
@@ -236,9 +236,7 @@ fn combine_chunks(
         let config = BinnedSpan::try_new(
             req_span,
             std::num::NonZero::try_from(total_bins).map_err(|e| {
-                quent_time::TimeError::InvalidArgument(format!(
-                    "combined bins must be > 0: {e}"
-                ))
+                quent_time::TimeError::InvalidArgument(format!("combined bins must be > 0: {e}"))
             })?,
         )?
         .try_to_secs_relative(epoch)?;
@@ -275,9 +273,7 @@ fn combine_chunks(
         let config = BinnedSpan::try_new(
             req_span,
             std::num::NonZero::try_from(total_bins).map_err(|e| {
-                quent_time::TimeError::InvalidArgument(format!(
-                    "combined bins must be > 0: {e}"
-                ))
+                quent_time::TimeError::InvalidArgument(format!("combined bins must be > 0: {e}"))
             })?,
         )?
         .try_to_secs_relative(epoch)?;
