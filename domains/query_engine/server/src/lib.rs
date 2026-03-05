@@ -1,6 +1,6 @@
 //! Utilities for server implementations
 
-use crate::cache::AnalyzerCache;
+use crate::{analyzer_cache::AnalyzerCache, state::ServiceState, timeline_cache::TimelineCache};
 use axum::Router as AxumRouter;
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
@@ -9,8 +9,10 @@ use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
 
-pub mod cache;
+pub mod analyzer_cache;
 pub mod error;
+mod state;
+mod timeline_cache;
 mod ui;
 
 pub fn initialize_tracing(log_level: &str) {
@@ -47,21 +49,33 @@ where
 }
 
 pub fn analyzer_service_router<A>(
-    importer: Box<cache::ImporterFn<A>>,
-    lister: Box<cache::ListerFn>,
+    importer: Box<analyzer_cache::ImporterFn<A>>,
+    lister: Box<analyzer_cache::ListerFn>,
     cors: Option<String>,
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
-    let cache = AnalyzerCache::<A>::new(importer, lister);
+    let state = ServiceState {
+        analyzers: AnalyzerCache::<A>::new(importer, lister),
+        timelines: TimelineCache::new(),
+    };
 
-    let mut http_routes = axum::Router::new().nest("/analyzer", ui::routes(cache));
+    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(state));
+
+    #[cfg(feature = "swagger")]
+    {
+        use utoipa::OpenApi;
+        use utoipa_swagger_ui::SwaggerUi;
+        let api = ui::ApiDoc::openapi();
+        http_routes =
+            http_routes.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
+    }
 
     if let Some(cors) = cors {
         let cors = CorsLayer::new()
@@ -73,6 +87,11 @@ where
             ])
             .allow_headers([axum::http::header::CONTENT_TYPE]);
         http_routes = http_routes.layer(cors);
+    }
+
+    #[cfg(feature = "ui")]
+    {
+        http_routes = http_routes.fallback(axum::routing::get(ui::embedded::serve));
     }
 
     Ok(http_routes)

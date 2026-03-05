@@ -29,12 +29,12 @@ impl EntityId for EntityRef {
     }
 }
 
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct TaskFilter {
     pub operator_id: Option<Uuid>,
 }
 
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct QueryFilter {
     pub query_id: Uuid,
 }

@@ -2,7 +2,7 @@
 name = "quent-collector-client"
 version.workspace = true
 edition.workspace = true
-
+publish.workspace = true
 [dependencies]
 ciborium = "0.2.2"
 quent-collector-proto = { path = "../proto" }

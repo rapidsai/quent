@@ -3,12 +3,12 @@ use std::{collections::HashMap, num::NonZero};
 use quent_time::{
     TimeError, TimeSec, TimeUnixNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec, to_nanosecs,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
 /// Configuration of the window and number of bins of a timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineConfig {
     /// The number of bins for binned timelines.
     pub num_bins: u16,
@@ -35,7 +35,7 @@ impl TimelineConfig {
     }
 }
 
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct EntityFilter {
     /// If set, only include utilizations from entities with this type name.
     ///
@@ -46,7 +46,7 @@ pub struct EntityFilter {
 }
 
 /// Parameters for requesting a resource timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceTimelineRequest<TimelineParams> {
     /// The ID of the resource
     pub resource_id: Uuid,
@@ -59,7 +59,7 @@ pub struct ResourceTimelineRequest<TimelineParams> {
 }
 
 /// Parameters for requesting a resource group timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceGroupTimelineRequest<TimelineParams> {
     /// The ID of the resource group
     pub resource_group_id: Uuid,
@@ -76,7 +76,7 @@ pub struct ResourceGroupTimelineRequest<TimelineParams> {
 }
 
 /// Timeline request parameters unrelated to timing or binning.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub enum TimelineRequest<TimelineParams> {
     /// Request for a resource timeline.
     Resource(ResourceTimelineRequest<TimelineParams>),
@@ -85,7 +85,7 @@ pub enum TimelineRequest<TimelineParams> {
 }
 
 /// Request for a single timeline.
-#[derive(TS, Debug, Deserialize)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct SingleTimelineRequest<GlobalParams, TimelineParams> {
     /// The configuration of the window and number of bins.
     pub config: TimelineConfig,
