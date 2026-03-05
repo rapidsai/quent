@@ -73,8 +73,8 @@ impl TimelineCache {
         }
 
         // Convert request seconds to absolute nanoseconds.
-        let req_start = epoch + to_nanosecs(request.config.start);
-        let req_end = epoch + to_nanosecs(request.config.end);
+        let req_start = epoch + to_nanosecs(request.entry.config().start);
+        let req_end = epoch + to_nanosecs(request.entry.config().end);
         let req_span = match SpanNanoSec::try_new(req_start, req_end) {
             Ok(span) => span,
             Err(_) => return Ok(analyzer.single_resource_timeline(request)?),
@@ -83,7 +83,7 @@ impl TimelineCache {
         // Each chunk uses the same num_bins, so the combined result may contain
         // up to zoom_level * num_bins bins. The response config reflects the
         // actual count, and the frontend adapts accordingly.
-        let num_bins = request.config.num_bins;
+        let num_bins = request.entry.config().num_bins;
         let view_duration = req_span.duration();
 
         if view_duration == 0 {
@@ -136,12 +136,11 @@ impl TimelineCache {
 
             // Convert chunk span back to relative seconds for the request.
             let chunk_request = SingleTimelineRequest {
-                config: TimelineConfig {
+                entry: request.entry.clone().with_config(TimelineConfig {
                     num_bins,
                     start: to_secs_relative(chunk_start, epoch),
                     end: to_secs_relative(chunk_end, epoch),
-                },
-                entry: request.entry.clone(),
+                }),
                 app_params: request.app_params.clone(),
             };
 
@@ -244,6 +243,7 @@ fn combine_chunks(
         Ok(SingleTimelineResponse {
             config,
             data: ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
+                config,
                 capacities_states_values: combined,
                 long_fsms,
             }),
@@ -281,6 +281,7 @@ fn combine_chunks(
         Ok(SingleTimelineResponse {
             config,
             data: ResourceTimeline::Binned(ResourceTimelineBinned {
+                config,
                 capacities_values: combined,
                 long_fsms,
             }),

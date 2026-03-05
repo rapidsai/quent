@@ -8,6 +8,8 @@ use crate::FiniteStateMachine;
 
 #[derive(TS, Debug, Clone, Serialize)]
 pub struct ResourceTimelineBinned {
+    /// The configuration of the binned timeline.
+    pub config: BinnedSpanSec,
     /// Maps a resource capacity name to a vector where each element holds an
     /// aggregated value of a time bin.
     pub capacities_values: HashMap<String, Vec<f64>>,
@@ -17,6 +19,8 @@ pub struct ResourceTimelineBinned {
 
 #[derive(TS, Debug, Clone, Serialize)]
 pub struct ResourceTimelineBinnedByState {
+    /// The configuration of the binned timeline.
+    pub config: BinnedSpanSec,
     /// Maps a resource capacity name to a map of a state name to a vector where
     /// each element holds an aggregated value of a time bin.
     pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
@@ -41,20 +45,29 @@ pub struct SingleTimelineResponse {
     pub data: ResourceTimeline,
 }
 
+/// A single entry in a bulk timeline response.
 #[derive(TS, Debug, Serialize)]
 #[serde(tag = "status")]
 pub enum BulkTimelinesResponseEntry {
     #[serde(rename = "ok")]
     Ok {
+        /// An informational message about the entry.
         message: String,
+        /// The configuration of the binned timeline for this entry.
+        config: BinnedSpanSec,
+        /// The timeline data for this entry.
         data: ResourceTimeline,
     },
     #[serde(rename = "error")]
-    Error { message: String },
+    Error {
+        /// A message describing the error.
+        message: String,
+    },
 }
 
+/// Response for a bulk timeline request.
 #[derive(TS, Debug, Serialize)]
 pub struct BulkTimelinesResponse {
-    pub config: BinnedSpanSec,
+    /// The timeline responses, keyed by the same keys as the request entries.
     pub entries: HashMap<String, BulkTimelinesResponseEntry>,
 }
