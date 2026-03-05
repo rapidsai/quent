@@ -17,6 +17,7 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
@@ -499,12 +500,12 @@ export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
-  operatorId: string | null = null,
-  windowSeconds?: number
+  config: TimelineConfig,
+  operatorId: string | null = null
 ): TimelineRequest<TaskFilter> {
   const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
-  const threshold = windowSeconds != null ? getLongEntitiesThreshold(windowSeconds) : null;
+  const threshold = getLongEntitiesThreshold(config.end - config.start);
 
   if (isGroup) {
     const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
@@ -515,6 +516,7 @@ export function buildBulkParamsForItem(
         long_entities_threshold_s: threshold,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
+        config,
       },
     };
   }
@@ -525,6 +527,7 @@ export function buildBulkParamsForItem(
       long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
+      config,
     },
   };
 }
@@ -538,19 +541,13 @@ export function collectVisibleEntries(
   expandedIds: Set<string>,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
-  operatorId: string | null = null,
-  windowSeconds?: number
+  config: TimelineConfig,
+  operatorId: string | null = null
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(
-      item,
-      selectedTypes,
-      entities,
-      operatorId,
-      windowSeconds
-    );
+    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, config, operatorId);
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

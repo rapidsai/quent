@@ -112,12 +112,12 @@ export function ResourceTimeline({
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
       const windowSeconds = end - start;
+      const config = {
+        num_bins: getAdaptiveNumBins(windowSeconds),
+        start,
+        end,
+      };
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
-        config: {
-          num_bins: getAdaptiveNumBins(windowSeconds),
-          start,
-          end,
-        },
         entry: isGroup
           ? {
               ResourceGroup: {
@@ -126,6 +126,7 @@ export function ResourceTimeline({
                 long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
+                config,
               },
             }
           : {
@@ -134,6 +135,7 @@ export function ResourceTimeline({
                 long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
+                config,
               },
             },
         app_params: { query_id: queryId },

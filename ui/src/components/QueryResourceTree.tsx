@@ -99,11 +99,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     ],
     queryFn: () => {
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
-        config: {
-          num_bins: getAdaptiveNumBins(durationSeconds),
-          start: 0,
-          end: durationSeconds,
-        },
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
@@ -111,6 +106,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             long_entities_threshold_s: getLongEntitiesThreshold(durationSeconds),
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
+            config: {
+              num_bins: getAdaptiveNumBins(durationSeconds),
+              start: 0,
+              end: durationSeconds,
+            },
           },
         },
         app_params: { query_id: queryBundle.query_id },
