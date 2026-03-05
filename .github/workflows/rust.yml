@@ -8,6 +8,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "**/*.proto"
+      - "pixi.toml"
       - ".github/workflows/rust.yml"
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "**/*.proto"
+      - "pixi.toml"
       - ".github/workflows/rust.yml"
 
 env:
@@ -28,15 +30,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
-      - uses: pnpm/action-setup@v4
+      - run: curl -fsSL https://pixi.sh/install.sh | bash && echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache@v4
         with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: pnpm
-          cache-dependency-path: ui/pnpm-lock.yaml
+          path: .pixi/
+          key: ${{ runner.os }}-pixi-${{ hashFiles('pixi.lock') }}
+          restore-keys: ${{ runner.os }}-pixi-
+      - run: pixi install
       - uses: actions/cache@v4
         with:
           path: |
@@ -45,12 +45,10 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --workspace --all-features --locked --all-targets
-      - run: cargo build --workspace --all-features --locked --release
+      - run: pixi run cargo fmt --all -- --check
+      - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: pixi run cargo test --workspace --all-features --locked --all-targets
+      - run: pixi run cargo build --workspace --all-features --locked --release
 
   markdown:
     name: Markdown
