@@ -170,7 +170,7 @@ function OverlayBarTooltip({
       )}
     >
       <div className="font-semibold mb-1.5 text-muted-foreground">
-        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+        {formatDuration(timestamp - Number(startTime / 1_000_000n))}
       </div>
       <div
         className="grid items-center gap-x-1.5 gap-y-1"
@@ -282,7 +282,7 @@ export function TooltipContent({
   return (
     <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
       <div className="font-semibold mb-1 text-muted-foreground">
-        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+        {formatDuration(timestamp - Number(startTime / 1_000_000n))}
       </div>
       <ul>
         {series

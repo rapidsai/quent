@@ -27,8 +27,7 @@ const LONG_ENTITIES_BIN_MULTIPLIER = 30;
  * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
  */
 export function getAdaptiveNumBins(windowSeconds: number): number {
-  const windowMs = windowSeconds * 1_000;
-  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+  return MAX_TIMELINE_BINS;
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
@@ -47,11 +46,17 @@ export function buildBinnedTimelineSeries(
 } {
   const { bin_duration, num_bins, span } = config;
 
-  const timestamps: number[] = [];
+  // This changes timestamps to be milliseconds.remainder which still works with
+  // echarts calculations.
   const numBinsNumber = Number(num_bins);
-  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
+  const startTimeMs = Number(startTime / 1_000_000n);
+  const subMsRemainder = Number(startTime % 1_000_000n) / 1_000_000;
+  const firstBinMs = startTimeMs + subMsRemainder + span.start * 1_000;
+  const binDurationMs = bin_duration * 1_000;
+
+  const timestamps = new Array<number>(numBinsNumber);
   for (let i = 0; i < numBinsNumber; i++) {
-    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
+    timestamps[i] = firstBinMs + i * binDurationMs;
   }
 
   // Build series based on data type
