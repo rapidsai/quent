@@ -108,7 +108,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
             config: {
-              num_bins: getAdaptiveNumBins(durationSeconds),
+              num_bins: getAdaptiveNumBins(),
               start: 0,
               end: durationSeconds,
             },

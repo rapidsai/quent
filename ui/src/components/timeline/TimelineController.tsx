@@ -63,7 +63,7 @@ export function TimelineController({
       const values = entries.length > 0 ? entries[0][1].values : null;
       return { timestamps: ts, seriesData: values };
     } else {
-      const numBins = getAdaptiveNumBins(durationSeconds);
+      const numBins = getAdaptiveNumBins();
       const binDurationMs = (durationSeconds * 1000) / numBins;
       const ts = Array.from({ length: numBins }, (_, i) => startTimeMillis + i * binDurationMs);
       return { timestamps: ts, seriesData: null };

@@ -31,13 +31,13 @@ export function nanosToMs(ns: bigint): number {
  * Computes the number of bins such that each bin is >= 1ms wide.
  * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
  */
-export function getAdaptiveNumBins(_windowSeconds: number): number {
+export function getAdaptiveNumBins(): number {
   return MAX_TIMELINE_BINS;
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
 export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins(windowSeconds);
+  const numBins = getAdaptiveNumBins();
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 

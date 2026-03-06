@@ -106,7 +106,7 @@ export function ResourceTimeline({
       const end = zoomRange?.end ?? durationSeconds;
       const windowSeconds = end - start;
       const config = {
-        num_bins: getAdaptiveNumBins(windowSeconds),
+        num_bins: getAdaptiveNumBins(),
         start,
         end,
       };

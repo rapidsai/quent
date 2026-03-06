@@ -154,9 +154,7 @@ export function formatDurationForWindow(ms: number, windowMs: number): string {
 
   const resolutionInUnit = resolution / unitMs;
   const decimals =
-    resolutionInUnit > 0
-      ? Math.min(6, Math.max(0, Math.ceil(-Math.log10(resolutionInUnit))))
-      : 2;
+    resolutionInUnit > 0 ? Math.min(6, Math.max(0, Math.ceil(-Math.log10(resolutionInUnit)))) : 2;
 
   return formatDuration(ms, decimals);
 }
