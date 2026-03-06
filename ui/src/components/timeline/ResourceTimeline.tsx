@@ -74,7 +74,8 @@ export function ResourceTimeline({
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
   const hideTasks = useAtomValue(hideTasksAtom);
   const density = useAtomValue(timelineDensityAtom);
-  const timelineHeight = density === 'compact' ? DEFAULT_TIMELINE_HEIGHT / 2 : DEFAULT_TIMELINE_HEIGHT;
+  const timelineHeight =
+    density === 'compact' ? DEFAULT_TIMELINE_HEIGHT / 2 : DEFAULT_TIMELINE_HEIGHT;
 
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;

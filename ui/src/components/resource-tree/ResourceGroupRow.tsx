@@ -21,16 +21,19 @@ export const ResourceGroupRow = ({
 }: ResourceGroupRowProps): React.ReactNode => {
   const hasMultipleChildTypes = (availableResourceTypes?.length ?? 0) > 1;
 
-  const selector = hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
-    <ResourceTypeSelector
-      id={id}
-      selectedType={selectedType}
-      availableResourceTypes={availableResourceTypes}
-      onTypeChange={onTypeChange}
-      compact={compact}
-      className={compact ? 'ml-2' : 'mt-1'}
-    />
-  );
+  const selector = hasMultipleChildTypes &&
+    selectedType &&
+    onTypeChange &&
+    availableResourceTypes && (
+      <ResourceTypeSelector
+        id={id}
+        selectedType={selectedType}
+        availableResourceTypes={availableResourceTypes}
+        onTypeChange={onTypeChange}
+        compact={compact}
+        className={compact ? 'ml-2' : 'mt-1'}
+      />
+    );
 
   if (compact) {
     return (

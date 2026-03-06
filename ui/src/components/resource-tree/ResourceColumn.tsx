@@ -24,7 +24,13 @@ export function ResourceColumn({
   const compact = useAtomValue(timelineDensityAtom) === 'compact';
 
   return (
-    <div className={cn('text-foreground flex truncate items-center', compact ? 'py-0' : 'py-2', className)}>
+    <div
+      className={cn(
+        'text-foreground flex truncate items-center',
+        compact ? 'py-0' : 'py-2',
+        className
+      )}
+    >
       <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
       <div>
         {item?.children?.length ? (

@@ -90,7 +90,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
           <div className="space-y-2">
             <span className="text-muted-foreground font-medium">Row height</span>
             <div className="inline-flex rounded-md border border-border overflow-hidden w-full">
-              {(['comfortable', 'compact'] as const).map((option) => (
+              {(['comfortable', 'compact'] as const).map(option => (
                 <button
                   key={option}
                   onClick={() => setDensity(option)}
