@@ -517,7 +517,7 @@ export function buildBulkParamsForItem(
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName,
-        long_entities_threshold_s: threshold,
+        long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
         config,
