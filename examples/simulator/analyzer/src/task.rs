@@ -210,6 +210,14 @@ impl Task {
         })
     }
 
+    /// Return the span of time in which this task was active, i.e.
+    /// non-queueing.
+    pub fn active_span(&self) -> Option<SpanUnixNanoSec> {
+        let start = self.transitions.get(1)?.timestamp();
+        let end = self.transitions.last()?.timestamp();
+        SpanUnixNanoSec::try_new(start, end).ok()
+    }
+
     /// Convert this Task to a UI-compatible FSM.
     pub fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
         let transitions = self

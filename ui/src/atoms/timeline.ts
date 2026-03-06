@@ -4,7 +4,6 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
-import type { XAxisRange } from '@/components/timeline/Timeline';
 
 /** Build a composite cache key for per-item timeline data */
 export function timelineCacheKey(
@@ -39,16 +38,6 @@ export const isTimelineHoveredAtom = atomFamily((itemId: string) =>
 
 /** Start time in milliseconds — set once per query, never changes */
 export const startTimeMsAtom = atom(0);
-
-/** Derived xAxis bounds from zoom range + start time */
-export const xAxisRangeAtom = atom<XAxisRange>(get => {
-  const startTimeMs = get(startTimeMsAtom);
-  const zoomRange = get(zoomRangeAtom);
-  return {
-    min: startTimeMs + zoomRange.start * 1_000,
-    max: startTimeMs + zoomRange.end * 1_000,
-  };
-});
 
 /** Flips to true after the first bulk fetch completes — gates individual fallback queries */
 export const bulkInitializedAtom = atom(false);

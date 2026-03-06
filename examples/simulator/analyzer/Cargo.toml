@@ -2,12 +2,13 @@
 name = "quent-simulator-analyzer"
 version.workspace = true
 edition.workspace =  true
-
+publish.workspace = true
 [dependencies]
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-attributes = { path = "../../../crates/attributes" }
 quent-events = { path = "../../../crates/events" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
+quent-query-engine-events = { path = "../../../domains/query_engine/events" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-simulator-events = { path = "../events" }
 quent-simulator-ui = { path = "../ui" }

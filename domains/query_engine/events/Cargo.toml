@@ -2,7 +2,7 @@
 name = "quent-query-engine-events"
 version.workspace = true
 edition.workspace =  true
-
+publish.workspace = true
 [dependencies]
 serde.workspace = true
 quent-attributes = { path = "../../../crates/attributes" }

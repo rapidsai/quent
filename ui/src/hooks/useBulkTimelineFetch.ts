@@ -5,11 +5,7 @@ import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import {
-  getAdaptiveNumBins,
-  getResourceTypeName,
-  setOperatorOnEntries,
-} from '@/lib/timeline.utils';
+import { getResourceTypeName, setOperatorOnEntries } from '@/lib/timeline.utils';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
 import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 
@@ -37,17 +33,8 @@ export function useBulkTimelineFetch({
   const { data } = useQuery<BulkTimelinesResponse>({
     queryKey: ['bulkTimelines', engineId, queryId, debouncedZoomRange, operatorId, entries],
     queryFn: () => {
-      let _entries = entries;
-      if (operatorId) {
-        _entries = setOperatorOnEntries(entries, operatorId);
-      }
-      const windowSec = debouncedZoomRange.end - debouncedZoomRange.start;
+      const _entries = operatorId ? setOperatorOnEntries(entries, operatorId) : entries;
       return fetchBulkTimelines(engineId, {
-        config: {
-          num_bins: getAdaptiveNumBins(windowSec),
-          start: debouncedZoomRange.start,
-          end: debouncedZoomRange.end,
-        },
         entries: _entries,
         app_params: { query_id: queryId },
       });
@@ -64,7 +51,7 @@ export function useBulkTimelineFetch({
         const resourceTypeName = getResourceTypeName(entries[id]);
         store.set(timelineDataAtom(timelineCacheKey(id, resourceTypeName, operatorId)), {
           data: entry.data,
-          config: data.config,
+          config: entry.config,
         });
       }
     }

@@ -2,7 +2,7 @@
 name = "quent-instrumentation"
 version.workspace = true
 edition.workspace = true
-
+publish.workspace = true
 [dependencies]
 quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }

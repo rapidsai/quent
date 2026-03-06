@@ -3,7 +3,7 @@
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_attributes::{Attribute, Value};
 use quent_query_engine_events as qe;
-use quent_time::{TimeSec, TimeUnixNanoSec};
+use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -37,13 +37,29 @@ pub struct Engine {
     /// The ID of this [`Engine`].
     pub id: Uuid,
     /// The timestamp at which this [`Engine`] started.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_time_unix_ns: Option<TimeUnixNanoSec>,
     /// The duration for which this [`Engine`] was alive.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_s: Option<TimeSec>,
     /// The name of this [`Engine`] instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_name: Option<String>,
     /// Details about the Engine implementation.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation: Option<EngineImplementationAttributes>,
+}
+
+impl Engine {
+    pub fn new(id: Uuid) -> Self {
+        Self {
+            id,
+            start_time_unix_ns: None,
+            duration_s: None,
+            instance_name: None,
+            implementation: None,
+        }
+    }
 }
 
 /// A group of [`Query`]s.
@@ -153,6 +169,15 @@ pub struct Operator {
     /// These are attributes that are typically gathered after the work
     /// described by an [`Operator`] has completed.
     pub statistics: Option<OperatorStatistics>,
+
+    /// The span of time between the first moment an operator started processing
+    /// an input, and the latest moment at which an operator finished producing
+    /// an output (excluding any potential back-pressure).
+    ///
+    /// There may have been gaps in this span in which this operator was not
+    /// actively using any resources. Thus, this span of time does NOT represent
+    /// e.g. "CPU time" spent.
+    pub active_span: Option<SpanSec>,
 }
 
 #[derive(TS, Debug, Serialize)]

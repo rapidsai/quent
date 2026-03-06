@@ -16,11 +16,7 @@ import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import {
-  transformResourceTree,
-  getAdaptiveNumBins,
-  getLongEntitiesThreshold,
-} from '@/lib/timeline.utils';
+import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
@@ -99,18 +95,18 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     ],
     queryFn: () => {
       const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
-        config: {
-          num_bins: getAdaptiveNumBins(durationSeconds),
-          start: 0,
-          end: durationSeconds,
-        },
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
             resource_type_name: rootResourceType,
-            long_entities_threshold_s: getLongEntitiesThreshold(durationSeconds),
+            long_entities_threshold_s: null,
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
+            config: {
+              num_bins: getAdaptiveNumBins(durationSeconds),
+              start: 0,
+              end: durationSeconds,
+            },
           },
         },
         app_params: { query_id: queryBundle.query_id },

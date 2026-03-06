@@ -4,7 +4,7 @@ use quent_exporter_types::ImporterError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum ServerError {
+pub enum ServerError {
     #[error("analyzer error: {0}")]
     Analyzer(#[from] AnalyzerError),
     #[error("importer error: {0}")]
@@ -13,9 +13,13 @@ pub(crate) enum ServerError {
     Io(#[from] std::io::Error),
     #[error("cache error: {0}")]
     Cache(String),
+    #[error("task join error: {0}")]
+    Join(#[from] tokio::task::JoinError),
+    #[error("time error: {0}")]
+    Time(#[from] quent_time::TimeError),
 }
 
-pub(crate) type ServerResult<T> = std::result::Result<T, ServerError>;
+pub type ServerResult<T> = std::result::Result<T, ServerError>;
 
 impl From<ServerError> for StatusCode {
     fn from(value: ServerError) -> Self {
@@ -23,7 +27,9 @@ impl From<ServerError> for StatusCode {
             ServerError::Importer(_)
             | ServerError::Analyzer(_)
             | ServerError::Io(_)
-            | ServerError::Cache(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ServerError::Cache(_)
+            | ServerError::Join(_)
+            | ServerError::Time(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

@@ -5,7 +5,7 @@ import { TanStackRouterVite } from '@tanstack/router-vite-plugin';
 import { visualizer } from 'rollup-plugin-visualizer';
 import tailwindcss from '@tailwindcss/vite';
 
-const API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:8000';
+const API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:8080';
 
 /** Ensures JS chunks get high fetch priority so they load before competing API requests. */
 function vitePluginScriptPriority() {

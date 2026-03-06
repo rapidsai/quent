@@ -13,6 +13,7 @@ import type { BulkTimelineRequest } from '~quent/types/BulkTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { EntityRef } from '~quent/types/EntityRef';
+import type { Engine } from '~quent/types/Engine';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
@@ -157,8 +158,8 @@ export async function fetchQueryBundle(
   return apiFetch<QueryBundle<EntityRef>>(`/engines/${engineId}/query/${queryId}`);
 }
 
-export async function fetchListEngines(): Promise<string[]> {
-  return apiFetch<string[]>('/engines');
+export async function fetchListEngines(): Promise<Engine[]> {
+  return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
 }
 
 export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {

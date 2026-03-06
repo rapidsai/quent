@@ -4,26 +4,23 @@ FROM rust:1.91-trixie AS builder
 
 WORKDIR /quent
 
-# Build deps
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    protobuf-compiler
+    apt-get install -y --no-install-recommends protobuf-compiler
 
-# Copy source
 COPY . .
 
-# Build simulator executables
-RUN cargo build --release -p quent-simulator-server
-RUN cargo build --release -p quent-simulator
+# Build simulator executables with cached target dir and cargo registry
+RUN --mount=type=cache,target=/quent/target \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    cargo build --release -p quent-simulator-server -p quent-simulator && \
+    cp target/release/quent-simulator-server target/release/quent-simulator /quent/
 
-# Support running both server and simulator executables.
 FROM debian:trixie AS runtime
 
 WORKDIR /quent
 
-COPY --from=builder /quent/target/release/quent-simulator-server /quent/quent-simulator-server
-COPY --from=builder /quent/target/release/quent-simulator /quent/quent-simulator
+COPY --from=builder /quent/quent-simulator-server /quent/quent-simulator-server
+COPY --from=builder /quent/quent-simulator /quent/quent-simulator
 
-# Expose default analyzer (HTTP) and collector (gRPC) ports
 EXPOSE 8080
 EXPOSE 7836

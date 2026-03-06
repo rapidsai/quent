@@ -57,12 +57,18 @@ export function useBulkTimelines({
   }, []);
 
   const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
-  const windowSeconds = debouncedZoomRange.end - debouncedZoomRange.start;
+  const bulkConfig = useMemo(
+    () => ({
+      num_bins: getAdaptiveNumBins(debouncedZoomRange.end - debouncedZoomRange.start),
+      start: debouncedZoomRange.start,
+      end: debouncedZoomRange.end,
+    }),
+    [debouncedZoomRange]
+  );
 
   const baseVisibleEntries = useMemo(
-    () =>
-      collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, null, windowSeconds),
-    [rootItem, expandedIds, selectedTypes, entities, windowSeconds]
+    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, bulkConfig),
+    [rootItem, expandedIds, selectedTypes, entities, bulkConfig]
   );
   useEffect(() => {
     store.set(visibleEntriesAtom, baseVisibleEntries);
@@ -117,9 +123,16 @@ export function useBulkTimelines({
       const item = findItemById(rootItem, itemId);
       if (!item?.children) return;
 
+      const zoom = store.get(debouncedZoomRangeAtom);
+      const expandConfig = {
+        num_bins: getAdaptiveNumBins(zoom.end - zoom.start),
+        start: zoom.start,
+        end: zoom.end,
+      };
+
       const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children) {
-        const params = buildBulkParamsForItem(child, selectedTypes, entities, null, windowSeconds);
+        const params = buildBulkParamsForItem(child, selectedTypes, entities, expandConfig);
         const resourceTypeName = getResourceTypeName(params);
         const key = timelineCacheKey(child.id, resourceTypeName);
         if (!store.get(timelineDataAtom(key))) {
@@ -129,21 +142,11 @@ export function useBulkTimelines({
 
       if (Object.keys(newBaseEntries).length === 0) return;
 
-      const zoom = store.get(debouncedZoomRangeAtom);
-      const windowSec = zoom.end - zoom.start;
-
-      const bulkConfig = {
-        num_bins: getAdaptiveNumBins(windowSec),
-        start: zoom.start,
-        end: zoom.end,
-      };
-
       try {
         const baseRequest = queryClient.fetchQuery({
           queryKey: ['bulkTimelines', engineId, queryId, zoom, null, newBaseEntries],
           queryFn: () =>
             fetchBulkTimelines(engineId, {
-              config: bulkConfig,
               entries: newBaseEntries,
               app_params: { query_id: queryId },
             }),
@@ -155,7 +158,6 @@ export function useBulkTimelines({
               queryKey: ['bulkTimelines', engineId, queryId, zoom, operatorId, newBaseEntries],
               queryFn: () =>
                 fetchBulkTimelines(engineId, {
-                  config: bulkConfig,
                   entries: setOperatorOnEntries(newBaseEntries, operatorId),
                   app_params: { query_id: queryId },
                 }),
@@ -169,7 +171,7 @@ export function useBulkTimelines({
           if (entry?.status === 'ok') {
             const resourceTypeName = getResourceTypeName(newBaseEntries[id]);
             const key = timelineCacheKey(id, resourceTypeName);
-            store.set(timelineDataAtom(key), { data: entry.data, config: baseResponse.config });
+            store.set(timelineDataAtom(key), { data: entry.data, config: entry.config });
           }
         }
 
@@ -180,7 +182,7 @@ export function useBulkTimelines({
               const key = timelineCacheKey(id, resourceTypeName, operatorId);
               store.set(timelineDataAtom(key), {
                 data: entry.data,
-                config: operatorResponse.config,
+                config: entry.config,
               });
             }
           }
@@ -189,17 +191,7 @@ export function useBulkTimelines({
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [
-      rootItem,
-      store,
-      selectedTypes,
-      entities,
-      windowSeconds,
-      queryClient,
-      engineId,
-      queryId,
-      operatorId,
-    ]
+    [rootItem, store, selectedTypes, entities, queryClient, engineId, queryId, operatorId]
   );
 
   return { handleZoomChange, handleExpand } as const;

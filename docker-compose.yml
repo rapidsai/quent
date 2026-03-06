@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   server:
     build:
@@ -13,7 +11,9 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/quent/data
-    command: "/quent/quent-simulator-server --log-level debug"
+    environment:
+      QUENT_ANALYZER_CORS_ADDRESS: "http://localhost:5173"
+    command: "/quent/quent-simulator-server --log-level debug --cors-address http://localhost:5173"
 
   simulator:
     image: quent
@@ -24,22 +24,3 @@ services:
     environment:
       QUENT_COLLECTOR_ADDRESS: "http://server:7836"
     command: "/quent/quent-simulator --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 2 --num-tasks 128"
-
-  webserver:
-    build:
-      context: ./webserver
-      dockerfile: Dockerfile
-    image: quent-webserver
-    container_name: quent-webserver
-    depends_on:
-      - server
-    ports:
-      - "8000:8000"
-      - "5678:5678"  # Debugpy port
-    restart: unless-stopped
-    environment:
-      QUENT_ANALYZER_ADDRESS: "http://server:8080"
-      DEBUG_MODE: ${DEBUG_MODE:-false}
-      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
-    volumes:
-      - ./webserver/webserver:/app/webserver

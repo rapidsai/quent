@@ -2,6 +2,10 @@
 name = "quent-simulator-server"
 version.workspace = true
 edition.workspace =  true
+publish.workspace = true
+[features]
+ui = ["quent-query-engine-server/ui"]
+swagger = ["quent-query-engine-server/swagger"]
 
 [dependencies]
 axum = { version = "0.8.7" }
@@ -13,6 +17,7 @@ quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-events = { path = "../events" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
+uuid.workspace = true
 
 [build-dependencies]
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
