@@ -362,7 +362,8 @@ export function Timeline({
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
       notMerge={false}
-      lazyUpdate
+      lazyUpdate={false}
+      replaceMerge={['series']}
     />
   );
 }
