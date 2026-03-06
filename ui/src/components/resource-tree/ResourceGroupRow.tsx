@@ -8,6 +8,7 @@ interface ResourceGroupRowProps {
   selectedType?: string;
   onTypeChange?: (itemId: string, type: string) => void;
   verbose?: boolean;
+  compact?: boolean;
 }
 
 export const ResourceGroupRow = ({
@@ -16,8 +17,29 @@ export const ResourceGroupRow = ({
   availableResourceTypes,
   selectedType,
   onTypeChange,
+  compact,
 }: ResourceGroupRowProps): React.ReactNode => {
   const hasMultipleChildTypes = (availableResourceTypes?.length ?? 0) > 1;
+
+  const selector = hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
+    <ResourceTypeSelector
+      id={id}
+      selectedType={selectedType}
+      availableResourceTypes={availableResourceTypes}
+      onTypeChange={onTypeChange}
+      compact={compact}
+      className={compact ? 'ml-2' : 'mt-1'}
+    />
+  );
+
+  if (compact) {
+    return (
+      <div className="flex items-center">
+        <span className="text-xs font-bold">{group.instance_name}</span>
+        {selector}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -25,15 +47,7 @@ export const ResourceGroupRow = ({
         <span className="text-xs font-bold">{group.instance_name}</span>
       </div>
       <div className="text-xs text-muted-foreground">{group.id}</div>
-      {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
-        <ResourceTypeSelector
-          id={id}
-          selectedType={selectedType}
-          availableResourceTypes={availableResourceTypes}
-          onTypeChange={onTypeChange}
-          className="mt-1"
-        />
-      )}
+      {selector}
     </div>
   );
 };

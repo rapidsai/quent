@@ -1,7 +1,12 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { X, Maximize2, Filter, Settings } from 'lucide-react';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
-import { hideTasksAtom, zoomRangeAtom, debouncedZoomRangeAtom } from '@/atoms/timeline';
+import {
+  hideTasksAtom,
+  zoomRangeAtom,
+  debouncedZoomRangeAtom,
+  timelineDensityAtom,
+} from '@/atoms/timeline';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
@@ -9,6 +14,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const [hideTasks, setHideTasks] = useAtom(hideTasksAtom);
+  const [density, setDensity] = useAtom(timelineDensityAtom);
   const setZoomRange = useSetAtom(zoomRangeAtom);
   const setDebouncedZoomRange = useSetAtom(debouncedZoomRangeAtom);
 
@@ -67,16 +73,38 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
             <Settings className="h-3.5 w-3.5" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="text-xs">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={hideTasks}
-              onChange={e => setHideTasks(e.target.checked)}
-              className="h-3 w-3 rounded-sm accent-primary cursor-pointer"
-            />
-            <span>Hide tasks</span>
-          </label>
+        <PopoverContent className="text-xs space-y-4">
+          <div className="space-y-2">
+            <span className="text-muted-foreground font-medium">Annotations</span>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hideTasks}
+                onChange={e => setHideTasks(e.target.checked)}
+                className="h-3 w-3 rounded-sm accent-primary cursor-pointer"
+              />
+              <span>Hide tasks</span>
+            </label>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-muted-foreground font-medium">Row height</span>
+            <div className="inline-flex rounded-md border border-border overflow-hidden w-full">
+              {(['comfortable', 'compact'] as const).map((option) => (
+                <button
+                  key={option}
+                  onClick={() => setDensity(option)}
+                  className={`flex-1 px-2.5 py-1 text-xs capitalize transition-colors ${
+                    density === option
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-transparent hover:bg-accent text-muted-foreground'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

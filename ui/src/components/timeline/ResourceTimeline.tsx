@@ -7,6 +7,7 @@ import {
   hideTasksAtom,
   timelineCacheKey,
   timelineDataAtom,
+  timelineDensityAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
@@ -21,7 +22,7 @@ import {
   getTimelineConfig,
   getLongEntitiesThreshold,
 } from '@/lib/timeline.utils';
-import { TimelineSeries, TimelineMark } from './types';
+import { TimelineSeries, TimelineMark, DEFAULT_TIMELINE_HEIGHT } from './types';
 import { EntityTypeKey } from '@/types';
 import { WHITE, withOpacity } from '@/services/colors';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
@@ -72,6 +73,8 @@ export function ResourceTimeline({
   const bulkInitialized = useAtomValue(bulkInitializedAtom);
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
   const hideTasks = useAtomValue(hideTasksAtom);
+  const density = useAtomValue(timelineDensityAtom);
+  const timelineHeight = density === 'compact' ? DEFAULT_TIMELINE_HEIGHT / 2 : DEFAULT_TIMELINE_HEIGHT;
 
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
@@ -183,7 +186,7 @@ export function ResourceTimeline({
   ]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {
-    return <TimelineSkeleton />;
+    return <TimelineSkeleton height={timelineHeight} />;
   }
 
   if (error) {
@@ -195,12 +198,13 @@ export function ResourceTimeline({
   }
 
   return (
-    <Suspense fallback={<TimelineSkeleton />}>
+    <Suspense fallback={<TimelineSkeleton height={timelineHeight} />}>
       <Timeline
         series={series}
         timestamps={timestamps ?? []}
         startTime={startTime}
         durationSeconds={durationSeconds}
+        height={timelineHeight}
         showTooltip={showTooltip}
         marks={hideTasks ? undefined : marks}
       />

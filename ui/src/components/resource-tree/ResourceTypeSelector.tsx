@@ -5,6 +5,7 @@ interface ResourceTypeSelectorProps {
   selectedType: string;
   availableResourceTypes: string[];
   onTypeChange: (itemId: string, type: string) => void;
+  compact?: boolean;
   className?: string;
 }
 
@@ -13,17 +14,20 @@ export const ResourceTypeSelector = ({
   selectedType,
   availableResourceTypes,
   onTypeChange,
+  compact,
   className,
 }: ResourceTypeSelectorProps): React.ReactNode => {
   return (
     <div
-      className={cn('flex items-center gap-2', className)}
+      className={cn('flex items-center gap-1.5', className)}
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
     >
-      <label htmlFor={`type-select-${id}`} className="text-xs text-muted-foreground">
-        Type:
-      </label>
+      {!compact && (
+        <label htmlFor={`type-select-${id}`} className="text-xs text-muted-foreground">
+          Type:
+        </label>
+      )}
       <select
         id={`type-select-${id}`}
         value={selectedType}
@@ -31,7 +35,11 @@ export const ResourceTypeSelector = ({
           e.stopPropagation();
           onTypeChange(id, e.target.value);
         }}
-        className="text-xs bg-background border border-border rounded px-1 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        className={cn(
+          'text-xs bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-ring',
+          // compact ? 'px-0.5 py-0 text-[10px] leading-tight' : 'px-1 py-0.5'
+          'px-1 py-0.5'
+        )}
       >
         {availableResourceTypes.map(typeOption => (
           <option key={typeOption} value={typeOption}>
