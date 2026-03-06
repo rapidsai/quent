@@ -335,13 +335,24 @@ export function Timeline({
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
 
-    instance.getDom().addEventListener('pointerdown', () => {
+    const dom = instance.getDom();
+    dom.addEventListener('pointerdown', () => {
       isDraggingRef.current = true;
       instance.dispatchAction({ type: 'hideTip' });
     });
-    instance.getDom().addEventListener('pointerup', () => {
+    dom.addEventListener('pointerup', () => {
       isDraggingRef.current = false;
     });
+
+    // Let non-shift wheel events pass through to the page for normal scrolling.
+    // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (!e.shiftKey) e.stopPropagation();
+      },
+      { capture: true, passive: true }
+    );
   }, []);
 
   return (
