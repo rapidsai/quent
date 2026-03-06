@@ -22,11 +22,16 @@ import type { TimelineConfig } from '~quent/types/TimelineConfig';
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
+/** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
+export function nanosToMs(ns: bigint): number {
+  return Number(ns / 1_000_000n) + Number(ns % 1_000_000n) / 1_000_000;
+}
+
 /**
  * Computes the number of bins such that each bin is >= 1ms wide.
  * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
  */
-export function getAdaptiveNumBins(windowSeconds: number): number {
+export function getAdaptiveNumBins(_windowSeconds: number): number {
   return MAX_TIMELINE_BINS;
 }
 
@@ -46,12 +51,8 @@ export function buildBinnedTimelineSeries(
 } {
   const { bin_duration, num_bins, span } = config;
 
-  // This changes timestamps to be milliseconds.remainder which still works with
-  // echarts calculations.
   const numBinsNumber = Number(num_bins);
-  const startTimeMs = Number(startTime / 1_000_000n);
-  const subMsRemainder = Number(startTime % 1_000_000n) / 1_000_000;
-  const firstBinMs = startTimeMs + subMsRemainder + span.start * 1_000;
+  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
   const binDurationMs = bin_duration * 1_000;
 
   const timestamps = new Array<number>(numBinsNumber);
@@ -127,7 +128,7 @@ export function buildTimelineMarks(
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
-  const startTimeMs = Number(startTime / 1_000_000n);
+  const startTimeMs = nanosToMs(startTime);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -135,8 +136,8 @@ export function buildTimelineMarks(
       .slice(0, -1)
       .map((transition, i) => {
         const next = fsm.transitions[i + 1];
-        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
-        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+        const xStart = startTimeMs + transition.timestamp * 1000;
+        const xEnd = startTimeMs + next.timestamp * 1000;
         return { label, stateName: transition.name, xStart, xEnd };
       })
       .filter(m => m.xEnd > m.xStart);

@@ -5,6 +5,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
+import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
 import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
 import { formatBytes } from '@/services/formatters';
@@ -15,8 +16,9 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart } from '@/lib/timeline.utils';
+import { connectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
+import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
@@ -47,6 +49,10 @@ export function Timeline({
     markAreaBorderOpacity,
     markLabelTextColor,
   } = useTimelineChartColors();
+
+  const zoomRange = useAtomValue(zoomRangeAtom);
+  const windowMsRef = useRef(0);
+  windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
 
   const maxMarkCountRef = useRef(0);
 
@@ -192,7 +198,7 @@ export function Timeline({
     [gridBorderColor, timelineMarkupColor]
   );
 
-  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const xAxisOptions = useMemo(
     () => ({
@@ -276,6 +282,7 @@ export function Timeline({
               timestamp={timestamp}
               series={seriesValues}
               startTime={startTime}
+              windowMs={windowMsRef.current}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
             />
           );

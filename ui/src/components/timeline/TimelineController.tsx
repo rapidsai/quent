@@ -11,6 +11,7 @@ import {
   connectChart,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
+  nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
@@ -49,7 +50,7 @@ export function TimelineController({
 }: TimelineControllerProps) {
   const colors = useTimelineChartColors();
 
-  const startTimeMillis = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMillis = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const { timestamps, seriesData } = useMemo(() => {
     if (timelineData) {

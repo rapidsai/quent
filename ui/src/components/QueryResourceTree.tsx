@@ -20,6 +20,7 @@ import {
   transformResourceTree,
   getAdaptiveNumBins,
   getLongEntitiesThreshold,
+  nanosToMs,
 } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
@@ -47,7 +48,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
-  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   useHydrateAtoms([
     [zoomRangeAtom, { start: 0, end: durationSeconds }],
