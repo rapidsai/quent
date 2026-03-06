@@ -28,8 +28,8 @@ export function nanosToMs(ns: bigint): number {
 }
 
 /**
- * Computes the number of bins such that each bin is >= 1ms wide.
- * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
+ * Currently static but may be used in the future to prevent sub
+ * nanosecond bin sizes
  */
 export function getAdaptiveNumBins(): number {
   return MAX_TIMELINE_BINS;

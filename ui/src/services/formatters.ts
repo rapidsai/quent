@@ -111,25 +111,22 @@ export function formatDuration(ms: number, decimals: number = 2): string {
   const absMs = Math.abs(ms);
   const sign = ms < 0 ? '-' : '';
 
-  if (absMs < 0.001) {
-    return `${sign}${(absMs * 1_000_000).toFixed(decimals)}ns`;
+  switch (true) {
+    case absMs < 0.001:
+      return `${sign}${(absMs * 1_000_000).toFixed(decimals)}ns`;
+    case absMs < 1:
+      return `${sign}${(absMs * 1_000).toFixed(decimals)}µs`;
+    case absMs < MS_PER_SECOND:
+      return `${sign}${absMs.toFixed(decimals)}ms`;
+    case absMs < MS_PER_MINUTE:
+      return `${sign}${(absMs / MS_PER_SECOND).toFixed(decimals)}s`;
+    case absMs < MS_PER_HOUR:
+      return `${sign}${(absMs / MS_PER_MINUTE).toFixed(decimals)}min`;
+    case absMs < MS_PER_DAY:
+      return `${sign}${(absMs / MS_PER_HOUR).toFixed(decimals)}h`;
+    default:
+      return `${sign}${(absMs / MS_PER_DAY).toFixed(decimals)}d`;
   }
-  if (absMs < 1) {
-    return `${sign}${(absMs * 1_000).toFixed(decimals)}µs`;
-  }
-  if (absMs < MS_PER_SECOND) {
-    return `${sign}${absMs.toFixed(decimals)}ms`;
-  }
-  if (absMs < MS_PER_MINUTE) {
-    return `${sign}${(absMs / MS_PER_SECOND).toFixed(decimals)}s`;
-  }
-  if (absMs < MS_PER_HOUR) {
-    return `${sign}${(absMs / MS_PER_MINUTE).toFixed(decimals)}min`;
-  }
-  if (absMs < MS_PER_DAY) {
-    return `${sign}${(absMs / MS_PER_HOUR).toFixed(decimals)}h`;
-  }
-  return `${sign}${(absMs / MS_PER_DAY).toFixed(decimals)}d`;
 }
 
 /**
