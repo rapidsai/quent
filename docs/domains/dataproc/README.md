@@ -73,7 +73,7 @@ a child Plan may be logically encapsulated by [Operators][operator] of a parent
 Plan, or vice versa. One Plan at the lowest level of a potential lineage of
 plans is executed by one [Worker][worker] on behalf of one [Query][query].
 
-A Plan is not an FSM — it is declared once and does not have lifecycle states.
+A Plan is not an FSM; it is declared once and does not have lifecycle states.
 Its topology is fixed at declaration time. Timing information for a Plan is
 typically derived from FSMs that reference work performed on behalf of the Plan
 (e.g. task FSMs that carry the Plan's ID).
@@ -86,7 +86,7 @@ Must have:
   `source` is the ID of the Port producing data and `target` is the ID of the
   Port consuming data.
 
-Edges connect [Ports][port] of different [Operators][operator] — an edge from a
+Edges connect [Ports][port] of different [Operators][operator]. An edge from a
 source Port of Operator A to a target Port of Operator B represents data
 flowing from A to B.
 

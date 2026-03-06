@@ -69,18 +69,18 @@ that plain events (or logs) lack:
 
 FSMs are well-suited for tracking things that concurrently come into and go
 out of existence during the lifetime of a program. Unlike tracing spans, FSM
-entities are not organized into trees — they are flat, independent state
+entities are not organized into trees; they are flat, independent state
 machines that relate to each other through explicit attributes (e.g. a Task
 FSM references an Operator by ID). This avoids the need for implicit context
 propagation and lets developers define the relationships that matter to them
 directly.
 
-This project also introduces explicit Resource modeling — named, capacity-bound
+This project also introduces explicit Resource modeling: named, capacity-bound
 things that can be occupied or saturated. Resources with declared capacities
 enable analysis tools to automatically compute utilization, detect saturation,
 and visualize resource pressure over time, without application-specific logic.
 
-Traditional metrics (e.g. "memory usage at time T") are snapshots — they
+Traditional metrics (e.g. "memory usage at time T") are snapshots: they
 capture a value but not the events that produced it. Because resource
 utilization in this project is derived from FSM transitions and Usage events,
 any aggregate value (e.g. total bytes allocated) can be traced back to the
@@ -99,7 +99,7 @@ approach:
 - **Partial model recovery.** OTel tracing implementations typically export
   spans only after they are closed. If a program crashes or a query fails
   mid-flight, in-progress spans are lost. FSM transitions are emitted
-  individually as they occur — if a failure happens, the model can be partially
+  individually as they occur. If a failure happens, the model can be partially
   reconstructed from whatever transitions were already emitted.
 - **Static typing.** OTel's data model relies on string-keyed attribute bags
   with runtime type information. The modeling concepts in this project use

@@ -127,7 +127,7 @@ introduce a resource with an unbounded capacity in the model for which the
 computation takes up some capacity of one. This way, FSMs that perform
 this type of computation can be grouped under this "resource" in post-processing
 and visualization. A model can only include things the implementation already
-knows — if it doesn't have numbers on capacities, neither can its telemetry
+knows; if it doesn't have numbers on capacities, neither can its telemetry
 produce them.
 
 ### Obtaining the Span of time of a Usage from an FSM
@@ -138,7 +138,7 @@ A Usage can be tied to one or more consecutive [FSM][finite-state-machine]
 `resource_id`, capacity values).
 
 If a Usage spans multiple [States][state], those [States][state] must be
-consecutive — there must be no intermediate [State][state] in which the claimed
+consecutive; there must be no intermediate [State][state] in which the claimed
 [Capacity][capacity] is released.
 
 The [Span][span] of the Usage is then derived from the entry

@@ -1,7 +1,7 @@
 # Simulator
 
 The simulator (`examples/simulator/`) is a simulated distributed query engine
-used for rapid development and prototyping — especially the UI — without
+used for rapid development and prototyping, especially the UI, without
 requiring integration with a real engine. The source code also serves as a
 reference for how to apply the modeling concepts.
 
@@ -34,14 +34,14 @@ A Task is an FSM that performs work on behalf of an [Operator][operator]
 
 Resource usage per state:
 
-| State        | Thread      | Memory     | Channel              |
-|--------------|-------------|------------|----------------------|
-| `queueing`   |             |            |                      |
-| `allocating` | Computation |            |                      |
-| `spilling`   | Computation |            | Transfer (MemToFs)   |
-| `loading`    | Computation | Allocation | Transfer (FsToMem)   |
-| `computing`  | Computation | Allocation |                      |
-| `sending`    | Computation | Allocation | Transfer (Link)      |
+| State        | Thread      | Memory     | Channel            |
+| ------------ | ----------- | ---------- | ------------------ |
+| `queueing`   |             |            |                    |
+| `allocating` | Computation |            |                    |
+| `spilling`   | Computation |            | Transfer (MemToFs) |
+| `loading`    | Computation | Allocation | Transfer (FsToMem) |
+| `computing`  | Computation | Allocation |                    |
+| `sending`    | Computation | Allocation | Transfer (Link)    |
 
 State transitions:
 
@@ -75,7 +75,7 @@ Task -> Allocation  -> Memory -> Worker -> Engine
 
 ## Example analyses
 
-Given a query, an analysis tool can derive from this model:
+Given a query, an analysis tool can derive various things from this model, e.g.:
 
 - A DAG visualization of logical and physical plans with per-port row/byte
   counts and per-operator time breakdowns
