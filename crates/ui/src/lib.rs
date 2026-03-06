@@ -1,12 +1,13 @@
 use quent_analyzer::{
     self as a, AnalyzerResult, Entity, Model,
-    resource::{CapacityType, tree::ResourceTreeNode},
+    resource::tree::ResourceTreeNode,
 };
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
+pub mod quantity;
 pub mod timeline;
 
 /// A type of [`Resource`].
@@ -15,7 +16,7 @@ pub struct ResourceTypeDecl {
     /// The unique type name for this type of Resource.
     pub name: String,
     /// The capacities of this type of Resource.
-    pub capacities: Vec<String>,
+    pub capacities: Vec<quantity::CapacityDecl>,
     /// The type names of the entities that used this Resource.
     pub used_by: Vec<String>,
 }
@@ -27,9 +28,13 @@ impl From<&a::resource::ResourceTypeDecl> for ResourceTypeDecl {
             capacities: value
                 .capacities
                 .iter()
-                .map(|cap| match cap.kind {
-                    CapacityType::Occupancy => cap.name.clone(),
-                    CapacityType::Rate => format!("{}/s", cap.name),
+                .map(|cap| quantity::CapacityDecl {
+                    name: cap.name.clone(),
+                    kind: match cap.kind {
+                        a::resource::CapacityType::Occupancy => quantity::CapacityKind::Occupancy,
+                        a::resource::CapacityType::Rate => quantity::CapacityKind::Rate,
+                    },
+                    quantity: cap.name.clone(),
                 })
                 .collect(),
             used_by: value.used_by.iter().cloned().collect(),
