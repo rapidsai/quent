@@ -1,7 +1,4 @@
-use quent_analyzer::{
-    self as a, AnalyzerResult, Entity, Model,
-    resource::tree::ResourceTreeNode,
-};
+use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
