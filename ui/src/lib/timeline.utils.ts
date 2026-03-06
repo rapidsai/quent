@@ -62,7 +62,8 @@ export function buildBinnedTimelineSeries(
     const capDecl = capacities?.find(c => c.name === capacityName);
     const spec = capDecl ? quantitySpecs?.[capDecl.quantity] : undefined;
     if (spec && capDecl) {
-      return (value: number) => formatQuantity(value, spec, capDecl.kind);
+      return (value: number, decimals: number = 2) =>
+        formatQuantity(value, spec, capDecl.kind, decimals);
     }
     return (value: number) => String(value);
   };

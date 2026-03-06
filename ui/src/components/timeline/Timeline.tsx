@@ -157,7 +157,7 @@ export function Timeline({
 
   const yAxisFormatter = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
-    return firstEntry?.formatter ?? ((v: number) => `${v}`);
+    return (v: number) => firstEntry?.formatter(v, 0) ?? ((v: number) => `${v}`);
   }, [series]);
 
   const yAxisOptions = useMemo(

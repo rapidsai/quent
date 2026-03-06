@@ -1,6 +1,6 @@
 export type TimelineSeriesEntry = {
   binDuration: number;
-  formatter: (value: number) => string;
+  formatter: (value: number, decimals?: number) => string;
   values: number[];
   color: string;
   isOverlay?: boolean;
