@@ -7,7 +7,7 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { TooltipContent } from './TimelineTooltip';
 import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
-import { formatBytes } from '@/services/formatters';
+import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
   TimelineMark,
@@ -155,6 +155,11 @@ export function Timeline({
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
 
+  const yAxisFormatter = useMemo(() => {
+    const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
+    return firstEntry?.formatter ?? ((v: number) => `${v}`);
+  }, [series]);
+
   const yAxisOptions = useMemo(
     () => [
       {
@@ -175,10 +180,7 @@ export function Timeline({
           margin: 8,
           fontSize: 10,
           color: timelineMarkupColor,
-          // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
-          formatter: (value: number) => {
-            return formatBytes(value, 0);
-          },
+          formatter: yAxisFormatter,
         },
       },
       {
@@ -189,7 +191,7 @@ export function Timeline({
         gridIndex: 0,
       },
     ],
-    [gridBorderColor, timelineMarkupColor]
+    [gridBorderColor, timelineMarkupColor, yAxisFormatter]
   );
 
   const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
@@ -271,11 +273,13 @@ export function Timeline({
           const activeMarks = marks
             ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
             .map(m => ({ label: m.label, stateName: m.stateName }));
+          const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent
               timestamp={timestamp}
               series={seriesValues}
               startTime={startTime}
+              fmt={fmt}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
             />
           );

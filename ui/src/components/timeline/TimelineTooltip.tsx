@@ -1,4 +1,4 @@
-import { formatBytes, formatDuration } from '@/services/formatters';
+import { formatDuration } from '@/services/formatters';
 import { getColorForKey } from '@/services/colors';
 import { cn } from '@/lib/utils';
 
@@ -9,16 +9,23 @@ interface TooltipSeries {
   isOverlay?: boolean;
 }
 
-const TooltipSeriesStat = ({ series }: { series: Partial<TooltipSeries> }) => {
+type ValueFormatter = (value: number) => string;
+const defaultFormatter: ValueFormatter = (v: number) => `${v}`;
+
+const TooltipSeriesStat = ({
+  series,
+  fmt,
+}: {
+  series: Partial<TooltipSeries>;
+  fmt: ValueFormatter;
+}) => {
   return (
     <li className="flex items-center gap-1">
       {series.color && (
         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
       )}
       <span className="text-foreground">{series.name}</span>
-      <span className="font-semibold ml-auto text-foreground">
-        {formatBytes(series.value ?? 0, 2)}
-      </span>
+      <span className="font-semibold ml-auto text-foreground">{fmt(series.value ?? 0)}</span>
     </li>
   );
 };
@@ -47,12 +54,14 @@ function SegmentedBarRow({
   label,
   segments,
   total,
+  fmt,
   labelClassName,
   valueClassName,
 }: {
   label: string;
   segments: SegmentedBarSegment[];
   total: number;
+  fmt: ValueFormatter;
   overlayPct?: number;
   labelClassName?: string;
   valueClassName?: string;
@@ -86,13 +95,16 @@ function SegmentedBarRow({
         </div>
       </div>
       <span className={cn('text-foreground font-semibold text-[11px] text-right', valueClassName)}>
-        {formatBytes(total, 2)}
+        {fmt(total)}
       </span>
     </>
   );
 }
 
-function buildBarSegments(bar: StateBar): {
+function buildBarSegments(
+  bar: StateBar,
+  fmt: ValueFormatter
+): {
   segments: SegmentedBarSegment[];
   overlayPct: number | undefined;
 } {
@@ -105,7 +117,7 @@ function buildBarSegments(bar: StateBar): {
       segments.push({
         value: o.value,
         color: o.color,
-        label: formatBytes(o.value, 2),
+        label: fmt(o.value),
         isOverlay: true,
       });
     }
@@ -114,7 +126,7 @@ function buildBarSegments(bar: StateBar): {
     segments.push({
       value: Math.max(restValue, 0),
       color: bar.baseColor,
-      label: formatBytes(Math.max(restValue, 0), 2),
+      label: fmt(Math.max(restValue, 0)),
     });
   }
 
@@ -151,11 +163,13 @@ function OverlayBarTooltip({
   timestamp,
   bars,
   startTime,
+  fmt,
   activeMarks,
 }: {
   timestamp: number;
   bars: StateBar[];
   startTime: bigint;
+  fmt: ValueFormatter;
   activeMarks?: { label: string; stateName: string }[];
 }) {
   const visibleBars = bars
@@ -177,13 +191,14 @@ function OverlayBarTooltip({
         style={{ gridTemplateColumns: 'auto 1fr auto' }}
       >
         {visibleBars.map(bar => {
-          const { segments, overlayPct } = buildBarSegments(bar);
+          const { segments, overlayPct } = buildBarSegments(bar, fmt);
           return (
             <SegmentedBarRow
               key={bar.state}
               label={bar.state}
               segments={segments}
               total={bar.baseValue}
+              fmt={fmt}
               overlayPct={overlayPct}
             />
           );
@@ -205,7 +220,7 @@ function OverlayBarTooltip({
               segments.push({
                 value: totalOverlay,
                 color: 'var(--color-gray-300)',
-                label: formatBytes(totalOverlay, 2),
+                label: fmt(totalOverlay),
                 isOverlay: true,
               });
             }
@@ -213,7 +228,7 @@ function OverlayBarTooltip({
               segments.push({
                 value: Math.max(totalRest, 0),
                 color: 'var(--color-gray-400)',
-                label: formatBytes(Math.max(totalRest, 0), 2),
+                label: fmt(Math.max(totalRest, 0)),
               });
             }
 
@@ -227,6 +242,7 @@ function OverlayBarTooltip({
                   label="Total"
                   segments={segments}
                   total={grandTotal}
+                  fmt={fmt}
                   overlayPct={overlayPct}
                 />
               </>
@@ -242,11 +258,13 @@ export function TooltipContent({
   timestamp,
   series,
   startTime,
+  fmt = defaultFormatter,
   activeMarks,
 }: {
   timestamp: number;
   series: TooltipSeries[];
   startTime: bigint;
+  fmt?: ValueFormatter;
   activeMarks?: { label: string; stateName: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
@@ -274,6 +292,7 @@ export function TooltipContent({
         timestamp={timestamp}
         bars={bars}
         startTime={startTime}
+        fmt={fmt}
         activeMarks={activeMarks}
       />
     );
@@ -287,11 +306,12 @@ export function TooltipContent({
       <ul>
         {series
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((s, i) => (s.value > 0 ? <TooltipSeriesStat key={i} series={s} /> : null))}
+          .map((s, i) => (s.value > 0 ? <TooltipSeriesStat key={i} series={s} fmt={fmt} /> : null))}
       </ul>
       <section className="pt-1">
         <TooltipSeriesStat
           series={{ name: 'Total', value: series.reduce((acc, s) => acc + s.value, 0) }}
+          fmt={fmt}
         />
       </section>
       {activeMarks && <ActiveMarksSection marks={activeMarks} />}
