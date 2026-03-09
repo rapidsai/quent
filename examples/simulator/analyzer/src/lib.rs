@@ -336,11 +336,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         config,
                         long_entities_threshold,
                     )?;
-                    if let Some(tasks) = self.tasks_filtered(
-                        &req.entity_filter,
-                        &req.app_params,
-                        config.span,
-                    ) {
+                    if let Some(tasks) =
+                        self.tasks_filtered(&req.entity_filter, &req.app_params, config.span)
+                    {
                         self.populate_keyed_builder(
                             &mut builder,
                             tasks.filter(|task| {
@@ -350,11 +348,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                             |id| resource_ids.contains(&id),
                         )?;
                     }
-                    if let Some(batches) = self.data_batches_filtered(
-                        &req.entity_filter,
-                        &req.app_params,
-                        config.span,
-                    ) {
+                    if let Some(batches) =
+                        self.data_batches_filtered(&req.entity_filter, &req.app_params, config.span)
+                    {
                         self.populate_keyed_builder_batches(
                             &mut builder,
                             batches.filter(|batch| {
@@ -375,22 +371,18 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         config,
                         long_entities_threshold,
                     )?;
-                    if let Some(tasks) = self.tasks_filtered(
-                        &req.entity_filter,
-                        &req.app_params,
-                        config.span,
-                    ) {
+                    if let Some(tasks) =
+                        self.tasks_filtered(&req.entity_filter, &req.app_params, config.span)
+                    {
                         builder.try_extend(
                             tasks
                                 .flat_map(|task| task.usages())
                                 .filter(|usage| resource_ids.contains(&usage.resource_id())),
                         )?;
                     }
-                    if let Some(batches) = self.data_batches_filtered(
-                        &req.entity_filter,
-                        &req.app_params,
-                        config.span,
-                    ) {
+                    if let Some(batches) =
+                        self.data_batches_filtered(&req.entity_filter, &req.app_params, config.span)
+                    {
                         builder.try_extend(
                             batches
                                 .flat_map(|batch| batch.usages())
@@ -657,14 +649,14 @@ impl SimulatorUiAnalyzer {
             return None;
         }
         let task_filter = task_filter.clone();
-        Some(Box::new(
-            self.model.data_batches.values().filter(move |batch| {
+        Some(Box::new(self.model.data_batches.values().filter(
+            move |batch| {
                 task_filter
                     .operator_id
                     .is_none_or(|op| batch.operator_id() == Some(op))
                     && batch.span().is_ok_and(|s| s.intersects(&time_window))
-            }),
-        ))
+            },
+        )))
     }
 
     /// Given a TimelineRequest figure out what are:
