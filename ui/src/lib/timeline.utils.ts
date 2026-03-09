@@ -24,18 +24,22 @@ import type { TimelineConfig } from '~quent/types/TimelineConfig';
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
+/** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
+export function nanosToMs(ns: bigint): number {
+  return Number(ns / 1_000_000n) + Number(ns % 1_000_000n) / 1_000_000;
+}
+
 /**
- * Computes the number of bins such that each bin is >= 1ms wide.
- * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
+ * Currently static but may be used in the future to prevent sub
+ * nanosecond bin sizes
  */
-export function getAdaptiveNumBins(windowSeconds: number): number {
-  const windowMs = windowSeconds * 1_000;
-  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+export function getAdaptiveNumBins(): number {
+  return MAX_TIMELINE_BINS;
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
 export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins(windowSeconds);
+  const numBins = getAdaptiveNumBins();
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 
@@ -51,11 +55,13 @@ export function buildBinnedTimelineSeries(
 } {
   const { bin_duration, num_bins, span } = config;
 
-  const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
-  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
+  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
+  const binDurationMs = bin_duration * 1_000;
+
+  const timestamps = new Array<number>(numBinsNumber);
   for (let i = 0; i < numBinsNumber; i++) {
-    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
+    timestamps[i] = firstBinMs + i * binDurationMs;
   }
 
   const getFormatter = (capacityName: string): ((value: number) => string) => {
@@ -136,7 +142,7 @@ export function buildTimelineMarks(
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
-  const startTimeMs = Number(startTime / 1_000_000n);
+  const startTimeMs = nanosToMs(startTime);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -144,8 +150,8 @@ export function buildTimelineMarks(
       .slice(0, -1)
       .map((transition, i) => {
         const next = fsm.transitions[i + 1];
-        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
-        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+        const xStart = startTimeMs + transition.timestamp * 1000;
+        const xEnd = startTimeMs + next.timestamp * 1000;
         return { label, stateName: transition.name, xStart, xEnd };
       })
       .filter(m => m.xEnd > m.xStart);
@@ -302,11 +308,15 @@ export const connectChart = (
   chartGroup: string = CHART_GROUP,
   activateBrushSelect = true
 ) => {
-  // Sync zoom state from any existing chart in the group before connecting
+  // Apply current zoom to this chart without replacing its dataZoom components.
+  // setOption({ dataZoom: [zoomState] }) would replace the array and break slider/inside config.
   const zoomState = getChartGroupZoomState(chartGroup);
   if (zoomState) {
-    instance.setOption({
-      dataZoom: [zoomState],
+    instance.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 0,
+      start: zoomState.start,
+      end: zoomState.end,
     });
   }
 

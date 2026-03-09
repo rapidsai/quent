@@ -1,6 +1,7 @@
-import { formatDuration } from '@/services/formatters';
+import { formatDurationForWindow } from '@/services/formatters';
 import { getColorForKey } from '@/services/colors';
 import { cn } from '@/lib/utils';
+import { nanosToMs } from '@/lib/timeline.utils';
 
 interface TooltipSeries {
   color: string;
@@ -164,12 +165,14 @@ function OverlayBarTooltip({
   bars,
   startTime,
   fmt,
+  windowMs,
   activeMarks,
 }: {
   timestamp: number;
   bars: StateBar[];
   startTime: bigint;
   fmt: ValueFormatter;
+  windowMs: number;
   activeMarks?: { label: string; stateName: string }[];
 }) {
   const visibleBars = bars
@@ -184,7 +187,7 @@ function OverlayBarTooltip({
       )}
     >
       <div className="font-semibold mb-1.5 text-muted-foreground">
-        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
       </div>
       <div
         className="grid items-center gap-x-1.5 gap-y-1"
@@ -259,12 +262,14 @@ export function TooltipContent({
   series,
   startTime,
   fmt = defaultFormatter,
+  windowMs,
   activeMarks,
 }: {
   timestamp: number;
   series: TooltipSeries[];
   startTime: bigint;
   fmt?: ValueFormatter;
+  windowMs: number;
   activeMarks?: { label: string; stateName: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
@@ -293,6 +298,7 @@ export function TooltipContent({
         bars={bars}
         startTime={startTime}
         fmt={fmt}
+        windowMs={windowMs}
         activeMarks={activeMarks}
       />
     );
@@ -301,7 +307,7 @@ export function TooltipContent({
   return (
     <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
       <div className="font-semibold mb-1 text-muted-foreground">
-        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
       </div>
       <ul>
         {series

@@ -15,19 +15,49 @@ export function formatDuration(ms: number, decimals: number = 2): string {
   const absMs = Math.abs(ms);
   const sign = ms < 0 ? '-' : '';
 
-  if (absMs < MS_PER_SECOND) {
-    return `${sign}${absMs.toFixed(0)}ms`;
+  switch (true) {
+    case absMs < 0.001:
+      return `${sign}${(absMs * 1_000_000).toFixed(decimals)}ns`;
+    case absMs < 1:
+      return `${sign}${(absMs * 1_000).toFixed(decimals)}µs`;
+    case absMs < MS_PER_SECOND:
+      return `${sign}${absMs.toFixed(decimals)}ms`;
+    case absMs < MS_PER_MINUTE:
+      return `${sign}${(absMs / MS_PER_SECOND).toFixed(decimals)}s`;
+    case absMs < MS_PER_HOUR:
+      return `${sign}${(absMs / MS_PER_MINUTE).toFixed(decimals)}min`;
+    case absMs < MS_PER_DAY:
+      return `${sign}${(absMs / MS_PER_HOUR).toFixed(decimals)}h`;
+    default:
+      return `${sign}${(absMs / MS_PER_DAY).toFixed(decimals)}d`;
   }
-  if (absMs < MS_PER_MINUTE) {
-    return `${sign}${(absMs / MS_PER_SECOND).toFixed(decimals)}s`;
-  }
-  if (absMs < MS_PER_HOUR) {
-    return `${sign}${(absMs / MS_PER_MINUTE).toFixed(decimals)}min`;
-  }
-  if (absMs < MS_PER_DAY) {
-    return `${sign}${(absMs / MS_PER_HOUR).toFixed(decimals)}h`;
-  }
-  return `${sign}${(absMs / MS_PER_DAY).toFixed(decimals)}d`;
+}
+
+/**
+ * Format a duration with precision automatically derived from the visible time window.
+ * Picks enough decimal places so that values ~1/1000th of the window apart
+ * produce distinct formatted strings.
+ * @param ms - Duration in milliseconds
+ * @param windowMs - Visible time window width in milliseconds
+ */
+export function formatDurationForWindow(ms: number, windowMs: number): string {
+  const absMs = Math.abs(ms);
+  const resolution = Math.abs(windowMs) / 1000;
+
+  let unitMs: number;
+  if (absMs < 0.001) unitMs = 1e-6;
+  else if (absMs < 1) unitMs = 0.001;
+  else if (absMs < MS_PER_SECOND) unitMs = 1;
+  else if (absMs < MS_PER_MINUTE) unitMs = MS_PER_SECOND;
+  else if (absMs < MS_PER_HOUR) unitMs = MS_PER_MINUTE;
+  else if (absMs < MS_PER_DAY) unitMs = MS_PER_HOUR;
+  else unitMs = MS_PER_DAY;
+
+  const resolutionInUnit = resolution / unitMs;
+  const decimals =
+    resolutionInUnit > 0 ? Math.min(6, Math.max(0, Math.ceil(-Math.log10(resolutionInUnit)))) : 2;
+
+  return formatDuration(ms, decimals);
 }
 
 // Precomputed threshold/divisor tables to avoid Math.log/Math.pow per call.

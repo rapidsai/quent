@@ -16,7 +16,7 @@ import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
+import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
@@ -43,7 +43,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
-  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   useHydrateAtoms([
     [zoomRangeAtom, { start: 0, end: durationSeconds }],
@@ -103,7 +103,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
             config: {
-              num_bins: getAdaptiveNumBins(durationSeconds),
+              num_bins: getAdaptiveNumBins(),
               start: 0,
               end: durationSeconds,
             },
