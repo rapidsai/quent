@@ -96,20 +96,25 @@ fn log_resource_group_links(
     );
 }
 
-fn sleep_short() {
-    std::thread::sleep(Duration::from_micros(1));
+fn sleep_fixed(micros: u64) {
+    std::thread::sleep(Duration::from_micros(micros));
 }
 
-fn sleep_long() {
-    std::thread::sleep(Duration::from_micros(25));
+/// Sleep proportional to the number of bytes being processed.
+/// base_micros is the minimum, bytes_factor scales with data size.
+fn sleep_proportional(bytes: u64) {
+    let mb = (bytes / (1024 * 1024)).max(1);
+    let micros = 5 + mb / 4;
+    std::thread::sleep(Duration::from_micros(micros));
 }
 
-fn sleep_sometimes_really_long() {
-    // make 1% tasks incredibly slow
+/// Occasionally very slow (1% of the time), otherwise proportional.
+fn sleep_sometimes_really_long(bytes: u64) {
+    let mb = (bytes / (1024 * 1024)).max(1);
     std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        20000
+        5000 + mb * 10
     } else {
-        25
+        5 + mb / 4
     }));
 }
 
@@ -284,7 +289,7 @@ impl<T: Debug> Plan<T> {
                 operator::Declaration {
                     plan_id: self.id,
                     parent_operator_ids: op.parents.clone(),
-                    instance_name: format!("{}-{node_idx:?}", op.name()),
+                    instance_name: format!("{}:{}", node_idx.index(), op.name()),
                     type_name: op.name(),
                     custom_attributes: vec![],
                 },
@@ -737,7 +742,6 @@ impl Worker {
     }
 
     /// Process a single work item dispatched by the scheduler.
-    /// Returns output batches to send to downstream operators.
     fn process_work_item(
         &self,
         context: &SimulatorContext,
@@ -757,20 +761,9 @@ impl Worker {
                 instance_name: format!("task-{}", work.task_index),
             },
         );
-        sleep_long();
+        sleep_fixed(25);
 
-        let (spill, load, send) = match operator.kind {
-            Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
-            Physical::JoinPartition => (false, rng().random_bool(0.5), true),
-            Physical::JoinLocal => (true, rng().random_bool(0.5), false),
-            Physical::Sort => (false, rng().random_bool(0.5), false),
-            Physical::Limit => (false, rng().random_bool(0.5), false),
-            Physical::Output => (false, rng().random_bool(0.5), false),
-        };
-
-        let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
-
-        // --- Scan: create a batch from disk ---
+        // Scan: create a batch from disk.
         let input_batch = if operator.kind == Physical::FileSystemScan {
             let batch_id = Uuid::now_v7();
             let batch_bytes = rng().random_range(1..256) * 1024 * 1024;
@@ -783,7 +776,7 @@ impl Worker {
                     use_filesystem_bytes: batch_bytes,
                 },
             );
-            sleep_short();
+            sleep_proportional(batch_bytes);
             batch_obs.loading_to_memory(
                 batch_id,
                 data_batch::LoadingToMemory {
@@ -791,7 +784,7 @@ impl Worker {
                     use_fs_to_mem_bytes: batch_bytes,
                 },
             );
-            sleep_short();
+            sleep_proportional(batch_bytes);
             batch_obs.in_memory(
                 batch_id,
                 data_batch::InMemory {
@@ -808,17 +801,43 @@ impl Worker {
             work.input_batch.clone()
         };
 
-        obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
-        sleep_short();
+        // Derive task resource usage from the actual batch size.
+        let batch_bytes = input_batch.as_ref().map_or(0, |b| b.bytes);
+        // Working memory scales with operator complexity.
+        // JoinLocal needs hash table + build/probe buffers (3-6x).
+        // Sort needs merge buffers (2-4x). Others 1-2x.
+        let mem_multiplier = match operator.kind {
+            Physical::JoinLocal => rng().random_range(3..7),
+            Physical::Sort => rng().random_range(2..5),
+            _ => rng().random_range(1..3),
+        };
+        let working_memory_bytes = batch_bytes * mem_multiplier;
 
-        // --- Spill batch to disk under pressure ---
+        // Determine operator behavior based on kind.
+        let use_gpu = matches!(
+            operator.kind,
+            Physical::JoinLocal | Physical::JoinPartition | Physical::Sort
+        ) && !self.gpus.is_empty();
+        let send = operator.kind == Physical::JoinPartition;
+        // Spill under simulated memory pressure. JoinLocal spills more
+        // often (hash table build), Sort occasionally, others never.
+        let spill = match operator.kind {
+            Physical::JoinLocal => batch_bytes > 32 * 1024 * 1024 && rng().random_bool(0.5),
+            Physical::Sort => batch_bytes > 64 * 1024 * 1024 && rng().random_bool(0.2),
+            _ => false,
+        };
+
+        obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
+        sleep_fixed(2);
+
+        // Spill batch to disk under pressure.
         if spill {
             obs.task_spilling(
                 task_id,
                 task::Spilling {
                     use_thread: thread,
                     use_mem_to_fs: self.mem_to_fs,
-                    use_mem_to_fs_bytes: num_bytes,
+                    use_mem_to_fs_bytes: batch_bytes,
                 },
             );
             if let Some(ref batch) = input_batch {
@@ -829,7 +848,7 @@ impl Worker {
                         use_mem_to_fs_bytes: batch.bytes,
                     },
                 );
-                sleep_short();
+                sleep_proportional(batch.bytes);
                 batch_obs.on_disk(
                     batch.id,
                     data_batch::OnDisk {
@@ -839,9 +858,10 @@ impl Worker {
                     },
                 );
             }
-            sleep_sometimes_really_long();
+            sleep_sometimes_really_long(batch_bytes);
             obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
-            sleep_short();
+            sleep_fixed(2);
+            // Reload spilled batch
             if let Some(ref batch) = input_batch {
                 batch_obs.loading_to_memory(
                     batch.id,
@@ -850,7 +870,7 @@ impl Worker {
                         use_fs_to_mem_bytes: batch.bytes,
                     },
                 );
-                sleep_short();
+                sleep_proportional(batch.bytes);
                 batch_obs.in_memory(
                     batch.id,
                     data_batch::InMemory {
@@ -861,31 +881,40 @@ impl Worker {
             }
         }
 
-        if load {
+        // Loading (scan already loaded above; this is for materialization).
+        if operator.kind != Physical::FileSystemScan && rng().random_bool(0.2) {
             obs.task_loading(
                 task_id,
                 task::Loading {
                     use_thread: thread,
                     use_fs_to_mem: self.fs_to_mem,
-                    use_fs_to_mem_bytes: num_bytes,
+                    use_fs_to_mem_bytes: batch_bytes,
                     use_memory: self.memory,
-                    use_memory_bytes: rng().random_range(0..4) * num_bytes,
+                    use_memory_bytes: working_memory_bytes,
                 },
             );
-            sleep_sometimes_really_long();
+            sleep_sometimes_really_long(batch_bytes);
         }
 
+        // Compute time scales with operator complexity.
+        let compute_multiplier = match operator.kind {
+            Physical::JoinLocal => 4,
+            Physical::JoinPartition => 2,
+            Physical::Sort => 2,
+            _ => 1,
+        };
         obs.task_computing(
             task_id,
             task::Computing {
                 use_thread: thread,
                 use_memory: self.memory,
-                use_memory_bytes: rng().random_range(0..4) * num_bytes,
+                use_memory_bytes: working_memory_bytes,
             },
         );
+        sleep_proportional(batch_bytes * compute_multiplier);
 
-        // --- GPU path ---
-        if operator.kind == Physical::JoinLocal && !self.gpus.is_empty() {
+        // GPU path: JoinLocal, JoinPartition, Sort.
+        if use_gpu {
             let gpu = &self.gpus[rng().random_range(0..self.gpus.len())];
 
             if let Some(ref batch) = input_batch {
@@ -896,7 +925,7 @@ impl Worker {
                         use_mem_to_gpu_bytes: batch.bytes,
                     },
                 );
-                sleep_short();
+                sleep_proportional(batch.bytes);
                 batch_obs.on_gpu(
                     batch.id,
                     data_batch::OnGpu {
@@ -906,6 +935,14 @@ impl Worker {
                 );
             }
 
+            // GPU compute: JoinLocal is heaviest (hash build + probe),
+            // Sort is moderate, JoinPartition is lightest (just hashing).
+            let gpu_multiplier: u64 = match operator.kind {
+                Physical::JoinLocal => 6,
+                Physical::Sort => 3,
+                Physical::JoinPartition => 2,
+                _ => 1,
+            };
             obs.task_gpu_computing(
                 task_id,
                 task::GpuComputing {
@@ -913,7 +950,7 @@ impl Worker {
                     use_gpu_compute: gpu.compute,
                 },
             );
-            sleep_long();
+            sleep_proportional(batch_bytes * gpu_multiplier);
 
             if let Some(ref batch) = input_batch {
                 batch_obs.spilling_to_memory(
@@ -923,7 +960,7 @@ impl Worker {
                         use_gpu_to_mem_bytes: batch.bytes,
                     },
                 );
-                sleep_short();
+                sleep_proportional(batch.bytes);
                 batch_obs.in_memory(
                     batch.id,
                     data_batch::InMemory {
@@ -934,7 +971,7 @@ impl Worker {
             }
         }
 
-        // --- Network send ---
+        // Network send.
         if send {
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
             for other in other_workers {
@@ -944,16 +981,16 @@ impl Worker {
                     task::Sending {
                         use_thread: thread,
                         use_link: link,
-                        use_link_bytes: num_bytes,
+                        use_link_bytes: batch_bytes,
                     },
                 );
-                sleep_long();
+                sleep_proportional(batch_bytes);
             }
         }
 
         obs.task_exit(task_id);
 
-        // --- Produce output batches and send downstream ---
+        // Produce output batches and send downstream.
         match operator.kind {
             Physical::FileSystemScan => {
                 if let Some(batch) = input_batch {
@@ -980,37 +1017,65 @@ impl Worker {
                     operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
                     batch_obs.exit(batch.id);
 
-                    let output_bytes = if operator.kind == Physical::JoinLocal {
-                        rng().random_range(1..4) * batch.bytes
-                    } else {
-                        batch.bytes / rng().random_range(1..4).max(1)
-                    };
-                    let output_rows = if operator.kind == Physical::JoinLocal {
-                        rng().random_range(1..4) * batch.rows
-                    } else {
-                        batch.rows / rng().random_range(1..4).max(1)
+                    // Compute output size based on operator semantics.
+                    let (output_bytes, output_rows) = match operator.kind {
+                        Physical::JoinLocal => {
+                            // Joins can amplify data (build × probe).
+                            let factor = rng().random_range(1..4);
+                            (factor * batch.bytes, factor * batch.rows)
+                        }
+                        Physical::Limit => {
+                            // Limit early-terminates: stop producing
+                            // output once 42 rows have been emitted.
+                            let emitted_so_far = operator.rows_out.load(Ordering::Relaxed);
+                            let remaining = 42u64.saturating_sub(emitted_so_far);
+                            if remaining == 0 {
+                                // Already satisfied — consume but don't produce.
+                                (0, 0)
+                            } else {
+                                let limit_rows = remaining.min(batch.rows);
+                                let fraction = if batch.rows > 0 {
+                                    limit_rows as f64 / batch.rows as f64
+                                } else {
+                                    1.0
+                                };
+                                ((batch.bytes as f64 * fraction) as u64, limit_rows)
+                            }
+                        }
+                        _ => {
+                            // JoinPartition, Sort: roughly preserve size
+                            // with some reduction from filtering/projection.
+                            let denom = rng().random_range(1..3);
+                            (batch.bytes / denom, batch.rows / denom)
+                        }
                     };
 
-                    let output_batch_id = Uuid::now_v7();
-                    operator.batches_out.fetch_add(1, Ordering::Relaxed);
-                    operator.bytes_out.fetch_add(output_bytes, Ordering::Relaxed);
-                    operator.rows_out.fetch_add(output_rows, Ordering::Relaxed);
+                    // Only produce output if there's data (Limit may
+                    // produce 0 rows after early-termination).
+                    if output_rows > 0 {
+                        let output_batch_id = Uuid::now_v7();
+                        operator.batches_out.fetch_add(1, Ordering::Relaxed);
+                        operator
+                            .bytes_out
+                            .fetch_add(output_bytes, Ordering::Relaxed);
+                        operator.rows_out.fetch_add(output_rows, Ordering::Relaxed);
 
-                    batch_obs.in_memory(
-                        output_batch_id,
-                        data_batch::InMemory {
-                            use_memory: self.memory,
-                            use_memory_bytes: output_bytes,
-                        },
-                    );
+                        batch_obs.in_memory(
+                            output_batch_id,
+                            data_batch::InMemory {
+                                use_memory: self.memory,
+                                use_memory_bytes: output_bytes,
+                            },
+                        );
 
-                    let output = Batch {
-                        id: output_batch_id,
-                        bytes: output_bytes,
-                        rows: output_rows,
-                    };
-                    for sender in &work.output_senders {
-                        let _ = sender.send(output.clone());
+                        let output = Batch {
+                            id: output_batch_id,
+                            bytes: output_bytes,
+                            rows: output_rows,
+                        };
+                        for sender in &work.output_senders {
+                            let _ = sender.send(output.clone());
+                        }
                     }
                 }
             }
@@ -1110,8 +1175,10 @@ impl Worker {
 
             // Create a channel for each DAG edge. Batches flow from source
             // operator to target operator through these channels.
-            let mut edge_channels: HashMap<petgraph::graph::EdgeIndex, (Sender<Batch>, Receiver<Batch>)> =
-                HashMap::new();
+            let mut edge_channels: HashMap<
+                petgraph::graph::EdgeIndex,
+                (Sender<Batch>, Receiver<Batch>),
+            > = HashMap::new();
             for edge_idx in plan.dag.edge_indices() {
                 let (tx, rx) = crossbeam_channel::unbounded();
                 edge_channels.insert(edge_idx, (tx, rx));
@@ -1147,6 +1214,7 @@ impl Worker {
                 crossbeam_channel::unbounded();
 
             let task_counter = AtomicU64::new(0);
+            let in_flight = &AtomicU64::new(0);
 
             // Find the output (sink) node — the root of the pull chain.
             let output_node = nodes
@@ -1163,28 +1231,37 @@ impl Worker {
                     s.spawn(move || {
                         while let Ok(work) = work_rx.recv() {
                             self.process_work_item(context, engine, &work, thread_id);
+                            in_flight.fetch_sub(1, Ordering::Release);
 
-                            // Accumulate port stats on DAG edges.
+                            // Accumulate port stats on DAG edges using
+                            // actual batch values from the operator's
+                            // output counters.
+                            let op = &plan.dag[work.operator_node];
+                            let out_bytes = op.bytes_out.load(Ordering::Relaxed);
+                            let out_rows = op.rows_out.load(Ordering::Relaxed);
+                            let out_batches = op.batches_out.load(Ordering::Relaxed).max(1);
+                            let avg_bytes = out_bytes / out_batches;
+                            let avg_rows = out_rows / out_batches;
                             let edges = plan
                                 .dag
                                 .edges_directed(work.operator_node, Direction::Outgoing);
                             for edge in edges {
-                                edge.weight().source.num_bytes.fetch_add(
-                                    rng().random_range(1024..1024 * 1024),
-                                    Ordering::Relaxed,
-                                );
-                                edge.weight().source.num_rows.fetch_add(
-                                    rng().random_range(16..1024),
-                                    Ordering::Relaxed,
-                                );
-                                edge.weight().target.num_bytes.fetch_add(
-                                    rng().random_range(1024..128 * 1024),
-                                    Ordering::Relaxed,
-                                );
-                                edge.weight().target.num_rows.fetch_add(
-                                    rng().random_range(16..1024),
-                                    Ordering::Relaxed,
-                                );
+                                edge.weight()
+                                    .source
+                                    .num_bytes
+                                    .fetch_add(avg_bytes, Ordering::Relaxed);
+                                edge.weight()
+                                    .source
+                                    .num_rows
+                                    .fetch_add(avg_rows, Ordering::Relaxed);
+                                edge.weight()
+                                    .target
+                                    .num_bytes
+                                    .fetch_add(avg_bytes, Ordering::Relaxed);
+                                edge.weight()
+                                    .target
+                                    .num_rows
+                                    .fetch_add(avg_rows, Ordering::Relaxed);
                             }
                         }
                     });
@@ -1195,28 +1272,48 @@ impl Worker {
                 s.spawn(|| {
                     // Per-operator demand: how many batches this operator
                     // still needs to produce for its downstream consumer(s).
-                    let mut demand: HashMap<NodeIndex, usize> = nodes
-                        .iter()
-                        .map(|&n| (n, 0usize))
-                        .collect();
+                    let mut demand: HashMap<NodeIndex, usize> =
+                        nodes.iter().map(|&n| (n, 0usize)).collect();
 
                     // Seed demand at the output node. The output wants
                     // num_tasks batches total.
                     *demand.get_mut(&output_node).unwrap() = num_tasks;
 
-                    // Track how many batches each operator has produced (for
-                    // termination). Output "produces" by consuming.
-                    let mut produced: HashMap<NodeIndex, usize> = nodes
+                    // Maximum batches any single scan can produce.
+                    let scan_nodes: Vec<NodeIndex> = nodes
                         .iter()
-                        .map(|&n| (n, 0usize))
+                        .filter(|&&n| plan.dag[n].kind == Physical::FileSystemScan)
+                        .copied()
                         .collect();
+                    let max_per_scan = num_tasks / scan_nodes.len().max(1);
+
+                    // Track how many batches each operator has been
+                    // dispatched to process (for termination and demand
+                    // propagation).
+                    let mut dispatched: HashMap<NodeIndex, usize> =
+                        nodes.iter().map(|&n| (n, 0usize)).collect();
 
                     // Process in reverse topological order (output first,
                     // scans last) so demand propagates backward.
                     let reverse_topo: Vec<NodeIndex> = nodes.iter().copied().rev().collect();
 
+                    // Total batches dispatched to Output for termination.
+                    let mut output_dispatched: usize = 0;
+
                     loop {
                         let mut made_progress = false;
+
+                        // Check Limit early-termination before processing
+                        // any operators, to prevent demand re-propagation.
+                        let limit_done = nodes.iter().any(|&n| {
+                            plan.dag[n].kind == Physical::Limit
+                                && plan.dag[n].rows_out.load(Ordering::Relaxed) >= 42
+                        });
+                        if limit_done {
+                            for d in demand.values_mut() {
+                                *d = 0;
+                            }
+                        }
 
                         for &node_idx in &reverse_topo {
                             let node_demand = demand[&node_idx];
@@ -1228,8 +1325,13 @@ impl Worker {
                             let outputs = &operator_outputs[&node_idx];
 
                             if op.kind == Physical::FileSystemScan {
-                                // Scans satisfy demand by producing batches.
+                                // Don't over-dispatch scans.
+                                if dispatched[&node_idx] >= max_per_scan {
+                                    *demand.get_mut(&node_idx).unwrap() = 0;
+                                    continue;
+                                }
                                 let idx = task_counter.fetch_add(1, Ordering::Relaxed);
+                                in_flight.fetch_add(1, Ordering::Acquire);
                                 let _ = work_tx.send(WorkItem {
                                     operator_node: node_idx,
                                     operator: op,
@@ -1238,15 +1340,15 @@ impl Worker {
                                     task_index: idx,
                                 });
                                 *demand.get_mut(&node_idx).unwrap() -= 1;
-                                *produced.get_mut(&node_idx).unwrap() += 1;
+                                *dispatched.get_mut(&node_idx).unwrap() += 1;
                                 made_progress = true;
                             } else {
-                                // Non-scan: try to consume from input channels.
                                 let inputs = &operator_inputs[&node_idx];
                                 let mut got_batch = false;
                                 for rx in inputs {
                                     if let Ok(batch) = rx.try_recv() {
                                         let idx = task_counter.fetch_add(1, Ordering::Relaxed);
+                                        in_flight.fetch_add(1, Ordering::Acquire);
                                         let _ = work_tx.send(WorkItem {
                                             operator_node: node_idx,
                                             operator: op,
@@ -1255,35 +1357,52 @@ impl Worker {
                                             task_index: idx,
                                         });
                                         *demand.get_mut(&node_idx).unwrap() -= 1;
-                                        *produced.get_mut(&node_idx).unwrap() += 1;
+                                        *dispatched.get_mut(&node_idx).unwrap() += 1;
+                                        if node_idx == output_node {
+                                            output_dispatched += 1;
+                                        }
                                         got_batch = true;
                                         made_progress = true;
-                                        break; // one batch per iteration
+                                        break;
                                     }
                                 }
 
                                 if !got_batch {
-                                    // No input data available — propagate
-                                    // demand upstream so sources produce.
-                                    for edge in plan
+                                    // Propagate demand upstream.
+                                    let incoming: Vec<NodeIndex> = plan
                                         .dag
                                         .edges_directed(node_idx, Direction::Incoming)
-                                    {
-                                        let source = edge.source();
-                                        let source_produced = produced[&source];
-                                        let source_demand = demand[&source];
-                                        // Only add demand if the source
-                                        // hasn't already been asked enough.
-                                        if source_produced + source_demand < node_demand + produced[&node_idx] {
-                                            *demand.get_mut(&source).unwrap() += 1;
+                                        .map(|e| e.source())
+                                        .collect();
+                                    let num_sources = incoming.len().max(1);
+                                    let needed_total = node_demand + dispatched[&node_idx];
+                                    let per_source = (needed_total + num_sources - 1) / num_sources;
+                                    for source in incoming {
+                                        let already = dispatched[&source] + demand[&source];
+                                        if already < per_source {
+                                            *demand.get_mut(&source).unwrap() +=
+                                                per_source - already;
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // Check if Output has produced all requested batches.
-                        if produced[&output_node] >= num_tasks {
+                        // Terminate when all demand is satisfied AND all
+                        // dispatched work has completed.
+                        let all_demand_zero = demand.values().all(|&d| d == 0);
+                        let current_in_flight = in_flight.load(Ordering::Acquire);
+                        let all_done = output_dispatched >= num_tasks || all_demand_zero;
+                        if all_done && current_in_flight == 0 {
+                            // Drain any remaining batches from channels that
+                            // were produced by in-flight work after Limit
+                            // terminated.
+                            for node_idx in &reverse_topo {
+                                let inputs = &operator_inputs[node_idx];
+                                for rx in inputs {
+                                    while let Ok(_batch) = rx.try_recv() {}
+                                }
+                            }
                             break;
                         }
 
@@ -1553,21 +1672,21 @@ impl Worker {
 
         memory_obs.finalizing(self.filesystem, Default::default());
         memory_obs.exit(self.filesystem, Default::default());
-        sleep_long();
+        sleep_fixed(25);
         memory_obs.finalizing(self.memory, Default::default());
         memory_obs.exit(self.memory, Default::default());
-        sleep_long();
+        sleep_fixed(25);
         channel_obs.finalizing(self.fs_to_mem, Default::default());
         channel_obs.exit(self.fs_to_mem, Default::default());
-        sleep_long();
+        sleep_fixed(25);
         channel_obs.finalizing(self.mem_to_fs, Default::default());
         channel_obs.exit(self.mem_to_fs, Default::default());
-        sleep_long();
+        sleep_fixed(25);
         for thread in self.threads.iter() {
             processor_obs.finalizing(*thread, Default::default());
             processor_obs.exit(*thread, Default::default());
         }
-        sleep_long();
+        sleep_fixed(25);
         for gpu in self.gpus.iter() {
             memory_obs.finalizing(gpu.memory, Default::default());
             memory_obs.exit(gpu.memory, Default::default());
@@ -1578,7 +1697,7 @@ impl Worker {
             channel_obs.finalizing(gpu.gpu_to_mem, Default::default());
             channel_obs.exit(gpu.gpu_to_mem, Default::default());
         }
-        sleep_long();
+        sleep_fixed(25);
         worker_obs.exit(self.id);
     }
 }
@@ -1633,8 +1752,12 @@ impl Engine {
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-            let worker =
-                Worker::new(*worker_id, format!("drone-{worker_index}"), num_threads, num_gpus);
+            let worker = Worker::new(
+                *worker_id,
+                format!("drone-{worker_index}"),
+                num_threads,
+                num_gpus,
+            );
             worker.spawn(context, self.id);
             self.workers.insert(*worker_id, worker);
         }
@@ -1794,9 +1917,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::thread::scope(|s| {
                 for worker in workers {
                     s.spawn(|| {
-                        worker.execute_logical_plan(
-                            &context, &engine, &l_plan, args.num_tasks,
-                        );
+                        worker.execute_logical_plan(&context, &engine, &l_plan, args.num_tasks);
                     });
                 }
             });
