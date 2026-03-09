@@ -22,7 +22,7 @@ use quent_simulator_ui::EntityRef;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use crate::{model::SimulatorModel, task::Task};
+use crate::{data_batch::DataBatch, model::SimulatorModel, task::Task};
 
 /// A view of the simulator model filtered to a specific query
 // TODO(johanpel): figure out a better way to construct these views, or to
@@ -35,6 +35,8 @@ pub(crate) struct SimulatorModelQueryView<'a> {
     resources: HashMap<Uuid, &'a RtResource>,
     resource_groups: HashMap<Uuid, &'a RtResourceGroup>,
     tasks: HashMap<Uuid, &'a Task>,
+    #[allow(dead_code)]
+    data_batches: HashMap<Uuid, &'a DataBatch>,
 }
 
 impl<'a> SimulatorModelQueryView<'a> {
@@ -88,6 +90,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             resource_groups,
             resources,
             tasks: HashMap::default(),
+            data_batches: HashMap::default(),
         };
 
         result.tasks = model
@@ -99,6 +102,18 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .any(|usage| result.resource(usage.resource_id()).is_ok())
             })
             .collect();
+
+        result.data_batches = model
+            .data_batches
+            .values()
+            .map(|batch| (batch.id(), batch))
+            .filter(|(_, batch)| {
+                batch
+                    .usages()
+                    .any(|usage| result.resource(usage.resource_id()).is_ok())
+            })
+            .collect();
+
         Ok(result)
     }
 }
@@ -165,11 +180,12 @@ impl<'a> Model for SimulatorModelQueryView<'a> {
             Ok(EntityRef::Resource(entity_id))
         } else if self.resource_groups.contains_key(&entity_id) {
             Ok(EntityRef::ResourceGroup(entity_id))
+        } else if self.tasks.contains_key(&entity_id) {
+            Ok(EntityRef::Task(entity_id))
+        } else if self.data_batches.contains_key(&entity_id) {
+            Ok(EntityRef::DataBatch(entity_id))
         } else {
-            self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
-                .ok_or(AnalyzerError::InvalidId(entity_id))
+            Err(AnalyzerError::InvalidId(entity_id))
         }
     }
     fn root(&self) -> AnalyzerResult<&impl ResourceGroup> {

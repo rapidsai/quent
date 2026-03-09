@@ -6,7 +6,7 @@ use quent_analyzer::{
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_simulator_events::task::{
-    Allocating, Computing, Loading, Queueing, Sending, Spilling, TaskEvent,
+    Allocating, Computing, GpuComputing, Loading, Queueing, Sending, Spilling, TaskEvent,
 };
 use quent_time::{
     TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative,
@@ -23,6 +23,7 @@ pub enum TaskTransitionData {
     Allocating(Allocating),
     Spilling(Spilling),
     Sending(Sending),
+    GpuComputing(GpuComputing),
     Finalizing,
     Exit,
 }
@@ -76,6 +77,7 @@ impl Transition for TaskTransition {
             TaskTransitionData::Allocating(_) => "allocating",
             TaskTransitionData::Spilling(_) => "spilling",
             TaskTransitionData::Sending(_) => "sending",
+            TaskTransitionData::GpuComputing(_) => "gpu_computing",
             TaskTransitionData::Finalizing => "finalizing",
             TaskTransitionData::Exit => "exit",
         }
@@ -137,6 +139,16 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                 capacities: smallvec![CapacityValue::new("bytes", data.use_link_bytes)],
             },
         ],
+        TaskTransitionData::GpuComputing(data) => smallvec![
+            TaskUsage {
+                resource_id: data.use_thread,
+                capacities: smallvec![CapacityValue::new("unit", 1)],
+            },
+            TaskUsage {
+                resource_id: data.use_gpu_compute,
+                capacities: smallvec![CapacityValue::new("unit", 1)],
+            },
+        ],
         TaskTransitionData::Finalizing => SmallVec::new(),
         TaskTransitionData::Exit => SmallVec::new(),
     }
@@ -169,6 +181,7 @@ impl TaskBuilder {
             TaskEvent::Loading(data) => TaskTransitionData::Loading(data),
             TaskEvent::Spilling(data) => TaskTransitionData::Spilling(data),
             TaskEvent::Sending(data) => TaskTransitionData::Sending(data),
+            TaskEvent::GpuComputing(data) => TaskTransitionData::GpuComputing(data),
             TaskEvent::Exit => TaskTransitionData::Exit,
         };
         let usages = create_usages(&data);
@@ -346,16 +359,14 @@ impl FsmTypeDeclaration for Task {
                 usages: vec!["thread".to_string(), "link".to_string()],
             },
             FsmStateTypeDecl {
+                name: "gpu_computing".to_string(),
+                usages: vec!["thread".to_string(), "gpu_compute".to_string()],
+            },
+            FsmStateTypeDecl {
                 name: "exit".to_string(),
                 usages: vec![],
             },
         ];
-
-        //                          +------------------------+
-        //                          |                        v
-        // -> queuing -> allocating +----------------+   computing +---> exit
-        //                          |                v       ^     v      ^
-        //                          +-> spilling -> loading -+   sending -+
 
         let transitions = vec![
             FsmTransitionDecl::Entry("queueing".to_string()),
@@ -365,8 +376,11 @@ impl FsmTypeDeclaration for Task {
             FsmTransitionDecl::Transition("allocating".to_string(), "computing".to_string()),
             FsmTransitionDecl::Transition("spilling".to_string(), "loading".to_string()),
             FsmTransitionDecl::Transition("loading".to_string(), "computing".to_string()),
+            FsmTransitionDecl::Transition("computing".to_string(), "gpu_computing".to_string()),
             FsmTransitionDecl::Transition("computing".to_string(), "sending".to_string()),
             FsmTransitionDecl::Transition("computing".to_string(), "exit".to_string()),
+            FsmTransitionDecl::Transition("gpu_computing".to_string(), "sending".to_string()),
+            FsmTransitionDecl::Transition("gpu_computing".to_string(), "exit".to_string()),
             FsmTransitionDecl::Transition("sending".to_string(), "exit".to_string()),
             FsmTransitionDecl::Exit("exit".to_string()),
         ];

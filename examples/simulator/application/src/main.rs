@@ -5,6 +5,8 @@ use std::{
     time::Duration,
 };
 
+use crossbeam_channel::{Receiver, Sender};
+
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
@@ -17,7 +19,7 @@ use quent_query_engine_events::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
 };
-use quent_simulator_events::task;
+use quent_simulator_events::{data_batch, task};
 use quent_simulator_instrumentation::SimulatorContext;
 use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
@@ -28,24 +30,28 @@ use uuid::Uuid;
 #[command(about = "Emits simulated query engine telemetry", long_about = None)]
 struct Args {
     /// Number of query groups
-    #[arg(long, default_value_t = 1)]
+    #[arg(long, default_value_t = 2)]
     num_query_groups: usize,
 
     /// Number of queries per query group
-    #[arg(long, default_value_t = 1)]
+    #[arg(long, default_value_t = 4)]
     num_queries: usize,
 
     /// Number of tasks per operator
-    #[arg(long, default_value_t = 32)]
+    #[arg(long, default_value_t = 128)]
     num_tasks: usize,
 
     /// Number of workers
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = 4)]
     num_workers: usize,
 
     /// Number of threads per worker thread pool
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = 4)]
     num_threads: usize,
+
+    /// Number of GPUs per worker
+    #[arg(long, default_value_t = 2)]
+    num_gpus: usize,
 
     /// Exporter format:
     /// - collector: send events to a collector service over gRPC.
@@ -101,7 +107,7 @@ fn sleep_long() {
 fn sleep_sometimes_really_long() {
     // make 1% tasks incredibly slow
     std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        50000
+        20000
     } else {
         25
     }));
@@ -112,6 +118,12 @@ struct Operator<T: Debug> {
     parents: Vec<Uuid>,
     kind: T,
     tasks_processed: AtomicU64,
+    batches_in: AtomicU64,
+    bytes_in: AtomicU64,
+    rows_in: AtomicU64,
+    batches_out: AtomicU64,
+    bytes_out: AtomicU64,
+    rows_out: AtomicU64,
 }
 
 impl<T> Operator<T>
@@ -128,6 +140,12 @@ where
             parents,
             kind,
             tasks_processed: AtomicU64::new(0),
+            batches_in: AtomicU64::new(0),
+            bytes_in: AtomicU64::new(0),
+            rows_in: AtomicU64::new(0),
+            batches_out: AtomicU64::new(0),
+            bytes_out: AtomicU64::new(0),
+            rows_out: AtomicU64::new(0),
         }
     }
 }
@@ -198,6 +216,25 @@ enum Physical {
     Sort,
     Limit,
     Output,
+}
+
+#[derive(Clone, Debug)]
+struct Batch {
+    id: Uuid,
+    bytes: u64,
+    rows: u64,
+}
+
+/// A work item dispatched by the scheduler to a pool thread.
+struct WorkItem<'a> {
+    operator_node: NodeIndex,
+    operator: &'a Operator<Physical>,
+    /// Input batch (None for scan operators which produce their own).
+    input_batch: Option<Batch>,
+    /// Senders for the operator's outgoing edges in the DAG.
+    output_senders: Vec<&'a Sender<Batch>>,
+    /// Task index for naming.
+    task_index: u64,
 }
 
 struct Plan<T>
@@ -489,6 +526,27 @@ fn lower_logical(
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+struct Gpu {
+    id: Uuid,
+    memory: Uuid,
+    compute: Uuid,
+    mem_to_gpu: Uuid,
+    gpu_to_mem: Uuid,
+}
+
+impl Gpu {
+    fn new() -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            memory: Uuid::now_v7(),
+            compute: Uuid::now_v7(),
+            mem_to_gpu: Uuid::now_v7(),
+            gpu_to_mem: Uuid::now_v7(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 struct Worker {
     id: Uuid,
     name: String,
@@ -498,10 +556,11 @@ struct Worker {
     mem_to_fs: Uuid,
     thread_pool: Uuid,
     threads: Vec<Uuid>,
+    gpus: Vec<Gpu>,
 }
 
 impl Worker {
-    fn new(id: Uuid, name: String, num_threads: usize) -> Self {
+    fn new(id: Uuid, name: String, num_threads: usize, num_gpus: usize) -> Self {
         Self {
             id,
             name,
@@ -513,6 +572,7 @@ impl Worker {
             threads: std::iter::repeat_with(Uuid::now_v7)
                 .take(num_threads)
                 .collect(),
+            gpus: std::iter::repeat_with(Gpu::new).take(num_gpus).collect(),
         }
     }
 
@@ -610,27 +670,95 @@ impl Worker {
             );
             processor_obs.operating(*thread_id, Default::default());
         }
+
+        // GPUs
+        for (index, gpu) in self.gpus.iter().enumerate() {
+            resource_group_obs.group(
+                gpu.id,
+                resource::GroupEvent {
+                    type_name: "gpu".to_string(),
+                    instance_name: format!("GPU {index}"),
+                    parent_group_id: Some(self.id),
+                },
+            );
+
+            memory_obs.init(
+                gpu.memory,
+                memory::Init {
+                    resource: resource::Resource {
+                        type_name: "gpu_memory".to_string(),
+                        instance_name: format!("GPU {index} Memory"),
+                        parent_group_id: gpu.id,
+                    },
+                },
+            );
+            memory_obs.operating(gpu.memory, Default::default());
+
+            processor_obs.init(
+                gpu.compute,
+                resource::processor::Init {
+                    resource: resource::Resource {
+                        type_name: "gpu_compute".to_string(),
+                        instance_name: format!("GPU {index} Compute"),
+                        parent_group_id: gpu.id,
+                    },
+                },
+            );
+            processor_obs.operating(gpu.compute, Default::default());
+
+            channel_obs.init(
+                gpu.mem_to_gpu,
+                channel::Init {
+                    resource: resource::Resource {
+                        type_name: "mem_to_gpu".to_string(),
+                        instance_name: format!("Memory -> GPU {index}"),
+                        parent_group_id: self.id,
+                    },
+                    source_id: self.memory,
+                    target_id: gpu.memory,
+                },
+            );
+            channel_obs.operating(gpu.mem_to_gpu, Default::default());
+
+            channel_obs.init(
+                gpu.gpu_to_mem,
+                channel::Init {
+                    resource: resource::Resource {
+                        type_name: "gpu_to_mem".to_string(),
+                        instance_name: format!("GPU {index} -> Memory"),
+                        parent_group_id: self.id,
+                    },
+                    source_id: gpu.memory,
+                    target_id: self.memory,
+                },
+            );
+            channel_obs.operating(gpu.gpu_to_mem, Default::default());
+        }
     }
 
-    fn execute_physical_operator_task(
+    /// Process a single work item dispatched by the scheduler.
+    /// Returns output batches to send to downstream operators.
+    fn process_work_item(
         &self,
         context: &SimulatorContext,
-        index: usize,
         engine: &Engine,
-        operator: &Operator<Physical>,
+        work: &WorkItem,
         thread: Uuid,
     ) {
         let obs = context.task_observer();
+        let batch_obs = context.data_batch_observer();
+        let operator = work.operator;
 
-        let id = Uuid::now_v7();
+        let task_id = Uuid::now_v7();
         obs.task_queueing(
-            id,
+            task_id,
             task::Queueing {
                 operator_id: operator.id,
-                instance_name: format!("task-{index}"),
+                instance_name: format!("task-{}", work.task_index),
             },
         );
         sleep_long();
+
         let (spill, load, send) = match operator.kind {
             Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
             Physical::JoinPartition => (false, rng().random_bool(0.5), true),
@@ -642,24 +770,100 @@ impl Worker {
 
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
-        obs.task_allocating_memory(id, task::Allocating { use_thread: thread });
+        // --- Scan: create a batch from disk ---
+        let input_batch = if operator.kind == Physical::FileSystemScan {
+            let batch_id = Uuid::now_v7();
+            let batch_bytes = rng().random_range(1..256) * 1024 * 1024;
+            let batch_rows = rng().random_range(1024..65536);
+            batch_obs.on_disk(
+                batch_id,
+                data_batch::OnDisk {
+                    operator_id: operator.id,
+                    use_filesystem: self.filesystem,
+                    use_filesystem_bytes: batch_bytes,
+                },
+            );
+            sleep_short();
+            batch_obs.loading_to_memory(
+                batch_id,
+                data_batch::LoadingToMemory {
+                    use_fs_to_mem: self.fs_to_mem,
+                    use_fs_to_mem_bytes: batch_bytes,
+                },
+            );
+            sleep_short();
+            batch_obs.in_memory(
+                batch_id,
+                data_batch::InMemory {
+                    use_memory: self.memory,
+                    use_memory_bytes: batch_bytes,
+                },
+            );
+            Some(Batch {
+                id: batch_id,
+                bytes: batch_bytes,
+                rows: batch_rows,
+            })
+        } else {
+            work.input_batch.clone()
+        };
+
+        obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
         sleep_short();
+
+        // --- Spill batch to disk under pressure ---
         if spill {
             obs.task_spilling(
-                id,
+                task_id,
                 task::Spilling {
                     use_thread: thread,
                     use_mem_to_fs: self.mem_to_fs,
                     use_mem_to_fs_bytes: num_bytes,
                 },
             );
+            if let Some(ref batch) = input_batch {
+                batch_obs.spilling_to_disk(
+                    batch.id,
+                    data_batch::SpillingToDisk {
+                        use_mem_to_fs: self.mem_to_fs,
+                        use_mem_to_fs_bytes: batch.bytes,
+                    },
+                );
+                sleep_short();
+                batch_obs.on_disk(
+                    batch.id,
+                    data_batch::OnDisk {
+                        operator_id: operator.id,
+                        use_filesystem: self.filesystem,
+                        use_filesystem_bytes: batch.bytes,
+                    },
+                );
+            }
             sleep_sometimes_really_long();
-            obs.task_allocating_memory(id, task::Allocating { use_thread: thread });
+            obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
             sleep_short();
+            if let Some(ref batch) = input_batch {
+                batch_obs.loading_to_memory(
+                    batch.id,
+                    data_batch::LoadingToMemory {
+                        use_fs_to_mem: self.fs_to_mem,
+                        use_fs_to_mem_bytes: batch.bytes,
+                    },
+                );
+                sleep_short();
+                batch_obs.in_memory(
+                    batch.id,
+                    data_batch::InMemory {
+                        use_memory: self.memory,
+                        use_memory_bytes: batch.bytes,
+                    },
+                );
+            }
         }
+
         if load {
             obs.task_loading(
-                id,
+                task_id,
                 task::Loading {
                     use_thread: thread,
                     use_fs_to_mem: self.fs_to_mem,
@@ -670,8 +874,9 @@ impl Worker {
             );
             sleep_sometimes_really_long();
         }
+
         obs.task_computing(
-            id,
+            task_id,
             task::Computing {
                 use_thread: thread,
                 use_memory: self.memory,
@@ -679,19 +884,63 @@ impl Worker {
             },
         );
 
-        if operator.kind == Physical::JoinLocal {
-            simulate_cudf_trace(context, id)
-        };
+        // --- GPU path ---
+        if operator.kind == Physical::JoinLocal && !self.gpus.is_empty() {
+            let gpu = &self.gpus[rng().random_range(0..self.gpus.len())];
 
+            if let Some(ref batch) = input_batch {
+                batch_obs.loading_to_gpu(
+                    batch.id,
+                    data_batch::LoadingToGpu {
+                        use_mem_to_gpu: gpu.mem_to_gpu,
+                        use_mem_to_gpu_bytes: batch.bytes,
+                    },
+                );
+                sleep_short();
+                batch_obs.on_gpu(
+                    batch.id,
+                    data_batch::OnGpu {
+                        use_gpu_memory: gpu.memory,
+                        use_gpu_memory_bytes: batch.bytes,
+                    },
+                );
+            }
+
+            obs.task_gpu_computing(
+                task_id,
+                task::GpuComputing {
+                    use_thread: thread,
+                    use_gpu_compute: gpu.compute,
+                },
+            );
+            sleep_long();
+
+            if let Some(ref batch) = input_batch {
+                batch_obs.spilling_to_memory(
+                    batch.id,
+                    data_batch::SpillingToMemory {
+                        use_gpu_to_mem: gpu.gpu_to_mem,
+                        use_gpu_to_mem_bytes: batch.bytes,
+                    },
+                );
+                sleep_short();
+                batch_obs.in_memory(
+                    batch.id,
+                    data_batch::InMemory {
+                        use_memory: self.memory,
+                        use_memory_bytes: batch.bytes,
+                    },
+                );
+            }
+        }
+
+        // --- Network send ---
         if send {
-            // Get all other workers and send some data to each of them sequentially.
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
-
             for other in other_workers {
                 let link = *engine.network_links.get(&(self.id, *other)).unwrap();
-
                 obs.task_sending(
-                    id,
+                    task_id,
                     task::Sending {
                         use_thread: thread,
                         use_link: link,
@@ -702,7 +951,72 @@ impl Worker {
             }
         }
 
-        obs.task_exit(id);
+        obs.task_exit(task_id);
+
+        // --- Produce output batches and send downstream ---
+        match operator.kind {
+            Physical::FileSystemScan => {
+                if let Some(batch) = input_batch {
+                    operator.batches_out.fetch_add(1, Ordering::Relaxed);
+                    operator.bytes_out.fetch_add(batch.bytes, Ordering::Relaxed);
+                    operator.rows_out.fetch_add(batch.rows, Ordering::Relaxed);
+                    for sender in &work.output_senders {
+                        let _ = sender.send(batch.clone());
+                    }
+                }
+            }
+            Physical::Output => {
+                if let Some(batch) = input_batch {
+                    operator.batches_in.fetch_add(1, Ordering::Relaxed);
+                    operator.bytes_in.fetch_add(batch.bytes, Ordering::Relaxed);
+                    operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
+                    batch_obs.exit(batch.id);
+                }
+            }
+            _ => {
+                if let Some(batch) = input_batch {
+                    operator.batches_in.fetch_add(1, Ordering::Relaxed);
+                    operator.bytes_in.fetch_add(batch.bytes, Ordering::Relaxed);
+                    operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
+                    batch_obs.exit(batch.id);
+
+                    let output_bytes = if operator.kind == Physical::JoinLocal {
+                        rng().random_range(1..4) * batch.bytes
+                    } else {
+                        batch.bytes / rng().random_range(1..4).max(1)
+                    };
+                    let output_rows = if operator.kind == Physical::JoinLocal {
+                        rng().random_range(1..4) * batch.rows
+                    } else {
+                        batch.rows / rng().random_range(1..4).max(1)
+                    };
+
+                    let output_batch_id = Uuid::now_v7();
+                    operator.batches_out.fetch_add(1, Ordering::Relaxed);
+                    operator.bytes_out.fetch_add(output_bytes, Ordering::Relaxed);
+                    operator.rows_out.fetch_add(output_rows, Ordering::Relaxed);
+
+                    batch_obs.in_memory(
+                        output_batch_id,
+                        data_batch::InMemory {
+                            use_memory: self.memory,
+                            use_memory_bytes: output_bytes,
+                        },
+                    );
+
+                    let output = Batch {
+                        id: output_batch_id,
+                        bytes: output_bytes,
+                        rows: output_rows,
+                    };
+                    for sender in &work.output_senders {
+                        let _ = sender.send(output.clone());
+                    }
+                }
+            }
+        }
+
+        operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
     }
 
     fn execute_logical_plan(
@@ -749,6 +1063,38 @@ impl Worker {
                 format!("Thread {index}").as_str(),
             );
         }
+        for (index, gpu) in self.gpus.iter().enumerate() {
+            log_resource_group_links(
+                engine.id,
+                physical_plan.query_id,
+                gpu.id,
+                format!("GPU {index}").as_str(),
+            );
+            log_resource_links(
+                engine.id,
+                physical_plan.query_id,
+                gpu.memory,
+                format!("GPU {index} Memory").as_str(),
+            );
+            log_resource_links(
+                engine.id,
+                physical_plan.query_id,
+                gpu.compute,
+                format!("GPU {index} Compute").as_str(),
+            );
+            log_resource_links(
+                engine.id,
+                physical_plan.query_id,
+                gpu.mem_to_gpu,
+                format!("Memory -> GPU {index}").as_str(),
+            );
+            log_resource_links(
+                engine.id,
+                physical_plan.query_id,
+                gpu.gpu_to_mem,
+                format!("GPU {index} -> Memory").as_str(),
+            );
+        }
 
         let nodes = petgraph::algo::toposort(&physical_plan.dag, None).unwrap();
         info!(
@@ -760,49 +1106,195 @@ impl Worker {
         );
 
         if physical_plan.execute {
-            // On each thread, run a bunch of tasks for each operator.
-            let tasks_per_thread_per_op = num_tasks / self.threads.len();
             let plan = &physical_plan;
-            let nodes = &nodes;
+
+            // Create a channel for each DAG edge. Batches flow from source
+            // operator to target operator through these channels.
+            let mut edge_channels: HashMap<petgraph::graph::EdgeIndex, (Sender<Batch>, Receiver<Batch>)> =
+                HashMap::new();
+            for edge_idx in plan.dag.edge_indices() {
+                let (tx, rx) = crossbeam_channel::unbounded();
+                edge_channels.insert(edge_idx, (tx, rx));
+            }
+
+            // Build per-operator output senders and input receivers.
+            let operator_outputs: HashMap<NodeIndex, Vec<&Sender<Batch>>> = nodes
+                .iter()
+                .map(|&node_idx| {
+                    let senders = plan
+                        .dag
+                        .edges_directed(node_idx, Direction::Outgoing)
+                        .map(|edge| &edge_channels[&edge.id()].0)
+                        .collect();
+                    (node_idx, senders)
+                })
+                .collect();
+
+            let operator_inputs: HashMap<NodeIndex, Vec<&Receiver<Batch>>> = nodes
+                .iter()
+                .map(|&node_idx| {
+                    let receivers = plan
+                        .dag
+                        .edges_directed(node_idx, Direction::Incoming)
+                        .map(|edge| &edge_channels[&edge.id()].1)
+                        .collect();
+                    (node_idx, receivers)
+                })
+                .collect();
+
+            // Work queue: scheduler sends work items, pool threads consume.
+            let (work_tx, work_rx): (Sender<WorkItem>, Receiver<WorkItem>) =
+                crossbeam_channel::unbounded();
+
+            let task_counter = AtomicU64::new(0);
+
+            // Find the output (sink) node — the root of the pull chain.
+            let output_node = nodes
+                .iter()
+                .find(|&&n| plan.dag[n].kind == Physical::Output)
+                .copied()
+                .expect("physical plan must have an Output operator");
+
             std::thread::scope(|s| {
-                for (thread_index, thread_id) in self.threads.iter().enumerate() {
-                    s.spawn({
-                        let thread_id = *thread_id;
-                        move || {
-                            for task_index in thread_index * tasks_per_thread_per_op
-                                ..(thread_index + 1) * tasks_per_thread_per_op
-                            {
-                                for node_idx in nodes {
-                                    let op = &plan.dag[*node_idx];
-                                    self.execute_physical_operator_task(
-                                        context, task_index, engine, op, thread_id,
-                                    );
-                                    op.tasks_processed.fetch_add(1, Ordering::Relaxed);
-                                    let edges =
-                                        plan.dag.edges_directed(*node_idx, Direction::Outgoing);
-                                    for edge in edges {
-                                        edge.weight().source.num_bytes.fetch_add(
-                                            rng().random_range(1024..1024 * 1024),
-                                            Ordering::Relaxed,
-                                        );
-                                        edge.weight().source.num_rows.fetch_add(
-                                            rng().random_range(16..1024),
-                                            Ordering::Relaxed,
-                                        );
-                                        edge.weight().target.num_bytes.fetch_add(
-                                            rng().random_range(1024..128 * 1024),
-                                            Ordering::Relaxed,
-                                        );
-                                        edge.weight().target.num_rows.fetch_add(
-                                            rng().random_range(16..1024),
-                                            Ordering::Relaxed,
-                                        );
-                                    }
-                                }
+                // Spawn pool threads that consume work items.
+                for thread_id in &self.threads {
+                    let work_rx = work_rx.clone();
+                    let thread_id = *thread_id;
+                    s.spawn(move || {
+                        while let Ok(work) = work_rx.recv() {
+                            self.process_work_item(context, engine, &work, thread_id);
+
+                            // Accumulate port stats on DAG edges.
+                            let edges = plan
+                                .dag
+                                .edges_directed(work.operator_node, Direction::Outgoing);
+                            for edge in edges {
+                                edge.weight().source.num_bytes.fetch_add(
+                                    rng().random_range(1024..1024 * 1024),
+                                    Ordering::Relaxed,
+                                );
+                                edge.weight().source.num_rows.fetch_add(
+                                    rng().random_range(16..1024),
+                                    Ordering::Relaxed,
+                                );
+                                edge.weight().target.num_bytes.fetch_add(
+                                    rng().random_range(1024..128 * 1024),
+                                    Ordering::Relaxed,
+                                );
+                                edge.weight().target.num_rows.fetch_add(
+                                    rng().random_range(16..1024),
+                                    Ordering::Relaxed,
+                                );
                             }
                         }
                     });
                 }
+
+                // Pull-based scheduler: demand flows backward from Output
+                // to scans; data flows forward through the DAG.
+                s.spawn(|| {
+                    // Per-operator demand: how many batches this operator
+                    // still needs to produce for its downstream consumer(s).
+                    let mut demand: HashMap<NodeIndex, usize> = nodes
+                        .iter()
+                        .map(|&n| (n, 0usize))
+                        .collect();
+
+                    // Seed demand at the output node. The output wants
+                    // num_tasks batches total.
+                    *demand.get_mut(&output_node).unwrap() = num_tasks;
+
+                    // Track how many batches each operator has produced (for
+                    // termination). Output "produces" by consuming.
+                    let mut produced: HashMap<NodeIndex, usize> = nodes
+                        .iter()
+                        .map(|&n| (n, 0usize))
+                        .collect();
+
+                    // Process in reverse topological order (output first,
+                    // scans last) so demand propagates backward.
+                    let reverse_topo: Vec<NodeIndex> = nodes.iter().copied().rev().collect();
+
+                    loop {
+                        let mut made_progress = false;
+
+                        for &node_idx in &reverse_topo {
+                            let node_demand = demand[&node_idx];
+                            if node_demand == 0 {
+                                continue;
+                            }
+
+                            let op = &plan.dag[node_idx];
+                            let outputs = &operator_outputs[&node_idx];
+
+                            if op.kind == Physical::FileSystemScan {
+                                // Scans satisfy demand by producing batches.
+                                let idx = task_counter.fetch_add(1, Ordering::Relaxed);
+                                let _ = work_tx.send(WorkItem {
+                                    operator_node: node_idx,
+                                    operator: op,
+                                    input_batch: None,
+                                    output_senders: outputs.clone(),
+                                    task_index: idx,
+                                });
+                                *demand.get_mut(&node_idx).unwrap() -= 1;
+                                *produced.get_mut(&node_idx).unwrap() += 1;
+                                made_progress = true;
+                            } else {
+                                // Non-scan: try to consume from input channels.
+                                let inputs = &operator_inputs[&node_idx];
+                                let mut got_batch = false;
+                                for rx in inputs {
+                                    if let Ok(batch) = rx.try_recv() {
+                                        let idx = task_counter.fetch_add(1, Ordering::Relaxed);
+                                        let _ = work_tx.send(WorkItem {
+                                            operator_node: node_idx,
+                                            operator: op,
+                                            input_batch: Some(batch),
+                                            output_senders: outputs.clone(),
+                                            task_index: idx,
+                                        });
+                                        *demand.get_mut(&node_idx).unwrap() -= 1;
+                                        *produced.get_mut(&node_idx).unwrap() += 1;
+                                        got_batch = true;
+                                        made_progress = true;
+                                        break; // one batch per iteration
+                                    }
+                                }
+
+                                if !got_batch {
+                                    // No input data available — propagate
+                                    // demand upstream so sources produce.
+                                    for edge in plan
+                                        .dag
+                                        .edges_directed(node_idx, Direction::Incoming)
+                                    {
+                                        let source = edge.source();
+                                        let source_produced = produced[&source];
+                                        let source_demand = demand[&source];
+                                        // Only add demand if the source
+                                        // hasn't already been asked enough.
+                                        if source_produced + source_demand < node_demand + produced[&node_idx] {
+                                            *demand.get_mut(&source).unwrap() += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Check if Output has produced all requested batches.
+                        if produced[&output_node] >= num_tasks {
+                            break;
+                        }
+
+                        if !made_progress {
+                            std::thread::sleep(Duration::from_micros(10));
+                        }
+                    }
+
+                    // Drop the work sender to signal pool threads to exit.
+                    drop(work_tx);
+                });
             });
         }
 
@@ -823,18 +1315,25 @@ impl Worker {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
 
+            let batches_in = op.batches_in.load(Ordering::Relaxed);
+            let bytes_in = op.bytes_in.load(Ordering::Relaxed);
+            let rows_in = op.rows_in.load(Ordering::Relaxed);
+            let batches_out = op.batches_out.load(Ordering::Relaxed);
+            let bytes_out = op.bytes_out.load(Ordering::Relaxed);
+            let rows_out = op.rows_out.load(Ordering::Relaxed);
+
             // Common metrics for all operators
             let mut attributes = vec![
                 Attribute::u64("tasks_processed", tasks_processed),
                 attr!(u64 "wall_time_ns",       100_000..5_000_000_000),
                 attr!(u64 "cpu_time_ns",        50_000..4_000_000_000),
                 attr!(u64 "peak_memory_bytes",  1024..512 * 1024 * 1024),
-                attr!(u64 "output_rows",        0..10_000_000),
-                attr!(u64 "output_bytes",       0..2u64 * 1024 * 1024 * 1024),
-                attr!(u64 "input_rows",         0..50_000_000),
-                attr!(u64 "input_bytes",        0..4u64 * 1024 * 1024 * 1024),
-                attr!(u64 "num_batches",        1..2048),
-                attr!(f64 "avg_batch_rows",     64.0..65536.0),
+                Attribute::u64("output_rows", rows_out),
+                Attribute::u64("output_bytes", bytes_out),
+                Attribute::u64("output_batches", batches_out),
+                Attribute::u64("input_rows", rows_in),
+                Attribute::u64("input_bytes", bytes_in),
+                Attribute::u64("input_batches", batches_in),
             ];
 
             match op.kind {
@@ -1069,6 +1568,17 @@ impl Worker {
             processor_obs.exit(*thread, Default::default());
         }
         sleep_long();
+        for gpu in self.gpus.iter() {
+            memory_obs.finalizing(gpu.memory, Default::default());
+            memory_obs.exit(gpu.memory, Default::default());
+            processor_obs.finalizing(gpu.compute, Default::default());
+            processor_obs.exit(gpu.compute, Default::default());
+            channel_obs.finalizing(gpu.mem_to_gpu, Default::default());
+            channel_obs.exit(gpu.mem_to_gpu, Default::default());
+            channel_obs.finalizing(gpu.gpu_to_mem, Default::default());
+            channel_obs.exit(gpu.gpu_to_mem, Default::default());
+        }
+        sleep_long();
         worker_obs.exit(self.id);
     }
 }
@@ -1091,7 +1601,13 @@ impl Engine {
         }
     }
 
-    fn spawn(&mut self, context: &SimulatorContext, num_workers: usize, num_threads: usize) {
+    fn spawn(
+        &mut self,
+        context: &SimulatorContext,
+        num_workers: usize,
+        num_threads: usize,
+        num_gpus: usize,
+    ) {
         // Create some observers
         info!("Simulating Engine:");
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
@@ -1117,7 +1633,8 @@ impl Engine {
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), num_threads);
+            let worker =
+                Worker::new(*worker_id, format!("drone-{worker_index}"), num_threads, num_gpus);
             worker.spawn(context, self.id);
             self.workers.insert(*worker_id, worker);
         }
@@ -1195,115 +1712,6 @@ impl Engine {
     }
 }
 
-fn simulate_cudf_trace(context: &SimulatorContext, task_id: Uuid) {
-    // Nothing in this simulator aims to make too much sense to begin with, so this code is LLM generated.
-    let trace = context.trace_observer(task_id);
-
-    let kernel = trace.span(task_id, "kernel".into(), None);
-    kernel.enter(vec![]);
-
-    // Device memory allocation
-    let alloc = trace.span(task_id, "rmm::alloc".into(), Some(kernel.span_id()));
-    alloc.enter(vec![]);
-    sleep_short();
-    alloc.exit(vec![]);
-    alloc.close();
-
-    // Host-to-device transfer
-    let h2d = trace.span(task_id, "cudf::h2d_copy".into(), Some(kernel.span_id()));
-    h2d.enter(vec![]);
-    sleep_short();
-    h2d.exit(vec![]);
-    h2d.close();
-
-    // Column operations
-    let col_ops = trace.span(task_id, "cudf::column_ops".into(), Some(kernel.span_id()));
-    col_ops.enter(vec![]);
-
-    // Decompress input column
-    let decompress = trace.span(
-        task_id,
-        "nvcomp::decompress".into(),
-        Some(col_ops.span_id()),
-    );
-    decompress.enter(vec![]);
-    sleep_short();
-    decompress.exit(vec![]);
-    decompress.close();
-
-    // Apply filter predicate
-    if rng().random_bool(0.7) {
-        let filter = trace.span(
-            task_id,
-            "cudf::apply_filter".into(),
-            Some(col_ops.span_id()),
-        );
-        filter.enter(vec![]);
-
-        let pred = trace.span(
-            task_id,
-            "cudf::eval_predicate".into(),
-            Some(filter.span_id()),
-        );
-        pred.enter(vec![]);
-        sleep_short();
-        pred.exit(vec![]);
-        pred.close();
-
-        let gather = trace.span(task_id, "cudf::gather".into(), Some(filter.span_id()));
-        gather.enter(vec![]);
-        sleep_short();
-        gather.exit(vec![]);
-        gather.close();
-
-        filter.exit(vec![]);
-        filter.close();
-    }
-
-    // Hash partitioning
-    let hash = trace.span(
-        task_id,
-        "cudf::hash_partition".into(),
-        Some(col_ops.span_id()),
-    );
-    hash.enter(vec![]);
-
-    let murmur = trace.span(task_id, "cudf::murmur_hash".into(), Some(hash.span_id()));
-    murmur.enter(vec![]);
-    sleep_long();
-    murmur.exit(vec![]);
-    murmur.close();
-
-    let scatter = trace.span(task_id, "cudf::scatter".into(), Some(hash.span_id()));
-    scatter.enter(vec![]);
-    sleep_short();
-    scatter.exit(vec![]);
-    scatter.close();
-
-    hash.exit(vec![]);
-    hash.close();
-
-    col_ops.exit(vec![]);
-    col_ops.close();
-
-    // Device-to-host transfer
-    let d2h = trace.span(task_id, "cudf::d2h_copy".into(), Some(kernel.span_id()));
-    d2h.enter(vec![]);
-    sleep_short();
-    d2h.exit(vec![]);
-    d2h.close();
-
-    // Free device memory
-    let free = trace.span(task_id, "rmm::free".into(), Some(kernel.span_id()));
-    free.enter(vec![]);
-    sleep_short();
-    free.exit(vec![]);
-    free.close();
-
-    kernel.exit(vec![]);
-    kernel.close();
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
@@ -1337,7 +1745,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let context = SimulatorContext::try_new(exporter, engine.id)?;
 
-    engine.spawn(&context, args.num_workers, args.num_threads);
+    engine.spawn(&context, args.num_workers, args.num_threads, args.num_gpus);
 
     for (query_group_index, query_group_id) in std::iter::repeat_with(Uuid::now_v7)
         .take(args.num_query_groups)
@@ -1386,7 +1794,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::thread::scope(|s| {
                 for worker in workers {
                     s.spawn(|| {
-                        worker.execute_logical_plan(&context, &engine, &l_plan, args.num_tasks);
+                        worker.execute_logical_plan(
+                            &context, &engine, &l_plan, args.num_tasks,
+                        );
                     });
                 }
             });

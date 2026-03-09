@@ -15,7 +15,7 @@ use quent_query_engine_events::{
     port::{self, PortEvent},
     query, query_group, worker,
 };
-use quent_simulator_events::{SimulatorEvent, task};
+use quent_simulator_events::{SimulatorEvent, data_batch, task};
 use uuid::Uuid;
 
 pub struct SimulatorContext {
@@ -86,6 +86,12 @@ impl SimulatorContext {
 
     pub fn task_observer(&self) -> TaskObserver {
         TaskObserver {
+            tx: self.inner.events_sender(),
+        }
+    }
+
+    pub fn data_batch_observer(&self) -> DataBatchObserver {
+        DataBatchObserver {
             tx: self.inner.events_sender(),
         }
     }
@@ -370,10 +376,107 @@ impl TaskObserver {
         )
     }
 
+    pub fn task_gpu_computing(&self, id: Uuid, gpu_computing: task::GpuComputing) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::Task(task::TaskEvent::GpuComputing(gpu_computing)),
+            ),
+        )
+    }
+
     pub fn task_exit(&self, id: Uuid) {
         push_event(
             &self.tx,
             Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Exit)),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub struct DataBatchObserver {
+    tx: EventSender<SimulatorEvent>,
+}
+
+impl DataBatchObserver {
+    pub fn on_disk(&self, id: Uuid, event: data_batch::OnDisk) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::OnDisk(event)),
+            ),
+        )
+    }
+
+    pub fn loading_to_memory(&self, id: Uuid, event: data_batch::LoadingToMemory) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::LoadingToMemory(event)),
+            ),
+        )
+    }
+
+    pub fn in_memory(&self, id: Uuid, event: data_batch::InMemory) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::InMemory(event)),
+            ),
+        )
+    }
+
+    pub fn loading_to_gpu(&self, id: Uuid, event: data_batch::LoadingToGpu) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::LoadingToGpu(event)),
+            ),
+        )
+    }
+
+    pub fn on_gpu(&self, id: Uuid, event: data_batch::OnGpu) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::OnGpu(event)),
+            ),
+        )
+    }
+
+    pub fn spilling_to_memory(&self, id: Uuid, event: data_batch::SpillingToMemory) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::SpillingToMemory(event)),
+            ),
+        )
+    }
+
+    pub fn spilling_to_disk(&self, id: Uuid, event: data_batch::SpillingToDisk) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::SpillingToDisk(event)),
+            ),
+        )
+    }
+
+    pub fn exit(&self, id: Uuid) {
+        push_event(
+            &self.tx,
+            Event::new_now(
+                id,
+                SimulatorEvent::DataBatch(data_batch::DataBatchEvent::Exit),
+            ),
         )
     }
 }

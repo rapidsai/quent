@@ -48,6 +48,12 @@ pub mod task {
         pub use_link_bytes: u64,
     }
 
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct GpuComputing {
+        pub use_thread: Uuid,
+        pub use_gpu_compute: Uuid,
+    }
+
     #[derive(Debug, Deserialize, Serialize)]
     pub enum TaskEvent {
         Queueing(Queueing),
@@ -56,42 +62,67 @@ pub mod task {
         Loading(Loading),
         Spilling(Spilling),
         Sending(Sending),
+        GpuComputing(GpuComputing),
         Exit,
     }
 }
 
-pub mod record_batch {
+pub mod data_batch {
     use super::*;
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Init {
+    pub struct OnDisk {
         pub operator_id: Uuid,
-    }
-
-    #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Idle {
-        pub use_filesystem: Option<Uuid>,
+        pub use_filesystem: Uuid,
         pub use_filesystem_bytes: u64,
-        pub use_main_memory: Option<Uuid>,
-        pub use_main_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Moving {}
+    pub struct LoadingToMemory {
+        pub use_fs_to_mem: Uuid,
+        pub use_fs_to_mem_bytes: u64,
+    }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Finalizing {}
+    pub struct InMemory {
+        pub use_memory: Uuid,
+        pub use_memory_bytes: u64,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct LoadingToGpu {
+        pub use_mem_to_gpu: Uuid,
+        pub use_mem_to_gpu_bytes: u64,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct OnGpu {
+        pub use_gpu_memory: Uuid,
+        pub use_gpu_memory_bytes: u64,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct SpillingToMemory {
+        pub use_gpu_to_mem: Uuid,
+        pub use_gpu_to_mem_bytes: u64,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct SpillingToDisk {
+        pub use_mem_to_fs: Uuid,
+        pub use_mem_to_fs_bytes: u64,
+    }
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct Exit {}
-
-    #[derive(Debug, Deserialize, Serialize)]
-    pub enum RecordBatchEvent {
-        Initializing(Init),
-        Idle(Idle),
-        Moving(Moving),
-        Finalizing(Finalizing),
-        Exit(Exit),
+    pub enum DataBatchEvent {
+        OnDisk(OnDisk),
+        LoadingToMemory(LoadingToMemory),
+        InMemory(InMemory),
+        LoadingToGpu(LoadingToGpu),
+        OnGpu(OnGpu),
+        SpillingToMemory(SpillingToMemory),
+        SpillingToDisk(SpillingToDisk),
+        Exit,
     }
 }
 
@@ -99,10 +130,9 @@ pub mod record_batch {
 pub enum SimulatorEvent {
     QueryEngineEvent(QueryEngineEvent),
     Task(task::TaskEvent),
+    DataBatch(data_batch::DataBatchEvent),
     Resource(ResourceEvent),
     Trace(TraceEvent),
-    // TODO(johanpel):
-    // RecordBatch(record_batch::RecordBatchEvent),
 }
 
 impl From<ResourceEvent> for SimulatorEvent {
