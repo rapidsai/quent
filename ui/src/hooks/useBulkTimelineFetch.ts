@@ -4,7 +4,7 @@ import { useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import { getResourceTypeName, setOperatorOnEntries } from '@/lib/timeline.utils';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
 import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
@@ -24,7 +24,7 @@ export function useBulkTimelineFetch({
   engineId: string;
   queryId: string;
   debouncedZoomRange: ZoomRange;
-  entries: Record<string, TimelineRequest<TaskFilter>>;
+  entries: Record<string, TimelineRequest<OperatorFilter>>;
   operatorId?: string | null;
   enabled?: boolean;
 }) {

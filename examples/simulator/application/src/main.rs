@@ -84,20 +84,19 @@ fn sleep_fixed(micros: u64) {
 }
 
 /// Sleep proportional to the number of bytes being processed.
-/// base_micros is the minimum, bytes_factor scales with data size.
 fn sleep_proportional(bytes: u64) {
-    let mb = (bytes / (1024 * 1024)).max(1);
-    let micros = 5 + mb / 4;
+    let mib = (bytes / (1024 * 1024)).max(1);
+    let micros = 5 + mib / 4;
     std::thread::sleep(Duration::from_micros(micros));
 }
 
 /// Occasionally very slow (1% of the time), otherwise proportional.
 fn sleep_sometimes_really_long(bytes: u64) {
-    let mb = (bytes / (1024 * 1024)).max(1);
+    let mib = (bytes / (1024 * 1024)).max(1);
     std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        5000 + mb * 10
+        5000 + mib * 10
     } else {
-        5 + mb / 4
+        5 + mib / 4
     }));
 }
 
@@ -204,13 +203,6 @@ enum Physical {
     Sort,
     Limit,
     Output,
-}
-
-#[derive(Clone, Debug)]
-struct Batch {
-    id: Uuid,
-    bytes: u64,
-    rows: u64,
 }
 
 /// A work item dispatched by the scheduler to a pool thread.
@@ -534,6 +526,13 @@ impl Gpu {
     }
 }
 
+#[derive(Clone, Debug)]
+struct Batch {
+    id: Uuid,
+    bytes: u64,
+    rows: u64,
+}
+
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 struct Worker {
     id: Uuid,
@@ -751,26 +750,32 @@ impl Worker {
             let batch_id = Uuid::now_v7();
             let batch_bytes = rng().random_range(1..256) * 1024 * 1024;
             let batch_rows = rng().random_range(1024..65536);
-            batch_obs.on_disk(
+            batch_obs.init(
                 batch_id,
-                data_batch::OnDisk {
+                data_batch::Init {
+                    operator_id: operator.id,
+                },
+            );
+            batch_obs.in_storage(
+                batch_id,
+                data_batch::InStorage {
                     operator_id: operator.id,
                     use_filesystem: self.filesystem,
                     use_filesystem_bytes: batch_bytes,
                 },
             );
             sleep_proportional(batch_bytes);
-            batch_obs.loading_to_memory(
+            batch_obs.loading_to_host_memory(
                 batch_id,
-                data_batch::LoadingToMemory {
+                data_batch::LoadingToHostMemory {
                     use_fs_to_mem: self.fs_to_mem,
                     use_fs_to_mem_bytes: batch_bytes,
                 },
             );
             sleep_proportional(batch_bytes);
-            batch_obs.in_memory(
+            batch_obs.in_host_memory(
                 batch_id,
-                data_batch::InMemory {
+                data_batch::InHostMemory {
                     use_memory: self.memory,
                     use_memory_bytes: batch_bytes,
                 },
@@ -824,17 +829,17 @@ impl Worker {
                 },
             );
             if let Some(ref batch) = input_batch {
-                batch_obs.spilling_to_disk(
+                batch_obs.spilling_to_storage(
                     batch.id,
-                    data_batch::SpillingToDisk {
+                    data_batch::SpillingToStorage {
                         use_mem_to_fs: self.mem_to_fs,
                         use_mem_to_fs_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
-                batch_obs.on_disk(
+                batch_obs.in_storage(
                     batch.id,
-                    data_batch::OnDisk {
+                    data_batch::InStorage {
                         operator_id: operator.id,
                         use_filesystem: self.filesystem,
                         use_filesystem_bytes: batch.bytes,
@@ -846,17 +851,17 @@ impl Worker {
             sleep_fixed(2);
             // Reload spilled batch
             if let Some(ref batch) = input_batch {
-                batch_obs.loading_to_memory(
+                batch_obs.loading_to_host_memory(
                     batch.id,
-                    data_batch::LoadingToMemory {
+                    data_batch::LoadingToHostMemory {
                         use_fs_to_mem: self.fs_to_mem,
                         use_fs_to_mem_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
-                batch_obs.in_memory(
+                batch_obs.in_host_memory(
                     batch.id,
-                    data_batch::InMemory {
+                    data_batch::InHostMemory {
                         use_memory: self.memory,
                         use_memory_bytes: batch.bytes,
                     },
@@ -901,17 +906,17 @@ impl Worker {
             let gpu = &self.gpus[rng().random_range(0..self.gpus.len())];
 
             if let Some(ref batch) = input_batch {
-                batch_obs.loading_to_gpu(
+                batch_obs.loading_to_gpu_memory(
                     batch.id,
-                    data_batch::LoadingToGpu {
+                    data_batch::LoadingToGpuMemory {
                         use_mem_to_gpu: gpu.mem_to_gpu,
                         use_mem_to_gpu_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
-                batch_obs.on_gpu(
+                batch_obs.in_gpu_memory(
                     batch.id,
-                    data_batch::OnGpu {
+                    data_batch::InGpuMemory {
                         use_gpu_memory: gpu.memory,
                         use_gpu_memory_bytes: batch.bytes,
                     },
@@ -936,17 +941,17 @@ impl Worker {
             sleep_proportional(batch_bytes * gpu_multiplier);
 
             if let Some(ref batch) = input_batch {
-                batch_obs.spilling_to_memory(
+                batch_obs.spilling_to_host_memory(
                     batch.id,
-                    data_batch::SpillingToMemory {
+                    data_batch::SpillingToHostMemory {
                         use_gpu_to_mem: gpu.gpu_to_mem,
                         use_gpu_to_mem_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
-                batch_obs.in_memory(
+                batch_obs.in_host_memory(
                     batch.id,
-                    data_batch::InMemory {
+                    data_batch::InHostMemory {
                         use_memory: self.memory,
                         use_memory_bytes: batch.bytes,
                     },
@@ -1043,9 +1048,15 @@ impl Worker {
                             .fetch_add(output_bytes, Ordering::Relaxed);
                         operator.rows_out.fetch_add(output_rows, Ordering::Relaxed);
 
-                        batch_obs.in_memory(
+                        batch_obs.init(
                             output_batch_id,
-                            data_batch::InMemory {
+                            data_batch::Init {
+                                operator_id: operator.id,
+                            },
+                        );
+                        batch_obs.in_host_memory(
+                            output_batch_id,
+                            data_batch::InHostMemory {
                                 use_memory: self.memory,
                                 use_memory_bytes: output_bytes,
                             },

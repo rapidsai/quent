@@ -71,57 +71,63 @@ pub mod data_batch {
     use super::*;
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct OnDisk {
+    pub struct Init {
+        pub operator_id: Uuid,
+    }
+
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    pub struct InStorage {
         pub operator_id: Uuid,
         pub use_filesystem: Uuid,
         pub use_filesystem_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct LoadingToMemory {
+    pub struct LoadingToHostMemory {
         pub use_fs_to_mem: Uuid,
         pub use_fs_to_mem_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct InMemory {
+    pub struct InHostMemory {
         pub use_memory: Uuid,
         pub use_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct LoadingToGpu {
+    pub struct LoadingToGpuMemory {
         pub use_mem_to_gpu: Uuid,
         pub use_mem_to_gpu_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct OnGpu {
+    pub struct InGpuMemory {
         pub use_gpu_memory: Uuid,
         pub use_gpu_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct SpillingToMemory {
+    pub struct SpillingToHostMemory {
         pub use_gpu_to_mem: Uuid,
         pub use_gpu_to_mem_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct SpillingToDisk {
+    pub struct SpillingToStorage {
         pub use_mem_to_fs: Uuid,
         pub use_mem_to_fs_bytes: u64,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
     pub enum DataBatchEvent {
-        OnDisk(OnDisk),
-        LoadingToMemory(LoadingToMemory),
-        InMemory(InMemory),
-        LoadingToGpu(LoadingToGpu),
-        OnGpu(OnGpu),
-        SpillingToMemory(SpillingToMemory),
-        SpillingToDisk(SpillingToDisk),
+        Init(Init),
+        InStorage(InStorage),
+        LoadingToHostMemory(LoadingToHostMemory),
+        InHostMemory(InHostMemory),
+        LoadingToGpuMemory(LoadingToGpuMemory),
+        InGpuMemory(InGpuMemory),
+        SpillingToHostMemory(SpillingToHostMemory),
+        SpillingToStorage(SpillingToStorage),
         Exit,
     }
 }

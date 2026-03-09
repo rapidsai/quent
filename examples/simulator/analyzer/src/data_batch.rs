@@ -6,8 +6,8 @@ use quent_analyzer::{
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_simulator_events::data_batch::{
-    DataBatchEvent, InMemory, LoadingToGpu, LoadingToMemory, OnDisk, OnGpu, SpillingToDisk,
-    SpillingToMemory,
+    DataBatchEvent, InGpuMemory, InHostMemory, Init, InStorage, LoadingToGpuMemory,
+    LoadingToHostMemory, SpillingToHostMemory, SpillingToStorage,
 };
 use quent_time::{
     TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative,
@@ -18,13 +18,14 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum DataBatchTransitionData {
-    OnDisk(OnDisk),
-    LoadingToMemory(LoadingToMemory),
-    InMemory(InMemory),
-    LoadingToGpu(LoadingToGpu),
-    OnGpu(OnGpu),
-    SpillingToMemory(SpillingToMemory),
-    SpillingToDisk(SpillingToDisk),
+    Init(Init),
+    InStorage(InStorage),
+    LoadingToHostMemory(LoadingToHostMemory),
+    InHostMemory(InHostMemory),
+    LoadingToGpuMemory(LoadingToGpuMemory),
+    InGpuMemory(InGpuMemory),
+    SpillingToHostMemory(SpillingToHostMemory),
+    SpillingToStorage(SpillingToStorage),
     Exit,
 }
 
@@ -71,13 +72,14 @@ impl Timestamp for DataBatchTransition {
 impl Transition for DataBatchTransition {
     fn name(&self) -> &str {
         match &self.data {
-            DataBatchTransitionData::OnDisk(_) => "on_disk",
-            DataBatchTransitionData::LoadingToMemory(_) => "loading_to_memory",
-            DataBatchTransitionData::InMemory(_) => "in_memory",
-            DataBatchTransitionData::LoadingToGpu(_) => "loading_to_gpu",
-            DataBatchTransitionData::OnGpu(_) => "on_gpu",
-            DataBatchTransitionData::SpillingToMemory(_) => "spilling_to_memory",
-            DataBatchTransitionData::SpillingToDisk(_) => "spilling_to_disk",
+            DataBatchTransitionData::Init(_) => "init",
+            DataBatchTransitionData::InStorage(_) => "in_storage",
+            DataBatchTransitionData::LoadingToHostMemory(_) => "loading_to_host_memory",
+            DataBatchTransitionData::InHostMemory(_) => "in_host_memory",
+            DataBatchTransitionData::LoadingToGpuMemory(_) => "loading_to_gpu_memory",
+            DataBatchTransitionData::InGpuMemory(_) => "in_gpu_memory",
+            DataBatchTransitionData::SpillingToHostMemory(_) => "spilling_to_host_memory",
+            DataBatchTransitionData::SpillingToStorage(_) => "spilling_to_storage",
             DataBatchTransitionData::Exit => "exit",
         }
     }
@@ -89,31 +91,32 @@ impl Transition for DataBatchTransition {
 
 fn create_usages(data: &DataBatchTransitionData) -> SmallVec<[DataBatchUsage; 1]> {
     match data {
-        DataBatchTransitionData::OnDisk(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::Init(_) => SmallVec::new(),
+        DataBatchTransitionData::InStorage(data) => smallvec![DataBatchUsage {
             resource_id: data.use_filesystem,
             capacities: smallvec![CapacityValue::new("bytes", data.use_filesystem_bytes)],
         }],
-        DataBatchTransitionData::LoadingToMemory(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::LoadingToHostMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_fs_to_mem,
             capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_mem_bytes)],
         }],
-        DataBatchTransitionData::InMemory(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::InHostMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_memory,
             capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
         }],
-        DataBatchTransitionData::LoadingToGpu(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::LoadingToGpuMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_mem_to_gpu,
             capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_gpu_bytes)],
         }],
-        DataBatchTransitionData::OnGpu(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::InGpuMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_gpu_memory,
             capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_memory_bytes)],
         }],
-        DataBatchTransitionData::SpillingToMemory(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::SpillingToHostMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_gpu_to_mem,
             capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_to_mem_bytes)],
         }],
-        DataBatchTransitionData::SpillingToDisk(data) => smallvec![DataBatchUsage {
+        DataBatchTransitionData::SpillingToStorage(data) => smallvec![DataBatchUsage {
             resource_id: data.use_mem_to_fs,
             capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_fs_bytes)],
         }],
@@ -142,15 +145,16 @@ impl DataBatchBuilder {
 
     pub(crate) fn push(&mut self, event: Event<DataBatchEvent>) {
         let data = match event.data {
-            DataBatchEvent::OnDisk(data) => DataBatchTransitionData::OnDisk(data),
-            DataBatchEvent::LoadingToMemory(data) => DataBatchTransitionData::LoadingToMemory(data),
-            DataBatchEvent::InMemory(data) => DataBatchTransitionData::InMemory(data),
-            DataBatchEvent::LoadingToGpu(data) => DataBatchTransitionData::LoadingToGpu(data),
-            DataBatchEvent::OnGpu(data) => DataBatchTransitionData::OnGpu(data),
-            DataBatchEvent::SpillingToMemory(data) => {
-                DataBatchTransitionData::SpillingToMemory(data)
+            DataBatchEvent::Init(data) => DataBatchTransitionData::Init(data),
+            DataBatchEvent::InStorage(data) => DataBatchTransitionData::InStorage(data),
+            DataBatchEvent::LoadingToHostMemory(data) => DataBatchTransitionData::LoadingToHostMemory(data),
+            DataBatchEvent::InHostMemory(data) => DataBatchTransitionData::InHostMemory(data),
+            DataBatchEvent::LoadingToGpuMemory(data) => DataBatchTransitionData::LoadingToGpuMemory(data),
+            DataBatchEvent::InGpuMemory(data) => DataBatchTransitionData::InGpuMemory(data),
+            DataBatchEvent::SpillingToHostMemory(data) => {
+                DataBatchTransitionData::SpillingToHostMemory(data)
             }
-            DataBatchEvent::SpillingToDisk(data) => DataBatchTransitionData::SpillingToDisk(data),
+            DataBatchEvent::SpillingToStorage(data) => DataBatchTransitionData::SpillingToStorage(data),
             DataBatchEvent::Exit => DataBatchTransitionData::Exit,
         };
         let usages = create_usages(&data);
@@ -179,7 +183,8 @@ pub struct DataBatch {
 impl DataBatch {
     pub fn operator_id(&self) -> Option<Uuid> {
         self.transitions.first().and_then(|t| match &t.data {
-            DataBatchTransitionData::OnDisk(data) => Some(data.operator_id),
+            DataBatchTransitionData::Init(data) => Some(data.operator_id),
+            DataBatchTransitionData::InStorage(data) => Some(data.operator_id),
             _ => None,
         })
     }
@@ -284,31 +289,35 @@ impl FsmTypeDeclaration for DataBatch {
 
         let states = vec![
             FsmStateTypeDecl {
-                name: "on_disk".to_string(),
+                name: "init".to_string(),
+                usages: vec![],
+            },
+            FsmStateTypeDecl {
+                name: "in_storage".to_string(),
                 usages: vec!["filesystem".to_string()],
             },
             FsmStateTypeDecl {
-                name: "loading_to_memory".to_string(),
+                name: "loading_to_host_memory".to_string(),
                 usages: vec!["fs_to_mem".to_string()],
             },
             FsmStateTypeDecl {
-                name: "in_memory".to_string(),
+                name: "in_host_memory".to_string(),
                 usages: vec!["memory".to_string()],
             },
             FsmStateTypeDecl {
-                name: "loading_to_gpu".to_string(),
+                name: "loading_to_gpu_memory".to_string(),
                 usages: vec!["mem_to_gpu".to_string()],
             },
             FsmStateTypeDecl {
-                name: "on_gpu".to_string(),
+                name: "in_gpu_memory".to_string(),
                 usages: vec!["gpu_memory".to_string()],
             },
             FsmStateTypeDecl {
-                name: "spilling_to_memory".to_string(),
+                name: "spilling_to_host_memory".to_string(),
                 usages: vec!["gpu_to_mem".to_string()],
             },
             FsmStateTypeDecl {
-                name: "spilling_to_disk".to_string(),
+                name: "spilling_to_storage".to_string(),
                 usages: vec!["mem_to_fs".to_string()],
             },
             FsmStateTypeDecl {
@@ -318,19 +327,21 @@ impl FsmTypeDeclaration for DataBatch {
         ];
 
         let transitions = vec![
-            FsmTransitionDecl::Entry("on_disk".to_string()),
-            FsmTransitionDecl::Transition("on_disk".to_string(), "loading_to_memory".to_string()),
-            FsmTransitionDecl::Transition("loading_to_memory".to_string(), "in_memory".to_string()),
-            FsmTransitionDecl::Transition("in_memory".to_string(), "loading_to_gpu".to_string()),
-            FsmTransitionDecl::Transition("in_memory".to_string(), "spilling_to_disk".to_string()),
-            FsmTransitionDecl::Transition("in_memory".to_string(), "exit".to_string()),
-            FsmTransitionDecl::Transition("loading_to_gpu".to_string(), "on_gpu".to_string()),
-            FsmTransitionDecl::Transition("on_gpu".to_string(), "spilling_to_memory".to_string()),
+            FsmTransitionDecl::Entry("init".to_string()),
+            FsmTransitionDecl::Transition("init".to_string(), "in_storage".to_string()),
+            FsmTransitionDecl::Transition("init".to_string(), "in_host_memory".to_string()),
+            FsmTransitionDecl::Transition("in_storage".to_string(), "loading_to_host_memory".to_string()),
+            FsmTransitionDecl::Transition("loading_to_host_memory".to_string(), "in_host_memory".to_string()),
+            FsmTransitionDecl::Transition("in_host_memory".to_string(), "loading_to_gpu_memory".to_string()),
+            FsmTransitionDecl::Transition("in_host_memory".to_string(), "spilling_to_storage".to_string()),
+            FsmTransitionDecl::Transition("in_host_memory".to_string(), "exit".to_string()),
+            FsmTransitionDecl::Transition("loading_to_gpu_memory".to_string(), "in_gpu_memory".to_string()),
+            FsmTransitionDecl::Transition("in_gpu_memory".to_string(), "spilling_to_host_memory".to_string()),
             FsmTransitionDecl::Transition(
-                "spilling_to_memory".to_string(),
-                "in_memory".to_string(),
+                "spilling_to_host_memory".to_string(),
+                "in_host_memory".to_string(),
             ),
-            FsmTransitionDecl::Transition("spilling_to_disk".to_string(), "on_disk".to_string()),
+            FsmTransitionDecl::Transition("spilling_to_storage".to_string(), "in_storage".to_string()),
             FsmTransitionDecl::Exit("exit".to_string()),
         ];
 

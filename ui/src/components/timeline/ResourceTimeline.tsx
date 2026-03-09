@@ -27,7 +27,7 @@ import { WHITE, withOpacity } from '@/services/colors';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { QuantitySpec } from '~quent/types/QuantitySpec';
 import { useTimelineChartColors } from './useTimelineChartColors';
@@ -116,13 +116,13 @@ export function ResourceTimeline({
         start,
         end,
       };
-      const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
+      const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: isGroup
           ? {
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
+                long_entities_threshold_s: null,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
                 config,
@@ -131,7 +131,7 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
+                long_entities_threshold_s: null,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
                 config,

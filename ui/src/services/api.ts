@@ -11,7 +11,7 @@ import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { BulkTimelineRequest } from '~quent/types/BulkTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { EntityRef } from '~quent/types/EntityRef';
 import type { Engine } from '~quent/types/Engine';
 
@@ -172,7 +172,7 @@ export async function fetchListQueries(engineId: string, coordinatorId: string):
 
 export async function fetchSingleTimeline(
   engineId: string,
-  request: SingleTimelineRequest<QueryFilter, TaskFilter>,
+  request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
   durationSeconds: number
 ): Promise<SingleTimelineResponse> {
   return apiFetch<SingleTimelineResponse>(`/engines/${engineId}/timeline/single`, {
@@ -186,7 +186,7 @@ export async function fetchSingleTimeline(
 
 export async function fetchBulkTimelines(
   engineId: string,
-  request: BulkTimelineRequest<QueryFilter, TaskFilter>
+  request: BulkTimelineRequest<QueryFilter, OperatorFilter>
 ): Promise<BulkTimelinesResponse> {
   return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
     fetchOptions: {

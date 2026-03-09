@@ -31,7 +31,7 @@ impl EntityId for EntityRef {
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
-pub struct TaskFilter {
+pub struct OperatorFilter {
     pub operator_id: Option<Uuid>,
 }
 

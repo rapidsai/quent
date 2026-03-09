@@ -2,7 +2,7 @@ import { atom } from 'jotai';
 import { atomFamily } from 'jotai-family';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 
 /** Build a composite cache key for per-item timeline data */
@@ -43,7 +43,7 @@ export const startTimeMsAtom = atom(0);
 export const bulkInitializedAtom = atom(false);
 
 /** Visible entries for bulk fetch — set in useEffect, read imperatively via store.get() */
-export const visibleEntriesAtom = atom<Record<string, TimelineRequest<TaskFilter>>>({});
+export const visibleEntriesAtom = atom<Record<string, TimelineRequest<OperatorFilter>>>({});
 
 /** When true, hides task annotation marks on timeline charts */
 export const hideTasksAtom = atom(false);
