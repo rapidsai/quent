@@ -16,8 +16,8 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Computing {
         pub use_thread: Uuid,
-        pub use_memory: Uuid,
-        pub use_memory_bytes: u64,
+        pub use_host_memory: Uuid,
+        pub use_host_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -28,17 +28,17 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Loading {
         pub use_thread: Uuid,
-        pub use_fs_to_mem: Uuid,
-        pub use_fs_to_mem_bytes: u64,
-        pub use_memory: Uuid,
-        pub use_memory_bytes: u64,
+        pub use_fs_to_host_mem: Uuid,
+        pub use_fs_to_host_mem_bytes: u64,
+        pub use_host_memory: Uuid,
+        pub use_host_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Spilling {
         pub use_thread: Uuid,
-        pub use_mem_to_fs: Uuid,
-        pub use_mem_to_fs_bytes: u64,
+        pub use_host_mem_to_fs: Uuid,
+        pub use_host_mem_to_fs_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -83,20 +83,20 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct LoadingToHostMemory {
-        pub use_fs_to_mem: Uuid,
-        pub use_fs_to_mem_bytes: u64,
+        pub use_fs_to_host_mem: Uuid,
+        pub use_fs_to_host_mem_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct InHostMemory {
-        pub use_memory: Uuid,
-        pub use_memory_bytes: u64,
+        pub use_host_memory: Uuid,
+        pub use_host_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct LoadingToGpuMemory {
-        pub use_mem_to_gpu: Uuid,
-        pub use_mem_to_gpu_bytes: u64,
+        pub use_host_mem_to_gpu: Uuid,
+        pub use_host_mem_to_gpu_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -107,14 +107,14 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct SpillingToHostMemory {
-        pub use_gpu_to_mem: Uuid,
-        pub use_gpu_to_mem_bytes: u64,
+        pub use_gpu_to_host_mem: Uuid,
+        pub use_gpu_to_host_mem_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct SpillingToStorage {
-        pub use_mem_to_fs: Uuid,
-        pub use_mem_to_fs_bytes: u64,
+        pub use_host_mem_to_fs: Uuid,
+        pub use_host_mem_to_fs_bytes: u64,
     }
 
     #[derive(Debug, Deserialize, Serialize)]

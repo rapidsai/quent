@@ -97,8 +97,8 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                 capacities: smallvec![CapacityValue::new("unit", 1)],
             },
             TaskUsage {
-                resource_id: data.use_memory,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+                resource_id: data.use_host_memory,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_host_memory_bytes)],
             },
         ],
         TaskTransitionData::Loading(data) => smallvec![
@@ -107,12 +107,12 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                 capacities: smallvec![CapacityValue::new("unit", 1)],
             },
             TaskUsage {
-                resource_id: data.use_fs_to_mem,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_mem_bytes)],
+                resource_id: data.use_fs_to_host_mem,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_host_mem_bytes)],
             },
             TaskUsage {
-                resource_id: data.use_memory,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+                resource_id: data.use_host_memory,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_host_memory_bytes)],
             },
         ],
         TaskTransitionData::Allocating(data) => smallvec![TaskUsage {
@@ -125,8 +125,8 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                 capacities: smallvec![CapacityValue::new("unit", 1)],
             },
             TaskUsage {
-                resource_id: data.use_mem_to_fs,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_fs_bytes)],
+                resource_id: data.use_host_mem_to_fs,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_fs_bytes)],
             },
         ],
         TaskTransitionData::Sending(data) => smallvec![
@@ -336,14 +336,14 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "computing".to_string(),
-                usages: vec!["thread".to_string(), "memory".to_string()],
+                usages: vec!["thread".to_string(), "host_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "loading".to_string(),
                 usages: vec![
                     "thread".to_string(),
-                    "fs_to_mem".to_string(),
-                    "memory".to_string(),
+                    "fs_to_host_mem".to_string(),
+                    "host_memory".to_string(),
                 ],
             },
             FsmStateTypeDecl {
@@ -352,7 +352,7 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "spilling".to_string(),
-                usages: vec!["thread".to_string(), "mem_to_fs".to_string()],
+                usages: vec!["thread".to_string(), "host_mem_to_fs".to_string()],
             },
             FsmStateTypeDecl {
                 name: "sending".to_string(),

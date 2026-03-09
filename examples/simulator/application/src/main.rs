@@ -510,8 +510,6 @@ struct Gpu {
     id: Uuid,
     memory: Uuid,
     compute: Uuid,
-    mem_to_gpu: Uuid,
-    gpu_to_mem: Uuid,
 }
 
 impl Gpu {
@@ -520,8 +518,6 @@ impl Gpu {
             id: Uuid::now_v7(),
             memory: Uuid::now_v7(),
             compute: Uuid::now_v7(),
-            mem_to_gpu: Uuid::now_v7(),
-            gpu_to_mem: Uuid::now_v7(),
         }
     }
 }
@@ -537,10 +533,12 @@ struct Batch {
 struct Worker {
     id: Uuid,
     name: String,
-    memory: Uuid,
+    host_memory: Uuid,
     filesystem: Uuid,
-    fs_to_mem: Uuid,
-    mem_to_fs: Uuid,
+    fs_to_host_mem: Uuid,
+    host_mem_to_fs: Uuid,
+    host_mem_to_gpu: Uuid,
+    gpu_to_host_mem: Uuid,
     thread_pool: Uuid,
     threads: Vec<Uuid>,
     gpus: Vec<Gpu>,
@@ -551,10 +549,12 @@ impl Worker {
         Self {
             id,
             name,
-            memory: Uuid::now_v7(),
+            host_memory: Uuid::now_v7(),
             filesystem: Uuid::now_v7(),
-            fs_to_mem: Uuid::now_v7(),
-            mem_to_fs: Uuid::now_v7(),
+            fs_to_host_mem: Uuid::now_v7(),
+            host_mem_to_fs: Uuid::now_v7(),
+            host_mem_to_gpu: Uuid::now_v7(),
+            gpu_to_host_mem: Uuid::now_v7(),
             thread_pool: Uuid::now_v7(),
             threads: std::iter::repeat_with(Uuid::now_v7)
                 .take(num_threads)
@@ -594,46 +594,46 @@ impl Worker {
 
         // Memory pool
         memory_obs.init(
-            self.memory,
+            self.host_memory,
             memory::Init {
                 resource: resource::Resource {
-                    type_name: "memory".to_string(),
-                    instance_name: "Memory".to_string(),
+                    type_name: "host_memory".to_string(),
+                    instance_name: "Host Memory".to_string(),
                     parent_group_id: self.id,
                 },
             },
         );
-        memory_obs.operating(self.memory, Default::default());
+        memory_obs.operating(self.host_memory, Default::default());
 
-        // Filesystem -> Memory channel
+        // Filesystem -> Host Memory channel
         channel_obs.init(
-            self.fs_to_mem,
+            self.fs_to_host_mem,
             channel::Init {
                 resource: resource::Resource {
-                    type_name: "fs_to_mem".to_string(),
-                    instance_name: "Filesystem -> Memory".to_string(),
+                    type_name: "fs_to_host_mem".to_string(),
+                    instance_name: "Filesystem -> Host Memory".to_string(),
                     parent_group_id: self.id,
                 },
                 source_id: self.filesystem,
-                target_id: self.memory,
+                target_id: self.host_memory,
             },
         );
-        channel_obs.operating(self.fs_to_mem, Default::default());
+        channel_obs.operating(self.fs_to_host_mem, Default::default());
 
-        // Memory -> Filesystem channel
+        // Host Memory -> Filesystem channel
         channel_obs.init(
-            self.mem_to_fs,
+            self.host_mem_to_fs,
             channel::Init {
                 resource: resource::Resource {
-                    type_name: "mem_to_fs".to_string(),
-                    instance_name: "Memory -> Filesystem".to_string(),
+                    type_name: "host_mem_to_fs".to_string(),
+                    instance_name: "Host Memory -> Filesystem".to_string(),
                     parent_group_id: self.id,
                 },
-                source_id: self.memory,
+                source_id: self.host_memory,
                 target_id: self.filesystem,
             },
         );
-        channel_obs.operating(self.mem_to_fs, Default::default());
+        channel_obs.operating(self.host_mem_to_fs, Default::default());
 
         // Thread pool
         resource_group_obs.group(
@@ -693,33 +693,36 @@ impl Worker {
             );
             processor_obs.operating(gpu.compute, Default::default());
 
+        }
+
+        if !self.gpus.is_empty() {
             channel_obs.init(
-                gpu.mem_to_gpu,
+                self.host_mem_to_gpu,
                 channel::Init {
                     resource: resource::Resource {
-                        type_name: "mem_to_gpu".to_string(),
-                        instance_name: format!("Memory -> GPU {index}"),
+                        type_name: "host_mem_to_gpu".to_string(),
+                        instance_name: "Host Memory -> GPU".to_string(),
                         parent_group_id: self.id,
                     },
-                    source_id: self.memory,
-                    target_id: gpu.memory,
+                    source_id: self.host_memory,
+                    target_id: self.gpus[0].memory,
                 },
             );
-            channel_obs.operating(gpu.mem_to_gpu, Default::default());
+            channel_obs.operating(self.host_mem_to_gpu, Default::default());
 
             channel_obs.init(
-                gpu.gpu_to_mem,
+                self.gpu_to_host_mem,
                 channel::Init {
                     resource: resource::Resource {
-                        type_name: "gpu_to_mem".to_string(),
-                        instance_name: format!("GPU {index} -> Memory"),
+                        type_name: "gpu_to_host_mem".to_string(),
+                        instance_name: "GPU -> Host Memory".to_string(),
                         parent_group_id: self.id,
                     },
-                    source_id: gpu.memory,
-                    target_id: self.memory,
+                    source_id: self.gpus[0].memory,
+                    target_id: self.host_memory,
                 },
             );
-            channel_obs.operating(gpu.gpu_to_mem, Default::default());
+            channel_obs.operating(self.gpu_to_host_mem, Default::default());
         }
     }
 
@@ -767,16 +770,16 @@ impl Worker {
             batch_obs.loading_to_host_memory(
                 batch_id,
                 data_batch::LoadingToHostMemory {
-                    use_fs_to_mem: self.fs_to_mem,
-                    use_fs_to_mem_bytes: batch_bytes,
+                    use_fs_to_host_mem: self.fs_to_host_mem,
+                    use_fs_to_host_mem_bytes: batch_bytes,
                 },
             );
             sleep_proportional(batch_bytes);
             batch_obs.in_host_memory(
                 batch_id,
                 data_batch::InHostMemory {
-                    use_memory: self.memory,
-                    use_memory_bytes: batch_bytes,
+                    use_host_memory: self.host_memory,
+                    use_host_memory_bytes: batch_bytes,
                 },
             );
             Some(Batch {
@@ -823,16 +826,16 @@ impl Worker {
                 task_id,
                 task::Spilling {
                     use_thread: thread,
-                    use_mem_to_fs: self.mem_to_fs,
-                    use_mem_to_fs_bytes: batch_bytes,
+                    use_host_mem_to_fs: self.host_mem_to_fs,
+                    use_host_mem_to_fs_bytes: batch_bytes,
                 },
             );
             if let Some(ref batch) = input_batch {
                 batch_obs.spilling_to_storage(
                     batch.id,
                     data_batch::SpillingToStorage {
-                        use_mem_to_fs: self.mem_to_fs,
-                        use_mem_to_fs_bytes: batch.bytes,
+                        use_host_mem_to_fs: self.host_mem_to_fs,
+                        use_host_mem_to_fs_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
@@ -852,16 +855,16 @@ impl Worker {
                 batch_obs.loading_to_host_memory(
                     batch.id,
                     data_batch::LoadingToHostMemory {
-                        use_fs_to_mem: self.fs_to_mem,
-                        use_fs_to_mem_bytes: batch.bytes,
+                        use_fs_to_host_mem: self.fs_to_host_mem,
+                        use_fs_to_host_mem_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
                 batch_obs.in_host_memory(
                     batch.id,
                     data_batch::InHostMemory {
-                        use_memory: self.memory,
-                        use_memory_bytes: batch.bytes,
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: batch.bytes,
                     },
                 );
             }
@@ -873,10 +876,10 @@ impl Worker {
                 task_id,
                 task::Loading {
                     use_thread: thread,
-                    use_fs_to_mem: self.fs_to_mem,
-                    use_fs_to_mem_bytes: batch_bytes,
-                    use_memory: self.memory,
-                    use_memory_bytes: working_memory_bytes,
+                    use_fs_to_host_mem: self.fs_to_host_mem,
+                    use_fs_to_host_mem_bytes: batch_bytes,
+                    use_host_memory: self.host_memory,
+                    use_host_memory_bytes: working_memory_bytes,
                 },
             );
             sleep_sometimes_really_long(batch_bytes);
@@ -893,8 +896,8 @@ impl Worker {
             task_id,
             task::Computing {
                 use_thread: thread,
-                use_memory: self.memory,
-                use_memory_bytes: working_memory_bytes,
+                use_host_memory: self.host_memory,
+                use_host_memory_bytes: working_memory_bytes,
             },
         );
         sleep_proportional(batch_bytes * compute_multiplier);
@@ -907,8 +910,8 @@ impl Worker {
                 batch_obs.loading_to_gpu_memory(
                     batch.id,
                     data_batch::LoadingToGpuMemory {
-                        use_mem_to_gpu: gpu.mem_to_gpu,
-                        use_mem_to_gpu_bytes: batch.bytes,
+                        use_host_mem_to_gpu: self.host_mem_to_gpu,
+                        use_host_mem_to_gpu_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
@@ -942,16 +945,16 @@ impl Worker {
                 batch_obs.spilling_to_host_memory(
                     batch.id,
                     data_batch::SpillingToHostMemory {
-                        use_gpu_to_mem: gpu.gpu_to_mem,
-                        use_gpu_to_mem_bytes: batch.bytes,
+                        use_gpu_to_host_mem: self.gpu_to_host_mem,
+                        use_gpu_to_host_mem_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
                 batch_obs.in_host_memory(
                     batch.id,
                     data_batch::InHostMemory {
-                        use_memory: self.memory,
-                        use_memory_bytes: batch.bytes,
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: batch.bytes,
                     },
                 );
             }
@@ -1055,8 +1058,8 @@ impl Worker {
                         batch_obs.in_host_memory(
                             output_batch_id,
                             data_batch::InHostMemory {
-                                use_memory: self.memory,
-                                use_memory_bytes: output_bytes,
+                                use_host_memory: self.host_memory,
+                                use_host_memory_bytes: output_bytes,
                             },
                         );
 
@@ -1462,14 +1465,14 @@ impl Worker {
         memory_obs.finalizing(self.filesystem, Default::default());
         memory_obs.exit(self.filesystem, Default::default());
         sleep_fixed(25);
-        memory_obs.finalizing(self.memory, Default::default());
-        memory_obs.exit(self.memory, Default::default());
+        memory_obs.finalizing(self.host_memory, Default::default());
+        memory_obs.exit(self.host_memory, Default::default());
         sleep_fixed(25);
-        channel_obs.finalizing(self.fs_to_mem, Default::default());
-        channel_obs.exit(self.fs_to_mem, Default::default());
+        channel_obs.finalizing(self.fs_to_host_mem, Default::default());
+        channel_obs.exit(self.fs_to_host_mem, Default::default());
         sleep_fixed(25);
-        channel_obs.finalizing(self.mem_to_fs, Default::default());
-        channel_obs.exit(self.mem_to_fs, Default::default());
+        channel_obs.finalizing(self.host_mem_to_fs, Default::default());
+        channel_obs.exit(self.host_mem_to_fs, Default::default());
         sleep_fixed(25);
         for thread in self.threads.iter() {
             processor_obs.finalizing(*thread, Default::default());
@@ -1481,10 +1484,12 @@ impl Worker {
             memory_obs.exit(gpu.memory, Default::default());
             processor_obs.finalizing(gpu.compute, Default::default());
             processor_obs.exit(gpu.compute, Default::default());
-            channel_obs.finalizing(gpu.mem_to_gpu, Default::default());
-            channel_obs.exit(gpu.mem_to_gpu, Default::default());
-            channel_obs.finalizing(gpu.gpu_to_mem, Default::default());
-            channel_obs.exit(gpu.gpu_to_mem, Default::default());
+        }
+        if !self.gpus.is_empty() {
+            channel_obs.finalizing(self.host_mem_to_gpu, Default::default());
+            channel_obs.exit(self.host_mem_to_gpu, Default::default());
+            channel_obs.finalizing(self.gpu_to_host_mem, Default::default());
+            channel_obs.exit(self.gpu_to_host_mem, Default::default());
         }
         sleep_fixed(25);
         worker_obs.exit(self.id);
@@ -1573,8 +1578,8 @@ impl Engine {
                             instance_name: format!("worker {worker_index} -> {other_worker_index}"),
                             parent_group_id: self.network,
                         },
-                        source_id: self.workers.get(&worker_id).unwrap().memory,
-                        target_id: self.workers.get(&other_worker_id).unwrap().memory,
+                        source_id: self.workers.get(&worker_id).unwrap().host_memory,
+                        target_id: self.workers.get(&other_worker_id).unwrap().host_memory,
                     },
                 );
                 channel_obs.operating(up_link_id, channel::Operating {});
@@ -1588,8 +1593,8 @@ impl Engine {
                             instance_name: format!("worker {other_worker_index} -> {worker_index}"),
                             parent_group_id: self.network,
                         },
-                        source_id: self.workers.get(&other_worker_id).unwrap().memory,
-                        target_id: self.workers.get(&worker_id).unwrap().memory,
+                        source_id: self.workers.get(&other_worker_id).unwrap().host_memory,
+                        target_id: self.workers.get(&worker_id).unwrap().host_memory,
                     },
                 );
                 channel_obs.operating(down_link_id, channel::Operating {});

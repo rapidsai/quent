@@ -97,28 +97,28 @@ fn create_usages(data: &DataBatchTransitionData) -> SmallVec<[DataBatchUsage; 1]
             capacities: smallvec![CapacityValue::new("bytes", data.use_filesystem_bytes)],
         }],
         DataBatchTransitionData::LoadingToHostMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_fs_to_mem,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_mem_bytes)],
+            resource_id: data.use_fs_to_host_mem,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_host_mem_bytes)],
         }],
         DataBatchTransitionData::InHostMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_memory,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+            resource_id: data.use_host_memory,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_host_memory_bytes)],
         }],
         DataBatchTransitionData::LoadingToGpuMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_mem_to_gpu,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_gpu_bytes)],
+            resource_id: data.use_host_mem_to_gpu,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_gpu_bytes)],
         }],
         DataBatchTransitionData::InGpuMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_gpu_memory,
             capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_memory_bytes)],
         }],
         DataBatchTransitionData::SpillingToHostMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_gpu_to_mem,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_to_mem_bytes)],
+            resource_id: data.use_gpu_to_host_mem,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_to_host_mem_bytes)],
         }],
         DataBatchTransitionData::SpillingToStorage(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_mem_to_fs,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_fs_bytes)],
+            resource_id: data.use_host_mem_to_fs,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_fs_bytes)],
         }],
         DataBatchTransitionData::Exit => SmallVec::new(),
     }
@@ -297,15 +297,15 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "loading_to_host_memory".to_string(),
-                usages: vec!["fs_to_mem".to_string()],
+                usages: vec!["fs_to_host_mem".to_string()],
             },
             FsmStateTypeDecl {
                 name: "in_host_memory".to_string(),
-                usages: vec!["memory".to_string()],
+                usages: vec!["host_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "loading_to_gpu_memory".to_string(),
-                usages: vec!["mem_to_gpu".to_string()],
+                usages: vec!["host_mem_to_gpu".to_string()],
             },
             FsmStateTypeDecl {
                 name: "in_gpu_memory".to_string(),
@@ -313,11 +313,11 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "spilling_to_host_memory".to_string(),
-                usages: vec!["gpu_to_mem".to_string()],
+                usages: vec!["gpu_to_host_mem".to_string()],
             },
             FsmStateTypeDecl {
                 name: "spilling_to_storage".to_string(),
-                usages: vec!["mem_to_fs".to_string()],
+                usages: vec!["host_mem_to_fs".to_string()],
             },
             FsmStateTypeDecl {
                 name: "exit".to_string(),
