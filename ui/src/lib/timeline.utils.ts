@@ -1,6 +1,6 @@
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
-import { formatBytes } from '@/services/formatters';
+import { formatQuantity } from '@/services/formatters';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
 import type { ResourceTimeline } from '~quent/types/ResourceTimeline';
@@ -8,6 +8,8 @@ import { QueryEntities } from '~quent/types/QueryEntities';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
+import type { QuantitySpec } from '~quent/types/QuantitySpec';
+import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
@@ -44,7 +46,9 @@ export function getLongEntitiesThreshold(windowSeconds: number): number {
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  startTime: bigint
+  startTime: bigint,
+  capacities?: CapacityDecl[],
+  quantitySpecs?: { [key in string]?: QuantitySpec }
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -60,6 +64,16 @@ export function buildBinnedTimelineSeries(
     timestamps[i] = firstBinMs + i * binDurationMs;
   }
 
+  const getFormatter = (capacityName: string): ((value: number) => string) => {
+    const capDecl = capacities?.find(c => c.name === capacityName);
+    const spec = capDecl ? quantitySpecs?.[capDecl.quantity] : undefined;
+    if (spec && capDecl) {
+      return (value: number, decimals: number = 2) =>
+        formatQuantity(value, spec, capDecl.kind, decimals);
+    }
+    return (value: number) => String(value);
+  };
+
   // Build series based on data type
   const series: TimelineSeries = {};
 
@@ -67,7 +81,7 @@ export function buildBinnedTimelineSeries(
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
     for (const [capacity, values] of Object.entries(capacities_values)) {
-      const formatter = getFormatterForCapacityType(capacity);
+      const formatter = getFormatter(capacity);
       series[capacity] = {
         color: getColorForKey(capacity),
         formatter,
@@ -80,7 +94,7 @@ export function buildBinnedTimelineSeries(
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
-        const formatter = getFormatterForCapacityType(capacityType);
+        const formatter = getFormatter(capacityType);
         if (values) {
           series[state] = {
             color: getColorForKey(state),
@@ -257,15 +271,6 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
 
   // Fallback for very small spans where even the smallest nice interval is too coarse.
   return maxAllowedStep;
-}
-
-function getFormatterForCapacityType(capacityType: string): (value: number) => string {
-  switch (capacityType) {
-    case 'bytes':
-      return (value: number) => formatBytes(value, 0);
-    default:
-      return (value: number) => String(value);
-  }
 }
 
 function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
