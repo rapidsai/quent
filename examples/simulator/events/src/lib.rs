@@ -77,7 +77,6 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct InStorage {
-        pub operator_id: Uuid,
         pub use_filesystem: Uuid,
         pub use_filesystem_bytes: u64,
     }

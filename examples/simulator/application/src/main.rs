@@ -759,7 +759,6 @@ impl Worker {
             batch_obs.in_storage(
                 batch_id,
                 data_batch::InStorage {
-                    operator_id: operator.id,
                     use_filesystem: self.filesystem,
                     use_filesystem_bytes: batch_bytes,
                 },
@@ -840,7 +839,6 @@ impl Worker {
                 batch_obs.in_storage(
                     batch.id,
                     data_batch::InStorage {
-                        operator_id: operator.id,
                         use_filesystem: self.filesystem,
                         use_filesystem_bytes: batch.bytes,
                     },

@@ -184,7 +184,6 @@ impl DataBatch {
     pub fn operator_id(&self) -> Option<Uuid> {
         self.transitions.first().and_then(|t| match &t.data {
             DataBatchTransitionData::Init(data) => Some(data.operator_id),
-            DataBatchTransitionData::InStorage(data) => Some(data.operator_id),
             _ => None,
         })
     }
