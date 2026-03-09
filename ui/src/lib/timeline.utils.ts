@@ -543,7 +543,7 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: null,
+      long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
       config,
