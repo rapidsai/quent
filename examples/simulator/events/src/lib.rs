@@ -18,6 +18,8 @@ pub mod task {
         pub use_thread: Uuid,
         pub use_host_memory: Uuid,
         pub use_host_memory_bytes: u64,
+        /// Nil when not using GPU.
+        pub use_gpu_compute: Uuid,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -48,12 +50,6 @@ pub mod task {
         pub use_link_bytes: u64,
     }
 
-    #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct GpuComputing {
-        pub use_thread: Uuid,
-        pub use_gpu_compute: Uuid,
-    }
-
     #[derive(Debug, Deserialize, Serialize)]
     pub enum TaskEvent {
         Queueing(Queueing),
@@ -62,7 +58,6 @@ pub mod task {
         Loading(Loading),
         Spilling(Spilling),
         Sending(Sending),
-        GpuComputing(GpuComputing),
         Exit,
     }
 }

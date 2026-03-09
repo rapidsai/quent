@@ -190,6 +190,9 @@ enum Logical {
     Scan,
     Project,
     Join,
+    Aggregate,
+    Filter,
+    UDF,
     Sort,
     Limit,
     Output,
@@ -200,6 +203,9 @@ enum Physical {
     FileSystemScan,
     JoinPartition,
     JoinLocal,
+    Aggregate,
+    Filter,
+    UDF,
     Sort,
     Limit,
     Output,
@@ -304,30 +310,54 @@ impl<T: Debug> Plan<T> {
 }
 
 // Create the following logical plan:
-// Scan -> Project \
-//                  -> Join -> Sort -> Limit -> Output
-// Scan -> Project /
+// Scan -> Project \            Scan -> Project \
+//                  -> Join                     -> Join -> Aggregate -> Filter -> UDF -> Sort -> Limit -> Output
+// Scan -> Project /            Scan -> Project /
 fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
-    // Add a scan --> project branch and return the (project, project output port) Uuids.
     fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
         let scan = plan.add_node(Operator::new(Logical::Scan, vec![]));
         let project = plan.add_node(Operator::new(Logical::Project, vec![]));
         plan.add_edge(scan, project, Edge::new("out", "in"));
-
         project
+    }
+
+    fn add_join(
+        plan: &mut Graph<Operator<Logical>, Edge, Directed>,
+        left: NodeIndex,
+        right: NodeIndex,
+    ) -> NodeIndex {
+        let join = plan.add_node(Operator::new(Logical::Join, vec![]));
+        plan.add_edge(left, join, Edge::new("out", "left"));
+        plan.add_edge(right, join, Edge::new("out", "right"));
+        join
     }
 
     let mut dag = Graph::new();
 
+    // Left join: scans A and B
     let project_a = add_scan_project_branch(&mut dag);
     let project_b = add_scan_project_branch(&mut dag);
+    let join_left = add_join(&mut dag, project_a, project_b);
 
-    let join = dag.add_node(Operator::new(Logical::Join, vec![]));
-    dag.add_edge(project_a, join, Edge::new("out", "left"));
-    dag.add_edge(project_b, join, Edge::new("out", "right"));
+    // Right join: scans C and D
+    let project_c = add_scan_project_branch(&mut dag);
+    let project_d = add_scan_project_branch(&mut dag);
+    let join_right = add_join(&mut dag, project_c, project_d);
+
+    // Final join combining both sides
+    let join_final = add_join(&mut dag, join_left, join_right);
+
+    let aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_final, aggregate, Edge::new("out", "in"));
+
+    let filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
+    dag.add_edge(aggregate, filter, Edge::new("out", "in"));
+
+    let udf = dag.add_node(Operator::new(Logical::UDF, vec![]));
+    dag.add_edge(filter, udf, Edge::new("out", "in"));
 
     let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
-    dag.add_edge(join, sort, Edge::new("out", "in"));
+    dag.add_edge(udf, sort, Edge::new("out", "in"));
 
     let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
     dag.add_edge(sort, limit, Edge::new("out", "in"));
@@ -439,14 +469,22 @@ fn lower_logical(
                 );
             }
         }
-        Logical::Sort => {
-            let sort = physical
-                .dag
-                .add_node(Operator::new(Physical::Sort, vec![current_logical_op.id]));
+        Logical::Aggregate | Logical::Filter | Logical::UDF | Logical::Sort => {
+            let physical_kind = match current_logical_op.kind {
+                Logical::Aggregate => Physical::Aggregate,
+                Logical::Filter => Physical::Filter,
+                Logical::UDF => Physical::UDF,
+                Logical::Sort => Physical::Sort,
+                _ => unreachable!(),
+            };
+            let node = physical.dag.add_node(Operator::new(
+                physical_kind,
+                vec![current_logical_op.id],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(sort, target_node, Edge::new("out", target_port));
+                    .add_edge(node, target_node, Edge::new("out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -457,7 +495,7 @@ fn lower_logical(
                 logical,
                 physical,
                 input_edge.source(),
-                Some((sort, input_edge.weight().target.name)),
+                Some((node, input_edge.weight().target.name)),
             );
         }
         Logical::Limit => {
@@ -798,6 +836,7 @@ impl Worker {
         // Sort needs merge buffers (2-4x). Others 1-2x.
         let mem_multiplier = match operator.kind {
             Physical::JoinLocal => rng().random_range(3..7),
+            Physical::Aggregate => rng().random_range(2..5),
             Physical::Sort => rng().random_range(2..5),
             _ => rng().random_range(1..3),
         };
@@ -806,13 +845,14 @@ impl Worker {
         // Determine operator behavior based on kind.
         let use_gpu = matches!(
             operator.kind,
-            Physical::JoinLocal | Physical::JoinPartition | Physical::Sort
+            Physical::JoinLocal | Physical::JoinPartition | Physical::Sort | Physical::UDF
         ) && !self.gpus.is_empty();
         let send = operator.kind == Physical::JoinPartition;
         // Spill under simulated memory pressure. JoinLocal spills more
         // often (hash table build), Sort occasionally, others never.
         let spill = match operator.kind {
             Physical::JoinLocal => batch_bytes > 32 * 1024 * 1024 && rng().random_bool(0.5),
+            Physical::Aggregate => batch_bytes > 48 * 1024 * 1024 && rng().random_bool(0.3),
             Physical::Sort => batch_bytes > 64 * 1024 * 1024 && rng().random_bool(0.2),
             _ => false,
         };
@@ -885,27 +925,15 @@ impl Worker {
             sleep_sometimes_really_long(batch_bytes);
         }
 
-        // Compute time scales with operator complexity.
-        let compute_multiplier = match operator.kind {
-            Physical::JoinLocal => 4,
-            Physical::JoinPartition => 2,
-            Physical::Sort => 2,
-            _ => 1,
+        // Pick GPU if applicable.
+        let gpu = if use_gpu {
+            Some(&self.gpus[rng().random_range(0..self.gpus.len())])
+        } else {
+            None
         };
-        obs.task_computing(
-            task_id,
-            task::Computing {
-                use_thread: thread,
-                use_host_memory: self.host_memory,
-                use_host_memory_bytes: working_memory_bytes,
-            },
-        );
-        sleep_proportional(batch_bytes * compute_multiplier);
 
-        // GPU path: JoinLocal, JoinPartition, Sort.
-        if use_gpu {
-            let gpu = &self.gpus[rng().random_range(0..self.gpus.len())];
-
+        // Move batch to GPU memory before compute.
+        if let Some(gpu) = gpu {
             if let Some(ref batch) = input_batch {
                 batch_obs.loading_to_gpu_memory(
                     batch.id,
@@ -923,24 +951,41 @@ impl Worker {
                     },
                 );
             }
+        }
 
-            // GPU compute: JoinLocal is heaviest (hash build + probe),
-            // Sort is moderate, JoinPartition is lightest (just hashing).
-            let gpu_multiplier: u64 = match operator.kind {
+        // Compute time scales with operator complexity and GPU availability.
+        let compute_multiplier = match operator.kind {
+            Physical::JoinLocal => 4,
+            Physical::UDF => 3,
+            Physical::Aggregate => 3,
+            Physical::Sort => 2,
+            Physical::JoinPartition => 2,
+            _ => 1,
+        };
+        let gpu_multiplier: u64 = if gpu.is_some() {
+            match operator.kind {
                 Physical::JoinLocal => 6,
+                Physical::UDF => 5,
                 Physical::Sort => 3,
                 Physical::JoinPartition => 2,
                 _ => 1,
-            };
-            obs.task_gpu_computing(
-                task_id,
-                task::GpuComputing {
-                    use_thread: thread,
-                    use_gpu_compute: gpu.compute,
-                },
-            );
-            sleep_proportional(batch_bytes * gpu_multiplier);
+            }
+        } else {
+            0
+        };
+        obs.task_computing(
+            task_id,
+            task::Computing {
+                use_thread: thread,
+                use_host_memory: self.host_memory,
+                use_host_memory_bytes: working_memory_bytes,
+                use_gpu_compute: gpu.map_or(Uuid::nil(), |g| g.compute),
+            },
+        );
+        sleep_proportional(batch_bytes * (compute_multiplier + gpu_multiplier));
 
+        // Move batch back from GPU to host memory.
+        if gpu.is_some() {
             if let Some(ref batch) = input_batch {
                 batch_obs.spilling_to_host_memory(
                     batch.id,
@@ -1013,13 +1058,26 @@ impl Worker {
                             let factor = rng().random_range(1..4);
                             (factor * batch.bytes, factor * batch.rows)
                         }
+                        Physical::Aggregate => {
+                            // Aggregation significantly reduces cardinality.
+                            let denom = rng().random_range(5..15);
+                            (batch.bytes / denom, batch.rows / denom.max(1))
+                        }
+                        Physical::Filter => {
+                            // HAVING filter drops ~30% of rows.
+                            let keep = rng().random_range(60..80);
+                            (batch.bytes * keep / 100, batch.rows * keep / 100)
+                        }
+                        Physical::UDF => {
+                            // UDF transforms data but preserves cardinality.
+                            (batch.bytes, batch.rows)
+                        }
                         Physical::Limit => {
                             // Limit early-terminates: stop producing
                             // output once 42 rows have been emitted.
                             let emitted_so_far = operator.rows_out.load(Ordering::Relaxed);
                             let remaining = 42u64.saturating_sub(emitted_so_far);
                             if remaining == 0 {
-                                // Already satisfied — consume but don't produce.
                                 (0, 0)
                             } else {
                                 let limit_rows = remaining.min(batch.rows);
@@ -1032,8 +1090,7 @@ impl Worker {
                             }
                         }
                         _ => {
-                            // JoinPartition, Sort: roughly preserve size
-                            // with some reduction from filtering/projection.
+                            // JoinPartition, Sort: roughly preserve size.
                             let denom = rng().random_range(1..3);
                             (batch.bytes / denom, batch.rows / denom)
                         }
@@ -1356,6 +1413,7 @@ impl Worker {
             // Estimate peak memory from batch throughput and operator type.
             let mem_mult: u64 = match op.kind {
                 Physical::JoinLocal => 5,
+                Physical::Aggregate => 4,
                 Physical::Sort => 3,
                 _ => 2,
             };
@@ -1400,6 +1458,36 @@ impl Worker {
                         Attribute::u64("build_rows", build_rows),
                         Attribute::u64("probe_rows", probe_rows),
                         Attribute::u64("match_rows", rows_out),
+                    ]);
+                }
+                Physical::Aggregate => {
+                    let reduction = if rows_in > 0 {
+                        rows_in as f64 / rows_out.max(1) as f64
+                    } else {
+                        1.0
+                    };
+                    attributes.extend([
+                        Attribute::u64("groups_created", rows_out),
+                        Attribute::f64("reduction_factor", reduction),
+                    ]);
+                }
+                Physical::Filter => {
+                    let selectivity = if rows_in > 0 {
+                        rows_out as f64 / rows_in as f64
+                    } else {
+                        1.0
+                    };
+                    attributes.extend([
+                        Attribute::f64("selectivity", selectivity),
+                        Attribute::u64("rows_passed", rows_out),
+                        Attribute::u64("rows_filtered", rows_in.saturating_sub(rows_out)),
+                    ]);
+                }
+                Physical::UDF => {
+                    attributes.extend([
+                        Attribute::string("udf_name", "apply_transform"),
+                        Attribute::string("udf_language", "python"),
+                        Attribute::u64("rows_processed", rows_in),
                     ]);
                 }
                 Physical::Sort => {

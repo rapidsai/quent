@@ -376,16 +376,6 @@ impl TaskObserver {
         )
     }
 
-    pub fn task_gpu_computing(&self, id: Uuid, gpu_computing: task::GpuComputing) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(task::TaskEvent::GpuComputing(gpu_computing)),
-            ),
-        )
-    }
-
     pub fn task_exit(&self, id: Uuid) {
         push_event(
             &self.tx,
