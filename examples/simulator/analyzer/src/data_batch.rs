@@ -6,7 +6,7 @@ use quent_analyzer::{
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_simulator_events::data_batch::{
-    DataBatchEvent, InGpuMemory, InHostMemory, Init, InStorage, LoadingToGpuMemory,
+    DataBatchEvent, InGpuMemory, InHostMemory, InStorage, Init, LoadingToGpuMemory,
     LoadingToHostMemory, SpillingToHostMemory, SpillingToStorage,
 };
 use quent_time::{
@@ -147,14 +147,20 @@ impl DataBatchBuilder {
         let data = match event.data {
             DataBatchEvent::Init(data) => DataBatchTransitionData::Init(data),
             DataBatchEvent::InStorage(data) => DataBatchTransitionData::InStorage(data),
-            DataBatchEvent::LoadingToHostMemory(data) => DataBatchTransitionData::LoadingToHostMemory(data),
+            DataBatchEvent::LoadingToHostMemory(data) => {
+                DataBatchTransitionData::LoadingToHostMemory(data)
+            }
             DataBatchEvent::InHostMemory(data) => DataBatchTransitionData::InHostMemory(data),
-            DataBatchEvent::LoadingToGpuMemory(data) => DataBatchTransitionData::LoadingToGpuMemory(data),
+            DataBatchEvent::LoadingToGpuMemory(data) => {
+                DataBatchTransitionData::LoadingToGpuMemory(data)
+            }
             DataBatchEvent::InGpuMemory(data) => DataBatchTransitionData::InGpuMemory(data),
             DataBatchEvent::SpillingToHostMemory(data) => {
                 DataBatchTransitionData::SpillingToHostMemory(data)
             }
-            DataBatchEvent::SpillingToStorage(data) => DataBatchTransitionData::SpillingToStorage(data),
+            DataBatchEvent::SpillingToStorage(data) => {
+                DataBatchTransitionData::SpillingToStorage(data)
+            }
             DataBatchEvent::Exit => DataBatchTransitionData::Exit,
         };
         let usages = create_usages(&data);
@@ -328,19 +334,41 @@ impl FsmTypeDeclaration for DataBatch {
         let transitions = vec![
             FsmTransitionDecl::Entry("init".to_string()),
             FsmTransitionDecl::Transition("init".to_string(), "in_storage".to_string()),
+            FsmTransitionDecl::Transition("init".to_string(), "loading_to_host_memory".to_string()),
             FsmTransitionDecl::Transition("init".to_string(), "in_host_memory".to_string()),
-            FsmTransitionDecl::Transition("in_storage".to_string(), "loading_to_host_memory".to_string()),
-            FsmTransitionDecl::Transition("loading_to_host_memory".to_string(), "in_host_memory".to_string()),
-            FsmTransitionDecl::Transition("in_host_memory".to_string(), "loading_to_gpu_memory".to_string()),
-            FsmTransitionDecl::Transition("in_host_memory".to_string(), "spilling_to_storage".to_string()),
+            FsmTransitionDecl::Transition(
+                "in_storage".to_string(),
+                "loading_to_host_memory".to_string(),
+            ),
+            FsmTransitionDecl::Transition(
+                "loading_to_host_memory".to_string(),
+                "in_host_memory".to_string(),
+            ),
+            FsmTransitionDecl::Transition(
+                "in_host_memory".to_string(),
+                "loading_to_gpu_memory".to_string(),
+            ),
+            FsmTransitionDecl::Transition(
+                "in_host_memory".to_string(),
+                "spilling_to_storage".to_string(),
+            ),
             FsmTransitionDecl::Transition("in_host_memory".to_string(), "exit".to_string()),
-            FsmTransitionDecl::Transition("loading_to_gpu_memory".to_string(), "in_gpu_memory".to_string()),
-            FsmTransitionDecl::Transition("in_gpu_memory".to_string(), "spilling_to_host_memory".to_string()),
+            FsmTransitionDecl::Transition(
+                "loading_to_gpu_memory".to_string(),
+                "in_gpu_memory".to_string(),
+            ),
+            FsmTransitionDecl::Transition(
+                "in_gpu_memory".to_string(),
+                "spilling_to_host_memory".to_string(),
+            ),
             FsmTransitionDecl::Transition(
                 "spilling_to_host_memory".to_string(),
                 "in_host_memory".to_string(),
             ),
-            FsmTransitionDecl::Transition("spilling_to_storage".to_string(), "in_storage".to_string()),
+            FsmTransitionDecl::Transition(
+                "spilling_to_storage".to_string(),
+                "in_storage".to_string(),
+            ),
             FsmTransitionDecl::Exit("exit".to_string()),
         ];
 

@@ -192,7 +192,7 @@ enum Logical {
     Join,
     Aggregate,
     Filter,
-    UDF,
+    Udf,
     Sort,
     Limit,
     Output,
@@ -201,11 +201,12 @@ enum Logical {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Physical {
     FileSystemScan,
+    GpuDecode,
     JoinPartition,
     JoinLocal,
     Aggregate,
     Filter,
-    UDF,
+    Udf,
     Sort,
     Limit,
     Output,
@@ -310,9 +311,11 @@ impl<T: Debug> Plan<T> {
 }
 
 // Create the following logical plan:
-// Scan -> Project \            Scan -> Project \
-//                  -> Join                     -> Join -> Aggregate -> Filter -> UDF -> Sort -> Limit -> Output
-// Scan -> Project /            Scan -> Project /
+// Scan -> Project \                        Scan -> Project \
+//                  -> Join -> Aggregate                    -> Join -> Aggregate -> Filter -> Udf \
+// Scan -> Project /                        Scan -> Project /                                     -> Join -> Sort -> Limit -> Output
+//                                                                                Scan -> Project /
+// Each Scan -> Project lowers to: FileSystemScan -> GpuDecode
 fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
         let scan = plan.add_node(Operator::new(Logical::Scan, vec![]));
@@ -334,18 +337,22 @@ fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
 
     let mut dag = Graph::new();
 
-    // Left join: scans A and B
+    // Left branch: join scans A and B, then pre-aggregate
     let project_a = add_scan_project_branch(&mut dag);
     let project_b = add_scan_project_branch(&mut dag);
     let join_left = add_join(&mut dag, project_a, project_b);
+    let agg_left = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_left, agg_left, Edge::new("out", "in"));
 
-    // Right join: scans C and D
+    // Right branch: join scans C and D, then pre-aggregate
     let project_c = add_scan_project_branch(&mut dag);
     let project_d = add_scan_project_branch(&mut dag);
     let join_right = add_join(&mut dag, project_c, project_d);
+    let agg_right = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_right, agg_right, Edge::new("out", "in"));
 
-    // Final join combining both sides
-    let join_final = add_join(&mut dag, join_left, join_right);
+    // Final join combining pre-aggregated sides
+    let join_final = add_join(&mut dag, agg_left, agg_right);
 
     let aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
     dag.add_edge(join_final, aggregate, Edge::new("out", "in"));
@@ -353,11 +360,15 @@ fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     let filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
     dag.add_edge(aggregate, filter, Edge::new("out", "in"));
 
-    let udf = dag.add_node(Operator::new(Logical::UDF, vec![]));
+    let udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
     dag.add_edge(filter, udf, Edge::new("out", "in"));
 
+    // Late-stage dimension table lookup join
+    let project_e = add_scan_project_branch(&mut dag);
+    let join_lookup = add_join(&mut dag, udf, project_e);
+
     let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
-    dag.add_edge(udf, sort, Edge::new("out", "in"));
+    dag.add_edge(join_lookup, sort, Edge::new("out", "in"));
 
     let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
     dag.add_edge(sort, limit, Edge::new("out", "in"));
@@ -413,21 +424,26 @@ fn lower_logical(
             unimplemented!("this shouldn't happen in this simulator, yet")
         }
         Logical::Project => {
-            // Check whether this project has an incoming scan source to simulate predicate pushdown
+            // Scan+Project lowers to FileSystemScan → GpuDecode
             if let Some(scan_edge) = logical
                 .dag
                 .edges_directed(logical_current_idx, Direction::Incoming)
                 .find(|edge| logical.dag[edge.source()].kind == Logical::Scan)
             {
                 let scan_op = &logical.dag[scan_edge.source()];
-                let source = physical.dag.add_node(Operator::new(
+                let scan = physical.dag.add_node(Operator::new(
                     Physical::FileSystemScan,
                     vec![current_logical_op.id, scan_op.id],
                 ));
+                let decode = physical.dag.add_node(Operator::new(
+                    Physical::GpuDecode,
+                    vec![current_logical_op.id],
+                ));
+                physical.dag.add_edge(scan, decode, Edge::new("out", "in"));
                 if let Some((target_node, target_port)) = physical_target_idx_port {
                     physical
                         .dag
-                        .add_edge(source, target_node, Edge::new(target_port, "in"));
+                        .add_edge(decode, target_node, Edge::new(target_port, "in"));
                 }
             } else {
                 unimplemented!("this shouldn't happen in this simulator, yet");
@@ -469,18 +485,17 @@ fn lower_logical(
                 );
             }
         }
-        Logical::Aggregate | Logical::Filter | Logical::UDF | Logical::Sort => {
+        Logical::Aggregate | Logical::Filter | Logical::Udf | Logical::Sort => {
             let physical_kind = match current_logical_op.kind {
                 Logical::Aggregate => Physical::Aggregate,
                 Logical::Filter => Physical::Filter,
-                Logical::UDF => Physical::UDF,
+                Logical::Udf => Physical::Udf,
                 Logical::Sort => Physical::Sort,
                 _ => unreachable!(),
             };
-            let node = physical.dag.add_node(Operator::new(
-                physical_kind,
-                vec![current_logical_op.id],
-            ));
+            let node = physical
+                .dag
+                .add_node(Operator::new(physical_kind, vec![current_logical_op.id]));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
@@ -608,7 +623,6 @@ impl Worker {
         let channel_obs = context.channel_resource_observer();
         let processor_obs = context.processor_resource_observer();
 
-        info!("Spawning worker {}", self.name);
         worker_obs.init(
             self.id,
             worker::Init {
@@ -730,7 +744,6 @@ impl Worker {
                 },
             );
             processor_obs.operating(gpu.compute, Default::default());
-
         }
 
         if !self.gpus.is_empty() {
@@ -786,25 +799,23 @@ impl Worker {
         );
         sleep_fixed(25);
 
-        // Scan: create a batch from disk.
+        // FileSystemScan: create a batch from disk (heavy I/O).
+        // Each scan has a different size distribution derived from its
+        // operator ID to simulate data skew across input tables.
         let input_batch = if operator.kind == Physical::FileSystemScan {
             let batch_id = Uuid::now_v7();
-            let batch_bytes = rng().random_range(1..256) * 1024 * 1024;
-            let batch_rows = rng().random_range(1024..65536);
+            let skew = (operator.id.as_bytes()[0] % 5) as u64 + 1; // 1-5x scale
+            let base_bytes = rng().random_range(1..64) * 1024 * 1024;
+            let batch_bytes = base_bytes * skew;
+            let batch_rows = rng().random_range(1024..16384) * skew;
             batch_obs.init(
                 batch_id,
                 data_batch::Init {
                     operator_id: operator.id,
                 },
             );
-            batch_obs.in_storage(
-                batch_id,
-                data_batch::InStorage {
-                    use_filesystem: self.filesystem,
-                    use_filesystem_bytes: batch_bytes,
-                },
-            );
-            sleep_proportional(batch_bytes);
+            // Read external files into host memory (no storage resource
+            // usage — input files are externally managed).
             batch_obs.loading_to_host_memory(
                 batch_id,
                 data_batch::LoadingToHostMemory {
@@ -812,7 +823,7 @@ impl Worker {
                     use_fs_to_host_mem_bytes: batch_bytes,
                 },
             );
-            sleep_proportional(batch_bytes);
+            sleep_proportional(batch_bytes * 5);
             batch_obs.in_host_memory(
                 batch_id,
                 data_batch::InHostMemory {
@@ -845,7 +856,11 @@ impl Worker {
         // Determine operator behavior based on kind.
         let use_gpu = matches!(
             operator.kind,
-            Physical::JoinLocal | Physical::JoinPartition | Physical::Sort | Physical::UDF
+            Physical::GpuDecode
+                | Physical::JoinLocal
+                | Physical::JoinPartition
+                | Physical::Sort
+                | Physical::Udf
         ) && !self.gpus.is_empty();
         let send = operator.kind == Physical::JoinPartition;
         // Spill under simulated memory pressure. JoinLocal spills more
@@ -933,31 +948,32 @@ impl Worker {
         };
 
         // Move batch to GPU memory before compute.
-        if let Some(gpu) = gpu {
-            if let Some(ref batch) = input_batch {
-                batch_obs.loading_to_gpu_memory(
-                    batch.id,
-                    data_batch::LoadingToGpuMemory {
-                        use_host_mem_to_gpu: self.host_mem_to_gpu,
-                        use_host_mem_to_gpu_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                batch_obs.in_gpu_memory(
-                    batch.id,
-                    data_batch::InGpuMemory {
-                        use_gpu_memory: gpu.memory,
-                        use_gpu_memory_bytes: batch.bytes,
-                    },
-                );
-            }
+        if let Some(gpu) = gpu
+            && let Some(ref batch) = input_batch
+        {
+            batch_obs.loading_to_gpu_memory(
+                batch.id,
+                data_batch::LoadingToGpuMemory {
+                    use_host_mem_to_gpu: self.host_mem_to_gpu,
+                    use_host_mem_to_gpu_bytes: batch.bytes,
+                },
+            );
+            sleep_proportional(batch.bytes);
+            batch_obs.in_gpu_memory(
+                batch.id,
+                data_batch::InGpuMemory {
+                    use_gpu_memory: gpu.memory,
+                    use_gpu_memory_bytes: batch.bytes,
+                },
+            );
         }
 
         // Compute time scales with operator complexity and GPU availability.
         let compute_multiplier = match operator.kind {
             Physical::JoinLocal => 4,
-            Physical::UDF => 3,
+            Physical::Udf => 3,
             Physical::Aggregate => 3,
+            Physical::GpuDecode => 2,
             Physical::Sort => 2,
             Physical::JoinPartition => 2,
             _ => 1,
@@ -965,7 +981,8 @@ impl Worker {
         let gpu_multiplier: u64 = if gpu.is_some() {
             match operator.kind {
                 Physical::JoinLocal => 6,
-                Physical::UDF => 5,
+                Physical::Udf => 5,
+                Physical::GpuDecode => 4,
                 Physical::Sort => 3,
                 Physical::JoinPartition => 2,
                 _ => 1,
@@ -985,24 +1002,24 @@ impl Worker {
         sleep_proportional(batch_bytes * (compute_multiplier + gpu_multiplier));
 
         // Move batch back from GPU to host memory.
-        if gpu.is_some() {
-            if let Some(ref batch) = input_batch {
-                batch_obs.spilling_to_host_memory(
-                    batch.id,
-                    data_batch::SpillingToHostMemory {
-                        use_gpu_to_host_mem: self.gpu_to_host_mem,
-                        use_gpu_to_host_mem_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                batch_obs.in_host_memory(
-                    batch.id,
-                    data_batch::InHostMemory {
-                        use_host_memory: self.host_memory,
-                        use_host_memory_bytes: batch.bytes,
-                    },
-                );
-            }
+        if gpu.is_some()
+            && let Some(ref batch) = input_batch
+        {
+            batch_obs.spilling_to_host_memory(
+                batch.id,
+                data_batch::SpillingToHostMemory {
+                    use_gpu_to_host_mem: self.gpu_to_host_mem,
+                    use_gpu_to_host_mem_bytes: batch.bytes,
+                },
+            );
+            sleep_proportional(batch.bytes);
+            batch_obs.in_host_memory(
+                batch.id,
+                data_batch::InHostMemory {
+                    use_host_memory: self.host_memory,
+                    use_host_memory_bytes: batch.bytes,
+                },
+            );
         }
 
         // Network send.
@@ -1026,7 +1043,8 @@ impl Worker {
 
         // Produce output batches and send downstream.
         match operator.kind {
-            Physical::FileSystemScan => {
+            Physical::FileSystemScan | Physical::GpuDecode => {
+                // Scan and decode pass through the batch as-is.
                 if let Some(batch) = input_batch {
                     operator.batches_out.fetch_add(1, Ordering::Relaxed);
                     operator.bytes_out.fetch_add(batch.bytes, Ordering::Relaxed);
@@ -1068,8 +1086,8 @@ impl Worker {
                             let keep = rng().random_range(60..80);
                             (batch.bytes * keep / 100, batch.rows * keep / 100)
                         }
-                        Physical::UDF => {
-                            // UDF transforms data but preserves cardinality.
+                        Physical::Udf => {
+                            // Udf transforms data but preserves cardinality.
                             (batch.bytes, batch.rows)
                         }
                         Physical::Limit => {
@@ -1142,6 +1160,7 @@ impl Worker {
         engine: &Engine,
         l_plan: &Plan<Logical>,
         num_tasks: usize,
+        log_progress: bool,
     ) {
         let physical_plan = simulate_planning(l_plan);
         physical_plan.declare(context, Some(self.id));
@@ -1397,6 +1416,7 @@ impl Worker {
 
         let op_obs = context.operator_observer();
         let port_obs = context.port_observer();
+        let num_nodes = nodes.len();
         for (op_index, node_idx) in nodes.iter().enumerate() {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
@@ -1408,12 +1428,11 @@ impl Worker {
             let bytes_out = op.bytes_out.load(Ordering::Relaxed);
             let rows_out = op.rows_out.load(Ordering::Relaxed);
 
-            info!("  {} {}%", self.name, (op_index + 1) * 100 / nodes.len());
-
             // Estimate peak memory from batch throughput and operator type.
             let mem_mult: u64 = match op.kind {
                 Physical::JoinLocal => 5,
                 Physical::Aggregate => 4,
+                Physical::GpuDecode => 3,
                 Physical::Sort => 3,
                 _ => 2,
             };
@@ -1438,6 +1457,17 @@ impl Worker {
                         Attribute::u64("files_scanned", batches_out.max(1)),
                         Attribute::u64("bytes_read", bytes_read),
                         Attribute::f64("predicate_selectivity", selectivity),
+                    ]);
+                }
+                Physical::GpuDecode => {
+                    let compression_ratio: f64 = rng().random_range(2.0..8.0);
+                    attributes.extend([
+                        Attribute::u64("compressed_bytes", bytes_in),
+                        Attribute::u64(
+                            "decompressed_bytes",
+                            (bytes_in as f64 * compression_ratio) as u64,
+                        ),
+                        Attribute::f64("compression_ratio", compression_ratio),
                     ]);
                 }
                 Physical::JoinPartition => {
@@ -1483,7 +1513,7 @@ impl Worker {
                         Attribute::u64("rows_filtered", rows_in.saturating_sub(rows_out)),
                     ]);
                 }
-                Physical::UDF => {
+                Physical::Udf => {
                     attributes.extend([
                         Attribute::string("udf_name", "apply_transform"),
                         Attribute::string("udf_language", "python"),
@@ -1540,6 +1570,10 @@ impl Worker {
                         ],
                     },
                 );
+            }
+
+            if log_progress {
+                info!("  {}/{} {:?}", op_index + 1, num_nodes, op.kind);
             }
         }
     }
@@ -1788,9 +1822,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let workers: Vec<_> = engine.workers.values().collect();
             std::thread::scope(|s| {
-                for worker in workers {
-                    s.spawn(|| {
-                        worker.execute_logical_plan(&context, &engine, &l_plan, args.num_tasks);
+                let context = &context;
+                let engine = &engine;
+                let l_plan = &l_plan;
+                for (i, worker) in workers.iter().enumerate() {
+                    let log_progress = i == 0;
+                    s.spawn(move || {
+                        worker.execute_logical_plan(
+                            context,
+                            engine,
+                            l_plan,
+                            args.num_tasks,
+                            log_progress,
+                        );
                     });
                 }
             });

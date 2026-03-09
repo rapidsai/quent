@@ -253,34 +253,35 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         config,
                         long_entities_threshold,
                     )?;
-                    if used_by.contains("task") {
-                        if let Some(tasks) =
+                    if used_by.contains("task")
+                        && let Some(tasks) =
                             self.tasks_filtered(&req.entity_filter, &operator_filter, config.span)
-                        {
-                            self.populate_keyed_builder(
-                                &mut builder,
-                                tasks.filter(|task| {
-                                    task.usages()
-                                        .any(|usage| usage.resource_id() == req.resource_id)
-                                }),
-                                |id| id == req.resource_id,
-                            )?;
-                        }
+                    {
+                        self.populate_keyed_builder(
+                            &mut builder,
+                            tasks.filter(|task| {
+                                task.usages()
+                                    .any(|usage| usage.resource_id() == req.resource_id)
+                            }),
+                            |id| id == req.resource_id,
+                        )?;
                     }
-                    if used_by.contains("data_batch") {
-                        if let Some(batches) =
-                            self.data_batches_filtered(&req.entity_filter, &operator_filter, config.span)
-                        {
-                            self.populate_keyed_builder_batches(
-                                &mut builder,
-                                batches.filter(|batch| {
-                                    batch
-                                        .usages()
-                                        .any(|usage| usage.resource_id() == req.resource_id)
-                                }),
-                                |id| id == req.resource_id,
-                            )?;
-                        }
+                    if used_by.contains("data_batch")
+                        && let Some(batches) = self.data_batches_filtered(
+                            &req.entity_filter,
+                            &operator_filter,
+                            config.span,
+                        )
+                    {
+                        self.populate_keyed_builder_batches(
+                            &mut builder,
+                            batches.filter(|batch| {
+                                batch
+                                    .usages()
+                                    .any(|usage| usage.resource_id() == req.resource_id)
+                            }),
+                            |id| id == req.resource_id,
+                        )?;
                     }
                     Ok(SingleTimelineResponse {
                         config: config_secs,
@@ -293,27 +294,28 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         long_entities_threshold,
                     )?;
 
-                    if used_by.contains("task") {
-                        if let Some(tasks) =
+                    if used_by.contains("task")
+                        && let Some(tasks) =
                             self.tasks_filtered(&req.entity_filter, &operator_filter, config.span)
-                        {
-                            builder.try_extend(
-                                tasks
-                                    .flat_map(|task| task.usages())
-                                    .filter(|usage| usage.resource_id() == req.resource_id),
-                            )?;
-                        }
+                    {
+                        builder.try_extend(
+                            tasks
+                                .flat_map(|task| task.usages())
+                                .filter(|usage| usage.resource_id() == req.resource_id),
+                        )?;
                     }
-                    if used_by.contains("data_batch") {
-                        if let Some(batches) =
-                            self.data_batches_filtered(&req.entity_filter, &operator_filter, config.span)
-                        {
-                            builder.try_extend(
-                                batches
-                                    .flat_map(|batch| batch.usages())
-                                    .filter(|usage| usage.resource_id() == req.resource_id),
-                            )?;
-                        }
+                    if used_by.contains("data_batch")
+                        && let Some(batches) = self.data_batches_filtered(
+                            &req.entity_filter,
+                            &operator_filter,
+                            config.span,
+                        )
+                    {
+                        builder.try_extend(
+                            batches
+                                .flat_map(|batch| batch.usages())
+                                .filter(|usage| usage.resource_id() == req.resource_id),
+                        )?;
                     }
                     Ok(SingleTimelineResponse {
                         config: config_secs,
@@ -346,34 +348,35 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         config,
                         long_entities_threshold,
                     )?;
-                    if used_by.contains("task") {
-                        if let Some(tasks) =
+                    if used_by.contains("task")
+                        && let Some(tasks) =
                             self.tasks_filtered(&req.entity_filter, &req.app_params, config.span)
-                        {
-                            self.populate_keyed_builder(
-                                &mut builder,
-                                tasks.filter(|task| {
-                                    task.usages()
-                                        .any(|usage| resource_ids.contains(&usage.resource_id()))
-                                }),
-                                |id| resource_ids.contains(&id),
-                            )?;
-                        }
+                    {
+                        self.populate_keyed_builder(
+                            &mut builder,
+                            tasks.filter(|task| {
+                                task.usages()
+                                    .any(|usage| resource_ids.contains(&usage.resource_id()))
+                            }),
+                            |id| resource_ids.contains(&id),
+                        )?;
                     }
-                    if used_by.contains("data_batch") {
-                        if let Some(batches) =
-                            self.data_batches_filtered(&req.entity_filter, &req.app_params, config.span)
-                        {
-                            self.populate_keyed_builder_batches(
-                                &mut builder,
-                                batches.filter(|batch| {
-                                    batch
-                                        .usages()
-                                        .any(|usage| resource_ids.contains(&usage.resource_id()))
-                                }),
-                                |id| resource_ids.contains(&id),
-                            )?;
-                        }
+                    if used_by.contains("data_batch")
+                        && let Some(batches) = self.data_batches_filtered(
+                            &req.entity_filter,
+                            &req.app_params,
+                            config.span,
+                        )
+                    {
+                        self.populate_keyed_builder_batches(
+                            &mut builder,
+                            batches.filter(|batch| {
+                                batch
+                                    .usages()
+                                    .any(|usage| resource_ids.contains(&usage.resource_id()))
+                            }),
+                            |id| resource_ids.contains(&id),
+                        )?;
                     }
                     Ok(SingleTimelineResponse {
                         config: config_secs,
@@ -385,27 +388,28 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         config,
                         long_entities_threshold,
                     )?;
-                    if used_by.contains("task") {
-                        if let Some(tasks) =
+                    if used_by.contains("task")
+                        && let Some(tasks) =
                             self.tasks_filtered(&req.entity_filter, &req.app_params, config.span)
-                        {
-                            builder.try_extend(
-                                tasks
-                                    .flat_map(|task| task.usages())
-                                    .filter(|usage| resource_ids.contains(&usage.resource_id())),
-                            )?;
-                        }
+                    {
+                        builder.try_extend(
+                            tasks
+                                .flat_map(|task| task.usages())
+                                .filter(|usage| resource_ids.contains(&usage.resource_id())),
+                        )?;
                     }
-                    if used_by.contains("data_batch") {
-                        if let Some(batches) =
-                            self.data_batches_filtered(&req.entity_filter, &req.app_params, config.span)
-                        {
-                            builder.try_extend(
-                                batches
-                                    .flat_map(|batch| batch.usages())
-                                    .filter(|usage| resource_ids.contains(&usage.resource_id())),
-                            )?;
-                        }
+                    if used_by.contains("data_batch")
+                        && let Some(batches) = self.data_batches_filtered(
+                            &req.entity_filter,
+                            &req.app_params,
+                            config.span,
+                        )
+                    {
+                        builder.try_extend(
+                            batches
+                                .flat_map(|batch| batch.usages())
+                                .filter(|usage| resource_ids.contains(&usage.resource_id())),
+                        )?;
                     }
                     Ok(SingleTimelineResponse {
                         config: config_secs,
@@ -435,18 +439,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // each bulk entry. After populating this, we'll build a reverse index,
         // that maps a resource_id to a list of indices in these vecs, for which
         // that resource's usages are relevant.
-        // Each builder tracks: (entry_id, builder, resource_id_filter, operator_filter, wants_tasks, wants_batches)
-        let mut plain_builders: Vec<(String, ResourceTimelineBuilder, HashSet<Uuid>, OperatorFilter, bool, bool)> =
+        let mut plain_builders: Vec<BulkBuilderEntry<ResourceTimelineBuilder>> = Vec::new();
+        let mut per_state_builders: Vec<BulkBuilderEntry<ResourceTimelineByKeyBuilder<&str>>> =
             Vec::new();
-
-        let mut per_state_builders: Vec<(
-            String,
-            ResourceTimelineByKeyBuilder<&str>,
-            HashSet<Uuid>,
-            OperatorFilter,
-            bool,
-            bool,
-        )> = Vec::new();
 
         for (entry_id, entry) in request.entries {
             let entry_config = entry.config().clone().try_into_binned_span(epoch)?;
@@ -460,35 +455,41 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             // Determine which entity types this builder needs based on
             // the resource's used_by and the requested entity_type_name filter.
             let wants_tasks = resource_type.used_by.contains("task")
-                && entity_filter.entity_type_name.as_deref().is_none_or(|n| n == "task");
+                && entity_filter
+                    .entity_type_name
+                    .as_deref()
+                    .is_none_or(|n| n == "task");
             let wants_batches = resource_type.used_by.contains("data_batch")
-                && entity_filter.entity_type_name.as_deref().is_none_or(|n| n == "data_batch");
+                && entity_filter
+                    .entity_type_name
+                    .as_deref()
+                    .is_none_or(|n| n == "data_batch");
             if entity_filter.entity_type_name.is_some() {
-                per_state_builders.push((
+                per_state_builders.push(BulkBuilderEntry {
                     entry_id,
-                    ResourceTimelineByKeyBuilder::try_new(
+                    builder: ResourceTimelineByKeyBuilder::try_new(
                         resource_type,
                         entry_config,
                         long_entities_threshold,
                     )?,
-                    resource_id_filter,
+                    resource_ids: resource_id_filter,
                     operator_filter,
                     wants_tasks,
                     wants_batches,
-                ));
+                });
             } else {
-                plain_builders.push((
+                plain_builders.push(BulkBuilderEntry {
                     entry_id,
-                    ResourceTimelineBuilder::try_new(
+                    builder: ResourceTimelineBuilder::try_new(
                         resource_type,
                         entry_config,
                         long_entities_threshold,
                     )?,
-                    resource_id_filter,
+                    resource_ids: resource_id_filter,
                     operator_filter,
                     wants_tasks,
                     wants_batches,
-                ));
+                });
             }
         }
 
@@ -504,7 +505,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .enumerate()
             .flat_map(|(builders_index, builder)| {
                 builder
-                    .2
+                    .resource_ids
                     .iter()
                     .map(move |&resource_id| (resource_id, builders_index))
             })
@@ -520,7 +521,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .enumerate()
             .flat_map(|(builders_index, builder)| {
                 builder
-                    .2
+                    .resource_ids
                     .iter()
                     .map(move |&resource_id| (resource_id, builders_index))
             })
@@ -533,10 +534,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             );
 
         // Iterate over all usages once and push any usages of resources in our
-        // lookup table to their respective builders. Check entity_type_filter
-        // (index 4) to skip entity types that aren't relevant for a builder.
-        let any_wants_tasks = plain_builders.iter().any(|b| b.4)
-            || per_state_builders.iter().any(|b| b.4);
+        // lookup table to their respective builders.
+        let any_wants_tasks = plain_builders.iter().any(|b| b.wants_tasks)
+            || per_state_builders.iter().any(|b| b.wants_tasks);
         if any_wants_tasks {
             for task in self.model.tasks.values() {
                 let task_operator_id = task.operator_id();
@@ -544,14 +544,14 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     let resource_id = usage.resource_id();
                     if let Some(builder_indices) = plain_index.get(&resource_id) {
                         for &builder_idx in builder_indices {
-                            let builder = &plain_builders[builder_idx];
-                            if builder.4
-                                && builder
-                                    .3
+                            let entry = &plain_builders[builder_idx];
+                            if entry.wants_tasks
+                                && entry
+                                    .operator_filter
                                     .operator_id
                                     .is_none_or(|op| task_operator_id == Some(op))
                             {
-                                plain_builders[builder_idx].1.try_push(&usage)?;
+                                plain_builders[builder_idx].builder.try_push(&usage)?;
                             }
                         }
                     }
@@ -561,15 +561,15 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     let resource_id = usage.resource_id();
                     if let Some(builder_indices) = per_state_index.get(&resource_id) {
                         for &builder_idx in builder_indices {
-                            let builder = &per_state_builders[builder_idx];
-                            if builder.4
-                                && builder
-                                    .3
+                            let entry = &per_state_builders[builder_idx];
+                            if entry.wants_tasks
+                                && entry
+                                    .operator_filter
                                     .operator_id
                                     .is_none_or(|op| task_operator_id == Some(op))
                             {
                                 per_state_builders[builder_idx]
-                                    .1
+                                    .builder
                                     .try_push(state_name, &usage)?;
                             }
                         }
@@ -578,8 +578,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             }
         }
 
-        let any_wants_batches = plain_builders.iter().any(|b| b.5)
-            || per_state_builders.iter().any(|b| b.5);
+        let any_wants_batches = plain_builders.iter().any(|b| b.wants_batches)
+            || per_state_builders.iter().any(|b| b.wants_batches);
         if any_wants_batches {
             for batch in self.model.data_batches.values() {
                 let batch_operator_id = batch.operator_id();
@@ -587,14 +587,14 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     let resource_id = usage.resource_id();
                     if let Some(builder_indices) = plain_index.get(&resource_id) {
                         for &builder_idx in builder_indices {
-                            let builder = &plain_builders[builder_idx];
-                            if builder.5
-                                && builder
-                                    .3
+                            let entry = &plain_builders[builder_idx];
+                            if entry.wants_batches
+                                && entry
+                                    .operator_filter
                                     .operator_id
                                     .is_none_or(|op| batch_operator_id == Some(op))
                             {
-                                plain_builders[builder_idx].1.try_push(&usage)?;
+                                plain_builders[builder_idx].builder.try_push(&usage)?;
                             }
                         }
                     }
@@ -604,15 +604,15 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     let resource_id = usage.resource_id();
                     if let Some(builder_indices) = per_state_index.get(&resource_id) {
                         for &builder_idx in builder_indices {
-                            let builder = &per_state_builders[builder_idx];
-                            if builder.5
-                                && builder
-                                    .3
+                            let entry = &per_state_builders[builder_idx];
+                            if entry.wants_batches
+                                && entry
+                                    .operator_filter
                                     .operator_id
                                     .is_none_or(|op| batch_operator_id == Some(op))
                             {
                                 per_state_builders[builder_idx]
-                                    .1
+                                    .builder
                                     .try_push(state_name, &usage)?;
                             }
                         }
@@ -623,11 +623,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         // Collect results for all requests.
         let mut entries = std::collections::HashMap::default();
-        for (entry_id, builder, _, _, _, _) in plain_builders {
-            let built = builder.build();
+        for entry in plain_builders {
+            let built = entry.builder.build();
             let config = built.config.try_to_secs_relative(epoch)?;
             entries.insert(
-                entry_id,
+                entry.entry_id,
                 BulkTimelinesResponseEntry::Ok {
                     message: String::new(),
                     config,
@@ -635,11 +635,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 },
             );
         }
-        for (key, builder, _, _, _, _) in per_state_builders {
-            let built = builder.build();
+        for entry in per_state_builders {
+            let built = entry.builder.build();
             let config = built.config.try_to_secs_relative(epoch)?;
             entries.insert(
-                key,
+                entry.entry_id,
                 BulkTimelinesResponseEntry::Ok {
                     message: String::new(),
                     config,
@@ -848,6 +848,15 @@ impl SimulatorUiAnalyzer {
 }
 
 /// Helper struct to build bulk timeline responses.
+struct BulkBuilderEntry<B> {
+    entry_id: String,
+    builder: B,
+    resource_ids: HashSet<Uuid>,
+    operator_filter: OperatorFilter,
+    wants_tasks: bool,
+    wants_batches: bool,
+}
+
 struct BulkEntryPrep<'a> {
     resource_type: &'a ResourceTypeDecl,
     resource_id_filter: HashSet<Uuid>,
