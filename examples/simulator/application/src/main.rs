@@ -9,7 +9,7 @@ use crossbeam_channel::{Receiver, Sender};
 
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
-use quent_attributes::{Attribute, List, Struct};
+use quent_attributes::Attribute;
 use quent_events::resource::{self, channel, memory};
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
@@ -21,8 +21,8 @@ use quent_query_engine_events::{
 };
 use quent_simulator_events::{data_batch, task};
 use quent_simulator_instrumentation::SimulatorContext;
-use rand::{Rng, distr::slice::Choose, rng};
-use tracing::{debug, info};
+use rand::{Rng, rng};
+use tracing::info;
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
@@ -77,23 +77,6 @@ fn initialize_tracing() {
         .with_max_level(tracing::Level::INFO)
         .with_writer(std::io::stderr)
         .init();
-}
-
-fn log_resource_links(engine_id: Uuid, query_id: Uuid, resource_id: Uuid, resource_name: &str) {
-    debug!("\tResource: {resource_name}
-\t\tTimeline: http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline?num_bins=16&start=0&end=4"
-    );
-}
-
-fn log_resource_group_links(
-    engine_id: Uuid,
-    query_id: Uuid,
-    resource_group_id: Uuid,
-    resource_group_name: &str,
-) {
-    debug!("\tResource Group: {resource_group_name}
-\t\tTimeline: http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline?num_bins=16&start=0&end=4"
-    );
 }
 
 fn sleep_fixed(micros: u64) {
@@ -1094,81 +1077,7 @@ impl Worker {
         let physical_plan = simulate_planning(l_plan);
         physical_plan.declare(context, Some(self.id));
 
-        // Log analyzer debug links:
-        log_resource_links(engine.id, physical_plan.query_id, self.memory, "Memory");
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.filesystem,
-            "Filesystem",
-        );
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.fs_to_mem,
-            "Filesystem -> Memory",
-        );
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.mem_to_fs,
-            "Memory -> Filesystem",
-        );
-        log_resource_group_links(
-            engine.id,
-            physical_plan.query_id,
-            self.thread_pool,
-            "Thread Pool",
-        );
-        for (index, thread_id) in self.threads.iter().enumerate() {
-            log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                *thread_id,
-                format!("Thread {index}").as_str(),
-            );
-        }
-        for (index, gpu) in self.gpus.iter().enumerate() {
-            log_resource_group_links(
-                engine.id,
-                physical_plan.query_id,
-                gpu.id,
-                format!("GPU {index}").as_str(),
-            );
-            log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                gpu.memory,
-                format!("GPU {index} Memory").as_str(),
-            );
-            log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                gpu.compute,
-                format!("GPU {index} Compute").as_str(),
-            );
-            log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                gpu.mem_to_gpu,
-                format!("Memory -> GPU {index}").as_str(),
-            );
-            log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                gpu.gpu_to_mem,
-                format!("GPU {index} -> Memory").as_str(),
-            );
-        }
-
         let nodes = petgraph::algo::toposort(&physical_plan.dag, None).unwrap();
-        info!(
-            "Topological order: {:?}",
-            nodes
-                .iter()
-                .map(|node| format!("{:?}: {:?}", node, physical_plan.dag[*node].kind))
-                .collect::<Vec<_>>()
-        );
 
         if physical_plan.execute {
             let plan = &physical_plan;
@@ -1376,7 +1285,7 @@ impl Worker {
                                         .collect();
                                     let num_sources = incoming.len().max(1);
                                     let needed_total = node_demand + dispatched[&node_idx];
-                                    let per_source = (needed_total + num_sources - 1) / num_sources;
+                                    let per_source = needed_total.div_ceil(num_sources);
                                     for source in incoming {
                                         let already = dispatched[&source] + demand[&source];
                                         if already < per_source {
@@ -1417,20 +1326,9 @@ impl Worker {
             });
         }
 
-        // Set some stats
-        macro_rules! attr {
-            (u64 $name:expr, $range:expr) => { Attribute::u64($name, rng().random_range($range)) };
-            (u32 $name:expr, $val:expr) => { Attribute::u32($name, $val) };
-            (f64 $name:expr, $range:expr) => { Attribute::f64($name, rng().random_range($range)) };
-            (str $name:expr, $val:expr) => { Attribute::string($name, $val) };
-            (pick $name:expr, $($choice:expr),+) => {
-                Attribute::string($name, *rng().sample(Choose::new(&[$($choice),+]).unwrap()))
-            };
-        }
-
         let op_obs = context.operator_observer();
         let port_obs = context.port_observer();
-        for node_idx in nodes.iter() {
+        for (op_index, node_idx) in nodes.iter().enumerate() {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
 
@@ -1441,12 +1339,19 @@ impl Worker {
             let bytes_out = op.bytes_out.load(Ordering::Relaxed);
             let rows_out = op.rows_out.load(Ordering::Relaxed);
 
-            // Common metrics for all operators
+            info!("  {} {}%", self.name, (op_index + 1) * 100 / nodes.len());
+
+            // Estimate peak memory from batch throughput and operator type.
+            let mem_mult: u64 = match op.kind {
+                Physical::JoinLocal => 5,
+                Physical::Sort => 3,
+                _ => 2,
+            };
+            let peak_memory = (bytes_in / batches_in.max(1)) * mem_mult;
+
             let mut attributes = vec![
                 Attribute::u64("tasks_processed", tasks_processed),
-                attr!(u64 "wall_time_ns",       100_000..5_000_000_000),
-                attr!(u64 "cpu_time_ns",        50_000..4_000_000_000),
-                attr!(u64 "peak_memory_bytes",  1024..512 * 1024 * 1024),
+                Attribute::u64("peak_memory_bytes", peak_memory),
                 Attribute::u64("output_rows", rows_out),
                 Attribute::u64("output_bytes", bytes_out),
                 Attribute::u64("output_batches", batches_out),
@@ -1457,185 +1362,60 @@ impl Worker {
 
             match op.kind {
                 Physical::FileSystemScan => {
-                    let num_files: u64 = rng().random_range(1..256);
+                    let selectivity: f64 = rng().random_range(0.001..1.0);
+                    let bytes_read = (bytes_out as f64 / selectivity) as u64;
                     attributes.extend([
-                        attr!(str "file_name",              "/dev/null"),
-                        Attribute::u64("files_scanned", num_files),
-                        attr!(u64 "bytes_read",             1024..8u64 * 1024 * 1024 * 1024),
-                        attr!(u64 "row_groups_read",        1..1024),
-                        attr!(u64 "row_groups_skipped",     0..512),
-                        attr!(u64 "pages_read",             1..8192),
-                        attr!(u64 "pages_decompressed",     1..8192),
-                        attr!(u64 "io_wait_ns",             10_000..2_000_000_000),
-                        attr!(f64 "io_throughput_mbs",      50.0..6000.0),
-                        attr!(u64 "decompress_time_ns",     10_000..500_000_000),
-                        attr!(u64 "predicate_filter_time_ns", 0..100_000_000),
-                        attr!(f64 "predicate_selectivity",  0.001..1.0),
-                        attr!(u64 "null_count",             0..100_000),
-                        attr!(u64 "columns_projected",      1..64),
-                        // Per-file byte counts
-                        Attribute::list(
-                            "per_file_bytes_read",
-                            List::U64(
-                                (0..num_files)
-                                    .map(|_| rng().random_range(1024..1024 * 1024 * 1024))
-                                    .collect(),
-                            ),
-                        ),
-                        // Column projection info
-                        Attribute::list(
-                            "projected_column_names",
-                            List::String(
-                                [
-                                    "id", "name", "ts", "amount", "region", "status", "category",
-                                    "score",
-                                ]
-                                .iter()
-                                .take(rng().random_range(1..8))
-                                .map(|s| s.to_string())
-                                .collect(),
-                            ),
-                        ),
+                        Attribute::u64("files_scanned", batches_out.max(1)),
+                        Attribute::u64("bytes_read", bytes_read),
+                        Attribute::f64("predicate_selectivity", selectivity),
                     ]);
                 }
                 Physical::JoinPartition => {
-                    let num_partitions: u64 = rng().random_range(2..256);
+                    let build_bytes = bytes_in / 2;
+                    let probe_bytes = bytes_in - build_bytes;
                     attributes.extend([
-                        attr!(u64  "average_partition_size_bytes", 1..1024 * 1024 * 1024),
-                        attr!(pick "join_strategy",          "broadcast", "hash partition"),
-                        Attribute::u64("num_partitions", num_partitions),
-                        attr!(u64  "partition_time_ns",      100_000..1_000_000_000),
-                        attr!(u64  "hash_time_ns",           50_000..500_000_000),
-                        attr!(f64  "partition_skew",         0.0..5.0),
-                        attr!(u64  "max_partition_rows",     100..1_000_000),
-                        attr!(u64  "min_partition_rows",     0..10_000),
-                        attr!(u64  "build_side_bytes",       1024..2u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "probe_side_bytes",       1024..4u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "network_bytes_sent",     0..2u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "network_time_ns",        0..2_000_000_000),
-                        // Row count per partition
-                        Attribute::list(
-                            "partition_row_counts",
-                            List::U64(
-                                (0..num_partitions)
-                                    .map(|_| rng().random_range(0..1_000_000))
-                                    .collect(),
-                            ),
-                        ),
+                        Attribute::u64("build_side_bytes", build_bytes),
+                        Attribute::u64("probe_side_bytes", probe_bytes),
+                        Attribute::u64("network_bytes_sent", bytes_in),
                     ]);
                 }
-                Physical::JoinLocal => attributes.extend([
-                    attr!(u64 "hash_table_size_bytes",   1024..2u64 * 1024 * 1024 * 1024),
-                    attr!(u64 "hash_table_entries",      100..50_000_000),
-                    attr!(u64 "build_time_ns",           100_000..2_000_000_000),
-                    attr!(u64 "probe_time_ns",           100_000..3_000_000_000),
-                    attr!(u64 "build_rows",              100..10_000_000),
-                    attr!(u64 "probe_rows",              100..50_000_000),
-                    attr!(u64 "match_rows",              0..10_000_000),
-                    attr!(f64 "hash_collision_rate",     0.0..0.3),
-                    attr!(u64 "spill_count",             0..32),
-                    attr!(u64 "spill_bytes",             0..4u64 * 1024 * 1024 * 1024),
-                    attr!(u64 "bloom_filter_size_bytes", 0..64 * 1024 * 1024),
-                    attr!(f64 "bloom_filter_fpr",        0.001..0.1),
-                    // Join key columns
-                    Attribute::list(
-                        "join_keys",
-                        List::String(
-                            vec!["id", "region_id", "ts"]
-                                .into_iter()
-                                .take(rng().random_range(1..4))
-                                .map(|s| s.to_string())
-                                .collect(),
-                        ),
-                    ),
-                    // Per-spill detail: list of structs with bytes + time
-                    Attribute::list(
-                        "spill_events",
-                        List::Struct(
-                            (0..rng().random_range(0u64..4))
-                                .map(|_| {
-                                    Struct(vec![
-                                        Attribute::u64(
-                                            "bytes",
-                                            rng().random_range(1024..1024 * 1024 * 1024),
-                                        ),
-                                        Attribute::u64(
-                                            "time_ns",
-                                            rng().random_range(10_000..500_000_000),
-                                        ),
-                                        Attribute::u64("rows", rng().random_range(1000..1_000_000)),
-                                    ])
-                                })
-                                .collect(),
-                        ),
-                    ),
-                ]),
+                Physical::JoinLocal => {
+                    let build_rows = rows_in / 2;
+                    let probe_rows = rows_in - build_rows;
+                    attributes.extend([
+                        Attribute::u64("hash_table_size_bytes", bytes_in / 2),
+                        Attribute::u64("hash_table_entries", build_rows),
+                        Attribute::u64("build_rows", build_rows),
+                        Attribute::u64("probe_rows", probe_rows),
+                        Attribute::u64("match_rows", rows_out),
+                    ]);
+                }
                 Physical::Sort => {
-                    let num_keys: usize = rng().random_range(1..8);
+                    let n = rows_in.max(1);
+                    let log_n = (n as f64).log2().max(1.0) as u64;
                     attributes.extend([
-                        attr!(pick "direction",              "asc", "desc"),
-                        Attribute::u64("sort_keys", num_keys as u64),
-                        attr!(u64  "comparison_count",       1000..500_000_000),
-                        attr!(u64  "merge_passes",           1..16),
-                        attr!(u64  "run_count",              1..512),
-                        attr!(u64  "spill_count",            0..64),
-                        attr!(u64  "spill_bytes",            0..4u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "merge_time_ns",          100_000..2_000_000_000),
-                        attr!(f64  "avg_key_length_bytes",   4.0..256.0),
-                        attr!(f64  "presorted_fraction",     0.0..1.0),
-                        // Per sort-key specification
-                        Attribute::list(
-                            "key_specs",
-                            List::Struct(
-                                [
-                                    "ts", "amount", "id", "score", "name", "region", "category",
-                                    "status",
-                                ]
-                                .iter()
-                                .take(num_keys)
-                                .map(|col| {
-                                    Struct(vec![
-                                        Attribute::string("column", *col),
-                                        Attribute::string(
-                                            "direction",
-                                            *rng().sample(Choose::new(&["asc", "desc"]).unwrap()),
-                                        ),
-                                        Attribute::string(
-                                            "nulls",
-                                            *rng().sample(Choose::new(&["first", "last"]).unwrap()),
-                                        ),
-                                    ])
-                                })
-                                .collect(),
-                            ),
-                        ),
+                        Attribute::u64("comparison_count", n * log_n),
+                        Attribute::u64("run_count", batches_in.max(1)),
                     ]);
                 }
-                Physical::Limit => attributes.extend([
-                    attr!(u32 "amount",                  42),
-                    attr!(u64 "rows_inspected",          42..10_000_000),
-                    attr!(u64 "rows_emitted",            1..43),
-                    attr!(f64 "early_termination_ratio", 0.0..1.0),
-                ]),
-                Physical::Output => {
-                    let flush_count: u64 = rng().random_range(1..128);
+                Physical::Limit => {
+                    let ratio = if rows_in > 0 {
+                        1.0 - (rows_out as f64 / rows_in as f64)
+                    } else {
+                        0.0
+                    };
                     attributes.extend([
-                        attr!(pick "sink",                   "file", "memory"),
-                        attr!(u64  "rows_written",           0..10_000_000),
-                        attr!(u64  "bytes_written",          0..4u64 * 1024 * 1024 * 1024),
-                        Attribute::u64("flush_count", flush_count),
-                        attr!(u64  "flush_time_ns",          10_000..500_000_000),
-                        attr!(f64  "compression_ratio",      0.1..0.9),
-                        attr!(u64  "serialization_time_ns",  10_000..1_000_000_000),
-                        // Per-flush durations
-                        Attribute::list(
-                            "per_flush_time_ns",
-                            List::U64(
-                                (0..flush_count)
-                                    .map(|_| rng().random_range(1000..10_000_000))
-                                    .collect(),
-                            ),
-                        ),
+                        Attribute::u64("amount", 42),
+                        Attribute::u64("rows_inspected", rows_in),
+                        Attribute::u64("rows_emitted", rows_out),
+                        Attribute::f64("early_termination_ratio", ratio),
+                    ]);
+                }
+                Physical::Output => {
+                    attributes.extend([
+                        Attribute::u64("rows_written", rows_in),
+                        Attribute::u64("bytes_written", bytes_in),
+                        Attribute::u64("flush_count", batches_in.max(1)),
                     ]);
                 }
             }
@@ -1728,8 +1508,7 @@ impl Engine {
         num_gpus: usize,
     ) {
         // Create some observers
-        info!("Simulating Engine:");
-        info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
+        info!("Simulating Engine {}", self.id);
         let engine_obs = context.engine_observer();
         let resource_group_obs = context.resource_group_observer();
         let channel_obs = context.channel_resource_observer();
@@ -1874,12 +1653,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .take(args.num_query_groups)
         .enumerate()
     {
-        info!("Simulating Query Group:");
-        info!(
-            "\thttp://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}/list_queries",
-            engine.id
-        );
-
         let query_group_obs = context.query_group_observer();
         let query_obs = context.query_observer();
 
@@ -1896,11 +1669,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .take(args.num_queries)
             .enumerate()
         {
-            info!("Simulating Query:");
-            info!(
-                "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
-                engine.id
-            );
+            let total = args.num_query_groups * args.num_queries;
+            let done = query_group_index * args.num_queries + query_index;
+            info!("{}% ({}/{})", done * 100 / total, done, total);
             query_obs.init(
                 query_id,
                 query::Init {
