@@ -342,6 +342,7 @@ export const connectChart = (
 interface AxisPointerEntry {
   instance: EChartsInstance;
   xAxisIndex: number;
+  receiveShowTip: boolean;
   onMouseMove: (e: { offsetX: number }) => void;
   onGlobalOut: () => void;
 }
@@ -353,8 +354,8 @@ function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
-    axisPointerRegistry.forEach(({ instance, xAxisIndex }) => {
-      if (instance === source) return;
+    axisPointerRegistry.forEach(({ instance, xAxisIndex, receiveShowTip }) => {
+      if (instance === source || !receiveShowTip) return;
       try {
         const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
         if (pixel != null && isFinite(pixel)) {
@@ -390,13 +391,24 @@ function broadcastHidePointer(source: EChartsInstance) {
   }
 }
 
+export interface AxisPointerSyncOptions {
+  /** If false, this chart will not receive showTip when the pointer is synced from another chart (default true). */
+  receiveShowTip?: boolean;
+}
+
 /**
  * Register a chart instance for manual axis pointer sync.
  * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
  * regardless of tooltip/axisPointer configuration differences.
  * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
+ * @param options.receiveShowTip If false, tooltip is only shown when the user hovers this chart (default true).
  */
-export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 0) {
+export function registerAxisPointerSync(
+  instance: EChartsInstance,
+  xAxisIndex = 0,
+  options: AxisPointerSyncOptions = {}
+) {
+  const receiveShowTip = options.receiveShowTip !== false;
   const onMouseMove = (e: { offsetX: number }) => {
     try {
       const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
@@ -416,7 +428,7 @@ export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 
   zr.on('mousemove', onMouseMove);
   zr.on('globalout', onGlobalOut);
 
-  const entry = { instance, xAxisIndex, onMouseMove, onGlobalOut };
+  const entry = { instance, xAxisIndex, receiveShowTip, onMouseMove, onGlobalOut };
   axisPointerRegistry.add(entry);
 
   (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;

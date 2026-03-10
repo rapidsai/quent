@@ -1,5 +1,6 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
+import { useAtomValue } from 'jotai';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useHydrateAtoms } from 'jotai/utils';
 import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
@@ -10,6 +11,8 @@ import { EntityRefKey } from '@/types';
 import { TreeTableItem } from './resource-tree/types';
 import { ResourceColumn } from './resource-tree/ResourceColumn';
 import { UsageColumn } from './resource-tree/UsageColumn';
+import { BarChart3 } from 'lucide-react';
+import { DEFAULT_TIMELINE_HEIGHT } from './timeline/types';
 import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
@@ -20,7 +23,9 @@ import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/time
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import { selectedPlanIdAtom } from '@/atoms/dag';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
+import { operatorsWithActiveSpans, OperatorGanttChart } from './operator-timeline';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -118,7 +123,26 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     placeholderData: keepPreviousData,
   });
 
-  const treeData = useMemo(() => [rootItem], [rootItem]);
+  const operatorTimelineRow: TreeTableItem = useMemo(
+    () => ({
+      id: '__operator_timeline__',
+      type: 'operator-timeline',
+      entity: {} as TreeTableItem['entity'],
+      icon: BarChart3,
+    }),
+    []
+  );
+
+  const treeData = useMemo(
+    () => [operatorTimelineRow, rootItem],
+    [operatorTimelineRow, rootItem]
+  );
+
+  const selectedPlanId = useAtomValue(selectedPlanIdAtom);
+  const operatorEntries = useMemo(
+    () => operatorsWithActiveSpans(queryBundle, startTime, selectedPlanId),
+    [queryBundle, startTime, selectedPlanId]
+  );
 
   const columns = useMemo(() => {
     return [
@@ -127,18 +151,24 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item }: { item: TreeTableItem; level: number }) => (
-          <ResourceColumn
-            item={item}
-            selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
-            onTypeChange={(itemId, newType) => {
-              setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-              if (itemId === rootItem.id) {
-                setRootResourceType(newType);
-              }
-            }}
-          />
-        ),
+        render: ({ item }: { item: TreeTableItem; level: number }) =>
+          item.type === 'operator-timeline' ? (
+            <div className="flex items-center gap-2 py-2 text-foreground">
+              {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
+              <span className="text-sm">Operator timeline</span>
+            </div>
+          ) : (
+            <ResourceColumn
+              item={item}
+              selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
+              onTypeChange={(itemId, newType) => {
+                setSelectedTypes(prev => new Map(prev).set(itemId, newType));
+                if (itemId === rootItem.id) {
+                  setRootResourceType(newType);
+                }
+              }}
+            />
+          ),
       },
       {
         key: 'usage',
@@ -154,16 +184,29 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             />
           </div>
         ),
-        render: ({ item }: { item: TreeTableItem }) => (
-          <UsageColumn
-            item={item}
-            engineId={engineId}
-            queryBundle={queryBundle}
-            selectedTypes={selectedTypes}
-            startTime={startTime}
-            durationSeconds={durationSeconds}
-          />
-        ),
+        render: ({ item }: { item: TreeTableItem }) =>
+          item.type === 'operator-timeline' ? (
+            <div
+              className="h-full w-full"
+              style={{ minHeight: DEFAULT_TIMELINE_HEIGHT * 2 }}
+            >
+              <OperatorGanttChart
+                operators={operatorEntries}
+                startTime={startTime}
+                durationSeconds={durationSeconds}
+                height={DEFAULT_TIMELINE_HEIGHT * 2}
+              />
+            </div>
+          ) : (
+            <UsageColumn
+              item={item}
+              engineId={engineId}
+              queryBundle={queryBundle}
+              selectedTypes={selectedTypes}
+              startTime={startTime}
+              durationSeconds={durationSeconds}
+            />
+          ),
       },
     ] satisfies Column<TreeTableItem>[];
   }, [
@@ -175,6 +218,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     handleZoomChange,
+    operatorEntries,
   ]);
 
   return (
