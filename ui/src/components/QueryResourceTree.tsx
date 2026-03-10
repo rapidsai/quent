@@ -73,6 +73,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     expandedIds,
     selectedTypes,
     entities,
+    durationSeconds,
   });
 
   const onExpandChange = useCallback(

@@ -7,6 +7,7 @@ import {
   hideTasksAtom,
   timelineCacheKey,
   timelineDataAtom,
+  zoomRangeAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
@@ -75,6 +76,7 @@ export function ResourceTimeline({
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
+  const viewportRange = useAtomValue(zoomRangeAtom);
   const bulkInitialized = useAtomValue(bulkInitializedAtom);
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
   const hideTasks = useAtomValue(hideTasksAtom);
@@ -155,12 +157,14 @@ export function ResourceTimeline({
     if (!data || (operatorId != null && !overlayPreloadedData))
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
+    const viewport = { start: viewportRange.start, end: viewportRange.end };
     const base = buildBinnedTimelineSeries(
       data.data,
       data.config,
       startTime,
       capacities,
-      quantitySpecs
+      quantitySpecs,
+      viewport
     );
     const longFsms = getLongFsms(data.data);
     const timelineMarks = buildTimelineMarks(longFsms, startTime);
@@ -175,7 +179,8 @@ export function ResourceTimeline({
           overlayPreloadedData.config,
           startTime,
           capacities,
-          quantitySpecs
+          quantitySpecs,
+          viewport
         );
         return {
           timestamps: base.timestamps,
@@ -192,6 +197,7 @@ export function ResourceTimeline({
     operatorId,
     overlayPreloadedData,
     startTime,
+    viewportRange,
     operatorLabel,
     overlayLighten,
     capacities,

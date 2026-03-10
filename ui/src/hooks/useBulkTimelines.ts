@@ -36,6 +36,7 @@ export function useBulkTimelines({
   expandedIds,
   selectedTypes,
   entities,
+  durationSeconds,
 }: {
   engineId: string;
   queryId: string;
@@ -43,6 +44,7 @@ export function useBulkTimelines({
   expandedIds: Set<string>;
   selectedTypes: Map<string, string>;
   entities: QueryEntities;
+  durationSeconds: number;
 }) {
   const store = useStore();
   const queryClient = useQueryClient();
@@ -57,14 +59,18 @@ export function useBulkTimelines({
   }, []);
 
   const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
-  const bulkConfig = useMemo(
-    () => ({
-      num_bins: getAdaptiveNumBins(),
-      start: debouncedZoomRange.start,
-      end: debouncedZoomRange.end,
-    }),
-    [debouncedZoomRange]
-  );
+  // Request 2x window (centered) with 2x bins so viewport keeps same bin density; pre-loads adjacent data for pan
+  const bulkConfig = useMemo(() => {
+    const start = debouncedZoomRange.start;
+    const end = debouncedZoomRange.end;
+    const windowSec = end - start;
+    const halfMargin = windowSec / 2;
+    return {
+      num_bins: getAdaptiveNumBins() * 2,
+      start: Math.max(0, start - halfMargin),
+      end: Math.min(durationSeconds, end + halfMargin),
+    };
+  }, [debouncedZoomRange, durationSeconds]);
 
   const baseVisibleEntries = useMemo(
     () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, bulkConfig),
