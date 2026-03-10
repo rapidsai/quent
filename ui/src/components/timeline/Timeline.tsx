@@ -5,9 +5,10 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
+import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
 import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
-import { formatBytes } from '@/services/formatters';
+import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
   TimelineMark,
@@ -15,8 +16,9 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart } from '@/lib/timeline.utils';
+import { connectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
+import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
@@ -47,6 +49,10 @@ export function Timeline({
     markAreaBorderOpacity,
     markLabelTextColor,
   } = useTimelineChartColors();
+
+  const zoomRange = useAtomValue(zoomRangeAtom);
+  const windowMsRef = useRef(0);
+  windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
 
   const maxMarkCountRef = useRef(0);
 
@@ -155,6 +161,11 @@ export function Timeline({
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
 
+  const yAxisFormatter = useMemo(() => {
+    const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
+    return (v: number) => firstEntry?.formatter(v, 0) ?? ((v: number) => `${v}`);
+  }, [series]);
+
   const yAxisOptions = useMemo(
     () => [
       {
@@ -175,10 +186,7 @@ export function Timeline({
           margin: 8,
           fontSize: 10,
           color: timelineMarkupColor,
-          // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
-          formatter: (value: number) => {
-            return formatBytes(value, 0);
-          },
+          formatter: yAxisFormatter,
         },
       },
       {
@@ -189,10 +197,10 @@ export function Timeline({
         gridIndex: 0,
       },
     ],
-    [gridBorderColor, timelineMarkupColor]
+    [gridBorderColor, timelineMarkupColor, yAxisFormatter]
   );
 
-  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const xAxisOptions = useMemo(
     () => ({
@@ -271,11 +279,14 @@ export function Timeline({
           const activeMarks = marks
             ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
             .map(m => ({ label: m.label, stateName: m.stateName }));
+          const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent
               timestamp={timestamp}
               series={seriesValues}
               startTime={startTime}
+              fmt={fmt}
+              windowMs={windowMsRef.current}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
             />
           );
@@ -328,13 +339,24 @@ export function Timeline({
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
 
-    instance.getDom().addEventListener('pointerdown', () => {
+    const dom = instance.getDom();
+    dom.addEventListener('pointerdown', () => {
       isDraggingRef.current = true;
       instance.dispatchAction({ type: 'hideTip' });
     });
-    instance.getDom().addEventListener('pointerup', () => {
+    dom.addEventListener('pointerup', () => {
       isDraggingRef.current = false;
     });
+
+    // Let non-shift wheel events pass through to the page for normal scrolling.
+    // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (!e.shiftKey) e.stopPropagation();
+      },
+      { capture: true, passive: true }
+    );
   }, []);
 
   return (
@@ -344,7 +366,8 @@ export function Timeline({
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
       notMerge={false}
-      lazyUpdate
+      lazyUpdate={false}
+      replaceMerge={['series']}
     />
   );
 }

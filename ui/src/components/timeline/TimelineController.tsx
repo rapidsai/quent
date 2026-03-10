@@ -11,6 +11,7 @@ import {
   connectChart,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
+  nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
@@ -49,7 +50,7 @@ export function TimelineController({
 }: TimelineControllerProps) {
   const colors = useTimelineChartColors();
 
-  const startTimeMillis = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMillis = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const { timestamps, seriesData } = useMemo(() => {
     if (timelineData) {
@@ -62,7 +63,7 @@ export function TimelineController({
       const values = entries.length > 0 ? entries[0][1].values : null;
       return { timestamps: ts, seriesData: values };
     } else {
-      const numBins = getAdaptiveNumBins(durationSeconds);
+      const numBins = getAdaptiveNumBins();
       const binDurationMs = (durationSeconds * 1000) / numBins;
       const ts = Array.from({ length: numBins }, (_, i) => startTimeMillis + i * binDurationMs);
       return { timestamps: ts, seriesData: null };
@@ -108,17 +109,20 @@ export function TimelineController({
     return [zoomControlSeries, staticDisplaySeries];
   }, [timestamps, hasSeriesData, seriesData, colors.rollupTimelineColor]);
 
+  const endTimeMillis = startTimeMillis + durationSeconds * 1000;
+
   const staticXAxisOptions = useMemo(() => {
-    const minTs = timestamps[0] ?? startTimeMillis;
-    const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
-    const interval = getTimelineXAxisIntervalMs(maxTs - minTs, CONTROLLER_X_MIN_LABELS);
+    const interval = getTimelineXAxisIntervalMs(
+      endTimeMillis - startTimeMillis,
+      CONTROLLER_X_MIN_LABELS
+    );
 
     return {
       boundaryGap: false,
       type: 'value',
       show: true,
-      min: minTs,
-      max: maxTs,
+      min: startTimeMillis,
+      max: endTimeMillis,
       interval,
       axisLine: {
         show: true,
@@ -153,26 +157,22 @@ export function TimelineController({
         },
       },
     };
-  }, [timestamps, startTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]);
+  }, [startTimeMillis, endTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]);
 
-  const zoomXAxisOptions = useMemo(() => {
-    const minTs = timestamps[0] ?? startTimeMillis;
-    const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
-    const interval = getTimelineXAxisIntervalMs(maxTs - minTs, CONTROLLER_X_MIN_LABELS);
-
-    return {
+  const zoomXAxisOptions = useMemo(
+    () => ({
       boundaryGap: false,
       type: 'value',
       show: false,
-      min: minTs,
-      max: maxTs,
-      interval,
+      min: startTimeMillis,
+      max: endTimeMillis,
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { show: false },
       splitLine: { show: false },
-    };
-  }, [timestamps, startTimeMillis]);
+    }),
+    [startTimeMillis, endTimeMillis]
+  );
 
   const yAxisOptions = useMemo(() => {
     if (hasSeriesData) {
@@ -250,11 +250,7 @@ export function TimelineController({
             borderRadius: 2,
           },
           labelFormatter: (tsMilliseconds: number) => {
-            const raw = Number(tsMilliseconds);
-            const minTs = timestamps[0] ?? startTimeMillis;
-            const maxTs = timestamps[timestamps.length - 1] ?? startTimeMillis;
-            const clamped = Math.max(minTs, Math.min(maxTs, raw));
-            return formatDuration(clamped - startTimeMillis);
+            return formatDuration(Number(tsMilliseconds) - startTimeMillis);
           },
           emphasis: {
             handleStyle: {

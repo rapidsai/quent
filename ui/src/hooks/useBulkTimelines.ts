@@ -59,7 +59,7 @@ export function useBulkTimelines({
   const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
   const bulkConfig = useMemo(
     () => ({
-      num_bins: getAdaptiveNumBins(debouncedZoomRange.end - debouncedZoomRange.start),
+      num_bins: getAdaptiveNumBins(),
       start: debouncedZoomRange.start,
       end: debouncedZoomRange.end,
     }),
@@ -125,7 +125,7 @@ export function useBulkTimelines({
 
       const zoom = store.get(debouncedZoomRangeAtom);
       const expandConfig = {
-        num_bins: getAdaptiveNumBins(zoom.end - zoom.start),
+        num_bins: getAdaptiveNumBins(),
         start: zoom.start,
         end: zoom.end,
       };

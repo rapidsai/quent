@@ -29,6 +29,8 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { CapacityDecl } from '~quent/types/CapacityDecl';
+import type { QuantitySpec } from '~quent/types/QuantitySpec';
 import { useTimelineChartColors } from './useTimelineChartColors';
 
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
@@ -46,6 +48,8 @@ type ResourceTimelineProps = {
   showTooltip?: boolean;
   /** Pre-fetched timeline data from bulk endpoint; skips individual fetch when present */
   preloadedData?: SingleTimelineResponse;
+  capacities?: CapacityDecl[];
+  quantitySpecs?: { [key in string]?: QuantitySpec };
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -67,6 +71,8 @@ export function ResourceTimeline({
   fsmTypeName,
   resourceTypeName,
   showTooltip = true,
+  capacities,
+  quantitySpecs,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
@@ -110,7 +116,7 @@ export function ResourceTimeline({
       const end = zoomRange?.end ?? durationSeconds;
       const windowSeconds = end - start;
       const config = {
-        num_bins: getAdaptiveNumBins(windowSeconds),
+        num_bins: getAdaptiveNumBins(),
         start,
         end,
       };
@@ -153,7 +159,13 @@ export function ResourceTimeline({
     if (!data || (operatorId != null && !overlayPreloadedData))
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
-    const base = buildBinnedTimelineSeries(data.data, data.config, startTime);
+    const base = buildBinnedTimelineSeries(
+      data.data,
+      data.config,
+      startTime,
+      capacities,
+      quantitySpecs
+    );
     const longFsms = getLongFsms(data.data);
     const timelineMarks = buildTimelineMarks(longFsms, startTime);
 
@@ -165,7 +177,9 @@ export function ResourceTimeline({
         const opResult = buildBinnedTimelineSeries(
           overlayPreloadedData.data,
           overlayPreloadedData.config,
-          startTime
+          startTime,
+          capacities,
+          quantitySpecs
         );
         return {
           timestamps: base.timestamps,
@@ -184,6 +198,8 @@ export function ResourceTimeline({
     startTime,
     operatorLabel,
     overlayLighten,
+    capacities,
+    quantitySpecs,
   ]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {

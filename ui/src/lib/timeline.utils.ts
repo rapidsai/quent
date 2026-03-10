@@ -1,6 +1,6 @@
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
-import { formatBytes } from '@/services/formatters';
+import { formatQuantity } from '@/services/formatters';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
 import type { ResourceTimeline } from '~quent/types/ResourceTimeline';
@@ -8,6 +8,8 @@ import { QueryEntities } from '~quent/types/QueryEntities';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
+import type { QuantitySpec } from '~quent/types/QuantitySpec';
+import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
@@ -22,37 +24,55 @@ import type { TimelineConfig } from '~quent/types/TimelineConfig';
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
+/** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
+export function nanosToMs(ns: bigint): number {
+  return Number(ns / 1_000_000n) + Number(ns % 1_000_000n) / 1_000_000;
+}
+
 /**
- * Computes the number of bins such that each bin is >= 1ms wide.
- * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
+ * Currently static but may be used in the future to prevent sub
+ * nanosecond bin sizes
  */
-export function getAdaptiveNumBins(windowSeconds: number): number {
-  const windowMs = windowSeconds * 1_000;
-  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+export function getAdaptiveNumBins(): number {
+  return MAX_TIMELINE_BINS;
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
 export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins(windowSeconds);
+  const numBins = getAdaptiveNumBins();
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  startTime: bigint
+  startTime: bigint,
+  capacities?: CapacityDecl[],
+  quantitySpecs?: { [key in string]?: QuantitySpec }
 ): {
   timestamps: number[];
   series: TimelineSeries;
 } {
   const { bin_duration, num_bins, span } = config;
 
-  const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
-  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
+  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
+  const binDurationMs = bin_duration * 1_000;
+
+  const timestamps = new Array<number>(numBinsNumber);
   for (let i = 0; i < numBinsNumber; i++) {
-    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
+    timestamps[i] = firstBinMs + i * binDurationMs;
   }
+
+  const getFormatter = (capacityName: string): ((value: number) => string) => {
+    const capDecl = capacities?.find(c => c.name === capacityName);
+    const spec = capDecl ? quantitySpecs?.[capDecl.quantity] : undefined;
+    if (spec && capDecl) {
+      return (value: number, decimals: number = 2) =>
+        formatQuantity(value, spec, capDecl.kind, decimals);
+    }
+    return (value: number) => String(value);
+  };
 
   // Build series based on data type
   const series: TimelineSeries = {};
@@ -61,7 +81,7 @@ export function buildBinnedTimelineSeries(
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
     for (const [capacity, values] of Object.entries(capacities_values)) {
-      const formatter = getFormatterForCapacityType(capacity);
+      const formatter = getFormatter(capacity);
       series[capacity] = {
         color: getColorForKey(capacity),
         formatter,
@@ -74,7 +94,7 @@ export function buildBinnedTimelineSeries(
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
-        const formatter = getFormatterForCapacityType(capacityType);
+        const formatter = getFormatter(capacityType);
         if (values) {
           series[state] = {
             color: getColorForKey(state),
@@ -122,7 +142,7 @@ export function buildTimelineMarks(
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
-  const startTimeMs = Number(startTime / 1_000_000n);
+  const startTimeMs = nanosToMs(startTime);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -130,8 +150,8 @@ export function buildTimelineMarks(
       .slice(0, -1)
       .map((transition, i) => {
         const next = fsm.transitions[i + 1];
-        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
-        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
+        const xStart = startTimeMs + transition.timestamp * 1000;
+        const xEnd = startTimeMs + next.timestamp * 1000;
         return { label, stateName: transition.name, xStart, xEnd };
       })
       .filter(m => m.xEnd > m.xStart);
@@ -253,15 +273,6 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   return maxAllowedStep;
 }
 
-function getFormatterForCapacityType(capacityType: string): (value: number) => string {
-  switch (capacityType) {
-    case 'bytes':
-      return (value: number) => formatBytes(value, 0);
-    default:
-      return (value: number) => String(value);
-  }
-}
-
 function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
   const chartElements = document.querySelectorAll('[_echarts_instance_]');
   for (const el of chartElements) {
@@ -297,11 +308,15 @@ export const connectChart = (
   chartGroup: string = CHART_GROUP,
   activateBrushSelect = true
 ) => {
-  // Sync zoom state from any existing chart in the group before connecting
+  // Apply current zoom to this chart without replacing its dataZoom components.
+  // setOption({ dataZoom: [zoomState] }) would replace the array and break slider/inside config.
   const zoomState = getChartGroupZoomState(chartGroup);
   if (zoomState) {
-    instance.setOption({
-      dataZoom: [zoomState],
+    instance.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 0,
+      start: zoomState.start,
+      end: zoomState.end,
     });
   }
 
@@ -517,7 +532,7 @@ export function buildBulkParamsForItem(
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName,
-        long_entities_threshold_s: threshold,
+        long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
         config,
