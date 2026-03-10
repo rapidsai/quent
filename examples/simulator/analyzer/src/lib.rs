@@ -230,9 +230,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         &self,
         request: SingleTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
     ) -> AnalyzerResult<SingleTimelineResponse> {
-        // TODO(johanpel): we may want to sanity-check whether the requested
-        // resource/group is actually in the resource tree for a given query.
-
         // Calculate this ASAP to help fail quickly.
         let epoch = self
             .query_engine_model()
@@ -240,183 +237,104 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let config = request.entry.config().clone().try_into_binned_span(epoch)?;
         let config_secs = config.try_to_secs_relative(epoch)?;
 
-        match request.entry {
-            TimelineRequest::Resource(req) => {
-                let resource_type = self.model.resource_type_of(req.resource_id)?;
-                let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
-                let operator_filter = req.application;
+        // Extract common fields from both request variants.
+        let (resource_type, long_entities_threshold, entity_filter, operator_filter, resource_ids) =
+            match &request.entry {
+                TimelineRequest::Resource(req) => {
+                    let rt = self.model.resource_type_of(req.resource_id)?;
+                    let threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                    let ids: HashSet<Uuid> = std::iter::once(req.resource_id).collect();
+                    (rt, threshold, &req.entity_filter, &req.application, ids)
+                }
+                TimelineRequest::ResourceGroup(req) => {
+                    let rt = self.model.resource_type(&req.resource_type_name)?;
+                    let threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                    let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
+                    let ids: HashSet<Uuid> = tree
+                        .iter_leaf_ids()
+                        .filter(|&id| {
+                            self.model
+                                .resource(id)
+                                .ok()
+                                .map(|r| r.type_name() == rt.name)
+                                .unwrap_or(false)
+                        })
+                        .collect();
+                    (rt, threshold, &req.entity_filter, &req.app_params, ids)
+                }
+            };
 
-                let used_by = &resource_type.used_by;
-                if req.entity_filter.entity_type_name.is_some() {
-                    let mut builder = ResourceTimelineByKeyBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
-                    if used_by.contains("task")
-                        && let Some(tasks) =
-                            self.tasks_filtered(&req.entity_filter, &operator_filter, config.span)
-                    {
-                        self.populate_keyed_builder(
-                            &mut builder,
-                            tasks.filter(|task| {
-                                task.usages()
-                                    .any(|usage| usage.resource_id() == req.resource_id)
-                            }),
-                            |id| id == req.resource_id,
-                        )?;
-                    }
-                    if used_by.contains("data_batch")
-                        && let Some(batches) = self.data_batches_filtered(
-                            &req.entity_filter,
-                            &operator_filter,
-                            config.span,
-                        )
-                    {
-                        self.populate_keyed_builder_batches(
-                            &mut builder,
-                            batches.filter(|batch| {
-                                batch
-                                    .usages()
-                                    .any(|usage| usage.resource_id() == req.resource_id)
-                            }),
-                            |id| id == req.resource_id,
-                        )?;
-                    }
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
-                    })
-                } else {
-                    let mut builder = ResourceTimelineBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
+        let used_by = &resource_type.used_by;
+        let matches_resource = |id: Uuid| resource_ids.contains(&id);
 
-                    if used_by.contains("task")
-                        && let Some(tasks) =
-                            self.tasks_filtered(&req.entity_filter, &operator_filter, config.span)
-                    {
-                        builder.try_extend(
-                            tasks
-                                .flat_map(|task| task.usages())
-                                .filter(|usage| usage.resource_id() == req.resource_id),
-                        )?;
-                    }
-                    if used_by.contains("data_batch")
-                        && let Some(batches) = self.data_batches_filtered(
-                            &req.entity_filter,
-                            &operator_filter,
-                            config.span,
-                        )
-                    {
-                        builder.try_extend(
-                            batches
-                                .flat_map(|batch| batch.usages())
-                                .filter(|usage| usage.resource_id() == req.resource_id),
-                        )?;
-                    }
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui(builder.build(), epoch)?,
-                    })
+        if entity_filter.entity_type_name.is_some() {
+            let mut builder = ResourceTimelineByKeyBuilder::try_new(
+                resource_type,
+                config,
+                long_entities_threshold,
+            )?;
+            if used_by.contains("task") {
+                if let Some(tasks) =
+                    self.tasks_filtered(entity_filter, operator_filter, config.span)
+                {
+                    self.populate_keyed_builder(
+                        &mut builder,
+                        tasks.filter(|task| {
+                            task.usages().any(|u| matches_resource(u.resource_id()))
+                        }),
+                        &matches_resource,
+                    )?;
                 }
             }
-            TimelineRequest::ResourceGroup(req) => {
-                let resource_type = self.model.resource_type(&req.resource_type_name)?;
-                let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
-
-                // Build the resource tree for this group
-                let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
-                // Collect all leaf resource IDs of the requested type in the tree
-                let resource_ids: HashSet<Uuid> = tree
-                    .iter_leaf_ids()
-                    .filter(|&id| {
-                        self.model
-                            .resource(id)
-                            .ok()
-                            .map(|r| r.type_name() == resource_type.name)
-                            .unwrap_or(false)
-                    })
-                    .collect();
-
-                let used_by = &resource_type.used_by;
-                if req.entity_filter.entity_type_name.is_some() {
-                    let mut builder = ResourceTimelineByKeyBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
+            if used_by.contains("data_batch") {
+                if let Some(batches) =
+                    self.data_batches_filtered(entity_filter, operator_filter, config.span)
+                {
+                    self.populate_keyed_builder_batches(
+                        &mut builder,
+                        batches.filter(|batch| {
+                            batch.usages().any(|u| matches_resource(u.resource_id()))
+                        }),
+                        &matches_resource,
                     )?;
-                    if used_by.contains("task")
-                        && let Some(tasks) =
-                            self.tasks_filtered(&req.entity_filter, &req.app_params, config.span)
-                    {
-                        self.populate_keyed_builder(
-                            &mut builder,
-                            tasks.filter(|task| {
-                                task.usages()
-                                    .any(|usage| resource_ids.contains(&usage.resource_id()))
-                            }),
-                            |id| resource_ids.contains(&id),
-                        )?;
-                    }
-                    if used_by.contains("data_batch")
-                        && let Some(batches) = self.data_batches_filtered(
-                            &req.entity_filter,
-                            &req.app_params,
-                            config.span,
-                        )
-                    {
-                        self.populate_keyed_builder_batches(
-                            &mut builder,
-                            batches.filter(|batch| {
-                                batch
-                                    .usages()
-                                    .any(|usage| resource_ids.contains(&usage.resource_id()))
-                            }),
-                            |id| resource_ids.contains(&id),
-                        )?;
-                    }
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
-                    })
-                } else {
-                    let mut builder = ResourceTimelineBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
-                    if used_by.contains("task")
-                        && let Some(tasks) =
-                            self.tasks_filtered(&req.entity_filter, &req.app_params, config.span)
-                    {
-                        builder.try_extend(
-                            tasks
-                                .flat_map(|task| task.usages())
-                                .filter(|usage| resource_ids.contains(&usage.resource_id())),
-                        )?;
-                    }
-                    if used_by.contains("data_batch")
-                        && let Some(batches) = self.data_batches_filtered(
-                            &req.entity_filter,
-                            &req.app_params,
-                            config.span,
-                        )
-                    {
-                        builder.try_extend(
-                            batches
-                                .flat_map(|batch| batch.usages())
-                                .filter(|usage| resource_ids.contains(&usage.resource_id())),
-                        )?;
-                    }
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui(builder.build(), epoch)?,
-                    })
                 }
             }
+            Ok(SingleTimelineResponse {
+                config: config_secs,
+                data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
+            })
+        } else {
+            let mut builder = ResourceTimelineBuilder::try_new(
+                resource_type,
+                config,
+                long_entities_threshold,
+            )?;
+            if used_by.contains("task") {
+                if let Some(tasks) =
+                    self.tasks_filtered(entity_filter, operator_filter, config.span)
+                {
+                    builder.try_extend(
+                        tasks
+                            .flat_map(|task| task.usages())
+                            .filter(|u| matches_resource(u.resource_id())),
+                    )?;
+                }
+            }
+            if used_by.contains("data_batch") {
+                if let Some(batches) =
+                    self.data_batches_filtered(entity_filter, operator_filter, config.span)
+                {
+                    builder.try_extend(
+                        batches
+                            .flat_map(|batch| batch.usages())
+                            .filter(|u| matches_resource(u.resource_id())),
+                    )?;
+                }
+            }
+            Ok(SingleTimelineResponse {
+                config: config_secs,
+                data: self.timeline_to_ui(builder.build(), epoch)?,
+            })
         }
     }
 

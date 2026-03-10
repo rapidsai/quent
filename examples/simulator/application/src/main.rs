@@ -582,11 +582,18 @@ struct Batch {
     rows: u64,
 }
 
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
+/// Capacity of host memory per worker in bytes (2 GiB).
+const HOST_MEMORY_CAPACITY: u64 = 2 * 1024 * 1024 * 1024;
+/// Spill threshold: spill when host memory usage exceeds 75% of capacity.
+const HOST_MEMORY_SPILL_THRESHOLD: f64 = 0.75;
+
+#[derive(Debug)]
 struct Worker {
     id: Uuid,
     name: String,
     host_memory: Uuid,
+    /// Tracks current host memory usage in bytes for spill decisions.
+    host_memory_used: AtomicU64,
     filesystem: Uuid,
     fs_to_host_mem: Uuid,
     host_mem_to_fs: Uuid,
@@ -603,6 +610,7 @@ impl Worker {
             id,
             name,
             host_memory: Uuid::now_v7(),
+            host_memory_used: AtomicU64::new(0),
             filesystem: Uuid::now_v7(),
             fs_to_host_mem: Uuid::now_v7(),
             host_mem_to_fs: Uuid::now_v7(),
@@ -863,14 +871,18 @@ impl Worker {
                 | Physical::Udf
         ) && !self.gpus.is_empty();
         let send = operator.kind == Physical::JoinPartition;
-        // Spill under simulated memory pressure. JoinLocal spills more
-        // often (hash table build), Sort occasionally, others never.
-        let spill = match operator.kind {
-            Physical::JoinLocal => batch_bytes > 32 * 1024 * 1024 && rng().random_bool(0.5),
-            Physical::Aggregate => batch_bytes > 48 * 1024 * 1024 && rng().random_bool(0.3),
-            Physical::Sort => batch_bytes > 64 * 1024 * 1024 && rng().random_bool(0.2),
-            _ => false,
-        };
+        // Track host memory usage for this task's working set.
+        self.host_memory_used
+            .fetch_add(working_memory_bytes, Ordering::Relaxed);
+
+        // Spill when host memory exceeds threshold and operator supports it.
+        let memory_pressure = self.host_memory_used.load(Ordering::Relaxed) as f64
+            / HOST_MEMORY_CAPACITY as f64;
+        let spill = memory_pressure > HOST_MEMORY_SPILL_THRESHOLD
+            && matches!(
+                operator.kind,
+                Physical::JoinLocal | Physical::Aggregate | Physical::Sort
+            );
 
         obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
         sleep_fixed(2);
@@ -1038,6 +1050,10 @@ impl Worker {
                 sleep_proportional(batch_bytes);
             }
         }
+
+        // Release host memory used by this task.
+        self.host_memory_used
+            .fetch_sub(working_memory_bytes, Ordering::Relaxed);
 
         obs.task_exit(task_id);
 
