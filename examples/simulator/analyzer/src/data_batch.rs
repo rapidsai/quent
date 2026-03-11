@@ -93,12 +93,12 @@ fn create_usages(data: &DataBatchTransitionData) -> SmallVec<[DataBatchUsage; 1]
     match data {
         DataBatchTransitionData::Init(_) => SmallVec::new(),
         DataBatchTransitionData::InStorage(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_filesystem,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_filesystem_bytes)],
+            resource_id: data.use_storage,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_storage_bytes)],
         }],
         DataBatchTransitionData::LoadingToHostMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_fs_to_host_mem,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_host_mem_bytes)],
+            resource_id: data.use_storage_to_host,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_storage_to_host_bytes)],
         }],
         DataBatchTransitionData::InHostMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_host_memory,
@@ -117,8 +117,8 @@ fn create_usages(data: &DataBatchTransitionData) -> SmallVec<[DataBatchUsage; 1]
             capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_to_host_mem_bytes)],
         }],
         DataBatchTransitionData::SpillingToStorage(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_host_mem_to_fs,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_fs_bytes)],
+            resource_id: data.use_host_to_storage,
+            capacities: smallvec![CapacityValue::new("bytes", data.use_host_to_storage_bytes)],
         }],
         DataBatchTransitionData::Exit => SmallVec::new(),
     }
@@ -299,11 +299,11 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "in_storage".to_string(),
-                usages: vec!["filesystem".to_string()],
+                usages: vec!["storage".to_string()],
             },
             FsmStateTypeDecl {
                 name: "loading_to_host_memory".to_string(),
-                usages: vec!["fs_to_host_mem".to_string()],
+                usages: vec!["storage_to_host".to_string()],
             },
             FsmStateTypeDecl {
                 name: "in_host_memory".to_string(),
@@ -323,7 +323,7 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "spilling_to_storage".to_string(),
-                usages: vec!["host_mem_to_fs".to_string()],
+                usages: vec!["host_to_storage".to_string()],
             },
             FsmStateTypeDecl {
                 name: "exit".to_string(),

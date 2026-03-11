@@ -77,14 +77,14 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct InStorage {
-        pub use_filesystem: Uuid,
-        pub use_filesystem_bytes: u64,
+        pub use_storage: Uuid,
+        pub use_storage_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct LoadingToHostMemory {
-        pub use_fs_to_host_mem: Uuid,
-        pub use_fs_to_host_mem_bytes: u64,
+        pub use_storage_to_host: Uuid,
+        pub use_storage_to_host_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -113,8 +113,8 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct SpillingToStorage {
-        pub use_host_mem_to_fs: Uuid,
-        pub use_host_mem_to_fs_bytes: u64,
+        pub use_host_to_storage: Uuid,
+        pub use_host_to_storage_bytes: u64,
     }
 
     #[derive(Debug, Deserialize, Serialize)]

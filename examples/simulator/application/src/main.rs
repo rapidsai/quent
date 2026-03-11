@@ -38,7 +38,7 @@ struct Args {
     num_queries: usize,
 
     /// Number of tasks per operator
-    #[arg(long, default_value_t = 128)]
+    #[arg(long, default_value_t = 1024)]
     num_tasks: usize,
 
     /// Number of workers
@@ -83,6 +83,19 @@ fn sleep_fixed(micros: u64) {
     std::thread::sleep(Duration::from_micros(micros));
 }
 
+/// Atomically subtract `val` from `counter`, clamping at 0 to prevent
+/// unsigned underflow wrapping to u64::MAX.
+fn saturating_sub(counter: &AtomicU64, val: u64) {
+    let mut current = counter.load(Ordering::Relaxed);
+    loop {
+        let new = current.saturating_sub(val);
+        match counter.compare_exchange_weak(current, new, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(actual) => current = actual,
+        }
+    }
+}
+
 /// Sleep proportional to the number of bytes being processed.
 fn sleep_proportional(bytes: u64) {
     let mib = (bytes / (1024 * 1024)).max(1);
@@ -90,11 +103,11 @@ fn sleep_proportional(bytes: u64) {
     std::thread::sleep(Duration::from_micros(micros));
 }
 
-/// Occasionally very slow (1% of the time), otherwise proportional.
-fn sleep_sometimes_really_long(bytes: u64) {
+/// Occasionally a bit slower (1% of the time), otherwise proportional.
+fn sleep_sometimes_slow(bytes: u64) {
     let mib = (bytes / (1024 * 1024)).max(1);
     std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        5000 + mib * 10
+        10 + mib
     } else {
         5 + mib / 4
     }));
@@ -216,12 +229,21 @@ enum Physical {
 struct WorkItem<'a> {
     operator_node: NodeIndex,
     operator: &'a Operator<Physical>,
-    /// Input batch (None for scan operators which produce their own).
-    input_batch: Option<Batch>,
+    /// Input batches (empty for scan operators which produce their own).
+    input_batches: Vec<Batch>,
     /// Senders for the operator's outgoing edges in the DAG.
     output_senders: Vec<&'a Sender<Batch>>,
     /// Task index for naming.
     task_index: u64,
+}
+
+/// Returns true if this operator kind is a barrier — it must wait for all
+/// upstream batches before processing.
+fn is_barrier(kind: Physical) -> bool {
+    matches!(
+        kind,
+        Physical::JoinPartition | Physical::Aggregate | Physical::Sort
+    )
 }
 
 struct Plan<T>
@@ -558,8 +580,8 @@ fn lower_logical(
     }
 }
 
-/// Capacity of GPU memory per device in bytes (32 GiB).
-const GPU_MEMORY_CAPACITY: u64 = 32 * 1024 * 1024 * 1024;
+/// Capacity of GPU memory per device in bytes (4 GiB).
+const GPU_MEMORY_CAPACITY: u64 = 4 * 1024 * 1024 * 1024;
 /// Spill GPU→host when GPU memory usage exceeds 80% of capacity.
 const GPU_MEMORY_SPILL_THRESHOLD: f64 = 0.80;
 
@@ -568,6 +590,8 @@ struct Gpu {
     id: Uuid,
     memory: Uuid,
     compute: Uuid,
+    host_mem_to_gpu: Uuid,
+    gpu_to_host_mem: Uuid,
     /// Tracks current GPU memory usage in bytes for spill decisions.
     memory_used: AtomicU64,
 }
@@ -578,6 +602,8 @@ impl Gpu {
             id: Uuid::now_v7(),
             memory: Uuid::now_v7(),
             compute: Uuid::now_v7(),
+            host_mem_to_gpu: Uuid::now_v7(),
+            gpu_to_host_mem: Uuid::now_v7(),
             memory_used: AtomicU64::new(0),
         }
     }
@@ -589,12 +615,14 @@ struct Batch {
     bytes: u64,
     rows: u64,
     /// Index into the worker's `gpus` vec if this batch is currently on a GPU.
-    /// `None` means the batch is in host memory.
+    /// `None` means the batch is in host memory (or in storage if `in_storage` is true).
     gpu_index: Option<usize>,
+    /// Batch has been spilled to storage; memory is not tracked on host or GPU.
+    in_storage: bool,
 }
 
-/// Capacity of host memory per worker in bytes (2 GiB).
-const HOST_MEMORY_CAPACITY: u64 = 2 * 1024 * 1024 * 1024;
+/// Capacity of host memory per worker in bytes (16 GiB).
+const HOST_MEMORY_CAPACITY: u64 = 16 * 1024 * 1024 * 1024;
 /// Spill threshold: spill when host memory usage exceeds 75% of capacity.
 const HOST_MEMORY_SPILL_THRESHOLD: f64 = 0.75;
 
@@ -602,15 +630,15 @@ const HOST_MEMORY_SPILL_THRESHOLD: f64 = 0.75;
 struct Worker {
     id: Uuid,
     name: String,
+    host_group: Uuid,
     host_memory: Uuid,
     /// Tracks current host memory usage in bytes for spill decisions.
     host_memory_used: AtomicU64,
-    filesystem: Uuid,
-    fs_to_host_mem: Uuid,
-    host_mem_to_fs: Uuid,
-    host_mem_to_gpu: Uuid,
-    gpu_to_host_mem: Uuid,
     thread_pool: Uuid,
+    storage_group: Uuid,
+    storage: Uuid,
+    storage_to_host: Uuid,
+    host_to_storage: Uuid,
     threads: Vec<Uuid>,
     gpus: Vec<Gpu>,
 }
@@ -620,14 +648,14 @@ impl Worker {
         Self {
             id,
             name,
+            host_group: Uuid::now_v7(),
             host_memory: Uuid::now_v7(),
             host_memory_used: AtomicU64::new(0),
-            filesystem: Uuid::now_v7(),
-            fs_to_host_mem: Uuid::now_v7(),
-            host_mem_to_fs: Uuid::now_v7(),
-            host_mem_to_gpu: Uuid::now_v7(),
-            gpu_to_host_mem: Uuid::now_v7(),
             thread_pool: Uuid::now_v7(),
+            storage_group: Uuid::now_v7(),
+            storage: Uuid::now_v7(),
+            storage_to_host: Uuid::now_v7(),
+            host_to_storage: Uuid::now_v7(),
             threads: std::iter::repeat_with(Uuid::now_v7)
                 .take(num_threads)
                 .collect(),
@@ -650,71 +678,86 @@ impl Worker {
             },
         );
 
-        // Filesystem
-        memory_obs.init(
-            self.filesystem,
-            memory::Init {
-                resource: resource::Resource {
-                    type_name: "filesystem".to_string(),
-                    instance_name: "Filesystem".to_string(),
-                    parent_group_id: self.id,
-                },
+        // Host group: host memory + thread pool
+        resource_group_obs.group(
+            self.host_group,
+            resource::GroupEvent {
+                type_name: "host".to_string(),
+                instance_name: "Host".to_string(),
+                parent_group_id: Some(self.id),
             },
         );
-        memory_obs.operating(self.filesystem, Default::default());
 
-        // Memory pool
         memory_obs.init(
             self.host_memory,
             memory::Init {
                 resource: resource::Resource {
                     type_name: "host_memory".to_string(),
                     instance_name: "Host Memory".to_string(),
-                    parent_group_id: self.id,
+                    parent_group_id: self.host_group,
                 },
             },
         );
         memory_obs.operating(self.host_memory, Default::default());
 
-        // Filesystem -> Host Memory channel
-        channel_obs.init(
-            self.fs_to_host_mem,
-            channel::Init {
-                resource: resource::Resource {
-                    type_name: "fs_to_host_mem".to_string(),
-                    instance_name: "Filesystem -> Host Memory".to_string(),
-                    parent_group_id: self.id,
-                },
-                source_id: self.filesystem,
-                target_id: self.host_memory,
-            },
-        );
-        channel_obs.operating(self.fs_to_host_mem, Default::default());
-
-        // Host Memory -> Filesystem channel
-        channel_obs.init(
-            self.host_mem_to_fs,
-            channel::Init {
-                resource: resource::Resource {
-                    type_name: "host_mem_to_fs".to_string(),
-                    instance_name: "Host Memory -> Filesystem".to_string(),
-                    parent_group_id: self.id,
-                },
-                source_id: self.host_memory,
-                target_id: self.filesystem,
-            },
-        );
-        channel_obs.operating(self.host_mem_to_fs, Default::default());
-
-        // Thread pool
         resource_group_obs.group(
             self.thread_pool,
             resource::GroupEvent {
                 type_name: "thread_pool".to_string(),
                 instance_name: "Thread Pool".to_string(),
+                parent_group_id: Some(self.host_group),
+            },
+        );
+
+        // Storage group: storage + IO channels
+        resource_group_obs.group(
+            self.storage_group,
+            resource::GroupEvent {
+                type_name: "storage".to_string(),
+                instance_name: "Storage".to_string(),
                 parent_group_id: Some(self.id),
             },
         );
+
+        memory_obs.init(
+            self.storage,
+            memory::Init {
+                resource: resource::Resource {
+                    type_name: "storage".to_string(),
+                    instance_name: "Storage".to_string(),
+                    parent_group_id: self.storage_group,
+                },
+            },
+        );
+        memory_obs.operating(self.storage, Default::default());
+
+        channel_obs.init(
+            self.storage_to_host,
+            channel::Init {
+                resource: resource::Resource {
+                    type_name: "storage_to_host".to_string(),
+                    instance_name: "S2H".to_string(),
+                    parent_group_id: self.storage_group,
+                },
+                source_id: self.storage,
+                target_id: self.host_memory,
+            },
+        );
+        channel_obs.operating(self.storage_to_host, Default::default());
+
+        channel_obs.init(
+            self.host_to_storage,
+            channel::Init {
+                resource: resource::Resource {
+                    type_name: "host_to_storage".to_string(),
+                    instance_name: "H2S".to_string(),
+                    parent_group_id: self.storage_group,
+                },
+                source_id: self.host_memory,
+                target_id: self.storage,
+            },
+        );
+        channel_obs.operating(self.host_to_storage, Default::default());
         for (index, thread_id) in self.threads.iter().enumerate() {
             processor_obs.init(
                 *thread_id,
@@ -765,34 +808,35 @@ impl Worker {
             processor_obs.operating(gpu.compute, Default::default());
         }
 
-        if !self.gpus.is_empty() {
+        // Per-GPU H2D/D2H channels live under each GPU's resource group.
+        for (index, gpu) in self.gpus.iter().enumerate() {
             channel_obs.init(
-                self.host_mem_to_gpu,
+                gpu.host_mem_to_gpu,
                 channel::Init {
                     resource: resource::Resource {
-                        type_name: "host_mem_to_gpu".to_string(),
-                        instance_name: "Host Memory -> GPU".to_string(),
-                        parent_group_id: self.id,
+                        type_name: "h2d".to_string(),
+                        instance_name: format!("H2D GPU {index}"),
+                        parent_group_id: gpu.id,
                     },
                     source_id: self.host_memory,
-                    target_id: self.gpus[0].memory,
+                    target_id: gpu.memory,
                 },
             );
-            channel_obs.operating(self.host_mem_to_gpu, Default::default());
+            channel_obs.operating(gpu.host_mem_to_gpu, Default::default());
 
             channel_obs.init(
-                self.gpu_to_host_mem,
+                gpu.gpu_to_host_mem,
                 channel::Init {
                     resource: resource::Resource {
-                        type_name: "gpu_to_host_mem".to_string(),
-                        instance_name: "GPU -> Host Memory".to_string(),
-                        parent_group_id: self.id,
+                        type_name: "d2h".to_string(),
+                        instance_name: format!("D2H GPU {index}"),
+                        parent_group_id: gpu.id,
                     },
-                    source_id: self.gpus[0].memory,
+                    source_id: gpu.memory,
                     target_id: self.host_memory,
                 },
             );
-            channel_obs.operating(self.gpu_to_host_mem, Default::default());
+            channel_obs.operating(gpu.gpu_to_host_mem, Default::default());
         }
     }
 
@@ -818,13 +862,13 @@ impl Worker {
         );
         sleep_fixed(25);
 
-        // FileSystemScan: create a batch from disk (heavy I/O).
+        // FileSystemScan: create a batch from storage (heavy I/O).
         // Each scan has a different size distribution derived from its
         // operator ID to simulate data skew across input tables.
-        let mut input_batch = if operator.kind == Physical::FileSystemScan {
+        let mut input_batches = if operator.kind == Physical::FileSystemScan {
             let batch_id = Uuid::now_v7();
             let skew = (operator.id.as_bytes()[0] % 5) as u64 + 1; // 1-5x scale
-            let base_bytes = rng().random_range(1..64) * 1024 * 1024;
+            let base_bytes = rng().random_range(8..64) * 1024 * 1024;
             let batch_bytes = base_bytes * skew;
             let batch_rows = rng().random_range(1024..16384) * skew;
             batch_obs.init(
@@ -838,11 +882,13 @@ impl Worker {
             batch_obs.loading_to_host_memory(
                 batch_id,
                 data_batch::LoadingToHostMemory {
-                    use_fs_to_host_mem: self.fs_to_host_mem,
-                    use_fs_to_host_mem_bytes: batch_bytes,
+                    use_storage_to_host: self.storage_to_host,
+                    use_storage_to_host_bytes: batch_bytes,
                 },
             );
             sleep_proportional(batch_bytes * 5);
+            self.host_memory_used
+                .fetch_add(batch_bytes, Ordering::Relaxed);
             batch_obs.in_host_memory(
                 batch_id,
                 data_batch::InHostMemory {
@@ -850,18 +896,26 @@ impl Worker {
                     use_host_memory_bytes: batch_bytes,
                 },
             );
-            Some(Batch {
+            vec![Batch {
                 id: batch_id,
                 bytes: batch_bytes,
                 rows: batch_rows,
                 gpu_index: None,
-            })
+                in_storage: false,
+            }]
         } else {
-            work.input_batch.clone()
+            work.input_batches.clone()
         };
 
-        // Derive task resource usage from the actual batch size.
-        let batch_bytes = input_batch.as_ref().map_or(0, |b| b.bytes);
+        // Derive task resource usage from input batch size.
+        // For barrier operators, use average batch size for working memory
+        // since they stream through batches rather than holding all at once.
+        let total_batch_bytes: u64 = input_batches.iter().map(|b| b.bytes).sum();
+        let batch_bytes = if input_batches.len() > 1 {
+            total_batch_bytes / input_batches.len() as u64
+        } else {
+            total_batch_bytes
+        };
         // Working memory scales with operator complexity.
         // JoinLocal needs hash table + build/probe buffers (3-6x).
         // Sort needs merge buffers (2-4x). Others 1-2x.
@@ -874,32 +928,26 @@ impl Worker {
         let working_memory_bytes = batch_bytes * mem_multiplier;
 
         // Determine operator behavior based on kind.
-        let use_gpu = matches!(
-            operator.kind,
-            Physical::GpuDecode
-                | Physical::JoinLocal
-                | Physical::JoinPartition
-                | Physical::Sort
-                | Physical::Udf
-        ) && !self.gpus.is_empty();
+        let use_gpu = operator.kind != Physical::FileSystemScan && !self.gpus.is_empty();
         let send = operator.kind == Physical::JoinPartition;
-        // Track host memory usage for this task's working set.
-        self.host_memory_used
-            .fetch_add(working_memory_bytes, Ordering::Relaxed);
+
+        // Track working memory on the appropriate resource.
+        // GPU operators use GPU memory for their scratch space; CPU-only
+        // operators use host memory.
+        if !use_gpu {
+            self.host_memory_used
+                .fetch_add(working_memory_bytes, Ordering::Relaxed);
+        }
 
         // Spill when host memory exceeds threshold and operator supports it.
-        let memory_pressure = self.host_memory_used.load(Ordering::Relaxed) as f64
+        let host_pressure = self.host_memory_used.load(Ordering::Relaxed) as f64
             / HOST_MEMORY_CAPACITY as f64;
-        let spill = memory_pressure > HOST_MEMORY_SPILL_THRESHOLD
-            && matches!(
-                operator.kind,
-                Physical::JoinLocal | Physical::Aggregate | Physical::Sort
-            );
+        let spill = host_pressure > HOST_MEMORY_SPILL_THRESHOLD;
 
         obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
         sleep_fixed(2);
 
-        // Spill batch to disk under pressure.
+        // Spill batches to storage under pressure.
         if spill {
             obs.task_spilling(
                 task_id,
@@ -907,67 +955,32 @@ impl Worker {
                     use_thread: thread,
                 },
             );
-            // GPU→host first if batch is on GPU.
-            if let Some(ref mut batch) = input_batch
-                && let Some(gi) = batch.gpu_index
-            {
-                let gpu = &self.gpus[gi];
-                batch_obs.spilling_to_host_memory(
-                    batch.id,
-                    data_batch::SpillingToHostMemory {
-                        use_gpu_to_host_mem: self.gpu_to_host_mem,
-                        use_gpu_to_host_mem_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                gpu.memory_used.fetch_sub(batch.bytes, Ordering::Relaxed);
-                batch_obs.in_host_memory(
-                    batch.id,
-                    data_batch::InHostMemory {
-                        use_host_memory: self.host_memory,
-                        use_host_memory_bytes: batch.bytes,
-                    },
-                );
-                batch.gpu_index = None;
-            }
-            if let Some(ref batch) = input_batch {
+            // Release memory and spill to storage.
+            for batch in &mut input_batches {
+                if let Some(gi) = batch.gpu_index {
+                    saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
+                    batch.gpu_index = None;
+                } else if !batch.in_storage {
+                    saturating_sub(&self.host_memory_used, batch.bytes);
+                }
+                batch.in_storage = true;
                 batch_obs.spilling_to_storage(
                     batch.id,
                     data_batch::SpillingToStorage {
-                        use_host_mem_to_fs: self.host_mem_to_fs,
-                        use_host_mem_to_fs_bytes: batch.bytes,
+                        use_host_to_storage: self.host_to_storage,
+                        use_host_to_storage_bytes: batch.bytes,
                     },
                 );
                 sleep_proportional(batch.bytes);
                 batch_obs.in_storage(
                     batch.id,
                     data_batch::InStorage {
-                        use_filesystem: self.filesystem,
-                        use_filesystem_bytes: batch.bytes,
+                        use_storage: self.storage,
+                        use_storage_bytes: batch.bytes,
                     },
                 );
             }
-            sleep_sometimes_really_long(batch_bytes);
-            obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
-            sleep_fixed(2);
-            // Reload spilled batch
-            if let Some(ref batch) = input_batch {
-                batch_obs.loading_to_host_memory(
-                    batch.id,
-                    data_batch::LoadingToHostMemory {
-                        use_fs_to_host_mem: self.fs_to_host_mem,
-                        use_fs_to_host_mem_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                batch_obs.in_host_memory(
-                    batch.id,
-                    data_batch::InHostMemory {
-                        use_host_memory: self.host_memory,
-                        use_host_memory_bytes: batch.bytes,
-                    },
-                );
-            }
+            sleep_sometimes_slow(batch_bytes);
         }
 
         // Loading (scan already loaded above; this is for materialization).
@@ -980,13 +993,13 @@ impl Worker {
                     use_host_memory_bytes: working_memory_bytes,
                 },
             );
-            sleep_sometimes_really_long(batch_bytes);
+            sleep_sometimes_slow(batch_bytes);
         }
 
-        // Pick GPU if applicable. Prefer the GPU the batch is already on.
+        // Pick GPU if applicable. Prefer the GPU the first batch is already on.
         let gpu_index = if use_gpu {
-            input_batch
-                .as_ref()
+            input_batches
+                .first()
                 .and_then(|b| b.gpu_index)
                 .unwrap_or_else(|| rng().random_range(0..self.gpus.len()))
                 .into()
@@ -995,31 +1008,55 @@ impl Worker {
         };
         let gpu = gpu_index.map(|i: usize| &self.gpus[i]);
 
-        // Move batch to GPU memory before compute (skip if already on GPU).
-        if let Some(gpu) = gpu
-            && let Some(ref mut batch) = input_batch
-        {
-            if batch.gpu_index.is_none() {
-                // Batch is in host memory — transfer to GPU.
-                batch_obs.loading_to_gpu_memory(
-                    batch.id,
-                    data_batch::LoadingToGpuMemory {
-                        use_host_mem_to_gpu: self.host_mem_to_gpu,
-                        use_host_mem_to_gpu_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                gpu.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
-                batch_obs.in_gpu_memory(
-                    batch.id,
-                    data_batch::InGpuMemory {
-                        use_gpu_memory: gpu.memory,
-                        use_gpu_memory_bytes: batch.bytes,
-                    },
-                );
-                batch.gpu_index = gpu_index;
+        // Move input batch(es) to GPU memory before compute.
+        // For pipeline operators (single batch), transfer the batch.
+        // For barrier operators (many batches), skip bulk transfer —
+        // the operator streams through data with bounded GPU working memory.
+        if let Some(gpu) = gpu && !is_barrier(operator.kind) {
+            for batch in &mut input_batches {
+                if batch.gpu_index.is_none() {
+                    // Reload from storage if needed.
+                    if batch.in_storage {
+                        batch_obs.loading_to_host_memory(
+                            batch.id,
+                            data_batch::LoadingToHostMemory {
+                                use_storage_to_host: self.storage_to_host,
+                                use_storage_to_host_bytes: batch.bytes,
+                            },
+                        );
+                        sleep_proportional(batch.bytes);
+                        self.host_memory_used
+                            .fetch_add(batch.bytes, Ordering::Relaxed);
+                        batch_obs.in_host_memory(
+                            batch.id,
+                            data_batch::InHostMemory {
+                                use_host_memory: self.host_memory,
+                                use_host_memory_bytes: batch.bytes,
+                            },
+                        );
+                        batch.in_storage = false;
+                    }
+                    // Transfer host → GPU.
+                    batch_obs.loading_to_gpu_memory(
+                        batch.id,
+                        data_batch::LoadingToGpuMemory {
+                            use_host_mem_to_gpu: gpu.host_mem_to_gpu,
+                            use_host_mem_to_gpu_bytes: batch.bytes,
+                        },
+                    );
+                    sleep_proportional(batch.bytes);
+                    saturating_sub(&self.host_memory_used, batch.bytes);
+                    gpu.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
+                    batch_obs.in_gpu_memory(
+                        batch.id,
+                        data_batch::InGpuMemory {
+                            use_gpu_memory: gpu.memory,
+                            use_gpu_memory_bytes: batch.bytes,
+                        },
+                    );
+                    batch.gpu_index = gpu_index;
+                }
             }
-            // else: batch already on this GPU, no transfer needed.
         }
 
         // Compute time scales with operator complexity and GPU availability.
@@ -1046,97 +1083,115 @@ impl Worker {
         };
         // GPU working memory for scratch buffers, intermediate results, etc.
         let gpu_working_memory_bytes = gpu.map_or(0, |_| working_memory_bytes);
+        // Track GPU working memory pressure during compute.
+        if let Some(gpu) = gpu {
+            gpu.memory_used
+                .fetch_add(gpu_working_memory_bytes, Ordering::Relaxed);
+        }
         obs.task_computing(
             task_id,
             task::Computing {
                 use_thread: thread,
                 use_host_memory: self.host_memory,
-                use_host_memory_bytes: working_memory_bytes,
+                use_host_memory_bytes: if use_gpu { 0 } else { working_memory_bytes },
                 use_gpu_compute: gpu.map_or(Uuid::nil(), |g| g.compute),
                 use_gpu_memory: gpu.map_or(Uuid::nil(), |g| g.memory),
                 use_gpu_memory_bytes: gpu_working_memory_bytes,
             },
         );
-        sleep_proportional(batch_bytes * (compute_multiplier + gpu_multiplier));
+        // For operators that consume input (not scan/decode/output which
+        // forward or write batches directly), release each input batch's
+        // memory during compute so the decrease is gradual.
+        let multiplier = compute_multiplier + gpu_multiplier;
+        let consumes_input = !matches!(
+            operator.kind,
+            Physical::FileSystemScan | Physical::GpuDecode | Physical::Output
+        );
+        if consumes_input {
+            for batch in &input_batches {
+                sleep_proportional(batch.bytes * multiplier);
+                if let Some(gi) = batch.gpu_index {
+                    saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
+                } else if !batch.in_storage {
+                    saturating_sub(&self.host_memory_used, batch.bytes);
+                }
+                batch_obs.exit(batch.id);
+            }
+        } else {
+            sleep_proportional(total_batch_bytes * multiplier);
+        }
+        // Release GPU working memory after compute.
+        if let Some(gpu) = gpu {
+            saturating_sub(&gpu.memory_used, gpu_working_memory_bytes);
+        }
 
         // Only spill GPU→host when GPU memory exceeds threshold.
-        if let Some(gpu) = gpu
-            && let Some(ref mut batch) = input_batch
-        {
-            let gpu_pressure =
-                gpu.memory_used.load(Ordering::Relaxed) as f64 / GPU_MEMORY_CAPACITY as f64;
-            if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
-                batch_obs.spilling_to_host_memory(
-                    batch.id,
-                    data_batch::SpillingToHostMemory {
-                        use_gpu_to_host_mem: self.gpu_to_host_mem,
-                        use_gpu_to_host_mem_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                gpu.memory_used.fetch_sub(batch.bytes, Ordering::Relaxed);
-                batch_obs.in_host_memory(
-                    batch.id,
-                    data_batch::InHostMemory {
-                        use_host_memory: self.host_memory,
-                        use_host_memory_bytes: batch.bytes,
-                    },
-                );
-                batch.gpu_index = None;
-            }
-            // else: batch stays on GPU for the next operator.
-        }
+        // Skip for operators that already consumed and freed their input
+        // batches during the compute phase above.
+        if !consumes_input {
+            if let Some(gpu) = gpu {
+                for batch in &mut input_batches {
+                    let gpu_pressure = gpu.memory_used.load(Ordering::Relaxed) as f64
+                        / GPU_MEMORY_CAPACITY as f64;
+                    if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
+                        batch_obs.spilling_to_host_memory(
+                            batch.id,
+                            data_batch::SpillingToHostMemory {
+                                use_gpu_to_host_mem: gpu.gpu_to_host_mem,
+                                use_gpu_to_host_mem_bytes: batch.bytes,
+                            },
+                        );
+                        sleep_proportional(batch.bytes);
+                        saturating_sub(&gpu.memory_used, batch.bytes);
+                        self.host_memory_used
+                            .fetch_add(batch.bytes, Ordering::Relaxed);
+                        batch_obs.in_host_memory(
+                            batch.id,
+                            data_batch::InHostMemory {
+                                use_host_memory: self.host_memory,
+                                use_host_memory_bytes: batch.bytes,
+                            },
+                        );
+                        batch.gpu_index = None;
 
-        // Network send — must be from host memory.
-        if send {
-            if let Some(ref mut batch) = input_batch
-                && let Some(gi) = batch.gpu_index
-            {
-                let gpu = &self.gpus[gi];
-                batch_obs.spilling_to_host_memory(
-                    batch.id,
-                    data_batch::SpillingToHostMemory {
-                        use_gpu_to_host_mem: self.gpu_to_host_mem,
-                        use_gpu_to_host_mem_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                gpu.memory_used.fetch_sub(batch.bytes, Ordering::Relaxed);
-                batch_obs.in_host_memory(
-                    batch.id,
-                    data_batch::InHostMemory {
-                        use_host_memory: self.host_memory,
-                        use_host_memory_bytes: batch.bytes,
-                    },
-                );
-                batch.gpu_index = None;
-            }
-            let other_workers = engine.workers.keys().filter(|w| **w != self.id);
-            for other in other_workers {
-                let link = *engine.network_links.get(&(self.id, *other)).unwrap();
-                obs.task_sending(
-                    task_id,
-                    task::Sending {
-                        use_thread: thread,
-                        use_link: link,
-                        use_link_bytes: batch_bytes,
-                    },
-                );
-                sleep_proportional(batch_bytes);
+                        // Cascade: spill host→storage if host is now over threshold.
+                        let hp = self.host_memory_used.load(Ordering::Relaxed) as f64
+                            / HOST_MEMORY_CAPACITY as f64;
+                        if hp > HOST_MEMORY_SPILL_THRESHOLD {
+                            saturating_sub(&self.host_memory_used, batch.bytes);
+                            batch_obs.spilling_to_storage(
+                                batch.id,
+                                data_batch::SpillingToStorage {
+                                    use_host_to_storage: self.host_to_storage,
+                                    use_host_to_storage_bytes: batch.bytes,
+                                },
+                            );
+                            sleep_proportional(batch.bytes);
+                            batch_obs.in_storage(
+                                batch.id,
+                                data_batch::InStorage {
+                                    use_storage: self.storage,
+                                    use_storage_bytes: batch.bytes,
+                                },
+                            );
+                            batch.in_storage = true;
+                        }
+                    }
+                    // else: batch stays on GPU for the next operator.
+                }
             }
         }
 
-        // Release host memory used by this task.
-        self.host_memory_used
-            .fetch_sub(working_memory_bytes, Ordering::Relaxed);
-
-        obs.task_exit(task_id);
+        // Release working memory from the appropriate resource.
+        if !use_gpu {
+            saturating_sub(&self.host_memory_used, working_memory_bytes);
+        }
 
         // Produce output batches and send downstream.
         match operator.kind {
             Physical::FileSystemScan | Physical::GpuDecode => {
-                // Scan and decode pass through the batch as-is.
-                if let Some(batch) = input_batch {
+                // Scan and decode pass through batches as-is.
+                for batch in input_batches {
                     operator.batches_out.fetch_add(1, Ordering::Relaxed);
                     operator.bytes_out.fetch_add(batch.bytes, Ordering::Relaxed);
                     operator.rows_out.fetch_add(batch.rows, Ordering::Relaxed);
@@ -1146,132 +1201,277 @@ impl Worker {
                 }
             }
             Physical::Output => {
-                if let Some(batch) = input_batch {
+                for batch in input_batches {
                     operator.batches_in.fetch_add(1, Ordering::Relaxed);
                     operator.bytes_in.fetch_add(batch.bytes, Ordering::Relaxed);
                     operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
-                    // Release GPU memory if batch was still GPU-resident.
+                    // GPU→host if needed before writing to storage.
                     if let Some(gi) = batch.gpu_index {
-                        self.gpus[gi]
-                            .memory_used
-                            .fetch_sub(batch.bytes, Ordering::Relaxed);
+                        let gpu = &self.gpus[gi];
+                        saturating_sub(&gpu.memory_used, batch.bytes);
+                        self.host_memory_used
+                            .fetch_add(batch.bytes, Ordering::Relaxed);
+                        batch_obs.spilling_to_host_memory(
+                            batch.id,
+                            data_batch::SpillingToHostMemory {
+                                use_gpu_to_host_mem: gpu.gpu_to_host_mem,
+                                use_gpu_to_host_mem_bytes: batch.bytes,
+                            },
+                        );
+                        sleep_proportional(batch.bytes);
+                        batch_obs.in_host_memory(
+                            batch.id,
+                            data_batch::InHostMemory {
+                                use_host_memory: self.host_memory,
+                                use_host_memory_bytes: batch.bytes,
+                            },
+                        );
                     }
+                    // Write result to storage.
+                    if !batch.in_storage {
+                        saturating_sub(&self.host_memory_used, batch.bytes);
+                    }
+                    batch_obs.spilling_to_storage(
+                        batch.id,
+                        data_batch::SpillingToStorage {
+                            use_host_to_storage: self.host_to_storage,
+                            use_host_to_storage_bytes: batch.bytes,
+                        },
+                    );
+                    sleep_proportional(batch.bytes);
+                    batch_obs.in_storage(
+                        batch.id,
+                        data_batch::InStorage {
+                            use_storage: self.storage,
+                            use_storage_bytes: batch.bytes,
+                        },
+                    );
                     batch_obs.exit(batch.id);
                 }
             }
             _ => {
-                if let Some(batch) = input_batch {
+                // For barrier operators that use GPU, output goes to the
+                // selected GPU even though input wasn't bulk-transferred.
+                let last_gpu_index: Option<usize> = if is_barrier(operator.kind) {
+                    gpu_index
+                } else {
+                    input_batches.last().and_then(|b| b.gpu_index)
+                };
+                // Track input stats (memory already released during compute).
+                for batch in &input_batches {
                     operator.batches_in.fetch_add(1, Ordering::Relaxed);
                     operator.bytes_in.fetch_add(batch.bytes, Ordering::Relaxed);
                     operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
-                    // Release GPU memory for the consumed input batch.
-                    if let Some(gi) = batch.gpu_index {
-                        self.gpus[gi]
-                            .memory_used
-                            .fetch_sub(batch.bytes, Ordering::Relaxed);
-                    }
-                    batch_obs.exit(batch.id);
+                }
 
-                    // Compute output size based on operator semantics.
+                // Produce one output batch per input batch, with size
+                // transformation applied per-batch.
+                for in_batch in &input_batches {
                     let (output_bytes, output_rows) = match operator.kind {
                         Physical::JoinLocal => {
-                            // Joins can amplify data (build × probe).
                             let factor = rng().random_range(1..4);
-                            (factor * batch.bytes, factor * batch.rows)
+                            (factor * in_batch.bytes, factor * in_batch.rows)
                         }
                         Physical::Aggregate => {
-                            // Aggregation significantly reduces cardinality.
                             let denom = rng().random_range(5..15);
-                            (batch.bytes / denom, batch.rows / denom.max(1))
+                            (
+                                in_batch.bytes / denom,
+                                in_batch.rows / denom.max(1),
+                            )
                         }
                         Physical::Filter => {
-                            // HAVING filter drops ~30% of rows.
                             let keep = rng().random_range(60..80);
-                            (batch.bytes * keep / 100, batch.rows * keep / 100)
+                            (
+                                in_batch.bytes * keep / 100,
+                                in_batch.rows * keep / 100,
+                            )
                         }
-                        Physical::Udf => {
-                            // Udf transforms data but preserves cardinality.
-                            (batch.bytes, batch.rows)
-                        }
+                        Physical::Udf => (in_batch.bytes, in_batch.rows),
                         Physical::Limit => {
-                            // Limit early-terminates: stop producing
-                            // output once 42 rows have been emitted.
-                            let emitted_so_far = operator.rows_out.load(Ordering::Relaxed);
-                            let remaining = 42u64.saturating_sub(emitted_so_far);
+                            let emitted_so_far =
+                                operator.rows_out.load(Ordering::Relaxed);
+                            let remaining =
+                                42u64.saturating_sub(emitted_so_far);
                             if remaining == 0 {
                                 (0, 0)
                             } else {
-                                let limit_rows = remaining.min(batch.rows);
-                                let fraction = if batch.rows > 0 {
-                                    limit_rows as f64 / batch.rows as f64
+                                let limit_rows = remaining.min(in_batch.rows);
+                                let fraction = if in_batch.rows > 0 {
+                                    limit_rows as f64 / in_batch.rows as f64
                                 } else {
                                     1.0
                                 };
-                                ((batch.bytes as f64 * fraction) as u64, limit_rows)
+                                (
+                                    (in_batch.bytes as f64 * fraction) as u64,
+                                    limit_rows,
+                                )
                             }
                         }
                         _ => {
-                            // JoinPartition, Sort: roughly preserve size.
                             let denom = rng().random_range(1..3);
-                            (batch.bytes / denom, batch.rows / denom)
+                            (
+                                in_batch.bytes / denom,
+                                in_batch.rows / denom,
+                            )
                         }
                     };
 
-                    // Only produce output if there's data (Limit may
-                    // produce 0 rows after early-termination).
-                    if output_rows > 0 {
-                        let output_batch_id = Uuid::now_v7();
+                    if output_rows == 0 {
+                        continue;
+                    }
+
+                    // Split large outputs into chunks so each piece
+                    // can be individually spilled under memory pressure.
+                    const MAX_CHUNK_BYTES: u64 = 64 * 1024 * 1024;
+                    let num_chunks = (output_bytes / MAX_CHUNK_BYTES).max(1);
+                    let chunk_bytes = output_bytes / num_chunks;
+                    let chunk_rows = output_rows / num_chunks;
+
+                    for _chunk in 0..num_chunks {
                         operator.batches_out.fetch_add(1, Ordering::Relaxed);
                         operator
                             .bytes_out
-                            .fetch_add(output_bytes, Ordering::Relaxed);
-                        operator.rows_out.fetch_add(output_rows, Ordering::Relaxed);
+                            .fetch_add(chunk_bytes, Ordering::Relaxed);
+                        operator
+                            .rows_out
+                            .fetch_add(chunk_rows, Ordering::Relaxed);
 
-                        batch_obs.init(
-                            output_batch_id,
-                            data_batch::Init {
-                                operator_id: operator.id,
-                            },
-                        );
+                        // Network shuffle per output chunk.
+                        if send {
+                            let other_workers =
+                                engine.workers.keys().filter(|w| **w != self.id);
+                            for other in other_workers {
+                                let link = *engine
+                                    .network_links
+                                    .get(&(self.id, *other))
+                                    .unwrap();
+                                obs.task_sending(
+                                    task_id,
+                                    task::Sending {
+                                        use_thread: thread,
+                                        use_link: link,
+                                        use_link_bytes: chunk_bytes,
+                                    },
+                                );
+                                sleep_proportional(chunk_bytes);
+                            }
+                        }
 
-                        // Keep output on GPU if input was GPU-resident.
-                        let output_gpu_index = if let Some(gi) = batch.gpu_index {
-                            let gpu = &self.gpus[gi];
-                            gpu.memory_used
-                                .fetch_add(output_bytes, Ordering::Relaxed);
-                            batch_obs.in_gpu_memory(
-                                output_batch_id,
-                                data_batch::InGpuMemory {
-                                    use_gpu_memory: gpu.memory,
-                                    use_gpu_memory_bytes: output_bytes,
-                                },
-                            );
-                            Some(gi)
-                        } else {
-                            batch_obs.in_host_memory(
-                                output_batch_id,
-                                data_batch::InHostMemory {
-                                    use_host_memory: self.host_memory,
-                                    use_host_memory_bytes: output_bytes,
-                                },
-                            );
-                            None
-                        };
-
-                        let output = Batch {
-                            id: output_batch_id,
-                            bytes: output_bytes,
-                            rows: output_rows,
-                            gpu_index: output_gpu_index,
-                        };
                         for sender in &work.output_senders {
-                            let _ = sender.send(output.clone());
+                            let copy_id = Uuid::now_v7();
+                            batch_obs.init(
+                                copy_id,
+                                data_batch::Init {
+                                    operator_id: operator.id,
+                                },
+                            );
+
+                            // Place on GPU or host, then spill if needed.
+                            let mut copy_gpu_index = last_gpu_index;
+                            if let Some(gi) = copy_gpu_index {
+                                let gpu = &self.gpus[gi];
+                                gpu.memory_used.fetch_add(
+                                    chunk_bytes,
+                                    Ordering::Relaxed,
+                                );
+                                batch_obs.in_gpu_memory(
+                                    copy_id,
+                                    data_batch::InGpuMemory {
+                                        use_gpu_memory: gpu.memory,
+                                        use_gpu_memory_bytes: chunk_bytes,
+                                    },
+                                );
+                                let gpu_pressure = gpu
+                                    .memory_used
+                                    .load(Ordering::Relaxed)
+                                    as f64
+                                    / GPU_MEMORY_CAPACITY as f64;
+                                if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
+                                    saturating_sub(&gpu.memory_used, chunk_bytes);
+                                    self.host_memory_used.fetch_add(
+                                        chunk_bytes,
+                                        Ordering::Relaxed,
+                                    );
+                                    batch_obs.spilling_to_host_memory(
+                                        copy_id,
+                                        data_batch::SpillingToHostMemory {
+                                            use_gpu_to_host_mem: gpu
+                                                .gpu_to_host_mem,
+                                            use_gpu_to_host_mem_bytes:
+                                                chunk_bytes,
+                                        },
+                                    );
+                                    sleep_proportional(chunk_bytes);
+                                    batch_obs.in_host_memory(
+                                        copy_id,
+                                        data_batch::InHostMemory {
+                                            use_host_memory: self
+                                                .host_memory,
+                                            use_host_memory_bytes:
+                                                chunk_bytes,
+                                        },
+                                    );
+                                    copy_gpu_index = None;
+                                }
+                            } else {
+                                self.host_memory_used.fetch_add(
+                                    chunk_bytes,
+                                    Ordering::Relaxed,
+                                );
+                                batch_obs.in_host_memory(
+                                    copy_id,
+                                    data_batch::InHostMemory {
+                                        use_host_memory: self.host_memory,
+                                        use_host_memory_bytes: chunk_bytes,
+                                    },
+                                );
+                            }
+
+                            // Spill host→storage if over threshold.
+                            let mut copy_in_storage = false;
+                            if copy_gpu_index.is_none() {
+                                let hp = self
+                                    .host_memory_used
+                                    .load(Ordering::Relaxed)
+                                    as f64
+                                    / HOST_MEMORY_CAPACITY as f64;
+                                if hp > HOST_MEMORY_SPILL_THRESHOLD {
+                                    saturating_sub(&self.host_memory_used, chunk_bytes);
+                                    batch_obs.spilling_to_storage(
+                                        copy_id,
+                                        data_batch::SpillingToStorage {
+                                            use_host_to_storage: self
+                                                .host_to_storage,
+                                            use_host_to_storage_bytes:
+                                                chunk_bytes,
+                                        },
+                                    );
+                                    sleep_proportional(chunk_bytes);
+                                    batch_obs.in_storage(
+                                        copy_id,
+                                        data_batch::InStorage {
+                                            use_storage: self.storage,
+                                            use_storage_bytes: chunk_bytes,
+                                        },
+                                    );
+                                    copy_in_storage = true;
+                                }
+                            }
+
+                            let _ = sender.send(Batch {
+                                id: copy_id,
+                                bytes: chunk_bytes,
+                                rows: chunk_rows,
+                                gpu_index: copy_gpu_index,
+                                in_storage: copy_in_storage,
+                            });
                         }
                     }
                 }
             }
         }
 
+        obs.task_exit(task_id);
         operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -1334,6 +1534,14 @@ impl Worker {
             let task_counter = AtomicU64::new(0);
             let in_flight = &AtomicU64::new(0);
 
+            // Per-operator completion counters (shared between pool threads
+            // and scheduler for barrier synchronization).
+            let completed: HashMap<NodeIndex, AtomicU64> = nodes
+                .iter()
+                .map(|&n| (n, AtomicU64::new(0)))
+                .collect();
+            let completed = &completed;
+
             // Find the output (sink) node — the root of the pull chain.
             let output_node = nodes
                 .iter()
@@ -1349,6 +1557,8 @@ impl Worker {
                     s.spawn(move || {
                         while let Ok(work) = work_rx.recv() {
                             self.process_work_item(context, engine, &work, thread_id);
+                            completed[&work.operator_node]
+                                .fetch_add(1, Ordering::Release);
                             in_flight.fetch_sub(1, Ordering::Release);
 
                             // Accumulate port stats on DAG edges using
@@ -1411,6 +1621,14 @@ impl Worker {
                     let mut dispatched: HashMap<NodeIndex, usize> =
                         nodes.iter().map(|&n| (n, 0usize)).collect();
 
+                    // Per-barrier-operator batch buffers: collect all input
+                    // batches before dispatching a single work item.
+                    let mut barrier_buffers: HashMap<NodeIndex, Vec<Batch>> = nodes
+                        .iter()
+                        .filter(|&&n| is_barrier(plan.dag[n].kind))
+                        .map(|&n| (n, Vec::new()))
+                        .collect();
+
                     // Process in reverse topological order (output first,
                     // scans last) so demand propagates backward.
                     let reverse_topo: Vec<NodeIndex> = nodes.iter().copied().rev().collect();
@@ -1433,6 +1651,37 @@ impl Worker {
                             }
                         }
 
+                        // Forward pass (topological order): compute which
+                        // nodes are effectively done — all dispatched work
+                        // completed and no more input will ever arrive.
+                        let mut effectively_done: HashMap<NodeIndex, bool> =
+                            HashMap::new();
+                        for &node_idx in &nodes {
+                            let comp =
+                                completed[&node_idx].load(Ordering::Acquire)
+                                    as usize;
+                            let disp = dispatched[&node_idx];
+                            let no_inflight = comp == disp;
+                            let has_dispatched = disp > 0;
+                            let no_demand = demand[&node_idx] == 0;
+                            let upstream_done = plan
+                                .dag
+                                .edges_directed(node_idx, Direction::Incoming)
+                                .all(|e| {
+                                    *effectively_done
+                                        .get(&e.source())
+                                        .unwrap_or(&false)
+                                });
+                            // Done if: dispatched at least once, all
+                            // dispatched work completed, and either no
+                            // demand left or all upstream is done (no
+                            // more input will arrive).
+                            let done = has_dispatched
+                                && no_inflight
+                                && (no_demand || upstream_done);
+                            effectively_done.insert(node_idx, done);
+                        }
+
                         for &node_idx in &reverse_topo {
                             let node_demand = demand[&node_idx];
                             if node_demand == 0 {
@@ -1453,14 +1702,84 @@ impl Worker {
                                 let _ = work_tx.send(WorkItem {
                                     operator_node: node_idx,
                                     operator: op,
-                                    input_batch: None,
+                                    input_batches: vec![],
                                     output_senders: outputs.clone(),
                                     task_index: idx,
                                 });
                                 *demand.get_mut(&node_idx).unwrap() -= 1;
                                 *dispatched.get_mut(&node_idx).unwrap() += 1;
                                 made_progress = true;
+                            } else if is_barrier(op.kind) {
+                                // Barrier operator: collect batches into
+                                // buffer and dispatch only when all upstream
+                                // operators have completed.
+                                let inputs = &operator_inputs[&node_idx];
+                                for rx in inputs {
+                                    while let Ok(batch) = rx.try_recv() {
+                                        barrier_buffers
+                                            .get_mut(&node_idx)
+                                            .unwrap()
+                                            .push(batch);
+                                        made_progress = true;
+                                    }
+                                }
+
+                                // Check if all upstream operators are done
+                                // using the forward-pass effectively_done map.
+                                let incoming: Vec<NodeIndex> = plan
+                                    .dag
+                                    .edges_directed(node_idx, Direction::Incoming)
+                                    .map(|e| e.source())
+                                    .collect();
+                                let upstream_done = incoming.iter().all(|&src| {
+                                    *effectively_done.get(&src).unwrap_or(&false)
+                                });
+
+                                if upstream_done {
+                                    let buffer = barrier_buffers
+                                        .get_mut(&node_idx)
+                                        .unwrap();
+                                    if !buffer.is_empty() {
+                                        let batches =
+                                            std::mem::take(buffer);
+                                        let idx = task_counter
+                                            .fetch_add(1, Ordering::Relaxed);
+                                        in_flight
+                                            .fetch_add(1, Ordering::Acquire);
+                                        let _ = work_tx.send(WorkItem {
+                                            operator_node: node_idx,
+                                            operator: op,
+                                            input_batches: batches,
+                                            output_senders: outputs.clone(),
+                                            task_index: idx,
+                                        });
+                                        *demand.get_mut(&node_idx).unwrap() =
+                                            0;
+                                        *dispatched
+                                            .get_mut(&node_idx)
+                                            .unwrap() += 1;
+                                        made_progress = true;
+                                    }
+                                } else {
+                                    // Propagate demand upstream.
+                                    let num_sources = incoming.len().max(1);
+                                    let needed_total =
+                                        node_demand + dispatched[&node_idx];
+                                    let per_source =
+                                        needed_total.div_ceil(num_sources);
+                                    for source in incoming {
+                                        let already = dispatched[&source]
+                                            + demand[&source];
+                                        if already < per_source {
+                                            *demand
+                                                .get_mut(&source)
+                                                .unwrap() +=
+                                                per_source - already;
+                                        }
+                                    }
+                                }
                             } else {
+                                // Pipeline operator: dispatch one task per batch.
                                 let inputs = &operator_inputs[&node_idx];
                                 let mut got_batch = false;
                                 for rx in inputs {
@@ -1470,7 +1789,7 @@ impl Worker {
                                         let _ = work_tx.send(WorkItem {
                                             operator_node: node_idx,
                                             operator: op,
-                                            input_batch: Some(batch),
+                                            input_batches: vec![batch],
                                             output_senders: outputs.clone(),
                                             task_index: idx,
                                         });
@@ -1705,17 +2024,17 @@ impl Worker {
         let channel_obs = context.channel_resource_observer();
         let processor_obs = context.processor_resource_observer();
 
-        memory_obs.finalizing(self.filesystem, Default::default());
-        memory_obs.exit(self.filesystem, Default::default());
+        memory_obs.finalizing(self.storage, Default::default());
+        memory_obs.exit(self.storage, Default::default());
         sleep_fixed(25);
         memory_obs.finalizing(self.host_memory, Default::default());
         memory_obs.exit(self.host_memory, Default::default());
         sleep_fixed(25);
-        channel_obs.finalizing(self.fs_to_host_mem, Default::default());
-        channel_obs.exit(self.fs_to_host_mem, Default::default());
+        channel_obs.finalizing(self.storage_to_host, Default::default());
+        channel_obs.exit(self.storage_to_host, Default::default());
         sleep_fixed(25);
-        channel_obs.finalizing(self.host_mem_to_fs, Default::default());
-        channel_obs.exit(self.host_mem_to_fs, Default::default());
+        channel_obs.finalizing(self.host_to_storage, Default::default());
+        channel_obs.exit(self.host_to_storage, Default::default());
         sleep_fixed(25);
         for thread in self.threads.iter() {
             processor_obs.finalizing(*thread, Default::default());
@@ -1728,11 +2047,11 @@ impl Worker {
             processor_obs.finalizing(gpu.compute, Default::default());
             processor_obs.exit(gpu.compute, Default::default());
         }
-        if !self.gpus.is_empty() {
-            channel_obs.finalizing(self.host_mem_to_gpu, Default::default());
-            channel_obs.exit(self.host_mem_to_gpu, Default::default());
-            channel_obs.finalizing(self.gpu_to_host_mem, Default::default());
-            channel_obs.exit(self.gpu_to_host_mem, Default::default());
+        for gpu in &self.gpus {
+            channel_obs.finalizing(gpu.host_mem_to_gpu, Default::default());
+            channel_obs.exit(gpu.host_mem_to_gpu, Default::default());
+            channel_obs.finalizing(gpu.gpu_to_host_mem, Default::default());
+            channel_obs.exit(gpu.gpu_to_host_mem, Default::default());
         }
         sleep_fixed(25);
         worker_obs.exit(self.id);
