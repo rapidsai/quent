@@ -410,6 +410,8 @@ export function OperatorGanttChart({
     [store, durationSeconds]
   );
 
+  // Re-apply current zoom whenever zoom range changes OR when chart data changes (e.g. plan
+  // change) so that ECharts option replacement does not leave the chart at full bounds.
   useEffect(() => {
     const instance = instanceRef.current;
     if (!instance) return;
@@ -421,7 +423,7 @@ export function OperatorGanttChart({
       start: startPct,
       end: endPct,
     });
-  }, [zoomRange.start, zoomRange.end, durationSeconds]);
+  }, [zoomRange.start, zoomRange.end, durationSeconds, operators]);
 
   useEffect(() => {
     return () => {
