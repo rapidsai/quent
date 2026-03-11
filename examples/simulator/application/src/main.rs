@@ -893,8 +893,6 @@ impl Worker {
                 task_id,
                 task::Spilling {
                     use_thread: thread,
-                    use_host_mem_to_fs: self.host_mem_to_fs,
-                    use_host_mem_to_fs_bytes: batch_bytes,
                 },
             );
             if let Some(ref batch) = input_batch {
@@ -943,8 +941,6 @@ impl Worker {
                 task_id,
                 task::Loading {
                     use_thread: thread,
-                    use_fs_to_host_mem: self.fs_to_host_mem,
-                    use_fs_to_host_mem_bytes: batch_bytes,
                     use_host_memory: self.host_memory,
                     use_host_memory_bytes: working_memory_bytes,
                 },
@@ -1002,6 +998,8 @@ impl Worker {
         } else {
             0
         };
+        // GPU working memory for scratch buffers, intermediate results, etc.
+        let gpu_working_memory_bytes = gpu.map_or(0, |_| working_memory_bytes);
         obs.task_computing(
             task_id,
             task::Computing {
@@ -1009,6 +1007,8 @@ impl Worker {
                 use_host_memory: self.host_memory,
                 use_host_memory_bytes: working_memory_bytes,
                 use_gpu_compute: gpu.map_or(Uuid::nil(), |g| g.compute),
+                use_gpu_memory: gpu.map_or(Uuid::nil(), |g| g.memory),
+                use_gpu_memory_bytes: gpu_working_memory_bytes,
             },
         );
         sleep_proportional(batch_bytes * (compute_multiplier + gpu_multiplier));

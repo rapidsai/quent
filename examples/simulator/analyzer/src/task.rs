@@ -106,16 +106,18 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                     capacities: smallvec![CapacityValue::new("unit", 1)],
                 });
             }
+            if !data.use_gpu_memory.is_nil() {
+                usages.push(TaskUsage {
+                    resource_id: data.use_gpu_memory,
+                    capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_memory_bytes)],
+                });
+            }
             usages
         }
         TaskTransitionData::Loading(data) => smallvec![
             TaskUsage {
                 resource_id: data.use_thread,
                 capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_fs_to_host_mem,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_host_mem_bytes)],
             },
             TaskUsage {
                 resource_id: data.use_host_memory,
@@ -126,16 +128,10 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
             resource_id: data.use_thread,
             capacities: smallvec![CapacityValue::new("unit", 1)],
         }],
-        TaskTransitionData::Spilling(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread,
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_host_mem_to_fs,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_fs_bytes)],
-            },
-        ],
+        TaskTransitionData::Spilling(data) => smallvec![TaskUsage {
+            resource_id: data.use_thread,
+            capacities: smallvec![CapacityValue::new("unit", 1)],
+        }],
         TaskTransitionData::Sending(data) => smallvec![
             TaskUsage {
                 resource_id: data.use_thread,
@@ -336,13 +332,13 @@ impl FsmTypeDeclaration for Task {
                     "thread".to_string(),
                     "host_memory".to_string(),
                     "gpu_compute".to_string(),
+                    "gpu_memory".to_string(),
                 ],
             },
             FsmStateTypeDecl {
                 name: "loading".to_string(),
                 usages: vec![
                     "thread".to_string(),
-                    "fs_to_host_mem".to_string(),
                     "host_memory".to_string(),
                 ],
             },
@@ -352,7 +348,7 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "spilling".to_string(),
-                usages: vec!["thread".to_string(), "host_mem_to_fs".to_string()],
+                usages: vec!["thread".to_string()],
             },
             FsmStateTypeDecl {
                 name: "sending".to_string(),
