@@ -181,10 +181,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         isFirst: true,
         render: ({ item }: { item: TreeTableItem; level: number }) =>
           item.type === 'operator-timeline' ? (
-            <div className="flex items-center gap-2 py-2 text-foreground">
-              {item.icon && <item.icon className="h-4 w-4 shrink-0 rotate-90 scale-x-[-1]" />}
-              <span className="text-xs font-bold">Operators</span>
-            </div>
+            <div className="flex items-center gap-2 py-2 text-foreground"></div>
           ) : (
             <ResourceColumn
               item={item}

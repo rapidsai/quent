@@ -99,7 +99,14 @@ export function OperatorGanttChart({
     [startTimeMs, durationSeconds]
   );
 
-  const yAxisCategories = useMemo(() => operators.map((_, i) => i), [operators]);
+  const { yAxisCategories, rowCount } = useMemo(() => {
+    if (operators.length === 0) return { yAxisCategories: [] as number[], rowCount: 0 };
+    const maxRow = Math.max(...operators.map(op => op.rowIndex));
+    return {
+      yAxisCategories: Array.from({ length: maxRow + 1 }, (_, i) => i),
+      rowCount: maxRow + 1,
+    };
+  }, [operators]);
 
   const customSeriesData = useMemo(
     () =>
@@ -109,8 +116,6 @@ export function OperatorGanttChart({
       })),
     [operators]
   );
-
-  const rowCount = operators.length;
   const showYScroll = rowCount > MAX_VISIBLE_ROWS;
   const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
 

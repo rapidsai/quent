@@ -42,6 +42,39 @@ export function getPlanIdsForWorker(planTree: PlanTree, workerId: string): strin
 }
 
 /**
+ * Stack operators into as few rows as possible so that no two bars overlap in the same row.
+ * Uses a greedy first-fit by start time: sort by startMs, then assign each bar to the first
+ * row where it doesn't overlap the last bar in that row.
+ * Mutates entries in place (sets rowIndex) and returns the same array.
+ */
+export function stackOperatorsIntoRows<
+  T extends { startMs: number; endMs: number; rowIndex: number },
+>(entries: T[]): T[] {
+  if (entries.length === 0) return entries;
+
+  const sorted = [...entries].sort(
+    (a, b) => a.startMs - b.startMs || a.endMs - b.endMs
+  );
+  /** For each row index, the end time of the rightmost bar in that row (no bar in row extends past this). */
+  const rowEndMs: number[] = [];
+
+  for (const entry of sorted) {
+    let row = 0;
+    while (row < rowEndMs.length && entry.startMs < rowEndMs[row]) {
+      row++;
+    }
+    if (row === rowEndMs.length) {
+      rowEndMs.push(entry.endMs);
+    } else {
+      rowEndMs[row] = Math.max(rowEndMs[row], entry.endMs);
+    }
+    entry.rowIndex = row;
+  }
+
+  return entries;
+}
+
+/**
  * SpanSec from the API is in seconds relative to query start (epoch).
  * Convert to absolute ms using query start time.
  */
@@ -74,7 +107,6 @@ export function operatorsWithActiveSpans(
     .filter(([, op]) => op.plan_id === planId)
     .sort(([a], [b]) => a.localeCompare(b));
 
-  let rowIndex = 0;
   for (const [operatorId, op] of sorted) {
     const span = op.active_span;
     if (span == null) continue;
@@ -89,11 +121,11 @@ export function operatorsWithActiveSpans(
       typeName,
       startMs,
       endMs,
-      rowIndex: rowIndex++,
+      rowIndex: 0,
     });
   }
 
-  return entries;
+  return stackOperatorsIntoRows(entries);
 }
 
 /**
@@ -118,7 +150,6 @@ export function operatorsWithActiveSpansForWorker(
     .filter(([, op]) => op.plan_id != null && planIds.has(op.plan_id))
     .sort(([a], [b]) => a.localeCompare(b));
 
-  let rowIndex = 0;
   for (const [operatorId, op] of sorted) {
     const span = op.active_span;
     if (span == null) continue;
@@ -133,9 +164,9 @@ export function operatorsWithActiveSpansForWorker(
       typeName,
       startMs,
       endMs,
-      rowIndex: rowIndex++,
+      rowIndex: 0,
     });
   }
 
-  return entries;
+  return stackOperatorsIntoRows(entries);
 }

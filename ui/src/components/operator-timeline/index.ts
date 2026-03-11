@@ -4,6 +4,7 @@ export {
   operatorsWithActiveSpans,
   operatorsWithActiveSpansForWorker,
   spanToMs,
+  stackOperatorsIntoRows,
   getWorkerIdsFromPlanTree,
   operatorTimelineRowId,
   workerIdFromOperatorTimelineRowId,
