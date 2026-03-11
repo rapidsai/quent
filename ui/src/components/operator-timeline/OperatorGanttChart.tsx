@@ -29,12 +29,45 @@ import {
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
-import { getColorForKey } from '@/services/colors';
+import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
 import { TIMELINE_SPACING } from '@/components/timeline/types';
 import { formatDurationForWindow } from '@/services/formatters';
 
 const DEFAULT_HEIGHT = 75;
+const MAX_VISIBLE_ROWS = 5;
+const Y_SLIDER_WIDTH = 16;
+
+/** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = border at ~15% opacity. */
+const DAG_OPERATION_COLORS: Record<string, { fill: string; stroke: string }> = {
+  source: { stroke: '#3b82f6', fill: '' },
+  scan: { stroke: '#3b82f6', fill: '' },
+  filesystemscan: { stroke: '#3b82f6', fill: '' },
+  join: { stroke: '#a855f7', fill: '' },
+  joinlocal: { stroke: '#a855f7', fill: '' },
+  joinpartition: { stroke: '#a855f7', fill: '' },
+  aggregate: { stroke: '#22c55e', fill: '' },
+  exchange: { stroke: '#f97316', fill: '' },
+  output: { stroke: '#ef4444', fill: '' },
+  stage: { stroke: '#4f46e5', fill: '' },
+  local: { stroke: '#f59e0b', fill: '' },
+  project: { stroke: '#14b8a6', fill: '' },
+  filter: { stroke: '#06b6d4', fill: '' },
+  sort: { stroke: '#8b5cf6', fill: '' },
+  limit: { stroke: '#ec4899', fill: '' },
+  union: { stroke: '#10b981', fill: '' },
+  other: { stroke: '#6b7280', fill: '' },
+};
+// Fill = stroke at 15% opacity (matches DAG node bg-*-100/15)
+Object.keys(DAG_OPERATION_COLORS).forEach(k => {
+  const entry = DAG_OPERATION_COLORS[k];
+  entry.fill = withOpacity(entry.stroke, 0.15);
+});
+
+function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
+  const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? 'other';
+  return DAG_OPERATION_COLORS[key] ?? DAG_OPERATION_COLORS.other;
+}
 
 export interface OperatorGanttChartProps {
   operators: OperatorActiveSpanEntry[];
@@ -72,7 +105,9 @@ export function OperatorGanttChart({
     [operators]
   );
 
-  const barColor = useMemo(() => getColorForKey('operator'), []);
+  const rowCount = operators.length;
+  const showYScroll = rowCount > MAX_VISIBLE_ROWS;
+  const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
 
   const renderItem = useCallback(
     (
@@ -118,9 +153,7 @@ export function OperatorGanttChart({
         width,
         height: barHeight,
       };
-      const clippedShape = clipBound
-        ? clipRectByRect(rectShape, clipBound)
-        : rectShape;
+      const clippedShape = clipBound ? clipRectByRect(rectShape, clipBound) : rectShape;
       if (!clippedShape) return null;
 
       const op = operators[params.dataIndexInside];
@@ -128,12 +161,15 @@ export function OperatorGanttChart({
         op?.typeName && op.typeName !== op.label
           ? `${op.typeName}: ${op.label}`
           : (op?.label ?? '');
+      const { fill, stroke } = getOperatorBarColors(op?.typeName);
 
       const rect = {
         type: 'rect' as const,
-        shape: clippedShape,
+        shape: { ...clippedShape, r: 2 },
         style: {
-          fill: barColor,
+          fill,
+          stroke,
+          lineWidth: 1,
         },
       };
 
@@ -148,7 +184,7 @@ export function OperatorGanttChart({
           y: textY,
           textVerticalAlign: 'middle' as const,
           fontSize: 10,
-          fill: '#fff',
+          fill: '#ddd',
           overflow: 'truncate' as const,
           width: Math.max(0, clippedShape.width - 12),
         },
@@ -159,7 +195,7 @@ export function OperatorGanttChart({
         children: [rect, text],
       };
     },
-    [barColor, operators]
+    [operators]
   );
 
   const gridOptions = useMemo(
@@ -168,7 +204,7 @@ export function OperatorGanttChart({
       top: TIMELINE_SPACING.top + 10,
       bottom: TIMELINE_SPACING.bottom + 10,
       left: TIMELINE_SPACING.left,
-      right: TIMELINE_SPACING.right,
+      right: showYScroll ? TIMELINE_SPACING.right + Y_SLIDER_WIDTH : TIMELINE_SPACING.right,
       width: undefined as number | undefined,
       height: undefined as number | undefined,
       backgroundColor: gridBackgroundColor,
@@ -176,7 +212,7 @@ export function OperatorGanttChart({
       borderColor: gridBorderColor,
       show: true,
     }),
-    [gridBackgroundColor, gridBorderColor]
+    [gridBackgroundColor, gridBorderColor, showYScroll]
   );
 
   const option: EChartsOption = useMemo(
@@ -254,13 +290,20 @@ export function OperatorGanttChart({
         },
       ],
       dataZoom: [
-        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'slider',
+          show: false,
+          realtime: true,
+          filterMode: 'none',
+          xAxisIndex: [0],
+        },
         {
           type: 'inside',
           zoomLock: true,
           zoomOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
+          xAxisIndex: [0],
         },
         {
           type: 'inside',
@@ -269,7 +312,39 @@ export function OperatorGanttChart({
           moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
+          xAxisIndex: [0],
         },
+        ...(showYScroll
+          ? [
+              {
+                type: 'slider' as const,
+                show: true,
+                yAxisIndex: [0],
+                start: 0,
+                end: yAxisZoomEnd,
+                realtime: true,
+                filterMode: 'none' as const,
+                zoomLock: true,
+                moveOnMouseMove: true,
+                zoomOnMouseWheel: true,
+                throttle: 30,
+                right: 2,
+                width: Y_SLIDER_WIDTH - 4,
+              },
+              {
+                type: 'inside' as const,
+                yAxisIndex: [0],
+                start: 0,
+                end: yAxisZoomEnd,
+                zoomLock: true,
+                zoomOnMouseWheel: false,
+                moveOnMouseMove: true,
+                moveOnMouseWheel: true,
+                throttle: 30,
+                filterMode: 'none' as const,
+              },
+            ]
+          : []),
       ],
     }),
     [
@@ -282,6 +357,8 @@ export function OperatorGanttChart({
       gridBorderColor,
       timelineMarkupColor,
       operators,
+      showYScroll,
+      yAxisZoomEnd,
     ]
   );
 
@@ -312,9 +389,9 @@ export function OperatorGanttChart({
     dom.addEventListener(
       'wheel',
       (e: WheelEvent) => {
-        if (!e.shiftKey) e.stopPropagation();
+        if (!e.shiftKey) e.preventDefault();
       },
-      { capture: true, passive: true }
+      { capture: true, passive: false }
     );
   }, []);
 
