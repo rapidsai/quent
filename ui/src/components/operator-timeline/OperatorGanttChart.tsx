@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
-import { echarts } from '@/lib/echarts';
 
 /** Clip a rect to bounds (same behavior as ECharts custom-gantt-flight example). */
 function clipRectByRect(
@@ -19,14 +18,13 @@ function clipRectByRect(
 }
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import {
-  connectChart,
   nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
-import { CHART_GROUP } from '@/components/timeline/Timeline';
+import { connect, echarts } from '@/lib/echarts';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 import { withOpacity } from '@/services/colors';
@@ -37,6 +35,8 @@ import { formatDurationForWindow } from '@/services/formatters';
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 5;
 const Y_SLIDER_WIDTH = 16;
+/** Separate chart group so Y dataZoom on the Gantt does not sync to resource timelines. */
+const OPERATOR_GANTT_CHART_GROUP = 'operator-gantt-group';
 
 /** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = border at ~15% opacity. */
 const DAG_OPERATION_COLORS: Record<string, { fill: string; stroke: string }> = {
@@ -82,7 +82,9 @@ export function OperatorGanttChart({
   durationSeconds,
   height = DEFAULT_HEIGHT,
 }: OperatorGanttChartProps) {
+  const store = useStore();
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor } = useTimelineChartColors();
+  const barLabelTextColor = timelineMarkupColor;
   const zoomRange = useAtomValue(zoomRangeAtom);
   const windowMsRef = useRef(0);
   windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
@@ -184,7 +186,7 @@ export function OperatorGanttChart({
           y: textY,
           textVerticalAlign: 'middle' as const,
           fontSize: 10,
-          fill: '#ddd',
+          fill: barLabelTextColor,
           overflow: 'truncate' as const,
           width: Math.max(0, clippedShape.width - 12),
         },
@@ -195,7 +197,7 @@ export function OperatorGanttChart({
         children: [rect, text],
       };
     },
-    [operators]
+    [operators, barLabelTextColor]
   );
 
   const gridOptions = useMemo(
@@ -364,36 +366,62 @@ export function OperatorGanttChart({
 
   const instanceRef = useRef<EChartsInstance | null>(null);
 
-  const handleChartReady = useCallback((instance: EChartsInstance) => {
-    instanceRef.current = instance;
-    connectChart(instance, CHART_GROUP, false);
-    registerAxisPointerSync(instance, 0, { receiveShowTip: false });
-    const dom = instance.getDom();
-    const zr = instance.getZr();
-    zr.on('mousemove', (e: { offsetX: number }) => {
-      try {
-        const value = instance.convertFromPixel({ xAxisIndex: 0 }, e.offsetX) as number;
-        if (value != null && isFinite(value)) {
-          cursorTimestampMsRef.current = value;
+  const handleChartReady = useCallback(
+    (instance: EChartsInstance) => {
+      instanceRef.current = instance;
+      instance.group = OPERATOR_GANTT_CHART_GROUP;
+      connect(OPERATOR_GANTT_CHART_GROUP);
+      const range = store.get(zoomRangeAtom);
+      const startPct = durationSeconds > 0 ? (range.start / durationSeconds) * 100 : 0;
+      const endPct = durationSeconds > 0 ? (range.end / durationSeconds) * 100 : 100;
+      instance.dispatchAction({
+        type: 'dataZoom',
+        dataZoomIndex: 0,
+        start: startPct,
+        end: endPct,
+      });
+      registerAxisPointerSync(instance, 0, { receiveShowTip: false });
+      const dom = instance.getDom();
+      const zr = instance.getZr();
+      zr.on('mousemove', (e: { offsetX: number }) => {
+        try {
+          const value = instance.convertFromPixel({ xAxisIndex: 0 }, e.offsetX) as number;
+          if (value != null && isFinite(value)) {
+            cursorTimestampMsRef.current = value;
+          }
+        } catch {
+          // ignore when out of range
         }
-      } catch {
-        // ignore when out of range
-      }
+      });
+      zr.on('globalout', () => {
+        cursorTimestampMsRef.current = 0;
+      });
+      dom.addEventListener('pointerdown', () => {
+        instance.dispatchAction({ type: 'hideTip' });
+      });
+      dom.addEventListener(
+        'wheel',
+        (e: WheelEvent) => {
+          if (!e.shiftKey) e.preventDefault();
+        },
+        { capture: true, passive: false }
+      );
+    },
+    [store, durationSeconds]
+  );
+
+  useEffect(() => {
+    const instance = instanceRef.current;
+    if (!instance) return;
+    const startPct = durationSeconds > 0 ? (zoomRange.start / durationSeconds) * 100 : 0;
+    const endPct = durationSeconds > 0 ? (zoomRange.end / durationSeconds) * 100 : 100;
+    instance.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 0,
+      start: startPct,
+      end: endPct,
     });
-    zr.on('globalout', () => {
-      cursorTimestampMsRef.current = 0;
-    });
-    dom.addEventListener('pointerdown', () => {
-      instance.dispatchAction({ type: 'hideTip' });
-    });
-    dom.addEventListener(
-      'wheel',
-      (e: WheelEvent) => {
-        if (!e.shiftKey) e.preventDefault();
-      },
-      { capture: true, passive: false }
-    );
-  }, []);
+  }, [zoomRange.start, zoomRange.end, durationSeconds]);
 
   useEffect(() => {
     return () => {
