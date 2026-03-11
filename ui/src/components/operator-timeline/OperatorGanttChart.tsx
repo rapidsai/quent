@@ -27,6 +27,7 @@ import {
 import { connect, echarts } from '@/lib/echarts';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
+import { selectedNodeIdsAtom } from '@/atoms/dag';
 import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
 import { TIMELINE_SPACING } from '@/components/timeline/types';
@@ -87,6 +88,7 @@ export function OperatorGanttChart({
     useTimelineChartColors();
   const barLabelTextColor = textColor;
   const zoomRange = useAtomValue(zoomRangeAtom);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const windowMsRef = useRef(0);
   windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
   const cursorTimestampMsRef = useRef<number>(0);
@@ -165,6 +167,9 @@ export function OperatorGanttChart({
           ? `${op.typeName}: ${op.label}`
           : (op?.label ?? '');
       const { fill, stroke } = getOperatorBarColors(op?.typeName);
+      const hasSelection = selectedNodeIds.size > 0;
+      const isSelected = op != null && selectedNodeIds.has(op.operatorId);
+      const opacity = hasSelection && !isSelected ? 0.35 : 1;
 
       const rect = {
         type: 'rect' as const,
@@ -173,6 +178,7 @@ export function OperatorGanttChart({
           fill,
           stroke,
           lineWidth: 1,
+          opacity,
         },
       };
 
@@ -190,6 +196,7 @@ export function OperatorGanttChart({
           fill: barLabelTextColor,
           overflow: 'truncate' as const,
           width: Math.max(0, clippedShape.width - 12),
+          opacity,
         },
       };
 
@@ -198,7 +205,7 @@ export function OperatorGanttChart({
         children: [rect, text],
       };
     },
-    [operators, barLabelTextColor]
+    [operators, barLabelTextColor, selectedNodeIds]
   );
 
   const gridOptions = useMemo(
