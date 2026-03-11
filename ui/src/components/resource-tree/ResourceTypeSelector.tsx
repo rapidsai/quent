@@ -1,8 +1,15 @@
-import { ChevronDown } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface ResourceTypeSelectorProps {
   id: string;
+  label?: string;
   selectedType: string;
   availableResourceTypes: string[];
   onTypeChange: (itemId: string, type: string) => void;
@@ -11,6 +18,7 @@ interface ResourceTypeSelectorProps {
 
 export const ResourceTypeSelector = ({
   id,
+  label = 'Type',
   selectedType,
   availableResourceTypes,
   onTypeChange,
@@ -22,40 +30,37 @@ export const ResourceTypeSelector = ({
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
     >
-      <label htmlFor={`type-select-${id}`} className="text-xs text-muted-foreground shrink-0">
-        Type:
+      <label id={`type-select-label-${id}`} className="text-xs text-muted-foreground shrink-0">
+        {label}:
       </label>
-      <span className="inline-flex items-center gap-1 max-w-80 min-w-0">
-        <span className="relative w-fit max-w-full min-w-0 shrink inline-block">
-          {/* Invisible sizer so the trigger is only as wide as the selected value text */}
-          <span className="invisible whitespace-nowrap text-xs py-px" aria-hidden>
-            {selectedType}
-          </span>
-          <select
-            id={`type-select-${id}`}
-            value={selectedType}
-            onChange={e => {
-              e.stopPropagation();
-              onTypeChange(id, e.target.value);
-            }}
-            className={cn(
-              'absolute left-0 top-0 w-full h-full text-xs text-foreground bg-transparent border-none border-b border-dashed border-muted-foreground/60',
-              'cursor-pointer focus:outline-none focus:border-muted-foreground',
-              'appearance-none py-px pr-0'
-            )}
-          >
-            {availableResourceTypes.map(typeOption => (
-              <option key={typeOption} value={typeOption}>
-                {typeOption}
-              </option>
-            ))}
-          </select>
-        </span>
-        <ChevronDown
-          className="h-3 w-3 shrink-0 text-muted-foreground pointer-events-none"
-          aria-hidden
-        />
-      </span>
+      <Select value={selectedType} onValueChange={value => onTypeChange(id, value)}>
+        <SelectTrigger
+          id={`type-select-${id}`}
+          aria-labelledby={`type-select-label-${id}`}
+          className={cn(
+            'h-auto w-auto min-w-0 max-w-80 border-0 border-b border-dashed border-muted-foreground/60 rounded-none bg-transparent px-0 py-px text-xs shadow-none cursor-pointer',
+            'focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+            'data-[placeholder]:text-muted-foreground',
+            '[&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-70'
+          )}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          className="max-h-[--radix-select-content-available-height] min-w-[var(--radix-select-trigger-width)]"
+        >
+          {availableResourceTypes.map(typeOption => (
+            <SelectItem
+              key={typeOption}
+              value={typeOption}
+              className="text-xs py-1.5 pl-8 pr-2 cursor-pointer"
+            >
+              {typeOption}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };
