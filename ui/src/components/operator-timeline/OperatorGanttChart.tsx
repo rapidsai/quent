@@ -114,6 +114,9 @@ export function OperatorGanttChart({
   const showYScroll = rowCount > MAX_VISIBLE_ROWS;
   const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
 
+  const xZoomStartPct = durationSeconds > 0 ? (zoomRange.start / durationSeconds) * 100 : 0;
+  const xZoomEndPct = durationSeconds > 0 ? (zoomRange.end / durationSeconds) * 100 : 100;
+
   const renderItem = useCallback(
     (
       params: {
@@ -306,6 +309,8 @@ export function OperatorGanttChart({
           realtime: true,
           filterMode: 'none',
           xAxisIndex: [0],
+          start: xZoomStartPct,
+          end: xZoomEndPct,
         },
         {
           type: 'inside',
@@ -314,6 +319,8 @@ export function OperatorGanttChart({
           throttle: 30,
           filterMode: 'none',
           xAxisIndex: [0],
+          start: xZoomStartPct,
+          end: xZoomEndPct,
         },
         {
           type: 'inside',
@@ -323,6 +330,8 @@ export function OperatorGanttChart({
           throttle: 30,
           filterMode: 'none',
           xAxisIndex: [0],
+          start: xZoomStartPct,
+          end: xZoomEndPct,
         },
         ...(showYScroll
           ? [
@@ -354,6 +363,8 @@ export function OperatorGanttChart({
       operators,
       showYScroll,
       yAxisZoomEnd,
+      xZoomStartPct,
+      xZoomEndPct,
     ]
   );
 
