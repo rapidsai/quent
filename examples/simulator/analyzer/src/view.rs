@@ -63,7 +63,7 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .is_some();
                 let parent_in_sim = v
                     .parent_group_id
-                    .map_or(false, |p| resource_groups.contains_key(&p));
+                    .is_some_and(|p| resource_groups.contains_key(&p));
                 if parent_in_qe || parent_in_sim {
                     resource_groups.insert(*k, v);
                     added = true;

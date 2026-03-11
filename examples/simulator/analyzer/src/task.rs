@@ -337,10 +337,7 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "loading".to_string(),
-                usages: vec![
-                    "thread".to_string(),
-                    "host_memory".to_string(),
-                ],
+                usages: vec!["thread".to_string(), "host_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "allocating".to_string(),

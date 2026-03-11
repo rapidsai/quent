@@ -273,63 +273,53 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 config,
                 long_entities_threshold,
             )?;
-            if used_by.contains("task") {
-                if let Some(tasks) =
+            if used_by.contains("task")
+                && let Some(tasks) =
                     self.tasks_filtered(entity_filter, operator_filter, config.span)
-                {
-                    self.populate_keyed_builder(
-                        &mut builder,
-                        tasks.filter(|task| {
-                            task.usages().any(|u| matches_resource(u.resource_id()))
-                        }),
-                        &matches_resource,
-                    )?;
-                }
+            {
+                self.populate_keyed_builder(
+                    &mut builder,
+                    tasks.filter(|task| task.usages().any(|u| matches_resource(u.resource_id()))),
+                    matches_resource,
+                )?;
             }
-            if used_by.contains("data_batch") {
-                if let Some(batches) =
+            if used_by.contains("data_batch")
+                && let Some(batches) =
                     self.data_batches_filtered(entity_filter, operator_filter, config.span)
-                {
-                    self.populate_keyed_builder_batches(
-                        &mut builder,
-                        batches.filter(|batch| {
-                            batch.usages().any(|u| matches_resource(u.resource_id()))
-                        }),
-                        &matches_resource,
-                    )?;
-                }
+            {
+                self.populate_keyed_builder_batches(
+                    &mut builder,
+                    batches
+                        .filter(|batch| batch.usages().any(|u| matches_resource(u.resource_id()))),
+                    matches_resource,
+                )?;
             }
             Ok(SingleTimelineResponse {
                 config: config_secs,
                 data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
             })
         } else {
-            let mut builder = ResourceTimelineBuilder::try_new(
-                resource_type,
-                config,
-                long_entities_threshold,
-            )?;
-            if used_by.contains("task") {
-                if let Some(tasks) =
+            let mut builder =
+                ResourceTimelineBuilder::try_new(resource_type, config, long_entities_threshold)?;
+            if used_by.contains("task")
+                && let Some(tasks) =
                     self.tasks_filtered(entity_filter, operator_filter, config.span)
-                {
-                    builder.try_extend(
-                        tasks
-                            .flat_map(|task| task.usages())
-                            .filter(|u| matches_resource(u.resource_id())),
-                    )?;
-                }
+            {
+                builder.try_extend(
+                    tasks
+                        .flat_map(|task| task.usages())
+                        .filter(|u| matches_resource(u.resource_id())),
+                )?;
             }
-            if used_by.contains("data_batch") {
-                if let Some(batches) =
+            if used_by.contains("data_batch")
+                && let Some(batches) =
                     self.data_batches_filtered(entity_filter, operator_filter, config.span)
-                {
-                    builder.try_extend(
-                        batches
-                            .flat_map(|batch| batch.usages())
-                            .filter(|u| matches_resource(u.resource_id())),
-                    )?;
-                }
+            {
+                builder.try_extend(
+                    batches
+                        .flat_map(|batch| batch.usages())
+                        .filter(|u| matches_resource(u.resource_id())),
+                )?;
             }
             Ok(SingleTimelineResponse {
                 config: config_secs,

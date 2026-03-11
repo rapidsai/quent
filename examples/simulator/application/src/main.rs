@@ -940,8 +940,8 @@ impl Worker {
         }
 
         // Spill when host memory exceeds threshold and operator supports it.
-        let host_pressure = self.host_memory_used.load(Ordering::Relaxed) as f64
-            / HOST_MEMORY_CAPACITY as f64;
+        let host_pressure =
+            self.host_memory_used.load(Ordering::Relaxed) as f64 / HOST_MEMORY_CAPACITY as f64;
         let spill = host_pressure > HOST_MEMORY_SPILL_THRESHOLD;
 
         obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
@@ -949,12 +949,7 @@ impl Worker {
 
         // Spill batches to storage under pressure.
         if spill {
-            obs.task_spilling(
-                task_id,
-                task::Spilling {
-                    use_thread: thread,
-                },
-            );
+            obs.task_spilling(task_id, task::Spilling { use_thread: thread });
             // Release memory and spill to storage.
             for batch in &mut input_batches {
                 if let Some(gi) = batch.gpu_index {
@@ -1012,7 +1007,9 @@ impl Worker {
         // For pipeline operators (single batch), transfer the batch.
         // For barrier operators (many batches), skip bulk transfer —
         // the operator streams through data with bounded GPU working memory.
-        if let Some(gpu) = gpu && !is_barrier(operator.kind) {
+        if let Some(gpu) = gpu
+            && !is_barrier(operator.kind)
+        {
             for batch in &mut input_batches {
                 if batch.gpu_index.is_none() {
                     // Reload from storage if needed.
@@ -1128,57 +1125,55 @@ impl Worker {
         // Only spill GPU→host when GPU memory exceeds threshold.
         // Skip for operators that already consumed and freed their input
         // batches during the compute phase above.
-        if !consumes_input {
-            if let Some(gpu) = gpu {
-                for batch in &mut input_batches {
-                    let gpu_pressure = gpu.memory_used.load(Ordering::Relaxed) as f64
-                        / GPU_MEMORY_CAPACITY as f64;
-                    if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
-                        batch_obs.spilling_to_host_memory(
+        if !consumes_input && let Some(gpu) = gpu {
+            for batch in &mut input_batches {
+                let gpu_pressure =
+                    gpu.memory_used.load(Ordering::Relaxed) as f64 / GPU_MEMORY_CAPACITY as f64;
+                if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
+                    batch_obs.spilling_to_host_memory(
+                        batch.id,
+                        data_batch::SpillingToHostMemory {
+                            use_gpu_to_host_mem: gpu.gpu_to_host_mem,
+                            use_gpu_to_host_mem_bytes: batch.bytes,
+                        },
+                    );
+                    sleep_proportional(batch.bytes);
+                    saturating_sub(&gpu.memory_used, batch.bytes);
+                    self.host_memory_used
+                        .fetch_add(batch.bytes, Ordering::Relaxed);
+                    batch_obs.in_host_memory(
+                        batch.id,
+                        data_batch::InHostMemory {
+                            use_host_memory: self.host_memory,
+                            use_host_memory_bytes: batch.bytes,
+                        },
+                    );
+                    batch.gpu_index = None;
+
+                    // Cascade: spill host→storage if host is now over threshold.
+                    let hp = self.host_memory_used.load(Ordering::Relaxed) as f64
+                        / HOST_MEMORY_CAPACITY as f64;
+                    if hp > HOST_MEMORY_SPILL_THRESHOLD {
+                        saturating_sub(&self.host_memory_used, batch.bytes);
+                        batch_obs.spilling_to_storage(
                             batch.id,
-                            data_batch::SpillingToHostMemory {
-                                use_gpu_to_host_mem: gpu.gpu_to_host_mem,
-                                use_gpu_to_host_mem_bytes: batch.bytes,
+                            data_batch::SpillingToStorage {
+                                use_host_to_storage: self.host_to_storage,
+                                use_host_to_storage_bytes: batch.bytes,
                             },
                         );
                         sleep_proportional(batch.bytes);
-                        saturating_sub(&gpu.memory_used, batch.bytes);
-                        self.host_memory_used
-                            .fetch_add(batch.bytes, Ordering::Relaxed);
-                        batch_obs.in_host_memory(
+                        batch_obs.in_storage(
                             batch.id,
-                            data_batch::InHostMemory {
-                                use_host_memory: self.host_memory,
-                                use_host_memory_bytes: batch.bytes,
+                            data_batch::InStorage {
+                                use_storage: self.storage,
+                                use_storage_bytes: batch.bytes,
                             },
                         );
-                        batch.gpu_index = None;
-
-                        // Cascade: spill host→storage if host is now over threshold.
-                        let hp = self.host_memory_used.load(Ordering::Relaxed) as f64
-                            / HOST_MEMORY_CAPACITY as f64;
-                        if hp > HOST_MEMORY_SPILL_THRESHOLD {
-                            saturating_sub(&self.host_memory_used, batch.bytes);
-                            batch_obs.spilling_to_storage(
-                                batch.id,
-                                data_batch::SpillingToStorage {
-                                    use_host_to_storage: self.host_to_storage,
-                                    use_host_to_storage_bytes: batch.bytes,
-                                },
-                            );
-                            sleep_proportional(batch.bytes);
-                            batch_obs.in_storage(
-                                batch.id,
-                                data_batch::InStorage {
-                                    use_storage: self.storage,
-                                    use_storage_bytes: batch.bytes,
-                                },
-                            );
-                            batch.in_storage = true;
-                        }
+                        batch.in_storage = true;
                     }
-                    // else: batch stays on GPU for the next operator.
                 }
+                // else: batch stays on GPU for the next operator.
             }
         }
 
@@ -1274,24 +1269,16 @@ impl Worker {
                         }
                         Physical::Aggregate => {
                             let denom = rng().random_range(5..15);
-                            (
-                                in_batch.bytes / denom,
-                                in_batch.rows / denom.max(1),
-                            )
+                            (in_batch.bytes / denom, in_batch.rows / denom.max(1))
                         }
                         Physical::Filter => {
                             let keep = rng().random_range(60..80);
-                            (
-                                in_batch.bytes * keep / 100,
-                                in_batch.rows * keep / 100,
-                            )
+                            (in_batch.bytes * keep / 100, in_batch.rows * keep / 100)
                         }
                         Physical::Udf => (in_batch.bytes, in_batch.rows),
                         Physical::Limit => {
-                            let emitted_so_far =
-                                operator.rows_out.load(Ordering::Relaxed);
-                            let remaining =
-                                42u64.saturating_sub(emitted_so_far);
+                            let emitted_so_far = operator.rows_out.load(Ordering::Relaxed);
+                            let remaining = 42u64.saturating_sub(emitted_so_far);
                             if remaining == 0 {
                                 (0, 0)
                             } else {
@@ -1301,18 +1288,12 @@ impl Worker {
                                 } else {
                                     1.0
                                 };
-                                (
-                                    (in_batch.bytes as f64 * fraction) as u64,
-                                    limit_rows,
-                                )
+                                ((in_batch.bytes as f64 * fraction) as u64, limit_rows)
                             }
                         }
                         _ => {
                             let denom = rng().random_range(1..3);
-                            (
-                                in_batch.bytes / denom,
-                                in_batch.rows / denom,
-                            )
+                            (in_batch.bytes / denom, in_batch.rows / denom)
                         }
                     };
 
@@ -1329,22 +1310,14 @@ impl Worker {
 
                     for _chunk in 0..num_chunks {
                         operator.batches_out.fetch_add(1, Ordering::Relaxed);
-                        operator
-                            .bytes_out
-                            .fetch_add(chunk_bytes, Ordering::Relaxed);
-                        operator
-                            .rows_out
-                            .fetch_add(chunk_rows, Ordering::Relaxed);
+                        operator.bytes_out.fetch_add(chunk_bytes, Ordering::Relaxed);
+                        operator.rows_out.fetch_add(chunk_rows, Ordering::Relaxed);
 
                         // Network shuffle per output chunk.
                         if send {
-                            let other_workers =
-                                engine.workers.keys().filter(|w| **w != self.id);
+                            let other_workers = engine.workers.keys().filter(|w| **w != self.id);
                             for other in other_workers {
-                                let link = *engine
-                                    .network_links
-                                    .get(&(self.id, *other))
-                                    .unwrap();
+                                let link = *engine.network_links.get(&(self.id, *other)).unwrap();
                                 obs.task_sending(
                                     task_id,
                                     task::Sending {
@@ -1370,10 +1343,7 @@ impl Worker {
                             let mut copy_gpu_index = last_gpu_index;
                             if let Some(gi) = copy_gpu_index {
                                 let gpu = &self.gpus[gi];
-                                gpu.memory_used.fetch_add(
-                                    chunk_bytes,
-                                    Ordering::Relaxed,
-                                );
+                                gpu.memory_used.fetch_add(chunk_bytes, Ordering::Relaxed);
                                 batch_obs.in_gpu_memory(
                                     copy_id,
                                     data_batch::InGpuMemory {
@@ -1381,43 +1351,32 @@ impl Worker {
                                         use_gpu_memory_bytes: chunk_bytes,
                                     },
                                 );
-                                let gpu_pressure = gpu
-                                    .memory_used
-                                    .load(Ordering::Relaxed)
-                                    as f64
+                                let gpu_pressure = gpu.memory_used.load(Ordering::Relaxed) as f64
                                     / GPU_MEMORY_CAPACITY as f64;
                                 if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
                                     saturating_sub(&gpu.memory_used, chunk_bytes);
-                                    self.host_memory_used.fetch_add(
-                                        chunk_bytes,
-                                        Ordering::Relaxed,
-                                    );
+                                    self.host_memory_used
+                                        .fetch_add(chunk_bytes, Ordering::Relaxed);
                                     batch_obs.spilling_to_host_memory(
                                         copy_id,
                                         data_batch::SpillingToHostMemory {
-                                            use_gpu_to_host_mem: gpu
-                                                .gpu_to_host_mem,
-                                            use_gpu_to_host_mem_bytes:
-                                                chunk_bytes,
+                                            use_gpu_to_host_mem: gpu.gpu_to_host_mem,
+                                            use_gpu_to_host_mem_bytes: chunk_bytes,
                                         },
                                     );
                                     sleep_proportional(chunk_bytes);
                                     batch_obs.in_host_memory(
                                         copy_id,
                                         data_batch::InHostMemory {
-                                            use_host_memory: self
-                                                .host_memory,
-                                            use_host_memory_bytes:
-                                                chunk_bytes,
+                                            use_host_memory: self.host_memory,
+                                            use_host_memory_bytes: chunk_bytes,
                                         },
                                     );
                                     copy_gpu_index = None;
                                 }
                             } else {
-                                self.host_memory_used.fetch_add(
-                                    chunk_bytes,
-                                    Ordering::Relaxed,
-                                );
+                                self.host_memory_used
+                                    .fetch_add(chunk_bytes, Ordering::Relaxed);
                                 batch_obs.in_host_memory(
                                     copy_id,
                                     data_batch::InHostMemory {
@@ -1430,20 +1389,15 @@ impl Worker {
                             // Spill host→storage if over threshold.
                             let mut copy_in_storage = false;
                             if copy_gpu_index.is_none() {
-                                let hp = self
-                                    .host_memory_used
-                                    .load(Ordering::Relaxed)
-                                    as f64
+                                let hp = self.host_memory_used.load(Ordering::Relaxed) as f64
                                     / HOST_MEMORY_CAPACITY as f64;
                                 if hp > HOST_MEMORY_SPILL_THRESHOLD {
                                     saturating_sub(&self.host_memory_used, chunk_bytes);
                                     batch_obs.spilling_to_storage(
                                         copy_id,
                                         data_batch::SpillingToStorage {
-                                            use_host_to_storage: self
-                                                .host_to_storage,
-                                            use_host_to_storage_bytes:
-                                                chunk_bytes,
+                                            use_host_to_storage: self.host_to_storage,
+                                            use_host_to_storage_bytes: chunk_bytes,
                                         },
                                     );
                                     sleep_proportional(chunk_bytes);
@@ -1536,10 +1490,8 @@ impl Worker {
 
             // Per-operator completion counters (shared between pool threads
             // and scheduler for barrier synchronization).
-            let completed: HashMap<NodeIndex, AtomicU64> = nodes
-                .iter()
-                .map(|&n| (n, AtomicU64::new(0)))
-                .collect();
+            let completed: HashMap<NodeIndex, AtomicU64> =
+                nodes.iter().map(|&n| (n, AtomicU64::new(0))).collect();
             let completed = &completed;
 
             // Find the output (sink) node — the root of the pull chain.
@@ -1557,8 +1509,7 @@ impl Worker {
                     s.spawn(move || {
                         while let Ok(work) = work_rx.recv() {
                             self.process_work_item(context, engine, &work, thread_id);
-                            completed[&work.operator_node]
-                                .fetch_add(1, Ordering::Release);
+                            completed[&work.operator_node].fetch_add(1, Ordering::Release);
                             in_flight.fetch_sub(1, Ordering::Release);
 
                             // Accumulate port stats on DAG edges using
@@ -1654,12 +1605,9 @@ impl Worker {
                         // Forward pass (topological order): compute which
                         // nodes are effectively done — all dispatched work
                         // completed and no more input will ever arrive.
-                        let mut effectively_done: HashMap<NodeIndex, bool> =
-                            HashMap::new();
+                        let mut effectively_done: HashMap<NodeIndex, bool> = HashMap::new();
                         for &node_idx in &nodes {
-                            let comp =
-                                completed[&node_idx].load(Ordering::Acquire)
-                                    as usize;
+                            let comp = completed[&node_idx].load(Ordering::Acquire) as usize;
                             let disp = dispatched[&node_idx];
                             let no_inflight = comp == disp;
                             let has_dispatched = disp > 0;
@@ -1667,18 +1615,13 @@ impl Worker {
                             let upstream_done = plan
                                 .dag
                                 .edges_directed(node_idx, Direction::Incoming)
-                                .all(|e| {
-                                    *effectively_done
-                                        .get(&e.source())
-                                        .unwrap_or(&false)
-                                });
+                                .all(|e| *effectively_done.get(&e.source()).unwrap_or(&false));
                             // Done if: dispatched at least once, all
                             // dispatched work completed, and either no
                             // demand left or all upstream is done (no
                             // more input will arrive).
-                            let done = has_dispatched
-                                && no_inflight
-                                && (no_demand || upstream_done);
+                            let done =
+                                has_dispatched && no_inflight && (no_demand || upstream_done);
                             effectively_done.insert(node_idx, done);
                         }
 
@@ -1716,10 +1659,7 @@ impl Worker {
                                 let inputs = &operator_inputs[&node_idx];
                                 for rx in inputs {
                                     while let Ok(batch) = rx.try_recv() {
-                                        barrier_buffers
-                                            .get_mut(&node_idx)
-                                            .unwrap()
-                                            .push(batch);
+                                        barrier_buffers.get_mut(&node_idx).unwrap().push(batch);
                                         made_progress = true;
                                     }
                                 }
@@ -1731,21 +1671,16 @@ impl Worker {
                                     .edges_directed(node_idx, Direction::Incoming)
                                     .map(|e| e.source())
                                     .collect();
-                                let upstream_done = incoming.iter().all(|&src| {
-                                    *effectively_done.get(&src).unwrap_or(&false)
-                                });
+                                let upstream_done = incoming
+                                    .iter()
+                                    .all(|&src| *effectively_done.get(&src).unwrap_or(&false));
 
                                 if upstream_done {
-                                    let buffer = barrier_buffers
-                                        .get_mut(&node_idx)
-                                        .unwrap();
+                                    let buffer = barrier_buffers.get_mut(&node_idx).unwrap();
                                     if !buffer.is_empty() {
-                                        let batches =
-                                            std::mem::take(buffer);
-                                        let idx = task_counter
-                                            .fetch_add(1, Ordering::Relaxed);
-                                        in_flight
-                                            .fetch_add(1, Ordering::Acquire);
+                                        let batches = std::mem::take(buffer);
+                                        let idx = task_counter.fetch_add(1, Ordering::Relaxed);
+                                        in_flight.fetch_add(1, Ordering::Acquire);
                                         let _ = work_tx.send(WorkItem {
                                             operator_node: node_idx,
                                             operator: op,
@@ -1753,27 +1688,19 @@ impl Worker {
                                             output_senders: outputs.clone(),
                                             task_index: idx,
                                         });
-                                        *demand.get_mut(&node_idx).unwrap() =
-                                            0;
-                                        *dispatched
-                                            .get_mut(&node_idx)
-                                            .unwrap() += 1;
+                                        *demand.get_mut(&node_idx).unwrap() = 0;
+                                        *dispatched.get_mut(&node_idx).unwrap() += 1;
                                         made_progress = true;
                                     }
                                 } else {
                                     // Propagate demand upstream.
                                     let num_sources = incoming.len().max(1);
-                                    let needed_total =
-                                        node_demand + dispatched[&node_idx];
-                                    let per_source =
-                                        needed_total.div_ceil(num_sources);
+                                    let needed_total = node_demand + dispatched[&node_idx];
+                                    let per_source = needed_total.div_ceil(num_sources);
                                     for source in incoming {
-                                        let already = dispatched[&source]
-                                            + demand[&source];
+                                        let already = dispatched[&source] + demand[&source];
                                         if already < per_source {
-                                            *demand
-                                                .get_mut(&source)
-                                                .unwrap() +=
+                                            *demand.get_mut(&source).unwrap() +=
                                                 per_source - already;
                                         }
                                     }
