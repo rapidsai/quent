@@ -1,6 +1,5 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
-import { useAtomValue } from 'jotai';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useHydrateAtoms } from 'jotai/utils';
 import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
@@ -23,14 +22,45 @@ import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/time
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
-import { selectedPlanIdAtom } from '@/atoms/dag';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
-import { operatorsWithActiveSpans, OperatorGanttChart } from './operator-timeline';
+import {
+  OperatorGanttChart,
+  getWorkerIdsFromPlanTree,
+  operatorTimelineRowId,
+  operatorsWithActiveSpansForWorker,
+  workerIdFromOperatorTimelineRowId,
+} from './operator-timeline';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
   const [, entityId] = Object.entries(resourceTree.ResourceGroup.id)[0] as [EntityRefKey, string];
   return entityId;
+}
+
+/** Create the synthetic operator-timeline row for a worker. Defaults to collapsed (no children). */
+function createOperatorTimelineRow(workerId: string): TreeTableItem {
+  return {
+    id: operatorTimelineRowId(workerId),
+    type: 'operator-timeline',
+    entity: {} as TreeTableItem['entity'],
+    icon: BarChart3,
+  };
+}
+
+/**
+ * Inject an expandable "Operator timeline" row under each resource whose id matches a plan_tree worker.
+ * Injected rows default to collapsed.
+ */
+function injectOperatorTimelineRows(item: TreeTableItem, workerIds: Set<string>): TreeTableItem {
+  const transformedChildren = item.children?.map(child =>
+    injectOperatorTimelineRows(child, workerIds)
+  );
+  if (!workerIds.has(item.id)) {
+    return transformedChildren?.length ? { ...item, children: transformedChildren } : { ...item };
+  }
+  const operatorTimelineRow = createOperatorTimelineRow(item.id);
+  const children = [operatorTimelineRow, ...(transformedChildren ?? [])];
+  return { ...item, children };
 }
 
 interface QueryResourceTreeProps {
@@ -123,26 +153,24 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     placeholderData: keepPreviousData,
   });
 
-  const operatorTimelineRow: TreeTableItem = useMemo(
-    () => ({
-      id: '__operator_timeline__',
-      type: 'operator-timeline',
-      entity: {} as TreeTableItem['entity'],
-      icon: BarChart3,
-    }),
-    []
+  const workerIdsFromPlanTree = useMemo(
+    () => new Set(getWorkerIdsFromPlanTree(queryBundle.plan_tree)),
+    [queryBundle.plan_tree]
   );
 
   const treeData = useMemo(
-    () => [operatorTimelineRow, rootItem],
-    [operatorTimelineRow, rootItem]
+    () => [injectOperatorTimelineRows(rootItem, workerIdsFromPlanTree)],
+    [rootItem, workerIdsFromPlanTree]
   );
 
-  const selectedPlanId = useAtomValue(selectedPlanIdAtom);
-  const operatorEntries = useMemo(
-    () => operatorsWithActiveSpans(queryBundle, startTime, selectedPlanId),
-    [queryBundle, startTime, selectedPlanId]
-  );
+  /** Operator entries per worker id (for expandable gantt under each worker resource). */
+  const operatorEntriesByWorker = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof operatorsWithActiveSpansForWorker>>();
+    for (const workerId of workerIdsFromPlanTree) {
+      map.set(workerId, operatorsWithActiveSpansForWorker(queryBundle, startTime, workerId));
+    }
+    return map;
+  }, [queryBundle, startTime, workerIdsFromPlanTree]);
 
   const columns = useMemo(() => {
     return [
@@ -154,8 +182,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         render: ({ item }: { item: TreeTableItem; level: number }) =>
           item.type === 'operator-timeline' ? (
             <div className="flex items-center gap-2 py-2 text-foreground">
-              {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
-              <span className="text-sm">Operator timeline</span>
+              {item.icon && <item.icon className="h-4 w-4 shrink-0 rotate-90 scale-x-[-1]" />}
+              <span className="text-xs font-bold">Operators</span>
             </div>
           ) : (
             <ResourceColumn
@@ -186,15 +214,17 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         ),
         render: ({ item }: { item: TreeTableItem }) =>
           item.type === 'operator-timeline' ? (
-            <div
-              className="h-full w-full"
-              style={{ minHeight: DEFAULT_TIMELINE_HEIGHT * 2 }}
-            >
+            <div className="h-full w-full" style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}>
               <OperatorGanttChart
-                operators={operatorEntries}
+                operators={
+                  workerIdFromOperatorTimelineRowId(item.id) != null
+                    ? (operatorEntriesByWorker.get(workerIdFromOperatorTimelineRowId(item.id)!) ??
+                      [])
+                    : []
+                }
                 startTime={startTime}
                 durationSeconds={durationSeconds}
-                height={DEFAULT_TIMELINE_HEIGHT * 2}
+                height={DEFAULT_TIMELINE_HEIGHT * 1.2}
               />
             </div>
           ) : (
@@ -218,7 +248,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     handleZoomChange,
-    operatorEntries,
+    operatorEntriesByWorker,
   ]);
 
   return (

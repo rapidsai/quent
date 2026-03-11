@@ -42,7 +42,10 @@ export function useTimelineChartColors() {
       DATAZOOM_LABEL_BACKGROUND_OPACITY
     );
 
+    const textColor = theme === THEME_DARK ? WHITE : BLACK;
+
     return {
+      textColor,
       timelineMarkupColor,
       gridBorderColor,
       gridBackgroundColor: withOpacity(timelineMarkupColor, GRID_BACKGROUND_OPACITY),

@@ -1,3 +1,10 @@
 export { OperatorGanttChart } from './OperatorGanttChart';
 export type { OperatorActiveSpanEntry } from './types';
-export { operatorsWithActiveSpans, spanToMs } from './utils';
+export {
+  operatorsWithActiveSpans,
+  operatorsWithActiveSpansForWorker,
+  spanToMs,
+  getWorkerIdsFromPlanTree,
+  operatorTimelineRowId,
+  workerIdFromOperatorTimelineRowId,
+} from './utils';

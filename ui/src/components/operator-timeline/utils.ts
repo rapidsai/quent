@@ -1,8 +1,45 @@
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import type { Operator } from '~quent/types/Operator';
+import type { PlanTree } from '~quent/types/PlanTree';
 import type { OperatorActiveSpanEntry } from './types';
 import { nanosToMs } from '@/lib/timeline.utils';
+
+const OPERATOR_TIMELINE_ROW_ID_PREFIX = '__operator_timeline__';
+
+/** Id used for the synthetic operator-timeline row under a worker resource. */
+export function operatorTimelineRowId(workerId: string): string {
+  return `${OPERATOR_TIMELINE_ROW_ID_PREFIX}${workerId}`;
+}
+
+/** Extract workerId from an operator-timeline row id, or null if not an operator-timeline row. */
+export function workerIdFromOperatorTimelineRowId(id: string): string | null {
+  return id.startsWith(OPERATOR_TIMELINE_ROW_ID_PREFIX)
+    ? id.slice(OPERATOR_TIMELINE_ROW_ID_PREFIX.length)
+    : null;
+}
+
+/** Collect all non-null worker ids from plan_tree (recursively). */
+export function getWorkerIdsFromPlanTree(planTree: PlanTree): string[] {
+  const workerIds = new Set<string>();
+  function walk(node: PlanTree) {
+    if (node.worker != null && node.worker !== '') workerIds.add(node.worker);
+    for (const child of node.children ?? []) walk(child);
+  }
+  walk(planTree);
+  return Array.from(workerIds);
+}
+
+/** Collect plan ids for which node.worker === workerId (recursively). */
+export function getPlanIdsForWorker(planTree: PlanTree, workerId: string): string[] {
+  const planIds: string[] = [];
+  function walk(node: PlanTree) {
+    if (node.worker === workerId) planIds.push(node.id);
+    for (const child of node.children ?? []) walk(child);
+  }
+  walk(planTree);
+  return planIds;
+}
 
 /**
  * SpanSec from the API is in seconds relative to query start (epoch).
@@ -35,6 +72,50 @@ export function operatorsWithActiveSpans(
   const sorted = Object.entries(operators)
     .filter((entry): entry is [string, Operator] => entry[1] != null)
     .filter(([, op]) => op.plan_id === planId)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  let rowIndex = 0;
+  for (const [operatorId, op] of sorted) {
+    const span = op.active_span;
+    if (span == null) continue;
+
+    const { startMs, endMs } = spanToMs(span, startTimeNs);
+    const typeName = op.operator_type_name ?? '';
+    const label = op.instance_name ?? op.operator_type_name ?? operatorId.slice(0, 8);
+
+    entries.push({
+      operatorId,
+      label,
+      typeName,
+      startMs,
+      endMs,
+      rowIndex: rowIndex++,
+    });
+  }
+
+  return entries;
+}
+
+/**
+ * Extract operators with active spans for a given worker.
+ * Includes operators whose plan_id is in the set of plan ids for that worker (from plan_tree).
+ * Order is stable (by operator id).
+ */
+export function operatorsWithActiveSpansForWorker(
+  queryBundle: QueryBundle<EntityRef>,
+  startTimeNs: bigint,
+  workerId: string
+): OperatorActiveSpanEntry[] {
+  const operators = queryBundle.entities.operators;
+  if (!operators) return [];
+
+  const planIds = new Set(getPlanIdsForWorker(queryBundle.plan_tree, workerId));
+  if (planIds.size === 0) return [];
+
+  const entries: OperatorActiveSpanEntry[] = [];
+  const sorted = Object.entries(operators)
+    .filter((entry): entry is [string, Operator] => entry[1] != null)
+    .filter(([, op]) => op.plan_id != null && planIds.has(op.plan_id))
     .sort(([a], [b]) => a.localeCompare(b));
 
   let rowIndex = 0;

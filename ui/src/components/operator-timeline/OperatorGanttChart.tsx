@@ -83,8 +83,9 @@ export function OperatorGanttChart({
   height = DEFAULT_HEIGHT,
 }: OperatorGanttChartProps) {
   const store = useStore();
-  const { gridBorderColor, gridBackgroundColor, timelineMarkupColor } = useTimelineChartColors();
-  const barLabelTextColor = timelineMarkupColor;
+  const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
+    useTimelineChartColors();
+  const barLabelTextColor = textColor;
   const zoomRange = useAtomValue(zoomRangeAtom);
   const windowMsRef = useRef(0);
   windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
@@ -203,10 +204,10 @@ export function OperatorGanttChart({
   const gridOptions = useMemo(
     () => ({
       ...TIMELINE_SPACING,
-      top: TIMELINE_SPACING.top + 10,
-      bottom: TIMELINE_SPACING.bottom + 10,
+      top: 0, //TIMELINE_SPACING.top + 10,
+      bottom: 0, //TIMELINE_SPACING.bottom + 10,
       left: TIMELINE_SPACING.left,
-      right: showYScroll ? TIMELINE_SPACING.right + Y_SLIDER_WIDTH : TIMELINE_SPACING.right,
+      right: showYScroll ? TIMELINE_SPACING.right : TIMELINE_SPACING.right,
       width: undefined as number | undefined,
       height: undefined as number | undefined,
       backgroundColor: gridBackgroundColor,
@@ -318,21 +319,6 @@ export function OperatorGanttChart({
         },
         ...(showYScroll
           ? [
-              {
-                type: 'slider' as const,
-                show: true,
-                yAxisIndex: [0],
-                start: 0,
-                end: yAxisZoomEnd,
-                realtime: true,
-                filterMode: 'none' as const,
-                zoomLock: true,
-                moveOnMouseMove: true,
-                zoomOnMouseWheel: true,
-                throttle: 30,
-                right: 2,
-                width: Y_SLIDER_WIDTH - 4,
-              },
               {
                 type: 'inside' as const,
                 yAxisIndex: [0],
