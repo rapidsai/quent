@@ -558,11 +558,18 @@ fn lower_logical(
     }
 }
 
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
+/// Capacity of GPU memory per device in bytes (32 GiB).
+const GPU_MEMORY_CAPACITY: u64 = 32 * 1024 * 1024 * 1024;
+/// Spill GPU→host when GPU memory usage exceeds 80% of capacity.
+const GPU_MEMORY_SPILL_THRESHOLD: f64 = 0.80;
+
+#[derive(Debug)]
 struct Gpu {
     id: Uuid,
     memory: Uuid,
     compute: Uuid,
+    /// Tracks current GPU memory usage in bytes for spill decisions.
+    memory_used: AtomicU64,
 }
 
 impl Gpu {
@@ -571,6 +578,7 @@ impl Gpu {
             id: Uuid::now_v7(),
             memory: Uuid::now_v7(),
             compute: Uuid::now_v7(),
+            memory_used: AtomicU64::new(0),
         }
     }
 }
@@ -580,6 +588,9 @@ struct Batch {
     id: Uuid,
     bytes: u64,
     rows: u64,
+    /// Index into the worker's `gpus` vec if this batch is currently on a GPU.
+    /// `None` means the batch is in host memory.
+    gpu_index: Option<usize>,
 }
 
 /// Capacity of host memory per worker in bytes (2 GiB).
@@ -810,7 +821,7 @@ impl Worker {
         // FileSystemScan: create a batch from disk (heavy I/O).
         // Each scan has a different size distribution derived from its
         // operator ID to simulate data skew across input tables.
-        let input_batch = if operator.kind == Physical::FileSystemScan {
+        let mut input_batch = if operator.kind == Physical::FileSystemScan {
             let batch_id = Uuid::now_v7();
             let skew = (operator.id.as_bytes()[0] % 5) as u64 + 1; // 1-5x scale
             let base_bytes = rng().random_range(1..64) * 1024 * 1024;
@@ -843,6 +854,7 @@ impl Worker {
                 id: batch_id,
                 bytes: batch_bytes,
                 rows: batch_rows,
+                gpu_index: None,
             })
         } else {
             work.input_batch.clone()
@@ -895,6 +907,29 @@ impl Worker {
                     use_thread: thread,
                 },
             );
+            // GPU→host first if batch is on GPU.
+            if let Some(ref mut batch) = input_batch
+                && let Some(gi) = batch.gpu_index
+            {
+                let gpu = &self.gpus[gi];
+                batch_obs.spilling_to_host_memory(
+                    batch.id,
+                    data_batch::SpillingToHostMemory {
+                        use_gpu_to_host_mem: self.gpu_to_host_mem,
+                        use_gpu_to_host_mem_bytes: batch.bytes,
+                    },
+                );
+                sleep_proportional(batch.bytes);
+                gpu.memory_used.fetch_sub(batch.bytes, Ordering::Relaxed);
+                batch_obs.in_host_memory(
+                    batch.id,
+                    data_batch::InHostMemory {
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: batch.bytes,
+                    },
+                );
+                batch.gpu_index = None;
+            }
             if let Some(ref batch) = input_batch {
                 batch_obs.spilling_to_storage(
                     batch.id,
@@ -948,32 +983,43 @@ impl Worker {
             sleep_sometimes_really_long(batch_bytes);
         }
 
-        // Pick GPU if applicable.
-        let gpu = if use_gpu {
-            Some(&self.gpus[rng().random_range(0..self.gpus.len())])
+        // Pick GPU if applicable. Prefer the GPU the batch is already on.
+        let gpu_index = if use_gpu {
+            input_batch
+                .as_ref()
+                .and_then(|b| b.gpu_index)
+                .unwrap_or_else(|| rng().random_range(0..self.gpus.len()))
+                .into()
         } else {
             None
         };
+        let gpu = gpu_index.map(|i: usize| &self.gpus[i]);
 
-        // Move batch to GPU memory before compute.
+        // Move batch to GPU memory before compute (skip if already on GPU).
         if let Some(gpu) = gpu
-            && let Some(ref batch) = input_batch
+            && let Some(ref mut batch) = input_batch
         {
-            batch_obs.loading_to_gpu_memory(
-                batch.id,
-                data_batch::LoadingToGpuMemory {
-                    use_host_mem_to_gpu: self.host_mem_to_gpu,
-                    use_host_mem_to_gpu_bytes: batch.bytes,
-                },
-            );
-            sleep_proportional(batch.bytes);
-            batch_obs.in_gpu_memory(
-                batch.id,
-                data_batch::InGpuMemory {
-                    use_gpu_memory: gpu.memory,
-                    use_gpu_memory_bytes: batch.bytes,
-                },
-            );
+            if batch.gpu_index.is_none() {
+                // Batch is in host memory — transfer to GPU.
+                batch_obs.loading_to_gpu_memory(
+                    batch.id,
+                    data_batch::LoadingToGpuMemory {
+                        use_host_mem_to_gpu: self.host_mem_to_gpu,
+                        use_host_mem_to_gpu_bytes: batch.bytes,
+                    },
+                );
+                sleep_proportional(batch.bytes);
+                gpu.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
+                batch_obs.in_gpu_memory(
+                    batch.id,
+                    data_batch::InGpuMemory {
+                        use_gpu_memory: gpu.memory,
+                        use_gpu_memory_bytes: batch.bytes,
+                    },
+                );
+                batch.gpu_index = gpu_index;
+            }
+            // else: batch already on this GPU, no transfer needed.
         }
 
         // Compute time scales with operator complexity and GPU availability.
@@ -1013,29 +1059,58 @@ impl Worker {
         );
         sleep_proportional(batch_bytes * (compute_multiplier + gpu_multiplier));
 
-        // Move batch back from GPU to host memory.
-        if gpu.is_some()
-            && let Some(ref batch) = input_batch
+        // Only spill GPU→host when GPU memory exceeds threshold.
+        if let Some(gpu) = gpu
+            && let Some(ref mut batch) = input_batch
         {
-            batch_obs.spilling_to_host_memory(
-                batch.id,
-                data_batch::SpillingToHostMemory {
-                    use_gpu_to_host_mem: self.gpu_to_host_mem,
-                    use_gpu_to_host_mem_bytes: batch.bytes,
-                },
-            );
-            sleep_proportional(batch.bytes);
-            batch_obs.in_host_memory(
-                batch.id,
-                data_batch::InHostMemory {
-                    use_host_memory: self.host_memory,
-                    use_host_memory_bytes: batch.bytes,
-                },
-            );
+            let gpu_pressure =
+                gpu.memory_used.load(Ordering::Relaxed) as f64 / GPU_MEMORY_CAPACITY as f64;
+            if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
+                batch_obs.spilling_to_host_memory(
+                    batch.id,
+                    data_batch::SpillingToHostMemory {
+                        use_gpu_to_host_mem: self.gpu_to_host_mem,
+                        use_gpu_to_host_mem_bytes: batch.bytes,
+                    },
+                );
+                sleep_proportional(batch.bytes);
+                gpu.memory_used.fetch_sub(batch.bytes, Ordering::Relaxed);
+                batch_obs.in_host_memory(
+                    batch.id,
+                    data_batch::InHostMemory {
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: batch.bytes,
+                    },
+                );
+                batch.gpu_index = None;
+            }
+            // else: batch stays on GPU for the next operator.
         }
 
-        // Network send.
+        // Network send — must be from host memory.
         if send {
+            if let Some(ref mut batch) = input_batch
+                && let Some(gi) = batch.gpu_index
+            {
+                let gpu = &self.gpus[gi];
+                batch_obs.spilling_to_host_memory(
+                    batch.id,
+                    data_batch::SpillingToHostMemory {
+                        use_gpu_to_host_mem: self.gpu_to_host_mem,
+                        use_gpu_to_host_mem_bytes: batch.bytes,
+                    },
+                );
+                sleep_proportional(batch.bytes);
+                gpu.memory_used.fetch_sub(batch.bytes, Ordering::Relaxed);
+                batch_obs.in_host_memory(
+                    batch.id,
+                    data_batch::InHostMemory {
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: batch.bytes,
+                    },
+                );
+                batch.gpu_index = None;
+            }
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
             for other in other_workers {
                 let link = *engine.network_links.get(&(self.id, *other)).unwrap();
@@ -1075,6 +1150,12 @@ impl Worker {
                     operator.batches_in.fetch_add(1, Ordering::Relaxed);
                     operator.bytes_in.fetch_add(batch.bytes, Ordering::Relaxed);
                     operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
+                    // Release GPU memory if batch was still GPU-resident.
+                    if let Some(gi) = batch.gpu_index {
+                        self.gpus[gi]
+                            .memory_used
+                            .fetch_sub(batch.bytes, Ordering::Relaxed);
+                    }
                     batch_obs.exit(batch.id);
                 }
             }
@@ -1083,6 +1164,12 @@ impl Worker {
                     operator.batches_in.fetch_add(1, Ordering::Relaxed);
                     operator.bytes_in.fetch_add(batch.bytes, Ordering::Relaxed);
                     operator.rows_in.fetch_add(batch.rows, Ordering::Relaxed);
+                    // Release GPU memory for the consumed input batch.
+                    if let Some(gi) = batch.gpu_index {
+                        self.gpus[gi]
+                            .memory_used
+                            .fetch_sub(batch.bytes, Ordering::Relaxed);
+                    }
                     batch_obs.exit(batch.id);
 
                     // Compute output size based on operator semantics.
@@ -1146,18 +1233,36 @@ impl Worker {
                                 operator_id: operator.id,
                             },
                         );
-                        batch_obs.in_host_memory(
-                            output_batch_id,
-                            data_batch::InHostMemory {
-                                use_host_memory: self.host_memory,
-                                use_host_memory_bytes: output_bytes,
-                            },
-                        );
+
+                        // Keep output on GPU if input was GPU-resident.
+                        let output_gpu_index = if let Some(gi) = batch.gpu_index {
+                            let gpu = &self.gpus[gi];
+                            gpu.memory_used
+                                .fetch_add(output_bytes, Ordering::Relaxed);
+                            batch_obs.in_gpu_memory(
+                                output_batch_id,
+                                data_batch::InGpuMemory {
+                                    use_gpu_memory: gpu.memory,
+                                    use_gpu_memory_bytes: output_bytes,
+                                },
+                            );
+                            Some(gi)
+                        } else {
+                            batch_obs.in_host_memory(
+                                output_batch_id,
+                                data_batch::InHostMemory {
+                                    use_host_memory: self.host_memory,
+                                    use_host_memory_bytes: output_bytes,
+                                },
+                            );
+                            None
+                        };
 
                         let output = Batch {
                             id: output_batch_id,
                             bytes: output_bytes,
                             rows: output_rows,
+                            gpu_index: output_gpu_index,
                         };
                         for sender in &work.output_senders {
                             let _ = sender.send(output.clone());
