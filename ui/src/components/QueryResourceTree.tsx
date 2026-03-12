@@ -40,6 +40,7 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+  const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
@@ -72,6 +73,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     rootItem,
     expandedIds,
     selectedTypes,
+    groupFsmFilters: selectedFsmTypes,
     entities,
   });
 
@@ -127,18 +129,30 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item }: { item: TreeTableItem; level: number }) => (
-          <ResourceColumn
-            item={item}
-            selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
-            onTypeChange={(itemId, newType) => {
-              setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-              if (itemId === rootItem.id) {
-                setRootResourceType(newType);
+        render: ({ item }: { item: TreeTableItem; level: number }) => {
+          const selectedType =
+            selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+          const availableFsmTypes = selectedType
+            ? entities.resource_types[selectedType]?.used_by
+            : undefined;
+          return (
+            <ResourceColumn
+              item={item}
+              selectedType={selectedType}
+              onTypeChange={(itemId, newType) => {
+                setSelectedTypes(prev => new Map(prev).set(itemId, newType));
+                if (itemId === rootItem.id) {
+                  setRootResourceType(newType);
+                }
+              }}
+              availableFsmTypes={availableFsmTypes}
+              selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
+              onFsmChange={(itemId, fsmType) =>
+                setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType))
               }
-            }}
-          />
-        ),
+            />
+          );
+        },
       },
       {
         key: 'usage',
@@ -160,6 +174,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             engineId={engineId}
             queryBundle={queryBundle}
             selectedTypes={selectedTypes}
+            selectedFsmTypes={selectedFsmTypes}
             startTime={startTime}
             durationSeconds={durationSeconds}
           />
@@ -171,6 +186,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     durationSeconds,
     rootTimelineData,
     selectedTypes,
+    selectedFsmTypes,
+    entities,
     rootItem,
     engineId,
     queryBundle,

@@ -35,6 +35,7 @@ export function useBulkTimelines({
   rootItem,
   expandedIds,
   selectedTypes,
+  groupFsmFilters,
   entities,
 }: {
   engineId: string;
@@ -42,6 +43,7 @@ export function useBulkTimelines({
   rootItem: TreeTableItem;
   expandedIds: Set<string>;
   selectedTypes: Map<string, string>;
+  groupFsmFilters?: Map<string, string | null>;
   entities: QueryEntities;
 }) {
   const store = useStore();
@@ -67,8 +69,17 @@ export function useBulkTimelines({
   );
 
   const baseVisibleEntries = useMemo(
-    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, bulkConfig),
-    [rootItem, expandedIds, selectedTypes, entities, bulkConfig]
+    () =>
+      collectVisibleEntries(
+        [rootItem],
+        expandedIds,
+        selectedTypes,
+        entities,
+        bulkConfig,
+        null,
+        groupFsmFilters
+      ),
+    [rootItem, expandedIds, selectedTypes, entities, bulkConfig, groupFsmFilters]
   );
   useEffect(() => {
     store.set(visibleEntriesAtom, baseVisibleEntries);
@@ -132,7 +143,14 @@ export function useBulkTimelines({
 
       const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children) {
-        const params = buildBulkParamsForItem(child, selectedTypes, entities, expandConfig);
+        const params = buildBulkParamsForItem(
+          child,
+          selectedTypes,
+          entities,
+          expandConfig,
+          null,
+          groupFsmFilters
+        );
         const resourceTypeName = getResourceTypeName(params);
         const key = timelineCacheKey(child.id, resourceTypeName);
         if (!store.get(timelineDataAtom(key))) {
@@ -191,7 +209,7 @@ export function useBulkTimelines({
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [rootItem, store, selectedTypes, entities, queryClient, engineId, queryId, operatorId]
+    [rootItem, store, selectedTypes, groupFsmFilters, entities, queryClient, engineId, queryId, operatorId]
   );
 
   return { handleZoomChange, handleExpand } as const;

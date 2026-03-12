@@ -11,6 +11,7 @@ type UsageColumnProps = {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
+  selectedFsmTypes?: Map<string, string | null>;
   startTime: bigint;
   durationSeconds: number;
 };
@@ -20,6 +21,7 @@ export function UsageColumn({
   engineId,
   queryBundle,
   selectedTypes,
+  selectedFsmTypes,
   startTime,
   durationSeconds,
 }: UsageColumnProps): React.ReactNode {
@@ -36,7 +38,13 @@ export function UsageColumn({
   const resourceTypeDecl = resourceTypeName
     ? queryBundle.entities.resource_types[resourceTypeName]
     : undefined;
-  const fsmTypeName = resourceTypeDecl?.used_by?.[0];
+  const usedBy = resourceTypeDecl?.used_by;
+  const fsmTypeName =
+    usedBy?.length === 1
+      ? usedBy[0]
+      : resourceType === EntityTypeKey.ResourceGroup
+        ? (selectedFsmTypes?.get(item.id) ?? undefined)
+        : undefined;
   const capacities = resourceTypeDecl?.capacities;
   return (
     <div

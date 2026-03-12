@@ -15,7 +15,6 @@ export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => 
             : ''}
         </span>
       </div>
-      <div className="text-xs text-muted-foreground">{resource.id}</div>
     </div>
   );
 };
