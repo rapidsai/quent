@@ -21,7 +21,7 @@ import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
-const MAX_TIMELINE_BINS = 400;
+const MAX_TIMELINE_BINS = 250;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
 /** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
@@ -43,12 +43,19 @@ export function getLongEntitiesThreshold(windowSeconds: number): number {
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 
+/** Viewport range in seconds (same base as config.span) for slicing displayed bins */
+export interface ViewportSec {
+  start: number;
+  end: number;
+}
+
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
   startTime: bigint,
   capacities?: CapacityDecl[],
-  quantitySpecs?: { [key in string]?: QuantitySpec }
+  quantitySpecs?: { [key in string]?: QuantitySpec },
+  viewportSec?: ViewportSec
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -116,6 +123,40 @@ export function buildBinnedTimelineSeries(
       values: [],
     };
   }
+
+  // Slice to viewport so we display only bins overlapping [viewportSec.start, viewportSec.end]
+  if (viewportSec != null) {
+    const startTimeMs = nanosToMs(startTime);
+    const viewportStartMs = startTimeMs + viewportSec.start * 1_000;
+    const viewportEndMs = startTimeMs + viewportSec.end * 1_000;
+    const startIdx = Math.max(0, Math.floor((viewportStartMs - firstBinMs) / binDurationMs));
+    const endIdx = Math.min(
+      numBinsNumber - 1,
+      Math.ceil((viewportEndMs - firstBinMs) / binDurationMs)
+    );
+    if (startIdx > endIdx) {
+      return {
+        timestamps: [],
+        series: Object.fromEntries(
+          Object.entries(series).map(([k, s]) => [k, { ...s, values: [] as number[] }])
+        ),
+      };
+    }
+    const len = endIdx - startIdx + 1;
+    const slicedTimestamps = new Array<number>(len);
+    for (let i = 0; i < len; i++) {
+      slicedTimestamps[i] = timestamps[startIdx + i];
+    }
+    const slicedSeries: TimelineSeries = {};
+    for (const [name, s] of Object.entries(series)) {
+      slicedSeries[name] = {
+        ...s,
+        values: s.values.slice(startIdx, endIdx + 1),
+      };
+    }
+    return { timestamps: slicedTimestamps, series: slicedSeries };
+  }
+
   return { timestamps, series };
 }
 
