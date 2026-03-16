@@ -28,18 +28,51 @@ export const PALETTES = {
     '#9a60b4', // Purple
     '#ea7ccc', // Pink
   ],
+  /** Muted qualitative palette — light mode */
+  extended: [
+    '#3D9485', // Teal
+    '#B85858', // Coral Red
+    '#4A68AA', // Steel Blue
+    '#B8A85E', // Sand
+    '#9466BB', // Violet
+    '#6BA8C8', // Cyan
+    '#B87A44', // Amber
+    '#6E8C44', // Muted Lime
+    '#808080', // Grey
+  ],
+  /** Qualitative palette — dark mode (muted, lower contrast) */
+  extendedDark: [
+    '#3D9485', // Teal
+    '#B85858', // Coral Red
+    '#4A68AA', // Steel Blue
+    '#B8A85E', // Sand
+    '#9466BB', // Violet
+    '#6BA8C8', // Cyan
+    '#B87A44', // Amber
+    '#6E8C44', // Muted Lime
+    '#808080', // Grey
+  ],
 } as const;
 
 export type PaletteName = keyof typeof PALETTES;
 export type ChartColor = string;
 
 // Current active palette
-let activePalette: PaletteName = 'echarts';
+let activePalette: PaletteName = 'extended';
+
+function isDarkMode(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+}
 
 /**
- * Get the currently active palette.
+ * Get the currently active palette, respecting light/dark mode.
+ * When the active palette is 'extended', automatically switches to
+ * 'extendedDark' in dark mode.
  */
 export function getActivePalette(): readonly string[] {
+  if (activePalette === 'extended' && isDarkMode()) {
+    return PALETTES.extendedDark;
+  }
   return PALETTES[activePalette];
 }
 
@@ -70,43 +103,40 @@ function hashString(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
-// Track color assignments: key -> palette index
+// Cache: key -> palette index
 const colorAssignments = new Map<string, number>();
-// Track which palette indices are in use
+// Track which palette indices are taken
 const usedIndices = new Set<number>();
 
 /**
  * Get a deterministic color for a given key.
- * Uses a hash of the key to select a color, with collision handling to ensure
- * all colors are used before any color is assigned to multiple keys.
+ * Uses a hash to pick a starting index, then probes forward to avoid
+ * collisions so different keys get different colors (until the palette
+ * is exhausted, after which duplicates are allowed).
  */
 export function getColorForKey(key: string): ChartColor {
   const palette = getActivePalette();
 
-  // Return cached assignment if exists
   if (colorAssignments.has(key)) {
     return palette[colorAssignments.get(key)!];
   }
 
-  // Get hash-based starting index
   const hashIndex = hashString(key) % palette.length;
 
-  // If all colors are used, just use the hash index (allow duplicates)
+  // If palette is full, just use the hash index
   if (usedIndices.size >= palette.length) {
     colorAssignments.set(key, hashIndex);
     return palette[hashIndex];
   }
 
-  // Find an available index, starting from hash index and probing forward
+  // Probe forward from hash index to find an unused slot
   let index = hashIndex;
   while (usedIndices.has(index)) {
     index = (index + 1) % palette.length;
   }
 
-  // Assign and mark as used
   colorAssignments.set(key, index);
   usedIndices.add(index);
-
   return palette[index];
 }
 
@@ -148,7 +178,6 @@ export function withOpacity(hex: string, opacity: number): string {
  */
 export function resetColorAssignments(): void {
   colorAssignments.clear();
-  usedIndices.clear();
 }
 
 /**
@@ -285,3 +314,28 @@ export function darkenColor(hex: string, amount: number): string {
 
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';
+
+// --- Operator type colors (canonical mapping matching DAG node CVA variants) ---
+
+const OPERATOR_TYPE_COLORS: Record<string, string> = {
+  source: 'var(--color-blue-500)',
+  scan: 'var(--color-blue-500)',
+  filesystemscan: 'var(--color-blue-500)',
+  join: 'var(--color-purple-500)',
+  joinlocal: 'var(--color-purple-500)',
+  joinpartition: 'var(--color-purple-500)',
+  aggregate: 'var(--color-green-500)',
+  exchange: 'var(--color-orange-500)',
+  output: 'var(--color-red-500)',
+  stage: 'var(--color-indigo-600)',
+  local: 'var(--color-amber-500)',
+  project: 'var(--color-teal-500)',
+  filter: 'var(--color-cyan-500)',
+  sort: 'var(--color-violet-500)',
+  limit: 'var(--color-pink-500)',
+  union: 'var(--color-emerald-500)',
+};
+
+export function operatorTypeColor(type: string): string {
+  return OPERATOR_TYPE_COLORS[type.toLowerCase()] ?? 'var(--color-gray-500)';
+}
