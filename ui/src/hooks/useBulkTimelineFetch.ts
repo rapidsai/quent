@@ -5,7 +5,7 @@ import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import { getResourceTypeName, setOperatorOnEntries } from '@/lib/timeline.utils';
+import { getResourceTypeName, setOperatorOnEntry } from '@/lib/timeline.utils';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
 import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 
@@ -43,7 +43,7 @@ export function buildMergedBulkEntries(
     });
     if (operatorId) {
       const opUuid = crypto.randomUUID();
-      const withOperator = setOperatorOnEntries({ [resourceId]: params }, operatorId)[resourceId];
+      const withOperator = setOperatorOnEntry(params, operatorId);
       entries[opUuid] = withOperator;
       idToMeta.set(opUuid, {
         resourceId,
