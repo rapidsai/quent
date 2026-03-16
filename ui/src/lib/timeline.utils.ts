@@ -176,10 +176,13 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  * Convert long_fsms into a flat array of timeline marks.
  * Each pair of consecutive transitions defines a time range for the state
  * entered by the first transition.
+ * When resourceIdsForFilter is provided, only states that have at least one
+ * usage on one of those resources are included (e.g. hide "queueing" on a resource lane).
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  startTime: bigint
+  startTime: bigint,
+  resourceIdsForFilter?: Set<string> | null
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
@@ -190,12 +193,18 @@ export function buildTimelineMarks(
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
+        if (
+          resourceIdsForFilter != null &&
+          !transition.usages?.some(u => resourceIdsForFilter.has(u.resource))
+        ) {
+          return null;
+        }
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
         return { label, stateName: transition.name, xStart, xEnd };
       })
-      .filter(m => m.xEnd > m.xStart);
+      .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
   });
 
   return marks.length > 0 ? marks : undefined;

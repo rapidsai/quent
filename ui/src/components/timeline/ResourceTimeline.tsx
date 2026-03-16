@@ -167,7 +167,9 @@ export function ResourceTimeline({
       viewport
     );
     const longFsms = getLongFsms(data.data);
-    const timelineMarks = buildTimelineMarks(longFsms, startTime);
+    const filterSet =
+      resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
+    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
