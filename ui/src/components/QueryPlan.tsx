@@ -7,6 +7,8 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
 import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
+import { DAGControls } from '@/components/dag/DAGControls';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -24,6 +26,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
+  const statistics = dagData.nodes.map(n => {
+    return parseCustomStatistics(n.metadata?.rawNode);
+  });
 
   const handlePlanSelect = (item: QueryPlanDataItem | undefined) => {
     if (item) {
@@ -98,6 +103,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+      <div>
+        <DAGControls statistics={statistics} />
+      </div>
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-card flex-shrink-0">
         <Network className="h-4 w-4 text-primary" />
         <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
