@@ -26,7 +26,7 @@ function QueryLayout() {
   return (
     <div className="flex flex-col h-full w-full">
       <div className="shrink-0 border-b px-4 py-1">
-        <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground gap-0">
+        <div className="inline-flex h-9 items-center justify-center bg-muted p-1 text-muted-foreground gap-0">
           <Link
             to="/profile/engine/$engineId/query/$queryId/timeline"
             params={{ engineId, queryId }}

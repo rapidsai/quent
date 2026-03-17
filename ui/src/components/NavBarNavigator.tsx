@@ -50,17 +50,15 @@ export function NavBarNavigator() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const queryIndexMatch = useMatch({
-    from: '/profile/engine/$engineId/query/$queryId/',
-    shouldThrow: false,
-  });
-  const queryNodeMatch = useMatch({
-    from: '/profile/engine/$engineId/query/$queryId/node/$nodeId',
+  // Match the layout route — satisfied by any child route (timeline, operators,
+  // node/$nodeId, index, …) without needing a per-leaf match here.
+  const queryLayoutMatch = useMatch({
+    from: '/profile/engine/$engineId/query/$queryId',
     shouldThrow: false,
   });
 
-  const engineId = queryIndexMatch?.params?.engineId ?? queryNodeMatch?.params?.engineId;
-  const queryId = queryIndexMatch?.params?.queryId ?? queryNodeMatch?.params?.queryId;
+  const engineId = queryLayoutMatch?.params?.engineId;
+  const queryId = queryLayoutMatch?.params?.queryId;
 
   const { data: queryBundle } = useQuery({
     ...queryBundleQueryOptions({ engineId: engineId ?? '', queryId: queryId ?? '' }),
