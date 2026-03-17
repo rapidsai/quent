@@ -10,7 +10,7 @@ import * as echarts from 'echarts/core';
 import type { ComposeOption, EChartsType } from 'echarts/core';
 
 // Charts - only import what you use
-import { LineChart, CustomChart, HeatmapChart } from 'echarts/charts';
+import { LineChart, CustomChart } from 'echarts/charts';
 import type { LineSeriesOption, CustomSeriesOption, HeatmapSeriesOption } from 'echarts/charts';
 
 // Components - only import what you use
@@ -43,7 +43,6 @@ echarts.use([
   // Charts
   LineChart,
   CustomChart,
-  HeatmapChart,
   // Components
   TitleComponent,
   TooltipComponent,
@@ -62,7 +61,6 @@ echarts.use([
 export type EChartsOption = ComposeOption<
   | LineSeriesOption
   | CustomSeriesOption
-  | HeatmapSeriesOption
   | TitleComponentOption
   | TooltipComponentOption
   | GridComponentOption
