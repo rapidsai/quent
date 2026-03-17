@@ -3,7 +3,13 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { PivotTable } from './PivotTable';
 import { cn } from '@/lib/utils';
 import type { IndexKey, AggMode, FlatRow, PivotedRow, HoveredStatInfo } from './types';
-import { buildPivotedRows, formatStatValue, formatStatNumber, getSortValue, gradientBg } from './utils';
+import {
+  buildPivotedRows,
+  formatStatValue,
+  formatStatNumber,
+  getSortValue,
+  gradientBg,
+} from './utils';
 
 interface StatGroupTableProps {
   flatRows: FlatRow[];
@@ -197,7 +203,7 @@ export function StatGroupTable({
           {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
         </th>
       )}
-      renderGroupCell={(row, gk, rowSpan, _col) => {
+      renderGroupCell={(row, gk, rowSpan) => {
         const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
         const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
         const typeColor = getGroupTypeColor?.(gk.key, gk.id);
