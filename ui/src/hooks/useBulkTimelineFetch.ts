@@ -6,8 +6,8 @@ import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import { getResourceTypeName, setOperatorOnEntry } from '@/lib/timeline.utils';
+import type { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
-import { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 
 export interface BulkTimelineIdMeta {
   resourceId: string;
@@ -19,6 +19,27 @@ export interface MergedBulkEntries {
   entries: Record<string, TimelineRequest<TaskFilter>>;
   idToMeta: Map<string, BulkTimelineIdMeta>;
   requestKey: string;
+}
+
+/**
+ * Distributes a bulk timeline response into per-item Jotai atoms.
+ * Skips entries whose status is not 'ok' or whose id has no meta mapping.
+ */
+export function applyBulkTimelineResponse(
+  response: BulkTimelinesResponse,
+  idToMeta: Map<string, BulkTimelineIdMeta>,
+  store: ReturnType<typeof import('jotai').useStore>
+): void {
+  for (const [id, entry] of Object.entries(response.entries)) {
+    if (entry?.status !== 'ok') continue;
+    const meta = idToMeta.get(id);
+    if (!meta) continue;
+    const key = timelineCacheKey(meta.resourceId, meta.resourceTypeName, meta.operatorId);
+    store.set(timelineDataAtom(key), {
+      data: entry.data,
+      config: entry.config,
+    });
+  }
 }
 
 /**
@@ -103,16 +124,7 @@ export function useBulkTimelineFetch({
 
   useEffect(() => {
     if (!data) return;
-    for (const [id, entry] of Object.entries(data.entries)) {
-      if (entry?.status !== 'ok') continue;
-      const meta = idToMeta.get(id);
-      if (!meta) continue;
-      const key = timelineCacheKey(meta.resourceId, meta.resourceTypeName, meta.operatorId);
-      store.set(timelineDataAtom(key), {
-        data: entry.data,
-        config: entry.config,
-      });
-    }
+    applyBulkTimelineResponse(data, idToMeta, store);
   }, [data, store, idToMeta]);
 
   return data;

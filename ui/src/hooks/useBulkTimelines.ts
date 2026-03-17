@@ -23,7 +23,11 @@ import {
   visibleEntriesAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom } from '@/atoms/dag';
-import { useBulkTimelineFetch, buildMergedBulkEntries } from './useBulkTimelineFetch';
+import {
+  useBulkTimelineFetch,
+  buildMergedBulkEntries,
+  applyBulkTimelineResponse,
+} from './useBulkTimelineFetch';
 
 const ZOOM_DEBOUNCE_MS = 150;
 
@@ -145,16 +149,7 @@ export function useBulkTimelines({
           staleTime: DEFAULT_STALE_TIME,
         });
 
-        for (const [id, entry] of Object.entries(response.entries)) {
-          if (entry?.status !== 'ok') continue;
-          const meta = expandIdToMeta.get(id);
-          if (!meta) continue;
-          const key = timelineCacheKey(meta.resourceId, meta.resourceTypeName, meta.operatorId);
-          store.set(timelineDataAtom(key), {
-            data: entry.data,
-            config: entry.config,
-          });
-        }
+        applyBulkTimelineResponse(response, expandIdToMeta, store);
       } catch {
         // Individual ResourceTimeline components will fall back to self-fetch
       }
