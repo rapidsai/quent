@@ -22,12 +22,14 @@ const tabClass = cn(
 const activeTabClass = cn(tabClass, 'bg-background text-foreground shadow');
 
 function QueryLayout() {
+  const { engineId, queryId } = Route.useParams();
   return (
     <div className="flex flex-col h-full w-full">
       <div className="shrink-0 border-b px-4 py-1">
         <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground gap-0">
           <Link
             to="/profile/engine/$engineId/query/$queryId/timeline"
+            params={{ engineId, queryId }}
             className={tabClass}
             activeProps={{ className: activeTabClass }}
           >
@@ -35,6 +37,7 @@ function QueryLayout() {
           </Link>
           <Link
             to="/profile/engine/$engineId/query/$queryId/operators"
+            params={{ engineId, queryId }}
             className={tabClass}
             activeProps={{ className: activeTabClass }}
           >
