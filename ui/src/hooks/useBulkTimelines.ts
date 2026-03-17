@@ -4,7 +4,7 @@ import { useAtomValue, useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
 import type { QueryEntities } from '~quent/types/QueryEntities';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import {
@@ -130,7 +130,7 @@ export function useBulkTimelines({
         end: zoom.end,
       };
 
-      const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
+      const newBaseEntries: Record<string, TimelineRequest<OperatorFilter>> = {};
       for (const child of item.children) {
         const params = buildBulkParamsForItem(child, selectedTypes, entities, expandConfig);
         const resourceTypeName = getResourceTypeName(params);

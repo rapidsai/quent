@@ -29,6 +29,7 @@ use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
 use crate::{
+    data_batch::{DataBatch, DataBatchBuilder},
     task::{Task, TaskBuilder},
     view::SimulatorModelQueryView,
 };
@@ -38,6 +39,7 @@ pub struct SimulatorModel {
     pub(crate) query_engine: InMemoryQueryEngineModel,
     pub(crate) arbitrary_resources: InMemoryResources,
     pub(crate) tasks: HashMap<Uuid, Task>,
+    pub(crate) data_batches: HashMap<Uuid, DataBatch>,
     pub(crate) resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
 }
 
@@ -63,11 +65,12 @@ impl Model for SimulatorModel {
             .contains_key(&entity_id)
         {
             Ok(EntityRef::ResourceGroup(entity_id))
+        } else if self.tasks.contains_key(&entity_id) {
+            Ok(EntityRef::Task(entity_id))
+        } else if self.data_batches.contains_key(&entity_id) {
+            Ok(EntityRef::DataBatch(entity_id))
         } else {
-            self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
-                .ok_or(AnalyzerError::InvalidId(entity_id))
+            Err(AnalyzerError::InvalidId(entity_id))
         }
     }
 
@@ -137,6 +140,19 @@ impl FsmCollection<Task, crate::task::TaskTransition> for SimulatorModel {
 
     fn contains_fsm_type(&self, type_name: &str) -> bool {
         !self.tasks.is_empty() && type_name == "task"
+    }
+}
+
+impl FsmCollection<DataBatch, crate::data_batch::DataBatchTransition> for SimulatorModel {
+    fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a DataBatch> + 'a
+    where
+        DataBatch: 'a,
+    {
+        self.data_batches.values()
+    }
+
+    fn contains_fsm_type(&self, type_name: &str) -> bool {
+        !self.data_batches.is_empty() && type_name == "data_batch"
     }
 }
 
@@ -218,6 +234,9 @@ impl ResourceCollection for SimulatorModel {
 
 impl Using for SimulatorModel {
     fn usages(&self) -> impl Iterator<Item = impl Usage<'_>> {
+        // Note: only returns task usages. Data batch usages are handled
+        // separately in the timeline query paths since Rust's type system
+        // cannot chain iterators with different impl Usage types.
         self.tasks.values().flat_map(|task| task.usages())
     }
 }
@@ -227,6 +246,7 @@ pub struct SimulatorModelBuilder {
     arbitrary_resources: InMemoryResourcesBuilder,
     traces: HashMap<Uuid, RtTraceBuilder>,
     tasks: HashMap<Uuid, TaskBuilder>,
+    data_batches: HashMap<Uuid, DataBatchBuilder>,
 }
 
 impl SimulatorModelBuilder {
@@ -235,6 +255,7 @@ impl SimulatorModelBuilder {
             query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
             arbitrary_resources: InMemoryResourcesBuilder::default(),
             tasks: HashMap::default(),
+            data_batches: HashMap::default(),
             traces: HashMap::default(),
         })
     }
@@ -252,6 +273,14 @@ impl SimulatorModelBuilder {
                     .entry(event.id)
                     .or_insert_with(|| TaskBuilder::try_new(event.id).unwrap());
                 task_builder.push(Event::new(id, timestamp, t));
+                Ok(())
+            }
+            SimulatorEvent::DataBatch(db) => {
+                let builder = self
+                    .data_batches
+                    .entry(event.id)
+                    .or_insert_with(|| DataBatchBuilder::try_new(event.id).unwrap());
+                builder.push(Event::new(id, timestamp, db));
                 Ok(())
             }
             SimulatorEvent::QueryEngineEvent(qe) => {
@@ -308,12 +337,33 @@ impl SimulatorModelBuilder {
             tasks.insert(task_id, task);
         }
 
+        let mut data_batches = HashMap::default();
+        for (batch_id, batch_builder) in self.data_batches.into_iter() {
+            let batch = batch_builder.try_build()?;
+            for usage in batch.usages() {
+                let resource_type_name = resources
+                    .resource(usage.resource_id())?
+                    .type_name()
+                    .to_owned();
+                let set = &mut resources
+                    .resource_types
+                    .get_mut(&resource_type_name)
+                    .unwrap()
+                    .used_by;
+                if !set.contains(batch.type_name()) {
+                    set.insert(batch.type_name().to_owned());
+                }
+            }
+            data_batches.insert(batch_id, batch);
+        }
+
         // Construct the model without group type decls being populated yet, we
         // will populate it based on the resource tree.
         let temp_model = SimulatorModel {
             query_engine,
             arbitrary_resources: resources,
             tasks,
+            data_batches,
             resource_group_types: HashMap::default(),
         };
         let mut resource_group_types = derive_resource_group_types(&temp_model)?;
@@ -337,6 +387,7 @@ impl SimulatorModelBuilder {
             query_engine: temp_model.query_engine,
             arbitrary_resources: temp_model.arbitrary_resources,
             tasks: temp_model.tasks,
+            data_batches: temp_model.data_batches,
             resource_group_types,
         })
     }

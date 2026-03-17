@@ -18,7 +18,7 @@ import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
 const MAX_TIMELINE_BINS = 400;
@@ -195,7 +195,7 @@ export function mergeOverlaySeries(
 }
 
 /** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
-export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefined): string {
+export function getResourceTypeName(params: TimelineRequest<OperatorFilter> | undefined): string {
   if (!params) return '';
   if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
   return '';
@@ -203,10 +203,10 @@ export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefi
 
 /** Clone entries and set operator_id on each TimelineRequest */
 export function setOperatorOnEntries(
-  baseEntries: Record<string, TimelineRequest<TaskFilter>>,
+  baseEntries: Record<string, TimelineRequest<OperatorFilter>>,
   operatorId: string
-): Record<string, TimelineRequest<TaskFilter>> {
-  const result: Record<string, TimelineRequest<TaskFilter>> = {};
+): Record<string, TimelineRequest<OperatorFilter>> {
+  const result: Record<string, TimelineRequest<OperatorFilter>> = {};
   for (const [id, entry] of Object.entries(baseEntries)) {
     if ('ResourceGroup' in entry) {
       result[id] = {
@@ -530,7 +530,7 @@ export function buildBulkParamsForItem(
   entities: QueryEntities,
   config: TimelineConfig,
   operatorId: string | null = null
-): TimelineRequest<TaskFilter> {
+): TimelineRequest<OperatorFilter> {
   const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
   const threshold = getLongEntitiesThreshold(config.end - config.start);
@@ -571,8 +571,8 @@ export function collectVisibleEntries(
   entities: QueryEntities,
   config: TimelineConfig,
   operatorId: string | null = null
-): Record<string, TimelineRequest<TaskFilter>> {
-  const result: Record<string, TimelineRequest<TaskFilter>> = {};
+): Record<string, TimelineRequest<OperatorFilter>> {
+  const result: Record<string, TimelineRequest<OperatorFilter>> = {};
 
   function walk(item: TreeTableItem) {
     result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, config, operatorId);

@@ -22,7 +22,7 @@ use quent_simulator_ui::EntityRef;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use crate::{model::SimulatorModel, task::Task};
+use crate::{data_batch::DataBatch, model::SimulatorModel, task::Task};
 
 /// A view of the simulator model filtered to a specific query
 // TODO(johanpel): figure out a better way to construct these views, or to
@@ -35,6 +35,8 @@ pub(crate) struct SimulatorModelQueryView<'a> {
     resources: HashMap<Uuid, &'a RtResource>,
     resource_groups: HashMap<Uuid, &'a RtResourceGroup>,
     tasks: HashMap<Uuid, &'a Task>,
+    #[allow(dead_code)]
+    data_batches: HashMap<Uuid, &'a DataBatch>,
 }
 
 impl<'a> SimulatorModelQueryView<'a> {
@@ -46,18 +48,31 @@ impl<'a> SimulatorModelQueryView<'a> {
         let query_engine_view =
             InMemoryQueryEngineModelView::try_new(&model.query_engine, query_id)?;
 
-        // Only keep arbitrary groups that reference one of the QE model groups
-        let resource_groups = model
-            .arbitrary_resources
-            .resource_groups
-            .iter()
-            .filter(|(_, v)| {
-                v.parent_group_id
-                    .and_then(|parent| query_engine_view.resource_group(parent).ok())
-                    .is_some()
-            })
-            .map(|(k, v)| (*k, v))
-            .collect::<HashMap<_, _>>();
+        // Keep arbitrary groups that are reachable from QE model groups
+        // (supports nested arbitrary groups).
+        let mut resource_groups: HashMap<Uuid, &RtResourceGroup> = HashMap::default();
+        loop {
+            let mut added = false;
+            for (k, v) in &model.arbitrary_resources.resource_groups {
+                if resource_groups.contains_key(k) {
+                    continue;
+                }
+                let parent_in_qe = v
+                    .parent_group_id
+                    .and_then(|p| query_engine_view.resource_group(p).ok())
+                    .is_some();
+                let parent_in_sim = v
+                    .parent_group_id
+                    .is_some_and(|p| resource_groups.contains_key(&p));
+                if parent_in_qe || parent_in_sim {
+                    resource_groups.insert(*k, v);
+                    added = true;
+                }
+            }
+            if !added {
+                break;
+            }
+        }
 
         let resources = model
             .arbitrary_resources
@@ -88,6 +103,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             resource_groups,
             resources,
             tasks: HashMap::default(),
+            data_batches: HashMap::default(),
         };
 
         result.tasks = model
@@ -99,6 +115,18 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .any(|usage| result.resource(usage.resource_id()).is_ok())
             })
             .collect();
+
+        result.data_batches = model
+            .data_batches
+            .values()
+            .map(|batch| (batch.id(), batch))
+            .filter(|(_, batch)| {
+                batch
+                    .usages()
+                    .any(|usage| result.resource(usage.resource_id()).is_ok())
+            })
+            .collect();
+
         Ok(result)
     }
 }
@@ -165,11 +193,12 @@ impl<'a> Model for SimulatorModelQueryView<'a> {
             Ok(EntityRef::Resource(entity_id))
         } else if self.resource_groups.contains_key(&entity_id) {
             Ok(EntityRef::ResourceGroup(entity_id))
+        } else if self.tasks.contains_key(&entity_id) {
+            Ok(EntityRef::Task(entity_id))
+        } else if self.data_batches.contains_key(&entity_id) {
+            Ok(EntityRef::DataBatch(entity_id))
         } else {
-            self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
-                .ok_or(AnalyzerError::InvalidId(entity_id))
+            Err(AnalyzerError::InvalidId(entity_id))
         }
     }
     fn root(&self) -> AnalyzerResult<&impl ResourceGroup> {

@@ -30,15 +30,17 @@ use quent_analyzer::{
     },
 };
 use quent_simulator_events::SimulatorEvent;
-use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
+use quent_simulator_ui::{EntityRef, OperatorFilter, QueryFilter};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, to_nanosecs, to_secs};
 use uuid::Uuid;
 
 use crate::{
+    data_batch::DataBatch,
     model::{SimulatorModel, SimulatorModelBuilder},
     task::Task,
 };
 
+pub mod data_batch;
 pub mod model;
 pub mod task;
 pub mod view;
@@ -51,7 +53,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
     type EntityRef = EntityRef;
     type TimelineGlobalParams = QueryFilter;
-    type TimelineParams = TaskFilter;
+    type TimelineParams = OperatorFilter;
 
     fn extract_engine(
         engine_id: Uuid,
@@ -107,6 +109,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             resource_types = model.arbitrary_resources.resource_types.len(),
             resource_group_types = model.resource_group_types.len(),
             tasks = model.tasks.len(),
+            data_batches = model.data_batches.len(),
         );
 
         Ok(Self { model })
@@ -166,7 +169,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .collect();
 
         let task_decl = Task::fsm_type_declaration();
-        let fsm_types = [(task_decl.name.clone(), task_decl)].into_iter().collect();
+        let batch_decl = DataBatch::fsm_type_declaration();
+        let fsm_types = [
+            (task_decl.name.clone(), task_decl),
+            (batch_decl.name.clone(), batch_decl),
+        ]
+        .into_iter()
+        .collect();
 
         let entities = QueryEntities {
             engine,
@@ -221,9 +230,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         &self,
         request: SingleTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
     ) -> AnalyzerResult<SingleTimelineResponse> {
-        // TODO(johanpel): we may want to sanity-check whether the requested
-        // resource/group is actually in the resource tree for a given query.
-
         // Calculate this ASAP to help fail quickly.
         let epoch = self
             .query_engine_model()
@@ -231,104 +237,94 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let config = request.entry.config().clone().try_into_binned_span(epoch)?;
         let config_secs = config.try_to_secs_relative(epoch)?;
 
-        match request.entry {
-            TimelineRequest::Resource(req) => {
-                let resource_type = self.model.resource_type_of(req.resource_id)?;
-                let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
-                let task_filter = req.application;
-
-                if req.entity_filter.entity_type_name.is_some() {
-                    let mut builder = ResourceTimelineByKeyBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
-                    // This application only has Task FSM
-                    self.populate_keyed_builder(
-                        &mut builder,
-                        self.entities_filtered(req.entity_filter, task_filter, config.span)?
-                            .filter(|task| {
-                                task.usages()
-                                    .any(|usage| usage.resource_id() == req.resource_id)
-                            }),
-                        |id| id == req.resource_id,
-                    )?;
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
-                    })
-                } else {
-                    let mut builder = ResourceTimelineBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
-
-                    builder.try_extend(
-                        self.entities_filtered(req.entity_filter, task_filter, config.span)?
-                            .flat_map(|task| task.usages())
-                            .filter(|usage| usage.resource_id() == req.resource_id),
-                    )?;
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui(builder.build(), epoch)?,
-                    })
+        // Extract common fields from both request variants.
+        let (resource_type, long_entities_threshold, entity_filter, operator_filter, resource_ids) =
+            match &request.entry {
+                TimelineRequest::Resource(req) => {
+                    let rt = self.model.resource_type_of(req.resource_id)?;
+                    let threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                    let ids: HashSet<Uuid> = std::iter::once(req.resource_id).collect();
+                    (rt, threshold, &req.entity_filter, &req.application, ids)
                 }
-            }
-            TimelineRequest::ResourceGroup(req) => {
-                let resource_type = self.model.resource_type(&req.resource_type_name)?;
-                let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
-
-                // Build the resource tree for this group
-                let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
-                // Collect all leaf resource IDs of the requested type in the tree
-                let resource_ids: HashSet<Uuid> = tree
-                    .iter_leaf_ids()
-                    .filter(|&id| {
-                        self.model
-                            .resource(id)
-                            .ok()
-                            .map(|r| r.type_name() == resource_type.name)
-                            .unwrap_or(false)
-                    })
-                    .collect();
-
-                if req.entity_filter.entity_type_name.is_some() {
-                    let mut builder = ResourceTimelineByKeyBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
-                    self.populate_keyed_builder(
-                        &mut builder,
-                        self.entities_filtered(req.entity_filter, req.app_params, config.span)?
-                            .filter(|task| {
-                                task.usages()
-                                    .any(|usage| resource_ids.contains(&usage.resource_id()))
-                            }),
-                        |id| resource_ids.contains(&id),
-                    )?;
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
-                    })
-                } else {
-                    let mut builder = ResourceTimelineBuilder::try_new(
-                        resource_type,
-                        config,
-                        long_entities_threshold,
-                    )?;
-                    builder.try_extend(
-                        self.entities_filtered(req.entity_filter, req.app_params, config.span)?
-                            .flat_map(|task| task.usages())
-                            .filter(|usage| resource_ids.contains(&usage.resource_id())),
-                    )?;
-                    Ok(SingleTimelineResponse {
-                        config: config_secs,
-                        data: self.timeline_to_ui(builder.build(), epoch)?,
-                    })
+                TimelineRequest::ResourceGroup(req) => {
+                    let rt = self.model.resource_type(&req.resource_type_name)?;
+                    let threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                    let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
+                    let ids: HashSet<Uuid> = tree
+                        .iter_leaf_ids()
+                        .filter(|&id| {
+                            self.model
+                                .resource(id)
+                                .ok()
+                                .map(|r| r.type_name() == rt.name)
+                                .unwrap_or(false)
+                        })
+                        .collect();
+                    (rt, threshold, &req.entity_filter, &req.app_params, ids)
                 }
+            };
+
+        let used_by = &resource_type.used_by;
+        let matches_resource = |id: Uuid| resource_ids.contains(&id);
+
+        if entity_filter.entity_type_name.is_some() {
+            let mut builder = ResourceTimelineByKeyBuilder::try_new(
+                resource_type,
+                config,
+                long_entities_threshold,
+            )?;
+            if used_by.contains("task")
+                && let Some(tasks) =
+                    self.tasks_filtered(entity_filter, operator_filter, config.span)
+            {
+                self.populate_keyed_builder(
+                    &mut builder,
+                    tasks.filter(|task| task.usages().any(|u| matches_resource(u.resource_id()))),
+                    matches_resource,
+                )?;
             }
+            if used_by.contains("data_batch")
+                && let Some(batches) =
+                    self.data_batches_filtered(entity_filter, operator_filter, config.span)
+            {
+                self.populate_keyed_builder_batches(
+                    &mut builder,
+                    batches
+                        .filter(|batch| batch.usages().any(|u| matches_resource(u.resource_id()))),
+                    matches_resource,
+                )?;
+            }
+            Ok(SingleTimelineResponse {
+                config: config_secs,
+                data: self.timeline_to_ui_keyed(builder.build(), epoch)?,
+            })
+        } else {
+            let mut builder =
+                ResourceTimelineBuilder::try_new(resource_type, config, long_entities_threshold)?;
+            if used_by.contains("task")
+                && let Some(tasks) =
+                    self.tasks_filtered(entity_filter, operator_filter, config.span)
+            {
+                builder.try_extend(
+                    tasks
+                        .flat_map(|task| task.usages())
+                        .filter(|u| matches_resource(u.resource_id())),
+                )?;
+            }
+            if used_by.contains("data_batch")
+                && let Some(batches) =
+                    self.data_batches_filtered(entity_filter, operator_filter, config.span)
+            {
+                builder.try_extend(
+                    batches
+                        .flat_map(|batch| batch.usages())
+                        .filter(|u| matches_resource(u.resource_id())),
+                )?;
+            }
+            Ok(SingleTimelineResponse {
+                config: config_secs,
+                data: self.timeline_to_ui(builder.build(), epoch)?,
+            })
         }
     }
 
@@ -351,16 +347,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // each bulk entry. After populating this, we'll build a reverse index,
         // that maps a resource_id to a list of indices in these vecs, for which
         // that resource's usages are relevant.
-        let mut plain_builders: Vec<(String, ResourceTimelineBuilder, HashSet<Uuid>, TaskFilter)> =
+        let mut plain_builders: Vec<BulkBuilderEntry<ResourceTimelineBuilder>> = Vec::new();
+        let mut per_state_builders: Vec<BulkBuilderEntry<ResourceTimelineByKeyBuilder<&str>>> =
             Vec::new();
-
-        // Prepare them also for keyed builders (building by state).
-        let mut per_state_builders: Vec<(
-            String,
-            ResourceTimelineByKeyBuilder<&str>,
-            HashSet<Uuid>,
-            TaskFilter,
-        )> = Vec::new();
 
         for (entry_id, entry) in request.entries {
             let entry_config = entry.config().clone().try_into_binned_span(epoch)?;
@@ -368,31 +357,47 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 resource_type,
                 resource_id_filter,
                 entity_filter,
-                task_filter,
+                operator_filter,
                 long_entities_threshold,
             } = self.try_prepare_bulk_entry(entry, &resource_tree)?;
+            // Determine which entity types this builder needs based on
+            // the resource's used_by and the requested entity_type_name filter.
+            let wants_tasks = resource_type.used_by.contains("task")
+                && entity_filter
+                    .entity_type_name
+                    .as_deref()
+                    .is_none_or(|n| n == "task");
+            let wants_batches = resource_type.used_by.contains("data_batch")
+                && entity_filter
+                    .entity_type_name
+                    .as_deref()
+                    .is_none_or(|n| n == "data_batch");
             if entity_filter.entity_type_name.is_some() {
-                per_state_builders.push((
+                per_state_builders.push(BulkBuilderEntry {
                     entry_id,
-                    ResourceTimelineByKeyBuilder::try_new(
+                    builder: ResourceTimelineByKeyBuilder::try_new(
                         resource_type,
                         entry_config,
                         long_entities_threshold,
                     )?,
-                    resource_id_filter,
-                    task_filter,
-                ));
+                    resource_ids: resource_id_filter,
+                    operator_filter,
+                    wants_tasks,
+                    wants_batches,
+                });
             } else {
-                plain_builders.push((
+                plain_builders.push(BulkBuilderEntry {
                     entry_id,
-                    ResourceTimelineBuilder::try_new(
+                    builder: ResourceTimelineBuilder::try_new(
                         resource_type,
                         entry_config,
                         long_entities_threshold,
                     )?,
-                    resource_id_filter,
-                    task_filter,
-                ));
+                    resource_ids: resource_id_filter,
+                    operator_filter,
+                    wants_tasks,
+                    wants_batches,
+                });
             }
         }
 
@@ -408,7 +413,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .enumerate()
             .flat_map(|(builders_index, builder)| {
                 builder
-                    .2
+                    .resource_ids
                     .iter()
                     .map(move |&resource_id| (resource_id, builders_index))
             })
@@ -424,7 +429,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .enumerate()
             .flat_map(|(builders_index, builder)| {
                 builder
-                    .2
+                    .resource_ids
                     .iter()
                     .map(move |&resource_id| (resource_id, builders_index))
             })
@@ -437,39 +442,87 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             );
 
         // Iterate over all usages once and push any usages of resources in our
-        // lookup table to their respective builders. For now we only have
-        // tasks.
-        for task in self.model.tasks.values() {
-            let task_operator_id = task.operator_id();
-            for usage in task.usages() {
-                let resource_id = usage.resource_id();
-                if let Some(builder_indices) = plain_index.get(&resource_id) {
-                    for &builder_idx in builder_indices {
-                        let builder = &mut plain_builders[builder_idx];
-                        if builder
-                            .3
-                            .operator_id
-                            .is_none_or(|op| task_operator_id == Some(op))
-                        {
-                            plain_builders[builder_idx].1.try_push(&usage)?;
+        // lookup table to their respective builders.
+        let any_wants_tasks = plain_builders.iter().any(|b| b.wants_tasks)
+            || per_state_builders.iter().any(|b| b.wants_tasks);
+        if any_wants_tasks {
+            for task in self.model.tasks.values() {
+                let task_operator_id = task.operator_id();
+                for usage in task.usages() {
+                    let resource_id = usage.resource_id();
+                    if let Some(builder_indices) = plain_index.get(&resource_id) {
+                        for &builder_idx in builder_indices {
+                            let entry = &plain_builders[builder_idx];
+                            if entry.wants_tasks
+                                && entry
+                                    .operator_filter
+                                    .operator_id
+                                    .is_none_or(|op| task_operator_id == Some(op))
+                            {
+                                plain_builders[builder_idx].builder.try_push(&usage)?;
+                            }
+                        }
+                    }
+                }
+
+                for (state_name, usage) in task.usages_with_state_names() {
+                    let resource_id = usage.resource_id();
+                    if let Some(builder_indices) = per_state_index.get(&resource_id) {
+                        for &builder_idx in builder_indices {
+                            let entry = &per_state_builders[builder_idx];
+                            if entry.wants_tasks
+                                && entry
+                                    .operator_filter
+                                    .operator_id
+                                    .is_none_or(|op| task_operator_id == Some(op))
+                            {
+                                per_state_builders[builder_idx]
+                                    .builder
+                                    .try_push(state_name, &usage)?;
+                            }
                         }
                     }
                 }
             }
+        }
 
-            for (state_name, usage) in task.usages_with_state_names() {
-                let resource_id = usage.resource_id();
-                if let Some(builder_indices) = per_state_index.get(&resource_id) {
-                    for &builder_idx in builder_indices {
-                        let builder = &mut per_state_builders[builder_idx];
-                        if builder
-                            .3
-                            .operator_id
-                            .is_none_or(|op| task_operator_id == Some(op))
-                        {
-                            per_state_builders[builder_idx]
-                                .1
-                                .try_push(state_name, &usage)?;
+        let any_wants_batches = plain_builders.iter().any(|b| b.wants_batches)
+            || per_state_builders.iter().any(|b| b.wants_batches);
+        if any_wants_batches {
+            for batch in self.model.data_batches.values() {
+                let batch_operator_id = batch.operator_id();
+                for usage in batch.usages() {
+                    let resource_id = usage.resource_id();
+                    if let Some(builder_indices) = plain_index.get(&resource_id) {
+                        for &builder_idx in builder_indices {
+                            let entry = &plain_builders[builder_idx];
+                            if entry.wants_batches
+                                && entry
+                                    .operator_filter
+                                    .operator_id
+                                    .is_none_or(|op| batch_operator_id == Some(op))
+                            {
+                                plain_builders[builder_idx].builder.try_push(&usage)?;
+                            }
+                        }
+                    }
+                }
+
+                for (state_name, usage) in batch.usages_with_state_names() {
+                    let resource_id = usage.resource_id();
+                    if let Some(builder_indices) = per_state_index.get(&resource_id) {
+                        for &builder_idx in builder_indices {
+                            let entry = &per_state_builders[builder_idx];
+                            if entry.wants_batches
+                                && entry
+                                    .operator_filter
+                                    .operator_id
+                                    .is_none_or(|op| batch_operator_id == Some(op))
+                            {
+                                per_state_builders[builder_idx]
+                                    .builder
+                                    .try_push(state_name, &usage)?;
+                            }
                         }
                     }
                 }
@@ -478,11 +531,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         // Collect results for all requests.
         let mut entries = std::collections::HashMap::default();
-        for (entry_id, builder, _, _) in plain_builders {
-            let built = builder.build();
+        for entry in plain_builders {
+            let built = entry.builder.build();
             let config = built.config.try_to_secs_relative(epoch)?;
             entries.insert(
-                entry_id,
+                entry.entry_id,
                 BulkTimelinesResponseEntry::Ok {
                     message: String::new(),
                     config,
@@ -490,11 +543,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 },
             );
         }
-        for (key, builder, _, _) in per_state_builders {
-            let built = builder.build();
+        for entry in per_state_builders {
+            let built = entry.builder.build();
             let config = built.config.try_to_secs_relative(epoch)?;
             entries.insert(
-                key,
+                entry.entry_id,
                 BulkTimelinesResponseEntry::Ok {
                     message: String::new(),
                     config,
@@ -508,34 +561,52 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 }
 
 impl SimulatorUiAnalyzer {
-    /// Return an iterator over all tasks, filtered by time window and operator id.
-    fn entities_filtered(
+    /// Return an iterator over tasks, filtered by entity type, time window and operator id.
+    fn tasks_filtered(
         &self,
-        entity_filter: EntityFilter,
-        task_filter: TaskFilter,
+        entity_filter: &EntityFilter,
+        operator_filter: &OperatorFilter,
         time_window: SpanNanoSec,
-    ) -> AnalyzerResult<Box<dyn Iterator<Item = &Task> + '_>> {
-        if let Some(entity_type_name) = entity_filter.entity_type_name {
-            match entity_type_name.as_str() {
-                "task" => Ok(Box::new(self.model.tasks.values().filter(move |task| {
-                    task_filter
-                        .operator_id
-                        .is_none_or(|op| task.operator_id() == Some(op))
-                        && task.span().is_ok_and(|s| s.intersects(&time_window))
-                }))),
-                _ => Err(AnalyzerError::InvalidArgument(format!(
-                    "{} is not a known entity type in this model",
-                    entity_type_name
-                ))),
-            }
-        } else {
-            Ok(Box::new(self.model.tasks.values().filter(move |task| {
-                task_filter
-                    .operator_id
-                    .is_none_or(|op| task.operator_id() == Some(op))
-                    && task.span().is_ok_and(|s| s.intersects(&time_window))
-            })))
+    ) -> Option<Box<dyn Iterator<Item = &Task> + '_>> {
+        let exclude = entity_filter
+            .entity_type_name
+            .as_ref()
+            .is_some_and(|n| n != "task");
+        if exclude {
+            return None;
         }
+        let operator_filter = operator_filter.clone();
+        Some(Box::new(self.model.tasks.values().filter(move |task| {
+            operator_filter
+                .operator_id
+                .is_none_or(|op| task.operator_id() == Some(op))
+                && task.span().is_ok_and(|s| s.intersects(&time_window))
+        })))
+    }
+
+    /// Return an iterator over data batches, filtered by entity type, time window and operator id.
+    fn data_batches_filtered(
+        &self,
+        entity_filter: &EntityFilter,
+        operator_filter: &OperatorFilter,
+        time_window: SpanNanoSec,
+    ) -> Option<Box<dyn Iterator<Item = &DataBatch> + '_>> {
+        let exclude = entity_filter
+            .entity_type_name
+            .as_ref()
+            .is_some_and(|n| n != "data_batch");
+        if exclude {
+            return None;
+        }
+        let operator_filter = operator_filter.clone();
+        Some(Box::new(self.model.data_batches.values().filter(
+            move |batch| {
+                operator_filter
+                    .operator_id
+                    .is_none_or(|op| batch.operator_id() == Some(op))
+                    && batch.span().is_ok_and(|s| s.intersects(&time_window))
+            },
+        )))
     }
 
     /// Given a TimelineRequest figure out what are:
@@ -546,7 +617,7 @@ impl SimulatorUiAnalyzer {
     /// - What the threshold is for long entities.
     fn try_prepare_bulk_entry<'a>(
         &'a self,
-        request: TimelineRequest<TaskFilter>,
+        request: TimelineRequest<OperatorFilter>,
         tree: &ResourceTreeNode,
     ) -> AnalyzerResult<BulkEntryPrep<'a>> {
         Ok(match request {
@@ -554,7 +625,7 @@ impl SimulatorUiAnalyzer {
                 resource_type: self.model.resource_type_of(r.resource_id)?,
                 resource_id_filter: [r.resource_id].into_iter().collect(),
                 entity_filter: r.entity_filter,
-                task_filter: r.application,
+                operator_filter: r.application,
                 long_entities_threshold: r.long_entities_threshold_s.map(to_nanosecs),
             },
             TimelineRequest::ResourceGroup(rg) => {
@@ -575,7 +646,7 @@ impl SimulatorUiAnalyzer {
                     resource_type,
                     resource_id_filter: resource_ids,
                     entity_filter: rg.entity_filter,
-                    task_filter: rg.app_params,
+                    operator_filter: rg.app_params,
                     long_entities_threshold: rg.long_entities_threshold_s.map(to_nanosecs),
                 }
             }
@@ -599,8 +670,25 @@ impl SimulatorUiAnalyzer {
         Ok(())
     }
 
+    /// Populate a keyed resource timeline builder with data batches.
+    fn populate_keyed_builder_batches<'a>(
+        &self,
+        builder: &mut ResourceTimelineByKeyBuilder<'a, &'a str>,
+        batches: impl Iterator<Item = &'a DataBatch>,
+        resource_filter: impl Fn(Uuid) -> bool,
+    ) -> AnalyzerResult<()> {
+        for batch in batches {
+            for (state_name, usage) in batch.usages_with_state_names() {
+                if resource_filter(usage.resource_id()) {
+                    builder.try_push(state_name, &usage)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Turn a list of entity ids into UI-compatible FSM data.
-    fn task_entities_to_ui_fsm(
+    fn entities_to_ui_fsm(
         &self,
         entity_ids: &[Uuid],
         epoch: TimeUnixNanoSec,
@@ -612,6 +700,12 @@ impl SimulatorUiAnalyzer {
                     .tasks
                     .get(&id)
                     .map(|task| task.try_to_ui_fsm(epoch))
+                    .or_else(|| {
+                        self.model
+                            .data_batches
+                            .get(&id)
+                            .map(|batch| batch.try_to_ui_fsm(epoch))
+                    })
             })
             .collect()
     }
@@ -628,7 +722,7 @@ impl SimulatorUiAnalyzer {
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
+        let long_fsms = self.entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
             config,
             capacities_values,
@@ -650,7 +744,7 @@ impl SimulatorUiAnalyzer {
                 .or_insert_with(StdHashMap::new)
                 .insert(state_name.to_owned(), values);
         }
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
+        let long_fsms = self.entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {
                 config,
@@ -662,10 +756,19 @@ impl SimulatorUiAnalyzer {
 }
 
 /// Helper struct to build bulk timeline responses.
+struct BulkBuilderEntry<B> {
+    entry_id: String,
+    builder: B,
+    resource_ids: HashSet<Uuid>,
+    operator_filter: OperatorFilter,
+    wants_tasks: bool,
+    wants_batches: bool,
+}
+
 struct BulkEntryPrep<'a> {
     resource_type: &'a ResourceTypeDecl,
     resource_id_filter: HashSet<Uuid>,
     entity_filter: EntityFilter,
-    task_filter: TaskFilter,
+    operator_filter: OperatorFilter,
     long_entities_threshold: Option<TimeNanoSec>,
 }

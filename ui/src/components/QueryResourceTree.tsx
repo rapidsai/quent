@@ -15,7 +15,7 @@ import type { EntityRef } from '~quent/types/EntityRef';
 import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
-import type { TaskFilter } from '~quent/types/TaskFilter';
+import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
@@ -94,7 +94,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
       rootResourceType,
     ],
     queryFn: () => {
-      const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
+      const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,

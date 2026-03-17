@@ -18,6 +18,7 @@ pub enum EntityRef {
     Resource(Uuid),
     ResourceGroup(Uuid),
     Task(Uuid),
+    DataBatch(Uuid),
 }
 
 impl EntityId for EntityRef {
@@ -25,12 +26,12 @@ impl EntityId for EntityRef {
         !matches!(self, EntityRef::Resource(_))
     }
     fn is_resource_group(&self) -> bool {
-        !matches!(self, EntityRef::Task(_))
+        !matches!(self, EntityRef::Task(_) | EntityRef::DataBatch(_))
     }
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
-pub struct TaskFilter {
+pub struct OperatorFilter {
     pub operator_id: Option<Uuid>,
 }
 

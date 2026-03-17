@@ -89,44 +89,49 @@ impl Transition for TaskTransition {
 fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
     match data {
         TaskTransitionData::Queueing(_) => SmallVec::new(),
-        TaskTransitionData::Computing(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread,
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_memory,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
-            },
-        ],
+        TaskTransitionData::Computing(data) => {
+            let mut usages = smallvec![
+                TaskUsage {
+                    resource_id: data.use_thread,
+                    capacities: smallvec![CapacityValue::new("unit", 1)],
+                },
+                TaskUsage {
+                    resource_id: data.use_host_memory,
+                    capacities: smallvec![CapacityValue::new("bytes", data.use_host_memory_bytes)],
+                },
+            ];
+            if !data.use_gpu_compute.is_nil() {
+                usages.push(TaskUsage {
+                    resource_id: data.use_gpu_compute,
+                    capacities: smallvec![CapacityValue::new("unit", 1)],
+                });
+            }
+            if !data.use_gpu_memory.is_nil() {
+                usages.push(TaskUsage {
+                    resource_id: data.use_gpu_memory,
+                    capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_memory_bytes)],
+                });
+            }
+            usages
+        }
         TaskTransitionData::Loading(data) => smallvec![
             TaskUsage {
                 resource_id: data.use_thread,
                 capacities: smallvec![CapacityValue::new("unit", 1)],
             },
             TaskUsage {
-                resource_id: data.use_fs_to_mem,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_mem_bytes)],
-            },
-            TaskUsage {
-                resource_id: data.use_memory,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+                resource_id: data.use_host_memory,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_host_memory_bytes)],
             },
         ],
         TaskTransitionData::Allocating(data) => smallvec![TaskUsage {
             resource_id: data.use_thread,
             capacities: smallvec![CapacityValue::new("unit", 1)],
         }],
-        TaskTransitionData::Spilling(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread,
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_mem_to_fs,
-                capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_fs_bytes)],
-            },
-        ],
+        TaskTransitionData::Spilling(data) => smallvec![TaskUsage {
+            resource_id: data.use_thread,
+            capacities: smallvec![CapacityValue::new("unit", 1)],
+        }],
         TaskTransitionData::Sending(data) => smallvec![
             TaskUsage {
                 resource_id: data.use_thread,
@@ -323,15 +328,16 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "computing".to_string(),
-                usages: vec!["thread".to_string(), "memory".to_string()],
+                usages: vec![
+                    "thread".to_string(),
+                    "host_memory".to_string(),
+                    "gpu_compute".to_string(),
+                    "gpu_memory".to_string(),
+                ],
             },
             FsmStateTypeDecl {
                 name: "loading".to_string(),
-                usages: vec![
-                    "thread".to_string(),
-                    "fs_to_mem".to_string(),
-                    "memory".to_string(),
-                ],
+                usages: vec!["thread".to_string(), "host_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "allocating".to_string(),
@@ -339,7 +345,7 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "spilling".to_string(),
-                usages: vec!["thread".to_string(), "mem_to_fs".to_string()],
+                usages: vec!["thread".to_string()],
             },
             FsmStateTypeDecl {
                 name: "sending".to_string(),
@@ -350,12 +356,6 @@ impl FsmTypeDeclaration for Task {
                 usages: vec![],
             },
         ];
-
-        //                          +------------------------+
-        //                          |                        v
-        // -> queuing -> allocating +----------------+   computing +---> exit
-        //                          |                v       ^     v      ^
-        //                          +-> spilling -> loading -+   sending -+
 
         let transitions = vec![
             FsmTransitionDecl::Entry("queueing".to_string()),
