@@ -36,15 +36,17 @@ type TreeTableRenderItemParams = {
 const rowSurfaceClasses =
   'relative cursor-pointer transition-colors hover:bg-secondary/10 data-[selected=true]:bg-secondary/70';
 
-// Tree-table specific AccordionTrigger with level-based positioning
+// Tree-table specific AccordionTrigger with level-based positioning.
+// Rendered as a <div> via asChild to avoid nesting <button> inside <button>
+// (the column content may contain interactive controls like Select).
 const AccordionTrigger = React.forwardRef<
-  React.ElementRef<typeof AccordionPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> & {
+  HTMLDivElement,
+  Omit<React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>, 'asChild'> & {
     level?: number;
     isSelected?: boolean;
     isOpen?: boolean;
   }
->(({ className, children, level = 0, isOpen, ...props }, ref) => {
+>(({ className, children, level = 0, isOpen, isSelected: _isSelected, ...props }, ref) => {
   const chevronLeft = 10 + level * 20;
 
   const chevronAttr = isOpen ? 'true' : 'false';
@@ -52,24 +54,26 @@ const AccordionTrigger = React.forwardRef<
 
   return (
     <AccordionPrimitive.Header className="w-full relative">
-      <AccordionPrimitive.Trigger
-        ref={ref}
-        className={cn(
-          `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative outline-none ${rowSurfaceClasses}`,
-          className
-        )}
-        {...props}
-      >
-        <div className="w-2.5 shrink-0" />
-        <ChevronRight
-          className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
-          data-open={chevronAttr}
-          style={{
-            left: `${chevronLeft}px`,
-            transform: chevronTransform,
-          }}
-        />
-        <div className="ml-6 flex-1 min-w-0 overflow-hidden">{children}</div>
+      <AccordionPrimitive.Trigger asChild {...props}>
+        <div
+          ref={ref}
+          className={cn(
+            `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative outline-none ${rowSurfaceClasses}`,
+            className
+          )}
+          tabIndex={0}
+        >
+          <div className="w-2.5 shrink-0" />
+          <ChevronRight
+            className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
+            data-open={chevronAttr}
+            style={{
+              left: `${chevronLeft}px`,
+              transform: chevronTransform,
+            }}
+          />
+          <div className="ml-6 flex-1 min-w-0 overflow-hidden">{children}</div>
+        </div>
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   );

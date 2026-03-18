@@ -130,8 +130,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         widthIndex: 0,
         isFirst: true,
         render: ({ item }: { item: TreeTableItem; level: number }) => {
-          const selectedType =
-            selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
           const availableFsmTypes = selectedType
             ? entities.resource_types[selectedType]?.used_by
             : undefined;
