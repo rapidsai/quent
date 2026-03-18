@@ -1,11 +1,19 @@
-import { memo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { cn } from '@/lib/utils';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
+import { useAtomValue, useSetAtom } from 'jotai';
+import {
+  selectedNodeIdsAtom,
+  hoveredOperatorIdAtom,
+  hoveredOperatorInfoAtom,
+  hoveredStatAtom,
+  hoveredOperatorTypeAtom,
+  highlightedNodeIdsAtom,
+} from '@/atoms/dag';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -113,11 +121,87 @@ const validOperationTypes: Set<string> = new Set([
 function resolveOperationType(type: string): OperationType {
   return (validOperationTypes.has(type) ? type : 'other') as OperationType;
 }
+/** Same red gradient as the table cells, but with higher alpha for node backgrounds */
+const GRADIENT_COLOR: [number, number, number] = [239, 68, 68]; // red-500
+function heatmapBg(t: number): string {
+  const alpha = 0.1 + t * 0.55; // 0.1 at low → 0.65 at high
+  return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
+}
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
+  const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
+  const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
+  const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
+  const hoveredStat = useAtomValue(hoveredStatAtom);
+  const hoveredOpType = useAtomValue(hoveredOperatorTypeAtom);
+  const highlightedNodeIds = useAtomValue(highlightedNodeIdsAtom);
+  const operatorId = data.metadata?.rawNode?.id ?? '';
+  const operatorTypeName = data.metadata?.rawNode?.operator_type_name ?? data.operationType;
+  const isSelected = selectedNodeIds.has(operatorId);
+  const isHovered = hoveredOperatorId === operatorId && operatorId !== '';
+  const isTypeHovered =
+    hoveredOpType !== null &&
+    hoveredOpType.toLowerCase().split(', ').includes(operatorTypeName.toLowerCase());
+  const isHighlighted = highlightedNodeIds !== null && highlightedNodeIds.has(operatorId);
+  const hasSelection = selectedNodeIds.size > 0;
+  const isDimmed = hasSelection && !isSelected;
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+
+  const heatmapColor = useMemo(() => {
+    if (!hoveredStat) return undefined;
+    const v = hoveredStat.values.get(operatorId);
+    if (v === undefined) return undefined;
+    const range = hoveredStat.max - hoveredStat.min;
+    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    return heatmapBg(t);
+  }, [hoveredStat, operatorId]);
+
+  const nodeOpacity = useMemo(() => {
+    if (hoveredStat) return hoveredStat.values.has(operatorId) ? 1 : 0.2;
+    if (highlightedNodeIds !== null && !isHighlighted) return 0.25;
+    if (hoveredOpType !== null && !isTypeHovered) return 0.25;
+    if (hoveredOperatorId !== null && !isHovered) return 0.25;
+    if (isDimmed) return 0.3;
+    return 1;
+  }, [
+    hoveredStat,
+    operatorId,
+    highlightedNodeIds,
+    isHighlighted,
+    hoveredOpType,
+    isTypeHovered,
+    hoveredOperatorId,
+    isHovered,
+    isDimmed,
+  ]);
+
+  const isActiveHighlight = (isHovered || isTypeHovered || isHighlighted) && !isSelected;
+
+  const onMouseEnter = useCallback(() => {
+    if (operatorId) {
+      setHoveredOperatorId(operatorId);
+      setHoveredOperatorInfo({
+        nodeId: data.nodeId,
+        label: data.label,
+        operationType: data.metadata?.rawNode?.operator_type_name ?? data.operationType,
+        stats: statistics,
+      });
+    }
+  }, [
+    operatorId,
+    setHoveredOperatorId,
+    setHoveredOperatorInfo,
+    data.nodeId,
+    data.label,
+    data.metadata?.rawNode?.operator_type_name,
+    data.operationType,
+    statistics,
+  ]);
+  const onMouseLeave = useCallback(() => {
+    setHoveredOperatorId(prev => (prev === operatorId ? null : prev));
+    setHoveredOperatorInfo(prev => (prev?.nodeId === data.nodeId ? null : prev));
+  }, [operatorId, setHoveredOperatorId, setHoveredOperatorInfo, data.nodeId]);
 
   return (
     <OperatorStatisticsPopup
@@ -127,11 +211,22 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       operationType={data.operationType}
     >
       <div
-        className={nodeVariants({
-          operationType: resolveOperationType(data.operationType),
-          selected: isSelected,
-        })}
-        style={{ zIndex: 10 }}
+        className={cn(
+          nodeVariants({
+            operationType: resolveOperationType(data.operationType),
+            selected: isSelected || isHovered || isTypeHovered || isHighlighted,
+          }),
+          isSelected && 'border-3 scale-110',
+          isActiveHighlight && 'ring-2 ring-primary/50'
+        )}
+        style={{
+          zIndex: 10,
+          opacity: nodeOpacity,
+          transition: 'opacity 150, transform 150, background-color 150, border-color 150',
+          ...(heatmapColor && { backgroundColor: heatmapColor, borderColor: heatmapColor }),
+        }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
       >
         {data.hasIncoming && (
           <Handle
