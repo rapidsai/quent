@@ -117,21 +117,31 @@ function resolveOperationType(type: string): OperationType {
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
+  const hasSelection = selectedNodeIds.size > 0;
+  const isDimmed = hasSelection && !isSelected;
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
 
   const nodeContent = (
     <div
-      className={nodeVariants({
+      className={`${nodeVariants({
         operationType: resolveOperationType(data.operationType),
         selected: isSelected,
-      })}
-      style={{ zIndex: 10 }}
+      })} ${isSelected ? 'border-2 scale-110' : ''}`}
+      style={{
+        zIndex: 10,
+        opacity: isDimmed ? 0.3 : 1,
+        transition: 'opacity 0.15s, transform 0.15s',
+      }}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
       )}
 
-      <div className="text-sm font-normal break-words text-center">{data.label}</div>
+      <div
+        className={`text-sm break-words text-center ${isSelected ? 'font-bold' : 'font-normal'}`}
+      >
+        {data.label}
+      </div>
 
       {data.hasOutgoing && (
         <Handle

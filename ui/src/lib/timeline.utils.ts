@@ -13,7 +13,7 @@ import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
-import { getColorForKey, lightenColor, WHITE, withOpacity } from '@/services/colors';
+import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
@@ -161,7 +161,13 @@ export function buildTimelineMarks(
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
-        return { label, stateName: transition.name, xStart, xEnd };
+        return {
+          label,
+          stateName: transition.name,
+          color: getColorForKey(transition.name),
+          xStart,
+          xEnd,
+        };
       })
       .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
   });
@@ -171,23 +177,26 @@ export function buildTimelineMarks(
 
 /**
  * Merge overlay series into base series for overlay rendering.
- * Each overlay series entry gets a lightened color, an `isOverlay` flag,
- * and a tooltip name of "{state} ({overlayLabel})".
+ * Base series are dimmed; overlay series keep original colors so the
+ * selected operator stands out clearly against the background.
  */
 export function mergeOverlaySeries(
   baseSeries: TimelineSeries,
   overlaySeries: TimelineSeries,
-  overlayLabel: string,
-  lightenAmount: number
+  overlayLabel: string
 ): TimelineSeries {
-  const merged: TimelineSeries = { ...baseSeries };
+  // Dim all base series to push them into the background.
+  const merged: TimelineSeries = {};
+  for (const [state, baseEntry] of Object.entries(baseSeries)) {
+    merged[state] = { ...baseEntry, isDimmed: true };
+  }
+  // Add overlay series at full intensity with original colors.
   for (const [state, overlayEntry] of Object.entries(overlaySeries)) {
     const baseEntry = baseSeries[state];
-    const baseColor = baseEntry?.color ?? overlayEntry.color;
     const overlayName = `${state} (${overlayLabel})`;
     merged[overlayName] = {
       ...overlayEntry,
-      color: lightenColor(baseColor, lightenAmount),
+      color: baseEntry?.color ?? overlayEntry.color,
       isOverlay: true,
     };
   }

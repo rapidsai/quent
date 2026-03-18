@@ -30,8 +30,6 @@ import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { QuantitySpec } from '~quent/types/QuantitySpec';
-import { useTimelineChartColors } from './useTimelineChartColors';
-
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
 type ResourceTimelineProps = {
@@ -90,7 +88,6 @@ export function ResourceTimeline({
   const operatorCacheKey = timelineCacheKey(resourceId, cacheResourceTypeName, operatorId);
   const operatorTimelineData = useAtomValue(timelineDataAtom(operatorCacheKey));
   const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
-  const { overlayLighten } = useTimelineChartColors();
 
   const {
     data: fetchedData,
@@ -179,10 +176,21 @@ export function ResourceTimeline({
           capacities,
           quantitySpecs
         );
+        // Dim long entity marks not present in the operator's long entities.
+        const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
+        const dimmedMarks = timelineMarks?.map(m => {
+          const baseFsm = longFsms.find(f => (f.instance_name || f.id) === m.label);
+          const inOperator = baseFsm ? opLongFsmIds.has(baseFsm.id) : false;
+          return {
+            ...m,
+            isDimmed: !inOperator,
+            operatorName: inOperator ? (operatorLabel ?? undefined) : undefined,
+          };
+        });
         return {
           timestamps: base.timestamps,
-          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel, overlayLighten),
-          marks: timelineMarks,
+          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
+          marks: dimmedMarks,
         };
       }
     }
@@ -195,7 +203,6 @@ export function ResourceTimeline({
     overlayPreloadedData,
     startTime,
     operatorLabel,
-    overlayLighten,
     capacities,
     quantitySpecs,
   ]);

@@ -7,7 +7,7 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
-import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
+import { withOpacity } from '@/services/colors';
 import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
@@ -62,6 +62,7 @@ export function Timeline({
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
       const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
+      const isDimmed = seriesData.isDimmed ?? false;
 
       return {
         name,
@@ -78,13 +79,8 @@ export function Timeline({
         lineStyle: { width: 0 },
         itemStyle: { color },
         areaStyle: {
-          color: isOverlay
-            ? {
-                image: createStripePattern(color),
-                repeat: 'repeat',
-              }
-            : color,
-          opacity: 1,
+          color,
+          opacity: isDimmed ? 0.25 : 1,
         },
         z: isOverlay ? 5 : 2,
         sampling: 'lttb',
@@ -101,7 +97,9 @@ export function Timeline({
     for (let i = 0; i < maxMarkCountRef.current; i++) {
       const m = marks?.[i];
       if (m) {
-        const stateColor = getColorForKey(m.stateName);
+        const stateColor = m.color;
+        const dimmed = m.isDimmed ?? false;
+        const dimOpacity = 0.15;
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -111,13 +109,14 @@ export function Timeline({
             {
               value: [m.xStart, 1],
               label: {
-                show: true,
-                formatter: () => m.label,
+                show: !dimmed,
+                formatter: () =>
+                  `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
                 position: [0, -5],
                 fontSize: 9,
                 fontWeight: 500,
                 color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, 1),
+                backgroundColor: withOpacity(stateColor, 0.85),
                 borderRadius: 1,
                 padding: [1, 2],
               },
@@ -129,11 +128,11 @@ export function Timeline({
           label: { show: false },
           symbolSize: 0,
           lineStyle: {
-            width: 1,
-            color: withOpacity(stateColor, markAreaBorderOpacity),
+            width: dimmed ? 0.5 : 1,
+            color: withOpacity(stateColor, dimmed ? dimOpacity : markAreaBorderOpacity),
           },
           areaStyle: {
-            color: withOpacity(stateColor, markAreaFillOpacity),
+            color: withOpacity(stateColor, dimmed ? dimOpacity : markAreaFillOpacity),
             opacity: 1,
           },
           tooltip: { show: false },
