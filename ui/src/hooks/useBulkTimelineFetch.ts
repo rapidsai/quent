@@ -5,14 +5,18 @@ import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import { getResourceTypeName, setOperatorOnEntry } from '@/lib/timeline.utils';
+import { getResourceTypeName, getFsmTypeName, setOperatorOnEntry } from '@/lib/timeline.utils';
 import type { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
-
+/**
+ * Mirrors TimelineCacheParams so meta can be passed directly to timelineCacheKey.
+ * Add new cache dimensions to TimelineCacheParams; this type follows automatically.
+ */
 export interface BulkTimelineIdMeta {
   resourceId: string;
   resourceTypeName: string;
   operatorId: string | null;
+  fsmTypeName: string | null;
 }
 
 export interface MergedBulkEntries {
@@ -34,7 +38,7 @@ export function applyBulkTimelineResponse(
     if (entry?.status !== 'ok') continue;
     const meta = idToMeta.get(id);
     if (!meta) continue;
-    const key = timelineCacheKey(meta.resourceId, meta.resourceTypeName, meta.operatorId);
+    const key = timelineCacheKey(meta);
     store.set(timelineDataAtom(key), {
       data: entry.data,
       config: entry.config,
@@ -55,22 +59,15 @@ export function buildMergedBulkEntries(
 
   for (const [resourceId, params] of Object.entries(baseEntries)) {
     const resourceTypeName = getResourceTypeName(params);
+    const fsmTypeName = getFsmTypeName(params);
     const baseUuid = crypto.randomUUID();
     entries[baseUuid] = params;
-    idToMeta.set(baseUuid, {
-      resourceId,
-      resourceTypeName,
-      operatorId: null,
-    });
+    idToMeta.set(baseUuid, { resourceId, resourceTypeName, operatorId: null, fsmTypeName });
     if (operatorId) {
       const opUuid = crypto.randomUUID();
       const withOperator = setOperatorOnEntry(params, operatorId);
       entries[opUuid] = withOperator;
-      idToMeta.set(opUuid, {
-        resourceId,
-        resourceTypeName,
-        operatorId,
-      });
+      idToMeta.set(opUuid, { resourceId, resourceTypeName, operatorId, fsmTypeName });
     }
   }
 

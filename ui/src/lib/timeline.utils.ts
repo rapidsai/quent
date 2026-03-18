@@ -201,6 +201,12 @@ export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefi
   return '';
 }
 
+/** Extract the entity_type_name (FSM filter) from a TimelineRequest */
+export function getFsmTypeName(params: TimelineRequest<TaskFilter>): string | null {
+  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
+  return params.Resource.entity_filter.entity_type_name;
+}
+
 /** Clone entries and set operator_id on each TimelineRequest */
 export function setOperatorOnEntry(
   entry: TimelineRequest<TaskFilter>,

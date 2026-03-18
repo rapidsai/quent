@@ -5,16 +5,35 @@ import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
 
-/** Build a composite cache key for per-item timeline data */
-export function timelineCacheKey(
-  resourceId: string,
-  resourceTypeName: string,
-  operatorId: string | null = null
-): string {
-  return `${resourceId}|${resourceTypeName}|${operatorId ?? ''}`;
+/**
+ * All dimensions that distinguish a cached timeline entry.
+ *
+ * Extensibility: add an optional field here and include it in the join inside
+ * `timelineCacheKey`. Every call site passes a plain object, so the function
+ * signature never changes.
+ *
+ * Alternative (Idea B): replace the string key entirely by passing
+ * `TimelineCacheParams` as the `atomFamily` parameter with a custom
+ * `areEqual` comparator — no serialization needed, type-safe by construction.
+ */
+export interface TimelineCacheParams {
+  resourceId: string;
+  resourceTypeName: string;
+  operatorId?: string | null;
+  fsmTypeName?: string | null;
 }
 
-/** Per-item timeline data keyed by `timelineCacheKey(resourceId, resourceTypeName, operatorId)` */
+/** Build a composite cache key for per-item timeline data */
+export function timelineCacheKey(params: TimelineCacheParams): string {
+  return [
+    params.resourceId,
+    params.resourceTypeName,
+    params.operatorId ?? '',
+    params.fsmTypeName ?? '',
+  ].join('|');
+}
+
+/** Per-item timeline data keyed by `timelineCacheKey(...)` */
 export const timelineDataAtom = atomFamily(() =>
   atom<SingleTimelineResponse | undefined>(undefined)
 );

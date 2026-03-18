@@ -13,6 +13,7 @@ import {
   collectVisibleEntries,
   getAdaptiveNumBins,
   getResourceTypeName,
+  getFsmTypeName,
 } from '@/lib/timeline.utils';
 import {
   timelineCacheKey,
@@ -140,7 +141,8 @@ export function useBulkTimelines({
           groupFsmFilters
         );
         const resourceTypeName = getResourceTypeName(params);
-        const key = timelineCacheKey(child.id, resourceTypeName);
+        const fsmTypeName = getFsmTypeName(params);
+        const key = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
         if (!store.get(timelineDataAtom(key))) {
           newBaseEntries[child.id] = params;
         }

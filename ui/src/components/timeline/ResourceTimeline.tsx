@@ -84,10 +84,19 @@ export function ResourceTimeline({
 
   const cacheResourceTypeName =
     resourceType === EntityTypeKey.ResourceGroup ? (resourceTypeName ?? '') : '';
-  const baseCacheKey = timelineCacheKey(resourceId, cacheResourceTypeName);
+  const baseCacheKey = timelineCacheKey({
+    resourceId,
+    resourceTypeName: cacheResourceTypeName,
+    fsmTypeName,
+  });
   const preloadedData = useAtomValue(timelineDataAtom(baseCacheKey));
 
-  const operatorCacheKey = timelineCacheKey(resourceId, cacheResourceTypeName, operatorId);
+  const operatorCacheKey = timelineCacheKey({
+    resourceId,
+    resourceTypeName: cacheResourceTypeName,
+    fsmTypeName,
+    operatorId,
+  });
   const operatorTimelineData = useAtomValue(timelineDataAtom(operatorCacheKey));
   const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
   const { overlayLighten } = useTimelineChartColors();
