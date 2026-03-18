@@ -273,6 +273,7 @@ export function Timeline({
                 name: p.seriesName,
                 value: p.data[1],
                 isOverlay: series[p.seriesName]?.isOverlay ?? false,
+                isDimmed: series[p.seriesName]?.isDimmed ?? false,
               };
             });
           const activeMarks = marks

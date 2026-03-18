@@ -7,6 +7,7 @@ interface TooltipSeries {
   name: string;
   value: number;
   isOverlay?: boolean;
+  isDimmed?: boolean;
 }
 
 type ValueFormatter = (value: number) => string;
@@ -41,6 +42,7 @@ interface StateBar {
   baseValue: number;
   baseColor: string;
   overlays: OverlaySegment[];
+  isDimmed?: boolean;
 }
 
 interface SegmentedBarSegment {
@@ -87,7 +89,7 @@ function SegmentedBarRow({
                 className="min-w-0 flex items-center justify-center font-semibold truncate text-background"
                 title={seg.label}
               >
-                {pct >= 15 ? seg.label : ''}
+                {pct >= 25 ? seg.label : ''}
               </div>
             );
           })}
@@ -125,7 +127,7 @@ function buildBarSegments(
       value: Math.max(restValue, 0),
       color: bar.baseColor,
       label: fmt(Math.max(restValue, 0)),
-      isDimmed: segments.length > 0,
+      isDimmed: bar.isDimmed,
     });
   }
 
@@ -286,6 +288,7 @@ export function TooltipContent({
         state: base.name,
         baseValue: base.value,
         baseColor: base.color,
+        isDimmed: base.isDimmed,
         overlays: matchingOverlays.map(o => ({
           name: o.name,
           value: o.value,
