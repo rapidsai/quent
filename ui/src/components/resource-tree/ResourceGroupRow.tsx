@@ -26,7 +26,9 @@ export const ResourceGroupRow = ({
   onFsmChange,
 }: ResourceGroupRowProps): React.ReactNode => {
   const hasMultipleChildTypes = (availableResourceTypes?.length ?? 0) > 1;
-  const hasMultipleFsms = (availableFsmTypes?.length ?? 0) > 1;
+  const fsmCount = availableFsmTypes?.length ?? 0;
+  const hasOneFsm = fsmCount === 1;
+  const hasMultipleFsms = fsmCount > 1;
   const fsmOptions = hasMultipleFsms ? [FSM_ALL, ...(availableFsmTypes ?? [])] : [];
 
   return (
@@ -43,6 +45,11 @@ export const ResourceGroupRow = ({
           onTypeChange={onTypeChange}
           className="mt-1"
         />
+      )}
+      {hasOneFsm && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          FSM: <span className="text-foreground">{availableFsmTypes![0]}</span>
+        </p>
       )}
       {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (
         <InlineSelector
