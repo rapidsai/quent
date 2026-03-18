@@ -119,31 +119,6 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
 
-  const nodeContent = (
-    <div
-      className={nodeVariants({
-        operationType: resolveOperationType(data.operationType),
-        selected: isSelected,
-      })}
-      style={{ zIndex: 10 }}
-    >
-      {data.hasIncoming && (
-        <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
-      )}
-
-      <div className="text-sm font-normal break-words text-center">{data.label}</div>
-
-      {data.hasOutgoing && (
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="w-2 h-2"
-          style={{ opacity: 0 }}
-        />
-      )}
-    </div>
-  );
-
   return (
     <OperatorStatisticsPopup
       data={statistics}
@@ -151,7 +126,33 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       operatorLabel={data.label}
       operationType={data.operationType}
     >
-      {nodeContent}
+      <div
+        className={nodeVariants({
+          operationType: resolveOperationType(data.operationType),
+          selected: isSelected,
+        })}
+        style={{ zIndex: 10 }}
+      >
+        {data.hasIncoming && (
+          <Handle
+            type="target"
+            position={Position.Top}
+            className="w-2 h-2"
+            style={{ opacity: 0 }}
+          />
+        )}
+
+        <div className="text-sm font-normal break-words text-center">{data.label}</div>
+
+        {data.hasOutgoing && (
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            className="w-2 h-2"
+            style={{ opacity: 0 }}
+          />
+        )}
+      </div>
     </OperatorStatisticsPopup>
   );
 });

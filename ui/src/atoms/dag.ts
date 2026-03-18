@@ -1,5 +1,6 @@
 import { atom } from 'jotai';
 import type { StatValue } from '@/services/query-plan/types';
+import { HoveredStatInfo } from '@/components/pivot-table/types';
 export type { HoveredStatInfo } from '@/components/pivot-table/types';
 
 export interface HoveredOperatorInfo {
@@ -26,8 +27,6 @@ export const hoveredOperatorIdAtom = atom<string | null>(null);
 
 /** Full info for the operator being hovered in the DAG (drives the stats overlay) */
 export const hoveredOperatorInfoAtom = atom<HoveredOperatorInfo | null>(null);
-
-import type { HoveredStatInfo } from '@/components/pivot-table/types';
 
 /** Stat column being hovered in the table — drives DAG heatmap coloring */
 export const hoveredStatAtom = atom<HoveredStatInfo | null>(null);
