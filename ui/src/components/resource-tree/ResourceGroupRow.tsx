@@ -1,5 +1,5 @@
 import { ResourceGroup } from '~quent/types/ResourceGroup';
-import { ResourceTypeSelector } from './ResourceTypeSelector';
+import { InlineSelector } from './InlineSelector';
 
 const FSM_ALL = 'All';
 
@@ -35,7 +35,7 @@ export const ResourceGroupRow = ({
         <span className="text-sm font-bold">{group.instance_name}</span>
       </div>
       {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
-        <ResourceTypeSelector
+        <InlineSelector
           id={id}
           label="Type"
           selectedType={selectedType}
@@ -45,7 +45,7 @@ export const ResourceGroupRow = ({
         />
       )}
       {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (
-        <ResourceTypeSelector
+        <InlineSelector
           id={`${id}-fsm`}
           label="FSM"
           selectedType={selectedFsmType ?? FSM_ALL}

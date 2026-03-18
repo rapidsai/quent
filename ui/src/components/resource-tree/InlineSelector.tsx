@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-interface ResourceTypeSelectorProps {
+interface InlineSelectorProps {
   id: string;
   label?: string;
   selectedType: string;
@@ -16,14 +16,14 @@ interface ResourceTypeSelectorProps {
   className?: string;
 }
 
-export const ResourceTypeSelector = ({
+export const InlineSelector = ({
   id,
   label = 'Type',
   selectedType,
   availableResourceTypes,
   onTypeChange,
   className,
-}: ResourceTypeSelectorProps): React.ReactNode => {
+}: InlineSelectorProps): React.ReactNode => {
   return (
     <div
       className={cn('flex items-center gap-1.5', className)}

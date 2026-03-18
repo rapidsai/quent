@@ -540,8 +540,8 @@ export function buildBulkParamsForItem(
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
   config: TimelineConfig,
-  operatorId: string | null = null,
-  groupFsmFilters?: Map<string, string | null>
+  groupFsmFilters?: Map<string, string | null>,
+  operatorId: string | null = null
 ): TimelineRequest<TaskFilter> {
   const isGroup = item.type !== EntityTypeKey.Resource;
   const resourceTypeName = isGroup
@@ -592,8 +592,8 @@ export function collectVisibleEntries(
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
   config: TimelineConfig,
-  operatorId: string | null = null,
-  groupFsmFilters?: Map<string, string | null>
+  groupFsmFilters?: Map<string, string | null>,
+  operatorId: string | null = null
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
@@ -603,8 +603,8 @@ export function collectVisibleEntries(
       selectedTypes,
       entities,
       config,
-      operatorId,
-      groupFsmFilters
+      groupFsmFilters,
+      operatorId
     );
 
     if (item.children && expandedIds.has(item.id)) {

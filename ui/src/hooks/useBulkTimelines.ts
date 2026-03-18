@@ -79,7 +79,6 @@ export function useBulkTimelines({
         selectedTypes,
         entities,
         bulkConfig,
-        null,
         groupFsmFilters
       ),
     [rootItem, expandedIds, selectedTypes, entities, bulkConfig, groupFsmFilters]
@@ -138,7 +137,6 @@ export function useBulkTimelines({
           selectedTypes,
           entities,
           expandConfig,
-          null,
           groupFsmFilters
         );
         const resourceTypeName = getResourceTypeName(params);

@@ -39,12 +39,12 @@ export function UsageColumn({
     ? queryBundle.entities.resource_types[resourceTypeName]
     : undefined;
   const usedBy = resourceTypeDecl?.used_by;
-  const fsmTypeName =
-    usedBy?.length === 1
-      ? usedBy[0]
-      : resourceType === EntityTypeKey.ResourceGroup
-        ? (selectedFsmTypes?.get(item.id) ?? undefined)
-        : undefined;
+  let fsmTypeName: string | undefined;
+  if (usedBy?.length === 1) {
+    fsmTypeName = usedBy[0];
+  } else if (resourceType === EntityTypeKey.ResourceGroup) {
+    fsmTypeName = selectedFsmTypes?.get(item.id) ?? undefined;
+  }
   const capacities = resourceTypeDecl?.capacities;
   return (
     <div
