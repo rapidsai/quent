@@ -202,29 +202,33 @@ export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefi
 }
 
 /** Clone entries and set operator_id on each TimelineRequest */
+export function setOperatorOnEntry(
+  entry: TimelineRequest<TaskFilter>,
+  operatorId: string
+): TimelineRequest<TaskFilter> {
+  if ('ResourceGroup' in entry) {
+    return {
+      ResourceGroup: {
+        ...entry.ResourceGroup,
+        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+      },
+    };
+  }
+  return {
+    Resource: {
+      ...entry.Resource,
+      application: { ...entry.Resource.application, operator_id: operatorId },
+    },
+  };
+}
+
 export function setOperatorOnEntries(
   baseEntries: Record<string, TimelineRequest<TaskFilter>>,
   operatorId: string
 ): Record<string, TimelineRequest<TaskFilter>> {
-  const result: Record<string, TimelineRequest<TaskFilter>> = {};
-  for (const [id, entry] of Object.entries(baseEntries)) {
-    if ('ResourceGroup' in entry) {
-      result[id] = {
-        ResourceGroup: {
-          ...entry.ResourceGroup,
-          app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
-        },
-      };
-    } else {
-      result[id] = {
-        Resource: {
-          ...entry.Resource,
-          application: { ...entry.Resource.application, operator_id: operatorId },
-        },
-      };
-    }
-  }
-  return result;
+  return Object.fromEntries(
+    Object.entries(baseEntries).map(([id, entry]) => [id, setOperatorOnEntry(entry, operatorId)])
+  );
 }
 
 const SECOND_MS = 1_000;

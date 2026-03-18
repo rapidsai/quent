@@ -13,7 +13,6 @@ import {
   collectVisibleEntries,
   getAdaptiveNumBins,
   getResourceTypeName,
-  setOperatorOnEntries,
 } from '@/lib/timeline.utils';
 import {
   timelineCacheKey,
@@ -24,7 +23,11 @@ import {
   visibleEntriesAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom } from '@/atoms/dag';
-import { useBulkTimelineFetch } from './useBulkTimelineFetch';
+import {
+  useBulkTimelineFetch,
+  buildMergedBulkEntries,
+  applyBulkTimelineResponse,
+} from './useBulkTimelineFetch';
 
 const ZOOM_DEBOUNCE_MS = 150;
 
@@ -74,32 +77,19 @@ export function useBulkTimelines({
     store.set(visibleEntriesAtom, baseVisibleEntries);
   }, [baseVisibleEntries, store]);
 
-  // Base bulk fetch (unfiltered, operator_id: null)
-  const baseBulkData = useBulkTimelineFetch({
-    engineId,
-    queryId,
-    debouncedZoomRange,
-    entries: baseVisibleEntries,
-  });
-
-  // Operator bulk fetch (filtered, only when an operator is selected)
-  const operatorBulkData = useBulkTimelineFetch({
+  const bulkData = useBulkTimelineFetch({
     engineId,
     queryId,
     debouncedZoomRange,
     entries: baseVisibleEntries,
     operatorId,
-    enabled: operatorId != null,
   });
 
-  /* Once our base data is loaded and operator data if we have an operator id set
-   * we can make the bulk data initialized true (allows single timelines to fetch themselves)
-   */
   useEffect(() => {
-    if (baseBulkData && (operatorId != null ? operatorBulkData : true)) {
+    if (bulkData) {
       store.set(bulkInitializedAtom, true);
     }
-  }, [baseBulkData, operatorId, operatorBulkData, store]);
+  }, [bulkData, store]);
 
   // Zoom change handler — stable, uses store imperatively
   const handleZoomChange = useCallback(
@@ -142,51 +132,24 @@ export function useBulkTimelines({
 
       if (Object.keys(newBaseEntries).length === 0) return;
 
+      const {
+        entries: expandEntries,
+        idToMeta: expandIdToMeta,
+        requestKey: expandRequestKey,
+      } = buildMergedBulkEntries(newBaseEntries, operatorId);
+
       try {
-        const baseRequest = queryClient.fetchQuery({
-          queryKey: ['bulkTimelines', engineId, queryId, zoom, null, newBaseEntries],
+        const response = await queryClient.fetchQuery({
+          queryKey: ['bulkTimelines', engineId, queryId, zoom, expandRequestKey],
           queryFn: () =>
             fetchBulkTimelines(engineId, {
-              entries: newBaseEntries,
+              entries: expandEntries,
               app_params: { query_id: queryId },
             }),
           staleTime: DEFAULT_STALE_TIME,
         });
 
-        const operatorRequest = operatorId
-          ? queryClient.fetchQuery({
-              queryKey: ['bulkTimelines', engineId, queryId, zoom, operatorId, newBaseEntries],
-              queryFn: () =>
-                fetchBulkTimelines(engineId, {
-                  entries: setOperatorOnEntries(newBaseEntries, operatorId),
-                  app_params: { query_id: queryId },
-                }),
-              staleTime: DEFAULT_STALE_TIME,
-            })
-          : null;
-
-        const [baseResponse, operatorResponse] = await Promise.all([baseRequest, operatorRequest]);
-
-        for (const [id, entry] of Object.entries(baseResponse.entries)) {
-          if (entry?.status === 'ok') {
-            const resourceTypeName = getResourceTypeName(newBaseEntries[id]);
-            const key = timelineCacheKey(id, resourceTypeName);
-            store.set(timelineDataAtom(key), { data: entry.data, config: entry.config });
-          }
-        }
-
-        if (operatorResponse && operatorId) {
-          for (const [id, entry] of Object.entries(operatorResponse.entries)) {
-            if (entry?.status === 'ok') {
-              const resourceTypeName = getResourceTypeName(newBaseEntries[id]);
-              const key = timelineCacheKey(id, resourceTypeName, operatorId);
-              store.set(timelineDataAtom(key), {
-                data: entry.data,
-                config: entry.config,
-              });
-            }
-          }
-        }
+        applyBulkTimelineResponse(response, expandIdToMeta, store);
       } catch {
         // Individual ResourceTimeline components will fall back to self-fetch
       }
