@@ -11,3 +11,6 @@ export const selectedPlanIdAtom = atom<string>('');
 
 /** Worker ID of the query plan tree item currently being hovered */
 export const hoveredWorkerIdAtom = atom<string | null>(null);
+
+/** Field to color each DAG node by */
+export const selectedColorField = atom<string | null>(null);

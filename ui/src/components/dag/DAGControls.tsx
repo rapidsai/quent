@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -5,12 +6,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAtomValue, useStore } from 'jotai';
+import { selectedColorField } from '@/atoms/dag';
 
-const DAGField = ({ options }) => {
+const DAGField = ({ options, value, setValue }) => {
   console.log(options);
   return (
     <div className="flex-1">
-      <Select>
+      <Select value={value} onValueChange={setValue}>
         <SelectTrigger>
           <SelectValue placeholder="Select color field" />
         </SelectTrigger>
@@ -33,11 +36,19 @@ const DAGField = ({ options }) => {
 };
 
 export const DAGControls = ({ statistics }) => {
+  const [selectedField, setSelectedField] = useState('');
+  const store = useStore();
   const fields = [...new Set(statistics.flatMap(node => node.map(stat => stat.key)))];
   console.log(fields);
+
+  const setValue = field => {
+    setSelectedField(field);
+    store.set(selectedColorField, field);
+  };
+
   return (
     <div className="flex p-5 gap-2 border-b">
-      <DAGField options={fields} />
+      <DAGField options={fields} value={selectedField} setValue={setValue} />
       <DAGField />
     </div>
   );
