@@ -76,17 +76,24 @@ function SegmentedBarRow({
         <div className="flex h-full rounded-xs overflow-hidden">
           {segments.map((seg, i) => {
             const pct = total > 0 ? (seg.value / total) * 100 : 100;
+            // For dimmed segments, bake the alpha into the background so
+            // text stays fully opaque and readable.
+            const bgColor = seg.isDimmed
+              ? `color-mix(in srgb, ${seg.color} 30%, transparent)`
+              : seg.color;
+            const textColor = seg.isDimmed ? 'text-foreground' : 'text-background';
             const style: React.CSSProperties = {
               width: `${pct}%`,
-              backgroundColor: seg.color,
-              opacity: seg.isDimmed ? 0.3 : 1,
-              textShadow: '0 0 1px hsl(var(--foreground)), 0 0 1px hsl(var(--foreground))',
+              backgroundColor: bgColor,
             };
             return (
               <div
                 key={i}
                 style={style}
-                className="min-w-0 flex items-center justify-center font-semibold truncate text-background"
+                className={cn(
+                  'min-w-0 flex items-center justify-center font-semibold truncate',
+                  textColor
+                )}
                 title={seg.label}
               >
                 {pct >= 25 ? seg.label : ''}
