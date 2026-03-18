@@ -277,7 +277,7 @@ export function Timeline({
             });
           const activeMarks = marks
             ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
-            .map(m => ({ label: m.label, stateName: m.stateName }));
+            .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
           const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent
