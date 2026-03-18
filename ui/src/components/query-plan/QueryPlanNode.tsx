@@ -17,7 +17,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition-colors cursor-pointer text-foreground',
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10',
   {
     variants: {
       operationType: {
@@ -54,8 +54,12 @@ const nodeVariants = cva(
           'bg-gray-100/15 border-gray-500 hover:bg-gray-100/30 [--glow-color:var(--color-gray-500)]',
       },
       selected: {
-        true: 'shadow-glow',
+        true: 'shadow-glow border-2 scale-110',
         false: 'shadow-md',
+      },
+      dimmed: {
+        true: 'opacity-30',
+        false: 'opacity-100',
       },
     },
     compoundVariants: [
@@ -84,6 +88,7 @@ const nodeVariants = cva(
     defaultVariants: {
       operationType: 'other',
       selected: false,
+      dimmed: false,
     },
   }
 );
@@ -123,15 +128,11 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={`${nodeVariants({
+      className={nodeVariants({
         operationType: resolveOperationType(data.operationType),
         selected: isSelected,
-      })} ${isSelected ? 'border-2 scale-110' : ''}`}
-      style={{
-        zIndex: 10,
-        opacity: isDimmed ? 0.3 : 1,
-        transition: 'opacity 0.15s, transform 0.15s',
-      }}
+        dimmed: isDimmed,
+      })}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
