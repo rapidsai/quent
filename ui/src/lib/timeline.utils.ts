@@ -141,7 +141,10 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
   startTime: bigint,
-  resourceIdsForFilter?: Set<string> | null
+  resourceIdsForFilter?: Set<string> | null,
+  /** When provided, marks whose FSM is in this set are highlighted; others are dimmed. */
+  overlayFsmIds?: Set<string>,
+  overlayLabel?: string
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
@@ -149,6 +152,7 @@ export function buildTimelineMarks(
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
+    const inOverlay = overlayFsmIds ? overlayFsmIds.has(fsm.id) : undefined;
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
@@ -167,6 +171,10 @@ export function buildTimelineMarks(
           color: getColorForKey(transition.name),
           xStart,
           xEnd,
+          ...(inOverlay !== undefined && {
+            isDimmed: !inOverlay,
+            operatorName: inOverlay ? overlayLabel : undefined,
+          }),
         };
       })
       .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);

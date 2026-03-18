@@ -162,7 +162,6 @@ export function ResourceTimeline({
     const longFsms = getLongFsms(data.data);
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
-    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -176,24 +175,16 @@ export function ResourceTimeline({
           capacities,
           quantitySpecs
         );
-        // Dim long entity marks not present in the operator's long entities.
         const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
-        const dimmedMarks = timelineMarks?.map(m => {
-          const baseFsm = longFsms.find(f => (f.instance_name || f.id) === m.label);
-          const inOperator = baseFsm ? opLongFsmIds.has(baseFsm.id) : false;
-          return {
-            ...m,
-            isDimmed: !inOperator,
-            operatorName: inOperator ? (operatorLabel ?? undefined) : undefined,
-          };
-        });
         return {
           timestamps: base.timestamps,
           series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
-          marks: dimmedMarks,
+          marks: buildTimelineMarks(longFsms, startTime, filterSet, opLongFsmIds, operatorLabel),
         };
       }
     }
+
+    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
 
     return { ...base, marks: timelineMarks };
   }, [
@@ -202,9 +193,11 @@ export function ResourceTimeline({
     operatorId,
     overlayPreloadedData,
     startTime,
-    operatorLabel,
     capacities,
     quantitySpecs,
+    resourceType,
+    resourceId,
+    operatorLabel,
   ]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {
