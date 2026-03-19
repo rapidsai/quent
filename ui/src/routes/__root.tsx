@@ -30,8 +30,8 @@ function RootComponent() {
           <nav className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
             <div className="w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-primary">
-                  PACHA <span className="font-extralight">UI</span>
+                <h1 className="text-2xl font-semibold text-primary">
+                  QUENT <span className="font-light text-muted-foreground">UI</span>
                 </h1>
               </div>
               <div className="flex-1 flex items-center justify-center">

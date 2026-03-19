@@ -1,4 +1,4 @@
-# PACHA UI
+# Quent UI
 
 A front end for query profiling instrumentation
 
@@ -74,7 +74,7 @@ pnpm preview
 ## Project Structure
 
 ```text
-pacha-ui/
+ui/
 ├── src/
 │   ├── components/        # Reusable components
 │   │   ├── ui/           # shadcn/ui components
