@@ -67,3 +67,22 @@ export function parseCustomStatistics(rawNode: unknown): Array<{ key: string; va
       : null,
   }));
 }
+
+export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {
+  const port = rawPort as Record<string, unknown> | undefined;
+  const statistics = port?.statistics as
+    | { custom_statistics?: Record<string, unknown> }
+    | undefined;
+  const custom = statistics?.custom_statistics;
+  console.debug('[parsePortStatistics] rawPort keys:', port ? Object.keys(port) : 'undefined');
+  console.debug('[parsePortStatistics] statistics:', statistics);
+  console.debug('[parsePortStatistics] custom_statistics:', custom);
+  if (!custom) return [];
+
+  return Object.entries(custom).map(([key, tagged]) => ({
+    key,
+    value: tagged
+      ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0])
+      : null,
+  }));
+}

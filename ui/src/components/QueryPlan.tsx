@@ -1,14 +1,22 @@
-import { useEffect, lazy, Suspense } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useEffect, useMemo, lazy, Suspense } from 'react';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { type QueryPlanDataItem } from '@/services/query-plan/types';
+import { type QueryPlanDataItem, type NodeColoring, type EdgeWidthConfig } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
-import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
+import {
+  selectedPlanIdAtom,
+  hoveredWorkerIdAtom,
+  selectedColorField,
+  nodeColoringAtom,
+  selectedEdgeWidthFieldAtom,
+  edgeWidthConfigAtom,
+} from '@/atoms/dag';
 import { DAGControls } from '@/components/dag/DAGControls';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
+import { getActivePalette } from '@/services/colors';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -26,9 +34,69 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
-  const statistics = dagData.nodes.map(n => {
-    return parseCustomStatistics(n.metadata?.rawNode);
-  });
+  const statistics = dagData.nodes.map(n => parseCustomStatistics(n.metadata?.rawNode));
+
+  // Node coloring
+  const selectedField = useAtomValue(selectedColorField);
+  const setNodeColoring = useSetAtom(nodeColoringAtom);
+
+  const nodeColoring = useMemo((): NodeColoring => {
+    if (!selectedField || !dagData.nodes.length) return null;
+    const entries = dagData.nodes.flatMap(node => {
+      const stat = parseCustomStatistics(node.metadata?.rawNode).find(s => s.key === selectedField);
+      if (stat?.value == null) return [];
+      return [{ id: node.id, value: stat.value }];
+    });
+    if (!entries.length) return null;
+
+    if (entries.every(e => typeof e.value === 'number')) {
+      const nums = entries.map(e => e.value as number);
+      return {
+        type: 'continuous',
+        values: new Map(entries.map(e => [e.id, e.value as number])),
+        min: Math.min(...nums),
+        max: Math.max(...nums),
+      };
+    }
+    // Categorical: assign palette colors by unique value
+    const palette = getActivePalette();
+    const uniqueValues = [...new Set(entries.map(e => String(e.value)))];
+    const valueColor = new Map(uniqueValues.map((v, i) => [v, palette[i % palette.length]]));
+    return {
+      type: 'categorical',
+      colorMap: new Map(entries.map(e => [e.id, valueColor.get(String(e.value))!])),
+    };
+  }, [selectedField, dagData.nodes]);
+
+  useEffect(() => { setNodeColoring(nodeColoring); }, [nodeColoring, setNodeColoring]);
+
+  // Edge width
+  const selectedEdgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
+  const setEdgeWidthConfig = useSetAtom(edgeWidthConfigAtom);
+
+  const edgeWidthConfig = useMemo((): EdgeWidthConfig => {
+    if (!selectedEdgeWidthField || !dagData.edges.length) return null;
+    const entries = dagData.edges.flatMap(edge => {
+      const stat = (edge.portStats ?? []).find(s => s.key === selectedEdgeWidthField);
+      if (typeof stat?.value !== 'number') return [];
+      return [{ id: edge.id, value: stat.value }];
+    });
+    if (!entries.length) return null;
+    const nums = entries.map(e => e.value);
+    return {
+      values: new Map(entries.map(e => [e.id, e.value])),
+      min: Math.min(...nums),
+      max: Math.max(...nums),
+    };
+  }, [selectedEdgeWidthField, dagData.edges]);
+
+  useEffect(() => { setEdgeWidthConfig(edgeWidthConfig); }, [edgeWidthConfig, setEdgeWidthConfig]);
+
+  // Port stat fields for edge width dropdown
+  const portStatFields = useMemo(
+    () => [...new Set(dagData.edges.flatMap(e => (e.portStats ?? []).map(s => s.key)))],
+    [dagData.edges]
+  );
 
   const handlePlanSelect = (item: QueryPlanDataItem | undefined) => {
     if (item) {
@@ -104,7 +172,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <div>
-        <DAGControls statistics={statistics} />
+        <DAGControls statistics={statistics} portStatFields={portStatFields} />
       </div>
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-card flex-shrink-0">
         <Network className="h-4 w-4 text-primary" />

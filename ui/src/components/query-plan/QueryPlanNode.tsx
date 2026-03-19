@@ -1,11 +1,12 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, nodeColoringAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
+import { continuousHeatmapBg } from '@/services/colors';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -116,8 +117,24 @@ function resolveOperationType(type: string): OperationType {
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
+  const nodeColoring = useAtomValue(nodeColoringAtom);
+  const operatorId = data.metadata?.rawNode?.id ?? '';
+  const isSelected = selectedNodeIds.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+
+  const { fieldColor, fieldDimmed } = useMemo(() => {
+    if (!nodeColoring) return { fieldColor: undefined, fieldDimmed: false };
+    if (nodeColoring.type === 'continuous') {
+      const v = nodeColoring.values.get(operatorId);
+      if (v === undefined) return { fieldColor: undefined, fieldDimmed: true };
+      const t = nodeColoring.max > nodeColoring.min
+        ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
+        : 0.5;
+      return { fieldColor: continuousHeatmapBg(t), fieldDimmed: false };
+    }
+    const color = nodeColoring.colorMap.get(operatorId);
+    return { fieldColor: color, fieldDimmed: !color };
+  }, [nodeColoring, operatorId]);
 
   const nodeContent = (
     <div
@@ -125,7 +142,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         operationType: resolveOperationType(data.operationType),
         selected: isSelected,
       })}
-      style={{ zIndex: 10 }}
+      style={{
+        zIndex: 10,
+        opacity: fieldDimmed ? 0.25 : 1,
+        transition: 'opacity 150ms, background-color 150ms, border-color 150ms',
+        ...(fieldColor && { backgroundColor: fieldColor, borderColor: fieldColor }),
+      }}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />

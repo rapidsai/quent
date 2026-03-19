@@ -8,23 +8,66 @@ import {
   useEdgesState,
   useReactFlow,
   MarkerType,
+  getSmoothStepPath,
   type Node,
   type Edge,
+  type EdgeProps,
   type OnMoveStart,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom, edgeWidthConfigAtom } from '@/atoms/dag';
 
 const elk = new ELK();
+
+const VariableWidthEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+}: EdgeProps) => {
+  const edgeWidthConfig = useAtomValue(edgeWidthConfigAtom);
+
+  let strokeWidth = 1.5;
+  if (edgeWidthConfig) {
+    const v = edgeWidthConfig.values.get(id);
+    if (v !== undefined) {
+      const t = edgeWidthConfig.max > edgeWidthConfig.min
+        ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
+        : 0.5;
+      strokeWidth = 1 + t * 7; // [1, 8] px
+    }
+  }
+
+  const [edgePath] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+
+  return (
+    <path
+      id={id}
+      className="react-flow__edge-path"
+      d={edgePath}
+      markerEnd={markerEnd}
+      style={{ stroke: 'currentColor', strokeWidth, fill: 'none' }}
+    />
+  );
+};
 
 const elkOptions = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
   'elk.layered.spacing.nodeNodeBetweenLayers': '50',
   'elk.spacing.nodeNode': '50',
+};
+
+const edgeTypes = {
+  smoothstep: VariableWidthEdge,
+  default: VariableWidthEdge,
 };
 
 // Custom node types for different operations
@@ -206,6 +249,7 @@ const FlowLayout = ({
       onMoveStart={handleMoveStart}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       fitView
       minZoom={0.1}
       maxZoom={2}

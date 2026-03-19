@@ -285,3 +285,12 @@ export function darkenColor(hex: string, amount: number): string {
 
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';
+
+/**
+ * Compute a red heatmap background color for a normalized value t ∈ [0, 1].
+ * Alpha ranges from 0.1 (cold) to 0.65 (hot).
+ */
+export function continuousHeatmapBg(t: number): string {
+  const alpha = 0.1 + t * 0.55;
+  return `rgba(239, 68, 68, ${alpha.toFixed(3)})`; // red-500
+}

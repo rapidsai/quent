@@ -1,4 +1,5 @@
 import { atom } from 'jotai';
+import type { NodeColoring, EdgeWidthConfig } from '@/services/query-plan/types';
 
 /** The set of currently selected node IDs in the DAG chart */
 export const selectedNodeIdsAtom = atom(new Set<string>());
@@ -14,3 +15,12 @@ export const hoveredWorkerIdAtom = atom<string | null>(null);
 
 /** Field to color each DAG node by */
 export const selectedColorField = atom<string | null>(null);
+
+/** Computed node coloring config (written by QueryPlan, read by QueryPlanNode) */
+export const nodeColoringAtom = atom<NodeColoring>(null);
+
+/** Field to scale edge widths by */
+export const selectedEdgeWidthFieldAtom = atom<string | null>(null);
+
+/** Computed edge width config (written by QueryPlan, read by VariableWidthEdge) */
+export const edgeWidthConfigAtom = atom<EdgeWidthConfig>(null);
