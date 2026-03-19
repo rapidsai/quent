@@ -44,14 +44,14 @@ const VariableWidthEdge = ({
     }
   }
 
-  // Arrow scales with stroke at a proportional rate
-  const arrowSize = strokeWidth * 1.5 + 8;
+  const arrowWidth = strokeWidth * 1.5 + 8;
+  const arrowDepth = arrowWidth * 0.6;
   const markerId = `arrow-${id}`;
   const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
-    targetY: targetY - arrowSize,
+    targetY: targetY - arrowDepth,
     sourcePosition,
     targetPosition,
   });
@@ -61,14 +61,17 @@ const VariableWidthEdge = ({
       <defs>
         <marker
           id={markerId}
-          markerWidth={arrowSize}
-          markerHeight={arrowSize}
+          markerWidth={arrowDepth}
+          markerHeight={arrowWidth}
           refX={0}
-          refY={arrowSize / 2}
+          refY={arrowWidth / 2}
           orient="auto"
           markerUnits="userSpaceOnUse"
         >
-          <path d={`M0,0 L0,${arrowSize} L${arrowSize},${arrowSize / 2} z`} fill="currentColor" />
+          <path
+            d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
+            fill="currentColor"
+          />
         </marker>
       </defs>
       <path
