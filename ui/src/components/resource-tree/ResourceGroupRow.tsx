@@ -38,7 +38,7 @@ export const ResourceGroupRow = ({
       </div>
       {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
         <InlineSelector
-          id={id}
+          id={`${id}-resource-type`}
           label="Type"
           selectedType={selectedType}
           availableResourceTypes={availableResourceTypes}
