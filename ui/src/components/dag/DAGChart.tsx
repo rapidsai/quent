@@ -7,7 +7,6 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
-  MarkerType,
   getSmoothStepPath,
   type Node,
   type Edge,
@@ -30,7 +29,6 @@ const VariableWidthEdge = ({
   targetY,
   sourcePosition,
   targetPosition,
-  markerEnd,
 }: EdgeProps) => {
   const edgeWidthConfig = useAtomValue(edgeWidthConfigAtom);
 
@@ -38,23 +36,49 @@ const VariableWidthEdge = ({
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t = edgeWidthConfig.max > edgeWidthConfig.min
-        ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
-        : 0.5;
-      strokeWidth = 1 + t * 7; // [1, 8] px
+      const t =
+        edgeWidthConfig.max > edgeWidthConfig.min
+          ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
+          : 0.5;
+      strokeWidth = 2 + t * 10; // [2, 12] px
     }
   }
 
-  const [edgePath] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  // Arrow scales with stroke at a proportional rate
+  const arrowSize = strokeWidth * 1.5 + 8;
+  const markerId = `arrow-${id}`;
+  const [edgePath] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY: targetY - arrowSize,
+    sourcePosition,
+    targetPosition,
+  });
 
   return (
-    <path
-      id={id}
-      className="react-flow__edge-path"
-      d={edgePath}
-      markerEnd={markerEnd}
-      style={{ stroke: 'currentColor', strokeWidth, fill: 'none' }}
-    />
+    <>
+      <defs>
+        <marker
+          id={markerId}
+          markerWidth={arrowSize}
+          markerHeight={arrowSize}
+          refX={0}
+          refY={arrowSize / 2}
+          orient="auto"
+          markerUnits="userSpaceOnUse"
+        >
+          <path d={`M0,0 L0,${arrowSize} L${arrowSize},${arrowSize / 2} z`} fill="currentColor" />
+        </marker>
+      </defs>
+      <path
+        id={id}
+        className="react-flow__edge-path"
+        d={edgePath}
+        markerEnd={`url(#${markerId})`}
+        style={{ stroke: 'currentColor', strokeWidth, fill: 'none' }}
+      />
+    </>
   );
 };
 
@@ -184,11 +208,6 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 20,
-        height: 20,
-      },
     }));
 
     return { flowNodes, flowEdges };
@@ -253,10 +272,7 @@ const FlowLayout = ({
       fitView
       minZoom={0.1}
       maxZoom={2}
-      defaultEdgeOptions={{
-        type: 'smoothstep',
-        markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
-      }}
+      defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
     </ReactFlow>

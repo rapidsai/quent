@@ -74,9 +74,6 @@ export function parsePortStatistics(rawPort: unknown): Array<{ key: string; valu
     | { custom_statistics?: Record<string, unknown> }
     | undefined;
   const custom = statistics?.custom_statistics;
-  console.debug('[parsePortStatistics] rawPort keys:', port ? Object.keys(port) : 'undefined');
-  console.debug('[parsePortStatistics] statistics:', statistics);
-  console.debug('[parsePortStatistics] custom_statistics:', custom);
   if (!custom) return [];
 
   return Object.entries(custom).map(([key, tagged]) => ({

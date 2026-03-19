@@ -116,15 +116,9 @@ export const getPlanDAG = (
 
       const sourcePort = bundle?.entities?.ports?.[edge.source];
       const targetPort = bundle?.entities?.ports?.[edge.target];
-      console.debug('[DAG] edge', edge.source, '→', edge.target);
-      console.debug('[DAG]   sourcePort found:', !!sourcePort, '| statistics:', sourcePort?.statistics);
-      console.debug('[DAG]   targetPort found:', !!targetPort, '| statistics:', targetPort?.statistics);
       // Prefer source (output) port stats; fall back to target (input) port stats
       const sourcePortStats = parsePortStatistics(sourcePort);
-      const targetPortStats = parsePortStatistics(targetPort);
-      console.debug('[DAG]   sourcePortStats:', sourcePortStats);
-      console.debug('[DAG]   targetPortStats:', targetPortStats);
-      const portStats = sourcePortStats.length > 0 ? sourcePortStats : targetPortStats;
+      const portStats = sourcePortStats.length > 0 ? sourcePortStats : parsePortStatistics(targetPort);
       edges.push({
         id: `${edge.source}-${edge.target}`,
         source: sourceNode.id,
