@@ -7,8 +7,6 @@ import {
 } from '@/components/ui/select';
 import { useAtom } from 'jotai';
 import { selectedColorField, selectedEdgeWidthFieldAtom } from '@/atoms/dag';
-import type { StatValue } from '@/services/query-plan/types';
-
 interface DAGFieldProps {
   options: string[];
   value: string;
@@ -42,20 +40,18 @@ const DAGField = ({ options, value, setValue, placeholder }: DAGFieldProps) => {
 };
 
 interface DAGControlsProps {
-  statistics: Array<Array<{ key: string; value: StatValue }>>;
+  operatorStatFields: string[];
   portStatFields: string[];
 }
 
-export const DAGControls = ({ statistics, portStatFields }: DAGControlsProps) => {
+export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsProps) => {
   const [colorField, setColorField] = useAtom(selectedColorField);
   const [edgeWidthField, setEdgeWidthField] = useAtom(selectedEdgeWidthFieldAtom);
-
-  const colorFields = [...new Set(statistics.flatMap(node => node.map(stat => stat.key)))];
 
   return (
     <div className="flex p-5 gap-2 border-b">
       <DAGField
-        options={colorFields}
+        options={operatorStatFields}
         value={colorField ?? ''}
         setValue={setColorField}
         placeholder="Color nodes by field"

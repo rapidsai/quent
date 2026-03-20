@@ -1,0 +1,50 @@
+import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig } from './types';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils';
+import { getActivePalette } from '@/services/colors';
+
+export function computeNodeColoring(nodes: DAGNode[], field: string | null): NodeColoring {
+  if (!field || !nodes.length) return null;
+
+  const entries = nodes.flatMap(node => {
+    const stat = parseCustomStatistics(node.metadata?.rawNode).find(s => s.key === field);
+    if (stat?.value == null) return [];
+    return [{ id: node.id, value: stat.value }];
+  });
+  if (!entries.length) return null;
+
+  if (entries.every(e => typeof e.value === 'number')) {
+    const nums = entries.map(e => e.value as number);
+    return {
+      type: 'continuous',
+      values: new Map(entries.map(e => [e.id, e.value as number])),
+      min: Math.min(...nums),
+      max: Math.max(...nums),
+    };
+  }
+
+  const palette = getActivePalette();
+  const uniqueValues = [...new Set(entries.map(e => String(e.value)))];
+  const valueColor = new Map(uniqueValues.map((v, i) => [v, palette[i % palette.length]]));
+  return {
+    type: 'categorical',
+    colorMap: new Map(entries.map(e => [e.id, valueColor.get(String(e.value))!])),
+  };
+}
+
+export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): EdgeWidthConfig {
+  if (!field || !edges.length) return null;
+
+  const entries = edges.flatMap(edge => {
+    const stat = (edge.portStats ?? []).find(s => s.key === field);
+    if (typeof stat?.value !== 'number') return [];
+    return [{ id: edge.id, value: stat.value }];
+  });
+  if (!entries.length) return null;
+
+  const nums = entries.map(e => e.value);
+  return {
+    values: new Map(entries.map(e => [e.id, e.value])),
+    min: Math.min(...nums),
+    max: Math.max(...nums),
+  };
+}
