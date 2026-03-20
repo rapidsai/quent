@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { atom } from 'jotai';
 import { atomFamily } from 'jotai-family';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { ResourceGroup } from '~quent/types/ResourceGroup';
 import { Resource } from '~quent/types/Resource';
 import { cn } from '@/lib/utils';

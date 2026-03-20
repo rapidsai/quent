@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAtomValue, useSetAtom } from 'jotai';
 import { EntityTypeKey } from '@/types';
 import { QueryBundle } from '~quent/types/QueryBundle';

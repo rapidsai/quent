@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Functionality to analyze telemetry to construct timelines with time bins.
 
 use rustc_hash::FxHashMap as HashMap;

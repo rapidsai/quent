@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, fetchSingleTimeline } from '@/services/api';
 import { useAtomValue } from 'jotai';
