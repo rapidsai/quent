@@ -17,7 +17,8 @@ import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom, edgeWidthConfigAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom, edgeWidthConfigAtom, edgeColoringAtom } from '@/atoms/dag';
+import { continuousHeatmapBg } from '@/services/colors';
 
 const elk = new ELK();
 
@@ -31,6 +32,7 @@ const VariableWidthEdge = ({
   targetPosition,
 }: EdgeProps) => {
   const edgeWidthConfig = useAtomValue(edgeWidthConfigAtom);
+  const edgeColoring = useAtomValue(edgeColoringAtom);
 
   let strokeWidth = 1.5;
   if (edgeWidthConfig) {
@@ -41,6 +43,27 @@ const VariableWidthEdge = ({
           ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
           : 0.5;
       strokeWidth = 2 + t * 10; // [2, 12] px
+    }
+  }
+
+  let edgeColor: string | undefined;
+  let edgeDimmed = false;
+  if (edgeColoring) {
+    if (edgeColoring.type === 'continuous') {
+      const v = edgeColoring.values.get(id);
+      if (v === undefined) {
+        edgeDimmed = true;
+      } else {
+        const t =
+          edgeColoring.max > edgeColoring.min
+            ? (v - edgeColoring.min) / (edgeColoring.max - edgeColoring.min)
+            : 0.5;
+        edgeColor = continuousHeatmapBg(t);
+      }
+    } else {
+      const color = edgeColoring.colorMap.get(id);
+      if (!color) edgeDimmed = true;
+      else edgeColor = color;
     }
   }
 
@@ -70,7 +93,8 @@ const VariableWidthEdge = ({
         >
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
-            fill="currentColor"
+            fill={edgeColor ?? 'currentColor'}
+            opacity={edgeDimmed ? 0.15 : 1}
           />
         </marker>
       </defs>
@@ -79,7 +103,13 @@ const VariableWidthEdge = ({
         className="react-flow__edge-path"
         d={edgePath}
         markerEnd={`url(#${markerId})`}
-        style={{ stroke: 'currentColor', strokeWidth, fill: 'none' }}
+        style={{
+          stroke: edgeColor ?? 'currentColor',
+          strokeWidth,
+          fill: 'none',
+          opacity: edgeDimmed ? 0.15 : 1,
+          transition: 'opacity 150ms, stroke 150ms',
+        }}
       />
     </>
   );

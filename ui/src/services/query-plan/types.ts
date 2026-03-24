@@ -48,6 +48,20 @@ export type EdgeWidthConfig = {
   max: number;
 } | null;
 
+export type ContinuousEdgeColoring = {
+  type: 'continuous';
+  values: Map<string, number>; // edgeId → numeric value
+  min: number;
+  max: number;
+};
+
+export type CategoricalEdgeColoring = {
+  type: 'categorical';
+  colorMap: Map<string, string>; // edgeId → hex color
+};
+
+export type EdgeColoring = ContinuousEdgeColoring | CategoricalEdgeColoring | null;
+
 export interface DAGData {
   nodes: DAGNode[];
   edges: DAGEdge[];

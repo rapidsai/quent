@@ -8,8 +8,8 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAtom } from 'jotai';
-import { selectedColorField, selectedEdgeWidthFieldAtom } from '@/atoms/dag';
-import { Palette, Spline, X } from 'lucide-react';
+import { selectedColorField, selectedEdgeWidthFieldAtom, selectedEdgeColorFieldAtom } from '@/atoms/dag';
+import { Palette, Spline, X, Brush } from 'lucide-react';
 
 interface DAGFieldProps {
   label: string;
@@ -70,25 +70,38 @@ interface DAGControlsProps {
 export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsProps) => {
   const [colorField, setColorField] = useAtom(selectedColorField);
   const [edgeWidthField, setEdgeWidthField] = useAtom(selectedEdgeWidthFieldAtom);
+  const [edgeColorField, setEdgeColorField] = useAtom(selectedEdgeColorFieldAtom);
 
   return (
-    <div className="flex items-end px-4 py-3 gap-3 border-b bg-card">
-      <DAGField
-        label="Node color"
-        icon={Palette}
-        options={operatorStatFields}
-        value={colorField ?? ''}
-        setValue={setColorField}
-        placeholder="None"
-      />
-      <DAGField
-        label="Edge width"
-        icon={Spline}
-        options={portStatFields}
-        value={edgeWidthField ?? ''}
-        setValue={setEdgeWidthField}
-        placeholder="None"
-      />
+    <div className="flex flex-col px-4 py-3 gap-2 border-b bg-card">
+      <div className="flex items-end gap-3">
+        <DAGField
+          label="Node color"
+          icon={Palette}
+          options={operatorStatFields}
+          value={colorField ?? ''}
+          setValue={setColorField}
+          placeholder="None"
+        />
+        <DAGField
+          label="Edge width"
+          icon={Spline}
+          options={portStatFields}
+          value={edgeWidthField ?? ''}
+          setValue={setEdgeWidthField}
+          placeholder="None"
+        />
+      </div>
+      <div className="flex items-end gap-3">
+        <DAGField
+          label="Edge color"
+          icon={Brush}
+          options={portStatFields}
+          value={edgeColorField ?? ''}
+          setValue={setEdgeColorField}
+          placeholder="None"
+        />
+      </div>
     </div>
   );
 };

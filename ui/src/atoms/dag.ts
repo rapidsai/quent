@@ -1,5 +1,5 @@
 import { atom } from 'jotai';
-import type { NodeColoring, EdgeWidthConfig } from '@/services/query-plan/types';
+import type { NodeColoring, EdgeWidthConfig, EdgeColoring } from '@/services/query-plan/types';
 
 /** The set of currently selected node IDs in the DAG chart */
 export const selectedNodeIdsAtom = atom(new Set<string>());
@@ -24,3 +24,9 @@ export const selectedEdgeWidthFieldAtom = atom<string | null>(null);
 
 /** Computed edge width config (written by QueryPlan, read by VariableWidthEdge) */
 export const edgeWidthConfigAtom = atom<EdgeWidthConfig>(null);
+
+/** Field to color each DAG edge by */
+export const selectedEdgeColorFieldAtom = atom<string | null>(null);
+
+/** Computed edge coloring config (written by QueryPlan, read by VariableWidthEdge) */
+export const edgeColoringAtom = atom<EdgeColoring>(null);

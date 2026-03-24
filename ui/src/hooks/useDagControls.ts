@@ -6,8 +6,10 @@ import {
   nodeColoringAtom,
   selectedEdgeWidthFieldAtom,
   edgeWidthConfigAtom,
+  selectedEdgeColorFieldAtom,
+  edgeColoringAtom,
 } from '@/atoms/dag';
-import { computeNodeColoring, computeEdgeWidthConfig } from '@/services/query-plan/dagFieldProcessing';
+import { computeNodeColoring, computeEdgeWidthConfig, computeEdgeColoring } from '@/services/query-plan/dagFieldProcessing';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 
 export function useDagNodeColoring(nodes: DAGNode[]) {
@@ -25,6 +27,13 @@ export function useDagEdgeWidthConfig(edges: DAGEdge[]) {
     [edges, selectedEdgeWidthField]
   );
   useEffect(() => { setEdgeWidthConfig(config); }, [config, setEdgeWidthConfig]);
+}
+
+export function useDagEdgeColoring(edges: DAGEdge[]) {
+  const selectedField = useAtomValue(selectedEdgeColorFieldAtom);
+  const setEdgeColoring = useSetAtom(edgeColoringAtom);
+  const coloring = useMemo(() => computeEdgeColoring(edges, selectedField), [edges, selectedField]);
+  useEffect(() => { setEdgeColoring(coloring); }, [coloring, setEdgeColoring]);
 }
 
 export function useOperatorStatFields(nodes: DAGNode[]): string[] {
