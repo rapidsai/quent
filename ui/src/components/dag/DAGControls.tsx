@@ -4,7 +4,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAtom } from 'jotai';
 import { selectedColorField, selectedEdgeWidthFieldAtom } from '@/atoms/dag';
 import { Palette, Spline, X } from 'lucide-react';
@@ -40,17 +42,21 @@ const DAGField = ({ label, icon: Icon, options, value, setValue, placeholder }: 
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {options.length === 0 ? (
-          <SelectItem value="_empty" disabled>
-            No data available
-          </SelectItem>
-        ) : (
-          options.map(opt => (
-            <SelectItem key={opt} value={opt} className="text-xs">
-              {opt}
-            </SelectItem>
-          ))
-        )}
+        <ScrollArea viewportClassName="max-h-[10rem]">
+          <SelectGroup>
+            {options.length === 0 ? (
+              <SelectItem value="_empty" disabled>
+                No data available
+              </SelectItem>
+            ) : (
+              options.map(opt => (
+                <SelectItem key={opt} value={opt} className="text-xs">
+                  {opt}
+                </SelectItem>
+              ))
+            )}
+          </SelectGroup>
+        </ScrollArea>
       </SelectContent>
     </Select>
   </div>
