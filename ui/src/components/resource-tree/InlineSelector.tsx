@@ -10,18 +10,18 @@ import { cn } from '@/lib/utils';
 interface InlineSelectorProps {
   id: string;
   label?: string;
-  selectedType: string;
-  availableResourceTypes: string[];
-  onTypeChange: (itemId: string, type: string) => void;
+  value: string;
+  options: string[];
+  onChange: (itemId: string, type: string) => void;
   className?: string;
 }
 
 export const InlineSelector = ({
   id,
   label = 'Type',
-  selectedType,
-  availableResourceTypes,
-  onTypeChange,
+  value,
+  options,
+  onChange,
   className,
 }: InlineSelectorProps): React.ReactNode => {
   return (
@@ -33,7 +33,7 @@ export const InlineSelector = ({
       <label id={`type-select-label-${id}`} className="text-xs text-muted-foreground shrink-0">
         {label}:
       </label>
-      <Select value={selectedType} onValueChange={value => onTypeChange(id, value)}>
+      <Select value={value} onValueChange={value => onChange(id, value)}>
         <SelectTrigger
           id={`type-select-${id}`}
           aria-labelledby={`type-select-label-${id}`}
@@ -50,13 +50,13 @@ export const InlineSelector = ({
           position="popper"
           className="max-h-[--radix-select-content-available-height] min-w-[var(--radix-select-trigger-width)]"
         >
-          {availableResourceTypes.map(typeOption => (
+          {options.map(option => (
             <SelectItem
-              key={typeOption}
-              value={typeOption}
+              key={option}
+              value={option}
               className="text-xs py-1.5 pl-8 pr-2 cursor-pointer"
             >
-              {typeOption}
+              {option}
             </SelectItem>
           ))}
         </SelectContent>

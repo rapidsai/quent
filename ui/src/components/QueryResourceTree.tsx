@@ -176,9 +176,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
               }}
               availableFsmTypes={availableFsmTypes}
               selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
-              onFsmChange={(itemId, fsmType) =>
-                setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType))
-              }
+              onFsmChange={(itemId, fsmType) => {
+                setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType));
+              }}
             />
           );
         },
