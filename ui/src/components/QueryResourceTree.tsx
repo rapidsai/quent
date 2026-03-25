@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Column, TreeTable } from '@/components/ui/tree-table';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useAtomValue, useStore } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
 import { ResourceTree } from '~quent/types/ResourceTree';
@@ -23,13 +22,7 @@ import type { TaskFilter } from '~quent/types/TaskFilter';
 import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import {
-  zoomRangeAtom,
-  debouncedZoomRangeAtom,
-  startTimeMsAtom,
-  timelineCacheKey,
-  timelineDataAtom,
-} from '@/atoms/timeline';
+import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -74,19 +67,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const [rootResourceType, setRootResourceType] = useState<string>(resourceTypeOptions[0] || '');
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
-
-  // Atom cache key with fsmTypeName: null — TimelineController always shows the all-FSM aggregate
-  const rootTimelineCacheKey = useMemo(
-    () =>
-      timelineCacheKey({
-        resourceId: rootResourceGroupId ?? '',
-        resourceTypeName: rootResourceType,
-        fsmTypeName: null,
-      }),
-    [rootResourceGroupId, rootResourceType]
-  );
-
-  const store = useStore();
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
 
@@ -143,16 +123,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     placeholderData: keepPreviousData,
   });
 
-  // Store fetched full-range data into the atom cache under the FSM_ALL key.
-  // Atom holds the previous value until overwritten, so keepPreviousData is unnecessary.
-  useEffect(() => {
-    if (fetchedRootTimeline) {
-      store.set(timelineDataAtom(rootTimelineCacheKey), fetchedRootTimeline);
-    }
-  }, [fetchedRootTimeline, rootTimelineCacheKey, store]);
-
-  const rootTimelineData = useAtomValue(timelineDataAtom(rootTimelineCacheKey));
-
   const treeData = useMemo(() => [rootItem], [rootItem]);
 
   const columns = useMemo(() => {
@@ -195,7 +165,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             <TimelineController
               startTime={startTime}
               durationSeconds={durationSeconds}
-              timelineData={rootTimelineData}
+              timelineData={fetchedRootTimeline}
               onZoomChange={handleZoomChange}
             />
           </div>
@@ -216,7 +186,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   }, [
     startTime,
     durationSeconds,
-    rootTimelineData,
+    fetchedRootTimeline,
     selectedTypes,
     selectedFsmTypes,
     entities,
