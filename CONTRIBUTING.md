@@ -5,8 +5,9 @@ Thank you for your interest in contributing to Quent!
 ## Issue Tracking
 
 All bug fixes, enhancements, and other changes must begin with the creation of a
-[GitHub Issue](https://github.com/NVIDIA/quent/issues). The issue must be reviewed
-and approved by a Quent maintainer before code review begins on any associated pull request.
+[GitHub Issue](https://github.com/NVIDIA/quent/issues). The issue must be
+reviewed and approved by a Quent maintainer before code review begins on any
+associated pull request.
 
 ## Pull Requests
 
@@ -23,7 +24,8 @@ The developer workflow for code contributions is as follows:
    ```
 
 3. Make your changes, ensuring all commits are signed off (see
-   [Developer Certificate of Origin](#developer-certificate-of-origin-dco) below).
+   [Developer Certificate of Origin](#developer-certificate-of-origin-dco)
+   below).
 
 4. Push your branch to your fork:
 
@@ -32,11 +34,12 @@ The developer workflow for code contributions is as follows:
    ```
 
 5. Open a Pull Request against the `main` branch of the upstream repository.
-   - If the PR is not yet ready for review, open it as a **draft PR**. Convert it
-     to ready for review only when it is complete and all CI checks pass.
-   - Reference the issue your PR addresses in the description (e.g., `Closes #123`).
-   - Ensure the PR title follows the [Conventional Commits](#conventional-commits)
-     format described below.
+   - If the PR is not yet ready for review, open it as a **draft PR**. Convert
+     it to ready for review only when it is complete and all CI checks pass.
+   - Reference the issue your PR addresses in the description (e.g.,
+     `Closes #123`).
+   - Ensure the PR title follows the
+     [Conventional Commits](#conventional-commits) format described below.
 
 6. At least one Quent maintainer will be assigned to review the PR. Address any
    feedback and update the branch as needed.
@@ -46,7 +49,7 @@ The developer workflow for code contributions is as follows:
 PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/)
 specification. This is enforced by CI. The format is:
 
-```
+```text
 <type>(<optional scope>): <subject>
 ```
 
@@ -68,7 +71,7 @@ Allowed types:
 
 Examples:
 
-```
+```text
 feat(ui): add query timeline view
 fix: correct FSM transition on empty result set
 docs: add contributing guidelines
@@ -80,19 +83,19 @@ only the PR title is validated. Commits do need a DCO sign-off line (see below).
 
 ## Use of AI Tools
 
-AI-assisted development tools are permitted, but contributors are expected to fully
-understand every change they submit. Reviewers may ask questions about any part of
-your code during review — you should be able to explain the reasoning behind your
-implementation, discuss trade-offs, and defend design decisions without relying on
-the tool that generated the code.
+AI-assisted development tools are permitted, but contributors are expected to
+fully understand every change they submit. Reviewers may ask questions about any
+part of your code during review — you should be able to explain the reasoning
+behind your implementation, discuss trade-offs, and defend design decisions
+without relying on the tool that generated the code.
 
-PRs where it is apparent that the author does not understand the submitted code will
-not be accepted.
+PRs where it is apparent that the author does not understand the submitted code
+will not be accepted.
 
 ## Coding Guidelines
 
-- Keep pull requests focused. Each PR should address a single concern tied to its
-  issue. If you find unrelated things to fix, open separate PRs.
+- Keep pull requests focused. Each PR should address a single concern tied to
+  its issue. If you find unrelated things to fix, open separate PRs.
 - Avoid committing commented-out code.
 - Do not introduce warnings — Rust CI runs `cargo clippy` with `-D warnings`.
 - New components should include accompanying tests.
@@ -160,15 +163,27 @@ All contributions to this project must be made under the terms of the
 
 By contributing to this project, you certify that:
 
-1. The contribution was created in whole or in part by you and you have the right to submit it under the open source license indicated in the file; or
-2. The contribution is based upon previous work that, to the best of your knowledge, is covered under an appropriate open source license and you have the right under that license to submit that work with modifications, whether created in whole or in part by you, under the same open source license (unless you are permitted to submit under a different license), as indicated in the file; or
-3. The contribution was provided directly to you by some other person who certified (1), (2) or (3) and you have not modified it; or
-4. You understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information you submit with it, including your sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
+1. The contribution was created in whole or in part by you and you have the
+   right to submit it under the open source license indicated in the file; or
+2. The contribution is based upon previous work that, to the best of your
+   knowledge, is covered under an appropriate open source license and you have
+   the right under that license to submit that work with modifications, whether
+   created in whole or in part by you, under the same open source license
+   (unless you are permitted to submit under a different license), as indicated
+   in the file; or
+3. The contribution was provided directly to you by some other person who
+   certified (1), (2) or (3) and you have not modified it; or
+4. You understand and agree that this project and the contribution are public
+   and that a record of the contribution (including all personal information you
+   submit with it, including your sign-off) is maintained indefinitely and may
+   be redistributed consistent with this project or the open source license(s)
+   involved.
 
-To acknowledge that you agree to the DCO, sign off your commits by adding the following
-line to your commit message (using your real name — no pseudonyms or anonymous contributions):
+To acknowledge that you agree to the DCO, sign off your commits by adding the
+following line to your commit message (using your real name — no pseudonyms or
+anonymous contributions):
 
-```
+```text
 Signed-off-by: Jane Doe <jane.doe@example.com>
 ```
 
@@ -182,12 +197,12 @@ Any PR containing commits without a sign-off will not be accepted.
 
 ## License
 
-By contributing to Quent, you agree that your contributions will be licensed under the
-[Apache License, Version 2.0](LICENSE).
+By contributing to Quent, you agree that your contributions will be licensed
+under the [Apache License, Version 2.0](LICENSE).
 
 Each source file should include the following SPDX header:
 
-```
+```text
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 ```
