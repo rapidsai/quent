@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom, nodeColoringAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, nodeColoringAtom, selectedNodeDisplayFieldAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
@@ -121,15 +121,17 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isSelected = selectedNodeIds.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+  const nodeDisplayField = useAtomValue(selectedNodeDisplayFieldAtom);
 
   const { fieldColor, fieldDimmed } = useMemo(() => {
     if (!nodeColoring) return { fieldColor: undefined, fieldDimmed: false };
     if (nodeColoring.type === 'continuous') {
       const v = nodeColoring.values.get(operatorId);
       if (v === undefined) return { fieldColor: undefined, fieldDimmed: true };
-      const t = nodeColoring.max > nodeColoring.min
-        ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
-        : 0.5;
+      const t =
+        nodeColoring.max > nodeColoring.min
+          ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
+          : 0.5;
       return { fieldColor: continuousHeatmapBg(t), fieldDimmed: false };
     }
     const color = nodeColoring.colorMap.get(operatorId);
@@ -154,6 +156,14 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       <div className="text-sm font-normal break-words text-center">{data.label}</div>
+      {nodeDisplayField && (() => {
+        const displayValue = statistics.find(s => s.key === nodeDisplayField)?.value ?? null;
+        return displayValue !== null ? (
+          <div className="text-xs text-muted-foreground text-center mt-0.5">
+            {String(displayValue)}
+          </div>
+        ) : null;
+      })()}
 
       {data.hasOutgoing && (
         <Handle

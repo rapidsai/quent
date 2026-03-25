@@ -8,8 +8,8 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAtom } from 'jotai';
-import { selectedColorField, selectedEdgeWidthFieldAtom, selectedEdgeColorFieldAtom } from '@/atoms/dag';
-import { Palette, Spline, X, Brush } from 'lucide-react';
+import { selectedColorField, selectedEdgeWidthFieldAtom, selectedEdgeColorFieldAtom, selectedNodeDisplayFieldAtom } from '@/atoms/dag';
+import { Palette, Spline, X, Brush, Tag } from 'lucide-react';
 
 interface DAGFieldProps {
   label: string;
@@ -71,6 +71,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
   const [colorField, setColorField] = useAtom(selectedColorField);
   const [edgeWidthField, setEdgeWidthField] = useAtom(selectedEdgeWidthFieldAtom);
   const [edgeColorField, setEdgeColorField] = useAtom(selectedEdgeColorFieldAtom);
+  const [nodeDisplayField, setNodeDisplayField] = useAtom(selectedNodeDisplayFieldAtom);
 
   return (
     <div className="flex flex-col px-4 py-3 gap-2 border-b bg-card">
@@ -99,6 +100,14 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
           options={portStatFields}
           value={edgeColorField ?? ''}
           setValue={setEdgeColorField}
+          placeholder="None"
+        />
+        <DAGField
+          label="Display field"
+          icon={Tag}
+          options={operatorStatFields}
+          value={nodeDisplayField ?? ''}
+          setValue={setNodeDisplayField}
           placeholder="None"
         />
       </div>
