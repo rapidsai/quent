@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { waitFor } from '@testing-library/react';
+import { waitFor, act } from '@testing-library/react';
 import { renderWithQuery } from '@/test/test-utils';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { QueryResourceTree } from './QueryResourceTree';
@@ -101,10 +101,6 @@ const makeTimeline = (start: number, end: number): SingleTimelineResponse =>
     data: { Binned: { series: {} } },
   }) as unknown as SingleTimelineResponse;
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe('QueryResourceTree — TimelineController always shows full-range data', () => {
   beforeEach(() => {
     capturedTimelineData = undefined;
@@ -145,23 +141,40 @@ describe('QueryResourceTree — TimelineController always shows full-range data'
     // Simulate what useBulkTimelines does when the user zooms: it calls
     // applyBulkTimelineResponse which writes zoom-bounded data to timelineDataAtom
     // under the same key that was previously used for the full-range data.
+    // Wrap in act() so any atom-subscription re-renders are flushed synchronously
+    // before we assert — this is what makes the test fail on the buggy code.
     const idToMeta = new Map([
       [
         'bulk-id-1',
-        { resourceId: ROOT_GROUP_ID, resourceTypeName: RESOURCE_TYPE, operatorId: null, fsmTypeName: null },
+        {
+          resourceId: ROOT_GROUP_ID,
+          resourceTypeName: RESOURCE_TYPE,
+          operatorId: null,
+          fsmTypeName: null,
+        },
       ],
     ]);
-    applyBulkTimelineResponse(
-      { entries: { 'bulk-id-1': { status: 'ok', data: zoomed.data, config: zoomed.config } as never } },
-      idToMeta,
-      store
-    );
+    await act(async () => {
+      applyBulkTimelineResponse(
+        {
+          entries: {
+            'bulk-id-1': { status: 'ok', data: zoomed.data, config: zoomed.config } as never,
+          },
+        },
+        idToMeta,
+        store
+      );
+    });
 
-    // Confirm the atom was indeed overwritten with zoomed data
-    const cacheKey = timelineCacheKey({ resourceId: ROOT_GROUP_ID, resourceTypeName: RESOURCE_TYPE, fsmTypeName: null });
+    // Confirm the atom was indeed overwritten with zoomed data (bug mechanism is intact)
+    const cacheKey = timelineCacheKey({
+      resourceId: ROOT_GROUP_ID,
+      resourceTypeName: RESOURCE_TYPE,
+      fsmTypeName: null,
+    });
     expect(store.get(timelineDataAtom(cacheKey))?.config.span.start).toBe(25);
 
-    // TimelineController must still show the full-range data — not the atom value
+    // TimelineController must still show the full-range data — not the atom value.
     expect(capturedTimelineData?.config.span.start).toBe(0);
     expect(capturedTimelineData?.config.span.end).toBe(DURATION_S);
   });
