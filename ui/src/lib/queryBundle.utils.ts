@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { EntityRefKey } from '@/types';
 import { QueryEntities } from '~quent/types/QueryEntities';
 import { Operator } from '~quent/types/Operator';
