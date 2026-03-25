@@ -121,21 +121,18 @@ Format, lint, and test your changes before pushing:
 
 ```bash
 cd ui
-pnpm format
-pnpm lint
-pnpm typecheck
-pnpm test
+pnpm ci:check
 ```
 
 ## CI Checks
 
 All of the following checks must pass before a PR can be merged:
 
-**PR title**
+### PR title
 
 - Conventional commit format
 
-**Rust** (runs when Rust or proto sources change)
+### Rust (runs when Rust or proto sources change)
 
 - `cargo fmt` — formatting
 - `cargo clippy` — lints, no warnings allowed
@@ -143,7 +140,7 @@ All of the following checks must pass before a PR can be merged:
 - `cargo build` — release build succeeds
 - `cargo deny` — license and security audit
 
-**UI** (runs when `ui/` sources change)
+### UI (runs when `ui/` sources change)
 
 - Format check
 - ESLint
@@ -152,7 +149,7 @@ All of the following checks must pass before a PR can be merged:
 - `pnpm audit` — dependency security audit
 - Production build
 
-**Markdown** (runs when Rust or proto sources change)
+### Markdown (runs when Rust or proto sources change)
 
 - `rumdl` — markdown lint
 
