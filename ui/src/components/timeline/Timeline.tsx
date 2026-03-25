@@ -24,6 +24,7 @@ import { useTimelineChartColors } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
+const DIMMED_OPACITY = 0.25;
 
 export function Timeline({
   startTime,
@@ -83,7 +84,7 @@ export function Timeline({
         itemStyle: { color },
         areaStyle: {
           color,
-          opacity: isDimmed ? 0.25 : 1,
+          opacity: isDimmed ? DIMMED_OPACITY : 1,
         },
         z: isOverlay ? 5 : 2,
         sampling: 'lttb',
@@ -102,7 +103,6 @@ export function Timeline({
       if (m) {
         const stateColor = m.color;
         const dimmed = m.isDimmed ?? false;
-        const dimOpacity = 0.15;
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -131,11 +131,11 @@ export function Timeline({
           label: { show: false },
           symbolSize: 0,
           lineStyle: {
-            width: dimmed ? 0.5 : 1,
-            color: withOpacity(stateColor, dimmed ? dimOpacity : markAreaBorderOpacity),
+            width: 1,
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaBorderOpacity),
           },
           areaStyle: {
-            color: withOpacity(stateColor, dimmed ? dimOpacity : markAreaFillOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaFillOpacity),
             opacity: 1,
           },
           tooltip: { show: false },
