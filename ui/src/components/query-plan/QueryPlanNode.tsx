@@ -20,7 +20,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition-colors cursor-pointer text-foreground',
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10',
   {
     variants: {
       operationType: {
@@ -57,8 +57,12 @@ const nodeVariants = cva(
           'bg-gray-100/15 border-gray-500 hover:bg-gray-100/30 [--glow-color:var(--color-gray-500)]',
       },
       selected: {
-        true: 'shadow-glow',
+        true: 'shadow-glow border-2 scale-110',
         false: 'shadow-md',
+      },
+      dimmed: {
+        true: 'opacity-30',
+        false: 'opacity-100',
       },
     },
     compoundVariants: [
@@ -87,6 +91,7 @@ const nodeVariants = cva(
     defaultVariants: {
       operationType: 'other',
       selected: false,
+      dimmed: false,
     },
   }
 );
@@ -120,6 +125,8 @@ function resolveOperationType(type: string): OperationType {
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
+  const hasSelection = selectedNodeIds.size > 0;
+  const isDimmed = hasSelection && !isSelected;
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
 
   const nodeContent = (
@@ -127,14 +134,18 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       className={nodeVariants({
         operationType: resolveOperationType(data.operationType),
         selected: isSelected,
+        dimmed: isDimmed,
       })}
-      style={{ zIndex: 10 }}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
       )}
 
-      <div className="text-sm font-normal break-words text-center">{data.label}</div>
+      <div
+        className={`text-sm break-words text-center ${isSelected ? 'font-bold' : 'font-normal'}`}
+      >
+        {data.label}
+      </div>
 
       {data.hasOutgoing && (
         <Handle
