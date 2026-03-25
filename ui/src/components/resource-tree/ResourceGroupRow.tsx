@@ -43,9 +43,9 @@ export const ResourceGroupRow = ({
         <InlineSelector
           id={`${id}-resource-type`}
           label="Type"
-          selectedType={selectedType}
-          availableResourceTypes={availableResourceTypes}
-          onTypeChange={onTypeChange}
+          value={selectedType}
+          options={availableResourceTypes}
+          onChange={(_, value) => onTypeChange(id, value)}
           className="mt-1"
         />
       )}
@@ -58,9 +58,9 @@ export const ResourceGroupRow = ({
         <InlineSelector
           id={`${id}-fsm`}
           label="FSM"
-          selectedType={selectedFsmType ?? FSM_ALL}
-          availableResourceTypes={fsmOptions}
-          onTypeChange={(_itemId, value) => onFsmChange(id, value === FSM_ALL ? null : value)}
+          value={selectedFsmType ?? FSM_ALL}
+          options={fsmOptions}
+          onChange={(_, value) => onFsmChange(id, value === FSM_ALL ? null : value)}
           className="mt-1"
         />
       )}
