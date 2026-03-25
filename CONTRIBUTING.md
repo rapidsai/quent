@@ -177,6 +177,6 @@ By contributing to Quent, you agree that your contributions will be licensed und
 Each source file should include the following SPDX header:
 
 ```
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 ```
