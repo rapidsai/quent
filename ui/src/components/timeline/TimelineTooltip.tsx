@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatDurationForWindow } from '@/services/formatters';
-import { getColorForKey } from '@/services/colors';
 import { cn } from '@/lib/utils';
 import { nanosToMs } from '@/lib/timeline.utils';
 
@@ -11,6 +10,7 @@ interface TooltipSeries {
   name: string;
   value: number;
   isOverlay?: boolean;
+  isDimmed?: boolean;
 }
 
 type ValueFormatter = (value: number) => string;
@@ -45,13 +45,15 @@ interface StateBar {
   baseValue: number;
   baseColor: string;
   overlays: OverlaySegment[];
+  isDimmed?: boolean;
 }
 
 interface SegmentedBarSegment {
   value: number;
   color: string;
   label: string;
-  isOverlay?: boolean;
+  /** When true, this segment is the non-operator "rest" and is rendered at low opacity. */
+  isDimmed?: boolean;
 }
 
 function SegmentedBarRow({
@@ -77,22 +79,27 @@ function SegmentedBarRow({
         <div className="flex h-full rounded-xs overflow-hidden">
           {segments.map((seg, i) => {
             const pct = total > 0 ? (seg.value / total) * 100 : 100;
-            const style: React.CSSProperties & Record<`--${string}`, string> = {
+            // For dimmed segments, bake the alpha into the background so
+            // text stays fully opaque and readable.
+            const bgColor = seg.isDimmed
+              ? `color-mix(in srgb, ${seg.color} 30%, transparent)`
+              : seg.color;
+            const textColor = seg.isDimmed ? 'text-foreground' : 'text-background';
+            const style: React.CSSProperties = {
               width: `${pct}%`,
-              textShadow: '0 0 1px hsl(var(--foreground)), 0 0 1px hsl(var(--foreground))',
-              ...(seg.isOverlay ? { '--stripe-color': seg.color } : { backgroundColor: seg.color }),
+              backgroundColor: bgColor,
             };
             return (
               <div
                 key={i}
                 style={style}
                 className={cn(
-                  'min-w-0 flex items-center justify-center font-semibold truncate text-background',
-                  seg.isOverlay && 'bg-diagonal-stripe'
+                  'min-w-0 flex items-center justify-center font-semibold truncate',
+                  textColor
                 )}
                 title={seg.label}
               >
-                {pct >= 15 ? seg.label : ''}
+                {pct >= 25 ? seg.label : ''}
               </div>
             );
           })}
@@ -122,7 +129,6 @@ function buildBarSegments(
         value: o.value,
         color: o.color,
         label: fmt(o.value),
-        isOverlay: true,
       });
     }
   }
@@ -131,6 +137,7 @@ function buildBarSegments(
       value: Math.max(restValue, 0),
       color: bar.baseColor,
       label: fmt(Math.max(restValue, 0)),
+      isDimmed: bar.isDimmed,
     });
   }
 
@@ -142,7 +149,11 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-function ActiveMarksSection({ marks }: { marks: { label: string; stateName: string }[] }) {
+function ActiveMarksSection({
+  marks,
+}: {
+  marks: { label: string; stateName: string; color: string }[];
+}) {
   if (marks.length === 0) return null;
   return (
     <div className="mt-1 pt-1 border-t border-border">
@@ -151,8 +162,8 @@ function ActiveMarksSection({ marks }: { marks: { label: string; stateName: stri
           <span
             className="w-2 h-2 rounded-xs shrink-0 border"
             style={{
-              backgroundColor: getColorForKey(m.stateName) + '20',
-              borderColor: getColorForKey(m.stateName) + 'cc',
+              backgroundColor: m.color + '20',
+              borderColor: m.color + 'cc',
             }}
           />
           <span className="text-muted-foreground">{m.label}</span>
@@ -176,7 +187,7 @@ function OverlayBarTooltip({
   startTime: bigint;
   fmt: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string }[];
+  activeMarks?: { label: string; stateName: string; color: string }[];
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -225,9 +236,8 @@ function OverlayBarTooltip({
             if (totalOverlay > 0) {
               segments.push({
                 value: totalOverlay,
-                color: 'var(--color-gray-300)',
+                color: 'var(--color-gray-400)',
                 label: fmt(totalOverlay),
-                isOverlay: true,
               });
             }
             if (totalRest > 0 || segments.length === 0) {
@@ -235,6 +245,7 @@ function OverlayBarTooltip({
                 value: Math.max(totalRest, 0),
                 color: 'var(--color-gray-400)',
                 label: fmt(Math.max(totalRest, 0)),
+                isDimmed: segments.length > 0,
               });
             }
 
@@ -273,7 +284,7 @@ export function TooltipContent({
   startTime: bigint;
   fmt?: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string }[];
+  activeMarks?: { label: string; stateName: string; color: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 
@@ -287,6 +298,7 @@ export function TooltipContent({
         state: base.name,
         baseValue: base.value,
         baseColor: base.color,
+        isDimmed: base.isDimmed,
         overlays: matchingOverlays.map(o => ({
           name: o.name,
           value: o.value,

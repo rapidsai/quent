@@ -7,6 +7,8 @@ export type TimelineSeriesEntry = {
   values: number[];
   color: string;
   isOverlay?: boolean;
+  /** When true, this series is dimmed to make overlay series stand out. */
+  isDimmed?: boolean;
 };
 
 export type TimelineSeries = Record<string, TimelineSeriesEntry>;
@@ -15,8 +17,13 @@ export type TimelineSeries = Record<string, TimelineSeriesEntry>;
 export type TimelineMark = {
   label: string;
   stateName: string;
+  color: string;
   xStart: number;
   xEnd: number;
+  /** When true, this mark is dimmed (e.g. not part of the selected operator's long entities). */
+  isDimmed?: boolean;
+  /** Operator instance name when this mark belongs to a selected operator's long entities. */
+  operatorName?: string;
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 75;
