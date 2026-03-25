@@ -78,6 +78,17 @@ chore(deps): bump tokio to 1.48
 Note: Individual commit messages within a PR do not need to follow this format —
 only the PR title is validated. Commits do need a DCO sign-off line (see below).
 
+## Use of AI Tools
+
+AI-assisted development tools are permitted, but contributors are expected to fully
+understand every change they submit. Reviewers may ask questions about any part of
+your code during review — you should be able to explain the reasoning behind your
+implementation, discuss trade-offs, and defend design decisions without relying on
+the tool that generated the code.
+
+PRs where it is apparent that the author does not understand the submitted code will
+not be accepted.
+
 ## Coding Guidelines
 
 - Keep pull requests focused. Each PR should address a single concern tied to its
