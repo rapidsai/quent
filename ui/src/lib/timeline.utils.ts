@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import { formatQuantity } from '@/services/formatters';
@@ -135,10 +138,13 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  * Convert long_fsms into a flat array of timeline marks.
  * Each pair of consecutive transitions defines a time range for the state
  * entered by the first transition.
+ * When resourceIdsForFilter is provided, only states that have at least one
+ * usage on one of those resources are included (e.g. hide "queueing" on a resource lane).
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  startTime: bigint
+  startTime: bigint,
+  resourceIdsForFilter?: Set<string> | null
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
@@ -149,12 +155,18 @@ export function buildTimelineMarks(
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
+        if (
+          resourceIdsForFilter != null &&
+          !transition.usages?.some(u => resourceIdsForFilter.has(u.resource))
+        ) {
+          return null;
+        }
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
         return { label, stateName: transition.name, xStart, xEnd };
       })
-      .filter(m => m.xEnd > m.xStart);
+      .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
   });
 
   return marks.length > 0 ? marks : undefined;
@@ -192,30 +204,40 @@ export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefi
   return '';
 }
 
+/** Extract the entity_type_name (FSM filter) from a TimelineRequest */
+export function getFsmTypeName(params: TimelineRequest<TaskFilter>): string | null {
+  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
+  return params.Resource.entity_filter.entity_type_name;
+}
+
 /** Clone entries and set operator_id on each TimelineRequest */
+export function setOperatorOnEntry(
+  entry: TimelineRequest<TaskFilter>,
+  operatorId: string
+): TimelineRequest<TaskFilter> {
+  if ('ResourceGroup' in entry) {
+    return {
+      ResourceGroup: {
+        ...entry.ResourceGroup,
+        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+      },
+    };
+  }
+  return {
+    Resource: {
+      ...entry.Resource,
+      application: { ...entry.Resource.application, operator_id: operatorId },
+    },
+  };
+}
+
 export function setOperatorOnEntries(
   baseEntries: Record<string, TimelineRequest<TaskFilter>>,
   operatorId: string
 ): Record<string, TimelineRequest<TaskFilter>> {
-  const result: Record<string, TimelineRequest<TaskFilter>> = {};
-  for (const [id, entry] of Object.entries(baseEntries)) {
-    if ('ResourceGroup' in entry) {
-      result[id] = {
-        ResourceGroup: {
-          ...entry.ResourceGroup,
-          app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
-        },
-      };
-    } else {
-      result[id] = {
-        Resource: {
-          ...entry.Resource,
-          application: { ...entry.Resource.application, operator_id: operatorId },
-        },
-      };
-    }
-  }
-  return result;
+  return Object.fromEntries(
+    Object.entries(baseEntries).map(([id, entry]) => [id, setOperatorOnEntry(entry, operatorId)])
+  );
 }
 
 const SECOND_MS = 1_000;
@@ -506,32 +528,50 @@ export function findItemById(root: TreeTableItem, id: string): TreeTableItem | u
   return undefined;
 }
 
-/** Look up the FSM type name for a tree item from the query entities */
+/** Look up the FSM type name for a leaf resource from the query entities.
+ *  If exactly 1 FSM uses this resource type, return that FSM name.
+ *  If >1 FSM types use it, return null (all FSMs). */
 function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string | null {
-  const entity = item.entity;
-  const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
-  const usedBy = entityTypeName ? entities.resource_types[entityTypeName]?.used_by : undefined;
-  return usedBy?.[0] ?? null;
+  const typeName =
+    item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
+  const usedBy = typeName ? entities.resource_types[typeName]?.used_by : undefined;
+  if (usedBy && usedBy.length === 1) return usedBy[0]!;
+  return null;
 }
 
-/** Build TimelineRequest params for a single tree item */
+/** Build TimelineRequest params for a single tree item.
+ *  @param groupFsmFilters — per-item FSM filter for resource groups.
+ *    Map value: null = aggregate all FSMs, string = filter to that FSM type.
+ *    Missing key = fall back to first `used_by` entry (single-FSM) or null (multi-FSM).
+ */
 export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
   config: TimelineConfig,
+  groupFsmFilters?: Map<string, string | null>,
   operatorId: string | null = null
 ): TimelineRequest<TaskFilter> {
-  const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
+  const resourceTypeName = isGroup
+    ? selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''
+    : undefined;
+  const usedBy = resourceTypeName ? entities.resource_types[resourceTypeName]?.used_by : undefined;
+  let fsmTypeName: string | null;
+  if (usedBy?.length === 1) {
+    fsmTypeName = usedBy[0]!;
+  } else if (isGroup) {
+    fsmTypeName = groupFsmFilters?.has(item.id) ? (groupFsmFilters.get(item.id) ?? null) : null;
+  } else {
+    fsmTypeName = lookupFsmTypeName(item, entities);
+  }
   const threshold = getLongEntitiesThreshold(config.end - config.start);
 
   if (isGroup) {
-    const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
     return {
       ResourceGroup: {
         resource_group_id: item.id,
-        resource_type_name: resourceTypeName,
+        resource_type_name: resourceTypeName || '',
         long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
@@ -561,12 +601,20 @@ export function collectVisibleEntries(
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
   config: TimelineConfig,
+  groupFsmFilters?: Map<string, string | null>,
   operatorId: string | null = null
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, config, operatorId);
+    result[item.id] = buildBulkParamsForItem(
+      item,
+      selectedTypes,
+      entities,
+      config,
+      groupFsmFilters,
+      operatorId
+    );
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

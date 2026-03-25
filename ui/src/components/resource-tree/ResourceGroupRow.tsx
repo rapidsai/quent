@@ -1,5 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { ResourceGroup } from '~quent/types/ResourceGroup';
-import { ResourceTypeSelector } from './ResourceTypeSelector';
+import { InlineSelector } from './InlineSelector';
+
+const FSM_ALL = 'All';
 
 interface ResourceGroupRowProps {
   group: ResourceGroup;
@@ -7,6 +12,9 @@ interface ResourceGroupRowProps {
   availableResourceTypes?: string[];
   selectedType?: string;
   onTypeChange?: (itemId: string, type: string) => void;
+  availableFsmTypes?: string[];
+  selectedFsmType?: string | null;
+  onFsmChange?: (itemId: string, fsmType: string | null) => void;
   verbose?: boolean;
   compact?: boolean;
 }
@@ -17,29 +25,46 @@ export const ResourceGroupRow = ({
   availableResourceTypes,
   selectedType,
   onTypeChange,
+  availableFsmTypes,
+  selectedFsmType,
+  onFsmChange,
   compact,
 }: ResourceGroupRowProps): React.ReactNode => {
   const hasMultipleChildTypes = (availableResourceTypes?.length ?? 0) > 1;
-
-  const selector = hasMultipleChildTypes &&
-    selectedType &&
-    onTypeChange &&
-    availableResourceTypes && (
-      <ResourceTypeSelector
-        id={id}
-        selectedType={selectedType}
-        availableResourceTypes={availableResourceTypes}
-        onTypeChange={onTypeChange}
-        compact={compact}
-        className={compact ? 'ml-2' : 'mt-1'}
-      />
-    );
+  const fsmCount = availableFsmTypes?.length ?? 0;
+  const hasOneFsm = fsmCount === 1;
+  const hasMultipleFsms = fsmCount > 1;
+  const fsmOptions = hasMultipleFsms ? [FSM_ALL, ...(availableFsmTypes ?? [])] : [];
 
   if (compact) {
     return (
       <div className="flex items-center">
         <span className="text-xs font-bold">{group.instance_name}</span>
-        {selector}
+        {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
+          <InlineSelector
+            id={`${id}-resource-type`}
+            label="Type"
+            value={selectedType}
+            options={availableResourceTypes}
+            onChange={(_, value) => onTypeChange(id, value)}
+            className="ml-2"
+          />
+        )}
+        {hasOneFsm && (
+          <p className="ml-2 text-xs text-muted-foreground">
+            FSM: <span className="text-foreground">{availableFsmTypes![0]}</span>
+          </p>
+        )}
+        {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (
+          <InlineSelector
+            id={`${id}-fsm`}
+            label="FSM"
+            value={selectedFsmType ?? FSM_ALL}
+            options={fsmOptions}
+            onChange={(_, value) => onFsmChange(id, value === FSM_ALL ? null : value)}
+            className="ml-2"
+          />
+        )}
       </div>
     );
   }
@@ -47,10 +72,33 @@ export const ResourceGroupRow = ({
   return (
     <div>
       <div>
-        <span className="text-xs font-bold">{group.instance_name}</span>
+        <span className="text-sm font-bold">{group.instance_name}</span>
       </div>
-      <div className="text-xs text-muted-foreground">{group.id}</div>
-      {selector}
+      {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
+        <InlineSelector
+          id={`${id}-resource-type`}
+          label="Type"
+          value={selectedType}
+          options={availableResourceTypes}
+          onChange={(_, value) => onTypeChange(id, value)}
+          className="mt-1"
+        />
+      )}
+      {hasOneFsm && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          FSM: <span className="text-foreground">{availableFsmTypes![0]}</span>
+        </p>
+      )}
+      {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (
+        <InlineSelector
+          id={`${id}-fsm`}
+          label="FSM"
+          value={selectedFsmType ?? FSM_ALL}
+          options={fsmOptions}
+          onChange={(_, value) => onFsmChange(id, value === FSM_ALL ? null : value)}
+          className="mt-1"
+        />
+      )}
     </div>
   );
 };

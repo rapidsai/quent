@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Quantity specifications for resource capacities.
 //!
 //! A [`QuantitySpec`] describes how to display values of a particular quantity

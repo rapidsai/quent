@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMemo } from 'react';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { BLACK, WHITE, withOpacity } from '@/services/colors';

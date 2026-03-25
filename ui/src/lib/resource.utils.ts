@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { EntityTypeKey } from '@/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import { Database, Folder, LineChart, LucideIcon, Network, Rocket, Star } from 'lucide-react';

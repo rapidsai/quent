@@ -1,7 +1,9 @@
 target/
 .DS_Store
+.pnpm-store/
 .rumdl_cache
 .idea
 .zed
 .claude
+.playwright-mcp/
 tarpaulin-report.html

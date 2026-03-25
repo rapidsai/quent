@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Skeleton } from '@/components/ui/skeleton';
 import { DEFAULT_TIMELINE_HEIGHT } from './types';
 

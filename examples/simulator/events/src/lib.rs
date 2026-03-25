@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use quent_events::{resource::ResourceEvent, trace::TraceEvent};
 use quent_query_engine_events::QueryEngineEvent;
 use serde::{Deserialize, Serialize};

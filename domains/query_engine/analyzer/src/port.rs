@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{Entity, resource::ResourceGroup};
