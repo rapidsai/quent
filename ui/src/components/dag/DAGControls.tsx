@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAtom } from 'jotai';
 import { selectedColorField, selectedEdgeWidthFieldAtom, selectedEdgeColorFieldAtom, selectedNodeDisplayFieldAtom } from '@/atoms/dag';
 import { Palette, Spline, X, Brush, Tag } from 'lucide-react';
+import { DAGSettingsPopover } from './DAGSettingsPopover';
 
 interface DAGFieldProps {
   label: string;
@@ -75,6 +76,10 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
 
   return (
     <div className="flex flex-col px-4 py-3 gap-2 border-b bg-card">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">DAG Controls</span>
+        <DAGSettingsPopover />
+      </div>
       <div className="flex items-end gap-3">
         <DAGField
           label="Node color"

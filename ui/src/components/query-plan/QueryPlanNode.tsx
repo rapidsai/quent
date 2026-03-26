@@ -2,11 +2,11 @@ import { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom, nodeColoringAtom, selectedNodeDisplayFieldAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, nodeColoringAtom, selectedNodeDisplayFieldAtom, nodeColorPaletteAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { continuousHeatmapBg } from '@/services/colors';
+import { continuousColor } from '@/services/colors';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -118,6 +118,7 @@ function resolveOperationType(type: string): OperationType {
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const nodeColoring = useAtomValue(nodeColoringAtom);
+  const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isSelected = selectedNodeIds.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
@@ -132,11 +133,11 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         nodeColoring.max > nodeColoring.min
           ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
           : 0.5;
-      return { fieldColor: continuousHeatmapBg(t), fieldDimmed: false };
+      return { fieldColor: continuousColor(t, nodePalette), fieldDimmed: false };
     }
     const color = nodeColoring.colorMap.get(operatorId);
     return { fieldColor: color, fieldDimmed: !color };
-  }, [nodeColoring, operatorId]);
+  }, [nodeColoring, operatorId, nodePalette]);
 
   const nodeContent = (
     <div

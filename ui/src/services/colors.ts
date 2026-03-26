@@ -287,10 +287,60 @@ export const BLACK = '#000000';
 export const WHITE = '#ffffff';
 
 /**
- * Compute a red heatmap background color for a normalized value t ∈ [0, 1].
- * Alpha ranges from 0.1 (cold) to 0.65 (hot).
+ * Available continuous color palettes for heatmap-style coloring.
+ */
+export const CONTINUOUS_PALETTES = {
+  blue:    { label: 'Blue' },
+  teal:    { label: 'Teal' },
+  purple:  { label: 'Purple' },
+  orange:  { label: 'Orange' },
+  viridis: { label: 'Viridis' },
+} as const;
+
+export type ContinuousPaletteName = keyof typeof CONTINUOUS_PALETTES;
+
+const VIRIDIS_STOPS: [number, number, number][] = [
+  [68,   1,  84],  // t=0.00 dark purple
+  [59,  82, 139],  // t=0.25 blue-purple
+  [33, 145, 140],  // t=0.50 teal
+  [94, 201,  98],  // t=0.75 green
+  [253, 231, 37],  // t=1.00 yellow
+];
+
+function singleHueAlpha(r: number, g: number, b: number, t: number): string {
+  const alpha = 0.10 + t * 0.60;
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+}
+
+/**
+ * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
+ */
+export function continuousColor(t: number, palette: ContinuousPaletteName): string {
+  switch (palette) {
+    case 'blue':   return singleHueAlpha(59, 130, 246, t);   // blue-500
+    case 'teal':   return singleHueAlpha(20, 184, 166, t);   // teal-500
+    case 'purple': return singleHueAlpha(168, 85, 247, t);   // purple-500
+    case 'orange': return singleHueAlpha(249, 115, 22, t);   // orange-500
+    case 'viridis': {
+      const clamped = Math.min(1, Math.max(0, t));
+      const scaled = clamped * (VIRIDIS_STOPS.length - 1);
+      const lo = Math.floor(scaled);
+      const hi = Math.min(VIRIDIS_STOPS.length - 1, lo + 1);
+      const frac = scaled - lo;
+      const [r1, g1, b1] = VIRIDIS_STOPS[lo];
+      const [r2, g2, b2] = VIRIDIS_STOPS[hi];
+      const r = Math.round(r1 + (r2 - r1) * frac);
+      const g = Math.round(g1 + (g2 - g1) * frac);
+      const b = Math.round(b1 + (b2 - b1) * frac);
+      return `rgba(${r}, ${g}, ${b}, 0.85)`;
+    }
+  }
+}
+
+/**
+ * @deprecated Use continuousColor(t, 'blue') instead.
+ * Compute a heatmap background color for a normalized value t ∈ [0, 1].
  */
 export function continuousHeatmapBg(t: number): string {
-  const alpha = 0.1 + t * 0.55;
-  return `rgba(239, 68, 68, ${alpha.toFixed(3)})`; // red-500
+  return continuousColor(t, 'blue');
 }

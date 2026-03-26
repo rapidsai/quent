@@ -17,8 +17,8 @@ import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom, edgeWidthConfigAtom, edgeColoringAtom } from '@/atoms/dag';
-import { continuousHeatmapBg } from '@/services/colors';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom, edgeWidthConfigAtom, edgeColoringAtom, edgeColorPaletteAtom } from '@/atoms/dag';
+import { continuousColor } from '@/services/colors';
 
 const elk = new ELK();
 
@@ -33,6 +33,7 @@ const VariableWidthEdge = ({
 }: EdgeProps) => {
   const edgeWidthConfig = useAtomValue(edgeWidthConfigAtom);
   const edgeColoring = useAtomValue(edgeColoringAtom);
+  const edgePalette = useAtomValue(edgeColorPaletteAtom);
 
   let strokeWidth = 1.5;
   if (edgeWidthConfig) {
@@ -58,7 +59,7 @@ const VariableWidthEdge = ({
           edgeColoring.max > edgeColoring.min
             ? (v - edgeColoring.min) / (edgeColoring.max - edgeColoring.min)
             : 0.5;
-        edgeColor = continuousHeatmapBg(t);
+        edgeColor = continuousColor(t, edgePalette);
       }
     } else {
       const color = edgeColoring.colorMap.get(id);

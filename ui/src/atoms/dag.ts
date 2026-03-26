@@ -1,5 +1,6 @@
 import { atom } from 'jotai';
 import type { NodeColoring, EdgeWidthConfig, EdgeColoring } from '@/services/query-plan/types';
+import type { ContinuousPaletteName } from '@/services/colors';
 
 /** The set of currently selected node IDs in the DAG chart */
 export const selectedNodeIdsAtom = atom(new Set<string>());
@@ -33,3 +34,9 @@ export const edgeColoringAtom = atom<EdgeColoring>(null);
 
 /** Field displayed below operator name on DAG node */
 export const selectedNodeDisplayFieldAtom = atom<string | null>(null);
+
+/** Continuous color palette used for node coloring */
+export const nodeColorPaletteAtom = atom<ContinuousPaletteName>('blue');
+
+/** Continuous color palette used for edge coloring */
+export const edgeColorPaletteAtom = atom<ContinuousPaletteName>('teal');
