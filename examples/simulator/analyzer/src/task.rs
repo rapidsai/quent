@@ -347,7 +347,11 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "sending".to_string(),
-                usages: vec!["thread".to_string(), "memory".to_string(), "link".to_string()],
+                usages: vec![
+                    "thread".to_string(),
+                    "memory".to_string(),
+                    "link".to_string(),
+                ],
             },
             FsmStateTypeDecl {
                 name: "exit".to_string(),
