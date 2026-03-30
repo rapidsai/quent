@@ -11,10 +11,10 @@ nanoseconds passed since the Unix Epoch as defined in the
 
 ## Span
 
-A Span consists of two [Timestamps][timestamp]:
+A Span is a half-open interval `[start, end)` over two [Timestamps][timestamp]:
 
-- `start: Timestamp`: the beginning
-- `end: Timestamp`: the end
+- `start: Timestamp`: the beginning (inclusive)
+- `end: Timestamp`: the end (exclusive)
 
 The `end` [Timestamp][timestamp] must be equal to or greater than the
 `start` [Timestamp][timestamp].

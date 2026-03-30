@@ -86,7 +86,9 @@ pub mod channel {
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Operating {}
+    pub struct Operating {
+        pub capacity_bytes: Option<u64>,
+    }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}

@@ -26,7 +26,6 @@ pub enum TaskTransitionData {
     Allocating(Allocating),
     Spilling(Spilling),
     Sending(Sending),
-    Finalizing,
     Exit,
 }
 
@@ -79,7 +78,6 @@ impl Transition for TaskTransition {
             TaskTransitionData::Allocating(_) => "allocating",
             TaskTransitionData::Spilling(_) => "spilling",
             TaskTransitionData::Sending(_) => "sending",
-            TaskTransitionData::Finalizing => "finalizing",
             TaskTransitionData::Exit => "exit",
         }
     }
@@ -144,7 +142,6 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                 capacities: smallvec![CapacityValue::new("bytes", data.use_link_bytes)],
             },
         ],
-        TaskTransitionData::Finalizing => SmallVec::new(),
         TaskTransitionData::Exit => SmallVec::new(),
     }
 }

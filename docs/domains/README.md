@@ -1,5 +1,7 @@
 # Domain-Specific Models
 
-This section describes entity types for specific application domains.
+A domain-specific model applies the [modeling concepts](../modeling/README.md)
+to a particular class of applications, defining the entities, resources, and
+relationships that are common across implementations in that domain.
 
 - [Data Processing / Query Engines](./dataproc)

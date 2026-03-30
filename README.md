@@ -54,7 +54,7 @@ official releases yet.
 ### Prerequisites
 
 - Rust (stable, >= 1.93)
-- Node.js (>= 22)
+- Node.js (>= 24.11)
 - pnpm (>= 10)
 - protoc (protobuf compiler)
 

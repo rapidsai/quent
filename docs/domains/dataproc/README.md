@@ -21,7 +21,7 @@ An Engine tracks a start and end time (a [Span][span]).
 
 Must have:
 
-- `name: string`: a name for this instance of the engine
+- `instance_name: string`: a name for this instance of the engine
 
 May have:
 
@@ -51,17 +51,12 @@ work executed by an Engine, orchestrated through a Query Group.
 FSM:
 
 ```text
-⊙ -> initializing -> planning -> executing -> ⊗
+⊙ -> init -> planning -> executing -> ⊗
 ```
 
 Must have:
 
 - `query_group_id: uuid`: the ID of the Query Group this Query belongs to
-
-May have:
-
-- `statement: string`: a human-readable string representing the query statement.
-  This can be e.g. the original SQL statement, the output of an `EXPLAIN`, etc.
 
 ## Plan
 
@@ -80,11 +75,17 @@ typically derived from FSMs that reference work performed on behalf of the Plan
 
 Must have:
 
-- `name: string`: The name of the Plan
-- `query_id: uuid`: the ID of the [Query][query] this is a Plan for
+- `instance_name: string`: The name of the Plan
+- `query_id: option<uuid>`: the ID of the [Query][query], if this is a root
+  Plan
+- `parent_plan_id: option<uuid>`: the ID of the parent Plan, if this is a
+  derived (or "lowered") Plan. The Query is reachable by traversing up the
+  parent chain.
 - `edges: list< struct{ source: uuid, target: uuid } >`: a list of edges where
   `source` is the ID of the Port producing data and `target` is the ID of the
   Port consuming data.
+
+Exactly one of `query_id` or `parent_plan_id` must be set.
 
 Edges connect [Ports][port] of different [Operators][operator]. An edge from a
 source Port of Operator A to a target Port of Operator B represents data
@@ -98,11 +99,6 @@ May have:
 
 - `worker_id: uuid`: the ID of the [Worker][worker] this Plan has specifically
   executed on
-- `parent_plan_id: uuid`: the ID of the parent Plan, if this Plan is a
-  derivation or "lowering" of another Plan
-
-> TODO: clarify whether child Plans must declare their own `query_id` or
-> whether it is inherited from the parent Plan.
 
 Notes:
 
@@ -163,7 +159,7 @@ A Port is an [Entity][entity] that represents either an input or output of an
 Must have:
 
 - `operator_id: uuid`: The ID of the [Operator][operator] this port belongs to.
-- `name: string`: The name of the Port.
+- `instance_name: string`: The name of the Port.
 
 May have:
 

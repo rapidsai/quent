@@ -1,5 +1,9 @@
 # Telemetry
 
+Instrumented applications emit events. This section defines the event model
+and explains why Quent uses FSMs and Resources rather than existing telemetry
+frameworks.
+
 ## Events
 
 An Event is a single instant in time accompanied by arbitrary information.

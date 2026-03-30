@@ -1,7 +1,11 @@
 # Modeling Concepts
 
-This section specifies the basic concepts used to model applications. The
-basic concepts are:
+Quent models application performance through a small set of primitives. You
+compose these to describe the stateful things and resources in your
+application; the resulting model drives both the instrumentation API and the
+analysis tooling.
+
+The basic concepts are:
 
 - [Attributes][attributes]
 - [Timestamp, Span, and Duration][time]
