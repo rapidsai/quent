@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Exporter dumping events as length-prefixed postcard records into a file.
 //!
 //! File format: sequence of length-prefixed records.

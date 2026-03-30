@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { ResourceGroup } from '~quent/types/ResourceGroup';
 import { Resource } from '~quent/types/Resource';
 import { cn } from '@/lib/utils';
@@ -9,6 +12,9 @@ type ResourceColumnProps = {
   item: TreeTableItem;
   selectedType: string;
   onTypeChange: (itemId: string, type: string) => void;
+  availableFsmTypes?: string[];
+  selectedFsmType?: string | null;
+  onFsmChange?: (itemId: string, fsmType: string | null) => void;
   className?: string;
   verbose?: boolean;
 };
@@ -17,6 +23,9 @@ export function ResourceColumn({
   item,
   selectedType,
   onTypeChange,
+  availableFsmTypes,
+  selectedFsmType,
+  onFsmChange,
   className,
 }: ResourceColumnProps): React.ReactNode {
   return (
@@ -30,6 +39,9 @@ export function ResourceColumn({
             availableResourceTypes={item.availableResourceTypes}
             selectedType={selectedType}
             onTypeChange={onTypeChange}
+            availableFsmTypes={availableFsmTypes}
+            selectedFsmType={selectedFsmType}
+            onFsmChange={onFsmChange}
           />
         ) : (
           <ResourceRow resource={item.entity as Resource} />

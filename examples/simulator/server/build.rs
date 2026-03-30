@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use quent_query_engine_ui::QueryBundle;
 use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
 use quent_ui::timeline::{

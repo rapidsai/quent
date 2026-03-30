@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, fetchSingleTimeline } from '@/services/api';
 import { useAtomValue } from 'jotai';
@@ -30,8 +33,6 @@ import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { QuantitySpec } from '~quent/types/QuantitySpec';
-import { useTimelineChartColors } from './useTimelineChartColors';
-
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
 type ResourceTimelineProps = {
@@ -84,13 +85,21 @@ export function ResourceTimeline({
 
   const cacheResourceTypeName =
     resourceType === EntityTypeKey.ResourceGroup ? (resourceTypeName ?? '') : '';
-  const baseCacheKey = timelineCacheKey(resourceId, cacheResourceTypeName);
+  const baseCacheKey = timelineCacheKey({
+    resourceId,
+    resourceTypeName: cacheResourceTypeName,
+    fsmTypeName,
+  });
   const preloadedData = useAtomValue(timelineDataAtom(baseCacheKey));
 
-  const operatorCacheKey = timelineCacheKey(resourceId, cacheResourceTypeName, operatorId);
+  const operatorCacheKey = timelineCacheKey({
+    resourceId,
+    resourceTypeName: cacheResourceTypeName,
+    fsmTypeName,
+    operatorId,
+  });
   const operatorTimelineData = useAtomValue(timelineDataAtom(operatorCacheKey));
   const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
-  const { overlayLighten } = useTimelineChartColors();
 
   const {
     data: fetchedData,
@@ -165,7 +174,6 @@ export function ResourceTimeline({
     const longFsms = getLongFsms(data.data);
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
-    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -179,13 +187,16 @@ export function ResourceTimeline({
           capacities,
           quantitySpecs
         );
+        const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
         return {
           timestamps: base.timestamps,
-          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel, overlayLighten),
-          marks: timelineMarks,
+          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
+          marks: buildTimelineMarks(longFsms, startTime, filterSet, opLongFsmIds, operatorLabel),
         };
       }
     }
+
+    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
 
     return { ...base, marks: timelineMarks };
   }, [
@@ -194,10 +205,11 @@ export function ResourceTimeline({
     operatorId,
     overlayPreloadedData,
     startTime,
-    operatorLabel,
-    overlayLighten,
     capacities,
     quantitySpecs,
+    resourceType,
+    resourceId,
+    operatorLabel,
   ]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {

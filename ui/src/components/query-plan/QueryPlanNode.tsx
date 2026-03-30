@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
@@ -25,7 +28,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition-colors cursor-pointer text-foreground',
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10',
   {
     variants: {
       operationType: {
@@ -62,8 +65,12 @@ const nodeVariants = cva(
           'bg-gray-100/15 border-gray-500 hover:bg-gray-100/30 [--glow-color:var(--color-gray-500)]',
       },
       selected: {
-        true: 'shadow-glow',
+        true: 'shadow-glow border-2 scale-110',
         false: 'shadow-md',
+      },
+      dimmed: {
+        true: 'opacity-30',
+        false: 'opacity-100',
       },
     },
     compoundVariants: [
@@ -92,6 +99,7 @@ const nodeVariants = cva(
     defaultVariants: {
       operationType: 'other',
       selected: false,
+      dimmed: false,
     },
   }
 );
@@ -157,24 +165,18 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return heatmapBg(t);
   }, [hoveredStat, operatorId]);
 
-  const nodeOpacity = useMemo(() => {
-    if (hoveredStat) return hoveredStat.values.has(operatorId) ? 1 : 0.2;
-    if (highlightedNodeIds !== null && !isHighlighted) return 0.25;
-    if (hoveredOpType !== null && !isTypeHovered) return 0.25;
-    if (hoveredOperatorId !== null && !isHovered) return 0.25;
-    if (isDimmed) return 0.3;
-    return 1;
-  }, [
-    hoveredStat,
-    operatorId,
-    highlightedNodeIds,
-    isHighlighted,
-    hoveredOpType,
-    isTypeHovered,
-    hoveredOperatorId,
-    isHovered,
-    isDimmed,
-  ]);
+  const opacityClass =
+    hoveredStat && !hoveredStat.values.has(operatorId)
+      ? 'opacity-20'
+      : highlightedNodeIds !== null && !isHighlighted
+        ? 'opacity-25'
+        : hoveredOpType !== null && !isTypeHovered
+          ? 'opacity-25'
+          : hoveredOperatorId !== null && !isHovered
+            ? 'opacity-25'
+            : isDimmed
+              ? 'opacity-30'
+              : 'opacity-100';
 
   const isActiveHighlight = (isHovered || isTypeHovered || isHighlighted) && !isSelected;
 
@@ -215,37 +217,29 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           nodeVariants({
             operationType: resolveOperationType(data.operationType),
             selected: isSelected || isHovered || isTypeHovered || isHighlighted,
+            dimmed: isDimmed,
           }),
-          isSelected && 'border-3 scale-110',
-          isActiveHighlight && 'ring-2 ring-primary/50'
+          {
+            'border-3 scale-110': isSelected,
+            'ring-2 ring-primary/50': isActiveHighlight,
+          },
+          opacityClass,
+          'z-10'
         )}
-        style={{
-          zIndex: 10,
-          opacity: nodeOpacity,
-          transition: 'opacity 150, transform 150, background-color 150, border-color 150',
-          ...(heatmapColor && { backgroundColor: heatmapColor, borderColor: heatmapColor }),
-        }}
+        style={
+          heatmapColor ? { backgroundColor: heatmapColor, borderColor: heatmapColor } : undefined
+        }
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
         {data.hasIncoming && (
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="w-2 h-2"
-            style={{ opacity: 0 }}
-          />
+          <Handle type="target" position={Position.Top} className="w-2 h-2 opacity-0" />
         )}
 
         <div className="text-sm font-normal break-words text-center">{data.label}</div>
 
         {data.hasOutgoing && (
-          <Handle
-            type="source"
-            position={Position.Bottom}
-            className="w-2 h-2"
-            style={{ opacity: 0 }}
-          />
+          <Handle type="source" position={Position.Bottom} className="w-2 h-2 opacity-0" />
         )}
       </div>
     </OperatorStatisticsPopup>

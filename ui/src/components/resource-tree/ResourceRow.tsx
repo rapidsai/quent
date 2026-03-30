@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Resource } from '~quent/types/Resource';
 
 interface ResourceRowProps {
@@ -15,7 +18,6 @@ export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => 
             : ''}
         </span>
       </div>
-      <div className="text-xs text-muted-foreground">{resource.id}</div>
     </div>
   );
 };

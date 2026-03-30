@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAtomValue, useStore } from 'jotai';
@@ -13,6 +16,7 @@ import {
   collectVisibleEntries,
   getAdaptiveNumBins,
   getResourceTypeName,
+  getFsmTypeName,
 } from '@/lib/timeline.utils';
 import {
   timelineCacheKey,
@@ -38,6 +42,7 @@ export function useBulkTimelines({
   rootItem,
   expandedIds,
   selectedTypes,
+  groupFsmFilters,
   entities,
 }: {
   engineId: string;
@@ -45,6 +50,7 @@ export function useBulkTimelines({
   rootItem: TreeTableItem;
   expandedIds: Set<string>;
   selectedTypes: Map<string, string>;
+  groupFsmFilters?: Map<string, string | null>;
   entities: QueryEntities;
 }) {
   const store = useStore();
@@ -70,8 +76,16 @@ export function useBulkTimelines({
   );
 
   const baseVisibleEntries = useMemo(
-    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, bulkConfig),
-    [rootItem, expandedIds, selectedTypes, entities, bulkConfig]
+    () =>
+      collectVisibleEntries(
+        [rootItem],
+        expandedIds,
+        selectedTypes,
+        entities,
+        bulkConfig,
+        groupFsmFilters
+      ),
+    [rootItem, expandedIds, selectedTypes, entities, bulkConfig, groupFsmFilters]
   );
   useEffect(() => {
     store.set(visibleEntriesAtom, baseVisibleEntries);
@@ -122,9 +136,16 @@ export function useBulkTimelines({
 
       const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children) {
-        const params = buildBulkParamsForItem(child, selectedTypes, entities, expandConfig);
+        const params = buildBulkParamsForItem(
+          child,
+          selectedTypes,
+          entities,
+          expandConfig,
+          groupFsmFilters
+        );
         const resourceTypeName = getResourceTypeName(params);
-        const key = timelineCacheKey(child.id, resourceTypeName);
+        const fsmTypeName = getFsmTypeName(params);
+        const key = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
         if (!store.get(timelineDataAtom(key))) {
           newBaseEntries[child.id] = params;
         }
@@ -154,7 +175,17 @@ export function useBulkTimelines({
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [rootItem, store, selectedTypes, entities, queryClient, engineId, queryId, operatorId]
+    [
+      rootItem,
+      store,
+      selectedTypes,
+      groupFsmFilters,
+      entities,
+      queryClient,
+      engineId,
+      queryId,
+      operatorId,
+    ]
   );
 
   return { handleZoomChange, handleExpand } as const;
