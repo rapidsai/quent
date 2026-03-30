@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAtomValue, useSetAtom } from 'jotai';
 import { EntityTypeKey } from '@/types';
 import { QueryBundle } from '~quent/types/QueryBundle';
@@ -11,6 +14,7 @@ type UsageColumnProps = {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
+  selectedFsmTypes?: Map<string, string | null>;
   startTime: bigint;
   durationSeconds: number;
 };
@@ -20,6 +24,7 @@ export function UsageColumn({
   engineId,
   queryBundle,
   selectedTypes,
+  selectedFsmTypes,
   startTime,
   durationSeconds,
 }: UsageColumnProps): React.ReactNode {
@@ -28,13 +33,22 @@ export function UsageColumn({
 
   const entity = item?.entity ?? {};
   const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
-  const usedBy = entityTypeName
-    ? queryBundle.entities.resource_types[entityTypeName]?.used_by
-    : undefined;
-  const fsmTypeName = usedBy?.[0];
   const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
   const resourceType =
     item.type === EntityTypeKey.Resource ? EntityTypeKey.Resource : EntityTypeKey.ResourceGroup;
+  const resourceTypeName =
+    resourceType === EntityTypeKey.ResourceGroup ? selectedType : entityTypeName;
+  const resourceTypeDecl = resourceTypeName
+    ? queryBundle.entities.resource_types[resourceTypeName]
+    : undefined;
+  const usedBy = resourceTypeDecl?.used_by;
+  let fsmTypeName: string | undefined;
+  if (usedBy?.length === 1) {
+    fsmTypeName = usedBy[0];
+  } else if (resourceType === EntityTypeKey.ResourceGroup) {
+    fsmTypeName = selectedFsmTypes?.get(item.id) ?? undefined;
+  }
+  const capacities = resourceTypeDecl?.capacities;
   return (
     <div
       onMouseEnter={() => setHoveredId(item.id)}
@@ -52,6 +66,8 @@ export function UsageColumn({
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
         showTooltip={isHovered}
+        capacities={capacities}
+        quantitySpecs={queryBundle.quantity_specs}
       />
     </div>
   );

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 /* eslint-disable react-refresh/only-export-components */
 import { ReactNode } from 'react';
 import { render, RenderOptions, renderHook } from '@testing-library/react';

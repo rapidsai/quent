@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
-import { formatBytes } from '@/services/formatters';
+import { formatQuantity } from '@/services/formatters';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
 import type { ResourceTimeline } from '~quent/types/ResourceTimeline';
@@ -8,10 +11,12 @@ import { QueryEntities } from '~quent/types/QueryEntities';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
+import type { QuantitySpec } from '~quent/types/QuantitySpec';
+import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
-import { getColorForKey, lightenColor, WHITE, withOpacity } from '@/services/colors';
+import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
@@ -22,37 +27,55 @@ import type { TimelineConfig } from '~quent/types/TimelineConfig';
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
+/** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
+export function nanosToMs(ns: bigint): number {
+  return Number(ns / 1_000_000n) + Number(ns % 1_000_000n) / 1_000_000;
+}
+
 /**
- * Computes the number of bins such that each bin is >= 1ms wide.
- * For a 50ms window this returns 50; for windows >= 200ms it returns 200.
+ * Currently static but may be used in the future to prevent sub
+ * nanosecond bin sizes
  */
-export function getAdaptiveNumBins(windowSeconds: number): number {
-  const windowMs = windowSeconds * 1_000;
-  return Math.max(1, Math.min(MAX_TIMELINE_BINS, Math.round(windowMs)));
+export function getAdaptiveNumBins(): number {
+  return MAX_TIMELINE_BINS;
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
 export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins(windowSeconds);
+  const numBins = getAdaptiveNumBins();
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  startTime: bigint
+  startTime: bigint,
+  capacities?: CapacityDecl[],
+  quantitySpecs?: { [key in string]?: QuantitySpec }
 ): {
   timestamps: number[];
   series: TimelineSeries;
 } {
   const { bin_duration, num_bins, span } = config;
 
-  const timestamps: number[] = [];
   const numBinsNumber = Number(num_bins);
-  const startTimeMillis = Number(startTime / 1_000_000n) + span.start * 1_000;
+  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
+  const binDurationMs = bin_duration * 1_000;
+
+  const timestamps = new Array<number>(numBinsNumber);
   for (let i = 0; i < numBinsNumber; i++) {
-    timestamps.push(Math.round(startTimeMillis + i * bin_duration * 1_000));
+    timestamps[i] = firstBinMs + i * binDurationMs;
   }
+
+  const getFormatter = (capacityName: string): ((value: number) => string) => {
+    const capDecl = capacities?.find(c => c.name === capacityName);
+    const spec = capDecl ? quantitySpecs?.[capDecl.quantity] : undefined;
+    if (spec && capDecl) {
+      return (value: number, decimals: number = 2) =>
+        formatQuantity(value, spec, capDecl.kind, decimals);
+    }
+    return (value: number) => String(value);
+  };
 
   // Build series based on data type
   const series: TimelineSeries = {};
@@ -61,7 +84,7 @@ export function buildBinnedTimelineSeries(
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
     for (const [capacity, values] of Object.entries(capacities_values)) {
-      const formatter = getFormatterForCapacityType(capacity);
+      const formatter = getFormatter(capacity);
       series[capacity] = {
         color: getColorForKey(capacity),
         formatter,
@@ -74,7 +97,7 @@ export function buildBinnedTimelineSeries(
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
-        const formatter = getFormatterForCapacityType(capacityType);
+        const formatter = getFormatter(capacityType);
         if (values) {
           series[state] = {
             color: getColorForKey(state),
@@ -115,26 +138,49 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  * Convert long_fsms into a flat array of timeline marks.
  * Each pair of consecutive transitions defines a time range for the state
  * entered by the first transition.
+ * When resourceIdsForFilter is provided, only states that have at least one
+ * usage on one of those resources are included (e.g. hide "queueing" on a resource lane).
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  startTime: bigint
+  startTime: bigint,
+  resourceIdsForFilter?: Set<string> | null,
+  /** When provided, marks whose FSM is in this set are highlighted; others are dimmed. */
+  overlayFsmIds?: Set<string>,
+  overlayLabel?: string
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
-  const startTimeMs = Number(startTime / 1_000_000n);
+  const startTimeMs = nanosToMs(startTime);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
+    const inOverlay = overlayFsmIds ? overlayFsmIds.has(fsm.id) : undefined;
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
+        if (
+          resourceIdsForFilter != null &&
+          !transition.usages?.some(u => resourceIdsForFilter.has(u.resource))
+        ) {
+          return null;
+        }
         const next = fsm.transitions[i + 1];
-        const xStart = Math.round(startTimeMs + transition.timestamp * 1000);
-        const xEnd = Math.round(startTimeMs + next.timestamp * 1000);
-        return { label, stateName: transition.name, xStart, xEnd };
+        const xStart = startTimeMs + transition.timestamp * 1000;
+        const xEnd = startTimeMs + next.timestamp * 1000;
+        return {
+          label,
+          stateName: transition.name,
+          color: getColorForKey(transition.name),
+          xStart,
+          xEnd,
+          ...(inOverlay !== undefined && {
+            isDimmed: !inOverlay,
+            operatorName: inOverlay ? overlayLabel : undefined,
+          }),
+        };
       })
-      .filter(m => m.xEnd > m.xStart);
+      .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
   });
 
   return marks.length > 0 ? marks : undefined;
@@ -142,23 +188,26 @@ export function buildTimelineMarks(
 
 /**
  * Merge overlay series into base series for overlay rendering.
- * Each overlay series entry gets a lightened color, an `isOverlay` flag,
- * and a tooltip name of "{state} ({overlayLabel})".
+ * Base series are dimmed; overlay series keep original colors so the
+ * selected operator stands out clearly against the background.
  */
 export function mergeOverlaySeries(
   baseSeries: TimelineSeries,
   overlaySeries: TimelineSeries,
-  overlayLabel: string,
-  lightenAmount: number
+  overlayLabel: string
 ): TimelineSeries {
-  const merged: TimelineSeries = { ...baseSeries };
+  // Dim all base series to push them into the background.
+  const merged: TimelineSeries = {};
+  for (const [state, baseEntry] of Object.entries(baseSeries)) {
+    merged[state] = { ...baseEntry, isDimmed: true };
+  }
+  // Add overlay series at full intensity with original colors.
   for (const [state, overlayEntry] of Object.entries(overlaySeries)) {
     const baseEntry = baseSeries[state];
-    const baseColor = baseEntry?.color ?? overlayEntry.color;
     const overlayName = `${state} (${overlayLabel})`;
     merged[overlayName] = {
       ...overlayEntry,
-      color: lightenColor(baseColor, lightenAmount),
+      color: baseEntry?.color ?? overlayEntry.color,
       isOverlay: true,
     };
   }
@@ -172,30 +221,40 @@ export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefi
   return '';
 }
 
+/** Extract the entity_type_name (FSM filter) from a TimelineRequest */
+export function getFsmTypeName(params: TimelineRequest<TaskFilter>): string | null {
+  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
+  return params.Resource.entity_filter.entity_type_name;
+}
+
 /** Clone entries and set operator_id on each TimelineRequest */
+export function setOperatorOnEntry(
+  entry: TimelineRequest<TaskFilter>,
+  operatorId: string
+): TimelineRequest<TaskFilter> {
+  if ('ResourceGroup' in entry) {
+    return {
+      ResourceGroup: {
+        ...entry.ResourceGroup,
+        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+      },
+    };
+  }
+  return {
+    Resource: {
+      ...entry.Resource,
+      application: { ...entry.Resource.application, operator_id: operatorId },
+    },
+  };
+}
+
 export function setOperatorOnEntries(
   baseEntries: Record<string, TimelineRequest<TaskFilter>>,
   operatorId: string
 ): Record<string, TimelineRequest<TaskFilter>> {
-  const result: Record<string, TimelineRequest<TaskFilter>> = {};
-  for (const [id, entry] of Object.entries(baseEntries)) {
-    if ('ResourceGroup' in entry) {
-      result[id] = {
-        ResourceGroup: {
-          ...entry.ResourceGroup,
-          app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
-        },
-      };
-    } else {
-      result[id] = {
-        Resource: {
-          ...entry.Resource,
-          application: { ...entry.Resource.application, operator_id: operatorId },
-        },
-      };
-    }
-  }
-  return result;
+  return Object.fromEntries(
+    Object.entries(baseEntries).map(([id, entry]) => [id, setOperatorOnEntry(entry, operatorId)])
+  );
 }
 
 const SECOND_MS = 1_000;
@@ -253,15 +312,6 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   return maxAllowedStep;
 }
 
-function getFormatterForCapacityType(capacityType: string): (value: number) => string {
-  switch (capacityType) {
-    case 'bytes':
-      return (value: number) => formatBytes(value, 0);
-    default:
-      return (value: number) => String(value);
-  }
-}
-
 function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
   const chartElements = document.querySelectorAll('[_echarts_instance_]');
   for (const el of chartElements) {
@@ -297,11 +347,15 @@ export const connectChart = (
   chartGroup: string = CHART_GROUP,
   activateBrushSelect = true
 ) => {
-  // Sync zoom state from any existing chart in the group before connecting
+  // Apply current zoom to this chart without replacing its dataZoom components.
+  // setOption({ dataZoom: [zoomState] }) would replace the array and break slider/inside config.
   const zoomState = getChartGroupZoomState(chartGroup);
   if (zoomState) {
-    instance.setOption({
-      dataZoom: [zoomState],
+    instance.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 0,
+      start: zoomState.start,
+      end: zoomState.end,
     });
   }
 
@@ -491,32 +545,50 @@ export function findItemById(root: TreeTableItem, id: string): TreeTableItem | u
   return undefined;
 }
 
-/** Look up the FSM type name for a tree item from the query entities */
+/** Look up the FSM type name for a leaf resource from the query entities.
+ *  If exactly 1 FSM uses this resource type, return that FSM name.
+ *  If >1 FSM types use it, return null (all FSMs). */
 function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string | null {
-  const entity = item.entity;
-  const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
-  const usedBy = entityTypeName ? entities.resource_types[entityTypeName]?.used_by : undefined;
-  return usedBy?.[0] ?? null;
+  const typeName =
+    item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
+  const usedBy = typeName ? entities.resource_types[typeName]?.used_by : undefined;
+  if (usedBy && usedBy.length === 1) return usedBy[0]!;
+  return null;
 }
 
-/** Build TimelineRequest params for a single tree item */
+/** Build TimelineRequest params for a single tree item.
+ *  @param groupFsmFilters — per-item FSM filter for resource groups.
+ *    Map value: null = aggregate all FSMs, string = filter to that FSM type.
+ *    Missing key = fall back to first `used_by` entry (single-FSM) or null (multi-FSM).
+ */
 export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
   config: TimelineConfig,
+  groupFsmFilters?: Map<string, string | null>,
   operatorId: string | null = null
 ): TimelineRequest<TaskFilter> {
-  const fsmTypeName = lookupFsmTypeName(item, entities);
   const isGroup = item.type !== EntityTypeKey.Resource;
+  const resourceTypeName = isGroup
+    ? selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''
+    : undefined;
+  const usedBy = resourceTypeName ? entities.resource_types[resourceTypeName]?.used_by : undefined;
+  let fsmTypeName: string | null;
+  if (usedBy?.length === 1) {
+    fsmTypeName = usedBy[0]!;
+  } else if (isGroup) {
+    fsmTypeName = groupFsmFilters?.has(item.id) ? (groupFsmFilters.get(item.id) ?? null) : null;
+  } else {
+    fsmTypeName = lookupFsmTypeName(item, entities);
+  }
   const threshold = getLongEntitiesThreshold(config.end - config.start);
 
   if (isGroup) {
-    const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
     return {
       ResourceGroup: {
         resource_group_id: item.id,
-        resource_type_name: resourceTypeName,
+        resource_type_name: resourceTypeName || '',
         long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
@@ -546,12 +618,20 @@ export function collectVisibleEntries(
   selectedTypes: Map<string, string>,
   entities: QueryEntities,
   config: TimelineConfig,
+  groupFsmFilters?: Map<string, string | null>,
   operatorId: string | null = null
 ): Record<string, TimelineRequest<TaskFilter>> {
   const result: Record<string, TimelineRequest<TaskFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, config, operatorId);
+    result[item.id] = buildBulkParamsForItem(
+      item,
+      selectedTypes,
+      entities,
+      config,
+      groupFsmFilters,
+      operatorId
+    );
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

@@ -1,24 +1,35 @@
-import { formatBytes, formatDuration } from '@/services/formatters';
-import { getColorForKey } from '@/services/colors';
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { formatDurationForWindow } from '@/services/formatters';
 import { cn } from '@/lib/utils';
+import { nanosToMs } from '@/lib/timeline.utils';
 
 interface TooltipSeries {
   color: string;
   name: string;
   value: number;
   isOverlay?: boolean;
+  isDimmed?: boolean;
 }
 
-const TooltipSeriesStat = ({ series }: { series: Partial<TooltipSeries> }) => {
+type ValueFormatter = (value: number) => string;
+const defaultFormatter: ValueFormatter = (v: number) => `${v}`;
+
+const TooltipSeriesStat = ({
+  series,
+  fmt,
+}: {
+  series: Partial<TooltipSeries>;
+  fmt: ValueFormatter;
+}) => {
   return (
     <li className="flex items-center gap-1">
       {series.color && (
         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
       )}
       <span className="text-foreground">{series.name}</span>
-      <span className="font-semibold ml-auto text-foreground">
-        {formatBytes(series.value ?? 0, 2)}
-      </span>
+      <span className="font-semibold ml-auto text-foreground">{fmt(series.value ?? 0)}</span>
     </li>
   );
 };
@@ -34,25 +45,29 @@ interface StateBar {
   baseValue: number;
   baseColor: string;
   overlays: OverlaySegment[];
+  isDimmed?: boolean;
 }
 
 interface SegmentedBarSegment {
   value: number;
   color: string;
   label: string;
-  isOverlay?: boolean;
+  /** When true, this segment is the non-operator "rest" and is rendered at low opacity. */
+  isDimmed?: boolean;
 }
 
 function SegmentedBarRow({
   label,
   segments,
   total,
+  fmt,
   labelClassName,
   valueClassName,
 }: {
   label: string;
   segments: SegmentedBarSegment[];
   total: number;
+  fmt: ValueFormatter;
   overlayPct?: number;
   labelClassName?: string;
   valueClassName?: string;
@@ -64,35 +79,43 @@ function SegmentedBarRow({
         <div className="flex h-full rounded-xs overflow-hidden">
           {segments.map((seg, i) => {
             const pct = total > 0 ? (seg.value / total) * 100 : 100;
-            const style: React.CSSProperties & Record<`--${string}`, string> = {
+            // For dimmed segments, bake the alpha into the background so
+            // text stays fully opaque and readable.
+            const bgColor = seg.isDimmed
+              ? `color-mix(in srgb, ${seg.color} 30%, transparent)`
+              : seg.color;
+            const textColor = seg.isDimmed ? 'text-foreground' : 'text-background';
+            const style: React.CSSProperties = {
               width: `${pct}%`,
-              textShadow: '0 0 1px hsl(var(--foreground)), 0 0 1px hsl(var(--foreground))',
-              ...(seg.isOverlay ? { '--stripe-color': seg.color } : { backgroundColor: seg.color }),
+              backgroundColor: bgColor,
             };
             return (
               <div
                 key={i}
                 style={style}
                 className={cn(
-                  'min-w-0 flex items-center justify-center font-semibold truncate text-background',
-                  seg.isOverlay && 'bg-diagonal-stripe'
+                  'min-w-0 flex items-center justify-center font-semibold truncate',
+                  textColor
                 )}
                 title={seg.label}
               >
-                {pct >= 15 ? seg.label : ''}
+                {pct >= 25 ? seg.label : ''}
               </div>
             );
           })}
         </div>
       </div>
       <span className={cn('text-foreground font-semibold text-[11px] text-right', valueClassName)}>
-        {formatBytes(total, 2)}
+        {fmt(total)}
       </span>
     </>
   );
 }
 
-function buildBarSegments(bar: StateBar): {
+function buildBarSegments(
+  bar: StateBar,
+  fmt: ValueFormatter
+): {
   segments: SegmentedBarSegment[];
   overlayPct: number | undefined;
 } {
@@ -105,8 +128,7 @@ function buildBarSegments(bar: StateBar): {
       segments.push({
         value: o.value,
         color: o.color,
-        label: formatBytes(o.value, 2),
-        isOverlay: true,
+        label: fmt(o.value),
       });
     }
   }
@@ -114,7 +136,8 @@ function buildBarSegments(bar: StateBar): {
     segments.push({
       value: Math.max(restValue, 0),
       color: bar.baseColor,
-      label: formatBytes(Math.max(restValue, 0), 2),
+      label: fmt(Math.max(restValue, 0)),
+      isDimmed: bar.isDimmed,
     });
   }
 
@@ -126,7 +149,11 @@ function buildBarSegments(bar: StateBar): {
   return { segments, overlayPct };
 }
 
-function ActiveMarksSection({ marks }: { marks: { label: string; stateName: string }[] }) {
+function ActiveMarksSection({
+  marks,
+}: {
+  marks: { label: string; stateName: string; color: string }[];
+}) {
   if (marks.length === 0) return null;
   return (
     <div className="mt-1 pt-1 border-t border-border">
@@ -135,8 +162,8 @@ function ActiveMarksSection({ marks }: { marks: { label: string; stateName: stri
           <span
             className="w-2 h-2 rounded-xs shrink-0 border"
             style={{
-              backgroundColor: getColorForKey(m.stateName) + '20',
-              borderColor: getColorForKey(m.stateName) + 'cc',
+              backgroundColor: m.color + '20',
+              borderColor: m.color + 'cc',
             }}
           />
           <span className="text-muted-foreground">{m.label}</span>
@@ -151,12 +178,16 @@ function OverlayBarTooltip({
   timestamp,
   bars,
   startTime,
+  fmt,
+  windowMs,
   activeMarks,
 }: {
   timestamp: number;
   bars: StateBar[];
   startTime: bigint;
-  activeMarks?: { label: string; stateName: string }[];
+  fmt: ValueFormatter;
+  windowMs: number;
+  activeMarks?: { label: string; stateName: string; color: string }[];
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -170,20 +201,21 @@ function OverlayBarTooltip({
       )}
     >
       <div className="font-semibold mb-1.5 text-muted-foreground">
-        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
       </div>
       <div
         className="grid items-center gap-x-1.5 gap-y-1"
         style={{ gridTemplateColumns: 'auto 1fr auto' }}
       >
         {visibleBars.map(bar => {
-          const { segments, overlayPct } = buildBarSegments(bar);
+          const { segments, overlayPct } = buildBarSegments(bar, fmt);
           return (
             <SegmentedBarRow
               key={bar.state}
               label={bar.state}
               segments={segments}
               total={bar.baseValue}
+              fmt={fmt}
               overlayPct={overlayPct}
             />
           );
@@ -204,16 +236,16 @@ function OverlayBarTooltip({
             if (totalOverlay > 0) {
               segments.push({
                 value: totalOverlay,
-                color: 'var(--color-gray-300)',
-                label: formatBytes(totalOverlay, 2),
-                isOverlay: true,
+                color: 'var(--color-gray-400)',
+                label: fmt(totalOverlay),
               });
             }
             if (totalRest > 0 || segments.length === 0) {
               segments.push({
                 value: Math.max(totalRest, 0),
                 color: 'var(--color-gray-400)',
-                label: formatBytes(Math.max(totalRest, 0), 2),
+                label: fmt(Math.max(totalRest, 0)),
+                isDimmed: segments.length > 0,
               });
             }
 
@@ -227,6 +259,7 @@ function OverlayBarTooltip({
                   label="Total"
                   segments={segments}
                   total={grandTotal}
+                  fmt={fmt}
                   overlayPct={overlayPct}
                 />
               </>
@@ -242,12 +275,16 @@ export function TooltipContent({
   timestamp,
   series,
   startTime,
+  fmt = defaultFormatter,
+  windowMs,
   activeMarks,
 }: {
   timestamp: number;
   series: TooltipSeries[];
   startTime: bigint;
-  activeMarks?: { label: string; stateName: string }[];
+  fmt?: ValueFormatter;
+  windowMs: number;
+  activeMarks?: { label: string; stateName: string; color: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 
@@ -261,6 +298,7 @@ export function TooltipContent({
         state: base.name,
         baseValue: base.value,
         baseColor: base.color,
+        isDimmed: base.isDimmed,
         overlays: matchingOverlays.map(o => ({
           name: o.name,
           value: o.value,
@@ -274,6 +312,8 @@ export function TooltipContent({
         timestamp={timestamp}
         bars={bars}
         startTime={startTime}
+        fmt={fmt}
+        windowMs={windowMs}
         activeMarks={activeMarks}
       />
     );
@@ -282,16 +322,17 @@ export function TooltipContent({
   return (
     <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
       <div className="font-semibold mb-1 text-muted-foreground">
-        {formatDuration(Number(BigInt(timestamp) - startTime / 1_000_000n))}
+        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
       </div>
       <ul>
         {series
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((s, i) => (s.value > 0 ? <TooltipSeriesStat key={i} series={s} /> : null))}
+          .map((s, i) => (s.value > 0 ? <TooltipSeriesStat key={i} series={s} fmt={fmt} /> : null))}
       </ul>
       <section className="pt-1">
         <TooltipSeriesStat
           series={{ name: 'Total', value: series.reduce((acc, s) => acc + s.value, 0) }}
+          fmt={fmt}
         />
       </section>
       {activeMarks && <ActiveMarksSection marks={activeMarks} />}

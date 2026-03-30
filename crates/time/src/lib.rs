@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Time-related types and utilities.
 use std::sync::OnceLock;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};

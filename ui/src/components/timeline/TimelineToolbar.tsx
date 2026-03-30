@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { X, Maximize2, Filter, Settings } from 'lucide-react';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';

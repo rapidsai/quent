@@ -1,6 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Column, TreeTable } from '@/components/ui/tree-table';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useAtomValue, useStore } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
 import { ResourceTree } from '~quent/types/ResourceTree';
@@ -16,10 +20,16 @@ import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { TaskFilter } from '~quent/types/TaskFilter';
-import { transformResourceTree, getAdaptiveNumBins } from '@/lib/timeline.utils';
+import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import {
+  zoomRangeAtom,
+  debouncedZoomRangeAtom,
+  startTimeMsAtom,
+  timelineCacheKey,
+  timelineDataAtom,
+} from '@/atoms/timeline';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -40,10 +50,11 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+  const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
-  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   useHydrateAtoms([
     [zoomRangeAtom, { start: 0, end: durationSeconds }],
@@ -64,6 +75,19 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
+  // Atom cache key with fsmTypeName: null — TimelineController always shows the all-FSM aggregate
+  const rootTimelineCacheKey = useMemo(
+    () =>
+      timelineCacheKey({
+        resourceId: rootResourceGroupId ?? '',
+        resourceTypeName: rootResourceType,
+        fsmTypeName: null,
+      }),
+    [rootResourceGroupId, rootResourceType]
+  );
+
+  const store = useStore();
+
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
@@ -72,6 +96,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     rootItem,
     expandedIds,
     selectedTypes,
+    groupFsmFilters: selectedFsmTypes,
     entities,
   });
 
@@ -83,7 +108,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     [handleExpandChange, handleExpand]
   );
 
-  const { data: rootTimelineData } = useQuery({
+  const { data: fetchedRootTimeline } = useQuery({
     queryKey: [
       'resourceGroupTimeline',
       'root',
@@ -103,7 +128,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
             config: {
-              num_bins: getAdaptiveNumBins(durationSeconds),
+              num_bins: getAdaptiveNumBins(),
               start: 0,
               end: durationSeconds,
             },
@@ -118,6 +143,16 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     placeholderData: keepPreviousData,
   });
 
+  // Store fetched full-range data into the atom cache under the FSM_ALL key.
+  // Atom holds the previous value until overwritten, so keepPreviousData is unnecessary.
+  useEffect(() => {
+    if (fetchedRootTimeline) {
+      store.set(timelineDataAtom(rootTimelineCacheKey), fetchedRootTimeline);
+    }
+  }, [fetchedRootTimeline, rootTimelineCacheKey, store]);
+
+  const rootTimelineData = useAtomValue(timelineDataAtom(rootTimelineCacheKey));
+
   const treeData = useMemo(() => [rootItem], [rootItem]);
 
   const columns = useMemo(() => {
@@ -127,18 +162,29 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item }: { item: TreeTableItem; level: number }) => (
-          <ResourceColumn
-            item={item}
-            selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
-            onTypeChange={(itemId, newType) => {
-              setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-              if (itemId === rootItem.id) {
-                setRootResourceType(newType);
-              }
-            }}
-          />
-        ),
+        render: ({ item }: { item: TreeTableItem; level: number }) => {
+          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+          const availableFsmTypes = selectedType
+            ? entities.resource_types[selectedType]?.used_by
+            : undefined;
+          return (
+            <ResourceColumn
+              item={item}
+              selectedType={selectedType}
+              onTypeChange={(itemId, newType) => {
+                setSelectedTypes(prev => new Map(prev).set(itemId, newType));
+                if (itemId === rootItem.id) {
+                  setRootResourceType(newType);
+                }
+              }}
+              availableFsmTypes={availableFsmTypes}
+              selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
+              onFsmChange={(itemId, fsmType) => {
+                setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType));
+              }}
+            />
+          );
+        },
       },
       {
         key: 'usage',
@@ -160,6 +206,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             engineId={engineId}
             queryBundle={queryBundle}
             selectedTypes={selectedTypes}
+            selectedFsmTypes={selectedFsmTypes}
             startTime={startTime}
             durationSeconds={durationSeconds}
           />
@@ -171,6 +218,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     durationSeconds,
     rootTimelineData,
     selectedTypes,
+    selectedFsmTypes,
+    entities,
     rootItem,
     engineId,
     queryBundle,

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';

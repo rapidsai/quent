@@ -1,10 +1,16 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Types shared with the UI.
 
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_attributes::{Attribute, Value};
 use quent_query_engine_events as qe;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
-use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl};
+use quent_ui::{
+    Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
+    quantity::QuantitySpec,
+};
 use serde::Serialize;
 use std::collections::HashMap;
 use ts_rs::TS;
@@ -275,6 +281,9 @@ pub struct QueryBundle<E> {
 
     /// A list of unique operator type names.
     pub unique_operator_names: Vec<String>,
+
+    /// Quantity specifications for capacity display, keyed by capacity name.
+    pub quantity_specs: HashMap<String, QuantitySpec>,
 
     /// The number of nanoseconds passed since the Unix epoch at which the
     /// engine started executing this query.

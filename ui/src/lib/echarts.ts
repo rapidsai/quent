@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Custom ECharts build with only the modules we need.
  * This significantly reduces bundle size (~1MB → ~300KB).

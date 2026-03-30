@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { GripVertical } from 'lucide-react';
 import * as ResizablePrimitive from 'react-resizable-panels';
 

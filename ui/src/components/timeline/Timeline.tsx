@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
@@ -5,9 +8,10 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
+import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
-import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
-import { formatBytes } from '@/services/formatters';
+import { withOpacity } from '@/services/colors';
+import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
   TimelineMark,
@@ -15,10 +19,12 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart } from '@/lib/timeline.utils';
+import { connectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
+import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
+const DIMMED_OPACITY = 0.25;
 
 export function Timeline({
   startTime,
@@ -48,6 +54,10 @@ export function Timeline({
     markLabelTextColor,
   } = useTimelineChartColors();
 
+  const zoomRange = useAtomValue(zoomRangeAtom);
+  const windowMsRef = useRef(0);
+  windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
+
   const maxMarkCountRef = useRef(0);
 
   const seriesOptions = useMemo(() => {
@@ -56,6 +66,7 @@ export function Timeline({
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
       const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
+      const isDimmed = seriesData.isDimmed ?? false;
 
       return {
         name,
@@ -72,13 +83,8 @@ export function Timeline({
         lineStyle: { width: 0 },
         itemStyle: { color },
         areaStyle: {
-          color: isOverlay
-            ? {
-                image: createStripePattern(color),
-                repeat: 'repeat',
-              }
-            : color,
-          opacity: 1,
+          color,
+          opacity: isDimmed ? DIMMED_OPACITY : 1,
         },
         z: isOverlay ? 5 : 2,
         sampling: 'lttb',
@@ -95,7 +101,8 @@ export function Timeline({
     for (let i = 0; i < maxMarkCountRef.current; i++) {
       const m = marks?.[i];
       if (m) {
-        const stateColor = getColorForKey(m.stateName);
+        const stateColor = m.color;
+        const dimmed = m.isDimmed ?? false;
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -105,13 +112,14 @@ export function Timeline({
             {
               value: [m.xStart, 1],
               label: {
-                show: true,
-                formatter: () => m.label,
+                show: !dimmed,
+                formatter: () =>
+                  `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
                 position: [0, -5],
                 fontSize: 9,
                 fontWeight: 500,
                 color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, 1),
+                backgroundColor: withOpacity(stateColor, 0.85),
                 borderRadius: 1,
                 padding: [1, 2],
               },
@@ -124,10 +132,10 @@ export function Timeline({
           symbolSize: 0,
           lineStyle: {
             width: 1,
-            color: withOpacity(stateColor, markAreaBorderOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaBorderOpacity),
           },
           areaStyle: {
-            color: withOpacity(stateColor, markAreaFillOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaFillOpacity),
             opacity: 1,
           },
           tooltip: { show: false },
@@ -155,6 +163,11 @@ export function Timeline({
     return allSeries;
   }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
 
+  const yAxisFormatter = useMemo(() => {
+    const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
+    return (v: number) => firstEntry?.formatter(v, 0) ?? ((v: number) => `${v}`);
+  }, [series]);
+
   const yAxisOptions = useMemo(
     () => [
       {
@@ -175,10 +188,7 @@ export function Timeline({
           margin: 8,
           fontSize: 10,
           color: timelineMarkupColor,
-          // TODO(joe): This needs to be dynamic, not always bytes but looks nice for now
-          formatter: (value: number) => {
-            return formatBytes(value, 0);
-          },
+          formatter: yAxisFormatter,
         },
       },
       {
@@ -189,10 +199,10 @@ export function Timeline({
         gridIndex: 0,
       },
     ],
-    [gridBorderColor, timelineMarkupColor]
+    [gridBorderColor, timelineMarkupColor, yAxisFormatter]
   );
 
-  const startTimeMs = useMemo(() => Number(startTime / 1_000_000n), [startTime]);
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const xAxisOptions = useMemo(
     () => ({
@@ -266,16 +276,20 @@ export function Timeline({
                 name: p.seriesName,
                 value: p.data[1],
                 isOverlay: series[p.seriesName]?.isOverlay ?? false,
+                isDimmed: series[p.seriesName]?.isDimmed ?? false,
               };
             });
           const activeMarks = marks
             ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
-            .map(m => ({ label: m.label, stateName: m.stateName }));
+            .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
+          const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent
               timestamp={timestamp}
               series={seriesValues}
               startTime={startTime}
+              fmt={fmt}
+              windowMs={windowMsRef.current}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
             />
           );
@@ -328,13 +342,24 @@ export function Timeline({
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
 
-    instance.getDom().addEventListener('pointerdown', () => {
+    const dom = instance.getDom();
+    dom.addEventListener('pointerdown', () => {
       isDraggingRef.current = true;
       instance.dispatchAction({ type: 'hideTip' });
     });
-    instance.getDom().addEventListener('pointerup', () => {
+    dom.addEventListener('pointerup', () => {
       isDraggingRef.current = false;
     });
+
+    // Let non-shift wheel events pass through to the page for normal scrolling.
+    // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (!e.shiftKey) e.stopPropagation();
+      },
+      { capture: true, passive: true }
+    );
   }, []);
 
   return (
@@ -344,7 +369,8 @@ export function Timeline({
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
       notMerge={false}
-      lazyUpdate
+      lazyUpdate={false}
+      replaceMerge={['series']}
     />
   );
 }

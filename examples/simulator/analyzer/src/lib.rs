@@ -1,9 +1,13 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_ui::{QueryBundle, QueryEntities};
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
+    quantity::QuantitySpec,
     timeline::{
         request::{BulkTimelineRequest, EntityFilter, SingleTimelineRequest, TimelineRequest},
         response::{
@@ -201,6 +205,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             plan_tree,
             resource_tree,
             unique_operator_names,
+            quantity_specs: [
+                ("bytes".into(), QuantitySpec::bytes()),
+                ("unit".into(), QuantitySpec::unit()),
+            ]
+            .into(),
             start_time_unix_ns,
             duration_s,
         })
