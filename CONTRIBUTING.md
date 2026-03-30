@@ -46,8 +46,9 @@ The developer workflow for code contributions is as follows:
 
 ## Conventional Commits
 
-PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/)
-specification. This is enforced by CI. The format is:
+PR titles must follow the
+[Conventional Commits](https://www.conventionalcommits.org/) specification. This
+is enforced by CI. The format is:
 
 ```text
 <type>(<optional scope>): <subject>
@@ -156,7 +157,8 @@ All of the following checks must pass before a PR can be merged:
 ## Developer Certificate of Origin (DCO)
 
 All contributions to this project must be made under the terms of the
-[Developer Certificate of Origin (DCO)](https://developercertificate.org/), version 1.1.
+[Developer Certificate of Origin (DCO)](https://developercertificate.org/),
+version 1.1.
 
 By contributing to this project, you certify that:
 
