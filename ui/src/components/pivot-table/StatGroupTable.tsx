@@ -3,6 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { PivotTable } from './PivotTable';
 import { cn } from '@/lib/utils';
 import type { IndexKey, AggMode, FlatRow, PivotedRow, HoveredStatInfo } from './types';
+import type { PivotTableGroupKeyEntry, PivotTableSortInfo } from './types';
 import {
   buildPivotedRows,
   formatStatValue,
@@ -10,6 +11,198 @@ import {
   getSortValue,
   gradientBg,
 } from './utils';
+
+// --- renderer components ---
+
+function DataHeader({
+  stat,
+  sortInfo,
+  onSort,
+  draggedStat,
+  setDraggedStat,
+  onReorderStat,
+  onHoverStat,
+  buildHoveredStatInfo,
+  hoveredStatName,
+}: {
+  stat: string;
+  sortInfo: PivotTableSortInfo | null;
+  onSort: () => void;
+  draggedStat: string | null;
+  setDraggedStat: (stat: string | null) => void;
+  onReorderStat?: (from: string, to: string) => void;
+  onHoverStat?: (info: HoveredStatInfo | null) => void;
+  buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
+  hoveredStatName: string | undefined;
+}) {
+  return (
+    <th
+      draggable
+      onDragStart={() => setDraggedStat(stat)}
+      onDragOver={e => {
+        e.preventDefault();
+        if (!draggedStat || draggedStat === stat) return;
+        onReorderStat?.(draggedStat, stat);
+        setDraggedStat(stat);
+      }}
+      onDragEnd={() => setDraggedStat(null)}
+      onClick={onSort}
+      onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
+      onMouseLeave={() => onHoverStat?.(null)}
+      className={cn(
+        'text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
+        draggedStat === stat && 'opacity-50',
+        sortInfo && 'text-foreground',
+        hoveredStatName === stat && 'bg-primary/10'
+      )}
+    >
+      {stat}
+      {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
+    </th>
+  );
+}
+
+function GroupCell({
+  row,
+  groupKey: gk,
+  rowSpan,
+  getGroupTypeColor,
+  onHoverItemScope,
+  onHoverItem,
+  onHighlightItems,
+  onHoverItemType,
+  itemsByParentType,
+  itemsByParentName,
+  hoveredItemId,
+}: {
+  row: PivotedRow;
+  groupKey: PivotTableGroupKeyEntry;
+  rowSpan: number;
+  columnIndex: number;
+  getGroupTypeColor?: (key: string, id: string) => string | undefined;
+  onHoverItemScope?: (scopeId: string | undefined) => void;
+  onHoverItem?: (id: string | null) => void;
+  onHighlightItems?: (ids: Set<string> | null) => void;
+  onHoverItemType?: (type: string | null) => void;
+  itemsByParentType: Map<string, Set<string>>;
+  itemsByParentName: Map<string, Set<string>>;
+  hoveredItemId?: string | null;
+}) {
+  const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
+  const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
+  const typeColor = getGroupTypeColor?.(gk.key, gk.id);
+  return (
+    <td
+      className={cn(
+        'px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30',
+        gk.key === 'item' && ''
+      )}
+      rowSpan={rowSpan}
+      style={
+        typeColor
+          ? {
+              borderLeftWidth: 8,
+              borderLeftColor: typeColor,
+              backgroundColor: `color-mix(in srgb, ${typeColor} 15%, transparent)`,
+            }
+          : undefined
+      }
+      onMouseEnter={
+        gk.key === 'item' && firstItemId
+          ? () => {
+              onHoverItemScope?.(firstItemScopeId);
+              onHoverItem?.(firstItemId);
+            }
+          : gk.key === 'parent_item_type'
+            ? () => onHighlightItems?.(itemsByParentType.get(gk.id) ?? null)
+            : gk.key === 'parent_item'
+              ? () => onHighlightItems?.(itemsByParentName.get(gk.id) ?? null)
+              : gk.key === 'item_type'
+                ? () => onHoverItemType?.(gk.id)
+                : undefined
+      }
+      onMouseLeave={
+        gk.key === 'item' && firstItemId
+          ? () => {
+              if (hoveredItemId === firstItemId) onHoverItem?.(null);
+            }
+          : gk.key === 'parent_item_type' || gk.key === 'parent_item'
+            ? () => onHighlightItems?.(null)
+            : gk.key === 'item_type'
+              ? () => onHoverItemType?.(null)
+              : undefined
+      }
+    >
+      {gk.label}
+    </td>
+  );
+}
+
+function DataCell({
+  row,
+  stat,
+  isAggregating,
+  aggMode,
+  columnRanges,
+  hoveredStatName,
+  onHoverStat,
+  buildHoveredStatInfo,
+}: {
+  row: PivotedRow;
+  stat: string;
+  isAggregating: boolean;
+  aggMode: AggMode;
+  columnRanges: Map<string, { min: number; max: number }>;
+  hoveredStatName: string | undefined;
+  onHoverStat?: (info: HoveredStatInfo | null) => void;
+  buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
+}) {
+  const numVal = getSortValue(row, stat, isAggregating, aggMode);
+  const range = columnRanges.get(stat);
+  const bg = numVal !== null && range ? gradientBg(numVal, range.min, range.max) : undefined;
+  const isStatHovered = hoveredStatName === stat;
+  const colHighlight = isStatHovered ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)' : undefined;
+  const statCellProps = {
+    onMouseEnter: () => onHoverStat?.(buildHoveredStatInfo(stat)),
+    onMouseLeave: () => onHoverStat?.(null),
+  };
+  if (!isAggregating) {
+    const val = row.values.get(stat) ?? null;
+    return (
+      <td
+        className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
+        style={{ backgroundColor: bg, boxShadow: colHighlight }}
+        {...statCellProps}
+      >
+        {formatStatValue(val, stat)}
+      </td>
+    );
+  }
+  const agg = row.aggs.get(stat);
+  if (!agg || !agg.isNumeric) {
+    return (
+      <td
+        className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground"
+        style={{ boxShadow: colHighlight }}
+        {...statCellProps}
+      >
+        -
+      </td>
+    );
+  }
+  const displayVal = agg[aggMode as Exclude<AggMode, 'value'>] ?? null;
+  return (
+    <td
+      className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
+      style={{ backgroundColor: bg, boxShadow: colHighlight }}
+      {...statCellProps}
+    >
+      {formatStatNumber(displayVal, stat)}
+    </td>
+  );
+}
+
+// --- main component ---
 
 interface StatGroupTableProps {
   flatRows: FlatRow[];
@@ -141,6 +334,26 @@ export function StatGroupTable({
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [hoveredItemId, pivotedRows]);
 
+  const sharedProps = {
+    draggedStat,
+    setDraggedStat,
+    onReorderStat,
+    onHoverStat,
+    buildHoveredStatInfo,
+    hoveredStatName: hoveredStat?.name,
+    hoveredItemId,
+    getGroupTypeColor,
+    onHoverItemScope,
+    onHoverItem,
+    onHighlightItems,
+    onHoverItemType,
+    itemsByParentType,
+    itemsByParentName,
+    isAggregating,
+    aggMode,
+    columnRanges,
+  };
+
   const columns = useMemo((): ColumnDef<PivotedRow>[] => {
     const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(key => ({
       id: key,
@@ -168,138 +381,16 @@ export function StatGroupTable({
   const hasSelection = (selectedItemIds?.size ?? 0) > 0;
 
   return (
-    <PivotTable<PivotedRow>
+    <PivotTable
       data={pivotedRows}
       columns={columns}
       getRowId={row => row.rowKey}
       groupColumnIds={activeIndices}
       renderGroupHeader={columnId => indexLabels[columnId as IndexKey]}
-      renderDataHeader={(stat, sortInfo, onSort) => (
-        <th
-          draggable
-          onDragStart={() => setDraggedStat(stat)}
-          onDragOver={e => {
-            e.preventDefault();
-            if (!draggedStat || draggedStat === stat) return;
-            onReorderStat?.(draggedStat, stat);
-            setDraggedStat(stat);
-          }}
-          onDragEnd={() => setDraggedStat(null)}
-          onClick={onSort}
-          onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
-          onMouseLeave={() => onHoverStat?.(null)}
-          className={cn(
-            'text-right px-3 py-2 font-medium font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
-            draggedStat === stat && 'opacity-50',
-            sortInfo && 'text-foreground'
-          )}
-          style={
-            hoveredStat?.name === stat
-              ? { boxShadow: 'inset 0 0 0 999px hsl(var(--primary) / 0.1)' }
-              : undefined
-          }
-        >
-          {stat}
-          {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
-        </th>
-      )}
-      renderGroupCell={(row, gk, rowSpan) => {
-        const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
-        const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
-        const typeColor = getGroupTypeColor?.(gk.key, gk.id);
-        return (
-          <td
-            className={cn(
-              'px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30',
-              gk.key === 'item' && 'font-medium'
-            )}
-            rowSpan={rowSpan}
-            style={
-              typeColor
-                ? {
-                    borderLeftWidth: 8,
-                    borderLeftColor: typeColor,
-                    backgroundColor: `color-mix(in srgb, ${typeColor} 15%, transparent)`,
-                  }
-                : undefined
-            }
-            onMouseEnter={
-              gk.key === 'item' && firstItemId
-                ? () => {
-                    onHoverItemScope?.(firstItemScopeId);
-                    onHoverItem?.(firstItemId);
-                  }
-                : gk.key === 'parent_item_type'
-                  ? () => onHighlightItems?.(itemsByParentType.get(gk.id) ?? null)
-                  : gk.key === 'parent_item'
-                    ? () => onHighlightItems?.(itemsByParentName.get(gk.id) ?? null)
-                    : gk.key === 'item_type'
-                      ? () => onHoverItemType?.(gk.id)
-                      : undefined
-            }
-            onMouseLeave={
-              gk.key === 'item' && firstItemId
-                ? () => {
-                    if (hoveredItemId === firstItemId) onHoverItem?.(null);
-                  }
-                : gk.key === 'parent_item_type' || gk.key === 'parent_item'
-                  ? () => onHighlightItems?.(null)
-                  : gk.key === 'item_type'
-                    ? () => onHoverItemType?.(null)
-                    : undefined
-            }
-          >
-            {gk.label}
-          </td>
-        );
-      }}
-      renderDataCell={(row, stat) => {
-        const numVal = getSortValue(row, stat, isAggregating, aggMode);
-        const range = columnRanges.get(stat);
-        const bg = numVal !== null && range ? gradientBg(numVal, range.min, range.max) : undefined;
-        const isStatHovered = hoveredStat?.name === stat;
-        const colHighlight = isStatHovered
-          ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)'
-          : undefined;
-        const statCellProps = {
-          onMouseEnter: () => onHoverStat?.(buildHoveredStatInfo(stat)),
-          onMouseLeave: () => onHoverStat?.(null),
-        };
-        if (!isAggregating) {
-          const val = row.values.get(stat) ?? null;
-          return (
-            <td
-              className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
-              style={{ backgroundColor: bg, boxShadow: colHighlight }}
-              {...statCellProps}
-            >
-              {formatStatValue(val, stat)}
-            </td>
-          );
-        }
-        const agg = row.aggs.get(stat);
-        if (!agg || !agg.isNumeric) {
-          return (
-            <td
-              className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground"
-              style={{ boxShadow: colHighlight }}
-              {...statCellProps}
-            >
-              -
-            </td>
-          );
-        }
-        const displayVal = agg[aggMode as Exclude<AggMode, 'value'>] ?? null;
-        return (
-          <td
-            className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
-            style={{ backgroundColor: bg, boxShadow: colHighlight }}
-            {...statCellProps}
-          >
-            {formatStatNumber(displayVal, stat)}
-          </td>
-        );
-      }}
+      sharedProps={sharedProps}
+      DataHeader={DataHeader}
+      GroupCell={GroupCell}
+      DataCell={DataCell}
       getRowRef={rowKey => el => {
         if (el) rowRefs.current.set(rowKey, el);
         else rowRefs.current.delete(rowKey);

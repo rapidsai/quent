@@ -2,8 +2,6 @@ import { formatWithPrefix } from '@/services/formatters';
 import type { StatValue } from '@/services/query-plan/types';
 import type { FlatRow, GroupKeyEntry, IndexKey, PivotedRow, PivotedRowAgg, AggMode } from './types';
 
-// --- formatting ---
-
 export function formatNumber(n: number | null): string {
   if (n === null) return '-';
   if (Number.isInteger(n)) return n.toLocaleString();

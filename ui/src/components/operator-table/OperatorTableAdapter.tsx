@@ -230,32 +230,28 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     () => ({
       partition: 'Worker / Plan',
       parent_item_type: (
-        <>
-          <code className="font-mono text-data">{parentScopeLabelValue}</code>
-          <br />
-          Operator Type
-        </>
+        <div>
+          <div className="font-mono text-data">{parentScopeLabelValue}</div>
+          <div>Operator Type</div>
+        </div>
       ),
       parent_item: (
-        <>
-          <code className="font-mono text-data">{parentScopeLabelValue}</code>
-          <br />
-          Operator Instance
-        </>
+        <div>
+          <div className="font-mono text-data">{parentScopeLabelValue}</div>
+          <div>Operator Instance</div>
+        </div>
       ),
       item_type: (
-        <>
-          <code className="font-mono text-data">{scopeLabelValue}</code>
-          <br />
-          Operator Type
-        </>
+        <div>
+          <div className="font-mono text-data">{scopeLabelValue}</div>
+          <div>Operator Type</div>
+        </div>
       ),
       item: (
-        <>
-          <code className="font-mono text-data">{scopeLabelValue}</code>
-          <br />
-          Operator Instance
-        </>
+        <div>
+          <div className="font-mono text-data">{scopeLabelValue}</div>
+          <div>Operator Instance</div>
+        </div>
       ),
     }),
     [parentScopeLabelValue, scopeLabelValue]

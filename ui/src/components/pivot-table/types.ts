@@ -20,6 +20,26 @@ export interface PivotTableGroupKeyEntry {
   label: string;
 }
 
+// --- PivotTable renderer component prop types ---
+
+export interface DataHeaderProps {
+  stat: string;
+  sortInfo: PivotTableSortInfo | null;
+  onSort: () => void;
+}
+
+export interface GroupCellProps<TRow extends PivotTableRowBase> {
+  row: TRow;
+  groupKey: PivotTableGroupKeyEntry;
+  rowSpan: number;
+  columnIndex: number;
+}
+
+export interface DataCellProps<TRow extends PivotTableRowBase> {
+  row: TRow;
+  stat: string;
+}
+
 // --- StatGroupTable types ---
 
 export interface HoveredStatInfo {

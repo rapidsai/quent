@@ -7,9 +7,19 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { computeRowSpans } from './utils';
-import type { PivotTableRowBase, PivotTableSortInfo } from './types';
+import type {
+  PivotTableRowBase,
+  PivotTableSortInfo,
+  PivotTableGroupKeyEntry,
+  DataHeaderProps,
+  GroupCellProps,
+  DataCellProps,
+} from './types';
 
-export interface PivotTableProps<TRow extends PivotTableRowBase> {
+export interface PivotTableProps<
+  TRow extends PivotTableRowBase,
+  TShared extends object = Record<never, never>,
+> {
   data: TRow[];
   columns: ColumnDef<TRow>[];
   getRowId: (row: TRow) => string;
@@ -17,37 +27,34 @@ export interface PivotTableProps<TRow extends PivotTableRowBase> {
   groupColumnIds: string[];
   renderToolbar?: React.ReactNode;
   renderGroupHeader?: (columnId: string) => React.ReactNode;
-  renderDataHeader?: (
-    columnId: string,
-    sortInfo: PivotTableSortInfo | null,
-    onSort: () => void
-  ) => React.ReactNode;
-  renderGroupCell?: (
-    row: TRow,
-    groupKeyEntry: { key: string; id: string; label: string },
-    rowSpan: number,
-    columnIndex: number
-  ) => React.ReactNode;
-  renderDataCell?: (row: TRow, columnId: string) => React.ReactNode;
+  /** Extra props forwarded verbatim to every DataHeader, GroupCell and DataCell instance. */
+  sharedProps?: TShared;
+  DataHeader?: React.ComponentType<DataHeaderProps & TShared>;
+  GroupCell?: React.ComponentType<GroupCellProps<TRow> & TShared>;
+  DataCell?: React.ComponentType<DataCellProps<TRow> & TShared>;
   getRowRef?: (rowKey: string) => (el: HTMLTableRowElement | null) => void;
   getRowClassName?: (row: TRow) => string;
   getRowStyle?: (row: TRow) => React.CSSProperties;
 }
 
-export function PivotTable<TRow extends PivotTableRowBase>({
+export function PivotTable<
+  TRow extends PivotTableRowBase,
+  TShared extends object = Record<never, never>,
+>({
   data,
   columns,
   getRowId,
   groupColumnIds,
   renderToolbar,
   renderGroupHeader,
-  renderDataHeader,
-  renderGroupCell,
-  renderDataCell,
+  sharedProps,
+  DataHeader,
+  GroupCell,
+  DataCell,
   getRowRef,
   getRowClassName,
   getRowStyle,
-}: PivotTableProps<TRow>) {
+}: PivotTableProps<TRow, TShared>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const table = useReactTable({
@@ -74,6 +81,8 @@ export function PivotTable<TRow extends PivotTableRowBase>({
     [columns, groupColumnIds]
   );
 
+  const shared = (sharedProps ?? {}) as TShared;
+
   return (
     <div className="flex flex-col h-full">
       {renderToolbar != null && (
@@ -86,7 +95,7 @@ export function PivotTable<TRow extends PivotTableRowBase>({
               {groupColumnIds.map(columnId => (
                 <th
                   key={columnId}
-                  className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap"
+                  className="text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap"
                 >
                   {renderGroupHeader?.(columnId) ?? columnId}
                 </th>
@@ -105,9 +114,11 @@ export function PivotTable<TRow extends PivotTableRowBase>({
                 };
                 return (
                   <React.Fragment key={columnId}>
-                    {renderDataHeader?.(columnId, sortInfo, onSort) ?? (
+                    {DataHeader ? (
+                      <DataHeader stat={columnId} sortInfo={sortInfo} onSort={onSort} {...shared} />
+                    ) : (
                       <th
-                        className="text-right px-3 py-2 font-medium whitespace-nowrap"
+                        className="text-right px-3 py-2 text-sm whitespace-nowrap"
                         onClick={onSort}
                       >
                         {columnId}
@@ -131,18 +142,21 @@ export function PivotTable<TRow extends PivotTableRowBase>({
                   {groupColumnIds.map((_, col) =>
                     spans != null && spans[col] != null && row.groupKeys[col] != null ? (
                       <React.Fragment key={col}>
-                        {renderGroupCell?.(
-                          row,
-                          row.groupKeys[col] as { key: string; id: string; label: string },
-                          spans[col]!,
-                          col
+                        {GroupCell && (
+                          <GroupCell
+                            row={row as TRow}
+                            groupKey={row.groupKeys[col] as PivotTableGroupKeyEntry}
+                            rowSpan={spans[col]!}
+                            columnIndex={col}
+                            {...shared}
+                          />
                         )}
                       </React.Fragment>
                     ) : null
                   )}
                   {dataColumnIds.map(columnId => (
                     <React.Fragment key={columnId}>
-                      {renderDataCell?.(row, columnId)}
+                      {DataCell && <DataCell row={row as TRow} stat={columnId} {...shared} />}
                     </React.Fragment>
                   ))}
                 </tr>

@@ -88,9 +88,12 @@ export function PivotTableToolbar({
             {label}
           </button>
         ))}
-        {isAggregating && (
-          <>
-            <span className="text-xs text-muted-foreground shrink-0 ml-2">Show:</span>
+      </div>
+
+      {isAggregating && (
+        <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border/50">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">Show:</span>
             {(['sum', 'mean', 'min', 'max', 'stdev'] as AggMode[]).map(mode => (
               <button
                 key={mode}
@@ -105,9 +108,9 @@ export function PivotTableToolbar({
                 {mode}
               </button>
             ))}
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border/50">
         <span className="text-xs text-muted-foreground shrink-0 mr-1">Columns:</span>
         <Popover
@@ -133,7 +136,7 @@ export function PivotTableToolbar({
                         e.stopPropagation();
                         onToggleStat(stat);
                       }}
-                      className="ml-0.5 rounded-sm hover:text-destructive focus:outline-none"
+                      className="ml-0.5 rounded-sm focus:outline-none"
                       aria-label={`Remove ${stat}`}
                     >
                       <X className="h-2.5 w-2.5" />
