@@ -98,10 +98,9 @@ export function PivotTable<TRow extends PivotTableRowBase>({
                 const onSort = () => {
                   setSorting(prev => {
                     const current = prev.find(s => s.id === columnId);
-                    if (!current) return [...prev, { id: columnId, desc: true }];
-                    if (current.desc)
-                      return prev.map(s => (s.id === columnId ? { ...s, desc: false } : s));
-                    return prev.filter(s => s.id !== columnId);
+                    if (!current) return [{ id: columnId, desc: true }];
+                    if (current.desc) return [{ id: columnId, desc: false }];
+                    return [];
                   });
                 };
                 return (

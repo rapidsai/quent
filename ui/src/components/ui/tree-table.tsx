@@ -747,7 +747,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                     <div
                       key={column.key}
                       className={cn(
-                        'relative flex items-center px-3 py-1.5 text-xs font-semibold text-muted-foreground',
+                        'relative flex items-center px-3 py-1 text-xs font-semibold text-muted-foreground',
                         !isAutoColumn && 'shrink-0'
                       )}
                       style={isAutoColumn ? { flex: 1, minWidth: 0 } : { width: columnWidth }}

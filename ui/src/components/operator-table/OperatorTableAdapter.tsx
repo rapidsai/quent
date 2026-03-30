@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { QueryToolbar } from '@/components/QueryToolbar';
 import {
   selectedPlanIdAtom,
   selectedNodeIdsAtom,
@@ -337,6 +338,7 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
 
   return (
     <div className="flex flex-col h-full">
+      <QueryToolbar />
       <div className="shrink-0 flex flex-col border-b border-border bg-card">
         <PivotTableToolbar
           indexConfig={indexConfig}
