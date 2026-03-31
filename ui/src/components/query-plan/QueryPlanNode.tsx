@@ -136,6 +136,35 @@ function heatmapBg(t: number): string {
   return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
 }
 
+function nodeOpacityClass({
+  hoveredStat,
+  hoveredOperatorId,
+  hoveredOpType,
+  highlightedNodeIds,
+  operatorId,
+  isHovered,
+  isTypeHovered,
+  isHighlighted,
+  isDimmed,
+}: {
+  hoveredStat: { values: Map<string, number> } | null | undefined;
+  hoveredOperatorId: string | null;
+  hoveredOpType: string | null;
+  highlightedNodeIds: Set<string> | null;
+  operatorId: string;
+  isHovered: boolean;
+  isTypeHovered: boolean;
+  isHighlighted: boolean;
+  isDimmed: boolean;
+}): string {
+  if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
+  if (highlightedNodeIds !== null && !isHighlighted) return 'opacity-25';
+  if (hoveredOpType !== null && !isTypeHovered) return 'opacity-25';
+  if (hoveredOperatorId !== null && !isHovered) return 'opacity-25';
+  if (isDimmed) return 'opacity-30';
+  return 'opacity-100';
+}
+
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
@@ -165,18 +194,17 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return heatmapBg(t);
   }, [hoveredStat, operatorId]);
 
-  const opacityClass =
-    hoveredStat && !hoveredStat.values.has(operatorId)
-      ? 'opacity-20'
-      : highlightedNodeIds !== null && !isHighlighted
-        ? 'opacity-25'
-        : hoveredOpType !== null && !isTypeHovered
-          ? 'opacity-25'
-          : hoveredOperatorId !== null && !isHovered
-            ? 'opacity-25'
-            : isDimmed
-              ? 'opacity-30'
-              : 'opacity-100';
+  const opacityClass = nodeOpacityClass({
+    hoveredStat,
+    hoveredOperatorId,
+    hoveredOpType,
+    highlightedNodeIds,
+    operatorId,
+    isHovered,
+    isTypeHovered,
+    isHighlighted,
+    isDimmed,
+  });
 
   const isActiveHighlight = (isHovered || isTypeHovered || isHighlighted) && !isSelected;
 

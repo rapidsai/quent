@@ -91,6 +91,40 @@ function GroupCell({
   const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
   const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
   const typeColor = getGroupTypeColor?.(gk.key, gk.id);
+
+  const handleMouseEnter = useCallback(() => {
+    if (gk.key === 'item' && firstItemId) {
+      onHoverItemScope?.(firstItemScopeId);
+      onHoverItem?.(firstItemId);
+    } else if (gk.key === 'parent_item_type') {
+      onHighlightItems?.(itemsByParentType.get(gk.id) ?? null);
+    } else if (gk.key === 'parent_item') {
+      onHighlightItems?.(itemsByParentName.get(gk.id) ?? null);
+    } else if (gk.key === 'item_type') {
+      onHoverItemType?.(gk.id);
+    }
+  }, [
+    gk,
+    firstItemId,
+    firstItemScopeId,
+    onHoverItemScope,
+    onHoverItem,
+    onHighlightItems,
+    itemsByParentType,
+    itemsByParentName,
+    onHoverItemType,
+  ]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (gk.key === 'item' && firstItemId) {
+      if (hoveredItemId === firstItemId) onHoverItem?.(null);
+    } else if (gk.key === 'parent_item_type' || gk.key === 'parent_item') {
+      onHighlightItems?.(null);
+    } else if (gk.key === 'item_type') {
+      onHoverItemType?.(null);
+    }
+  }, [gk, firstItemId, hoveredItemId, onHoverItem, onHighlightItems, onHoverItemType]);
+
   return (
     <td
       className={cn(
@@ -107,31 +141,8 @@ function GroupCell({
             }
           : undefined
       }
-      onMouseEnter={
-        gk.key === 'item' && firstItemId
-          ? () => {
-              onHoverItemScope?.(firstItemScopeId);
-              onHoverItem?.(firstItemId);
-            }
-          : gk.key === 'parent_item_type'
-            ? () => onHighlightItems?.(itemsByParentType.get(gk.id) ?? null)
-            : gk.key === 'parent_item'
-              ? () => onHighlightItems?.(itemsByParentName.get(gk.id) ?? null)
-              : gk.key === 'item_type'
-                ? () => onHoverItemType?.(gk.id)
-                : undefined
-      }
-      onMouseLeave={
-        gk.key === 'item' && firstItemId
-          ? () => {
-              if (hoveredItemId === firstItemId) onHoverItem?.(null);
-            }
-          : gk.key === 'parent_item_type' || gk.key === 'parent_item'
-            ? () => onHighlightItems?.(null)
-            : gk.key === 'item_type'
-              ? () => onHoverItemType?.(null)
-              : undefined
-      }
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {gk.label}
     </td>
@@ -379,6 +390,7 @@ export function StatGroupTable({
   }, [activeIndices, visibleStats, indexLabels, isAggregating, aggMode]);
 
   const hasSelection = (selectedItemIds?.size ?? 0) > 0;
+  const isSelected = (row: PivotedRow) => [...row.itemIds].some(id => selectedItemIds?.has(id));
 
   return (
     <PivotTable
@@ -396,20 +408,16 @@ export function StatGroupTable({
         else rowRefs.current.delete(rowKey);
       }}
       getRowClassName={row =>
-        cn(
-          'border-b border-border/50 hover:bg-muted/50 transition-opacity',
-          [...row.itemIds].some(id => selectedItemIds?.has(id)) && 'bg-muted/70',
-          hoveredItemId !== null &&
-            hoveredItemId !== undefined &&
-            row.itemIds.has(hoveredItemId) &&
-            'bg-primary/10'
-        )
+        cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
+          'bg-muted/70': isSelected(row),
+          'bg-primary/10':
+            hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId),
+        })
       }
       getRowStyle={row => {
-        const isSelected = [...row.itemIds].some(id => selectedItemIds?.has(id));
         const isHoveredFromDag =
           hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
-        const isDimmed = hasSelection && !isSelected && !isHoveredFromDag;
+        const isDimmed = hasSelection && !isSelected(row) && !isHoveredFromDag;
         return { opacity: isDimmed ? 0.3 : 1 };
       }}
     />
