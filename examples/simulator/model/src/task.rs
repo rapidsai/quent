@@ -17,6 +17,7 @@ use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 #[quent_model::state]
 pub struct Queueing {
     pub operator_id: Uuid,
+    #[quent_model::instance_name]
     pub instance_name: String,
 }
 

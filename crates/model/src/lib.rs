@@ -71,7 +71,10 @@ pub mod prelude {
     pub use crate::{
         Entity, EntityEvent, Event, EventSender, FsmEvent, Model, ModelBuilder, ModelComponent,
         Ref, Resource, ResourceGroup, State, StateMetadata, Usage,
-        analyze::{ExtractCapacities, ExtractUsages, ExtractedCapacity, ExtractedUsage, TransitionInfo},
+        analyze::{
+            ExtractCapacities, ExtractInstanceName, ExtractUsages, ExtractedCapacity,
+            ExtractedUsage, TransitionInfo,
+        },
     };
     pub use uuid::Uuid;
 }

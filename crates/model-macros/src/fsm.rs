@@ -281,6 +281,15 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         })
         .collect();
 
+    let transition_instance_name_arms: Vec<TokenStream> = state_idents
+        .iter()
+        .map(|ident| {
+            quote! {
+                #transition_enum::#ident(data) => quent_model::analyze::ExtractInstanceName::extract_instance_name(data)
+            }
+        })
+        .collect();
+
     // Generate transition def tokens for ModelComponent
     let transition_def_tokens: Vec<TokenStream> = transitions
         .iter()
@@ -355,6 +364,21 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                     #(#transition_usages_arms,)*
                     #transition_enum::Exit => vec![],
                 }
+            }
+
+            fn instance_name(&self) -> Option<&str> {
+                match self {
+                    #(#transition_instance_name_arms,)*
+                    #transition_enum::Exit => None,
+                }
+            }
+
+            fn fsm_type_name() -> &'static str {
+                #fsm_snake
+            }
+
+            fn collect_model(builder: &mut quent_model::ModelBuilder) {
+                <#fsm_name as quent_model::ModelComponent>::collect(builder);
             }
         }
 

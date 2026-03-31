@@ -32,7 +32,7 @@ use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
 use crate::{
-    task::{Task, TaskBuilder},
+    task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
 
@@ -283,7 +283,7 @@ impl SimulatorModelBuilder {
         let mut tasks = HashMap::default();
 
         for (task_id, task_builder) in self.tasks.into_iter() {
-            let task = Task::from_builder(task_builder)?;
+            let task = task_builder.try_build()?;
             for usage in task.usages() {
                 let resource_type_name = resources
                     .resource(usage.resource_id())?

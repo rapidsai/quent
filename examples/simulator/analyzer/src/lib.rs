@@ -39,7 +39,7 @@ use uuid::Uuid;
 
 use crate::{
     model::{SimulatorModel, SimulatorModelBuilder},
-    task::Task,
+    task::{Task, TaskExt},
 };
 
 pub mod model;

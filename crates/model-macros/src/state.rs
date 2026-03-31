@@ -15,7 +15,9 @@ struct StateFields {
     deferred: Vec<DeferredField>,
     /// Fields annotated with `#[quent_model::capacity]` (numeric capacity values).
     capacities: Vec<CapacityField>,
-    /// Regular (non-usage, non-deferred, non-capacity) fields.
+    /// Field annotated with `#[quent_model::instance_name]` (at most one).
+    instance_name_field: Option<Ident>,
+    /// Regular fields.
     regular: Vec<RegularField>,
 }
 
@@ -75,11 +77,12 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
     let mut usages = Vec::new();
     let mut deferred = Vec::new();
     let mut capacities = Vec::new();
+    let mut instance_name_field = None;
     let mut regular = Vec::new();
 
     let fields = match &item.fields {
         syn::Fields::Named(named) => &named.named,
-        syn::Fields::Unit => return Ok(StateFields { usages, deferred, capacities, regular}),
+        syn::Fields::Unit => return Ok(StateFields { usages, deferred, capacities, instance_name_field, regular }),
         _ => {
             return Err(syn::Error::new_spanned(
                 item,
@@ -110,13 +113,24 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
         } else if has_attr(field, "capacity") {
             let optional = is_option_type(&field.ty);
             capacities.push(CapacityField { name, ident: field_name.clone(), optional });
+        } else if has_attr(field, "instance_name") {
+            if instance_name_field.is_some() {
+                return Err(syn::Error::new_spanned(
+                    field,
+                    "only one field can be annotated with #[instance_name]",
+                ));
+            }
+            instance_name_field = Some(field_name.clone());
+            // Also add as a regular field for metadata
+            let optional = is_option_type(&field.ty);
+            regular.push(RegularField { name, ident: field_name.clone(), optional });
         } else {
             let optional = is_option_type(&field.ty);
             regular.push(RegularField { name, ident: field_name.clone(), optional });
         }
     }
 
-    Ok(StateFields { usages, deferred, capacities, regular })
+    Ok(StateFields { usages, deferred, capacities, instance_name_field, regular })
 }
 
 pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
@@ -214,7 +228,12 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
                 .attrs
                 .retain(|a| {
                     let last = a.path().segments.last();
-                    !last.is_some_and(|seg| seg.ident == "usage" || seg.ident == "deferred" || seg.ident == "capacity")
+                    !last.is_some_and(|seg| {
+                        seg.ident == "usage"
+                            || seg.ident == "deferred"
+                            || seg.ident == "capacity"
+                            || seg.ident == "instance_name"
+                    })
                 });
         }
     }
@@ -270,6 +289,12 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
         quote! { vec![#(#extractions,)*] }
     };
 
+    // Generate ExtractInstanceName impl.
+    let extract_instance_name_body = match &fields.instance_name_field {
+        Some(ident) => quote! { Some(self.#ident.as_str()) },
+        None => quote! { None },
+    };
+
     let output = quote! {
         // Re-emit the original struct with derives needed by the FSM event enums
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -310,6 +335,13 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
         impl quent_model::analyze::ExtractUsages for #state_name_ident {
             fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> {
                 #extract_usages_body
+            }
+        }
+
+        // --- ExtractInstanceName impl ---
+        impl quent_model::analyze::ExtractInstanceName for #state_name_ident {
+            fn extract_instance_name(&self) -> Option<&str> {
+                #extract_instance_name_body
             }
         }
     };

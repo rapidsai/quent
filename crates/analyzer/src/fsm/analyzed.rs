@@ -4,20 +4,20 @@
 //! Generic analyzed FSM reconstructed from model-generated events.
 //!
 //! `AnalyzedFsm<T>` works with any transition enum that implements
-//! `TransitionInfo`, providing all the analyzer trait impls (`Fsm`,
-//! `FsmUsages`, `Using`) without per-FSM boilerplate.
+//! `TransitionInfo`, providing all the analyzer trait impls (`Entity`, `Fsm`,
+//! `FsmUsages`, `Using`, `FsmTypeDeclaration`) without per-FSM boilerplate.
 
 use quent_attributes::Attribute;
 use quent_events::Event;
-use quent_model::{FsmEvent, analyze::TransitionInfo};
+use quent_model::{FsmEvent, ModelBuilder, analyze::TransitionInfo};
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerError, AnalyzerResult,
-    fsm::Transition,
-    resource::{CapacityValue, Usage},
+    AnalyzerError, AnalyzerResult, Entity,
+    fsm::{Fsm, FsmTypeDecl, FsmTypeDeclaration, FsmUsages, Transition},
+    resource::{CapacityValue, Usage, Using},
 };
 
 /// A single transition in an analyzed FSM.
@@ -76,6 +76,7 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
 /// Builder for reconstructing an `AnalyzedFsm` from model events.
 pub struct AnalyzedFsmBuilder<T: TransitionInfo, D> {
     id: Uuid,
+    instance_name: String,
     transitions: TimeOrderedCollector<AnalyzedTransition<T>>,
     _deferred: std::marker::PhantomData<D>,
 }
@@ -89,6 +90,7 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
         } else {
             Ok(Self {
                 id,
+                instance_name: String::new(),
                 transitions: TimeOrderedCollector::default(),
                 _deferred: std::marker::PhantomData,
             })
@@ -99,6 +101,12 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
         match event.data {
             FsmEvent::Transition { state, .. } => {
                 let state_name = state.state_name();
+                // Capture instance name from the first transition that provides one.
+                if self.instance_name.is_empty() {
+                    if let Some(name) = state.instance_name() {
+                        self.instance_name = name.to_owned();
+                    }
+                }
                 let extracted = state.usages();
                 let usages: SmallVec<[AnalyzedUsage; 3]> = extracted
                     .into_iter()
@@ -129,6 +137,7 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
             self.transitions.into_inner().into();
         Ok(AnalyzedFsm {
             id: self.id,
+            instance_name: self.instance_name,
             transitions,
         })
     }
@@ -137,19 +146,18 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
 /// A generic analyzed FSM reconstructed from model-generated events.
 ///
 /// `T` is the transition enum (e.g., `TaskTransition`), which implements
-/// `TransitionInfo`. Application-specific methods can access the original
-/// transition data via `transitions()` and match on `T` variants.
+/// `TransitionInfo`. Application-specific data can be accessed via
+/// `transitions()` and pattern matching on `T` variants.
+///
+/// Implements `Entity`, `Fsm`, `FsmUsages`, `Using`, and `FsmTypeDeclaration`.
 #[derive(Debug)]
 pub struct AnalyzedFsm<T> {
     id: Uuid,
+    instance_name: String,
     transitions: SmallVec<[AnalyzedTransition<T>; 4]>,
 }
 
 impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
-    pub fn id(&self) -> Uuid {
-        self.id
-    }
-
     pub fn transitions(&self) -> &[AnalyzedTransition<T>] {
         &self.transitions
     }
@@ -160,19 +168,36 @@ impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
     }
 }
 
-impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
-    /// Number of states (transitions minus 1 for the exit).
-    pub fn num_states(&self) -> usize {
+// --- Entity ---
+
+impl<T: TransitionInfo + std::fmt::Debug> Entity for AnalyzedFsm<T> {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn type_name(&self) -> &str {
+        T::fsm_type_name()
+    }
+    fn instance_name(&self) -> &str {
+        &self.instance_name
+    }
+}
+
+// --- Fsm ---
+
+impl<T: TransitionInfo + std::fmt::Debug> Fsm for AnalyzedFsm<T> {
+    type TransitionType = AnalyzedTransition<T>;
+    fn len(&self) -> usize {
         self.transitions.len().saturating_sub(1)
     }
-
-    /// Get a transition by index.
-    pub fn get_transition(&self, index: usize) -> Option<&AnalyzedTransition<T>> {
+    fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
         self.transitions.get(index)
     }
+}
 
-    /// Iterate over usage spans (for implementing `FsmUsages` and `Using`).
-    pub fn usage_spans(&self) -> impl Iterator<Item = (&str, UsageWithSpan<'_>)> {
+// --- FsmUsages ---
+
+impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for AnalyzedFsm<T> {
+    fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
         self.transitions.windows(2).flat_map(move |window| {
             let name = window[0].state_name;
             let start = window[0].timestamp();
@@ -190,9 +215,12 @@ impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
             })
         })
     }
+}
 
-    /// Flat iteration over all usages (for implementing `Using`).
-    pub fn all_usages(&self) -> impl Iterator<Item = UsageWithSpan<'_>> {
+// --- Using ---
+
+impl<T: TransitionInfo + std::fmt::Debug> Using for AnalyzedFsm<T> {
+    fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         self.transitions.windows(2).flat_map(move |window| {
             let start = window[0].timestamp();
             let end = window[1].timestamp();
@@ -203,5 +231,53 @@ impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
                 span,
             })
         })
+    }
+}
+
+// --- FsmTypeDeclaration ---
+
+impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for AnalyzedFsm<T> {
+    fn fsm_type_declaration() -> FsmTypeDecl {
+        use crate::fsm::{FsmStateTypeDecl, FsmTransitionDecl};
+
+        let mut builder = ModelBuilder::new();
+        T::collect_model(&mut builder);
+        let fsm_def = builder.fsms.into_iter().next().unwrap();
+
+        let states = fsm_def
+            .states
+            .into_iter()
+            .map(|s| FsmStateTypeDecl {
+                name: s.name,
+                usages: s.usages.iter().map(|u| u.field_name.clone()).collect(),
+            })
+            .collect();
+
+        let mut transitions = Vec::new();
+        for t in &fsm_def.transitions {
+            use quent_model::{TransitionEndpoint as TE};
+            match (&t.from, &t.to) {
+                (TE::Entry, TE::State(to)) => {
+                    transitions.push(FsmTransitionDecl::Entry(to.clone()));
+                }
+                (TE::State(from), TE::State(to)) => {
+                    transitions.push(FsmTransitionDecl::Transition(from.clone(), to.clone()));
+                }
+                (TE::State(from), TE::Exit) => {
+                    transitions.push(FsmTransitionDecl::Transition(
+                        from.clone(),
+                        "exit".to_string(),
+                    ));
+                    transitions.push(FsmTransitionDecl::Exit("exit".to_string()));
+                }
+                _ => {}
+            }
+        }
+
+        FsmTypeDecl {
+            name: T::fsm_type_name().to_string(),
+            states,
+            transitions,
+        }
     }
 }
