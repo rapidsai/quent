@@ -1,5 +1,5 @@
 [book]
 title = "Quent (Working Title)"
-authors = ["Johan Peltenburg", "Matthijs Brobbel", "Dhruv Vats"]
+authors = ["NVIDIA Corporation"]
 language = "en"
 src = "."
