@@ -1527,6 +1527,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-query-engine-model"
+version = "0.1.0"
+dependencies = [
+ "quent-attributes",
+ "quent-model",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-query-engine-server"
 version = "0.1.0"
 dependencies = [

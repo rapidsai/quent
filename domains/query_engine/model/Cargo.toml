@@ -1,0 +1,11 @@
+[package]
+name = "quent-query-engine-model"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-attributes = { path = "../../../crates/attributes" }
+quent-model = { path = "../../../crates/model" }
+serde.workspace = true
+uuid = { workspace = true, features = ["serde", "v7"] }
