@@ -64,7 +64,7 @@ impl<'a> Model for InMemoryQueryEngineModelView<'a> {
     type EntityIdType = QueryEngineEntityId;
 
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        if self.engine.id == entity_id {
+        if Entity::id(self.engine) == entity_id {
             Ok(QueryEngineEntityId::Engine(entity_id))
         } else if self.workers.contains_key(&entity_id) {
             Ok(QueryEngineEntityId::Worker(entity_id))

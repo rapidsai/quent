@@ -359,6 +359,24 @@ fn expand_entity_with_events(
         })
         .collect();
 
+    // Generate the data struct: one Option<T> field per event type
+    let data_struct = format_ident!("{}Data", name);
+    let data_fields: Vec<TokenStream> = event_types
+        .iter()
+        .map(|ty| {
+            let field_name = format_ident!("{}", to_snake_case(ty));
+            quote! { pub #field_name: Option<#ty> }
+        })
+        .collect();
+
+    let data_push_arms: Vec<TokenStream> = event_types
+        .iter()
+        .map(|ty| {
+            let field_name = format_ident!("{}", to_snake_case(ty));
+            quote! { #event_enum::#ty(e) => data.#field_name = Some(e) }
+        })
+        .collect();
+
     let output = quote! {
         #input
 
@@ -370,11 +388,27 @@ fn expand_entity_with_events(
 
         #(#from_impls)*
 
+        // --- Data struct for analyzer ---
+        #[derive(Debug, Default)]
+        pub struct #data_struct {
+            #(#data_fields,)*
+        }
+
         // --- Traits ---
         impl quent_model::Entity for #name {}
 
         impl quent_model::HasEventType for #name {
             type Event = #event_enum;
+        }
+
+        impl quent_model::EntityData for #name {
+            type Data = #data_struct;
+
+            fn push(data: &mut Self::Data, event: Self::Event) {
+                match event {
+                    #(#data_push_arms,)*
+                }
+            }
         }
 
         #rg_impl
