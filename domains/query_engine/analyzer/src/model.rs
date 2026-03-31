@@ -357,7 +357,7 @@ impl InMemoryQueryEngineModelBuilder {
             queries: self
                 .queries
                 .into_iter()
-                .map(|(k, v)| v.try_build().map(|v| (k, v)))
+                .map(|(k, v)| Query::from_builder(v).map(|v| (k, v)))
                 .collect::<AnalyzerResult<_>>()?,
             plans: self.plans,
             operators: self.operators,

@@ -38,7 +38,7 @@ impl<'a> InMemoryQueryEngineModelView<'a> {
     ) -> AnalyzerResult<InMemoryQueryEngineModelView<'a>> {
         let engine = &model.engine;
         let query = model.query(query_id)?;
-        let query_group = model.query_group(query.query_group_id)?;
+        let query_group = model.query_group(query.query_group_id().unwrap())?;
         let workers = model.query_workers(query_id)?.collect::<Vec<_>>();
         let plans = model.query_plans(query_id)?.collect::<Vec<_>>();
         let operators = model
@@ -70,7 +70,7 @@ impl<'a> Model for InMemoryQueryEngineModelView<'a> {
             Ok(QueryEngineEntityId::Worker(entity_id))
         } else if self.query_group.id == entity_id {
             Ok(QueryEngineEntityId::QueryGroup(entity_id))
-        } else if self.query.id == entity_id {
+        } else if Entity::id(self.query) == entity_id {
             Ok(QueryEngineEntityId::Query(entity_id))
         } else if self.plans.contains_key(&entity_id) {
             Ok(QueryEngineEntityId::Plan(entity_id))
@@ -93,7 +93,7 @@ impl<'a> QueryEngineModel for InMemoryQueryEngineModelView<'a> {
         Ok(self.engine)
     }
     fn query(&self, query_id: Uuid) -> AnalyzerResult<&Query> {
-        (self.query.id == query_id)
+        (Entity::id(self.query) == query_id)
             .then_some(self.query)
             .ok_or(AnalyzerError::InvalidId(query_id))
     }

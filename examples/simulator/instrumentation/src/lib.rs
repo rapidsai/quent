@@ -187,47 +187,29 @@ pub struct QueryObserver {
 
 impl QueryObserver {
     pub fn init(&self, id: Uuid, init: query::Init) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Query(query::QueryEvent::Init(
-                    init,
-                ))),
-            ),
-        )
+        self.emit_query_transition(id, query::QueryTransition::Init(init));
     }
 
     pub fn planning(&self, id: Uuid) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Query(
-                    query::QueryEvent::Planning,
-                )),
-            ),
-        )
+        self.emit_query_transition(id, query::QueryTransition::Planning(query::Planning));
     }
 
     pub fn executing(&self, id: Uuid) {
+        self.emit_query_transition(id, query::QueryTransition::Executing(query::Executing));
+    }
+
+    pub fn exit(&self, id: Uuid) {
+        self.emit_query_transition(id, query::QueryTransition::Exit);
+    }
+
+    fn emit_query_transition(&self, id: Uuid, state: query::QueryTransition) {
         push_event(
             &self.tx,
             Event::new_now(
                 id,
                 SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Query(
-                    query::QueryEvent::Executing,
+                    quent_model::FsmEvent::Transition { seq: 0, state },
                 )),
-            ),
-        );
-    }
-
-    pub fn exit(&self, id: Uuid) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Query(query::QueryEvent::Exit)),
             ),
         )
     }

@@ -18,7 +18,7 @@
 
 use std::collections::HashSet;
 
-use quent_analyzer::{AnalyzerError, AnalyzerResult, Model};
+use quent_analyzer::{AnalyzerError, AnalyzerResult, Model, fsm::Fsm};
 use quent_time::{TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
@@ -90,8 +90,7 @@ pub trait QueryEngineModel: Model {
     /// Return the time at which a query started.
     fn query_epoch(&self, query_id: Uuid) -> AnalyzerResult<TimeUnixNanoSec> {
         self.query(query_id).and_then(|q| {
-            q.transitions
-                .first()
+            q.transition(0)
                 .map(|init| init.timestamp())
                 .ok_or_else(|| {
                     AnalyzerError::Validation("query does not have any transitions".to_string())

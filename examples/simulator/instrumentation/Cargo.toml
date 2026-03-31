@@ -6,6 +6,7 @@ publish.workspace = true
 [dependencies]
 quent-events = { path = "../../../crates/events" }
 quent-exporter = { path = "../../../crates/exporter" }
+quent-model = { path = "../../../crates/model" }
 quent-simulator-events = { path = "../events" }
 quent-instrumentation = { path = "../../../crates/instrumentation" }
 quent-query-engine-events = { path = "../../../domains/query_engine/events" }

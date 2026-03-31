@@ -167,7 +167,7 @@ where
     let queries = analyzer
         .query_engine_model()
         .queries()
-        .filter(|q| q.query_group_id == query_group_id)
+        .filter(|q| q.query_group_id() == Some(query_group_id))
         .map(|q| q.to_ui())
         .collect::<AnalyzerResult<_>>()?;
     Ok(Json(queries))
