@@ -9,7 +9,10 @@ import { selectedNodeIdsAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { OPERATION_TYPE_COLORS, DEFAULT_OPERATION_COLOR } from '@/services/query-plan/operationTypes';
+import {
+  OPERATION_TYPE_COLORS,
+  DEFAULT_OPERATION_COLOR,
+} from '@/services/query-plan/operationTypes';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -56,11 +59,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       className={nodeVariants({ selected: isSelected, dimmed: isDimmed })}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      style={{
-        borderColor: color,
-        backgroundColor: color + bgOpacity,
-        '--glow-color': color,
-      } as React.CSSProperties}
+      style={
+        {
+          borderColor: color,
+          backgroundColor: color + bgOpacity,
+          '--glow-color': color,
+        } as React.CSSProperties
+      }
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
