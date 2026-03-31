@@ -58,8 +58,12 @@ pub trait EntityEvent {
 }
 
 /// Marker trait for types declared as resource groups via
-/// `#[quent::resource_group]`.
-pub trait ResourceGroup {}
+/// `#[quent::resource_group]`. Use `#[resource_group(root)]` for the root
+/// resource group (no parent).
+pub trait ResourceGroup {
+    /// Whether this is the root resource group (no parent).
+    const IS_ROOT: bool = false;
+}
 
 // Re-export instrumentation types needed by generated code.
 pub use quent_events::Event;

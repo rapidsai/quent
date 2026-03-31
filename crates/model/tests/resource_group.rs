@@ -5,12 +5,12 @@
 
 use quent_model::prelude::*;
 
-#[quent_model::resource_group]
+#[quent_model::resource_group(root)]
 pub struct Engine {
     pub name: String,
 }
 
-#[quent_model::resource_group(parent = Engine)]
+#[quent_model::resource_group]
 pub struct QueryGroup {
     pub engine_id: Uuid,
 }
@@ -23,6 +23,12 @@ fn resource_group_trait_impl() {
 }
 
 #[test]
+fn root_resource_group() {
+    assert!(Engine::IS_ROOT);
+    assert!(!QueryGroup::IS_ROOT);
+}
+
+#[test]
 fn resource_group_model_component() {
     let mut builder = ModelBuilder::new();
     Engine::collect(&mut builder);
@@ -30,10 +36,7 @@ fn resource_group_model_component() {
 
     assert_eq!(builder.resource_groups.len(), 2);
     assert_eq!(builder.resource_groups[0].name, "engine");
-    assert!(builder.resource_groups[0].fixed_parent.is_none());
+    assert!(builder.resource_groups[0].is_root);
     assert_eq!(builder.resource_groups[1].name, "query_group");
-    assert_eq!(
-        builder.resource_groups[1].fixed_parent.as_deref(),
-        Some("engine")
-    );
+    assert!(!builder.resource_groups[1].is_root);
 }

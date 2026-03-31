@@ -174,6 +174,8 @@ pub struct ResourceGroupDef {
     /// If set, the parent type is fixed (domain model constraint).
     /// If `None`, the parent is assigned at runtime.
     pub fixed_parent: Option<String>,
+    /// Whether this is the root resource group.
+    pub is_root: bool,
 }
 
 /// A plain entity definition (not an FSM, not a resource).
