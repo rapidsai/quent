@@ -89,11 +89,7 @@ Exactly one of `query_id` or `parent_plan_id` must be set.
 
 Edges connect [Ports][port] of different [Operators][operator]. An edge from a
 source Port of Operator A to a target Port of Operator B represents data
-flowing from A to B.
-
-To form a valid Plan, at least one edge must exist for every
-[Operator][operator] of the Plan. Thus, a Plan always has at least two
-[Operators][operator].
+flowing from A to B. A Plan may have zero edges (e.g. a single-operator plan).
 
 May have:
 
