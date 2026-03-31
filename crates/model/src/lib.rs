@@ -60,11 +60,16 @@ pub trait EntityEvent {
 /// `#[quent::resource_group]`.
 pub trait ResourceGroup {}
 
+// Re-export instrumentation types needed by generated code.
+pub use quent_events::Event;
+pub use quent_instrumentation::EventSender;
+pub use quent_time::timestamp;
+
 /// Prelude for convenient imports in model definition crates.
 pub mod prelude {
     pub use crate::{
-        Entity, EntityEvent, FsmEvent, Model, ModelBuilder, ModelComponent, Ref, Resource,
-        ResourceGroup, State, StateMetadata, Usage,
+        Entity, EntityEvent, Event, EventSender, FsmEvent, Model, ModelBuilder, ModelComponent,
+        Ref, Resource, ResourceGroup, State, StateMetadata, Usage,
     };
     pub use uuid::Uuid;
 }

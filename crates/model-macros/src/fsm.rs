@@ -6,7 +6,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Token, punctuated::Punctuated};
+use syn::Token;
 
 use crate::util::to_snake_case;
 
@@ -51,15 +51,55 @@ impl Parse for Transition {
     }
 }
 
-/// The full transition table: `entry -> A, A -> B, B -> exit`
-struct TransitionTable {
-    transitions: Punctuated<Transition, Token![,]>,
+/// Parsed FSM attribute contents.
+struct FsmAttr {
+    transitions: Vec<Transition>,
+    resource_capacity: Option<Ident>,
 }
 
-impl Parse for TransitionTable {
+impl Parse for FsmAttr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let transitions = Punctuated::parse_terminated(input)?;
-        Ok(TransitionTable { transitions })
+        let mut transitions = Vec::new();
+        let mut resource_capacity = None;
+
+        while !input.is_empty() {
+            // Check for `resource(capacity = T)` directive
+            if input.peek(syn::Ident) {
+                let fork = input.fork();
+                let ident: Ident = fork.parse()?;
+                if ident == "resource" && fork.peek(syn::token::Paren) {
+                    // Consume the ident from the real stream
+                    let _: Ident = input.parse()?;
+                    let content;
+                    syn::parenthesized!(content in input);
+                    let key: Ident = content.parse()?;
+                    if key != "capacity" {
+                        return Err(syn::Error::new_spanned(key, "expected `capacity`"));
+                    }
+                    content.parse::<Token![=]>()?;
+                    resource_capacity = Some(content.parse::<Ident>()?);
+                    // Consume optional trailing comma
+                    if input.peek(Token![,]) {
+                        input.parse::<Token![,]>()?;
+                    }
+                    continue;
+                }
+            }
+
+            // Parse as a transition
+            let transition: Transition = input.parse()?;
+            transitions.push(transition);
+
+            // Consume optional trailing comma
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+
+        Ok(FsmAttr {
+            transitions,
+            resource_capacity,
+        })
     }
 }
 
@@ -172,47 +212,14 @@ fn reachable_from(start: &str, adj: &HashMap<String, Vec<String>>) -> HashSet<St
     visited
 }
 
-/// Checks if the struct has a `#[quent_model::resource(capacity = X)]` attr
-/// and returns the capacity state ident if found.
-fn extract_resource_attr(item: &syn::ItemStruct) -> Option<Ident> {
-    for attr in &item.attrs {
-        let path = attr.path();
-        let last_seg = path.segments.last()?;
-        if last_seg.ident == "resource" {
-            if let Ok(parsed) = attr.parse_args::<ResourceCapacityArg>() {
-                return Some(parsed.capacity_state);
-            }
-        }
-    }
-    None
-}
-
-struct ResourceCapacityArg {
-    capacity_state: Ident,
-}
-
-impl Parse for ResourceCapacityArg {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let key: Ident = input.parse()?;
-        if key != "capacity" {
-            return Err(syn::Error::new_spanned(key, "expected `capacity`"));
-        }
-        input.parse::<Token![=]>()?;
-        let capacity_state: Ident = input.parse()?;
-        Ok(ResourceCapacityArg { capacity_state })
-    }
-}
-
 pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let table: TransitionTable = syn::parse2(attr)?;
+    let fsm_attr: FsmAttr = syn::parse2(attr)?;
     let input: syn::ItemStruct = syn::parse2(item)?;
     let vis = &input.vis;
     let fsm_name = &input.ident;
 
-    // Check for co-located #[resource] attribute
-    let resource_capacity = extract_resource_attr(&input);
-
-    let transitions: Vec<Transition> = table.transitions.into_iter().collect();
+    let transitions = fsm_attr.transitions;
+    let resource_capacity = fsm_attr.resource_capacity;
     validate_fsm(fsm_name, &transitions)?;
 
     // Collect unique state idents (preserving order)
@@ -234,6 +241,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let transition_enum = format_ident!("{}Transition", fsm_name);
     let deferred_enum = format_ident!("{}Deferred", fsm_name);
     let event_type = format_ident!("{}Event", fsm_name);
+    let handle_name = format_ident!("{}Handle", fsm_name);
 
     // Generate transition enum variants
     let transition_variants: Vec<TokenStream> = state_idents
@@ -294,10 +302,12 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         })
         .collect();
 
-    // Optionally generate Resource trait impl
+    let resource_marker = format_ident!("{}Resource", fsm_name);
     let resource_impl = resource_capacity.map(|cap_state| {
         quote! {
-            impl quent_model::Resource for #fsm_name {
+            #vis struct #resource_marker;
+
+            impl quent_model::Resource for #resource_marker {
                 type CapacityValue = #cap_state;
             }
         }
@@ -327,7 +337,9 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         // --- Event type alias ---
         #vis type #event_type = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
 
-        // --- ModelComponent impl ---
+        // --- Model metadata marker (non-generic) ---
+        #vis struct #fsm_name;
+
         impl quent_model::ModelComponent for #fsm_name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
@@ -343,13 +355,86 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         }
 
         // --- The FSM handle struct ---
-        #vis struct #fsm_name {
+        // Generic over E: the top-level event type (e.g., SimulatorEvent).
+        // Requires E: From<FsmEventType> so the handle can wrap its events.
+        #vis struct #handle_name<E>
+        where
+            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+        {
             id: uuid::Uuid,
             seq: u64,
             exited: bool,
+            tx: quent_model::EventSender<E>,
         }
 
-        // --- Resource impl (if #[resource] attribute was present) ---
+        impl<E> #handle_name<E>
+        where
+            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+        {
+            /// Creates a new FSM instance, emitting the entry transition event.
+            pub fn new(tx: &quent_model::EventSender<E>, initial_state: impl Into<#transition_enum>) -> Self {
+                let id = uuid::Uuid::now_v7();
+                let mut handle = Self {
+                    id,
+                    seq: 0,
+                    exited: false,
+                    tx: tx.clone(),
+                };
+                handle.emit_transition(initial_state.into());
+                handle
+            }
+
+            /// Returns the raw UUID of this FSM instance.
+            pub fn uuid(&self) -> uuid::Uuid {
+                self.id
+            }
+
+            /// Transitions to a new state, emitting a transition event.
+            pub fn transition(&mut self, state: impl Into<#transition_enum>) {
+                self.emit_transition(state.into());
+            }
+
+            /// Explicitly exits the FSM, emitting the exit event.
+            pub fn exit(&mut self) {
+                if !self.exited {
+                    self.emit_transition(#transition_enum::Exit);
+                    self.exited = true;
+                }
+            }
+
+            fn emit_transition(&mut self, state: #transition_enum) {
+                let seq = self.seq;
+                self.seq += 1;
+                let event = quent_model::FsmEvent::Transition { seq, state };
+                self.tx.send(quent_model::Event::new(
+                    self.id,
+                    quent_model::timestamp(),
+                    E::from(event),
+                ));
+            }
+
+            fn emit_deferred(&mut self, deferred: #deferred_enum) {
+                let seq = self.seq;
+                self.seq += 1;
+                let event = quent_model::FsmEvent::Deferred { seq, deferred };
+                self.tx.send(quent_model::Event::new(
+                    self.id,
+                    quent_model::timestamp(),
+                    E::from(event),
+                ));
+            }
+        }
+
+        impl<E> Drop for #handle_name<E>
+        where
+            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+        {
+            fn drop(&mut self) {
+                self.exit();
+            }
+        }
+
+        // --- Resource marker (if resource directive was present) ---
         #resource_impl
     };
 

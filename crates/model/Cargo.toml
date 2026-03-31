@@ -8,6 +8,9 @@ publish.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 serde.workspace = true
 quent-model-macros = { path = "../model-macros" }
+quent-events = { path = "../events" }
+quent-instrumentation = { path = "../instrumentation" }
+quent-time = { path = "../time" }
 
 [dev-dependencies]
 quent-stdlib = { path = "../stdlib" }

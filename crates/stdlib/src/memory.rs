@@ -19,18 +19,20 @@ pub struct MemoryOperating {
 #[quent_model::state]
 pub struct MemoryFinalizing;
 
-/// A fixed-bounds memory resource.
+/// A fixed-bounds memory resource FSM handle.
 ///
 /// FSM: `entry -> initializing -> operating -> finalizing -> exit`
 ///
 /// The transition into `operating` declares the capacity in bytes.
+/// Use `MemoryResource` with `Usage<MemoryResource>` to reference this
+/// resource type from FSM states.
 #[quent_model::fsm(
+    resource(capacity = MemoryOperating),
     entry -> MemoryInitializing,
     MemoryInitializing -> MemoryOperating,
     MemoryOperating -> MemoryFinalizing,
     MemoryFinalizing -> exit,
 )]
-#[quent_model::resource(capacity = MemoryOperating)]
 pub struct Memory;
 
 // --- Dynamic-bounds Memory ---
@@ -53,6 +55,7 @@ pub struct DynMemoryFinalizing;
 ///
 /// FSM: `entry -> initializing -> operating <-> resizing, operating -> finalizing -> exit`
 #[quent_model::fsm(
+    resource(capacity = DynMemoryOperating),
     entry -> DynMemoryInitializing,
     DynMemoryInitializing -> DynMemoryOperating,
     DynMemoryOperating -> DynMemoryResizing,
@@ -60,5 +63,4 @@ pub struct DynMemoryFinalizing;
     DynMemoryOperating -> DynMemoryFinalizing,
     DynMemoryFinalizing -> exit,
 )]
-#[quent_model::resource(capacity = DynMemoryOperating)]
 pub struct DynamicMemory;

@@ -26,10 +26,10 @@ pub struct OperatorStatistics {
 
 // --- Application-specific types using stdlib resources ---
 
-// Re-export stdlib types as application-specific aliases
-type WorkerMemory = quent_stdlib::Memory;
-type Thread = quent_stdlib::Processor;
-type FsToMem = quent_stdlib::Channel;
+// Use the resource marker types for Usage<T>
+type WorkerMemory = quent_stdlib::MemoryResource;
+type Thread = quent_stdlib::ProcessorResource;
+type FsToMem = quent_stdlib::ChannelResource;
 
 // --- Application FSM using stdlib resource types ---
 
@@ -67,7 +67,14 @@ pub struct Task;
 // --- Model composition ---
 
 type DomainModel = Model<(Engine, Operator)>;
-type AppModel = Model<(DomainModel, Task, WorkerMemory, Thread, FsToMem)>;
+// Use the metadata marker types in the model, not the resource marker types
+type AppModel = Model<(
+    DomainModel,
+    Task,
+    quent_stdlib::Memory,
+    quent_stdlib::Processor,
+    quent_stdlib::Channel,
+)>;
 
 // --- Tests ---
 
@@ -100,7 +107,8 @@ fn usage_with_stdlib_memory() {
 fn usage_with_stdlib_processor() {
     let _usage: Usage<Thread> = Usage {
         resource_id: Ref::new(Uuid::nil()),
-        capacity: quent_stdlib::ProcessorOperating,
+        // ProcessorOperating is a unit struct (no capacity fields)
+        capacity: quent_stdlib::ProcessorOperating {},
     };
 }
 

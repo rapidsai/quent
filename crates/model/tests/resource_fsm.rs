@@ -19,12 +19,12 @@ pub struct MemOperating {
 pub struct MemFinalizing;
 
 #[quent_model::fsm(
+    resource(capacity = MemOperating),
     entry -> MemInitializing,
     MemInitializing -> MemOperating,
     MemOperating -> MemFinalizing,
     MemFinalizing -> exit,
 )]
-#[quent_model::resource(capacity = MemOperating)]
 pub struct TestMemory;
 
 // A unit resource (processor-like)
@@ -39,33 +39,33 @@ pub struct ProcOperating;
 pub struct ProcFinalizing;
 
 #[quent_model::fsm(
+    resource(capacity = ProcOperating),
     entry -> ProcInitializing,
     ProcInitializing -> ProcOperating,
     ProcOperating -> ProcFinalizing,
     ProcFinalizing -> exit,
 )]
-#[quent_model::resource(capacity = ProcOperating)]
 pub struct TestProcessor;
 
 #[test]
 fn resource_trait_impl() {
     fn assert_resource<T: Resource>() {}
-    assert_resource::<TestMemory>();
-    assert_resource::<TestProcessor>();
+    assert_resource::<TestMemoryResource>();
+    assert_resource::<TestProcessorResource>();
 }
 
 #[test]
 fn usage_type_resolves() {
-    // Usage<TestMemory> should have capacity type MemOperating
-    let _usage: Usage<TestMemory> = Usage {
+    // Usage<TestMemoryResource> should have capacity type MemOperating
+    let _usage: Usage<TestMemoryResource> = Usage {
         resource_id: Ref::new(Uuid::nil()),
         capacity: MemOperating {
             capacity_bytes: 1024,
         },
     };
 
-    // Usage<TestProcessor> should have capacity type ProcOperating (unit struct)
-    let _usage: Usage<TestProcessor> = Usage {
+    // Usage<TestProcessorResource> should have capacity type ProcOperating
+    let _usage: Usage<TestProcessorResource> = Usage {
         resource_id: Ref::new(Uuid::nil()),
         capacity: ProcOperating,
     };

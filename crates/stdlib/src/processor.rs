@@ -22,10 +22,10 @@ pub struct ProcessorFinalizing;
 /// A unit resource has no capacity fields — `Usage<Processor>` only carries
 /// the `resource_id`.
 #[quent_model::fsm(
+    resource(capacity = ProcessorOperating),
     entry -> ProcessorInitializing,
     ProcessorInitializing -> ProcessorOperating,
     ProcessorOperating -> ProcessorFinalizing,
     ProcessorFinalizing -> exit,
 )]
-#[quent_model::resource(capacity = ProcessorOperating)]
 pub struct Processor;

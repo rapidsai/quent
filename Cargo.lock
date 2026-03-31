@@ -1482,8 +1482,11 @@ dependencies = [
 name = "quent-model"
 version = "0.1.0"
 dependencies = [
+ "quent-events",
+ "quent-instrumentation",
  "quent-model-macros",
  "quent-stdlib",
+ "quent-time",
  "serde",
  "serde_json",
  "uuid",

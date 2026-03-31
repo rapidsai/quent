@@ -26,10 +26,10 @@ pub struct ChannelFinalizing;
 /// The transition into `operating` declares the capacity (optional, `None`
 /// if unbounded) and the source/target entity IDs.
 #[quent_model::fsm(
+    resource(capacity = ChannelOperating),
     entry -> ChannelInitializing,
     ChannelInitializing -> ChannelOperating,
     ChannelOperating -> ChannelFinalizing,
     ChannelFinalizing -> exit,
 )]
-#[quent_model::resource(capacity = ChannelOperating)]
 pub struct Channel;
