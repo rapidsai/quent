@@ -122,9 +122,10 @@ within a [Plan][plan].
 Operators emit two types of events:
 
 - **Declaration**: emitted when the operator is created, establishing its
-  identity and membership in a plan.
-- **Statistics**: emitted after execution, carrying arbitrary custom attributes
-  with post-execution metrics (e.g. rows processed, bytes read/written).
+  identity and membership in a plan. May include initial attributes and
+  statistics.
+- **Statistics**: emitted after execution, carrying post-execution metrics
+  (e.g. rows processed, bytes read/written).
 
 Must have:
 
@@ -135,7 +136,7 @@ May have:
 
 - `parent_operator_ids: list<uuid>`: The IDs of parent [Plan][plan] Operators
   from which this Operator was derived.
-- `custom_attributes`: Arbitrary attributes declared at construction time.
+- `custom_attributes`: Arbitrary attributes.
 - `statistics`: Custom attributes emitted post-execution containing operator
   metrics.
 
@@ -165,8 +166,9 @@ May have:
 Notes:
 
 - A Port does not declare its direction. Whether a Port is an input or output
-  is inferred from the [Plan][plan]'s edges: a Port that appears as a `source`
-  in an edge is an output; a Port that appears as a `target` is an input.
+  is inferred from the [Plan][plan]'s edges, from the perspective of the
+  operator: a Port that appears as a `source` in an edge is an output; a Port
+  that appears as a `target` is an input.
 
 ## Worker
 
