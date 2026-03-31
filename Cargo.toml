@@ -15,6 +15,9 @@ members = [
     "crates/exporter/postcard",
     "crates/exporter/types",
     "crates/instrumentation",
+    "crates/model",
+    "crates/model-macros",
+    "crates/stdlib",
     "crates/time",
     "crates/ui",
     # Domain-specific crates
