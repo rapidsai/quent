@@ -41,6 +41,7 @@ emitted telemetry.
   rather than string-keyed attribute bags.
 
 See the [FAQ](./faq.md) for detailed comparisons.
+
 - **Not a turnkey solution.** Quent does not ship a single library that all
   applications link against or a single tool that analyzes any application.
 
