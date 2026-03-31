@@ -1630,6 +1630,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-simulator-model"
+version = "0.1.0"
+dependencies = [
+ "quent-instrumentation",
+ "quent-model",
+ "quent-stdlib",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-simulator-server"
 version = "0.1.0"
 dependencies = [
