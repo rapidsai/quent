@@ -29,6 +29,14 @@ Names of constructs that are defined by this specification are intentionally
 capitalized, e.g. [Entity][entity], [Timestamp][timestamp],
 [Resource][resource], etc.
 
+Fields listed under **"must have"** are always present. Fields listed under
+**"may have"** may be absent entirely.
+
+Where a field could be one of several mutually exclusive alternatives, each
+alternative is listed as a "must have" field of type `option<T>`. Exactly one
+must be non-null. This encoding avoids sum types, which are not
+well-supported across all transport and serialization formats.
+
 [attributes]: ./attributes.md
 [channel]: ./common/channel.md
 [entity]: ./entity.md

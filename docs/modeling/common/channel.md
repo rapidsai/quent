@@ -7,9 +7,12 @@ A Channel has a `Rate`-type [Capacity][capacity] of bytes.
 
 Must have:
 
-- `capacity_bytes: option<u64>`: a `Rate`-type capacity. `none` if unbounded.
 - `source_id: uuid`: the ID of the [Entity][entity] the Channel receives from.
 - `target_id: uuid`: the ID of the [Entity][entity] the Channel sends to.
+
+May have:
+
+- `capacity_bytes: u64`: a `Rate`-type capacity. Absent if unbounded.
 
 A Channel is unidirectional. Bidirectional communication can be modeled as two
 Channels (or as a [Resource Group][resource-group] containing two Channels).
