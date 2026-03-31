@@ -46,7 +46,7 @@ Notes:
 ## Query
 
 A Query is an [FSM][finite-state-machine] representing the top-level unit of
-work executed by an Engine, orchestrated through a Query Group.
+work executed by an Engine. A Query belongs to a [Query Group][query-group].
 
 FSM:
 
