@@ -493,6 +493,11 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             }
         }
 
+        // --- HasEventType impl ---
+        impl quent_model::HasEventType for #fsm_name {
+            type Event = #event_type;
+        }
+
         // --- Resource marker (if resource directive was present) ---
         #resource_impl
     };

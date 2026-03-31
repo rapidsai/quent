@@ -125,7 +125,7 @@ impl EngineObserver {
             Event::new_now(
                 id,
                 SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Engine(
-                    engine::EngineEvent::Exit,
+                    engine::EngineEvent::Exit(engine::Exit),
                 )),
             ),
         )
@@ -173,7 +173,7 @@ impl WorkerObserver {
             Event::new_now(
                 id,
                 SimulatorEvent::QueryEngineEvent(QueryEngineEvent::Worker(
-                    worker::WorkerEvent::Exit,
+                    worker::WorkerEvent::Exit(worker::Exit),
                 )),
             ),
         )

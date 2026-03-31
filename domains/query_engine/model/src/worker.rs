@@ -7,9 +7,6 @@ use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model(resource_group)]
-pub struct Worker;
-
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Init {
     pub parent_engine_id: Uuid,
@@ -17,7 +14,7 @@ pub struct Init {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum WorkerEvent {
-    Init(Init),
-    Exit,
-}
+pub struct Exit;
+
+#[quent_model(entity(events(Init, Exit)), resource_group)]
+pub struct Worker;

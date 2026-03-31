@@ -7,11 +7,11 @@ use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model(resource_group)]
-pub struct QueryGroup;
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct QueryGroupEvent {
+pub struct Declaration {
     pub instance_name: String,
     pub engine_id: Uuid,
 }
+
+#[quent_model(entity(events(Declaration)), resource_group)]
+pub struct QueryGroup;

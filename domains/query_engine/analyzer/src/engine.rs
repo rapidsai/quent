@@ -45,7 +45,7 @@ impl Engine {
                 self.instance_name = init.instance_name;
                 self.implementation = init.implementation;
             }
-            EngineEvent::Exit => self.end_time_unix_ns = Some(event.timestamp),
+            EngineEvent::Exit(_) => self.end_time_unix_ns = Some(event.timestamp),
         }
     }
 

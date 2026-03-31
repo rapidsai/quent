@@ -8,9 +8,6 @@ use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model(resource_group)]
-pub struct Port;
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Declaration {
     pub operator_id: Uuid,
@@ -22,8 +19,5 @@ pub struct Statistics {
     pub custom_attributes: Vec<Attribute>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum PortEvent {
-    Declaration(Declaration),
-    Statistics(Statistics),
-}
+#[quent_model(entity(events(Declaration, Statistics)), resource_group)]
+pub struct Port;

@@ -7,10 +7,6 @@ use quent_attributes::Attribute;
 use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 
-/// Engine is the root resource group.
-#[quent_model(resource_group(root))]
-pub struct Engine;
-
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct EngineImplementationAttributes {
     pub name: Option<String>,
@@ -25,7 +21,8 @@ pub struct Init {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum EngineEvent {
-    Init(Init),
-    Exit,
-}
+pub struct Exit;
+
+/// Engine is the root resource group.
+#[quent_model(entity(events(Init, Exit)), resource_group(root))]
+pub struct Engine;

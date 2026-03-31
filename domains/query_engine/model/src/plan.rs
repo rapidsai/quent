@@ -7,9 +7,6 @@ use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model(resource_group)]
-pub struct Plan;
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Edge {
     pub source: Uuid,
@@ -23,9 +20,12 @@ pub enum PlanParent {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct PlanEvent {
+pub struct Declaration {
     pub parent: PlanParent,
     pub instance_name: String,
     pub edges: Vec<Edge>,
     pub worker_id: Option<Uuid>,
 }
+
+#[quent_model(entity(events(Declaration)), resource_group)]
+pub struct Plan;

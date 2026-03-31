@@ -18,27 +18,16 @@ pub mod query;
 pub mod query_group;
 pub mod worker;
 
-use serde::{Deserialize, Serialize};
-
-/// Top-level event enum for all query engine entities.
-#[derive(Debug, Deserialize, Serialize)]
-pub enum QueryEngineEvent {
-    Engine(engine::EngineEvent),
-    Worker(worker::WorkerEvent),
-    QueryGroup(query_group::QueryGroupEvent),
-    Query(query::QueryEvent),
-    Plan(plan::PlanEvent),
-    Operator(operator::OperatorEvent),
-    Port(port::PortEvent),
+// The top-level event enum and model type are auto-generated from the
+// model component list.
+quent_model::define_model! {
+    pub QueryEngineModelDef(QueryEngineEvent) {
+        Query: query::Query,
+        Engine: engine::Engine,
+        Worker: worker::Worker,
+        QueryGroup: query_group::QueryGroup,
+        Plan: plan::Plan,
+        Operator: operator::Operator,
+        Port: port::Port,
+    }
 }
-
-/// Model definition type for the query engine domain.
-pub type QueryEngineModelDef = Model<(
-    query::Query,
-    engine::Engine,
-    worker::Worker,
-    query_group::QueryGroup,
-    plan::Plan,
-    operator::Operator,
-    port::Port,
-)>;

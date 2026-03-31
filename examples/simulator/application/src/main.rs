@@ -225,7 +225,7 @@ impl<T: Debug> Plan<T> {
 
         plan_obs.plan(
             self.id,
-            plan::PlanEvent {
+            plan::Declaration {
                 instance_name: self.name.clone(),
                 parent: self
                     .parent_plan_id
@@ -241,7 +241,8 @@ impl<T: Debug> Plan<T> {
                         target: edge.weight().target.id,
                     })
                     .collect(),
-            },
+            }
+            .into(),
         );
 
         // Declare all operators
@@ -1382,10 +1383,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         query_group_obs.group(
             query_group_id,
-            query_group::QueryGroupEvent {
+            query_group::Declaration {
                 engine_id: engine.id,
                 instance_name: format!("TPC-H (iteration {query_group_index})"),
-            },
+            }
+            .into(),
         );
 
         // "Run" the specified number of queries, sequentially for now.

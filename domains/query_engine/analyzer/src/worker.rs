@@ -48,7 +48,7 @@ impl Worker {
                 self.parent_engine_id = Some(init.parent_engine_id);
                 self.instance_name = Some(init.instance_name);
             }
-            WorkerEvent::Exit => self.end_unix_ns = Some(event.timestamp),
+            WorkerEvent::Exit(_) => self.end_unix_ns = Some(event.timestamp),
         }
     }
 

@@ -34,8 +34,12 @@ impl QueryGroup {
     }
 
     pub fn push(&mut self, event: Event<QueryGroupEvent>) {
-        self.engine_id = Some(event.data.engine_id);
-        self.instance_name = Some(event.data.instance_name);
+        match event.data {
+            QueryGroupEvent::Declaration(decl) => {
+                self.engine_id = Some(decl.engine_id);
+                self.instance_name = Some(decl.instance_name);
+            }
+        }
     }
 
     pub fn to_ui(&self) -> ui::QueryGroup {

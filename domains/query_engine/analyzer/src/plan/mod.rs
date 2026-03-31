@@ -48,10 +48,14 @@ impl Plan {
     }
 
     pub fn push(&mut self, event: Event<PlanEvent>) {
-        self.edges = event.data.edges;
-        self.worker_id = event.data.worker_id;
-        self.parent = Some(event.data.parent);
-        self.instance_name = Some(event.data.instance_name);
+        match event.data {
+            PlanEvent::Declaration(decl) => {
+                self.edges = decl.edges;
+                self.worker_id = decl.worker_id;
+                self.parent = Some(decl.parent);
+                self.instance_name = Some(decl.instance_name);
+            }
+        }
     }
 
     pub fn to_ui(&self) -> ui::Plan {

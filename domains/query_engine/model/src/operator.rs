@@ -8,9 +8,6 @@ use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model(resource_group)]
-pub struct Operator;
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Declaration {
     pub plan_id: Uuid,
@@ -25,8 +22,5 @@ pub struct Statistics {
     pub custom_attributes: Vec<Attribute>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum OperatorEvent {
-    Declaration(Declaration),
-    Statistics(Statistics),
-}
+#[quent_model(entity(events(Declaration, Statistics)), resource_group)]
+pub struct Operator;
