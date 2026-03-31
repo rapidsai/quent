@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_events::{resource::ResourceEvent, trace::TraceEvent};
-use quent_query_engine_events::QueryEngineEvent;
+use quent_query_engine_model::QueryEngineEvent;
 use serde::{Deserialize, Serialize};
 
 // Re-export the model-generated task types.

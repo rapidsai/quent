@@ -10,13 +10,13 @@ use uuid::Uuid;
 pub struct Worker;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
-pub struct WorkerInit {
+pub struct Init {
     pub parent_engine_id: Uuid,
     pub instance_name: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum WorkerEvent {
-    Init(WorkerInit),
+    Init(Init),
     Exit,
 }

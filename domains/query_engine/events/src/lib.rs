@@ -1,23 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
+//! Re-export facade for query engine event types.
+//!
+//! All types are now defined in `quent-query-engine-model` and re-exported
+//! here for backward compatibility.
 
-pub mod engine;
-pub mod operator;
-pub mod plan;
-pub mod port;
-pub mod query;
-pub mod query_group;
-pub mod worker;
+pub use quent_query_engine_model::QueryEngineEvent;
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum QueryEngineEvent {
-    Engine(engine::EngineEvent),
-    Worker(worker::WorkerEvent),
-    QueryGroup(query_group::QueryGroupEvent),
-    Query(query::QueryEvent),
-    Plan(plan::PlanEvent),
-    Operator(operator::OperatorEvent),
-    Port(port::PortEvent),
-}
+pub use quent_query_engine_model::engine;
+pub use quent_query_engine_model::operator;
+pub use quent_query_engine_model::plan;
+pub use quent_query_engine_model::port;
+pub use quent_query_engine_model::query;
+pub use quent_query_engine_model::query_group;
+pub use quent_query_engine_model::worker;

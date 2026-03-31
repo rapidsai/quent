@@ -18,13 +18,13 @@ pub struct EngineImplementationAttributes {
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
-pub struct EngineInit {
+pub struct Init {
     pub implementation: Option<EngineImplementationAttributes>,
     pub instance_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum EngineEvent {
-    Init(EngineInit),
+    Init(Init),
     Exit,
 }
