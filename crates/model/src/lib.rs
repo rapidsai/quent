@@ -87,7 +87,8 @@ pub trait ResourceGroup {
 
 // Re-export instrumentation types needed by generated code.
 pub use quent_events::Event;
-pub use quent_instrumentation::EventSender;
+pub use quent_exporter::ExporterOptions;
+pub use quent_instrumentation::{Context, EventSender};
 pub use quent_time::timestamp;
 
 /// Generates a model type alias and a top-level event enum from a list of
@@ -109,6 +110,7 @@ pub use quent_time::timestamp;
 /// - `From` impls for each component's event type into the top-level enum
 #[macro_export]
 macro_rules! define_model {
+    //
     ($vis:vis $model_name:ident($event_name:ident) { $($variant:ident : $path:path),* $(,)? }) => {
         $vis type $model_name = $crate::Model<($($path,)*)>;
 
@@ -124,6 +126,36 @@ macro_rules! define_model {
                 }
             }
         )*
+    };
+}
+
+/// Generates an instrumentation context for a given event type.
+///
+/// The context wraps `Context<E>` and provides `events_sender()`.
+/// Application code can extend it with additional methods via impl blocks.
+///
+/// ```ignore
+/// quent_model::define_context!(pub SimulatorContext(SimulatorEvent));
+/// ```
+#[macro_export]
+macro_rules! define_context {
+    ($vis:vis $context_name:ident($event_type:ty)) => {
+        $vis struct $context_name {
+            inner: $crate::Context<$event_type>,
+        }
+
+        impl $context_name {
+            pub fn try_new(
+                exporter: Option<$crate::ExporterOptions>,
+                id: uuid::Uuid,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                $crate::Context::try_new(exporter, id).map(|inner| Self { inner })
+            }
+
+            pub fn events_sender(&self) -> $crate::EventSender<$event_type> {
+                self.inner.events_sender()
+            }
+        }
     };
 }
 

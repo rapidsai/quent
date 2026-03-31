@@ -219,9 +219,9 @@ where
 
 impl<T: Debug> Plan<T> {
     pub fn declare(&self, context: &SimulatorContext, worker_id: Option<Uuid>) {
-        let plan_obs = context.plan_observer();
-        let operator_obs = context.operator_observer();
-        let port_obs = context.port_observer();
+        let plan_obs = plan::PlanObserver::new(&context.events_sender());
+        let operator_obs = operator::OperatorObserver::new(&context.events_sender());
+        let port_obs = port::PortObserver::new(&context.events_sender());
 
         plan_obs.declaration(
             self.id,
@@ -523,7 +523,7 @@ impl Worker {
     }
 
     fn spawn(&self, context: &SimulatorContext, parent_engine_id: Uuid) {
-        let worker_obs = context.worker_observer();
+        let worker_obs = worker::WorkerObserver::new(&context.events_sender());
         let resource_group_obs = context.resource_group_observer();
         let memory_obs = context.memory_resource_observer();
         let channel_obs = context.channel_resource_observer();
@@ -846,8 +846,8 @@ impl Worker {
             };
         }
 
-        let op_obs = context.operator_observer();
-        let port_obs = context.port_observer();
+        let op_obs = operator::OperatorObserver::new(&context.events_sender());
+        let port_obs = port::PortObserver::new(&context.events_sender());
         for node_idx in nodes.iter() {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
@@ -1076,7 +1076,7 @@ impl Worker {
     }
 
     fn shut_down(&self, context: &SimulatorContext) {
-        let worker_obs = context.worker_observer();
+        let worker_obs = worker::WorkerObserver::new(&context.events_sender());
         let memory_obs = context.memory_resource_observer();
         let channel_obs = context.channel_resource_observer();
         let processor_obs = context.processor_resource_observer();
@@ -1124,7 +1124,7 @@ impl Engine {
         // Create some observers
         info!("Simulating Engine:");
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
-        let engine_obs = context.engine_observer();
+        let engine_obs = engine::EngineObserver::new(&context.events_sender());
         let resource_group_obs = context.resource_group_observer();
         let channel_obs = context.channel_resource_observer();
 
@@ -1205,7 +1205,7 @@ impl Engine {
 
     fn shut_down(&self, context: &SimulatorContext) {
         // Create some observers
-        let engine_obs = context.engine_observer();
+        let engine_obs = engine::EngineObserver::new(&context.events_sender());
         let channel_obs = context.channel_resource_observer();
 
         // Tear down network
@@ -1378,7 +1378,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             engine.id
         );
 
-        let query_group_obs = context.query_group_observer();
+        let query_group_obs = query_group::QueryGroupObserver::new(&context.events_sender());
         let tx = context.events_sender();
 
         query_group_obs.declaration(

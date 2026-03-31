@@ -1484,6 +1484,7 @@ name = "quent-model"
 version = "0.1.0"
 dependencies = [
  "quent-events",
+ "quent-exporter",
  "quent-instrumentation",
  "quent-model-macros",
  "quent-stdlib",
@@ -1638,9 +1639,8 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
- "quent-exporter",
  "quent-instrumentation",
- "quent-query-engine-events",
+ "quent-model",
  "quent-simulator-events",
  "uuid",
 ]

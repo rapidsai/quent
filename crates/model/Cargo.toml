@@ -9,6 +9,7 @@ uuid = { workspace = true, features = ["serde", "v7"] }
 serde.workspace = true
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
+quent-exporter = { path = "../exporter" }
 quent-instrumentation = { path = "../instrumentation" }
 quent-time = { path = "../time" }
 
