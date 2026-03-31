@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PivotTable } from './PivotTable';
 import { cn } from '@/lib/utils';
-import type { IndexKey, AggMode, FlatRow, PivotedRow, HoveredStatInfo } from './types';
+import type { AggMode, FlatRow, PivotedRow, HoveredStatInfo } from './types';
 import type { PivotTableGroupKeyEntry, PivotTableSortInfo } from './types';
 import {
   buildPivotedRows,
@@ -10,9 +10,8 @@ import {
   formatStatNumber,
   getSortValue,
   gradientBg,
+  type GroupIndexDef,
 } from './utils';
-
-// --- renderer components ---
 
 function DataHeader({
   stat,
@@ -67,70 +66,24 @@ function GroupCell({
   groupKey: gk,
   rowSpan,
   getGroupTypeColor,
-  onHoverItemScope,
-  onHoverItem,
-  onHighlightItems,
-  onHoverItemType,
-  itemsByParentType,
-  itemsByParentName,
-  hoveredItemId,
+  getGroupCellHandlers,
 }: {
   row: PivotedRow;
   groupKey: PivotTableGroupKeyEntry;
   rowSpan: number;
   columnIndex: number;
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
-  onHoverItemScope?: (scopeId: string | undefined) => void;
-  onHoverItem?: (id: string | null) => void;
-  onHighlightItems?: (ids: Set<string> | null) => void;
-  onHoverItemType?: (type: string | null) => void;
-  itemsByParentType: Map<string, Set<string>>;
-  itemsByParentName: Map<string, Set<string>>;
-  hoveredItemId?: string | null;
+  getGroupCellHandlers?: (
+    groupKey: PivotTableGroupKeyEntry,
+    row: PivotedRow
+  ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
 }) {
-  const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
-  const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
   const typeColor = getGroupTypeColor?.(gk.key, gk.id);
-
-  const handleMouseEnter = useCallback(() => {
-    if (gk.key === 'item' && firstItemId) {
-      onHoverItemScope?.(firstItemScopeId);
-      onHoverItem?.(firstItemId);
-    } else if (gk.key === 'parent_item_type') {
-      onHighlightItems?.(itemsByParentType.get(gk.id) ?? null);
-    } else if (gk.key === 'parent_item') {
-      onHighlightItems?.(itemsByParentName.get(gk.id) ?? null);
-    } else if (gk.key === 'item_type') {
-      onHoverItemType?.(gk.id);
-    }
-  }, [
-    gk,
-    firstItemId,
-    firstItemScopeId,
-    onHoverItemScope,
-    onHoverItem,
-    onHighlightItems,
-    itemsByParentType,
-    itemsByParentName,
-    onHoverItemType,
-  ]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (gk.key === 'item' && firstItemId) {
-      if (hoveredItemId === firstItemId) onHoverItem?.(null);
-    } else if (gk.key === 'parent_item_type' || gk.key === 'parent_item') {
-      onHighlightItems?.(null);
-    } else if (gk.key === 'item_type') {
-      onHoverItemType?.(null);
-    }
-  }, [gk, firstItemId, hoveredItemId, onHoverItem, onHighlightItems, onHoverItemType]);
+  const handlers = getGroupCellHandlers?.(gk, row);
 
   return (
     <td
-      className={cn(
-        'px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30',
-        gk.key === 'item' && ''
-      )}
+      className="px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30"
       rowSpan={rowSpan}
       style={
         typeColor
@@ -141,8 +94,8 @@ function GroupCell({
             }
           : undefined
       }
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseEnter={handlers?.onMouseEnter}
+      onMouseLeave={handlers?.onMouseLeave}
     >
       {gk.label}
     </td>
@@ -213,26 +166,24 @@ function DataCell({
   );
 }
 
-// --- main component ---
-
 interface StatGroupTableProps {
   flatRows: FlatRow[];
-  activeIndices: IndexKey[];
+  activeIndices: GroupIndexDef[];
   visibleStats: string[];
   isAggregating: boolean;
   aggMode: AggMode;
-  indexLabels: Record<IndexKey, React.ReactNode>;
+  indexLabels: Record<string, React.ReactNode>;
   // interaction state
   selectedItemIds?: Set<string>;
   hoveredItemId?: string | null;
-  onHoverItem?: (id: string | null) => void;
   hoveredStat?: HoveredStatInfo | null;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
-  onHoverItemType?: (type: string | null) => void;
-  onHighlightItems?: (ids: Set<string> | null) => void;
-  onHoverItemScope?: (scopeId: string | undefined) => void;
   // display config
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
+  getGroupCellHandlers?: (
+    groupKey: PivotTableGroupKeyEntry,
+    row: PivotedRow
+  ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
   onReorderStat?: (from: string, to: string) => void;
 }
 
@@ -245,13 +196,10 @@ export function StatGroupTable({
   indexLabels,
   selectedItemIds,
   hoveredItemId,
-  onHoverItem,
   hoveredStat,
   onHoverStat,
-  onHoverItemType,
-  onHighlightItems,
-  onHoverItemScope,
   getGroupTypeColor,
+  getGroupCellHandlers,
   onReorderStat,
 }: StatGroupTableProps) {
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -286,34 +234,6 @@ export function StatGroupTable({
     },
     [statsByItem]
   );
-
-  const itemsByParentType = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const row of flatRows) {
-      if (row.parentItemType === '-') continue;
-      let set = map.get(row.parentItemType);
-      if (!set) {
-        set = new Set();
-        map.set(row.parentItemType, set);
-      }
-      set.add(row.itemId);
-    }
-    return map;
-  }, [flatRows]);
-
-  const itemsByParentName = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const row of flatRows) {
-      if (row.parentItemName === '-') continue;
-      let set = map.get(row.parentItemName);
-      if (!set) {
-        set = new Set();
-        map.set(row.parentItemName, set);
-      }
-      set.add(row.itemId);
-    }
-    return map;
-  }, [flatRows]);
 
   const pivotedRows = useMemo(
     () => buildPivotedRows(flatRows, activeIndices, isAggregating),
@@ -352,23 +272,17 @@ export function StatGroupTable({
     onHoverStat,
     buildHoveredStatInfo,
     hoveredStatName: hoveredStat?.name,
-    hoveredItemId,
     getGroupTypeColor,
-    onHoverItemScope,
-    onHoverItem,
-    onHighlightItems,
-    onHoverItemType,
-    itemsByParentType,
-    itemsByParentName,
+    getGroupCellHandlers,
     isAggregating,
     aggMode,
     columnRanges,
   };
 
   const columns = useMemo((): ColumnDef<PivotedRow>[] => {
-    const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(key => ({
-      id: key,
-      header: String(indexLabels[key]),
+    const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(def => ({
+      id: def.key,
+      header: String(indexLabels[def.key]),
       enableSorting: false,
     }));
     const statCols: ColumnDef<PivotedRow>[] = visibleStats.map(stat => ({
@@ -397,8 +311,8 @@ export function StatGroupTable({
       data={pivotedRows}
       columns={columns}
       getRowId={row => row.rowKey}
-      groupColumnIds={activeIndices}
-      renderGroupHeader={columnId => indexLabels[columnId as IndexKey]}
+      groupColumnIds={activeIndices.map(def => def.key)}
+      renderGroupHeader={columnId => indexLabels[columnId]}
       sharedProps={sharedProps}
       DataHeader={DataHeader}
       GroupCell={GroupCell}

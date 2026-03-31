@@ -12,8 +12,10 @@ import {
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { operatorTypeColor } from '@/services/colors';
-import type { IndexKey, AggMode, FlatRow } from '../pivot-table/types';
+import type { AggMode, FlatRow, PivotedRow } from '../pivot-table/types';
+import type { PivotTableGroupKeyEntry } from '../pivot-table/types';
 import { StatGroupTable } from '../pivot-table/StatGroupTable';
+import { type GroupIndexDef } from '../pivot-table/utils';
 import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryEntities } from '~quent/types/QueryEntities';
@@ -97,6 +99,31 @@ function buildOperatorFlatRows(entities: QueryEntities, siblingPlanIds: Set<stri
   return rows;
 }
 
+type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
+
+const GROUP_INDEX_DEFS: Record<IndexKey, Omit<GroupIndexDef, 'key'>> = {
+  partition: {
+    getId: row => row.partitionId,
+    getLabel: row => row.partitionLabel,
+  },
+  parent_item_type: {
+    getId: row => row.parentItemType,
+    getLabel: row => row.parentItemType,
+  },
+  parent_item: {
+    getId: row => row.parentItemName,
+    getLabel: row => row.parentItemName,
+  },
+  item_type: {
+    getId: row => row.itemType,
+    getLabel: row => row.itemType,
+  },
+  item: {
+    getId: row => row.itemId,
+    getLabel: row => row.itemName,
+  },
+};
+
 const INDEX_ORDER: IndexKey[] = [
   'partition',
   'parent_item_type',
@@ -149,6 +176,34 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     () => buildOperatorFlatRows(entities, siblingPlanIds),
     [entities, siblingPlanIds]
   );
+
+  const itemsByParentType = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of flatRows) {
+      if (row.parentItemType === '-') continue;
+      let set = map.get(row.parentItemType);
+      if (!set) {
+        set = new Set();
+        map.set(row.parentItemType, set);
+      }
+      set.add(row.itemId);
+    }
+    return map;
+  }, [flatRows]);
+
+  const itemsByParentName = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of flatRows) {
+      if (row.parentItemName === '-') continue;
+      let set = map.get(row.parentItemName);
+      if (!set) {
+        set = new Set();
+        map.set(row.parentItemName, set);
+      }
+      set.add(row.itemId);
+    }
+    return map;
+  }, [flatRows]);
 
   // --- derived config ---
   const allStatNames = useMemo(() => {
@@ -205,12 +260,17 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     [indexOrder, hasParentItems]
   );
 
-  const activeIndices = useMemo(
+  const activeIndexKeys = useMemo(
     () => visibleIndexOrder.filter(k => enabledIndices[k]),
     [visibleIndexOrder, enabledIndices]
   );
 
-  const isAggregating = activeIndices.length < visibleIndexOrder.length;
+  const activeGroupDefs = useMemo(
+    () => activeIndexKeys.map(k => ({ key: k, ...GROUP_INDEX_DEFS[k] })),
+    [activeIndexKeys]
+  );
+
+  const isAggregating = activeIndexKeys.length < visibleIndexOrder.length;
 
   const parentScopeLabelValue = useMemo(() => {
     for (const row of flatRows) {
@@ -226,7 +286,7 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     return 'Current';
   }, [flatRows]);
 
-  const indexLabels: Record<IndexKey, React.ReactNode> = useMemo(
+  const indexLabels: Record<string, React.ReactNode> = useMemo(
     () => ({
       partition: 'Worker / Plan',
       parent_item_type: (
@@ -316,6 +376,55 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     [orderedStatNames]
   );
 
+  const getGroupCellHandlers = useCallback(
+    (gk: PivotTableGroupKeyEntry, row: PivotedRow) => {
+      const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
+      const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
+
+      if (gk.key === 'item' && firstItemId) {
+        return {
+          onMouseEnter: () => {
+            if (firstItemScopeId && firstItemScopeId !== selectedPlanId)
+              setSelectedPlanId(firstItemScopeId);
+            setHoveredOperatorId(firstItemId);
+          },
+          onMouseLeave: () => {
+            if (hoveredOperatorId === firstItemId) setHoveredOperatorId(null);
+          },
+        };
+      }
+      if (gk.key === 'parent_item_type') {
+        return {
+          onMouseEnter: () => setHighlightedNodeIds(itemsByParentType.get(gk.id) ?? null),
+          onMouseLeave: () => setHighlightedNodeIds(null),
+        };
+      }
+      if (gk.key === 'parent_item') {
+        return {
+          onMouseEnter: () => setHighlightedNodeIds(itemsByParentName.get(gk.id) ?? null),
+          onMouseLeave: () => setHighlightedNodeIds(null),
+        };
+      }
+      if (gk.key === 'item_type') {
+        return {
+          onMouseEnter: () => setHoveredOperatorType(gk.id),
+          onMouseLeave: () => setHoveredOperatorType(null),
+        };
+      }
+      return {};
+    },
+    [
+      selectedPlanId,
+      setSelectedPlanId,
+      hoveredOperatorId,
+      setHoveredOperatorId,
+      setHoveredOperatorType,
+      setHighlightedNodeIds,
+      itemsByParentType,
+      itemsByParentName,
+    ]
+  );
+
   if (!selectedPlanId) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -354,24 +463,19 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
       <div className="flex-1 min-h-0">
         <StatGroupTable
           flatRows={flatRows}
-          activeIndices={activeIndices}
+          activeIndices={activeGroupDefs}
           visibleStats={visibleStats}
           isAggregating={isAggregating}
           aggMode={aggMode}
           indexLabels={indexLabels}
           selectedItemIds={selectedNodeIds}
           hoveredItemId={hoveredOperatorId}
-          onHoverItem={setHoveredOperatorId}
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
-          onHoverItemType={setHoveredOperatorType}
-          onHighlightItems={setHighlightedNodeIds}
           getGroupTypeColor={(key, id) =>
             key === 'item_type' || key === 'parent_item_type' ? operatorTypeColor(id) : undefined
           }
-          onHoverItemScope={scopeId => {
-            if (scopeId && scopeId !== selectedPlanId) setSelectedPlanId(scopeId);
-          }}
+          getGroupCellHandlers={getGroupCellHandlers}
           onReorderStat={handleReorderStat}
         />
       </div>

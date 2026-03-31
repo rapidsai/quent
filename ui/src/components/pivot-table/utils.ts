@@ -1,6 +1,16 @@
 import { formatWithPrefix } from '@/services/formatters';
 import type { StatValue } from '@/services/query-plan/types';
-import type { FlatRow, GroupKeyEntry, IndexKey, PivotedRow, PivotedRowAgg, AggMode } from './types';
+import type { FlatRow, GroupKeyEntry, PivotedRow, PivotedRowAgg, AggMode } from './types';
+
+/**
+ * Defines how a single grouping dimension maps a FlatRow to its key/label values.
+ * Callers (e.g. OperatorTableAdapter) supply these; utils.ts never inspects key names.
+ */
+export interface GroupIndexDef {
+  key: string;
+  getId: (row: FlatRow) => string;
+  getLabel: (row: FlatRow) => string;
+}
 
 export function formatNumber(n: number | null): string {
   if (n === null) return '-';
@@ -67,42 +77,12 @@ export function gradientBg(value: number, min: number, max: number): string | un
   return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
 }
 
-// --- grouping helpers ---
-
-export function rowGroupKey(row: FlatRow, enabledIndices: IndexKey[]): string {
-  return enabledIndices
-    .map(idx => {
-      switch (idx) {
-        case 'partition':
-          return row.partitionId;
-        case 'parent_item_type':
-          return row.parentItemType;
-        case 'parent_item':
-          return row.parentItemName;
-        case 'item_type':
-          return row.itemType;
-        case 'item':
-          return row.itemId;
-      }
-    })
-    .join('\0');
+export function rowGroupKey(row: FlatRow, indices: GroupIndexDef[]): string {
+  return indices.map(def => def.getId(row)).join('\0');
 }
 
-export function getGroupKeys(row: FlatRow, enabledIndices: IndexKey[]): GroupKeyEntry[] {
-  return enabledIndices.map(idx => {
-    switch (idx) {
-      case 'partition':
-        return { key: idx, id: row.partitionId, label: row.partitionLabel };
-      case 'parent_item_type':
-        return { key: idx, id: row.parentItemType, label: row.parentItemType };
-      case 'parent_item':
-        return { key: idx, id: row.parentItemName, label: row.parentItemName };
-      case 'item_type':
-        return { key: idx, id: row.itemType, label: row.itemType };
-      case 'item':
-        return { key: idx, id: row.itemId, label: row.itemName };
-    }
-  });
+export function getGroupKeys(row: FlatRow, indices: GroupIndexDef[]): GroupKeyEntry[] {
+  return indices.map(def => ({ key: def.key, id: def.getId(row), label: def.getLabel(row) }));
 }
 
 /** Row type constraint for computeRowSpans: only groupKeys with id is used. */
@@ -175,7 +155,7 @@ type Accumulator = {
 /** Build pivoted (and optionally aggregated) rows from flat rows. */
 export function buildPivotedRows(
   flatRows: FlatRow[],
-  activeIndices: IndexKey[],
+  activeIndices: GroupIndexDef[],
   isAggregating: boolean
 ): PivotedRow[] {
   const groups = new Map<string, Accumulator>();

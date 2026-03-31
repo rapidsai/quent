@@ -1,7 +1,5 @@
 import type { StatValue } from '@/services/query-plan/types';
 
-// --- PivotTable base contracts ---
-
 /**
  * Minimal row contract for PivotTable: group columns (with rowSpan) + rowKey for identity.
  */
@@ -50,8 +48,6 @@ export interface HoveredStatInfo {
   max: number;
 }
 
-export type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
-
 export type AggMode = 'value' | 'sum' | 'mean' | 'min' | 'max' | 'stdev';
 
 export type SortDir = 'asc' | 'desc';
@@ -72,7 +68,7 @@ export interface FlatRow {
 }
 
 export interface GroupKeyEntry {
-  key: IndexKey;
+  key: string;
   id: string;
   label: string;
 }
