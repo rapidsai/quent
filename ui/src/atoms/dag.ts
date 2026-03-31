@@ -41,7 +41,7 @@ export const NODE_LABEL_FIELD = {
   ID: 'id',
   TYPE: 'type',
 } as const;
-export type NodeLabelField = typeof NODE_LABEL_FIELD[keyof typeof NODE_LABEL_FIELD];
+export type NodeLabelField = (typeof NODE_LABEL_FIELD)[keyof typeof NODE_LABEL_FIELD];
 export const selectedNodeLabelFieldAtom = atom<NodeLabelField>(NODE_LABEL_FIELD.NAME);
 
 /** Continuous color palette used for node coloring */

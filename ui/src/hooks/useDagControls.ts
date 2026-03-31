@@ -9,14 +9,20 @@ import {
   selectedEdgeColorFieldAtom,
   edgeColoringAtom,
 } from '@/atoms/dag';
-import { computeNodeColoring, computeEdgeWidthConfig, computeEdgeColoring } from '@/services/query-plan/dagFieldProcessing';
+import {
+  computeNodeColoring,
+  computeEdgeWidthConfig,
+  computeEdgeColoring,
+} from '@/services/query-plan/dagFieldProcessing';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 
 export function useDagNodeColoring(nodes: DAGNode[]) {
   const selectedField = useAtomValue(selectedColorField);
   const setNodeColoring = useSetAtom(nodeColoringAtom);
   const coloring = useMemo(() => computeNodeColoring(nodes, selectedField), [nodes, selectedField]);
-  useEffect(() => { setNodeColoring(coloring); }, [coloring, setNodeColoring]);
+  useEffect(() => {
+    setNodeColoring(coloring);
+  }, [coloring, setNodeColoring]);
 }
 
 export function useDagEdgeWidthConfig(edges: DAGEdge[]) {
@@ -26,19 +32,25 @@ export function useDagEdgeWidthConfig(edges: DAGEdge[]) {
     () => computeEdgeWidthConfig(edges, selectedEdgeWidthField),
     [edges, selectedEdgeWidthField]
   );
-  useEffect(() => { setEdgeWidthConfig(config); }, [config, setEdgeWidthConfig]);
+  useEffect(() => {
+    setEdgeWidthConfig(config);
+  }, [config, setEdgeWidthConfig]);
 }
 
 export function useDagEdgeColoring(edges: DAGEdge[]) {
   const selectedField = useAtomValue(selectedEdgeColorFieldAtom);
   const setEdgeColoring = useSetAtom(edgeColoringAtom);
   const coloring = useMemo(() => computeEdgeColoring(edges, selectedField), [edges, selectedField]);
-  useEffect(() => { setEdgeColoring(coloring); }, [coloring, setEdgeColoring]);
+  useEffect(() => {
+    setEdgeColoring(coloring);
+  }, [coloring, setEdgeColoring]);
 }
 
 export function useOperatorStatFields(nodes: DAGNode[]): string[] {
   return useMemo(
-    () => [...new Set(nodes.flatMap(n => parseCustomStatistics(n.metadata?.rawNode).map(s => s.key)))],
+    () => [
+      ...new Set(nodes.flatMap(n => parseCustomStatistics(n.metadata?.rawNode).map(s => s.key))),
+    ],
     [nodes]
   );
 }

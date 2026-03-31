@@ -9,10 +9,23 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Settings2 } from 'lucide-react';
 import { useAtom } from 'jotai';
-import { nodeColorPaletteAtom, edgeColorPaletteAtom, selectedNodeLabelFieldAtom, NODE_LABEL_FIELD, type NodeLabelField } from '@/atoms/dag';
-import { CONTINUOUS_PALETTES, continuousColor, type ContinuousPaletteName } from '@/services/colors';
+import {
+  nodeColorPaletteAtom,
+  edgeColorPaletteAtom,
+  selectedNodeLabelFieldAtom,
+  NODE_LABEL_FIELD,
+  type NodeLabelField,
+} from '@/atoms/dag';
+import {
+  CONTINUOUS_PALETTES,
+  continuousColor,
+  type ContinuousPaletteName,
+} from '@/services/colors';
 
-const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [ContinuousPaletteName, { label: string }][];
+const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [
+  ContinuousPaletteName,
+  { label: string },
+][];
 
 export const DAGSettingsPopover = () => {
   const [nodePalette, setNodePalette] = useAtom(nodeColorPaletteAtom);
@@ -22,16 +35,25 @@ export const DAGSettingsPopover = () => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+        >
           <Settings2 className="h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent side="bottom" className="w-64 flex flex-col gap-3 p-3 shadow-lg">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Settings</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Settings
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">Node palette</span>
-            <Select value={nodePalette} onValueChange={v => setNodePalette(v as ContinuousPaletteName)}>
+            <Select
+              value={nodePalette}
+              onValueChange={v => setNodePalette(v as ContinuousPaletteName)}
+            >
               <SelectTrigger className="h-7 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -52,7 +74,10 @@ export const DAGSettingsPopover = () => {
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">Edge palette</span>
-            <Select value={edgePalette} onValueChange={v => setEdgePalette(v as ContinuousPaletteName)}>
+            <Select
+              value={edgePalette}
+              onValueChange={v => setEdgePalette(v as ContinuousPaletteName)}
+            >
               <SelectTrigger className="h-7 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -73,14 +98,23 @@ export const DAGSettingsPopover = () => {
           </div>
           <div className="flex flex-col gap-1 w-fit">
             <span className="text-xs text-muted-foreground">Node label</span>
-            <Select value={nodeLabelField} onValueChange={v => setNodeLabelField(v as NodeLabelField)}>
+            <Select
+              value={nodeLabelField}
+              onValueChange={v => setNodeLabelField(v as NodeLabelField)}
+            >
               <SelectTrigger className="h-7 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NODE_LABEL_FIELD.NAME} className="text-xs">Name</SelectItem>
-                <SelectItem value={NODE_LABEL_FIELD.ID} className="text-xs">ID</SelectItem>
-                <SelectItem value={NODE_LABEL_FIELD.TYPE} className="text-xs">Type</SelectItem>
+                <SelectItem value={NODE_LABEL_FIELD.NAME} className="text-xs">
+                  Name
+                </SelectItem>
+                <SelectItem value={NODE_LABEL_FIELD.ID} className="text-xs">
+                  ID
+                </SelectItem>
+                <SelectItem value={NODE_LABEL_FIELD.TYPE} className="text-xs">
+                  Type
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

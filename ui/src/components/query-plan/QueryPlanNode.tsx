@@ -2,7 +2,14 @@ import { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom, nodeColoringAtom, selectedNodeDisplayFieldAtom, nodeColorPaletteAtom, selectedNodeLabelFieldAtom, NODE_LABEL_FIELD } from '@/atoms/dag';
+import {
+  selectedNodeIdsAtom,
+  nodeColoringAtom,
+  selectedNodeDisplayFieldAtom,
+  nodeColorPaletteAtom,
+  selectedNodeLabelFieldAtom,
+  NODE_LABEL_FIELD,
+} from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
@@ -164,14 +171,15 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       <div className="text-sm font-normal break-words text-center">{resolvedLabel}</div>
-      {nodeDisplayField && (() => {
-        const displayValue = statistics.find(s => s.key === nodeDisplayField)?.value ?? null;
-        return displayValue !== null ? (
-          <div className="text-xs text-muted-foreground text-center mt-0.5">
-            {String(displayValue)}
-          </div>
-        ) : null;
-      })()}
+      {nodeDisplayField &&
+        (() => {
+          const displayValue = statistics.find(s => s.key === nodeDisplayField)?.value ?? null;
+          return displayValue !== null ? (
+            <div className="text-xs text-muted-foreground text-center mt-0.5">
+              {String(displayValue)}
+            </div>
+          ) : null;
+        })()}
 
       {data.hasOutgoing && (
         <Handle

@@ -17,7 +17,13 @@ import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom, edgeWidthConfigAtom, edgeColoringAtom, edgeColorPaletteAtom } from '@/atoms/dag';
+import {
+  selectedNodeIdsAtom,
+  selectedOperatorLabelAtom,
+  edgeWidthConfigAtom,
+  edgeColoringAtom,
+  edgeColorPaletteAtom,
+} from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
 
 const elk = new ELK();

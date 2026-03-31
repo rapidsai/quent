@@ -8,7 +8,13 @@ import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
 import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
 import { DAGControls } from '@/components/dag/DAGControls';
-import { useDagNodeColoring, useDagEdgeWidthConfig, useDagEdgeColoring, useOperatorStatFields, usePortStatFields } from '@/hooks/useDagControls';
+import {
+  useDagNodeColoring,
+  useDagEdgeWidthConfig,
+  useDagEdgeColoring,
+  useOperatorStatFields,
+  usePortStatFields,
+} from '@/hooks/useDagControls';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>

@@ -9,7 +9,12 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAtom } from 'jotai';
-import { selectedColorField, selectedEdgeWidthFieldAtom, selectedEdgeColorFieldAtom, selectedNodeDisplayFieldAtom } from '@/atoms/dag';
+import {
+  selectedColorField,
+  selectedEdgeWidthFieldAtom,
+  selectedEdgeColorFieldAtom,
+  selectedNodeDisplayFieldAtom,
+} from '@/atoms/dag';
 import { Palette, Spline, X, Brush, Tag, ChevronDown } from 'lucide-react';
 import { DAGSettingsPopover } from './DAGSettingsPopover';
 import { useState } from 'react';
@@ -81,8 +86,10 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
     <Collapsible open={open} onOpenChange={setOpen} className="border-b bg-card">
       <div className="flex items-center justify-between px-4 py-3">
         <CollapsibleTrigger className="flex items-center gap-2 group">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">DAG Controls</span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            DAG Controls
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 cursor-pointer group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <DAGSettingsPopover />
       </div>
