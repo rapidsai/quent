@@ -223,7 +223,7 @@ impl<T: Debug> Plan<T> {
         let operator_obs = context.operator_observer();
         let port_obs = context.port_observer();
 
-        plan_obs.plan(
+        plan_obs.declaration(
             self.id,
             plan::Declaration {
                 instance_name: self.name.clone(),
@@ -248,7 +248,7 @@ impl<T: Debug> Plan<T> {
         // Declare all operators
         for node_idx in self.dag.node_indices() {
             let op = &self.dag[node_idx];
-            operator_obs.operator(
+            operator_obs.declaration(
                 op.id,
                 operator::Declaration {
                     plan_id: self.id,
@@ -286,7 +286,7 @@ impl<T: Debug> Plan<T> {
                         }),
                 )
             {
-                port_obs.port(id, event)
+                port_obs.declaration(id, event)
             }
         }
     }
@@ -1098,7 +1098,7 @@ impl Worker {
             processor_obs.exit(*thread, Default::default());
         }
         sleep_long();
-        worker_obs.exit(self.id);
+        worker_obs.exit(self.id, worker::Exit);
     }
 }
 
@@ -1219,7 +1219,7 @@ impl Engine {
             worker.shut_down(context);
         }
 
-        engine_obs.exit(self.id);
+        engine_obs.exit(self.id, engine::Exit);
         info!("Simulated engine shut down.")
     }
 }
@@ -1379,9 +1379,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         let query_group_obs = context.query_group_observer();
-        let query_obs = context.query_observer();
+        let tx = context.events_sender();
 
-        query_group_obs.group(
+        query_group_obs.declaration(
             query_group_id,
             query_group::Declaration {
                 engine_id: engine.id,
@@ -1391,26 +1391,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         // "Run" the specified number of queries, sequentially for now.
-        for (query_index, query_id) in std::iter::repeat_with(Uuid::now_v7)
-            .take(args.num_queries)
-            .enumerate()
+        for query_index in 0..args.num_queries
         {
-            info!("Simulating Query:");
-            info!(
-                "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
-                engine.id
-            );
-            query_obs.init(
-                query_id,
+            let mut query_handle = query::QueryHandle::<SimulatorEvent>::new(
+                &tx,
                 query::Init {
                     query_group_id,
                     instance_name: format!("Q{query_index}"),
                 },
             );
-            query_obs.planning(query_id);
+            let query_id = query_handle.uuid();
+            info!("Simulating Query:");
+            info!(
+                "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
+                engine.id
+            );
+            query_handle.transition(query::Planning);
             let l_plan = make_logical_plan(query_id, "logical".into());
             l_plan.declare(&context, None);
-            query_obs.executing(query_id);
+            query_handle.transition(query::Executing);
 
             let workers: Vec<_> = engine.workers.values().collect();
             std::thread::scope(|s| {
@@ -1421,7 +1420,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
 
-            query_obs.exit(query_id);
+            query_handle.exit();
         }
     }
 

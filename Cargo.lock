@@ -1638,10 +1638,8 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
- "quent-events",
  "quent-exporter",
  "quent-instrumentation",
- "quent-model",
  "quent-query-engine-events",
  "quent-simulator-events",
  "uuid",

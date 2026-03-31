@@ -19,6 +19,37 @@ pub enum SimulatorEvent {
     Trace(TraceEvent),
 }
 
+impl From<QueryEngineEvent> for SimulatorEvent {
+    fn from(event: QueryEngineEvent) -> Self {
+        SimulatorEvent::QueryEngineEvent(event)
+    }
+}
+
+// Transitive From impls: entity event → QueryEngineEvent → SimulatorEvent
+macro_rules! impl_from_via_qe {
+    ($($event_type:ty),* $(,)?) => {
+        $(
+            impl From<$event_type> for SimulatorEvent {
+                fn from(event: $event_type) -> Self {
+                    SimulatorEvent::QueryEngineEvent(QueryEngineEvent::from(event))
+                }
+            }
+        )*
+    };
+}
+
+use quent_query_engine_model::{engine, worker, query_group, query, plan, operator, port};
+
+impl_from_via_qe!(
+    engine::EngineEvent,
+    worker::WorkerEvent,
+    query_group::QueryGroupEvent,
+    query::QueryEvent,
+    plan::PlanEvent,
+    operator::OperatorEvent,
+    port::PortEvent,
+);
+
 impl From<TaskEvent> for SimulatorEvent {
     fn from(event: TaskEvent) -> Self {
         SimulatorEvent::Task(event)

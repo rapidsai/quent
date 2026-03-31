@@ -52,6 +52,11 @@ impl<T> EventSender<T> {
             tracing::error!("unable to send event, suppressing further errors");
         }
     }
+
+    /// Emit an event, converting it into the target type via `Into`.
+    pub fn emit(&self, id: Uuid, event: impl Into<T>) {
+        self.send(Event::new_now(id, event.into()));
+    }
 }
 
 pub struct Context<T>

@@ -377,6 +377,20 @@ fn expand_entity_with_events(
         })
         .collect();
 
+    // Generate the observer struct with one method per event type
+    let observer_name = format_ident!("{}Observer", name);
+    let observer_methods: Vec<TokenStream> = event_types
+        .iter()
+        .map(|ty| {
+            let method_name = format_ident!("{}", to_snake_case(ty));
+            quote! {
+                pub fn #method_name(&self, id: uuid::Uuid, event: #ty) {
+                    self.tx.emit(id, #event_enum::from(event));
+                }
+            }
+        })
+        .collect();
+
     let output = quote! {
         #input
 
@@ -387,6 +401,26 @@ fn expand_entity_with_events(
         }
 
         #(#from_impls)*
+
+        // --- Observer ---
+        #[derive(Clone)]
+        pub struct #observer_name<E>
+        where
+            E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+        {
+            tx: quent_model::EventSender<E>,
+        }
+
+        impl<E> #observer_name<E>
+        where
+            E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+        {
+            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                Self { tx: tx.clone() }
+            }
+
+            #(#observer_methods)*
+        }
 
         // --- Data struct for analyzer ---
         #[derive(Debug, Default)]
