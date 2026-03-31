@@ -1578,9 +1578,12 @@ dependencies = [
  "quent-attributes",
  "quent-events",
  "quent-exporter",
+ "quent-model",
  "quent-query-engine-events",
  "quent-simulator-events",
  "quent-simulator-instrumentation",
+ "quent-simulator-model",
+ "quent-stdlib",
  "rand",
  "tracing",
  "tracing-subscriber",
@@ -1612,7 +1615,9 @@ name = "quent-simulator-events"
 version = "0.1.0"
 dependencies = [
  "quent-events",
+ "quent-model",
  "quent-query-engine-events",
+ "quent-simulator-model",
  "serde",
  "uuid",
 ]

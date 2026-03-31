@@ -18,7 +18,7 @@ use quent_query_engine_events::{
     port::{self, PortEvent},
     query, query_group, worker,
 };
-use quent_simulator_events::{SimulatorEvent, task};
+use quent_simulator_events::SimulatorEvent;
 use uuid::Uuid;
 
 pub struct SimulatorContext {
@@ -87,10 +87,9 @@ impl SimulatorContext {
         ResourceGroupObserver::new(self.inner.events_sender())
     }
 
-    pub fn task_observer(&self) -> TaskObserver {
-        TaskObserver {
-            tx: self.inner.events_sender(),
-        }
+    /// Returns the event sender for creating FSM handles (e.g., TaskHandle).
+    pub fn events_sender(&self) -> EventSender<SimulatorEvent> {
+        self.inner.events_sender()
     }
 
     pub fn trace_observer(&self, entity_id: Uuid) -> TraceObserver<SimulatorEvent> {
@@ -313,70 +312,4 @@ impl PortObserver {
     }
 }
 
-#[derive(Clone)]
-pub struct TaskObserver {
-    tx: EventSender<SimulatorEvent>,
-}
-
-impl TaskObserver {
-    pub fn task_queueing(&self, id: Uuid, queueing: task::Queueing) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(task::TaskEvent::Queueing(queueing)),
-            ),
-        )
-    }
-
-    pub fn task_computing(&self, id: Uuid, computing: task::Computing) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(task::TaskEvent::Computing(computing)),
-            ),
-        )
-    }
-
-    pub fn task_allocating_memory(&self, id: Uuid, allocating_memory: task::Allocating) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(task::TaskEvent::Allocating(allocating_memory)),
-            ),
-        )
-    }
-
-    pub fn task_loading(&self, id: Uuid, loading: task::Loading) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Loading(loading))),
-        )
-    }
-
-    pub fn task_spilling(&self, id: Uuid, spilling: task::Spilling) {
-        push_event(
-            &self.tx,
-            Event::new_now(
-                id,
-                SimulatorEvent::Task(task::TaskEvent::Spilling(spilling)),
-            ),
-        )
-    }
-
-    pub fn task_sending(&self, id: Uuid, sending: task::Sending) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Sending(sending))),
-        )
-    }
-
-    pub fn task_exit(&self, id: Uuid) {
-        push_event(
-            &self.tx,
-            Event::new_now(id, SimulatorEvent::Task(task::TaskEvent::Exit)),
-        )
-    }
-}
+// TaskObserver removed — replaced by quent_simulator_model::task::TaskHandle<SimulatorEvent>

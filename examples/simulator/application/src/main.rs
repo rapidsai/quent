@@ -20,8 +20,10 @@ use quent_query_engine_events::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
 };
-use quent_simulator_events::task;
+use quent_model::prelude::*;
+use quent_simulator_events::SimulatorEvent;
 use quent_simulator_instrumentation::SimulatorContext;
+use quent_simulator_model::task::*;
 use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -623,16 +625,19 @@ impl Worker {
         operator: &Operator<Physical>,
         thread: Uuid,
     ) {
-        let obs = context.task_observer();
+        let tx = context.events_sender();
+        let thread_ref = Ref::new(thread);
+        let mem_ref = Ref::new(self.memory);
 
-        let id = Uuid::now_v7();
-        obs.task_queueing(
-            id,
-            task::Queueing {
+        // Create task — emits entry -> Queueing
+        let mut task = TaskHandle::<SimulatorEvent>::new(
+            &tx,
+            Queueing {
                 operator_id: operator.id,
                 instance_name: format!("task-{index}"),
             },
         );
+
         sleep_long();
         let (spill, load, send) = match operator.kind {
             Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
@@ -645,69 +650,87 @@ impl Worker {
 
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
-        obs.task_allocating_memory(id, task::Allocating { use_thread: thread });
+        task.transition(Allocating {
+            use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+        });
         sleep_short();
+
         if spill {
-            obs.task_spilling(
-                id,
-                task::Spilling {
-                    use_thread: thread,
-                    use_mem_to_fs: self.mem_to_fs,
-                    use_mem_to_fs_bytes: num_bytes,
+            task.transition(Spilling {
+                use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                use_mem_to_fs: Usage {
+                    resource_id: Ref::new(self.mem_to_fs),
+                    capacity: quent_stdlib::ChannelOperating {
+                        capacity_bytes: Some(num_bytes),
+                        source_id: Uuid::nil(),
+                        target_id: Uuid::nil(),
+                    },
                 },
-            );
+            });
             sleep_sometimes_really_long();
-            obs.task_allocating_memory(id, task::Allocating { use_thread: thread });
+            task.transition(Allocating {
+                use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+            });
             sleep_short();
         }
+
         if load {
-            obs.task_loading(
-                id,
-                task::Loading {
-                    use_thread: thread,
-                    use_fs_to_mem: self.fs_to_mem,
-                    use_fs_to_mem_bytes: num_bytes,
-                    use_memory: self.memory,
-                    use_memory_bytes: rng().random_range(0..4) * num_bytes,
+            task.transition(Loading {
+                use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                use_fs_to_mem: Usage {
+                    resource_id: Ref::new(self.fs_to_mem),
+                    capacity: quent_stdlib::ChannelOperating {
+                        capacity_bytes: Some(num_bytes),
+                        source_id: Uuid::nil(),
+                        target_id: Uuid::nil(),
+                    },
                 },
-            );
+                use_memory: Usage {
+                    resource_id: mem_ref,
+                    capacity: quent_stdlib::MemoryOperating {
+                        capacity_bytes: rng().random_range(0..4) * num_bytes,
+                    },
+                },
+            });
             sleep_sometimes_really_long();
         }
-        obs.task_computing(
-            id,
-            task::Computing {
-                use_thread: thread,
-                use_memory: self.memory,
-                use_memory_bytes: rng().random_range(0..4) * num_bytes,
+
+        task.transition(Computing {
+            use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+            use_memory: Usage {
+                resource_id: mem_ref,
+                capacity: quent_stdlib::MemoryOperating {
+                    capacity_bytes: rng().random_range(0..4) * num_bytes,
+                },
             },
-        );
+        });
 
         if operator.kind == Physical::JoinLocal {
-            simulate_cudf_trace(context, id)
+            simulate_cudf_trace(context, task.uuid())
         };
 
         if send {
-            // Get all other workers and send some data to each of them sequentially.
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
 
             for other in other_workers {
                 let link = *engine.network_links.get(&(self.id, *other)).unwrap();
 
-                obs.task_sending(
-                    id,
-                    task::Sending {
-                        use_thread: thread,
-                        use_memory: self.memory,
-                        use_memory_bytes: num_bytes,
-                        use_link: link,
-                        use_link_bytes: num_bytes,
+                task.transition(Sending {
+                    use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                    use_link: Usage {
+                        resource_id: Ref::new(link),
+                        capacity: quent_stdlib::ChannelOperating {
+                            capacity_bytes: Some(num_bytes),
+                            source_id: Uuid::nil(),
+                            target_id: Uuid::nil(),
+                        },
                     },
-                );
+                });
                 sleep_long();
             }
         }
 
-        obs.task_exit(id);
+        task.exit();
     }
 
     fn execute_logical_plan(
@@ -1154,12 +1177,7 @@ impl Engine {
                         target_id: self.workers.get(&other_worker_id).unwrap().memory,
                     },
                 );
-                channel_obs.operating(
-                    up_link_id,
-                    channel::Operating {
-                        capacity_bytes: None,
-                    },
-                );
+                channel_obs.operating(up_link_id, channel::Operating {});
 
                 let down_link_id = Uuid::now_v7();
                 channel_obs.init(
@@ -1174,12 +1192,7 @@ impl Engine {
                         target_id: self.workers.get(&worker_id).unwrap().memory,
                     },
                 );
-                channel_obs.operating(
-                    down_link_id,
-                    channel::Operating {
-                        capacity_bytes: None,
-                    },
-                );
+                channel_obs.operating(down_link_id, channel::Operating {});
 
                 self.network_links
                     .insert((worker_id, other_worker_id), up_link_id);
