@@ -1,33 +1,32 @@
 # Codegen: Generating Instrumentation APIs from Model Definitions
 
-This document describes a design for generating language-specific instrumentation
-APIs from model definitions written in Rust. The goal is to eliminate the
-boilerplate currently required to set up an instrumentation library based on
-Quent's modeling primitives.
+This document describes the design for generating language-specific
+instrumentation APIs from model definitions written in Rust. The goal is to
+eliminate the boilerplate required to set up an instrumentation library based
+on Quent's modeling primitives.
 
 ## Problem
 
-Defining a single FSM today requires ~480 lines of hand-written code spread
-across 6 layers: event type enums, observer emission methods, analyzer builders,
-FSM trait impls, type declarations, and usage impls. This boilerplate must be
-kept in sync manually across the Rust instrumentation, analyzer, and C++
-bindings (via CXX bridge).
+Defining a single FSM previously required ~480 lines of hand-written code
+spread across 6 layers: event type enums, observer emission methods, analyzer
+builders, FSM trait impls, type declarations, and usage impls. This boilerplate
+had to be kept in sync manually across the Rust instrumentation, analyzer, and
+C++ bindings (via CXX bridge).
 
 ## Approach
 
-Model definitions (FSMs, Resources, Entities, Events) are written in Rust using
-proc macro annotations. From these definitions:
+Model definitions (FSMs, Entities, Resources) are written in Rust using derive
+macros. From these definitions:
 
-1. The proc macros generate the Rust instrumentation API (typed transition
-   methods, event types, trait impls, analyzer builders) and collect structural
-   metadata via trait impls.
+1. The derive macros generate the Rust instrumentation API (typed transition
+   methods, event types, trait impls, observer types, analyzer data structs) and
+   collect structural metadata via trait impls.
 2. A Rust codegen binary imports the model crate, reads the metadata from the
    trait impls, and emits language-specific code (CXX bridge modules for C++,
    etc.).
 
-There is no intermediate representation file. The Rust types, enriched by proc
-macro-generated trait impls, are the single source of truth. The codegen binary
-reads them in-process.
+There is no intermediate representation file. The Rust types, enriched by
+macro-generated trait impls, are the single source of truth.
 
 ## Design decisions
 
@@ -41,6 +40,7 @@ documented in its own file with context and rationale.
 - [No standalone DSL](./decisions/no-standalone-dsl.md)
 - [Separate items over module-level macro](./decisions/separate-items.md)
 - [Cross-model validation via Rust's type system](./decisions/cross-model-validation.md)
+- [Derive-style macro syntax](./decisions/unified-attribute-syntax.md)
 
 **Model structure:**
 
@@ -73,133 +73,123 @@ documented in its own file with context and rationale.
 
 ## Model definition in Rust
 
-### Resources
+### States
 
-Resources are ordinary FSMs shipped in a standard library crate
-(`quent-stdlib`). Common resource types (Memory, Processor, Channel) are
-predefined FSM definitions with the spec-defined lifecycles. Applications use
-them directly or alias them. Custom resources are FSMs marked with
-`#[quent::resource]`.
+FSM states are declared with `#[derive(State)]`. Fields carry annotations for
+usages, deferred attributes, capacity values, and instance names.
 
 ```rust
-use quent_model::prelude::*;
-use quent_stdlib as stdlib;
-
-// Use standard library resource FSMs
-pub type WorkerMemory = stdlib::Memory;
-pub type Thread = stdlib::Processor;
-pub type FsToMem = stdlib::Channel;
-pub type MemToFs = stdlib::Channel;
-
-// Custom resource: an FSM marked as a resource
-#[quent::fsm]
-#[quent::resource]
-pub struct GpuSlots {
-    #[quent::transition(entry -> Initializing)]
-    #[quent::transition(Initializing -> Operating)]
-    #[quent::transition(Operating -> Finalizing)]
-    #[quent::transition(Finalizing -> exit)]
-}
-
-#[quent::state]
-pub struct GpuSlotsOperating {
-    pub slots: u32,
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+pub struct Computing {
+    #[usage]
+    pub thread: Usage<ProcessorResource>,
+    #[usage]
+    pub memory: Usage<MemoryResource>,
+    #[deferred]
+    pub rows_processed: Option<u64>,
 }
 ```
-
-`#[quent::resource]` generates a `Resource` trait impl. The capacity type is
-derived from the FSM's operating state. `Usage<T>` resolves the capacity fields
-at compile time via `T::CapacityValue`.
-
-### Resource groups
-
-Resource groups enable hierarchical aggregation of resource usages. Any entity
-can opt in to being a resource group via `#[quent::resource_group]`. Domain
-models may constrain the parent type; application-specific groups leave the
-parent flexible.
-
-```rust
-// Domain model: fixed hierarchy for query engines
-#[quent::entity]
-#[quent::resource_group]
-pub struct Engine { pub name: String }
-
-#[quent::entity]
-#[quent::resource_group(parent = Engine)]
-pub struct Query { pub query_group_id: Ref<QueryGroup> }
-
-// Application model: flexible parent
-#[quent::resource_group]
-pub struct MyCustomGroup;
-```
-
-Resources assign their parent group at the instance level, not the type level.
-Whether a domain model constrains its hierarchy is a domain-specific decision,
-not a framework requirement.
 
 ### FSMs
 
-FSMs are declared as structs annotated with `#[quent::fsm]`. Transitions are
-listed as attributes on the struct. States are separate structs annotated with
-`#[quent::state]`.
+FSMs use `#[derive(Fsm)]` with states as struct fields. Transitions are
+declared with `#[entry]` and `#[to(...)]` annotations on the fields.
 
 ```rust
-#[quent::fsm]
+#[derive(Fsm)]
 pub struct Task {
-    #[quent::transition(entry -> Queueing)]
-    #[quent::transition(Queueing -> Computing)]
-    #[quent::transition(Queueing -> Allocating)]
-    #[quent::transition(Allocating -> Computing)]
-    #[quent::transition(Computing -> Sending)]
-    #[quent::transition(Computing -> Spilling)]
-    #[quent::transition(Spilling -> Computing)]
-    #[quent::transition(Loading -> Computing)]
-    #[quent::transition(Sending -> Queueing)]
-    #[quent::transition(Computing -> exit)]
-}
-
-#[quent::state]
-pub struct Queueing {
-    pub operator_id: Ref<Operator>,
-    pub instance_name: String,
-}
-
-#[quent::state]
-pub struct Computing {
-    #[quent::usage]
-    pub thread: Usage<Thread>,
-    #[quent::usage]
-    pub memory: Usage<WorkerMemory>,
-    #[quent::deferred]
-    pub rows_processed: Option<u64>,
-}
-
-#[quent::state]
-pub struct Allocating {
-    #[quent::usage]
-    pub memory: Usage<WorkerMemory>,
+    #[entry]
+    #[to(Allocating)]
+    queueing: Queueing,
+    #[to(Computing, Loading)]
+    allocating: Allocating,
+    #[to(Computing)]
+    loading: Loading,
+    #[to(Sending, Spilling, exit)]
+    computing: Computing,
+    #[to(Allocating)]
+    spilling: Spilling,
+    #[to(Queueing)]
+    sending: Sending,
 }
 ```
 
-The `#[quent::fsm]` proc macro validates the FSM in isolation: all referenced
-states exist, every state is reachable from entry, every state can reach exit,
-and no transitions leave exit.
+The `Fsm` derive validates the transition graph: all states reachable from
+entry, every state can reach exit, no transitions out of exit.
 
-Transition attributes are per-state: each state struct defines the attributes
-for all transitions into that state. When a field is only relevant for
-transitions from certain source states, it is declared as `Option<T>`.
+### Entities
 
-Fields marked `#[quent::deferred]` must be `Option<T>` and can be set after the
-transition via the state handle. They are emitted as deferred events.
+Entities use `#[derive(Entity)]` with events as struct fields annotated with
+`#[event]`. Each event type appears at most once per entity instance.
 
-Entity references use `Ref<T>` instead of raw `Uuid`, providing compile-time
-type safety. `Ref<T>` resolves to `Uuid` on the wire.
+```rust
+#[derive(Entity)]
+#[resource_group]
+pub struct Operator {
+    #[event]
+    declaration: Declaration,
+    #[event]
+    statistics: Statistics,
+}
+
+pub struct Declaration {
+    pub plan_id: Uuid,
+    pub instance_name: String,
+    pub custom_attributes: Vec<Attribute>,
+}
+
+pub struct Statistics {
+    pub custom_attributes: Vec<Attribute>,
+}
+```
+
+The derive generates:
+- `OperatorEvent` enum with one variant per event type
+- `OperatorObserver<E>` with one method per event (named after the field)
+- `OperatorData` struct with `Option<T>` per event for analyzer use
+- `HasEventType`, `EntityData`, `ModelComponent` trait impls
+- `From` impls for each event type into the event enum
+
+### Resource groups
+
+`#[resource_group]` is an outer attribute detected by the `Entity` and `Fsm`
+derives. Use `#[resource_group(root)]` for the root resource group.
+
+```rust
+#[derive(Entity)]
+#[resource_group(root)]
+pub struct Engine {
+    #[event]
+    init: Init,
+    #[event]
+    exit: Exit,
+}
+```
+
+Parent-child relationships are established at runtime from event data, not at
+the type level.
+
+### Resources
+
+Resources are predefined FSMs from the standard library (`quent-stdlib`).
+Application code references them in `Usage<T>` fields:
+
+```rust
+use quent_stdlib::{MemoryResource, ProcessorResource, ChannelResource};
+
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+pub struct Computing {
+    #[usage]
+    pub thread: Usage<ProcessorResource>,
+    #[usage]
+    pub memory: Usage<MemoryResource>,
+}
+```
 
 ### Resource usages
 
-State fields annotated with `#[quent::usage]` link an FSM state to a resource.
-`Usage<T>` is a generic struct that requires `T: Resource` and expands to fields
-matching the resource's capacity type:
+State fields annotated with `#[usage]` link an FSM state to a resource.
+`Usage<T>` is a generic struct that requires `T: Resource`:
 
 ```rust
 pub struct Usage<T: Resource> {
@@ -208,217 +198,112 @@ pub struct Usage<T: Resource> {
 }
 ```
 
-This is validated by Rust's type system. Referencing a nonexistent or
-non-resource type in `Usage<T>` is a compile error. The capacity value type is
-derived from the resource FSM's operating state.
+### Model composition
 
-### FSM instantiation and event emission
-
-Each FSM instance is created via `new()`, which returns an owned handle. The
-handle carries the entity ID (auto-generated UUIDv7), a sequence counter, and
-a context reference. Events are emitted immediately on transition. Each event
-carries a per-instance sequence number for ordering.
-
-All FSM events use a common wrapper type:
+Models are composed using the `define_model!` macro, which generates the model
+type alias, top-level event enum, and `From` impls:
 
 ```rust
-pub enum FsmEvent<S, D> {
-    Transition { seq: u64, state: S },
-    Deferred { seq: u64, deferred: D },
+quent_model::define_model! {
+    pub QueryEngineModelDef(QueryEngineEvent) {
+        Query: query::Query,
+        Engine: engine::Engine,
+        Worker: worker::Worker,
+        QueryGroup: query_group::QueryGroup,
+        Plan: plan::Plan,
+        Operator: operator::Operator,
+        Port: port::Port,
+    }
 }
 ```
 
-Usage:
+Domain models can be nested in application models by listing them as a
+component.
+
+### Context generation
+
+The `define_context!` macro generates the instrumentation context:
 
 ```rust
-// seq 0: emits entry transition event
-let mut task = Task::new(&ctx, QueueingAttrs {
-    operator_id: operator.id(),
-    instance_name: "scan_0".into(),
-});
-
-// seq 1: emits transition event (rows_processed: None)
-{
-    let state = task.transition(ComputingAttrs {
-        thread: Usage { resource_id: thread.id(), capacity: () },
-        memory: Usage { resource_id: mem.id(), capacity: MemoryCapacity { used_bytes: 4096 } },
-    });
-
-    // seq 2: emits deferred event
-    state.set_rows_processed(1000);
-} // state handle dropped, borrow on task released
-
-// seq 3: emits transition event
-task.transition(SendingAttrs { /* ... */ });
-
-// seq 4: emits exit event
-task.exit();
-// If exit() is not called, Drop emits it automatically.
+quent_model::define_context!(pub SimulatorContext(SimulatorEvent));
 ```
 
-The state handle borrows `&mut` from the FSM handle — calling `transition()`
-while a state handle is alive is a compile error in Rust. In C++ via CXX
-bridge, the handle is a `rust::Box<Task>` and the constraint is enforced at
-runtime.
+This generates a struct with `try_new()` and `events_sender()`. Application
+code extends it with additional observer factories via impl blocks.
 
-### Entities and events
+## FSM instantiation and event emission
 
-Plain entities (not FSMs, not resources) are declared with `#[quent::entity]`.
-An entity's struct fields define its declaration event. Additional event types
-are separate structs linked via `#[quent::event(entity = T)]`. All entity events
-are one-shot emissions at a point in time.
+Each FSM instance is created via `{Name}Handle::new()`, returning an owned
+handle with auto-generated UUIDv7, sequence counter, and event sender. Events
+are emitted immediately on transition.
 
 ```rust
-#[quent::entity]
-pub struct Operator {
-    pub plan_id: Ref<Plan>,
-    pub type_name: String,
-}
-
-#[quent::event(entity = Operator)]
-pub struct OperatorStatistics {
-    pub rows_processed: u64,
-    pub bytes_read: u64,
-}
+let tx = context.events_sender();
+let mut task = TaskHandle::new(&tx, Queueing { ... });
+task.transition(Computing { ... });
+task.exit(); // or auto-exits on Drop
 ```
 
-Generated API:
+Entity events are emitted via generated observers:
 
 ```rust
-let op = Operator::declare(&ctx, OperatorAttrs {
-    plan_id: plan.id(),
-    type_name: "scan".into(),
-});
-op.emit(OperatorStatistics { rows_processed: 1000, bytes_read: 4096 });
+let obs = engine::EngineObserver::new(&tx);
+obs.init(id, Init { ... });
+obs.exit(id, Exit);
 ```
 
-The handle carries the entity ID and a context reference. The proc macro
-validates that only event types declared for that entity can be emitted.
+## Analysis
 
-### Composing models across crates
+### AnalyzedFsm<T>
 
-Domain models and application models are regular Rust crates composed via
-a type alias over `quent::Model<T>`:
+Generic FSM reconstruction from events. Implements `Entity`, `Fsm`,
+`FsmUsages`, `Using`, `FsmTypeDeclaration` for any `T: TransitionInfo`.
 
 ```rust
-// Domain model crate
-pub type QueryEngineModel = quent::Model<(
-    Engine,
-    QueryGroup,
-    Query,
-    Plan,
-    Operator,
-    Port,
-    Worker,
-)>;
-
-// Application model crate
-pub type SimulatorModel = quent::Model<(
-    quent_qe_model::QueryEngineModel,
-    Task,
-    WorkerMemory,
-    Thread,
-    FsToMem,
-    MemToFs,
-)>;
+pub type Task = AnalyzedFsm<TaskTransition>;
+pub type TaskBuilder = AnalyzedFsmBuilder<TaskTransition, TaskDeferred>;
 ```
 
-Each type implements a `ModelComponent` trait (generated by the proc macros).
-`Model<T>` recursively collects metadata from all components via tuple impl.
-The codegen binary calls `SimulatorModel::collect(&mut builder)` to get the
-fully resolved model.
+### AnalyzedEntity<M>
 
-A top-level event enum is auto-generated from the model, with one variant per
-component and `From` impls so each handle can push events without knowing the
-top-level type.
-
-## Codegen architecture
-
-### In-memory model representation
-
-The codegen binary operates on a fully resolved in-memory representation of
-the model. See [model representation](./model-representation.md) for the full
-type definitions.
-
-### C++ target
-
-The C++ backend generates Rust `#[cxx::bridge]` modules that expose FSM and
-entity handles and their methods to C++. CXX generates the corresponding C++
-headers. The C++ application includes these headers and calls methods directly.
-There is no separate C++ runtime library — the Rust instrumentation backend
-(Context, event channel, exporters) is the runtime, accessed via CXX.
-
-Event flow:
-
-```
-C++ application code
-  | calls handle methods (transition, exit, declare, emit)
-CXX-generated FFI boundary
-  |
-Rust handle implementation
-  | constructs Event<T>, calls push_event()
-Rust EventSender -> event channel
-  |
-Rust exporters (collector, ndjson, msgpack, postcard, ...)
-```
-
-Build integration uses Corrosion (CMake <-> Cargo). This pattern is proven in
-the Sirius project.
-
-### Backend configuration
-
-Each codegen backend accepts a configuration struct controlling
-language-specific output conventions (naming case styles, namespaces, output
-layout). The model definition is unaware of these settings.
+Generic entity reconstruction from events. Stores one `Option<T>` per event
+type, populated by `push()`.
 
 ```rust
-quent_codegen::emit_cpp(
-    &model,
-    CppOptions {
-        method_case: SnakeCase,
-        class_case: PascalCase,
-        namespace: "myapp::telemetry",
-        output_dir: "generated/cpp",
-        ..Default::default()
-    },
-);
+pub struct Engine(AnalyzedEntity<engine::Engine>);
 ```
 
-### Adding target languages
+Access fields via `self.0.data().init`, `self.0.data().exit`, etc.
 
-Each target language is a backend in the codegen binary. All backends read from
-the same in-memory model. Adding a target means writing a new emitter function.
+## Derive macro summary
 
-## Proc macro annotation summary
-
-| Annotation               | Applies to | Purpose                                        |
-|--------------------------|------------|-------------------------------------------------|
-| `#[quent::fsm]`          | struct     | Declares an FSM with a transition table          |
-| `#[quent::state]`        | struct     | Declares a state with transition attributes      |
-| `#[quent::resource]`     | FSM struct | Marks an FSM as usable with `Usage<T>`           |
-| `#[quent::entity]`       | struct     | Declares a plain entity with a declaration event |
-| `#[quent::event]`        | struct     | Declares an additional event for an entity       |
-| `#[quent::resource_group]` | struct   | Marks an entity as a resource group              |
-| `#[quent::deferred]`     | field      | Marks a state field as settable after transition |
-| `#[quent::usage]`        | field      | Links a state field to a resource via `Usage<T>` |
-| `#[quent::transition]`   | FSM field  | Declares an allowed transition                   |
+| Derive | Helper attributes | Purpose |
+|--------|-------------------|---------|
+| `State` | `#[usage]`, `#[deferred]`, `#[capacity]`, `#[instance_name]` | FSM state struct |
+| `Fsm` | `#[entry]`, `#[to(...)]`, `#[resource(...)]`, `#[resource_group]` | FSM with states as fields |
+| `Entity` | `#[event]`, `#[resource_group]`, `#[resource_group(root)]` | Entity with events as fields |
+| `ResourceGroup` | `#[resource_group]`, `#[resource_group(root)]` | Standalone resource group |
 
 ## Crate layout
 
 ```
-quent-model/            proc macro crate + core types (Ref<T>, Usage<T>, traits)
-quent-stdlib/           standard library FSM definitions (Memory, Processor, Channel)
-quent-codegen/          codegen binary (reads model types, emits target code)
+quent-model/            derive macros + core types (Ref<T>, Usage<T>, traits)
+quent-model-macros/     proc macro implementations
+quent-stdlib/           standard library FSMs (Memory, Processor, Channel)
 
 domains/
   query_engine/
-    model/              query engine domain model crate
+    model/              query engine domain model definitions
+    events/             re-export facade over model crate
 
 examples/
   simulator/
-    model/              simulator application model crate
+    model/              simulator application model (Task FSM)
+    events/             SimulatorEvent composition
+    instrumentation/    generated context + resource observers
 ```
 
 ## Status
 
-This design is experimental. Nothing is implemented yet.
+Core framework implemented and validated on the simulator example and query
+engine domain. C++ code generation (CXX bridge backend) not yet implemented.
