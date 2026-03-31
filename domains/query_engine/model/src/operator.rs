@@ -4,7 +4,6 @@
 //! Operator entity: sinks, sources, or transforms data within a plan.
 
 use quent_attributes::Attribute;
-use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,5 +21,11 @@ pub struct Statistics {
     pub custom_attributes: Vec<Attribute>,
 }
 
-#[quent_model(entity(events(Declaration, Statistics)), resource_group)]
-pub struct Operator;
+#[derive(quent_model::Entity)]
+#[resource_group]
+pub struct Operator {
+    #[event]
+    declaration: Declaration,
+    #[event]
+    statistics: Statistics,
+}

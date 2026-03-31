@@ -3,19 +3,19 @@
 
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Field, ItemStruct};
+use syn::{DeriveInput, Field};
 
 use crate::util::to_snake_case;
 
 /// Categorized fields of a state struct.
 struct StateFields {
-    /// Fields annotated with `#[quent_model::usage]`.
+    /// Fields annotated with `#[usage]`.
     usages: Vec<UsageField>,
-    /// Fields annotated with `#[quent_model::deferred]`.
+    /// Fields annotated with `#[deferred]`.
     deferred: Vec<DeferredField>,
-    /// Fields annotated with `#[quent_model::capacity]` (numeric capacity values).
+    /// Fields annotated with `#[capacity]` (numeric capacity values).
     capacities: Vec<CapacityField>,
-    /// Field annotated with `#[quent_model::instance_name]` (at most one).
+    /// Field annotated with `#[instance_name]` (at most one).
     instance_name_field: Option<Ident>,
     /// Regular fields.
     regular: Vec<RegularField>,
@@ -40,6 +40,7 @@ struct DeferredField {
 
 struct RegularField {
     name: String,
+    #[allow(dead_code)]
     ident: Ident,
     optional: bool,
 }
@@ -73,20 +74,36 @@ fn is_option_type(ty: &syn::Type) -> bool {
     unwrap_option_type(ty).is_some()
 }
 
-fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
+fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
     let mut usages = Vec::new();
     let mut deferred = Vec::new();
     let mut capacities = Vec::new();
     let mut instance_name_field = None;
     let mut regular = Vec::new();
 
-    let fields = match &item.fields {
-        syn::Fields::Named(named) => &named.named,
-        syn::Fields::Unit => return Ok(StateFields { usages, deferred, capacities, instance_name_field, regular }),
+    let fields = match &input.data {
+        syn::Data::Struct(data) => match &data.fields {
+            syn::Fields::Named(named) => &named.named,
+            syn::Fields::Unit => {
+                return Ok(StateFields {
+                    usages,
+                    deferred,
+                    capacities,
+                    instance_name_field,
+                    regular,
+                })
+            }
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    input,
+                    "state structs must have named fields or be unit structs",
+                ));
+            }
+        },
         _ => {
             return Err(syn::Error::new_spanned(
-                item,
-                "state structs must have named fields or be unit structs",
+                input,
+                "State can only be derived on structs",
             ));
         }
     };
@@ -99,7 +116,10 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
         let name = field_name.to_string();
 
         if has_attr(field, "usage") {
-            usages.push(UsageField { name, ident: field_name.clone() });
+            usages.push(UsageField {
+                name,
+                ident: field_name.clone(),
+            });
         } else if has_attr(field, "deferred") {
             if !is_option_type(&field.ty) {
                 return Err(syn::Error::new_spanned(
@@ -112,7 +132,11 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
             deferred.push(DeferredField { name, inner_ty });
         } else if has_attr(field, "capacity") {
             let optional = is_option_type(&field.ty);
-            capacities.push(CapacityField { name, ident: field_name.clone(), optional });
+            capacities.push(CapacityField {
+                name,
+                ident: field_name.clone(),
+                optional,
+            });
         } else if has_attr(field, "instance_name") {
             if instance_name_field.is_some() {
                 return Err(syn::Error::new_spanned(
@@ -123,18 +147,33 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
             instance_name_field = Some(field_name.clone());
             // Also add as a regular field for metadata
             let optional = is_option_type(&field.ty);
-            regular.push(RegularField { name, ident: field_name.clone(), optional });
+            regular.push(RegularField {
+                name,
+                ident: field_name.clone(),
+                optional,
+            });
         } else {
             let optional = is_option_type(&field.ty);
-            regular.push(RegularField { name, ident: field_name.clone(), optional });
+            regular.push(RegularField {
+                name,
+                ident: field_name.clone(),
+                optional,
+            });
         }
     }
 
-    Ok(StateFields { usages, deferred, capacities, instance_name_field, regular })
+    Ok(StateFields {
+        usages,
+        deferred,
+        capacities,
+        instance_name_field,
+        regular,
+    })
 }
 
-pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
-    let input: ItemStruct = syn::parse2(item)?;
+/// Expand the State derive macro. Only emits impl blocks and the Deferred enum.
+/// Does NOT re-emit the struct (derive macros append, they don't replace).
+pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let vis = &input.vis;
     let state_name_ident = &input.ident;
     let state_snake = to_snake_case(state_name_ident);
@@ -154,7 +193,7 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
         .collect();
 
     let deferred_enum = if fields.deferred.is_empty() {
-        // Uninhabitable enum — no deferred fields
+        // Uninhabitable enum -- no deferred fields
         quote! {
             #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
             #vis enum #deferred_ident {}
@@ -175,8 +214,6 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
         .map(|r| {
             let name = &r.name;
             let optional = r.optional;
-            // We use a placeholder value type here; the actual type mapping
-            // will be refined when we have full type resolution.
             quote! {
                 quent_model::AttributeDef {
                     name: #name.to_string(),
@@ -219,25 +256,6 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
-    // Strip quent_model attributes from the original struct fields before
-    // re-emitting, so the compiler doesn't complain about unknown attributes.
-    let mut clean_item = input.clone();
-    if let syn::Fields::Named(ref mut named) = clean_item.fields {
-        for field in named.named.iter_mut() {
-            field
-                .attrs
-                .retain(|a| {
-                    let last = a.path().segments.last();
-                    !last.is_some_and(|seg| {
-                        seg.ident == "usage"
-                            || seg.ident == "deferred"
-                            || seg.ident == "capacity"
-                            || seg.ident == "instance_name"
-                    })
-                });
-        }
-    }
-
     // Generate ExtractCapacities impl.
     // For unit structs (no fields at all): emit a single "unit" capacity.
     // For structs with #[capacity] fields: emit one capacity per annotated field.
@@ -252,22 +270,26 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
     } else if fields.capacities.is_empty() {
         quote! { vec![] }
     } else {
-        let extractions: Vec<TokenStream> = fields.capacities.iter().map(|c| {
-            let field_ident = &c.ident;
-            let name = &c.name;
-            if c.optional {
-                quote! {
-                    quent_model::analyze::ExtractedCapacity {
-                        name: #name,
-                        value: self.#field_ident.map(|v| v as u64),
+        let extractions: Vec<TokenStream> = fields
+            .capacities
+            .iter()
+            .map(|c| {
+                let field_ident = &c.ident;
+                let name = &c.name;
+                if c.optional {
+                    quote! {
+                        quent_model::analyze::ExtractedCapacity {
+                            name: #name,
+                            value: self.#field_ident.map(|v| v as u64),
+                        }
+                    }
+                } else {
+                    quote! {
+                        quent_model::analyze::ExtractedCapacity::new(#name, self.#field_ident as u64)
                     }
                 }
-            } else {
-                quote! {
-                    quent_model::analyze::ExtractedCapacity::new(#name, self.#field_ident as u64)
-                }
-            }
-        }).collect();
+            })
+            .collect();
         quote! { vec![#(#extractions,)*] }
     };
 
@@ -275,17 +297,21 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
     let extract_usages_body = if fields.usages.is_empty() {
         quote! { vec![] }
     } else {
-        let extractions: Vec<TokenStream> = fields.usages.iter().map(|u| {
-            let field_ident = &u.ident;
-            quote! {
-                quent_model::analyze::ExtractedUsage {
-                    resource_id: self.#field_ident.resource_id.uuid(),
-                    capacities: quent_model::analyze::ExtractCapacities::extract_capacities(
-                        &self.#field_ident.capacity
-                    ),
+        let extractions: Vec<TokenStream> = fields
+            .usages
+            .iter()
+            .map(|u| {
+                let field_ident = &u.ident;
+                quote! {
+                    quent_model::analyze::ExtractedUsage {
+                        resource_id: self.#field_ident.resource_id.uuid(),
+                        capacities: quent_model::analyze::ExtractCapacities::extract_capacities(
+                            &self.#field_ident.capacity
+                        ),
+                    }
                 }
-            }
-        }).collect();
+            })
+            .collect();
         quote! { vec![#(#extractions,)*] }
     };
 
@@ -296,10 +322,6 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
     };
 
     let output = quote! {
-        // Re-emit the original struct with derives needed by the FSM event enums
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-        #clean_item
-
         // --- Deferred enum ---
         #deferred_enum
 

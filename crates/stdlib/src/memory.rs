@@ -8,16 +8,16 @@ use quent_model::prelude::*;
 
 // --- Fixed-bounds Memory ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MemoryInitializing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MemoryOperating {
     #[capacity]
     pub capacity_bytes: u64,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MemoryFinalizing;
 
 /// A fixed-bounds memory resource FSM handle.
@@ -27,42 +27,46 @@ pub struct MemoryFinalizing;
 /// The transition into `operating` declares the capacity in bytes.
 /// Use `MemoryResource` with `Usage<MemoryResource>` to reference this
 /// resource type from FSM states.
-#[quent_model(fsm(
-    resource(capacity = MemoryOperating),
-    entry -> MemoryInitializing,
-    MemoryInitializing -> MemoryOperating,
-    MemoryOperating -> MemoryFinalizing,
-    MemoryFinalizing -> exit,
-))]
-pub struct Memory;
+#[derive(Fsm)]
+#[resource(capacity = MemoryOperating)]
+pub struct Memory {
+    #[entry] #[to(MemoryOperating)]
+    memory_initializing: MemoryInitializing,
+    #[to(MemoryFinalizing)]
+    memory_operating: MemoryOperating,
+    #[to(exit)]
+    memory_finalizing: MemoryFinalizing,
+}
 
 // --- Dynamic-bounds Memory ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct DynMemoryInitializing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct DynMemoryOperating {
     #[capacity]
     pub capacity_bytes: u64,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct DynMemoryResizing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct DynMemoryFinalizing;
 
 /// A dynamic-bounds memory resource that supports resizing.
 ///
 /// FSM: `entry -> initializing -> operating <-> resizing, operating -> finalizing -> exit`
-#[quent_model(fsm(
-    resource(capacity = DynMemoryOperating),
-    entry -> DynMemoryInitializing,
-    DynMemoryInitializing -> DynMemoryOperating,
-    DynMemoryOperating -> DynMemoryResizing,
-    DynMemoryResizing -> DynMemoryOperating,
-    DynMemoryOperating -> DynMemoryFinalizing,
-    DynMemoryFinalizing -> exit,
-))]
-pub struct DynamicMemory;
+#[derive(Fsm)]
+#[resource(capacity = DynMemoryOperating)]
+pub struct DynamicMemory {
+    #[entry] #[to(DynMemoryOperating)]
+    dyn_memory_initializing: DynMemoryInitializing,
+    #[to(DynMemoryResizing, DynMemoryFinalizing)]
+    dyn_memory_operating: DynMemoryOperating,
+    #[to(DynMemoryOperating)]
+    dyn_memory_resizing: DynMemoryResizing,
+    #[to(exit)]
+    dyn_memory_finalizing: DynMemoryFinalizing,
+}

@@ -6,26 +6,28 @@
 #[allow(unused_imports)]
 use quent_model::prelude::*;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ProcessorInitializing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ProcessorOperating;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ProcessorFinalizing;
 
 /// A unit resource representing a processor (e.g., a thread).
 ///
 /// FSM: `entry -> initializing -> operating -> finalizing -> exit`
 ///
-/// A unit resource has no capacity fields — `Usage<Processor>` only carries
+/// A unit resource has no capacity fields -- `Usage<Processor>` only carries
 /// the `resource_id`.
-#[quent_model(fsm(
-    resource(capacity = ProcessorOperating),
-    entry -> ProcessorInitializing,
-    ProcessorInitializing -> ProcessorOperating,
-    ProcessorOperating -> ProcessorFinalizing,
-    ProcessorFinalizing -> exit,
-))]
-pub struct Processor;
+#[derive(Fsm)]
+#[resource(capacity = ProcessorOperating)]
+pub struct Processor {
+    #[entry] #[to(ProcessorOperating)]
+    processor_initializing: ProcessorInitializing,
+    #[to(ProcessorFinalizing)]
+    processor_operating: ProcessorOperating,
+    #[to(exit)]
+    processor_finalizing: ProcessorFinalizing,
+}

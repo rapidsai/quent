@@ -8,26 +8,28 @@ use quent_model::prelude::*;
 
 // --- States ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Init {
     pub query_group_id: Uuid,
     #[instance_name]
     pub instance_name: String,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Planning;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Executing;
 
 // --- FSM ---
 
 /// Query FSM: `entry -> Init -> Planning -> Executing -> exit`
-#[quent_model(fsm(
-    entry -> Init,
-    Init -> Planning,
-    Planning -> Executing,
-    Executing -> exit,
-))]
-pub struct Query;
+#[derive(Fsm)]
+pub struct Query {
+    #[entry] #[to(Planning)]
+    init: Init,
+    #[to(Executing)]
+    planning: Planning,
+    #[to(exit)]
+    executing: Executing,
+}

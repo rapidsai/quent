@@ -3,7 +3,6 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
-use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -27,5 +26,9 @@ pub struct Declaration {
     pub worker_id: Option<Uuid>,
 }
 
-#[quent_model(entity(events(Declaration)), resource_group)]
-pub struct Plan;
+#[derive(quent_model::Entity)]
+#[resource_group]
+pub struct Plan {
+    #[event]
+    declaration: Declaration,
+}

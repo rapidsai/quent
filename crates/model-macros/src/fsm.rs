@@ -5,8 +5,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::parse::{Parse, ParseStream};
-use syn::Token;
+use syn::DeriveInput;
 
 use crate::util::to_snake_case;
 
@@ -31,83 +30,8 @@ impl TransitionEndpoint {
     }
 }
 
-impl Parse for TransitionEndpoint {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let ident: Ident = input.parse()?;
-        match ident.to_string().as_str() {
-            "entry" => Ok(TransitionEndpoint::Entry),
-            "exit" => Ok(TransitionEndpoint::Exit),
-            _ => Ok(TransitionEndpoint::State(ident)),
-        }
-    }
-}
-
-impl Parse for Transition {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let from: TransitionEndpoint = input.parse()?;
-        input.parse::<Token![->]>()?;
-        let to: TransitionEndpoint = input.parse()?;
-        Ok(Transition { from, to })
-    }
-}
-
-/// Parsed FSM attribute contents.
-struct FsmAttr {
-    transitions: Vec<Transition>,
-    resource_capacity: Option<Ident>,
-}
-
-impl Parse for FsmAttr {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut transitions = Vec::new();
-        let mut resource_capacity = None;
-
-        while !input.is_empty() {
-            // Check for `resource(capacity = T)` directive
-            if input.peek(syn::Ident) {
-                let fork = input.fork();
-                let ident: Ident = fork.parse()?;
-                if ident == "resource" && fork.peek(syn::token::Paren) {
-                    // Consume the ident from the real stream
-                    let _: Ident = input.parse()?;
-                    let content;
-                    syn::parenthesized!(content in input);
-                    let key: Ident = content.parse()?;
-                    if key != "capacity" {
-                        return Err(syn::Error::new_spanned(key, "expected `capacity`"));
-                    }
-                    content.parse::<Token![=]>()?;
-                    resource_capacity = Some(content.parse::<Ident>()?);
-                    // Consume optional trailing comma
-                    if input.peek(Token![,]) {
-                        input.parse::<Token![,]>()?;
-                    }
-                    continue;
-                }
-            }
-
-            // Parse as a transition
-            let transition: Transition = input.parse()?;
-            transitions.push(transition);
-
-            // Consume optional trailing comma
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
-            }
-        }
-
-        Ok(FsmAttr {
-            transitions,
-            resource_capacity,
-        })
-    }
-}
-
 /// Validates the FSM transition graph.
-fn validate_fsm(
-    fsm_name: &Ident,
-    transitions: &[Transition],
-) -> syn::Result<()> {
+fn validate_fsm(fsm_name: &Ident, transitions: &[Transition]) -> syn::Result<()> {
     // Collect all state names
     let mut states = BTreeSet::new();
     let mut has_entry = false;
@@ -143,13 +67,13 @@ fn validate_fsm(
     if !has_entry {
         return Err(syn::Error::new_spanned(
             fsm_name,
-            "FSM must have at least one `entry -> State` transition",
+            "FSM must have at least one `entry -> State` transition (use #[entry] on a field)",
         ));
     }
     if !has_exit_target {
         return Err(syn::Error::new_spanned(
             fsm_name,
-            "FSM must have at least one `State -> exit` transition",
+            "FSM must have at least one `State -> exit` transition (use #[to(..., exit)] on a field)",
         ));
     }
 
@@ -168,7 +92,10 @@ fn validate_fsm(
             TransitionEndpoint::Exit => "exit".to_string(),
             TransitionEndpoint::State(i) => i.to_string(),
         };
-        forward.entry(from_key.clone()).or_default().push(to_key.clone());
+        forward
+            .entry(from_key.clone())
+            .or_default()
+            .push(to_key.clone());
         backward.entry(to_key).or_default().push(from_key);
     }
 
@@ -212,28 +139,169 @@ fn reachable_from(start: &str, adj: &HashMap<String, Vec<String>>) -> HashSet<St
     visited
 }
 
-pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let fsm_attr: FsmAttr = syn::parse2(attr)?;
-    let input: syn::ItemStruct = syn::parse2(item)?;
+/// Check if a field has a specific attribute.
+fn field_has_attr(field: &syn::Field, attr_name: &str) -> bool {
+    field.attrs.iter().any(|a| {
+        a.path()
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == attr_name)
+    })
+}
+
+/// Parse `#[to(StateA, StateB, exit)]` attribute on a field.
+fn parse_to_attr(field: &syn::Field) -> syn::Result<Vec<Ident>> {
+    for attr in &field.attrs {
+        if attr
+            .path()
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == "to")
+        {
+            let targets: syn::punctuated::Punctuated<Ident, syn::Token![,]> =
+                attr.parse_args_with(syn::punctuated::Punctuated::parse_terminated)?;
+            return Ok(targets.into_iter().collect());
+        }
+    }
+    Ok(vec![])
+}
+
+/// Extract the type ident from a field's type (the last segment of the path).
+fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(seg) = type_path.path.segments.last() {
+            return Ok(seg.ident.clone());
+        }
+    }
+    Err(syn::Error::new_spanned(
+        ty,
+        "expected a simple type path for FSM state field",
+    ))
+}
+
+/// Check if a struct-level attribute is `#[resource(capacity = T)]`.
+fn parse_resource_attr(input: &DeriveInput) -> syn::Result<Option<Ident>> {
+    for attr in &input.attrs {
+        if attr
+            .path()
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == "resource")
+        {
+            let mut cap: Option<Ident> = None;
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("capacity") {
+                    let value = meta.value()?;
+                    cap = Some(value.parse::<Ident>()?);
+                    Ok(())
+                } else {
+                    Err(meta.error("expected `capacity`"))
+                }
+            })?;
+            return Ok(cap);
+        }
+    }
+    Ok(None)
+}
+
+/// Check for `#[resource_group]` or `#[resource_group(root)]` outer attribute.
+fn parse_resource_group_attr(input: &DeriveInput) -> Option<bool> {
+    for attr in &input.attrs {
+        if attr
+            .path()
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == "resource_group")
+        {
+            // Check if it has (root) argument
+            if let syn::Meta::List(list) = &attr.meta {
+                if let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone()) {
+                    if ident == "root" {
+                        return Some(true);
+                    }
+                }
+            }
+            return Some(false);
+        }
+    }
+    None
+}
+
+/// Expand the Fsm derive macro.
+///
+/// Parses struct fields with `#[entry]` and `#[to(...)]` attributes to build
+/// the transition table, then generates transition enum, deferred enum, event
+/// type alias, handle struct, ModelComponent impl, TransitionInfo impl, and
+/// HasEventType impl.
+///
+/// Does NOT re-emit the struct (derive macros append).
+pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let vis = &input.vis;
     let fsm_name = &input.ident;
 
-    let transitions = fsm_attr.transitions;
-    let resource_capacity = fsm_attr.resource_capacity;
-    validate_fsm(fsm_name, &transitions)?;
+    // Parse fields to extract state types and transitions
+    let fields = match &input.data {
+        syn::Data::Struct(data) => match &data.fields {
+            syn::Fields::Named(named) => &named.named,
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    fsm_name,
+                    "Fsm derive requires a struct with named fields",
+                ));
+            }
+        },
+        _ => {
+            return Err(syn::Error::new_spanned(
+                fsm_name,
+                "Fsm can only be derived on structs",
+            ));
+        }
+    };
 
-    // Collect unique state idents (preserving order)
+    // Parse resource(capacity = T) from outer attributes
+    let resource_capacity = parse_resource_attr(&input)?;
+
+    // Parse resource_group from outer attributes
+    let resource_group = parse_resource_group_attr(&input);
+
+    // Collect state idents and transitions from fields
+    let mut transitions = Vec::new();
     let mut state_idents: Vec<Ident> = Vec::new();
     let mut seen = HashSet::new();
-    for t in &transitions {
-        for endpoint in [&t.from, &t.to] {
-            if let TransitionEndpoint::State(ident) = endpoint {
-                if seen.insert(ident.to_string()) {
-                    state_idents.push(ident.clone());
-                }
-            }
+
+    for field in fields {
+        let state_type = type_ident(&field.ty)?;
+        let is_entry = field_has_attr(field, "entry");
+        let to_targets = parse_to_attr(field)?;
+
+        // Track state ordering
+        if seen.insert(state_type.to_string()) {
+            state_idents.push(state_type.clone());
+        }
+
+        // Entry transition: entry -> this state
+        if is_entry {
+            transitions.push(Transition {
+                from: TransitionEndpoint::Entry,
+                to: TransitionEndpoint::State(state_type.clone()),
+            });
+        }
+
+        // Outgoing transitions: this state -> each target
+        for target in &to_targets {
+            let to = if target == "exit" {
+                TransitionEndpoint::Exit
+            } else {
+                TransitionEndpoint::State(target.clone())
+            };
+            transitions.push(Transition {
+                from: TransitionEndpoint::State(state_type.clone()),
+                to,
+            });
         }
     }
+
+    validate_fsm(fsm_name, &transitions)?;
 
     let fsm_snake = to_snake_case(fsm_name);
 
@@ -340,6 +408,29 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         }
     });
 
+    // Resource group contribution
+    let rg_contribution = if let Some(is_root) = resource_group {
+        quote! {
+            builder.add_resource_group(quent_model::ResourceGroupDef {
+                name: #fsm_snake.to_string(),
+                fixed_parent: None,
+                is_root: #is_root,
+            });
+        }
+    } else {
+        quote! {}
+    };
+
+    let rg_trait_impl = if let Some(is_root) = resource_group {
+        quote! {
+            impl quent_model::ResourceGroup for #fsm_name {
+                const IS_ROOT: bool = #is_root;
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let output = quote! {
         // --- Transition enum ---
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -383,11 +474,6 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         }
 
         // --- Deferred enum ---
-        // Nested: wraps per-state deferred types. States without deferred
-        // fields have uninhabitable deferred types and no variant here.
-        // For now, we generate a variant for every state and rely on the
-        // per-state deferred type being uninhabitable when there are no
-        // deferred fields.
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
         #vis enum #deferred_enum {
             #(#state_idents(<#state_idents as quent_model::StateMetadata>::Deferred),)*
@@ -396,9 +482,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         // --- Event type alias ---
         #vis type #event_type = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
 
-        // --- Model metadata marker (non-generic) ---
-        #vis struct #fsm_name;
-
+        // --- ModelComponent impl (on the original struct) ---
         impl quent_model::ModelComponent for #fsm_name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
@@ -410,12 +494,11 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                         #(#transition_def_tokens,)*
                     ],
                 });
+                #rg_contribution
             }
         }
 
         // --- The FSM handle struct ---
-        // Generic over E: the top-level event type (e.g., SimulatorEvent).
-        // Requires E: From<FsmEventType> so the handle can wrap its events.
         #vis struct #handle_name<E>
         where
             E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
@@ -497,6 +580,9 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         impl quent_model::HasEventType for #fsm_name {
             type Event = #event_type;
         }
+
+        // --- ResourceGroup trait impl (if applicable) ---
+        #rg_trait_impl
 
         // --- Resource marker (if resource directive was present) ---
         #resource_impl

@@ -8,20 +8,15 @@ use quent_model::prelude::*;
 
 // --- Simulate a domain model crate (inline) ---
 
-#[quent_model(instant)]
+#[derive(Entity)]
 pub struct Engine {
     pub name: String,
 }
 
-#[quent_model(instant)]
+#[derive(Entity)]
 pub struct Operator {
     pub plan_id: Uuid,
     pub type_name: String,
-}
-
-#[quent_model(event(entity = Operator))]
-pub struct OperatorStatistics {
-    pub rows_processed: u64,
 }
 
 // --- Application-specific types using stdlib resources ---
@@ -33,13 +28,13 @@ type FsToMem = quent_stdlib::ChannelResource;
 
 // --- Application FSM using stdlib resource types ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
     pub operator_id: Ref<Operator>,
     pub instance_name: String,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
     #[usage]
     pub thread: Usage<Thread>,
@@ -49,20 +44,21 @@ pub struct Computing {
     pub rows_processed: Option<u64>,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Sending {
     #[usage]
     pub channel: Usage<FsToMem>,
 }
 
-#[quent_model(fsm(
-    entry -> Queueing,
-    Queueing -> Computing,
-    Computing -> Sending,
-    Sending -> Queueing,
-    Computing -> exit,
-))]
-pub struct Task;
+#[derive(Fsm)]
+pub struct Task {
+    #[entry] #[to(Computing)]
+    queueing: Queueing,
+    #[to(Sending, exit)]
+    computing: Computing,
+    #[to(Queueing)]
+    sending: Sending,
+}
 
 // --- Model composition ---
 

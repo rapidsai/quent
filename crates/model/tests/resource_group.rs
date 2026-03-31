@@ -5,19 +5,21 @@
 
 use quent_model::prelude::*;
 
-#[quent_model(resource_group(root))]
+#[derive(ResourceGroup)]
+#[resource_group(root)]
 pub struct Engine {
     pub name: String,
 }
 
-#[quent_model(resource_group)]
+#[derive(ResourceGroup)]
+#[resource_group]
 pub struct QueryGroup {
     pub engine_id: Uuid,
 }
 
 #[test]
 fn resource_group_trait_impl() {
-    fn assert_rg<T: ResourceGroup>() {}
+    fn assert_rg<T: quent_model::ResourceGroup>() {}
     assert_rg::<Engine>();
     assert_rg::<QueryGroup>();
 }

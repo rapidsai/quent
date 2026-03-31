@@ -6,10 +6,10 @@
 #[allow(unused_imports)]
 use quent_model::prelude::*;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ChannelInitializing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ChannelOperating {
     #[capacity]
     pub capacity_bytes: Option<u64>,
@@ -17,7 +17,7 @@ pub struct ChannelOperating {
     pub target_id: Uuid,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ChannelFinalizing;
 
 /// A unidirectional data transfer resource.
@@ -26,11 +26,13 @@ pub struct ChannelFinalizing;
 ///
 /// The transition into `operating` declares the capacity (optional, `None`
 /// if unbounded) and the source/target entity IDs.
-#[quent_model(fsm(
-    resource(capacity = ChannelOperating),
-    entry -> ChannelInitializing,
-    ChannelInitializing -> ChannelOperating,
-    ChannelOperating -> ChannelFinalizing,
-    ChannelFinalizing -> exit,
-))]
-pub struct Channel;
+#[derive(Fsm)]
+#[resource(capacity = ChannelOperating)]
+pub struct Channel {
+    #[entry] #[to(ChannelOperating)]
+    channel_initializing: ChannelInitializing,
+    #[to(ChannelFinalizing)]
+    channel_operating: ChannelOperating,
+    #[to(exit)]
+    channel_finalizing: ChannelFinalizing,
+}

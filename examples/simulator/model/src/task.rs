@@ -14,14 +14,14 @@ use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 
 // --- States ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
     pub operator_id: Uuid,
     #[instance_name]
     pub instance_name: String,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
     #[usage]
     pub use_thread: Usage<ProcessorResource>,
@@ -29,13 +29,13 @@ pub struct Computing {
     pub use_memory: Usage<MemoryResource>,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Allocating {
     #[usage]
     pub use_thread: Usage<ProcessorResource>,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Loading {
     #[usage]
     pub use_thread: Usage<ProcessorResource>,
@@ -45,7 +45,7 @@ pub struct Loading {
     pub use_memory: Usage<MemoryResource>,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Spilling {
     #[usage]
     pub use_thread: Usage<ProcessorResource>,
@@ -53,7 +53,7 @@ pub struct Spilling {
     pub use_mem_to_fs: Usage<ChannelResource>,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Sending {
     #[usage]
     pub use_thread: Usage<ProcessorResource>,
@@ -63,16 +63,18 @@ pub struct Sending {
 
 // --- FSM ---
 
-#[quent_model(fsm(
-    entry -> Queueing,
-    Queueing -> Allocating,
-    Allocating -> Computing,
-    Allocating -> Loading,
-    Loading -> Computing,
-    Computing -> Sending,
-    Computing -> Spilling,
-    Computing -> exit,
-    Spilling -> Allocating,
-    Sending -> Queueing,
-))]
-pub struct Task;
+#[derive(Fsm)]
+pub struct Task {
+    #[entry] #[to(Allocating)]
+    queueing: Queueing,
+    #[to(Computing, Loading)]
+    allocating: Allocating,
+    #[to(Computing)]
+    loading: Loading,
+    #[to(Sending, Spilling, exit)]
+    computing: Computing,
+    #[to(Allocating)]
+    spilling: Spilling,
+    #[to(Queueing)]
+    sending: Sending,
+}

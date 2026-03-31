@@ -13,22 +13,24 @@ use quent_model::prelude::*;
 
 // --- A valid linear FSM ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct A;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct B;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct C;
 
-#[quent_model(fsm(
-    entry -> A,
-    A -> B,
-    B -> C,
-    C -> exit,
-))]
-pub struct LinearFsm;
+#[derive(Fsm)]
+pub struct LinearFsm {
+    #[entry] #[to(B)]
+    a: A,
+    #[to(C)]
+    b: B,
+    #[to(exit)]
+    c: C,
+}
 
 #[test]
 fn linear_fsm_valid() {
@@ -41,19 +43,19 @@ fn linear_fsm_valid() {
 
 // --- A cyclic FSM ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Idle;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Working;
 
-#[quent_model(fsm(
-    entry -> Idle,
-    Idle -> Working,
-    Working -> Idle,
-    Working -> exit,
-))]
-pub struct CyclicFsm;
+#[derive(Fsm)]
+pub struct CyclicFsm {
+    #[entry] #[to(Working)]
+    idle: Idle,
+    #[to(Idle, exit)]
+    working: Working,
+}
 
 #[test]
 fn cyclic_fsm_valid() {
@@ -66,7 +68,7 @@ fn cyclic_fsm_valid() {
 
 // --- Unit state (no fields) ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct EmptyState;
 
 #[test]
@@ -80,7 +82,7 @@ fn unit_state_metadata() {
 
 // --- Multiple deferred fields ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MultiDeferred {
     pub required_field: u64,
     #[deferred]

@@ -7,45 +7,49 @@ use quent_model::prelude::*;
 
 // A memory-like resource FSM
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MemInitializing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MemOperating {
     pub capacity_bytes: u64,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct MemFinalizing;
 
-#[quent_model(fsm(
-    resource(capacity = MemOperating),
-    entry -> MemInitializing,
-    MemInitializing -> MemOperating,
-    MemOperating -> MemFinalizing,
-    MemFinalizing -> exit,
-))]
-pub struct TestMemory;
+#[derive(Fsm)]
+#[resource(capacity = MemOperating)]
+pub struct TestMemory {
+    #[entry] #[to(MemOperating)]
+    mem_initializing: MemInitializing,
+    #[to(MemFinalizing)]
+    mem_operating: MemOperating,
+    #[to(exit)]
+    mem_finalizing: MemFinalizing,
+}
 
 // A unit resource (processor-like)
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ProcInitializing;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ProcOperating;
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct ProcFinalizing;
 
-#[quent_model(fsm(
-    resource(capacity = ProcOperating),
-    entry -> ProcInitializing,
-    ProcInitializing -> ProcOperating,
-    ProcOperating -> ProcFinalizing,
-    ProcFinalizing -> exit,
-))]
-pub struct TestProcessor;
+#[derive(Fsm)]
+#[resource(capacity = ProcOperating)]
+pub struct TestProcessor {
+    #[entry] #[to(ProcOperating)]
+    proc_initializing: ProcInitializing,
+    #[to(ProcFinalizing)]
+    proc_operating: ProcOperating,
+    #[to(exit)]
+    proc_finalizing: ProcFinalizing,
+}
 
 #[test]
 fn resource_trait_impl() {

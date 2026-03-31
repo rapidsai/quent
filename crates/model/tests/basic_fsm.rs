@@ -7,34 +7,35 @@ use quent_model::prelude::*;
 
 // --- Define states ---
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
     pub operator_id: Uuid,
     pub instance_name: String,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
     pub value: u64,
     #[deferred]
     pub rows_processed: Option<u64>,
 }
 
-#[quent_model(state)]
+#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Sending {
     pub channel_id: Uuid,
 }
 
 // --- Define FSM ---
 
-#[quent_model(fsm(
-    entry -> Queueing,
-    Queueing -> Computing,
-    Computing -> Sending,
-    Sending -> Queueing,
-    Computing -> exit,
-))]
-pub struct Task;
+#[derive(Fsm)]
+pub struct Task {
+    #[entry] #[to(Computing)]
+    queueing: Queueing,
+    #[to(Sending, exit)]
+    computing: Computing,
+    #[to(Queueing)]
+    sending: Sending,
+}
 
 // --- Tests ---
 
@@ -106,7 +107,7 @@ fn model_component_collects_fsm() {
     let fsm = &builder.fsms[0];
     assert_eq!(fsm.name, "task");
     assert_eq!(fsm.states.len(), 3); // Queueing, Computing, Sending
-    assert_eq!(fsm.transitions.len(), 5); // entry->Q, Q->C, C->S, S->Q, C->exit
+    assert_eq!(fsm.transitions.len(), 5); // entry->Q, Q->C, C->S, C->exit, S->Q
 }
 
 #[test]

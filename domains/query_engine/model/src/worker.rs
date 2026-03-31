@@ -3,7 +3,6 @@
 
 //! Worker entity: responsible for executing plans.
 
-use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,5 +15,11 @@ pub struct Init {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Exit;
 
-#[quent_model(entity(events(Init, Exit)), resource_group)]
-pub struct Worker;
+#[derive(quent_model::Entity)]
+#[resource_group]
+pub struct Worker {
+    #[event]
+    init: Init,
+    #[event]
+    exit: Exit,
+}

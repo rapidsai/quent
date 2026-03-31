@@ -5,28 +5,16 @@
 
 use quent_model::prelude::*;
 
-#[quent_model(instant)]
+#[derive(Entity)]
 pub struct Operator {
     pub plan_id: Uuid,
     pub type_name: String,
 }
 
-#[quent_model(event(entity = Operator))]
-pub struct OperatorStatistics {
-    pub rows_processed: u64,
-    pub bytes_read: u64,
-}
-
 #[test]
 fn entity_trait_impl() {
-    fn assert_entity<T: Entity>() {}
+    fn assert_entity<T: quent_model::Entity>() {}
     assert_entity::<Operator>();
-}
-
-#[test]
-fn entity_event_trait_impl() {
-    fn assert_entity_event<T: EntityEvent>() {}
-    assert_entity_event::<OperatorStatistics>();
 }
 
 #[test]
