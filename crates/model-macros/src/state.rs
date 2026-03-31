@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{Field, ItemStruct};
 
@@ -13,12 +13,21 @@ struct StateFields {
     usages: Vec<UsageField>,
     /// Fields annotated with `#[quent_model::deferred]`.
     deferred: Vec<DeferredField>,
-    /// Regular (non-usage, non-deferred) fields.
+    /// Fields annotated with `#[quent_model::capacity]` (numeric capacity values).
+    capacities: Vec<CapacityField>,
+    /// Regular (non-usage, non-deferred, non-capacity) fields.
     regular: Vec<RegularField>,
+}
+
+struct CapacityField {
+    name: String,
+    ident: Ident,
+    optional: bool,
 }
 
 struct UsageField {
     name: String,
+    ident: Ident,
 }
 
 struct DeferredField {
@@ -29,6 +38,7 @@ struct DeferredField {
 
 struct RegularField {
     name: String,
+    ident: Ident,
     optional: bool,
 }
 
@@ -64,11 +74,12 @@ fn is_option_type(ty: &syn::Type) -> bool {
 fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
     let mut usages = Vec::new();
     let mut deferred = Vec::new();
+    let mut capacities = Vec::new();
     let mut regular = Vec::new();
 
     let fields = match &item.fields {
         syn::Fields::Named(named) => &named.named,
-        syn::Fields::Unit => return Ok(StateFields { usages, deferred, regular }),
+        syn::Fields::Unit => return Ok(StateFields { usages, deferred, capacities, regular}),
         _ => {
             return Err(syn::Error::new_spanned(
                 item,
@@ -85,7 +96,7 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
         let name = field_name.to_string();
 
         if has_attr(field, "usage") {
-            usages.push(UsageField { name });
+            usages.push(UsageField { name, ident: field_name.clone() });
         } else if has_attr(field, "deferred") {
             if !is_option_type(&field.ty) {
                 return Err(syn::Error::new_spanned(
@@ -96,13 +107,16 @@ fn categorize_fields(item: &ItemStruct) -> syn::Result<StateFields> {
             let inner = unwrap_option_type(&field.ty).unwrap();
             let inner_ty = quote! { #inner };
             deferred.push(DeferredField { name, inner_ty });
+        } else if has_attr(field, "capacity") {
+            let optional = is_option_type(&field.ty);
+            capacities.push(CapacityField { name, ident: field_name.clone(), optional });
         } else {
             let optional = is_option_type(&field.ty);
-            regular.push(RegularField { name, optional });
+            regular.push(RegularField { name, ident: field_name.clone(), optional });
         }
     }
 
-    Ok(StateFields { usages, deferred, regular })
+    Ok(StateFields { usages, deferred, capacities, regular })
 }
 
 pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
@@ -200,10 +214,61 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
                 .attrs
                 .retain(|a| {
                     let last = a.path().segments.last();
-                    !last.is_some_and(|seg| seg.ident == "usage" || seg.ident == "deferred")
+                    !last.is_some_and(|seg| seg.ident == "usage" || seg.ident == "deferred" || seg.ident == "capacity")
                 });
         }
     }
+
+    // Generate ExtractCapacities impl.
+    // For unit structs (no fields at all): emit a single "unit" capacity.
+    // For structs with #[capacity] fields: emit one capacity per annotated field.
+    // For structs without #[capacity] fields: emit empty vec.
+    let is_unit_struct = fields.regular.is_empty()
+        && fields.usages.is_empty()
+        && fields.deferred.is_empty()
+        && fields.capacities.is_empty();
+
+    let extract_capacities_body = if is_unit_struct {
+        quote! { vec![quent_model::analyze::ExtractedCapacity::unit()] }
+    } else if fields.capacities.is_empty() {
+        quote! { vec![] }
+    } else {
+        let extractions: Vec<TokenStream> = fields.capacities.iter().map(|c| {
+            let field_ident = &c.ident;
+            let name = &c.name;
+            if c.optional {
+                quote! {
+                    quent_model::analyze::ExtractedCapacity {
+                        name: #name,
+                        value: self.#field_ident.map(|v| v as u64),
+                    }
+                }
+            } else {
+                quote! {
+                    quent_model::analyze::ExtractedCapacity::new(#name, self.#field_ident as u64)
+                }
+            }
+        }).collect();
+        quote! { vec![#(#extractions,)*] }
+    };
+
+    // Generate ExtractUsages impl from #[usage] fields.
+    let extract_usages_body = if fields.usages.is_empty() {
+        quote! { vec![] }
+    } else {
+        let extractions: Vec<TokenStream> = fields.usages.iter().map(|u| {
+            let field_ident = &u.ident;
+            quote! {
+                quent_model::analyze::ExtractedUsage {
+                    resource_id: self.#field_ident.resource_id.uuid(),
+                    capacities: quent_model::analyze::ExtractCapacities::extract_capacities(
+                        &self.#field_ident.capacity
+                    ),
+                }
+            }
+        }).collect();
+        quote! { vec![#(#extractions,)*] }
+    };
 
     let output = quote! {
         // Re-emit the original struct with derives needed by the FSM event enums
@@ -231,6 +296,20 @@ pub fn expand(item: TokenStream) -> syn::Result<TokenStream> {
                     deferred_attributes: vec![#(#deferred_attr_defs,)*],
                     usages: vec![#(#usage_defs,)*],
                 }
+            }
+        }
+
+        // --- ExtractCapacities impl ---
+        impl quent_model::analyze::ExtractCapacities for #state_name_ident {
+            fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> {
+                #extract_capacities_body
+            }
+        }
+
+        // --- ExtractUsages impl ---
+        impl quent_model::analyze::ExtractUsages for #state_name_ident {
+            fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> {
+                #extract_usages_body
             }
         }
     };

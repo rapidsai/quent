@@ -13,6 +13,7 @@ pub struct MemoryInitializing;
 
 #[quent_model::state]
 pub struct MemoryOperating {
+    #[quent_model::capacity]
     pub capacity_bytes: u64,
 }
 
@@ -42,6 +43,7 @@ pub struct DynMemoryInitializing;
 
 #[quent_model::state]
 pub struct DynMemoryOperating {
+    #[quent_model::capacity]
     pub capacity_bytes: u64,
 }
 

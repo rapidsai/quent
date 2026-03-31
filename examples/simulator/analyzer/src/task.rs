@@ -8,42 +8,57 @@ use quent_analyzer::{
 };
 use quent_attributes::Attribute;
 use quent_events::Event;
-use quent_model::FsmEvent;
+use quent_model::{FsmEvent, ModelComponent, analyze::TransitionInfo};
 use quent_simulator_events::task::{
-    Allocating, Computing, Loading, Queueing, Sending, Spilling, TaskEvent, TaskTransition as ModelTaskTransition,
+    Queueing, TaskEvent, TaskTransition as ModelTaskTransition,
 };
 use quent_time::{
     TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative,
 };
 use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 use uuid::Uuid;
 
+// -- Analyzer transition: wraps a model transition with timestamp + extracted usages --
+
 #[derive(Debug)]
-pub enum TaskTransitionData {
-    Queueing(Queueing),
-    Computing(Computing),
-    Loading(Loading),
-    Allocating(Allocating),
-    Spilling(Spilling),
-    Sending(Sending),
-    Finalizing,
-    Exit,
+struct AnalyzerUsage {
+    resource_id: Uuid,
+    capacities: SmallVec<[CapacityValue; 3]>,
 }
 
 #[derive(Debug)]
-pub struct TaskUsage {
-    pub resource_id: Uuid,
-    pub capacities: SmallVec<[CapacityValue; 3]>,
+pub struct TaskTransition {
+    timestamp: TimeUnixNanoSec,
+    state_name: &'static str,
+    usages: SmallVec<[AnalyzerUsage; 3]>,
+    /// The original model transition data, kept for application-specific access.
+    data: ModelTaskTransition,
 }
 
-pub struct TaskUsageWithSpan<'a> {
+impl Timestamp for TaskTransition {
+    fn timestamp(&self) -> TimeUnixNanoSec {
+        self.timestamp
+    }
+}
+
+impl Transition for TaskTransition {
+    fn name(&self) -> &str {
+        self.state_name
+    }
+
+    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
+        std::iter::empty()
+    }
+}
+
+struct UsageWithSpan<'a> {
     task_id: Uuid,
-    usage: &'a TaskUsage,
+    usage: &'a AnalyzerUsage,
     span: SpanUnixNanoSec,
 }
 
-impl<'a> Usage<'a> for TaskUsageWithSpan<'a> {
+impl<'a> Usage<'a> for UsageWithSpan<'a> {
     fn entity_id(&self) -> Uuid {
         self.task_id
     }
@@ -58,93 +73,7 @@ impl<'a> Usage<'a> for TaskUsageWithSpan<'a> {
     }
 }
 
-#[derive(Debug)]
-pub struct TaskTransition {
-    timestamp: TimeUnixNanoSec,
-    data: TaskTransitionData,
-    usages: SmallVec<[TaskUsage; 3]>,
-}
-
-impl Timestamp for TaskTransition {
-    fn timestamp(&self) -> TimeUnixNanoSec {
-        self.timestamp
-    }
-}
-
-impl Transition for TaskTransition {
-    fn name(&self) -> &str {
-        match &self.data {
-            TaskTransitionData::Queueing(_) => "queueing",
-            TaskTransitionData::Computing(_) => "computing",
-            TaskTransitionData::Loading(_) => "loading",
-            TaskTransitionData::Allocating(_) => "allocating",
-            TaskTransitionData::Spilling(_) => "spilling",
-            TaskTransitionData::Sending(_) => "sending",
-            TaskTransitionData::Finalizing => "finalizing",
-            TaskTransitionData::Exit => "exit",
-        }
-    }
-
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        std::iter::empty()
-    }
-}
-
-fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
-    match data {
-        TaskTransitionData::Queueing(_) => SmallVec::new(),
-        TaskTransitionData::Computing(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_memory.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("bytes", data.use_memory.capacity.capacity_bytes)],
-            },
-        ],
-        TaskTransitionData::Loading(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_fs_to_mem.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("bytes", data.use_fs_to_mem.capacity.capacity_bytes.unwrap_or(0))],
-            },
-            TaskUsage {
-                resource_id: data.use_memory.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("bytes", data.use_memory.capacity.capacity_bytes)],
-            },
-        ],
-        TaskTransitionData::Allocating(data) => smallvec![TaskUsage {
-            resource_id: data.use_thread.resource_id.uuid(),
-            capacities: smallvec![CapacityValue::new("unit", 1)],
-        }],
-        TaskTransitionData::Spilling(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_mem_to_fs.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("bytes", data.use_mem_to_fs.capacity.capacity_bytes.unwrap_or(0))],
-            },
-        ],
-        TaskTransitionData::Sending(data) => smallvec![
-            TaskUsage {
-                resource_id: data.use_thread.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("unit", 1)],
-            },
-            TaskUsage {
-                resource_id: data.use_link.resource_id.uuid(),
-                capacities: smallvec![CapacityValue::new("bytes", data.use_link.capacity.capacity_bytes.unwrap_or(0))],
-            },
-        ],
-        TaskTransitionData::Finalizing => SmallVec::new(),
-        TaskTransitionData::Exit => SmallVec::new(),
-    }
-}
+// -- Builder: converts model events into analyzer transitions --
 
 pub(crate) struct TaskBuilder {
     id: Uuid,
@@ -166,33 +95,37 @@ impl TaskBuilder {
     }
 
     pub(crate) fn push(&mut self, event: Event<TaskEvent>) {
-        let data = match event.data {
-            FsmEvent::Transition { state, .. } => match state {
-                ModelTaskTransition::Queueing(data) => TaskTransitionData::Queueing(data),
-                ModelTaskTransition::Computing(data) => TaskTransitionData::Computing(data),
-                ModelTaskTransition::Allocating(data) => TaskTransitionData::Allocating(data),
-                ModelTaskTransition::Loading(data) => TaskTransitionData::Loading(data),
-                ModelTaskTransition::Spilling(data) => TaskTransitionData::Spilling(data),
-                ModelTaskTransition::Sending(data) => TaskTransitionData::Sending(data),
-                ModelTaskTransition::Exit => TaskTransitionData::Exit,
-            },
-            FsmEvent::Deferred { .. } => {
-                // Deferred events are merged into the preceding transition.
-                // For now, we skip them in the analyzer.
-                return;
+        match event.data {
+            FsmEvent::Transition { state, .. } => {
+                // Use TransitionInfo to extract state name and usages generically
+                let state_name = state.state_name();
+                let extracted = state.usages();
+                let usages: SmallVec<[AnalyzerUsage; 3]> = extracted
+                    .into_iter()
+                    .map(|u| AnalyzerUsage {
+                        resource_id: u.resource_id,
+                        capacities: u
+                            .capacities
+                            .into_iter()
+                            .map(|c| CapacityValue::new(c.name, c.value.unwrap_or(0)))
+                            .collect(),
+                    })
+                    .collect();
+                self.transitions.push(TaskTransition {
+                    timestamp: event.timestamp,
+                    state_name,
+                    usages,
+                    data: state,
+                });
             }
-        };
-        let usages = create_usages(&data);
-        self.transitions.push(TaskTransition {
-            timestamp: event.timestamp,
-            data,
-            usages,
-        });
+            FsmEvent::Deferred { .. } => {
+                // Deferred events will be merged in future work.
+            }
+        }
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<Task> {
         let transitions: SmallVec<[TaskTransition; 4]> = self.transitions.into_inner().into();
-        // TODO(johanpel): validation goes here
         Ok(Task {
             id: self.id,
             transitions,
@@ -200,32 +133,28 @@ impl TaskBuilder {
     }
 }
 
+// -- Reconstructed Task FSM --
+
 #[derive(Debug)]
 pub struct Task {
     id: Uuid,
-    // common case is to at least go through:
-    // queueing -> allocating -> computing -> exit
-    // hence space for 6 entries by default
     transitions: SmallVec<[TaskTransition; 4]>,
 }
 
 impl Task {
     pub fn operator_id(&self) -> Option<Uuid> {
         self.transitions.first().and_then(|t| match &t.data {
-            TaskTransitionData::Queueing(data) => Some(data.operator_id),
+            ModelTaskTransition::Queueing(data) => Some(data.operator_id),
             _ => None,
         })
     }
 
-    /// Return the span of time in which this task was active, i.e.
-    /// non-queueing.
     pub fn active_span(&self) -> Option<SpanUnixNanoSec> {
         let start = self.transitions.get(1)?.timestamp();
         let end = self.transitions.last()?.timestamp();
         SpanUnixNanoSec::try_new(start, end).ok()
     }
 
-    /// Convert this Task to a UI-compatible FSM.
     pub fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
         let transitions = self
             .transitions
@@ -270,7 +199,9 @@ impl Entity for Task {
         self.transitions
             .first()
             .and_then(|t| match &t.data {
-                TaskTransitionData::Queueing(data) => Some(data.instance_name.as_str()),
+                ModelTaskTransition::Queueing(Queueing { instance_name, .. }) => {
+                    Some(instance_name.as_str())
+                }
                 _ => None,
             })
             .unwrap_or_default()
@@ -297,7 +228,7 @@ impl<'a> FsmUsages<'a> for Task {
             window[0].usages.iter().map(move |u| {
                 (
                     name,
-                    TaskUsageWithSpan {
+                    UsageWithSpan {
                         task_id: self.id,
                         usage: u,
                         span,
@@ -314,7 +245,7 @@ impl Using for Task {
             let start = window[0].timestamp();
             let end = window[1].timestamp();
             let span = SpanUnixNanoSec::try_new(start, end).unwrap();
-            window[0].usages.iter().map(move |u| TaskUsageWithSpan {
+            window[0].usages.iter().map(move |u| UsageWithSpan {
                 task_id: self.id,
                 usage: u,
                 span,
@@ -325,56 +256,38 @@ impl Using for Task {
 
 impl FsmTypeDeclaration for Task {
     fn fsm_type_declaration() -> FsmTypeDecl {
+        // Collect from the model's ModelComponent metadata.
+        let mut builder = quent_model::ModelBuilder::new();
+        quent_simulator_model::task::Task::collect(&mut builder);
+        let fsm_def = builder.fsms.into_iter().next().unwrap();
+
         use quent_analyzer::fsm::{FsmStateTypeDecl, FsmTransitionDecl};
 
-        let states = vec![
-            FsmStateTypeDecl {
-                name: "queueing".to_string(),
-                usages: vec![],
-            },
-            FsmStateTypeDecl {
-                name: "computing".to_string(),
-                usages: vec!["thread".to_string(), "memory".to_string()],
-            },
-            FsmStateTypeDecl {
-                name: "loading".to_string(),
-                usages: vec![
-                    "thread".to_string(),
-                    "fs_to_mem".to_string(),
-                    "memory".to_string(),
-                ],
-            },
-            FsmStateTypeDecl {
-                name: "allocating".to_string(),
-                usages: vec!["thread".to_string()],
-            },
-            FsmStateTypeDecl {
-                name: "spilling".to_string(),
-                usages: vec!["thread".to_string(), "mem_to_fs".to_string()],
-            },
-            FsmStateTypeDecl {
-                name: "sending".to_string(),
-                usages: vec!["thread".to_string(), "link".to_string()],
-            },
-            FsmStateTypeDecl {
-                name: "exit".to_string(),
-                usages: vec![],
-            },
-        ];
+        let states = fsm_def
+            .states
+            .into_iter()
+            .map(|s| FsmStateTypeDecl {
+                name: s.name,
+                usages: s.usages.iter().map(|u| u.field_name.clone()).collect(),
+            })
+            .collect();
 
-        let transitions = vec![
-            FsmTransitionDecl::Entry("queueing".to_string()),
-            FsmTransitionDecl::Transition("queueing".to_string(), "allocating".to_string()),
-            FsmTransitionDecl::Transition("allocating".to_string(), "spilling".to_string()),
-            FsmTransitionDecl::Transition("allocating".to_string(), "loading".to_string()),
-            FsmTransitionDecl::Transition("allocating".to_string(), "computing".to_string()),
-            FsmTransitionDecl::Transition("spilling".to_string(), "allocating".to_string()),
-            FsmTransitionDecl::Transition("loading".to_string(), "computing".to_string()),
-            FsmTransitionDecl::Transition("computing".to_string(), "sending".to_string()),
-            FsmTransitionDecl::Transition("computing".to_string(), "exit".to_string()),
-            FsmTransitionDecl::Transition("sending".to_string(), "queueing".to_string()),
-            FsmTransitionDecl::Exit("exit".to_string()),
-        ];
+        let mut transitions = Vec::new();
+        for t in &fsm_def.transitions {
+            match (&t.from, &t.to) {
+                (quent_model::TransitionEndpoint::Entry, quent_model::TransitionEndpoint::State(to)) => {
+                    transitions.push(FsmTransitionDecl::Entry(to.clone()));
+                }
+                (quent_model::TransitionEndpoint::State(from), quent_model::TransitionEndpoint::State(to)) => {
+                    transitions.push(FsmTransitionDecl::Transition(from.clone(), to.clone()));
+                }
+                (quent_model::TransitionEndpoint::State(from), quent_model::TransitionEndpoint::Exit) => {
+                    transitions.push(FsmTransitionDecl::Transition(from.clone(), "exit".to_string()));
+                    transitions.push(FsmTransitionDecl::Exit("exit".to_string()));
+                }
+                _ => {}
+            }
+        }
 
         FsmTypeDecl {
             name: "task".to_string(),

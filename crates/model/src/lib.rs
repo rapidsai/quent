@@ -8,6 +8,7 @@
 //! `quent-model-macros`) generate instrumentation APIs and metadata from
 //! definitions built on these types.
 
+pub mod analyze;
 mod fsm_event;
 mod model;
 mod r#ref;
@@ -70,6 +71,7 @@ pub mod prelude {
     pub use crate::{
         Entity, EntityEvent, Event, EventSender, FsmEvent, Model, ModelBuilder, ModelComponent,
         Ref, Resource, ResourceGroup, State, StateMetadata, Usage,
+        analyze::{ExtractCapacities, ExtractUsages, ExtractedCapacity, ExtractedUsage, TransitionInfo},
     };
     pub use uuid::Uuid;
 }

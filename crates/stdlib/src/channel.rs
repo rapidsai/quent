@@ -11,6 +11,7 @@ pub struct ChannelInitializing;
 
 #[quent_model::state]
 pub struct ChannelOperating {
+    #[quent_model::capacity]
     pub capacity_bytes: Option<u64>,
     pub source_id: Uuid,
     pub target_id: Uuid,

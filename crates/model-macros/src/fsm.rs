@@ -263,6 +263,24 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         })
         .collect();
 
+    // Generate TransitionInfo impl arms
+    let transition_name_arms: Vec<TokenStream> = state_idents
+        .iter()
+        .map(|ident| {
+            let name = to_snake_case(ident);
+            quote! { #transition_enum::#ident(_) => #name }
+        })
+        .collect();
+
+    let transition_usages_arms: Vec<TokenStream> = state_idents
+        .iter()
+        .map(|ident| {
+            quote! {
+                #transition_enum::#ident(data) => quent_model::analyze::ExtractUsages::extract_usages(data)
+            }
+        })
+        .collect();
+
     // Generate transition def tokens for ModelComponent
     let transition_def_tokens: Vec<TokenStream> = transitions
         .iter()
@@ -322,6 +340,23 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         }
 
         #(#from_impls)*
+
+        // --- TransitionInfo impl ---
+        impl quent_model::analyze::TransitionInfo for #transition_enum {
+            fn state_name(&self) -> &'static str {
+                match self {
+                    #(#transition_name_arms,)*
+                    #transition_enum::Exit => "exit",
+                }
+            }
+
+            fn usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> {
+                match self {
+                    #(#transition_usages_arms,)*
+                    #transition_enum::Exit => vec![],
+                }
+            }
+        }
 
         // --- Deferred enum ---
         // Nested: wraps per-state deferred types. States without deferred
