@@ -93,9 +93,6 @@ A Usage represents a claim on a portion of [Capacities][capacity] of a
 long as the sum of their claimed capacities does not exceed the Resource's
 bounds.
 
-A Usage must not outlive the `operating` (and `resizing`, if applicable) states
-of the associated [Resource][resource].
-
 Must have:
 
 - `resource_id: uuid`: the ID of the [Resource][resource] being used

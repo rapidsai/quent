@@ -34,7 +34,9 @@ Attribute values are of the following types.
 ### Compound types
 
 - Lists of variable lengths between `[0, 2^64-1]` of exactly one of the above
-  types, that may be empty (`list<T>` where `T` is one of the above)
+  types, that may be empty (`list<T>` where `T` is one of the above).
+  Nested lists (`list<list<T>>`) are not yet supported
+  (see [#79](https://github.com/rapidsai/quent/issues/79)).
 - A set of Attributes (`struct { field_name_1: T, field_name_2: U, ... }`)
 
 Implementations may choose to explicitly provide an alias for variable-length
