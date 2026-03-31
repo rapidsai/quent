@@ -1,72 +1,29 @@
-# Decision: Unified `#[quent_model(...)]` Attribute with Composable Flags
+# Decision: Derive-Style Macros for Model Definitions
 
 ## Context
 
-The original design used separate proc macro attributes (`#[quent_model::fsm]`,
-`#[quent_model::state]`, `#[quent_model::entity]`, `#[quent_model::resource_group]`,
-`#[quent_model::event]`). This caused stacking conflicts — `#[entity]` and
-`#[resource_group]` both generated `ModelComponent` impls and could not be
-combined on the same struct.
+The original design used separate proc macro attributes, then evolved to a
+unified `#[quent_model(...)]` attribute. Both approaches used opaque attribute
+macros that IDEs couldn't introspect. Additionally, `#[quent_model(entity(events(...)))]`
+listed events as a parameter, disconnected from the struct body.
 
 ## Decision
 
-A single `#[quent_model(...)]` attribute with composable flags.
+Derive macros (`#[derive(State)]`, `#[derive(Fsm)]`, `#[derive(Entity)]`) with
+helper attributes. Entity events and FSM states are struct fields, making the
+definitions self-documenting and IDE-friendly.
 
-## Entity kinds
+## Syntax
 
-### FSM — user-defined state machine
-
-```rust
-#[quent_model(state)]
-pub struct Init { ... }
-
-#[quent_model(fsm(
-    entry -> Init,
-    Init -> Planning,
-    Planning -> exit,
-))]
-pub struct Query;
-```
-
-### Entity — one or more explicitly listed events
+### State
 
 ```rust
-#[quent_model(entity(
-    events(Declaration, Statistics),
-))]
-pub struct Operator;
-
-pub struct Declaration { ... }
-pub struct Statistics { ... }
-```
-
-### FSM or Entity + Resource Group
-
-`resource_group` is a top-level modifier, comma-separated after the primary
-kind. It never nests inside `fsm(...)` or `entity(...)`:
-
-```rust
-#[quent_model(fsm(
-    entry -> Init,
-    Init -> exit,
-), resource_group)]
-pub struct Query;
-
-#[quent_model(entity(
-    events(EngineInit, EngineExit),
-), resource_group(root))]
-pub struct Engine;
-```
-
-### State — FSM state struct
-
-```rust
-#[quent_model(state)]
-pub struct Computing {
+#[derive(State)]
+pub struct Running {
     #[usage]
-    pub thread: Usage<Thread>,
+    pub thread: Usage<ProcessorResource>,
     #[deferred]
-    pub rows_processed: Option<u64>,
+    pub rows: Option<u64>,
     #[capacity]
     pub capacity_bytes: u64,
     #[instance_name]
@@ -74,39 +31,107 @@ pub struct Computing {
 }
 ```
 
-## Composable modifiers
+### FSM — states as fields, transitions as annotations
 
-| Modifier | Position | Purpose |
-|----------|----------|---------|
-| `resource_group` | Top-level, after primary kind | Marks as resource group |
-| `resource_group(root)` | Top-level, after primary kind | Marks as root resource group |
-| `events(T1, T2, ...)` | Inside `entity(...)` | Lists associated event types |
+```rust
+#[derive(Fsm)]
+pub struct Task {
+    #[entry, to(Running)]
+    idle: Idle,
+    #[to(Idle, exit)]
+    running: Running,
+}
+```
+
+- `#[entry]` marks the initial state
+- `#[to(...)]` lists valid next states
+- `exit` is the terminal state keyword
+- The field name is the state's identifier
+- The field type is the state struct
+
+### Entity — events as fields
+
+```rust
+#[derive(Entity)]
+pub struct Operator {
+    #[event]
+    declaration: Declaration,
+    #[event]
+    statistics: Statistics,
+}
+
+pub struct Declaration { pub plan_id: Uuid, pub name: String }
+pub struct Statistics { pub rows: u64 }
+```
+
+- `#[event]` marks a field as an event type
+- The field name becomes the observer method name
+- The field type becomes the event enum variant
+
+### Resource Group — composable with Entity or FSM
+
+```rust
+#[derive(Entity, ResourceGroup)]
+pub struct Engine {
+    #[event]
+    init: Init,
+    #[event]
+    exit: Exit,
+}
+
+#[derive(Fsm, ResourceGroup)]
+pub struct Query {
+    #[entry, to(Planning)]
+    init: Init,
+    #[to(Executing)]
+    planning: Planning,
+    #[to(exit)]
+    executing: Executing,
+}
+```
+
+`ResourceGroup` composes with both `Entity` and `Fsm` via multiple derives.
+The root resource group uses `#[resource_group(root)]`:
+
+```rust
+#[derive(Entity, ResourceGroup)]
+#[resource_group(root)]
+pub struct Engine { ... }
+```
+
+## Model composition
+
+```rust
+quent_model::define_model! {
+    pub MyModel(MyEvent) {
+        Domain: QueryEngineModelDef,
+        Task: Task,
+        Job: Job,
+    }
+}
+
+quent_model::define_context!(pub MyContext(MyEvent));
+```
 
 ## What is NOT user-definable
 
-Resources (Memory, Processor, Channel) are predefined in the stdlib. They
-have fixed FSMs matching the spec. Application code uses them via type
-aliases (`type WorkerMemory = quent_stdlib::MemoryResource`) and
-references them in `Usage<T>` fields. The `resource(capacity = T)` syntax
-is a stdlib-internal concern, not part of the public model API.
+Resources (Memory, Processor, Channel) are predefined in the stdlib.
+Application code references them in `Usage<T>` fields. A resource is a
+leaf in the hierarchy — it cannot be a resource group. Any other entity
+(FSM or otherwise) can be a resource group.
 
-A resource is a leaf in the hierarchy — it cannot be a resource group.
-Any other entity (FSM or otherwise) can be a resource group.
+## Field-level annotations on State structs
 
-## Field-level annotations
-
-These remain as plain attributes on struct fields within `#[quent_model(state)]`:
-
-- `#[usage]` — marks a `Usage<T>` field
+- `#[usage]` — marks a `Usage<T>` field as a resource usage
 - `#[deferred]` — marks an `Option<T>` field as settable after transition
 - `#[capacity]` — marks a numeric field as a capacity value
 - `#[instance_name]` — marks a String field as the entity instance name
 
 ## Rationale
 
-- One proc macro entry point eliminates stacking conflicts
-- Flags compose naturally — `resource_group` works with both FSM and entity
-- Entity events are explicitly listed, matching how FSM states are referenced
-  in the transition table
-- Every entity must have events (otherwise it cannot exist in the model)
-- Consistent structure: FSMs reference state types, entities reference event types
+- Derive macros are IDE-friendly (autocomplete, trait documentation)
+- Entity events and FSM states are struct fields — self-documenting
+- `#[event]` on entity fields mirrors `#[to(...)]` on FSM fields
+- `ResourceGroup` composes naturally via multiple derives
+- Field names drive generated API (observer method names, data struct fields)
+- Consistent pattern: both FSMs and entities use fields to declare components
