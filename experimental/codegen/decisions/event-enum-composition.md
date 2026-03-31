@@ -18,14 +18,16 @@ The `quent::Model<T>` type alias lists all model components. The proc macro
 per component, plus `From` impls so each component's handle can wrap its events.
 
 ```rust
-pub type SimulatorModel = quent::Model<(
-    quent_qe_model::QueryEngineModel,
-    Task,
-    WorkerMemory,
-    Thread,
-    FsToMem,
-    MemToFs,
-)>;
+quent_model::define_model! {
+    pub SimulatorModel(SimulatorEvent) {
+        QueryEngine: quent_qe_model::QueryEngineModel,
+        Task: Task,
+        WorkerMemory: WorkerMemory,
+        Thread: Thread,
+        FsToMem: FsToMem,
+        MemToFs: MemToFs,
+    }
+}
 
 // Generated:
 pub enum SimulatorEvent {

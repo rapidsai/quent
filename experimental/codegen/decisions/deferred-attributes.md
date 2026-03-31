@@ -17,18 +17,18 @@ per-instance sequence number for ordering and association.
 ## Model definition
 
 ```rust
-#[quent::state]
+#[derive(State)]
 pub struct Computing {
-    #[quent::usage]
+    #[usage]
     pub thread: Usage<Thread>,
-    #[quent::usage]
+    #[usage]
     pub memory: Usage<WorkerMemory>,
-    #[quent::deferred]
+    #[deferred]
     pub rows_processed: Option<u64>,
 }
 ```
 
-- `#[quent::deferred]` marks a field as settable after the transition.
+- `#[deferred]` marks a field as settable after the transition.
 - Deferred fields must be `Option<T>`. The proc macro enforces this.
 - Non-deferred fields are required at transition time.
 
@@ -81,7 +81,7 @@ entity_id: abc-123, seq: 2, ts: 200, Transition("sending", {thread: ..., channel
 
 - **Emit on transition-in**: events are available to the analyzer and exporters
   immediately. No buffering, no risk of losing pending state on crash.
-- **Explicit `#[quent::deferred]`**: the model documents which fields are
+- **Explicit `#[deferred]`**: the model documents which fields are
   expected upfront vs. which come later. The proc macro generates different
   APIs for immediate vs. deferred fields.
 - **Sequence numbers**: solve both the amendment association problem (the

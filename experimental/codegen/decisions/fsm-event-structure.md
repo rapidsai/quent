@@ -52,5 +52,5 @@ pub type TaskEvent = FsmEvent<TaskTransition, TaskDeferred>;
   `FsmEvent<S, D>` generically — extracting sequence numbers and
   distinguishing transitions from deferred updates without knowing the
   concrete FSM type.
-- **Naming consistency.** `#[quent::deferred]` in the model definition,
+- **Naming consistency.** `#[deferred]` in the model definition,
   `Deferred` in the event variant, `TaskDeferred` in the generated enum.

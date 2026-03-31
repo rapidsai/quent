@@ -16,11 +16,11 @@ states, it is declared as `Option<T>`.
 ## Example
 
 ```rust
-#[quent::state]
+#[derive(State)]
 pub struct Computing {
-    #[quent::usage]
+    #[usage]
     pub thread: Usage<Thread>,
-    #[quent::usage]
+    #[usage]
     pub memory: Usage<WorkerMemory>,
     pub allocation_time_ns: Option<u64>,  // only set when coming from Allocating
 }

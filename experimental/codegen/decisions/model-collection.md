@@ -25,44 +25,46 @@ The mechanism must support composing domain models into application models.
 Type alias over `quent::Model<T>` where `T` is a tuple of model components.
 
 ```rust
-pub type SimulatorModel = quent::Model<(
-    quent_qe_model::QueryEngineModel,
-    Task,
-    WorkerMemory,
-    Thread,
-    FsToMem,
-    MemToFs,
-)>;
+quent_model::define_model! {
+    pub SimulatorModel(SimulatorEvent) {
+        QueryEngine: quent_qe_model::QueryEngineModel,
+        Task: Task,
+        WorkerMemory: WorkerMemory,
+        Thread: Thread,
+        FsToMem: FsToMem,
+        MemToFs: MemToFs,
+    }
+}
 ```
 
 Domain models use the same pattern:
 
 ```rust
-pub type QueryEngineModel = quent::Model<(
-    Engine,
-    QueryGroup,
-    Query,
-    Plan,
-    Operator,
-    Port,
-    Worker,
-)>;
+quent_model::define_model! {
+    pub QueryEngineModel(QueryEngineEvent) {
+        Engine: Engine,
+        QueryGroup: QueryGroup,
+        Query: Query,
+        Plan: Plan,
+        Operator: Operator,
+        Port: Port,
+        Worker: Worker,
+    }
+}
 ```
 
 ## How it works
 
-Each type annotated with a quent proc macro (`#[quent::fsm]`, `#[quent::memory]`,
+Each type annotated with a quent derive macro (`#[derive(Fsm)]`, `#[derive(Entity)]`,
 etc.) gets a generated `ModelComponent` trait impl with a `collect()` method
 that contributes its metadata to a `ModelBuilder`.
 
-`Model<T>` itself implements `ModelComponent` by delegating to `T`'s impl.
-`ModelComponent` is implemented for tuples of components up to a fixed arity
-(16-32), where each element's `collect()` is called in sequence. This is a
-standard Rust pattern (used by serde, axum, bevy, etc.).
+`define_model!` generates a model struct that implements `ModelComponent` by
+delegating to each field's impl. Each field's `collect()` is called in
+sequence. This is a standard Rust pattern (used by serde, axum, bevy, etc.).
 
-When a tuple element is itself a `Model<U>` (i.e., a composed domain model),
-collection recurses into it. The result is a flat sequence of metadata
-collection calls:
+When a field is itself a model (i.e., a composed domain model), collection
+recurses into it. The result is a flat sequence of metadata collection calls:
 
 ```
 SimulatorModel::collect()

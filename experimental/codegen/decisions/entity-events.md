@@ -14,20 +14,21 @@ generates.
 
 Entities and their events are freestanding items linked by an `entity`
 attribute. An entity's own struct fields define its declaration event. Additional
-event types are separate structs annotated with `#[quent::event(entity = T)]`.
+event types are separate structs annotated with `#[event]` fields.
 
 All entity events are one-shot: a single timestamped emission, not a lifecycle.
 
 ## Example
 
 ```rust
-#[quent::entity]
+#[derive(Entity)]
 pub struct Operator {
     pub plan_id: Uuid,
     pub type_name: String,
+    #[event]
+    statistics: OperatorStatistics,
 }
 
-#[quent::event(entity = Operator)]
 pub struct OperatorStatistics {
     pub rows_processed: u64,
     pub bytes_read: u64,
@@ -45,7 +46,7 @@ op.emit(OperatorStatistics { rows_processed: 1000, bytes_read: 4096 });
 ```
 
 The handle carries the entity ID and a context reference. `emit()` accepts any
-event type linked to the entity via `#[quent::event(entity = Operator)]`. The
+event type linked to the entity via `#[event]` fields on the Entity struct. The
 proc macro validates that only declared event types can be emitted for a given
 entity.
 
@@ -59,5 +60,5 @@ entity.
 - Entities that previously had init/exit spans (Engine, Worker) can derive their
   spans from the events of their children instead of needing their own lifecycle.
   If an explicit span is needed, it can be modeled as an FSM instead.
-- The `#[quent::event(entity = T)]` annotation lets the proc macro enforce at
+- The `#[event]` field annotation lets the proc macro enforce at
   compile time that events are only emitted for the correct entity type.

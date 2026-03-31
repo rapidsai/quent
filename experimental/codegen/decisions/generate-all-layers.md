@@ -17,7 +17,7 @@ some for manual implementation.
 
 ## Decision
 
-Generate all six layers. The `#[quent::fsm]` and `#[quent::state]` annotations
+Generate all six layers. The `#[derive(Fsm)]` and `#[derive(State)]` annotations
 produce the complete instrumentation and analysis implementation.
 
 ## Rationale
@@ -31,7 +31,7 @@ remaining application-specific logic in any of the six layers.
 ## Escape hatch
 
 If an application encounters an edge case the proc macro cannot express, the
-escape hatch is to not use `#[quent::fsm]` on that specific FSM and write the
+escape hatch is to not use `#[derive(Fsm)]` on that specific FSM and write the
 impls manually using the underlying traits and types, which remain public. The
 proc macro is a convenience, not mandatory.
 

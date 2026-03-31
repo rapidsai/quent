@@ -7,7 +7,7 @@ Proc macros can be applied at different granularities:
 1. **Module-level macro** (`#[quent::model] mod my_model { ... }`): the proc
    macro sees the entire model at once and can cross-validate all items in a
    single pass.
-2. **Per-item macros** (`#[quent::fsm]`, `#[quent::state]`, `#[quent::resource]`
+2. **Per-item macros** (`#[derive(Fsm)]`, `#[derive(State)]`, `#[resource(...)]`
    on individual structs): each macro processes one item independently.
 
 ## Decision
@@ -40,7 +40,7 @@ needing visibility over both items.
 
 FSM-internal validation (reachability, exit convergence, transition
 completeness) only requires visibility over the FSM's own transition table and
-the referenced state types. The `#[quent::fsm]` macro has this.
+the referenced state types. The `#[derive(Fsm)]` macro has this.
 
 ### Standalone states allow sharing
 

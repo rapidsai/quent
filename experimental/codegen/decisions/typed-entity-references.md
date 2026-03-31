@@ -16,7 +16,7 @@ but provides compile-time type safety in the instrumentation API.
 ## Example
 
 ```rust
-#[quent::entity]
+#[derive(Entity)]
 pub struct Plan {
     pub name: String,
     pub query_id: Ref<Query>,
@@ -28,7 +28,7 @@ pub struct PlanEdge {
     pub target: Ref<Port>,
 }
 
-#[quent::state]
+#[derive(State)]
 pub struct Queueing {
     pub operator_id: Ref<Operator>,
     pub instance_name: String,

@@ -13,7 +13,7 @@ definition, and whether they are type-level constraints or runtime assignments.
 ## Decision
 
 Domain model entities may declare a fixed parent type via
-`#[quent::resource_group(parent = T)]`. All other resource groups and resources
+`parent = T` on `#[resource_group]`. All other resource groups and resources
 assign their parent at runtime via an `Option<Uuid>`.
 
 ## Design
@@ -23,16 +23,20 @@ assign their parent at runtime via an `Option<Uuid>`.
 Domain entities that form a known hierarchy declare the parent type:
 
 ```rust
-#[quent::resource_group]
+#[derive(Entity, ResourceGroup)]
+#[resource_group(root)]
 pub struct Engine { pub name: String }
 
-#[quent::resource_group(parent = Engine)]
+#[derive(Entity, ResourceGroup)]
+#[resource_group]
 pub struct QueryGroup { /* ... */ }
 
-#[quent::resource_group(parent = QueryGroup)]
+#[derive(Entity, ResourceGroup)]
+#[resource_group]
 pub struct Query { /* ... */ }
 
-#[quent::resource_group(parent = Query)]
+#[derive(Entity, ResourceGroup)]
+#[resource_group]
 pub struct Plan { /* ... */ }
 ```
 
@@ -51,10 +55,17 @@ When `parent = T` is specified:
 Resources and application-specific resource groups do not declare a parent type:
 
 ```rust
-#[quent::memory]
-pub struct WorkerMemory;
+#[derive(Fsm)]
+#[resource(capacity = Operating)]
+pub struct WorkerMemory {
+    #[entry, to(Operating)]
+    initializing: Initializing,
+    #[to(exit)]
+    operating: Operating,
+}
 
-#[quent::resource_group]
+#[derive(Entity, ResourceGroup)]
+#[resource_group]
 pub struct MyCustomGroup;
 ```
 

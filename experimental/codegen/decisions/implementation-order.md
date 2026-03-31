@@ -6,10 +6,10 @@
    `ModelComponent` trait, `Model<T>`, `FsmEvent<S, D>`. No proc macros yet,
    just the type foundations.
 
-2. **`quent-model` proc macros** — `#[quent::fsm]`, `#[quent::state]`,
-   `#[quent::resource]`, `#[quent::entity]`, `#[quent::event]`,
-   `#[quent::deferred]`, `#[quent::usage]`, `#[quent::resource_group]`.
-   Start with `#[quent::fsm]` + `#[quent::state]` as the core.
+2. **`quent-model` proc macros** — `#[derive(Fsm)]`, `#[derive(State)]`,
+   `#[resource(...)]`, `#[derive(Entity)]`, `#[event]`,
+   `#[deferred]`, `#[usage]`, `#[derive(ResourceGroup)]`.
+   Start with `#[derive(Fsm)]` + `#[derive(State)]` as the core.
 
 3. **`quent-stdlib`** — Memory, Processor, Channel FSM definitions using the
    proc macros. Validates that the macros produce correct code for real

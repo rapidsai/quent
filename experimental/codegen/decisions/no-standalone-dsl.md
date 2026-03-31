@@ -29,14 +29,15 @@ fsm task {
 The Rust equivalent is:
 
 ```rust
-#[quent::fsm]
+#[derive(Fsm)]
 pub struct Task {
-    #[quent::transition(entry -> Queueing)]
-    #[quent::transition(Queueing -> Computing)]
-    #[quent::transition(Computing -> exit)]
+    #[entry, to(Computing)]
+    queueing: Queueing,
+    #[to(exit)]
+    computing: Computing,
 }
 
-#[quent::state]
+#[derive(State)]
 pub struct Computing {
     pub use_thread: Uuid,
     pub use_memory_bytes: u64,
