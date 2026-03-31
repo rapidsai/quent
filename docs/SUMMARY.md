@@ -2,7 +2,8 @@
 
 [Introduction](./README.md)
 
-- [Telemetry](./telemetry.md)
+- [Event Model](./event_model.md)
+- [FAQ](./faq.md)
 - [Modeling Concepts](./modeling/README.md)
   - [Attributes](./modeling/attributes.md)
   - [Time-related concepts](./modeling/time.md)
@@ -15,6 +16,6 @@
     - [Memory](./modeling/common/memory.md)
     - [Channel](./modeling/common/channel.md)
 - [Domain-Specific Models](./domains/README.md)
-  - [Data Processing / Query Engines](./domains/dataproc/README.md)
-  - [Examples](./domains/dataproc/examples/README.md)
-    - [Simulator](./domains/dataproc/examples/simulator.md)
+  - [Query Engines](./domains/query_engine/README.md)
+  - [Examples](./domains/query_engine/examples/README.md)
+    - [Simulator](./domains/query_engine/examples/simulator.md)

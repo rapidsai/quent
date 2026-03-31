@@ -1,4 +1,4 @@
-# Domain-specific model for data processing / query engines
+# Domain-specific model for query engines
 
 This section describes requirements, mostly in the form of [Entities][entity]
 that must exist for a valid engine model.
