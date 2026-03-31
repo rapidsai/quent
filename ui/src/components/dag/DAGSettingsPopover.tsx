@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Settings2 } from 'lucide-react';
 import { useAtom } from 'jotai';
-import { nodeColorPaletteAtom, edgeColorPaletteAtom } from '@/atoms/dag';
+import { nodeColorPaletteAtom, edgeColorPaletteAtom, selectedNodeLabelFieldAtom, NODE_LABEL_FIELD, type NodeLabelField } from '@/atoms/dag';
 import { CONTINUOUS_PALETTES, continuousColor, type ContinuousPaletteName } from '@/services/colors';
 
 const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [ContinuousPaletteName, { label: string }][];
@@ -17,6 +17,7 @@ const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [ContinuousPalette
 export const DAGSettingsPopover = () => {
   const [nodePalette, setNodePalette] = useAtom(nodeColorPaletteAtom);
   const [edgePalette, setEdgePalette] = useAtom(edgeColorPaletteAtom);
+  const [nodeLabelField, setNodeLabelField] = useAtom(selectedNodeLabelFieldAtom);
 
   return (
     <Popover>
@@ -70,29 +71,16 @@ export const DAGSettingsPopover = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Layout algorithm</span>
-            <Select>
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default" className="text-xs">Default</SelectItem>
-                <SelectItem value="layered" className="text-xs">Layered</SelectItem>
-                <SelectItem value="force" className="text-xs">Force-directed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 w-fit">
             <span className="text-xs text-muted-foreground">Node label</span>
-            <Select>
+            <Select value={nodeLabelField} onValueChange={v => setNodeLabelField(v as NodeLabelField)}>
               <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Name" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="name" className="text-xs">Name</SelectItem>
-                <SelectItem value="id" className="text-xs">ID</SelectItem>
-                <SelectItem value="type" className="text-xs">Type</SelectItem>
+                <SelectItem value={NODE_LABEL_FIELD.NAME} className="text-xs">Name</SelectItem>
+                <SelectItem value={NODE_LABEL_FIELD.ID} className="text-xs">ID</SelectItem>
+                <SelectItem value={NODE_LABEL_FIELD.TYPE} className="text-xs">Type</SelectItem>
               </SelectContent>
             </Select>
           </div>

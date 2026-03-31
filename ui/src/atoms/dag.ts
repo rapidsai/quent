@@ -35,6 +35,15 @@ export const edgeColoringAtom = atom<EdgeColoring>(null);
 /** Field displayed below operator name on DAG node */
 export const selectedNodeDisplayFieldAtom = atom<string | null>(null);
 
+/** Which field to use as the primary label on each DAG node */
+export const NODE_LABEL_FIELD = {
+  NAME: 'name',
+  ID: 'id',
+  TYPE: 'type',
+} as const;
+export type NodeLabelField = typeof NODE_LABEL_FIELD[keyof typeof NODE_LABEL_FIELD];
+export const selectedNodeLabelFieldAtom = atom<NodeLabelField>(NODE_LABEL_FIELD.NAME);
+
 /** Continuous color palette used for node coloring */
 export const nodeColorPaletteAtom = atom<ContinuousPaletteName>('blue');
 
