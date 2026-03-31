@@ -1313,6 +1313,7 @@ dependencies = [
  "quent-attributes",
  "quent-events",
  "quent-exporter-types",
+ "quent-model",
  "quent-time",
  "rustc-hash",
  "serde",

@@ -12,6 +12,7 @@ use ts_rs::TS;
 
 use crate::{AnalyzerResult, Entity, Span, error::AnalyzerError, resource::Usage};
 
+pub mod analyzed;
 pub mod collection;
 pub mod runtime;
 

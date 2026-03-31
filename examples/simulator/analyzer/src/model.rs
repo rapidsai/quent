@@ -130,7 +130,7 @@ impl SimulatorModel {
     }
 }
 
-impl FsmCollection<Task, crate::task::TaskTransition> for SimulatorModel {
+impl FsmCollection<Task, quent_analyzer::fsm::analyzed::AnalyzedTransition<quent_simulator_events::task::TaskTransition>> for SimulatorModel {
     fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a Task> + 'a
     where
         Task: 'a,
@@ -283,7 +283,7 @@ impl SimulatorModelBuilder {
         let mut tasks = HashMap::default();
 
         for (task_id, task_builder) in self.tasks.into_iter() {
-            let task = task_builder.try_build()?;
+            let task = Task::from_builder(task_builder)?;
             for usage in task.usages() {
                 let resource_type_name = resources
                     .resource(usage.resource_id())?
