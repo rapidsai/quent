@@ -136,7 +136,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let ports = view.ports().map(|p| (p.id(), p.to_ui(epoch))).collect();
         let unique_operator_names = view
             .operators()
-            .filter_map(|v| v.operator_type_name.clone())
+            .filter_map(|v| v.operator_type_name().map(|s| s.to_owned()))
             .collect::<HashSet<_>>()
             .into_iter()
             .collect();

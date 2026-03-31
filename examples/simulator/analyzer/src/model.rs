@@ -302,7 +302,7 @@ impl SimulatorModelBuilder {
                 && let Some(task_span) = task.active_span()
                 && let Some(operator) = query_engine.operators.get_mut(&operator_id)
             {
-                operator.active_span = Some(match operator.active_span {
+                operator.active_span = Some(match operator.active_span() {
                     None => task_span,
                     Some(existing) => existing.extend(&task_span),
                 });
