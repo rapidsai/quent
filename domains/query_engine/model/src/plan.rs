@@ -3,10 +3,11 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
+use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model::resource_group]
+#[quent_model(resource_group)]
 pub struct Plan;
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -4,10 +4,11 @@
 //! Port entity: input or output of an operator.
 
 use quent_attributes::Attribute;
+use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model::resource_group]
+#[quent_model(resource_group)]
 pub struct Port;
 
 #[derive(Debug, Deserialize, Serialize)]

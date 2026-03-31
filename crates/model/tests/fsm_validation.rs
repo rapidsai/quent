@@ -13,21 +13,21 @@ use quent_model::prelude::*;
 
 // --- A valid linear FSM ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct A;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct B;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct C;
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     entry -> A,
     A -> B,
     B -> C,
     C -> exit,
-)]
+))]
 pub struct LinearFsm;
 
 #[test]
@@ -41,18 +41,18 @@ fn linear_fsm_valid() {
 
 // --- A cyclic FSM ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Idle;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Working;
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     entry -> Idle,
     Idle -> Working,
     Working -> Idle,
     Working -> exit,
-)]
+))]
 pub struct CyclicFsm;
 
 #[test]
@@ -66,7 +66,7 @@ fn cyclic_fsm_valid() {
 
 // --- Unit state (no fields) ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct EmptyState;
 
 #[test]
@@ -80,12 +80,12 @@ fn unit_state_metadata() {
 
 // --- Multiple deferred fields ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MultiDeferred {
     pub required_field: u64,
-    #[quent_model::deferred]
+    #[deferred]
     pub deferred_a: Option<u32>,
-    #[quent_model::deferred]
+    #[deferred]
     pub deferred_b: Option<String>,
 }
 

@@ -8,18 +8,18 @@ use quent_model::prelude::*;
 
 // --- Simulate a domain model crate (inline) ---
 
-#[quent_model::entity]
+#[quent_model(instant)]
 pub struct Engine {
     pub name: String,
 }
 
-#[quent_model::entity]
+#[quent_model(instant)]
 pub struct Operator {
     pub plan_id: Uuid,
     pub type_name: String,
 }
 
-#[quent_model::event(entity = Operator)]
+#[quent_model(event(entity = Operator))]
 pub struct OperatorStatistics {
     pub rows_processed: u64,
 }
@@ -33,35 +33,35 @@ type FsToMem = quent_stdlib::ChannelResource;
 
 // --- Application FSM using stdlib resource types ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Queueing {
     pub operator_id: Ref<Operator>,
     pub instance_name: String,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Computing {
-    #[quent_model::usage]
+    #[usage]
     pub thread: Usage<Thread>,
-    #[quent_model::usage]
+    #[usage]
     pub memory: Usage<WorkerMemory>,
-    #[quent_model::deferred]
+    #[deferred]
     pub rows_processed: Option<u64>,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Sending {
-    #[quent_model::usage]
+    #[usage]
     pub channel: Usage<FsToMem>,
 }
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     entry -> Queueing,
     Queueing -> Computing,
     Computing -> Sending,
     Sending -> Queueing,
     Computing -> exit,
-)]
+))]
 pub struct Task;
 
 // --- Model composition ---

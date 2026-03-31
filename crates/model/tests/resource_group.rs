@@ -5,12 +5,12 @@
 
 use quent_model::prelude::*;
 
-#[quent_model::resource_group(root)]
+#[quent_model(resource_group(root))]
 pub struct Engine {
     pub name: String,
 }
 
-#[quent_model::resource_group]
+#[quent_model(resource_group)]
 pub struct QueryGroup {
     pub engine_id: Uuid,
 }

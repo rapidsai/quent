@@ -8,26 +8,26 @@ use quent_model::prelude::*;
 
 // --- States ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Init {
     pub query_group_id: Uuid,
-    #[quent_model::instance_name]
+    #[instance_name]
     pub instance_name: String,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Planning;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Executing;
 
 // --- FSM ---
 
 /// Query FSM: `entry -> Init -> Planning -> Executing -> exit`
-#[quent_model::fsm(
+#[quent_model(fsm(
     entry -> Init,
     Init -> Planning,
     Planning -> Executing,
     Executing -> exit,
-)]
+))]
 pub struct Query;

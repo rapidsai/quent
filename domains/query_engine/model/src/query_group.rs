@@ -3,10 +3,11 @@
 
 //! QueryGroup entity: encapsulates a set of queries.
 
+use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model::resource_group]
+#[quent_model(resource_group)]
 pub struct QueryGroup;
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -4,10 +4,11 @@
 //! Operator entity: sinks, sources, or transforms data within a plan.
 
 use quent_attributes::Attribute;
+use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model::resource_group]
+#[quent_model(resource_group)]
 pub struct Operator;
 
 #[derive(Debug, Deserialize, Serialize)]

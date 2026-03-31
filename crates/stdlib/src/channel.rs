@@ -6,18 +6,18 @@
 #[allow(unused_imports)]
 use quent_model::prelude::*;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct ChannelInitializing;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct ChannelOperating {
-    #[quent_model::capacity]
+    #[capacity]
     pub capacity_bytes: Option<u64>,
     pub source_id: Uuid,
     pub target_id: Uuid,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct ChannelFinalizing;
 
 /// A unidirectional data transfer resource.
@@ -26,11 +26,11 @@ pub struct ChannelFinalizing;
 ///
 /// The transition into `operating` declares the capacity (optional, `None`
 /// if unbounded) and the source/target entity IDs.
-#[quent_model::fsm(
+#[quent_model(fsm(
     resource(capacity = ChannelOperating),
     entry -> ChannelInitializing,
     ChannelInitializing -> ChannelOperating,
     ChannelOperating -> ChannelFinalizing,
     ChannelFinalizing -> exit,
-)]
+))]
 pub struct Channel;

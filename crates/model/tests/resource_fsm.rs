@@ -7,44 +7,44 @@ use quent_model::prelude::*;
 
 // A memory-like resource FSM
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MemInitializing;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MemOperating {
     pub capacity_bytes: u64,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MemFinalizing;
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     resource(capacity = MemOperating),
     entry -> MemInitializing,
     MemInitializing -> MemOperating,
     MemOperating -> MemFinalizing,
     MemFinalizing -> exit,
-)]
+))]
 pub struct TestMemory;
 
 // A unit resource (processor-like)
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct ProcInitializing;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct ProcOperating;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct ProcFinalizing;
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     resource(capacity = ProcOperating),
     entry -> ProcInitializing,
     ProcInitializing -> ProcOperating,
     ProcOperating -> ProcFinalizing,
     ProcFinalizing -> exit,
-)]
+))]
 pub struct TestProcessor;
 
 #[test]

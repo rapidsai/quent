@@ -3,10 +3,11 @@
 
 //! Worker entity: responsible for executing plans.
 
+use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[quent_model::resource_group]
+#[quent_model(resource_group)]
 pub struct Worker;
 
 #[derive(Debug, Default, Deserialize, Serialize)]

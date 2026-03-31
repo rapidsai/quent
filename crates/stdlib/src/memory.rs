@@ -8,16 +8,16 @@ use quent_model::prelude::*;
 
 // --- Fixed-bounds Memory ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MemoryInitializing;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MemoryOperating {
-    #[quent_model::capacity]
+    #[capacity]
     pub capacity_bytes: u64,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct MemoryFinalizing;
 
 /// A fixed-bounds memory resource FSM handle.
@@ -27,36 +27,36 @@ pub struct MemoryFinalizing;
 /// The transition into `operating` declares the capacity in bytes.
 /// Use `MemoryResource` with `Usage<MemoryResource>` to reference this
 /// resource type from FSM states.
-#[quent_model::fsm(
+#[quent_model(fsm(
     resource(capacity = MemoryOperating),
     entry -> MemoryInitializing,
     MemoryInitializing -> MemoryOperating,
     MemoryOperating -> MemoryFinalizing,
     MemoryFinalizing -> exit,
-)]
+))]
 pub struct Memory;
 
 // --- Dynamic-bounds Memory ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct DynMemoryInitializing;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct DynMemoryOperating {
-    #[quent_model::capacity]
+    #[capacity]
     pub capacity_bytes: u64,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct DynMemoryResizing;
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct DynMemoryFinalizing;
 
 /// A dynamic-bounds memory resource that supports resizing.
 ///
 /// FSM: `entry -> initializing -> operating <-> resizing, operating -> finalizing -> exit`
-#[quent_model::fsm(
+#[quent_model(fsm(
     resource(capacity = DynMemoryOperating),
     entry -> DynMemoryInitializing,
     DynMemoryInitializing -> DynMemoryOperating,
@@ -64,5 +64,5 @@ pub struct DynMemoryFinalizing;
     DynMemoryResizing -> DynMemoryOperating,
     DynMemoryOperating -> DynMemoryFinalizing,
     DynMemoryFinalizing -> exit,
-)]
+))]
 pub struct DynamicMemory;

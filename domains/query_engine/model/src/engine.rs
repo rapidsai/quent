@@ -4,10 +4,11 @@
 //! Engine entity: top-level entry point and root resource group.
 
 use quent_attributes::Attribute;
+use quent_model::quent_model;
 use serde::{Deserialize, Serialize};
 
 /// Engine is the root resource group.
-#[quent_model::resource_group(root)]
+#[quent_model(resource_group(root))]
 pub struct Engine;
 
 #[derive(Debug, Default, Deserialize, Serialize)]

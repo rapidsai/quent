@@ -14,56 +14,56 @@ use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 
 // --- States ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Queueing {
     pub operator_id: Uuid,
-    #[quent_model::instance_name]
+    #[instance_name]
     pub instance_name: String,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Computing {
-    #[quent_model::usage]
+    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[quent_model::usage]
+    #[usage]
     pub use_memory: Usage<MemoryResource>,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Allocating {
-    #[quent_model::usage]
+    #[usage]
     pub use_thread: Usage<ProcessorResource>,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Loading {
-    #[quent_model::usage]
+    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[quent_model::usage]
+    #[usage]
     pub use_fs_to_mem: Usage<ChannelResource>,
-    #[quent_model::usage]
+    #[usage]
     pub use_memory: Usage<MemoryResource>,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Spilling {
-    #[quent_model::usage]
+    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[quent_model::usage]
+    #[usage]
     pub use_mem_to_fs: Usage<ChannelResource>,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Sending {
-    #[quent_model::usage]
+    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[quent_model::usage]
+    #[usage]
     pub use_link: Usage<ChannelResource>,
 }
 
 // --- FSM ---
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     entry -> Queueing,
     Queueing -> Allocating,
     Allocating -> Computing,
@@ -74,5 +74,5 @@ pub struct Sending {
     Computing -> exit,
     Spilling -> Allocating,
     Sending -> Queueing,
-)]
+))]
 pub struct Task;

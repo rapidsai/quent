@@ -7,33 +7,33 @@ use quent_model::prelude::*;
 
 // --- Define states ---
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Queueing {
     pub operator_id: Uuid,
     pub instance_name: String,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Computing {
     pub value: u64,
-    #[quent_model::deferred]
+    #[deferred]
     pub rows_processed: Option<u64>,
 }
 
-#[quent_model::state]
+#[quent_model(state)]
 pub struct Sending {
     pub channel_id: Uuid,
 }
 
 // --- Define FSM ---
 
-#[quent_model::fsm(
+#[quent_model(fsm(
     entry -> Queueing,
     Queueing -> Computing,
     Computing -> Sending,
     Sending -> Queueing,
     Computing -> exit,
-)]
+))]
 pub struct Task;
 
 // --- Tests ---

@@ -15,8 +15,9 @@ mod r#ref;
 mod resource;
 mod usage;
 
-// Re-export proc macros so users write `quent_model::fsm`, etc.
-pub use quent_model_macros::{entity, event, fsm, resource, resource_group, state};
+// Re-export the unified proc macro.
+// Usage: #[quent_model(state)], #[quent_model(fsm(...))], etc.
+pub use quent_model_macros::quent_model;
 
 pub use fsm_event::FsmEvent;
 pub use model::{
@@ -74,7 +75,7 @@ pub use quent_time::timestamp;
 pub mod prelude {
     pub use crate::{
         Entity, EntityEvent, Event, EventSender, FsmEvent, Model, ModelBuilder, ModelComponent,
-        Ref, Resource, ResourceGroup, State, StateMetadata, Usage,
+        Ref, Resource, ResourceGroup, State, StateMetadata, Usage, quent_model,
         analyze::{
             ExtractCapacities, ExtractInstanceName, ExtractUsages, ExtractedCapacity,
             ExtractedUsage, TransitionInfo,

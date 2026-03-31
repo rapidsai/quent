@@ -5,13 +5,13 @@
 
 use quent_model::prelude::*;
 
-#[quent_model::entity]
+#[quent_model(instant)]
 pub struct Operator {
     pub plan_id: Uuid,
     pub type_name: String,
 }
 
-#[quent_model::event(entity = Operator)]
+#[quent_model(event(entity = Operator))]
 pub struct OperatorStatistics {
     pub rows_processed: u64,
     pub bytes_read: u64,
