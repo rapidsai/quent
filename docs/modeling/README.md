@@ -29,13 +29,18 @@ Names of constructs that are defined by this specification are intentionally
 capitalized, e.g. [Entity][entity], [Timestamp][timestamp],
 [Resource][resource], etc.
 
-Fields listed under **"must have"** are always present. Fields listed under
-**"may have"** may be absent entirely.
+Fields listed under **"must have"** must have a non-null value. Fields listed
+under **"may have"** are optional: the field exists but its value may be null.
 
-Where a field could be one of several mutually exclusive alternatives, each
-alternative is listed as a "must have" field of type `option<T>`. Exactly one
-must be non-null. This encoding avoids sum types, which are not
+### Mutual exclusion
+
+Where a value could be one of several mutually exclusive alternatives, each
+alternative is listed in a **"mutually exclusive"** section. Exactly one must
+be non-null; the rest must be null. This avoids sum types, which are not
 well-supported across all transport and serialization formats.
+
+In all cases, optional means the value may be null — the field itself is
+always present in the schema.
 
 [attributes]: ./attributes.md
 [channel]: ./common/channel.md

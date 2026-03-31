@@ -9,7 +9,7 @@ Must have:
 
 May have:
 
-- `parent_group_id: option<uuid>`: the id of the parent resource group, if any.
+- `parent_group_id: uuid`: the id of the parent resource group, if any.
 
 Exactly one Resource Group must exist for which `parent_group_id` is null.
 

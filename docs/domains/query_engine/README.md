@@ -76,20 +76,20 @@ typically derived from FSMs that reference work performed on behalf of the Plan
 Must have:
 
 - `instance_name: string`: The name of the Plan
-- `query_id: option<uuid>`: the ID of the [Query][query], if this is a root
-  Plan
-- `parent_plan_id: option<uuid>`: the ID of the parent Plan, if this is a
-  derived (or "lowered") Plan. The Query is reachable by traversing up the
-  parent chain.
 - `edges: list< struct{ source: uuid, target: uuid } >`: a list of edges where
   `source` is the ID of the Port producing data and `target` is the ID of the
   Port consuming data.
 
-Exactly one of `query_id` or `parent_plan_id` must be set.
-
 Edges connect [Ports][port] of different [Operators][operator]. An edge from a
 source Port of Operator A to a target Port of Operator B represents data
 flowing from A to B. A Plan may have zero edges (e.g. a single-operator plan).
+
+[Mutually exclusive][mutual-exclusion]:
+
+- `query_id: uuid`: the ID of the [Query][query], if this is a root Plan
+- `parent_plan_id: uuid`: the ID of the parent Plan, if this is a derived
+  (or "lowered") Plan. The Query is reachable by traversing up the parent
+  chain.
 
 May have:
 
@@ -189,6 +189,7 @@ act as [Resource Groups][resource-group], forming a hierarchy through which
 resource usages can be aggregated. See [Resource Group][resource-group] for
 details.
 
+[mutual-exclusion]: ../../modeling/README.md#mutual-exclusion
 [engine]: #engine
 [entity]: ../../modeling/entity.md
 [finite-state-machine]: ../../modeling/fsm.md
