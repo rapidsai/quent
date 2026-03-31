@@ -1,0 +1,142 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Tests for FSM validation (compile-time checks via trybuild would be ideal,
+//! but for now we verify the validation logic at runtime through the model
+//! metadata and by testing valid FSMs compile correctly).
+//!
+//! Invalid FSMs (missing entry, unreachable states, etc.) are tested via
+//! trybuild compile-fail tests if trybuild is available, or documented here
+//! as known constraints.
+
+use quent_model::prelude::*;
+
+// --- A valid linear FSM ---
+
+#[quent_model::state]
+pub struct A;
+
+#[quent_model::state]
+pub struct B;
+
+#[quent_model::state]
+pub struct C;
+
+#[quent_model::fsm(
+    entry -> A,
+    A -> B,
+    B -> C,
+    C -> exit,
+)]
+pub struct LinearFsm;
+
+#[test]
+fn linear_fsm_valid() {
+    let mut builder = ModelBuilder::new();
+    LinearFsm::collect(&mut builder);
+    let fsm = &builder.fsms[0];
+    assert_eq!(fsm.states.len(), 3);
+    assert_eq!(fsm.transitions.len(), 4);
+}
+
+// --- A cyclic FSM ---
+
+#[quent_model::state]
+pub struct Idle;
+
+#[quent_model::state]
+pub struct Working;
+
+#[quent_model::fsm(
+    entry -> Idle,
+    Idle -> Working,
+    Working -> Idle,
+    Working -> exit,
+)]
+pub struct CyclicFsm;
+
+#[test]
+fn cyclic_fsm_valid() {
+    let mut builder = ModelBuilder::new();
+    CyclicFsm::collect(&mut builder);
+    let fsm = &builder.fsms[0];
+    assert_eq!(fsm.states.len(), 2);
+    assert_eq!(fsm.transitions.len(), 4);
+}
+
+// --- Unit state (no fields) ---
+
+#[quent_model::state]
+pub struct EmptyState;
+
+#[test]
+fn unit_state_metadata() {
+    let def = EmptyState::state_def();
+    assert_eq!(def.name, "empty_state");
+    assert!(def.attributes.is_empty());
+    assert!(def.deferred_attributes.is_empty());
+    assert!(def.usages.is_empty());
+}
+
+// --- Multiple deferred fields ---
+
+#[quent_model::state]
+pub struct MultiDeferred {
+    pub required_field: u64,
+    #[quent_model::deferred]
+    pub deferred_a: Option<u32>,
+    #[quent_model::deferred]
+    pub deferred_b: Option<String>,
+}
+
+#[test]
+fn multi_deferred_state() {
+    let def = MultiDeferred::state_def();
+    assert_eq!(def.attributes.len(), 1);
+    assert_eq!(def.attributes[0].name, "required_field");
+    assert_eq!(def.deferred_attributes.len(), 2);
+    assert_eq!(def.deferred_attributes[0].name, "deferred_a");
+    assert_eq!(def.deferred_attributes[1].name, "deferred_b");
+}
+
+#[test]
+fn multi_deferred_enum_variants() {
+    let _a = MultiDeferredDeferred::DeferredA(42);
+    let _b = MultiDeferredDeferred::DeferredB("hello".into());
+}
+
+// --- Complex model with nested composition ---
+
+type InnerModel = Model<(LinearFsm,)>;
+type OuterModel = Model<(InnerModel, CyclicFsm)>;
+
+#[test]
+fn nested_model_composition() {
+    let builder = OuterModel::build();
+    assert_eq!(builder.fsms.len(), 2);
+    assert!(builder.fsms.iter().any(|f| f.name == "linear_fsm"));
+    assert!(builder.fsms.iter().any(|f| f.name == "cyclic_fsm"));
+}
+
+// --- Transition endpoint values ---
+
+#[test]
+fn transition_endpoints() {
+    let mut builder = ModelBuilder::new();
+    LinearFsm::collect(&mut builder);
+    let fsm = &builder.fsms[0];
+
+    // First transition: entry -> A
+    assert_eq!(fsm.transitions[0].from, quent_model::TransitionEndpoint::Entry);
+    assert_eq!(
+        fsm.transitions[0].to,
+        quent_model::TransitionEndpoint::State("a".to_string())
+    );
+
+    // Last transition: C -> exit
+    assert_eq!(
+        fsm.transitions[3].from,
+        quent_model::TransitionEndpoint::State("c".to_string())
+    );
+    assert_eq!(fsm.transitions[3].to, quent_model::TransitionEndpoint::Exit);
+}
