@@ -16,6 +16,7 @@ interface ResourceGroupRowProps {
   selectedFsmType?: string | null;
   onFsmChange?: (itemId: string, fsmType: string | null) => void;
   verbose?: boolean;
+  compact?: boolean;
 }
 
 export const ResourceGroupRow = ({
@@ -27,12 +28,46 @@ export const ResourceGroupRow = ({
   availableFsmTypes,
   selectedFsmType,
   onFsmChange,
+  compact,
 }: ResourceGroupRowProps): React.ReactNode => {
   const hasMultipleChildTypes = (availableResourceTypes?.length ?? 0) > 1;
   const fsmCount = availableFsmTypes?.length ?? 0;
   const hasOneFsm = fsmCount === 1;
   const hasMultipleFsms = fsmCount > 1;
   const fsmOptions = hasMultipleFsms ? [FSM_ALL, ...(availableFsmTypes ?? [])] : [];
+
+  if (compact) {
+    return (
+      <div className="flex items-center">
+        <span className="text-xs font-bold">{group.instance_name}</span>
+        {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
+          <InlineSelector
+            id={`${id}-resource-type`}
+            label="Type"
+            value={selectedType}
+            options={availableResourceTypes}
+            onChange={(_, value) => onTypeChange(id, value)}
+            className="ml-2"
+          />
+        )}
+        {hasOneFsm && (
+          <p className="ml-2 text-xs text-muted-foreground">
+            FSM: <span className="text-foreground">{availableFsmTypes![0]}</span>
+          </p>
+        )}
+        {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (
+          <InlineSelector
+            id={`${id}-fsm`}
+            label="FSM"
+            value={selectedFsmType ?? FSM_ALL}
+            options={fsmOptions}
+            onChange={(_, value) => onFsmChange(id, value === FSM_ALL ? null : value)}
+            className="ml-2"
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>

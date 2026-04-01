@@ -5,9 +5,10 @@ import { Resource } from '~quent/types/Resource';
 
 interface ResourceRowProps {
   resource: Resource;
+  compact?: boolean;
 }
 
-export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => {
+export const ResourceRow = ({ resource, compact }: ResourceRowProps): React.ReactNode => {
   return (
     <div>
       <div>
@@ -18,6 +19,7 @@ export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => 
             : ''}
         </span>
       </div>
+      {!compact && <div className="text-xs text-muted-foreground">{resource.id}</div>}
     </div>
   );
 };

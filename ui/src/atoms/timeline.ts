@@ -69,3 +69,8 @@ export const visibleEntriesAtom = atom<Record<string, TimelineRequest<TaskFilter
 
 /** When true, hides task annotation marks on timeline charts */
 export const hideTasksAtom = atom(false);
+
+export type TimelineDensity = 'comfortable' | 'compact';
+
+/** Controls the row height of resource timelines */
+export const timelineDensityAtom = atom<TimelineDensity>('comfortable');
