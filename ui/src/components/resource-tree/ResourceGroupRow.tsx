@@ -38,9 +38,7 @@ export const ResourceGroupRow = ({
   return (
     <div>
       <div>
-        <DataText className="text-sm font-bold">
-          {group.instance_name}
-        </DataText>
+        <DataText className="text-sm font-bold">{group.instance_name}</DataText>
       </div>
       {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
         <InlineSelector

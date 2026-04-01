@@ -28,12 +28,8 @@ export const OperatorStatisticsPopup = ({
       </HoverCardTrigger>
       <HoverCardContent className="flex w-72 flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <DataText className="font-semibold text-sm">
-            {operatorLabel}
-          </DataText>
-          <DataText
-            className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded"
-          >
+          <DataText className="font-semibold text-sm">{operatorLabel}</DataText>
+          <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded">
             {operationType}
           </DataText>
         </div>
@@ -47,9 +43,7 @@ export const OperatorStatisticsPopup = ({
                 <div key={key} className="text-xs mt-1">
                   {Array.isArray(value) ? (
                     <div className="flex items-center justify-between gap-0.5">
-                      <DataText className="capitalize">
-                        {key.replace(/_/g, ' ')}:
-                      </DataText>
+                      <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                       <div className="ml-2 flex flex-col gap-0.5">
                         {value.map((item, i) => (
                           <DataText key={i} className="text-muted-foreground whitespace-pre-line">
@@ -60,9 +54,7 @@ export const OperatorStatisticsPopup = ({
                     </div>
                   ) : (
                     <div className="flex items-center justify-between">
-                      <DataText className="capitalize">
-                        {key.replace(/_/g, ' ')}:
-                      </DataText>
+                      <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                       <DataText className="text-muted-foreground ml-1">{String(value)}</DataText>
                     </div>
                   )}
