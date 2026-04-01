@@ -33,6 +33,7 @@ impl PostcardExporter {
         application_id: Uuid,
         options: PostcardExporterOptions,
     ) -> ExporterResult<Self> {
+        tokio::fs::create_dir_all(&options.output_dir).await?;
         let path = options
             .output_dir
             .join(format!("{}.postcard", application_id));

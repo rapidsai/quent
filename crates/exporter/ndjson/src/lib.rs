@@ -34,6 +34,7 @@ impl NdjsonExporter {
         application_id: Uuid,
         options: NdjsonExporterOptions,
     ) -> ExporterResult<Self> {
+        tokio::fs::create_dir_all(&options.output_dir).await?;
         let path = options
             .output_dir
             .join(format!("{}.ndjson", application_id));

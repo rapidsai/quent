@@ -19,6 +19,7 @@ fn generate_query_engine_cxx_bridge() {
 
     let options = CxxOptions {
         namespace: "quent::qe".to_string(),
+        ..Default::default()
     };
     let files = emit_cxx(&builder, &options);
 

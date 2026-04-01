@@ -1,0 +1,11 @@
+[package]
+name = "quent-cpp-example-model"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-model = { path = "../../../crates/model" }
+quent-stdlib = { path = "../../../crates/stdlib" }
+uuid = { workspace = true, features = ["serde", "v7"] }
+serde.workspace = true

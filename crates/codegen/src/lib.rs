@@ -8,18 +8,30 @@
 
 pub mod cxx_bridge;
 
-use quent_model::{ModelBuilder, FsmDef, EntityDef, StateDef, AttributeDef, ValueType};
+use quent_model::ModelBuilder;
 
 /// Configuration for the CXX bridge backend.
 pub struct CxxOptions {
     /// C++ namespace for generated types (e.g., "myapp::telemetry").
     pub namespace: String,
+    /// The Rust crate name (used for CXX include paths).
+    pub crate_name: String,
+    /// Path prefix for bridge modules within the crate (e.g., "src/bridge").
+    pub bridge_path: String,
+    /// Rust path to the model crate (e.g., "quent_cpp_example_model").
+    pub model_crate: String,
+    /// The top-level event enum type path (e.g., "quent_cpp_example_model::ExampleEvent").
+    pub event_type: String,
 }
 
 impl Default for CxxOptions {
     fn default() -> Self {
         Self {
             namespace: "telemetry".to_string(),
+            crate_name: "instrumentation".to_string(),
+            bridge_path: "src/bridge".to_string(),
+            model_crate: "model".to_string(),
+            event_type: "model::Event".to_string(),
         }
     }
 }

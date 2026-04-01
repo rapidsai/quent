@@ -33,6 +33,7 @@ impl MsgpackExporter {
         application_id: Uuid,
         options: MsgpackExporterOptions,
     ) -> ExporterResult<Self> {
+        tokio::fs::create_dir_all(&options.output_dir).await?;
         let path = options
             .output_dir
             .join(format!("{}.msgpack", application_id));
