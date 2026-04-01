@@ -13,7 +13,7 @@ import {
   NavigationMenuItem,
   NavigationMenuLink,
 } from '@/components/ui/navigation-menu';
-import { cn } from '@/lib/utils';
+import { cn } from '@quent/utils';
 
 function RootComponent() {
   const routerState = useRouterState();

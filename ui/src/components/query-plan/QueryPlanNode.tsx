@@ -6,7 +6,7 @@ import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue } from 'jotai';
 import { selectedNodeIdsAtom } from '@/atoms/dag';
-import { Operator } from '~quent/types/Operator';
+import { Operator } from '@quent/utils';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 

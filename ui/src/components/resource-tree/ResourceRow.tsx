@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Resource } from '~quent/types/Resource';
+import { Resource } from '@quent/utils';
 
 interface ResourceRowProps {
   resource: Resource;
