@@ -18,7 +18,7 @@ function clipRectByRect(
 }
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtomValue, useStore } from 'jotai';
+import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import {
   nanosToMs,
   registerAxisPointerSync,
@@ -35,7 +35,6 @@ import { formatDurationForWindow } from '@/services/formatters';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 5;
-const Y_SLIDER_WIDTH = 16;
 /** Separate chart group so Y dataZoom on the Gantt does not sync to resource timelines. */
 const OPERATOR_GANTT_CHART_GROUP = 'operator-gantt-group';
 
@@ -84,6 +83,7 @@ export function OperatorGanttChart({
   height = DEFAULT_HEIGHT,
 }: OperatorGanttChartProps) {
   const store = useStore();
+  const setZoomRange = useSetAtom(zoomRangeAtom);
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
     useTimelineChartColors();
   const barLabelTextColor = textColor;
@@ -374,6 +374,34 @@ export function OperatorGanttChart({
   );
 
   const instanceRef = useRef<EChartsInstance | null>(null);
+  /** Prevents the atom-driven dispatchAction from triggering a redundant atom write. */
+  const selfTriggeredRef = useRef(false);
+  const durationSecondsRef = useRef(durationSeconds);
+  durationSecondsRef.current = durationSeconds;
+
+  const handleDataZoom = useMemo(
+    () => ({
+      dataZoom: () => {
+        if (selfTriggeredRef.current) {
+          selfTriggeredRef.current = false;
+          return;
+        }
+        const instance = instanceRef.current;
+        if (!instance) return;
+        const dur = durationSecondsRef.current;
+        if (dur <= 0) return;
+        const opt = instance.getOption() as { dataZoom: Array<{ start: number; end: number }> };
+        const dz = opt.dataZoom?.[0];
+        if (dz?.start !== undefined && dz?.end !== undefined) {
+          setZoomRange({
+            start: (dz.start / 100) * dur,
+            end: (dz.end / 100) * dur,
+          });
+        }
+      },
+    }),
+    [setZoomRange]
+  );
 
   const handleChartReady = useCallback(
     (instance: EChartsInstance) => {
@@ -426,6 +454,7 @@ export function OperatorGanttChart({
     if (!instance) return;
     const startPct = durationSeconds > 0 ? (zoomRange.start / durationSeconds) * 100 : 0;
     const endPct = durationSeconds > 0 ? (zoomRange.end / durationSeconds) * 100 : 100;
+    selfTriggeredRef.current = true;
     instance.dispatchAction({
       type: 'dataZoom',
       dataZoomIndex: 0,
@@ -460,6 +489,7 @@ export function OperatorGanttChart({
       option={option}
       style={{ height }}
       onChartReady={handleChartReady}
+      onEvents={handleDataZoom}
       notMerge
     />
   );

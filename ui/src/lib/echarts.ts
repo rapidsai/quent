@@ -14,7 +14,7 @@ import type { ComposeOption, EChartsType } from 'echarts/core';
 
 // Charts - only import what you use
 import { LineChart, CustomChart } from 'echarts/charts';
-import type { LineSeriesOption, CustomSeriesOption, HeatmapSeriesOption } from 'echarts/charts';
+import type { LineSeriesOption, CustomSeriesOption } from 'echarts/charts';
 
 // Components - only import what you use
 import {
