@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 
@@ -21,13 +21,15 @@ import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import {
   nanosToMs,
+  connectChart,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
-import { connect, echarts } from '@/lib/echarts';
+import { echarts } from '@/lib/echarts';
+import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
-import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
 import { TIMELINE_SPACING } from '@/components/timeline/types';
@@ -35,8 +37,6 @@ import { formatDurationForWindow } from '@/services/formatters';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 5;
-/** Separate chart group so Y dataZoom on the Gantt does not sync to resource timelines. */
-const OPERATOR_GANTT_CHART_GROUP = 'operator-gantt-group';
 
 /** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = border at ~15% opacity. */
 const DAG_OPERATION_COLORS: Record<string, { fill: string; stroke: string }> = {
@@ -83,7 +83,8 @@ export function OperatorGanttChart({
   height = DEFAULT_HEIGHT,
 }: OperatorGanttChartProps) {
   const store = useStore();
-  const setZoomRange = useSetAtom(zoomRangeAtom);
+  const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
+  const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
     useTimelineChartColors();
   const barLabelTextColor = textColor;
@@ -302,6 +303,7 @@ export function OperatorGanttChart({
           type: 'custom',
           name: 'operator-span',
           animation: false,
+          cursor: 'pointer',
           data: customSeriesData,
           renderItem: renderItem as never,
           coordinateSystem: 'cartesian2d',
@@ -366,106 +368,75 @@ export function OperatorGanttChart({
   );
 
   const instanceRef = useRef<EChartsInstance | null>(null);
-  /** Prevents the atom-driven dispatchAction from triggering a redundant atom write. */
-  const selfTriggeredRef = useRef(false);
-  const durationSecondsRef = useRef(durationSeconds);
-  durationSecondsRef.current = durationSeconds;
 
-  const handleDataZoom = useMemo(
+  const handleClick = useMemo(
     () => ({
-      dataZoom: (params: {
-        start?: number;
-        end?: number;
-        dataZoomIndex?: number;
-        batch?: Array<{ start?: number; end?: number; dataZoomIndex?: number }>;
-      }) => {
-        if (selfTriggeredRef.current) {
-          selfTriggeredRef.current = false;
-          return;
+      click: (params: { dataIndex: number; seriesName?: string }) => {
+        if (params.seriesName !== 'operator-span') return;
+        const op = operators[params.dataIndex];
+        if (!op) return;
+        if (selectedNodeIds.has(op.operatorId)) {
+          setSelectedNodeIds(new Set());
+          setSelectedOperatorLabel(null);
+        } else {
+          setSelectedNodeIds(new Set([op.operatorId]));
+          setSelectedOperatorLabel(op.label);
         }
-        // x-axis dataZooms are at indices 0, 1, 2; y-axis scroll (when present) is index 3.
-        // Skip events that only involve y-axis scroll.
-        let start: number | undefined;
-        let end: number | undefined;
-        if (params.batch) {
-          const xItem = params.batch.find(item => (item.dataZoomIndex ?? 0) <= 2);
-          start = xItem?.start;
-          end = xItem?.end;
-        } else if ((params.dataZoomIndex ?? 0) <= 2) {
-          start = params.start;
-          end = params.end;
-        }
-        if (start === undefined || end === undefined) return;
-        const dur = durationSecondsRef.current;
-        if (dur <= 0) return;
-        setZoomRange({
-          start: (start / 100) * dur,
-          end: (end / 100) * dur,
-        });
       },
     }),
-    [setZoomRange]
+    [operators, selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
   );
 
-  const handleChartReady = useCallback(
-    (instance: EChartsInstance) => {
-      instanceRef.current = instance;
-      instance.group = OPERATOR_GANTT_CHART_GROUP;
-      connect(OPERATOR_GANTT_CHART_GROUP);
-      const range = store.get(zoomRangeAtom);
-      const startPct = durationSeconds > 0 ? (range.start / durationSeconds) * 100 : 0;
-      const endPct = durationSeconds > 0 ? (range.end / durationSeconds) * 100 : 100;
-      instance.dispatchAction({
-        type: 'dataZoom',
-        dataZoomIndex: 0,
-        start: startPct,
-        end: endPct,
-      });
-      registerAxisPointerSync(instance, 0, { receiveShowTip: false });
-      const dom = instance.getDom();
-      const zr = instance.getZr();
-      zr.on('mousemove', (e: { offsetX: number }) => {
-        try {
-          const value = instance.convertFromPixel({ xAxisIndex: 0 }, e.offsetX) as number;
-          if (value != null && isFinite(value)) {
-            cursorTimestampMsRef.current = value;
-          }
-        } catch {
-          // ignore when out of range
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    instanceRef.current = instance;
+    // Join timeline-sync-group for frame-rate-level x-axis zoom sync via ECharts connect().
+    // The y-axis dataZoom (index 3, when present) has a unique component ID and does not
+    // propagate to resource timelines that have no matching component.
+    connectChart(instance, CHART_GROUP, false);
+    registerAxisPointerSync(instance, 0, { receiveShowTip: false });
+    const dom = instance.getDom();
+    const zr = instance.getZr();
+    zr.on('mousemove', (e: { offsetX: number }) => {
+      try {
+        const value = instance.convertFromPixel({ xAxisIndex: 0 }, e.offsetX) as number;
+        if (value != null && isFinite(value)) {
+          cursorTimestampMsRef.current = value;
         }
-      });
-      zr.on('globalout', () => {
-        cursorTimestampMsRef.current = 0;
-      });
-      dom.addEventListener('pointerdown', () => {
-        instance.dispatchAction({ type: 'hideTip' });
-      });
-      dom.addEventListener(
-        'wheel',
-        (e: WheelEvent) => {
-          if (!e.shiftKey) e.preventDefault();
-        },
-        { capture: true, passive: false }
-      );
-    },
-    [store, durationSeconds]
-  );
+      } catch {
+        // ignore when out of range
+      }
+    });
+    zr.on('globalout', () => {
+      cursorTimestampMsRef.current = 0;
+    });
+    dom.addEventListener('pointerdown', () => {
+      instance.dispatchAction({ type: 'hideTip' });
+    });
+    dom.addEventListener(
+      'wheel',
+      (e: WheelEvent) => {
+        if (!e.shiftKey) e.preventDefault();
+      },
+      { capture: true, passive: false }
+    );
+  }, []);
 
-  // Re-apply current zoom whenever zoom range changes OR when chart data changes (e.g. plan
-  // change) so that ECharts option replacement does not leave the chart at full bounds.
-  useEffect(() => {
+  // After a notMerge chart rebuild (operators change or selection change both cause one),
+  // re-apply the current zoom synchronously — useLayoutEffect runs in the same browser frame
+  // as ReactECharts' componentDidUpdate so there is no visible zoom-reset flash.
+  useLayoutEffect(() => {
     const instance = instanceRef.current;
     if (!instance) return;
-    const startPct = durationSeconds > 0 ? (zoomRange.start / durationSeconds) * 100 : 0;
-    const endPct = durationSeconds > 0 ? (zoomRange.end / durationSeconds) * 100 : 100;
-    selfTriggeredRef.current = true;
+    const range = store.get(zoomRangeAtom);
+    const dur = durationSeconds;
+    if (dur <= 0) return;
     instance.dispatchAction({
       type: 'dataZoom',
       dataZoomIndex: 0,
-      start: startPct,
-      end: endPct,
+      start: (range.start / dur) * 100,
+      end: (range.end / dur) * 100,
     });
-  }, [zoomRange.start, zoomRange.end, durationSeconds, operators]);
+  }, [operators, selectedNodeIds, store, durationSeconds]);
 
   useEffect(() => {
     return () => {
@@ -493,7 +464,7 @@ export function OperatorGanttChart({
       option={option}
       style={{ height }}
       onChartReady={handleChartReady}
-      onEvents={handleDataZoom}
+      onEvents={handleClick}
       notMerge
     />
   );
