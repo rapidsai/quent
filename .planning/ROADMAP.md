@@ -44,7 +44,11 @@ Plans:
   2. All Rust-generated TypeScript types are accessible via `@quent/utils`; the `~quent/types` path alias is removed from `vite.config.ts` and `tsconfig.json`
   3. Color and formatter utilities callable from `@quent/utils` with JSDoc visible in editor hover
   4. `pnpm dev` still starts and the app renders correctly after imports are migrated to `@quent/utils`
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Populate @quent/utils package with source files, types barrel, and dependencies
+- [ ] 02-02-PLAN.md — Migrate all app imports to @quent/utils, remove aliases, delete old source files
 
 ### Phase 3: Extract @quent/client and @quent/hooks
 **Goal**: All API fetch functions and `queryOptions` factories live in `@quent/client`; all Jotai atoms are hidden inside `@quent/hooks` with only named hooks exported; no raw atom access exists outside `@quent/hooks`
@@ -79,6 +83,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Workspace Scaffold | 2/2 | Complete   | 2026-04-01 |
-| 2. Extract @quent/utils | 0/? | Not started | - |
+| 2. Extract @quent/utils | 0/2 | Planning complete | - |
 | 3. Extract @quent/client and @quent/hooks | 0/? | Not started | - |
 | 4. Extract @quent/components and Migrate App Shell | 0/? | Not started | - |
