@@ -71,6 +71,7 @@ documented in its own file with context and rationale.
 **Implementation:**
 
 - [Implementation order](./decisions/implementation-order.md)
+- [Remaining work](./decisions/remaining-work.md)
 
 ## Model definition in Rust
 
