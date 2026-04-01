@@ -29,8 +29,12 @@ const TooltipSeriesStat = ({
       {series.color && (
         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
       )}
-      <DataText as="span" className="text-foreground">{series.name}</DataText>
-      <DataText as="span" className="font-semibold ml-auto text-foreground">{fmt(series.value ?? 0)}</DataText>
+      <DataText as="span" className="text-foreground">
+        {series.name}
+      </DataText>
+      <DataText as="span" className="font-semibold ml-auto text-foreground">
+        {fmt(series.value ?? 0)}
+      </DataText>
     </li>
   );
 };
@@ -75,7 +79,9 @@ function SegmentedBarRow({
 }) {
   return (
     <>
-      <DataText as="span" className={cn('text-foreground font-medium truncate', labelClassName)}>{label}</DataText>
+      <DataText as="span" className={cn('text-foreground font-medium truncate', labelClassName)}>
+        {label}
+      </DataText>
       <div className="relative text-[11px] leading-none min-w-0" style={{ height: 12 }}>
         <div className="flex h-full rounded-xs overflow-hidden">
           {segments.map((seg, i) => {
@@ -100,13 +106,16 @@ function SegmentedBarRow({
                 )}
                 title={seg.label}
               >
-                {pct >= 25 ? seg.label : ''}
+                <DataText>{pct >= 25 ? seg.label : ''}</DataText>
               </div>
             );
           })}
         </div>
       </div>
-      <DataText as="span" className={cn('text-foreground font-semibold text-[11px] text-right', valueClassName)}>
+      <DataText
+        as="span"
+        className={cn('text-foreground font-semibold text-[11px] text-right', valueClassName)}
+      >
         {fmt(total)}
       </DataText>
     </>
@@ -167,8 +176,12 @@ function ActiveMarksSection({
               borderColor: m.color + 'cc',
             }}
           />
-          <DataText as="span" className="text-muted-foreground">{m.label}</DataText>
-          <DataText as="span" className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
+          <DataText as="span" className="text-muted-foreground">
+            {m.label}
+          </DataText>
+          <DataText as="span" className="text-foreground font-medium ml-auto">
+            {m.stateName}
+          </DataText>
         </div>
       ))}
     </div>

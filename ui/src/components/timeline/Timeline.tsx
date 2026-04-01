@@ -188,6 +188,7 @@ export function Timeline({
           margin: 8,
           fontSize: 10,
           color: timelineMarkupColor,
+          fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
           formatter: yAxisFormatter,
         },
       },

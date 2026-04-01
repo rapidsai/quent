@@ -41,7 +41,7 @@ export const OperatorStatisticsPopup = ({
                 <div key={key} className="text-xs mt-1">
                   {Array.isArray(value) ? (
                     <div className="flex items-center justify-between gap-0.5">
-                      <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+                      <DataText as="span" className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                       <div className="ml-2 flex flex-col gap-0.5">
                         {value.map((item, i) => (
                           <DataText
@@ -55,7 +55,7 @@ export const OperatorStatisticsPopup = ({
                     </div>
                   ) : (
                     <div className="flex items-center justify-between">
-                      <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+                      <DataText as="span" className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                       <DataText className="text-muted-foreground ml-1">{String(value)}</DataText>
                     </div>
                   )}
