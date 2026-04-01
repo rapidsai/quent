@@ -8,6 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@quent/client':
+        specifier: workspace:*
+        version: link:packages/@quent/client
+      '@quent/components':
+        specifier: workspace:*
+        version: link:packages/@quent/components
+      '@quent/hooks':
+        specifier: workspace:*
+        version: link:packages/@quent/hooks
+      '@quent/utils':
+        specifier: workspace:*
+        version: link:packages/@quent/utils
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.12(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -153,6 +165,9 @@ importers:
       tailwindcss-animate:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@4.2.1)
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

@@ -60,6 +60,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    dedupe: ['react', 'react-dom', 'jotai', '@tanstack/react-query', '@tanstack/react-router'],
     alias: {
       '@': path.resolve(__dirname, './src'),
       // TODO: Using ts bindings from quent for now this will need to change
@@ -69,7 +70,13 @@ export default defineConfig({
       elkjs: 'elkjs/lib/elk.bundled.js',
     },
   },
+  optimizeDeps: {
+    include: ['@quent/components', '@quent/hooks', '@quent/client', '@quent/utils'],
+  },
   server: {
+    watch: {
+      followSymlinks: true,
+    },
     proxy: {
       '/api': {
         target: API_TARGET,
