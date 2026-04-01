@@ -512,7 +512,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         // --- HasEventType ---
         impl quent_model::HasEventType for #name {
-            type Event = #event_type;
+            type Event = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
         }
 
         // --- Resource marker ---

@@ -30,6 +30,7 @@ use quent_query_engine_analyzer::{
     query_group::QueryGroup,
     worker::Worker,
 };
+use quent_query_engine_model::QueryEngineEvent;
 use quent_simulator_events::SimulatorEvent;
 use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
@@ -260,8 +261,26 @@ impl SimulatorModelBuilder {
                 task_builder.push(Event::new(id, timestamp, t));
                 Ok(())
             }
-            SimulatorEvent::QueryEngineEvent(qe) => {
-                self.query_engine.try_push(Event::new(id, timestamp, qe))
+            SimulatorEvent::Engine(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::Engine(e)))
+            }
+            SimulatorEvent::Worker(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::Worker(e)))
+            }
+            SimulatorEvent::QueryGroup(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::QueryGroup(e)))
+            }
+            SimulatorEvent::Query(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::Query(e)))
+            }
+            SimulatorEvent::Plan(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::Plan(e)))
+            }
+            SimulatorEvent::Operator(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::Operator(e)))
+            }
+            SimulatorEvent::Port(e) => {
+                self.query_engine.try_push(Event::new(id, timestamp, QueryEngineEvent::Port(e)))
             }
             SimulatorEvent::Memory(m) => {
                 self.push_memory(id, timestamp, m)

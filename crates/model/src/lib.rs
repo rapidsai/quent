@@ -90,43 +90,8 @@ pub use quent_exporter::ExporterOptions;
 pub use quent_instrumentation::{Context, EventSender};
 pub use quent_time::timestamp;
 
-/// Generates a model type alias and a top-level event enum from a list of
-/// model components.
-///
-/// ```ignore
-/// quent_model::define_model! {
-///     pub QueryEngineModel(QueryEngineEvent) {
-///         Query: query::Query,
-///         Engine: engine::Engine,
-///         Worker: worker::Worker,
-///     }
-/// }
-/// ```
-///
-/// Generates:
-/// - `pub type QueryEngineModel = Model<(query::Query, engine::Engine, worker::Worker)>;`
-/// - `pub enum QueryEngineEvent { Query(QueryEvent), Engine(EngineEvent), ... }`
-/// - `From` impls for each component's event type into the top-level enum
-#[macro_export]
-macro_rules! define_model {
-    //
-    ($vis:vis $model_name:ident($event_name:ident) { $($variant:ident : $path:path),* $(,)? }) => {
-        $vis type $model_name = $crate::Model<($($path,)*)>;
-
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
-        $vis enum $event_name {
-            $($variant(<$path as $crate::HasEventType>::Event),)*
-        }
-
-        $(
-            impl From<<$path as $crate::HasEventType>::Event> for $event_name {
-                fn from(e: <$path as $crate::HasEventType>::Event) -> Self {
-                    $event_name::$variant(e)
-                }
-            }
-        )*
-    };
-}
+// define_model! is a proc macro — see quent_model_macros::define_model
+pub use quent_model_macros::define_model;
 
 /// Generates an instrumentation context for a given event type.
 ///

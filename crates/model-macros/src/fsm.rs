@@ -578,7 +578,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         // --- HasEventType impl ---
         impl quent_model::HasEventType for #fsm_name {
-            type Event = #event_type;
+            type Event = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
         }
 
         // --- ResourceGroup trait impl (if applicable) ---

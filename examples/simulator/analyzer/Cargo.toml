@@ -9,6 +9,7 @@ quent-attributes = { path = "../../../crates/attributes" }
 quent-events = { path = "../../../crates/events" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
 quent-query-engine-events = { path = "../../../domains/query_engine/events" }
+quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-model = { path = "../../../crates/model" }
 quent-simulator-events = { path = "../events" }

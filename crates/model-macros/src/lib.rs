@@ -31,6 +31,7 @@
 
 use proc_macro::TokenStream;
 
+mod define_model;
 mod entity;
 mod fsm;
 mod resource_derive;
@@ -132,6 +133,27 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
 pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     resource_derive::expand_resizable_resource(input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Generates a model type alias and event enum from a list of components.
+///
+/// ```ignore
+/// define_model! {
+///     Simulator {
+///         quent_query_engine_model::Engine,
+///         task::Task,
+///         quent_stdlib::Memory,
+///     }
+/// }
+/// ```
+///
+/// Generates `SimulatorModel` (type alias) and `SimulatorEvent` (event enum).
+/// Variant names are derived from the last path segment.
+#[proc_macro]
+pub fn define_model(input: TokenStream) -> TokenStream {
+    define_model::expand(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

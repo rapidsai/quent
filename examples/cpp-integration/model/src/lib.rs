@@ -73,9 +73,9 @@ pub struct Task {
 // --- Model ---
 
 quent_model::define_model! {
-    pub ExampleModel(ExampleEvent) {
-        Job: Job,
-        ThreadPool: ThreadPool,
-        Task: Task,
+    Example {
+        Job,
+        ThreadPool,
+        Task,
     }
 }

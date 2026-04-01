@@ -1750,6 +1750,7 @@ dependencies = [
  "quent-model",
  "quent-query-engine-analyzer",
  "quent-query-engine-events",
+ "quent-query-engine-model",
  "quent-query-engine-ui",
  "quent-simulator-events",
  "quent-simulator-model",
