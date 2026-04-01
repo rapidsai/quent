@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Converts NVTX C types to Quent NvtxEvent types.
+//! Converts NVTX C types to NvtxEvent types.
 
 #![allow(unsafe_op_in_unsafe_fn)]
+
+#[cfg(target_os = "windows")]
+compile_error!("wchar_t handling assumes 4-byte UTF-32 (Linux/macOS); Windows 2-byte UTF-16 is not yet supported");
 
 use std::ffi::{CStr, c_void};
 
@@ -99,7 +102,7 @@ unsafe fn convert_message(
             if ptr.is_null() {
                 return None;
             }
-            Some(NvtxMessage::Ascii(
+            Some(NvtxMessage::String(
                 CStr::from_ptr(ptr).to_string_lossy().into_owned(),
             ))
         }
@@ -108,7 +111,7 @@ unsafe fn convert_message(
             if ptr.is_null() {
                 return None;
             }
-            Some(NvtxMessage::Ascii(wchar_to_string(ptr)))
+            Some(NvtxMessage::String(wchar_to_string(ptr)))
         }
         NVTX_MESSAGE_TYPE_REGISTERED => {
             let handle = msg.registered;
@@ -122,7 +125,8 @@ unsafe fn convert_message(
 }
 
 /// Convert a null-terminated wchar_t string to a Rust String.
-/// On Linux and macOS, wchar_t is 4 bytes (UTF-32).
+/// Assumes wchar_t is 4 bytes (UTF-32), which holds on Linux and macOS.
+#[cfg(not(target_os = "windows"))]
 unsafe fn wchar_to_string(ptr: *const i32) -> String {
     let mut len = 0;
     while *ptr.add(len) != 0 {
@@ -144,7 +148,7 @@ pub(crate) unsafe fn attributes_from_ascii(msg: *const i8) -> Option<NvtxAttribu
         category_id: 0,
         color: None,
         payload: None,
-        message: Some(NvtxMessage::Ascii(
+        message: Some(NvtxMessage::String(
             CStr::from_ptr(msg).to_string_lossy().into_owned(),
         )),
     })
@@ -159,18 +163,8 @@ pub(crate) unsafe fn attributes_from_wchar(msg: *const i32) -> Option<NvtxAttrib
         category_id: 0,
         color: None,
         payload: None,
-        message: Some(NvtxMessage::Ascii(wchar_to_string(msg))),
+        message: Some(NvtxMessage::String(wchar_to_string(msg))),
     })
-}
-
-/// Extract the u64 ID from an opaque handle pointer allocated by us.
-/// Returns 0 for null handles.
-pub(crate) unsafe fn handle_to_id(handle: *mut c_void) -> u64 {
-    if handle.is_null() {
-        0
-    } else {
-        *(handle as *const u64)
-    }
 }
 
 /// Extract domain handle ID. Returns `None` for the default domain (null).

@@ -282,7 +282,7 @@ pub(crate) unsafe extern "C" fn cb_domain_resource_create(
 ) -> *mut c_void {
     let (handle_ptr, resource_id) = alloc_handle();
     emit(NvtxEvent::ResourceCreate(ResourceCreate {
-        domain_handle_id: convert::handle_to_id(domain),
+        domain_handle_id: convert::domain_handle_id(domain),
         resource_handle_id: resource_id,
         attributes: convert::convert_resource_attributes(attr),
     }));
@@ -333,7 +333,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_a(
 ) -> *mut c_void {
     let (handle_ptr, string_id) = alloc_handle();
     emit(NvtxEvent::RegisterString(RegisterString {
-        domain_handle_id: convert::handle_to_id(domain),
+        domain_handle_id: convert::domain_handle_id(domain),
         string_handle_id: string_id,
         value: convert::cstr_to_string(string),
     }));
@@ -347,7 +347,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_w(
 ) -> *mut c_void {
     let (handle_ptr, string_id) = alloc_handle();
     emit(NvtxEvent::RegisterString(RegisterString {
-        domain_handle_id: convert::handle_to_id(domain),
+        domain_handle_id: convert::domain_handle_id(domain),
         string_handle_id: string_id,
         value: convert::wstr_to_string(string),
     }));
@@ -358,7 +358,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_w(
 pub(crate) unsafe extern "C" fn cb_domain_create_a(name: *const i8) -> *mut c_void {
     let (handle_ptr, domain_id) = alloc_handle();
     emit(NvtxEvent::DomainCreate(DomainCreate {
-        domain_handle_id: domain_id,
+        domain_handle_id: Some(domain_id),
         name: convert::cstr_to_string(name),
     }));
     handle_ptr
@@ -368,7 +368,7 @@ pub(crate) unsafe extern "C" fn cb_domain_create_a(name: *const i8) -> *mut c_vo
 pub(crate) unsafe extern "C" fn cb_domain_create_w(name: *const i32) -> *mut c_void {
     let (handle_ptr, domain_id) = alloc_handle();
     emit(NvtxEvent::DomainCreate(DomainCreate {
-        domain_handle_id: domain_id,
+        domain_handle_id: Some(domain_id),
         name: convert::wstr_to_string(name),
     }));
     handle_ptr
@@ -379,7 +379,7 @@ pub(crate) unsafe extern "C" fn cb_domain_destroy(domain: *mut c_void) {
     if !domain.is_null() {
         let id = *(domain as *const u64);
         emit(NvtxEvent::DomainDestroy(DomainDestroy {
-            domain_handle_id: id,
+            domain_handle_id: Some(id),
         }));
         free_handle(domain);
     }

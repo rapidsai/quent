@@ -21,12 +21,14 @@ enum SimulatorEvent {
 ## install() trait bound
 
 ```rust
-pub fn install<T>(sender: EventSender<T>)
+pub fn install<T>(sender: EventSender<T>, session_id: Uuid)
 where
-    T: From<NvtxEvent> + Send + Serialize + Debug + 'static
+    T: From<NvtxEvent> + Serialize + Send + Debug + 'static
 ```
 
-Internally, the injection wraps the sender to convert `NvtxEvent` into `T`
+Internally, the Quent wrapper (`quent-nvtx`) calls
+`quent_nvtx_injection::install_hook` with a closure that wraps the sender
+to convert `NvtxEvent` into `T`
 via `From` before sending. This follows the existing pattern — all domain
 event types in Quent are wrapped as variants in a top-level enum.
 

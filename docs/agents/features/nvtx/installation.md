@@ -7,7 +7,7 @@ installs the injection by passing its own `EventSender`.
 
 ```rust
 let context = Context::try_new(exporter, engine_id)?;
-quent_nvtx::install(context.events_sender());
+quent_nvtx::install(context.events_sender(), engine_id);
 // all subsequent NVTX calls are captured into the same event stream
 ```
 

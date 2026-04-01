@@ -6,9 +6,10 @@ Unresolved design decisions for the NVTX injection library.
 
 See [injection-architecture.md](./injection-architecture.md).
 
-Rust `cdylib`, stateless forwarder. No thread-local state, no lookup
-tables. Opaque handles are boxed integer IDs. All interpretation happens
-in the analyzer.
+Rust static library, stateless forwarder. Strong symbol provided by a
+compiled C file (`c/symbol.c`) linked with `-force_load`/`--whole-archive`.
+No thread-local state, no lookup tables. Opaque handles are boxed integer
+IDs. All interpretation happens in the analyzer.
 
 ## ~~2. Event transport~~ → RESOLVED
 

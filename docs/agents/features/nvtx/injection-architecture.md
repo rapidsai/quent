@@ -66,9 +66,12 @@ All of these are reconstructed by the analyzer from the event stream.
 
 Every NVTX API call becomes one event. The injection captures:
 
-- **Timestamp**: `TimeUnixNanoSec::now()` on the Rust side
 - **Thread ID**: `gettid()` on the Rust side
 - **The NVTX call's arguments** (verbatim)
+
+Timestamps are not captured by the injection itself. They are added by
+the `Event<T>` wrapper when the Quent instrumentation layer
+(`quent_nvtx::install`) calls `Event::new_now()`.
 
 ### Core module events
 

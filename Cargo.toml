@@ -28,7 +28,7 @@ members = [
     # Integration crates
     "integrations/nvtx/analyzer",
     "integrations/nvtx/injection",
-    "integrations/nvtx/injection/events",
+    "integrations/nvtx/events",
     "integrations/nvtx/instrumentation",
     # Simulator crates
     "examples/simulator/analyzer",

@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A payload schema registration event.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SchemaRegister {
     pub domain_handle_id: Option<u64>,
     pub schema_id: u64,
@@ -18,7 +18,7 @@ pub struct SchemaRegister {
 }
 
 /// A payload enum registration event.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct EnumRegister {
     pub domain_handle_id: Option<u64>,
     pub schema_id: u64,
@@ -26,7 +26,7 @@ pub struct EnumRegister {
 }
 
 /// A push event with payload extension data.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct PushPayload {
     pub thread_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -34,7 +34,7 @@ pub struct PushPayload {
 }
 
 /// A pop event with payload extension data.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct PopPayload {
     pub thread_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -42,7 +42,7 @@ pub struct PopPayload {
 }
 
 /// A range-start event with payload extension data.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RangeStartPayload {
     pub range_handle_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -50,7 +50,7 @@ pub struct RangeStartPayload {
 }
 
 /// A range-end event with payload extension data.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RangeEndPayload {
     pub range_handle_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -58,7 +58,7 @@ pub struct RangeEndPayload {
 }
 
 /// A mark event with payload extension data.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct MarkPayload {
     pub thread_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -70,7 +70,7 @@ pub struct MarkPayload {
 /// The injection captures the raw bytes without interpretation. The
 /// analyzer uses the schema registry (from prior `SchemaRegister` events)
 /// to decode the bytes.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RawPayloadData {
     pub schema_id: u64,
     pub data: Vec<u8>,
@@ -81,13 +81,13 @@ pub struct RawPayloadData {
 ///
 /// Stored as raw bytes at the event layer. The analyzer (Phase 4) will
 /// define structured schema parsing.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RawPayloadSchema {
     pub data: Vec<u8>,
 }
 
 /// A raw payload enum entry, captured from `nvtxPayloadEnumRegister`.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RawPayloadEnum {
     pub name: String,
     pub value: u64,

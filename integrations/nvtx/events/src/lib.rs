@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 /// no interpretation — all fields are the verbatim arguments from the
 /// original call. The analyzer reconstructs traces, FSMs, and handle
 /// mappings from the event stream.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum NvtxEvent {
     // Push/Pop ranges (thread-scoped, stack-based)
     Push(Push),
@@ -53,7 +53,7 @@ pub enum NvtxEvent {
     ResourceCreate(ResourceCreate),
     ResourceDestroy(ResourceDestroy),
 
-    // Payload extension
+    // Payload extension (not yet emitted by the injection — Phase 5)
     SchemaRegister(SchemaRegister),
     EnumRegister(EnumRegister),
     PushPayload(PushPayload),
@@ -65,14 +65,14 @@ pub enum NvtxEvent {
 
 // --- Core push/pop ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Push {
     pub thread_id: u64,
     pub domain_handle_id: Option<u64>,
     pub attributes: Option<NvtxAttributes>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Pop {
     pub thread_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -80,14 +80,14 @@ pub struct Pop {
 
 // --- Start/End ranges ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RangeStart {
     pub range_handle_id: u64,
     pub domain_handle_id: Option<u64>,
     pub attributes: Option<NvtxAttributes>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RangeEnd {
     pub range_handle_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -95,7 +95,7 @@ pub struct RangeEnd {
 
 // --- Marks ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Mark {
     pub thread_id: u64,
     pub domain_handle_id: Option<u64>,
@@ -104,29 +104,29 @@ pub struct Mark {
 
 // --- Domains ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct DomainCreate {
-    pub domain_handle_id: u64,
+    pub domain_handle_id: Option<u64>,
     pub name: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct DomainDestroy {
-    pub domain_handle_id: u64,
+    pub domain_handle_id: Option<u64>,
 }
 
 // --- Registered strings ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RegisterString {
-    pub domain_handle_id: u64,
+    pub domain_handle_id: Option<u64>,
     pub string_handle_id: u64,
     pub value: String,
 }
 
 // --- Categories ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NameCategory {
     pub domain_handle_id: Option<u64>,
     pub category_id: u32,
@@ -135,7 +135,7 @@ pub struct NameCategory {
 
 // --- Thread naming ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NameThread {
     pub os_thread_id: u32,
     pub name: String,
@@ -143,14 +143,14 @@ pub struct NameThread {
 
 // --- Resources ---
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ResourceCreate {
-    pub domain_handle_id: u64,
+    pub domain_handle_id: Option<u64>,
     pub resource_handle_id: u64,
     pub attributes: NvtxResourceAttributes,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ResourceDestroy {
     pub resource_handle_id: u64,
 }
@@ -160,7 +160,7 @@ pub struct ResourceDestroy {
 /// Contains an identifier (which may be a pointer, integer, or OS handle)
 /// and a message. The identifier is captured as a raw u64; the analyzer
 /// decides how to interpret it.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NvtxResourceAttributes {
     pub identifier: u64,
     pub message: Option<NvtxMessage>,

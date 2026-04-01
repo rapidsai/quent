@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Attributes from `nvtxEventAttributes_t`.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NvtxAttributes {
     /// User-defined category ID (0 = no category).
     pub category_id: u32,
@@ -21,7 +21,7 @@ pub struct NvtxAttributes {
 }
 
 /// A typed payload from `nvtxEventAttributes_t`.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum NvtxPayload {
     U64(u64),
     I64(i64),
@@ -33,10 +33,10 @@ pub enum NvtxPayload {
 
 /// An event message, either an inline string or a reference to a
 /// previously registered string handle.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum NvtxMessage {
-    /// An ASCII (or converted wchar_t) string.
-    Ascii(String),
+    /// An inline string (from ASCII or converted wchar_t).
+    String(String),
     /// A reference to a registered string handle. The analyzer resolves
     /// this using prior `RegisterString` events.
     RegisteredHandle(u64),

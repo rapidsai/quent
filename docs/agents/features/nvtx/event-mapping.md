@@ -12,7 +12,7 @@
 | Message | Span name (push/pop) or FSM instance name (start/end) | |
 | Color | Attribute (`nvtx.color`, ARGB u32) | |
 | Payload | Attribute (`nvtx.payload`, typed) | Preserves original type (u64, i64, f64, u32, i32, f32). |
-| Registered string | Resolved at capture time | Transparent to Quent — the injection resolves handles to plain strings before emitting events. |
+| Registered string | Forwarded as raw handle ID | The injection emits `RegisterString` events with the handle ID and value. Subsequent events reference the raw handle ID; the analyzer resolves it. |
 | Domain resource (create/destroy) | TBD | NVTX resource naming — may map to an attribute or entity. Not yet decided. |
 | OS thread naming | Attribute on the thread's Trace entity | |
 

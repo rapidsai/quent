@@ -27,7 +27,10 @@ mod bindings {
 mod callbacks;
 mod convert;
 mod init;
-mod symbol;
+
+// The strong `InitializeInjectionNvtx2_fnptr` symbol is provided by
+// `c/symbol.c`, compiled via `cc` in `build.rs`. It delegates to
+// `quent_nvtx_initialize_injection` defined in `init.rs`.
 
 use std::sync::OnceLock;
 

@@ -6,7 +6,7 @@ publish.workspace = true
 
 [dependencies]
 quent-nvtx-injection = { path = "../injection" }
-quent-nvtx-events = { path = "../injection/events" }
+quent-nvtx-events = { path = "../events" }
 quent-events = { path = "../../../crates/events" }
 quent-instrumentation = { path = "../../../crates/instrumentation" }
 serde.workspace = true

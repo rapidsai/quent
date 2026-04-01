@@ -5,11 +5,11 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-quent-nvtx-events = { path = "events" }
+quent-nvtx-events = { path = "../events" }
 libc = "0.2"
 
 [build-dependencies]
-bindgen = "0.71"
+bindgen = "0.72"
 cc = "1.2"
 
 [dev-dependencies]
