@@ -663,8 +663,6 @@ impl Worker {
                     resource_id: Ref::new(self.mem_to_fs),
                     capacity: quent_stdlib::ChannelOperating {
                         capacity_bytes: Some(num_bytes),
-                        source_id: Uuid::nil(),
-                        target_id: Uuid::nil(),
                     },
                 },
             });
@@ -682,8 +680,6 @@ impl Worker {
                     resource_id: Ref::new(self.fs_to_mem),
                     capacity: quent_stdlib::ChannelOperating {
                         capacity_bytes: Some(num_bytes),
-                        source_id: Uuid::nil(),
-                        target_id: Uuid::nil(),
                     },
                 },
                 use_memory: Usage {
@@ -722,8 +718,6 @@ impl Worker {
                         resource_id: Ref::new(link),
                         capacity: quent_stdlib::ChannelOperating {
                             capacity_bytes: Some(num_bytes),
-                            source_id: Uuid::nil(),
-                            target_id: Uuid::nil(),
                         },
                     },
                 });

@@ -114,8 +114,6 @@ fn usage_with_stdlib_channel() {
         resource_id: Ref::new(Uuid::nil()),
         capacity: quent_stdlib::ChannelOperating {
             capacity_bytes: Some(4096),
-            source_id: Uuid::nil(),
-            target_id: Uuid::nil(),
         },
     };
 }
@@ -235,8 +233,6 @@ fn fsm_event_serde_roundtrip() {
                 resource_id: Ref::new(Uuid::nil()),
                 capacity: quent_stdlib::ChannelOperating {
                     capacity_bytes: Some(1024),
-                    source_id: Uuid::nil(),
-                    target_id: Uuid::nil(),
                 },
             },
         }),

@@ -33,6 +33,7 @@ use proc_macro::TokenStream;
 
 mod entity;
 mod fsm;
+mod resource_derive;
 mod resource_group;
 mod state;
 mod util;
@@ -101,6 +102,36 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 pub fn derive_resource_group(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     resource_group::expand_derive(input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Derive macro for fixed-bounds resource definitions.
+///
+/// Generates the full resource FSM (Initializing → Operating → Finalizing → exit),
+/// state structs, handle, event types, and Resource trait impl.
+///
+/// Field-level attributes:
+/// - `#[capacity]` — marks a field as a capacity value (goes on Operating state)
+///
+/// Non-capacity fields go on the generated Initializing state alongside
+/// standard metadata fields (instance_name, parent_group_id, resource_type_name).
+/// Unit structs produce a unit resource with no capacity.
+#[proc_macro_derive(Resource, attributes(capacity))]
+pub fn derive_resource(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    resource_derive::expand_resource(input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Derive macro for resizable resource definitions.
+///
+/// Same as `Resource` but adds a Resizing state and the operating ↔ resizing cycle.
+#[proc_macro_derive(ResizableResource, attributes(capacity))]
+pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    resource_derive::expand_resizable_resource(input)
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

@@ -112,8 +112,6 @@ fn task_transition_types() {
             resource_id: Ref::new(Uuid::nil()),
             capacity: quent_stdlib::ChannelOperating {
                 capacity_bytes: Some(1024),
-                source_id: Uuid::nil(),
-                target_id: Uuid::nil(),
             },
         },
         use_memory: Usage {
@@ -148,8 +146,6 @@ fn task_transition_types() {
             resource_id: Ref::new(Uuid::nil()),
             capacity: quent_stdlib::ChannelOperating {
                 capacity_bytes: None,
-                source_id: Uuid::nil(),
-                target_id: Uuid::nil(),
             },
         },
     });
