@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { EntityRefKey } from '@/types';
-import { QueryEntities } from '~quent/types/QueryEntities';
-import { Operator } from '~quent/types/Operator';
+import { QueryEntities, Operator } from '@quent/utils';
 import { StatValue } from '@/services/query-plan/types';
 
 // Maps entity ref string to a key in the entities object.

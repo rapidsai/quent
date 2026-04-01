@@ -7,8 +7,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
-import { withOpacity } from '@/services/colors';
-import { formatDuration } from '@/services/formatters';
+import { withOpacity, formatDuration } from '@quent/utils';
 import {
   buildBinnedTimelineSeries,
   connectChart,
@@ -19,7 +18,7 @@ import {
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
+import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 

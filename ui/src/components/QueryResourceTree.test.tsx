@@ -8,9 +8,7 @@ import { Provider as JotaiProvider, createStore } from 'jotai';
 import { QueryResourceTree } from './QueryResourceTree';
 import { applyBulkTimelineResponse } from '@/hooks/useBulkTimelineFetch';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
+import type { SingleTimelineResponse, QueryBundle, EntityRef } from '@quent/utils';
 
 // ---------------------------------------------------------------------------
 // Mock heavy/visual dependencies so tests run without a real browser/canvas

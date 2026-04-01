@@ -26,13 +26,8 @@ import {
 } from '@/lib/timeline.utils';
 import { TimelineSeries, TimelineMark } from './types';
 import { EntityTypeKey } from '@/types';
-import { WHITE, withOpacity } from '@/services/colors';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
-import type { QueryFilter } from '~quent/types/QueryFilter';
-import type { TaskFilter } from '~quent/types/TaskFilter';
-import type { CapacityDecl } from '~quent/types/CapacityDecl';
-import type { QuantitySpec } from '~quent/types/QuantitySpec';
+import { WHITE, withOpacity } from '@quent/utils';
+import type { SingleTimelineResponse, SingleTimelineRequest, QueryFilter, TaskFilter, CapacityDecl, QuantitySpec } from '@quent/utils';
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
 type ResourceTimelineProps = {

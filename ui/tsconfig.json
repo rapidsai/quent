@@ -25,15 +25,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "~quent/types/*": ["../examples/simulator/server/ts-bindings/*"],
     },
   },
-  "include": ["src", "../examples/simulator/server/ts-bindings"],
-  "references": [
-    { "path": "./tsconfig.node.json" },
-    { "path": "./packages/@quent/utils" },
-    { "path": "./packages/@quent/client" },
-    { "path": "./packages/@quent/hooks" },
-    { "path": "./packages/@quent/components" }
-  ],
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }],
 }

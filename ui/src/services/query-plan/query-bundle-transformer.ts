@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
-import { Operator } from '~quent/types/Operator';
-import { Port } from '~quent/types/Port';
-import { Plan } from '~quent/types/Plan';
-import { PlanTree } from '~quent/types/PlanTree';
+import type { QueryBundle, EntityRef } from '@quent/utils';
+import { Operator, Port, Plan, PlanTree } from '@quent/utils';
 
 interface PlanTreeNode extends PlanTree {
   query?: string | null;

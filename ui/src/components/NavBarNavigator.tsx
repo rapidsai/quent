@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { cn } from '@quent/utils';
 import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
 import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@/services/api';
 
