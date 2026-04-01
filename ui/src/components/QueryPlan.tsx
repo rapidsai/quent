@@ -83,18 +83,28 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         onMouseLeave={() => setHoveredWorkerId(null)}
       >
         {singleQueryPlan ? (
-          <span className="text-xs">Query: <DataText>{item.queryId}</DataText></span>
+          <span className="text-xs">
+            Query: <DataText>{item.queryId}</DataText>
+          </span>
         ) : (
           <span className="text-xs">
             <span className="capitalize">{item.planType}</span>
-            {!hasChildren && <span>: <DataText>{item.id}</DataText></span>}
+            {!hasChildren && (
+              <span>
+                : <DataText>{item.id}</DataText>
+              </span>
+            )}
           </span>
         )}
         {item.workerId && (
-          <span className="text-xs text-muted-foreground">Worker: <DataText>{item.workerId}</DataText></span>
+          <span className="text-xs text-muted-foreground">
+            Worker: <DataText>{item.workerId}</DataText>
+          </span>
         )}
         {hasChildren && (
-          <span className="text-xs text-muted-foreground capitalize text-left">ID: <DataText>{item.id}</DataText></span>
+          <span className="text-xs text-muted-foreground capitalize text-left">
+            ID: <DataText>{item.id}</DataText>
+          </span>
         )}
       </div>
     );
