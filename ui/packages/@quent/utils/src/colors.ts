@@ -298,23 +298,23 @@ export const WHITE = '#ffffff';
  * @returns A CSS color string (Tailwind color name mapped to its standard hex value)
  */
 const OPERATION_TYPE_COLORS: Record<string, string> = {
-  source: '#3b82f6',       // blue-500
-  scan: '#3b82f6',         // blue-500
+  source: '#3b82f6', // blue-500
+  scan: '#3b82f6', // blue-500
   filesystemscan: '#3b82f6', // blue-500
-  join: '#a855f7',         // purple-500
-  joinlocal: '#a855f7',    // purple-500
+  join: '#a855f7', // purple-500
+  joinlocal: '#a855f7', // purple-500
   joinpartition: '#a855f7', // purple-500
-  aggregate: '#22c55e',    // green-500
-  exchange: '#f97316',     // orange-500
-  output: '#ef4444',       // red-500
-  stage: '#4f46e5',        // indigo-600
-  local: '#f59e0b',        // amber-500
-  project: '#14b8a6',      // teal-500
-  filter: '#06b6d4',       // cyan-500
-  sort: '#8b5cf6',         // violet-500
-  limit: '#ec4899',        // pink-500
-  union: '#10b981',        // emerald-500
-  other: '#6b7280',        // gray-500
+  aggregate: '#22c55e', // green-500
+  exchange: '#f97316', // orange-500
+  output: '#ef4444', // red-500
+  stage: '#4f46e5', // indigo-600
+  local: '#f59e0b', // amber-500
+  project: '#14b8a6', // teal-500
+  filter: '#06b6d4', // cyan-500
+  sort: '#8b5cf6', // violet-500
+  limit: '#ec4899', // pink-500
+  union: '#10b981', // emerald-500
+  other: '#6b7280', // gray-500
 };
 
 export function getOperationTypeColor(operationType: string): string {

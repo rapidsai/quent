@@ -3,7 +3,19 @@
 
 // Top level types, keep types with relevant code where possible
 
-import { Engine, EntityRef, Operator, Plan, Port, Query, QueryGroup, Resource, ResourceGroup, ResourceTypeDecl, Worker } from '@quent/utils';
+import {
+  Engine,
+  EntityRef,
+  Operator,
+  Plan,
+  Port,
+  Query,
+  QueryGroup,
+  Resource,
+  ResourceGroup,
+  ResourceTypeDecl,
+  Worker,
+} from '@quent/utils';
 
 export type EntityTypeValue =
   | Engine

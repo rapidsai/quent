@@ -7,13 +7,24 @@
  */
 
 import { parseJsonWithBigInt } from '@quent/utils';
-import type { QueryBundle, QueryGroup, Query, BulkTimelinesResponse, SingleTimelineRequest, SingleTimelineResponse, BulkTimelineRequest, QueryFilter, TaskFilter, EntityRef, Engine } from '@quent/utils';
+import type {
+  QueryBundle,
+  QueryGroup,
+  Query,
+  BulkTimelinesResponse,
+  SingleTimelineRequest,
+  SingleTimelineResponse,
+  BulkTimelineRequest,
+  QueryFilter,
+  TaskFilter,
+  EntityRef,
+  Engine,
+} from '@quent/utils';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 export const DEFAULT_STALE_TIME = 5 * 60 * 1000;
-
 
 export interface ChartDataPoint {
   date: string;

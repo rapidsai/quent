@@ -4,7 +4,18 @@
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import { formatQuantity, getColorForKey, WHITE, withOpacity } from '@quent/utils';
-import type { ResourceTimeline, EntityRef, QuantitySpec, CapacityDecl, BinnedSpanSec, SingleTimelineResponse, FiniteStateMachine, TimelineRequest, TaskFilter, TimelineConfig } from '@quent/utils';
+import type {
+  ResourceTimeline,
+  EntityRef,
+  QuantitySpec,
+  CapacityDecl,
+  BinnedSpanSec,
+  SingleTimelineResponse,
+  FiniteStateMachine,
+  TimelineRequest,
+  TaskFilter,
+  TimelineConfig,
+} from '@quent/utils';
 import { QueryEntities, ResourceTree } from '@quent/utils';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';

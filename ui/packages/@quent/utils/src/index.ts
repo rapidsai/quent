@@ -25,11 +25,7 @@ export {
 export type { PaletteName, ChartColor } from './colors';
 
 // Formatter utilities
-export {
-  formatDuration,
-  formatDurationForWindow,
-  formatQuantity,
-} from './formatters';
+export { formatDuration, formatDurationForWindow, formatQuantity } from './formatters';
 
 // Rust-generated TypeScript types
 export * from './types/index';
