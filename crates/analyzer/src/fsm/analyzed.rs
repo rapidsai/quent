@@ -97,6 +97,11 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
         }
     }
 
+    /// Return the id of the FSM being built.
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
     pub fn push(&mut self, event: Event<FsmEvent<T, D>>) {
         match event.data {
             FsmEvent::Transition { state, .. } => {

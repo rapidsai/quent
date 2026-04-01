@@ -8,5 +8,6 @@ quent-events = { path = "../../../crates/events" }
 quent-model = { path = "../../../crates/model" }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-simulator-model = { path = "../model" }
+quent-stdlib = { path = "../../../crates/stdlib" }
 serde.workspace = true
 uuid = { workspace = true, features = ["serde"] }

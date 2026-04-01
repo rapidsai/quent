@@ -11,7 +11,7 @@ use std::{
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
-use quent_events::resource::{self, channel, memory};
+use quent_events::resource;
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
     PostcardExporterOptions,
@@ -494,7 +494,6 @@ fn lower_logical(
     }
 }
 
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
 struct Worker {
     id: Uuid,
     name: String,
@@ -504,117 +503,125 @@ struct Worker {
     mem_to_fs: Uuid,
     thread_pool: Uuid,
     threads: Vec<Uuid>,
+    // Resource handles — kept alive until shut_down().
+    memory_handles: Vec<quent_stdlib::MemoryHandle<SimulatorEvent>>,
+    channel_handles: Vec<quent_stdlib::ChannelHandle<SimulatorEvent>>,
+    processor_handles: Vec<quent_stdlib::ProcessorHandle<SimulatorEvent>>,
 }
 
 impl Worker {
-    fn new(id: Uuid, name: String, num_threads: usize) -> Self {
+    fn new(id: Uuid, name: String, context: &SimulatorContext, parent_engine_id: Uuid, num_threads: usize) -> Self {
+        let tx = context.events_sender();
+        let worker_obs = worker::WorkerObserver::new(&tx);
+
+        info!("Spawning worker {name}");
+        worker_obs.init(
+            id,
+            worker::Init {
+                parent_engine_id,
+                instance_name: name.clone(),
+            },
+        );
+
+        let mut memory_handles = Vec::new();
+        let mut channel_handles = Vec::new();
+        let mut processor_handles = Vec::new();
+
+        // Filesystem
+        let mut fs_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::new(
+            &tx,
+            quent_stdlib::MemoryInitializing {
+                instance_name: "Filesystem".into(),
+                parent_group_id: id,
+                resource_type_name: "filesystem".into(),
+            },
+        );
+        let filesystem = fs_handle.uuid();
+        fs_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: 0 });
+        memory_handles.push(fs_handle);
+
+        // Memory pool
+        let mut mem_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::new(
+            &tx,
+            quent_stdlib::MemoryInitializing {
+                instance_name: "Memory".into(),
+                parent_group_id: id,
+                resource_type_name: "memory".into(),
+            },
+        );
+        let memory = mem_handle.uuid();
+        mem_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: 0 });
+        memory_handles.push(mem_handle);
+
+        // Filesystem -> Memory channel
+        let mut fs_to_mem_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+            &tx,
+            quent_stdlib::ChannelInitializing {
+                instance_name: "Filesystem -> Memory".into(),
+                parent_group_id: id,
+                resource_type_name: "fs_to_mem".into(),
+                source_id: filesystem,
+                target_id: memory,
+            },
+        );
+        let fs_to_mem = fs_to_mem_handle.uuid();
+        fs_to_mem_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+        channel_handles.push(fs_to_mem_handle);
+
+        // Memory -> Filesystem channel
+        let mut mem_to_fs_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+            &tx,
+            quent_stdlib::ChannelInitializing {
+                instance_name: "Memory -> Filesystem".into(),
+                parent_group_id: id,
+                resource_type_name: "mem_to_fs".into(),
+                source_id: memory,
+                target_id: filesystem,
+            },
+        );
+        let mem_to_fs = mem_to_fs_handle.uuid();
+        mem_to_fs_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+        channel_handles.push(mem_to_fs_handle);
+
+        // Thread pool
+        let thread_pool = Uuid::now_v7();
+        tx.send(Event::new(
+            thread_pool,
+            quent_model::timestamp(),
+            SimulatorEvent::ResourceGroup(resource::GroupEvent {
+                type_name: "thread_pool".to_string(),
+                instance_name: "Thread Pool".to_string(),
+                parent_group_id: Some(id),
+            }),
+        ));
+
+        let mut threads = Vec::new();
+        for index in 0..num_threads {
+            let mut thread_handle = quent_stdlib::ProcessorHandle::<SimulatorEvent>::new(
+                &tx,
+                quent_stdlib::ProcessorInitializing {
+                    instance_name: format!("Thread {index}"),
+                    parent_group_id: thread_pool,
+                    resource_type_name: "thread".into(),
+                },
+            );
+            threads.push(thread_handle.uuid());
+            thread_handle.operating(quent_stdlib::ProcessorOperating {});
+            processor_handles.push(thread_handle);
+        }
+
         Self {
             id,
             name,
-            memory: Uuid::now_v7(),
-            filesystem: Uuid::now_v7(),
-            fs_to_mem: Uuid::now_v7(),
-            mem_to_fs: Uuid::now_v7(),
-            thread_pool: Uuid::now_v7(),
-            threads: std::iter::repeat_with(Uuid::now_v7)
-                .take(num_threads)
-                .collect(),
-        }
-    }
-
-    fn spawn(&self, context: &SimulatorContext, parent_engine_id: Uuid) {
-        let worker_obs = worker::WorkerObserver::new(&context.events_sender());
-        let resource_group_obs = context.resource_group_observer();
-        let memory_obs = context.memory_resource_observer();
-        let channel_obs = context.channel_resource_observer();
-        let processor_obs = context.processor_resource_observer();
-
-        info!("Spawning worker {}", self.name);
-        worker_obs.init(
-            self.id,
-            worker::Init {
-                parent_engine_id,
-                instance_name: self.name.clone(),
-            },
-        );
-
-        // Filesystem
-        memory_obs.init(
-            self.filesystem,
-            memory::Init {
-                resource: resource::Resource {
-                    type_name: "filesystem".to_string(),
-                    instance_name: "Filesystem".to_string(),
-                    parent_group_id: self.id,
-                },
-            },
-        );
-        memory_obs.operating(self.filesystem, Default::default());
-
-        // Memory pool
-        memory_obs.init(
-            self.memory,
-            memory::Init {
-                resource: resource::Resource {
-                    type_name: "memory".to_string(),
-                    instance_name: "Memory".to_string(),
-                    parent_group_id: self.id,
-                },
-            },
-        );
-        memory_obs.operating(self.memory, Default::default());
-
-        // Filesystem -> Memory channel
-        channel_obs.init(
-            self.fs_to_mem,
-            channel::Init {
-                resource: resource::Resource {
-                    type_name: "fs_to_mem".to_string(),
-                    instance_name: "Filesystem -> Memory".to_string(),
-                    parent_group_id: self.id,
-                },
-                source_id: self.filesystem,
-                target_id: self.memory,
-            },
-        );
-        channel_obs.operating(self.fs_to_mem, Default::default());
-
-        // Memory -> Filesystem channel
-        channel_obs.init(
-            self.mem_to_fs,
-            channel::Init {
-                resource: resource::Resource {
-                    type_name: "mem_to_fs".to_string(),
-                    instance_name: "Memory -> Filesystem".to_string(),
-                    parent_group_id: self.id,
-                },
-                source_id: self.memory,
-                target_id: self.filesystem,
-            },
-        );
-        channel_obs.operating(self.mem_to_fs, Default::default());
-
-        // Thread pool
-        resource_group_obs.group(
-            self.thread_pool,
-            resource::GroupEvent {
-                type_name: "thread_pool".to_string(),
-                instance_name: "Thread Pool".to_string(),
-                parent_group_id: Some(self.id),
-            },
-        );
-        for (index, thread_id) in self.threads.iter().enumerate() {
-            processor_obs.init(
-                *thread_id,
-                resource::processor::Init {
-                    resource: resource::Resource {
-                        type_name: "thread".to_string(),
-                        instance_name: format!("Thread {index}"),
-                        parent_group_id: self.thread_pool,
-                    },
-                },
-            );
-            processor_obs.operating(*thread_id, Default::default());
+            memory,
+            filesystem,
+            fs_to_mem,
+            mem_to_fs,
+            thread_pool,
+            threads,
+            memory_handles,
+            channel_handles,
+            processor_handles,
         }
     }
 
@@ -1069,39 +1076,34 @@ impl Worker {
         }
     }
 
-    fn shut_down(&self, context: &SimulatorContext) {
+    fn shut_down(&mut self, context: &SimulatorContext) {
         let worker_obs = worker::WorkerObserver::new(&context.events_sender());
-        let memory_obs = context.memory_resource_observer();
-        let channel_obs = context.channel_resource_observer();
-        let processor_obs = context.processor_resource_observer();
 
-        memory_obs.finalizing(self.filesystem, Default::default());
-        memory_obs.exit(self.filesystem, Default::default());
-        sleep_long();
-        memory_obs.finalizing(self.memory, Default::default());
-        memory_obs.exit(self.memory, Default::default());
-        sleep_long();
-        channel_obs.finalizing(self.fs_to_mem, Default::default());
-        channel_obs.exit(self.fs_to_mem, Default::default());
-        sleep_long();
-        channel_obs.finalizing(self.mem_to_fs, Default::default());
-        channel_obs.exit(self.mem_to_fs, Default::default());
-        sleep_long();
-        for thread in self.threads.iter() {
-            processor_obs.finalizing(*thread, Default::default());
-            processor_obs.exit(*thread, Default::default());
+        for handle in &mut self.memory_handles {
+            handle.finalizing();
+            handle.exit();
+            sleep_long();
+        }
+        for handle in &mut self.channel_handles {
+            handle.finalizing();
+            handle.exit();
+            sleep_long();
+        }
+        for handle in &mut self.processor_handles {
+            handle.finalizing();
+            handle.exit();
         }
         sleep_long();
         worker_obs.exit(self.id, worker::Exit);
     }
 }
 
-#[derive(Debug)]
 struct Engine {
     id: Uuid,
     workers: HashMap<Uuid, Worker>,
     network: Uuid,
     network_links: HashMap<(Uuid, Uuid), Uuid>,
+    network_link_handles: Vec<quent_stdlib::ChannelHandle<SimulatorEvent>>,
 }
 
 impl Engine {
@@ -1111,16 +1113,16 @@ impl Engine {
             workers: Default::default(),
             network: Uuid::now_v7(),
             network_links: Default::default(),
+            network_link_handles: Vec::new(),
         }
     }
 
     fn spawn(&mut self, context: &SimulatorContext, num_workers: usize, num_threads: usize) {
-        // Create some observers
+        let tx = context.events_sender();
+
         info!("Simulating Engine:");
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
-        let engine_obs = engine::EngineObserver::new(&context.events_sender());
-        let resource_group_obs = context.resource_group_observer();
-        let channel_obs = context.channel_resource_observer();
+        let engine_obs = engine::EngineObserver::new(&tx);
 
         engine_obs.init(
             self.id,
@@ -1140,54 +1142,53 @@ impl Engine {
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), num_threads);
-            worker.spawn(context, self.id);
+            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), context, self.id, num_threads);
             self.workers.insert(*worker_id, worker);
         }
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        resource_group_obs.group(
+        tx.send(Event::new(
             self.network,
-            resource::GroupEvent {
+            quent_model::timestamp(),
+            SimulatorEvent::ResourceGroup(resource::GroupEvent {
                 type_name: "network".to_string(),
                 instance_name: "network".to_string(),
                 parent_group_id: Some(self.id),
-            },
-        );
+            }),
+        ));
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
-                let up_link_id = Uuid::now_v7();
-                channel_obs.init(
-                    up_link_id,
-                    channel::Init {
-                        resource: resource::Resource {
-                            type_name: "link".to_string(),
-                            instance_name: format!("worker {worker_index} -> {other_worker_index}"),
-                            parent_group_id: self.network,
-                        },
+
+                let mut up_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+                    &tx,
+                    quent_stdlib::ChannelInitializing {
+                        instance_name: format!("worker {worker_index} -> {other_worker_index}"),
+                        parent_group_id: self.network,
+                        resource_type_name: "link".into(),
                         source_id: self.workers.get(&worker_id).unwrap().memory,
                         target_id: self.workers.get(&other_worker_id).unwrap().memory,
                     },
                 );
-                channel_obs.operating(up_link_id, channel::Operating {});
+                let up_link_id = up_handle.uuid();
+                up_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+                self.network_link_handles.push(up_handle);
 
-                let down_link_id = Uuid::now_v7();
-                channel_obs.init(
-                    down_link_id,
-                    channel::Init {
-                        resource: resource::Resource {
-                            type_name: "link".to_string(),
-                            instance_name: format!("worker {other_worker_index} -> {worker_index}"),
-                            parent_group_id: self.network,
-                        },
+                let mut down_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+                    &tx,
+                    quent_stdlib::ChannelInitializing {
+                        instance_name: format!("worker {other_worker_index} -> {worker_index}"),
+                        parent_group_id: self.network,
+                        resource_type_name: "link".into(),
                         source_id: self.workers.get(&other_worker_id).unwrap().memory,
                         target_id: self.workers.get(&worker_id).unwrap().memory,
                     },
                 );
-                channel_obs.operating(down_link_id, channel::Operating {});
+                let down_link_id = down_handle.uuid();
+                down_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+                self.network_link_handles.push(down_handle);
 
                 self.network_links
                     .insert((worker_id, other_worker_id), up_link_id);
@@ -1197,19 +1198,17 @@ impl Engine {
         }
     }
 
-    fn shut_down(&self, context: &SimulatorContext) {
-        // Create some observers
+    fn shut_down(&mut self, context: &SimulatorContext) {
         let engine_obs = engine::EngineObserver::new(&context.events_sender());
-        let channel_obs = context.channel_resource_observer();
 
         // Tear down network
-        for link in self.network_links.values().cloned() {
-            channel_obs.finalizing(link, Default::default());
-            channel_obs.exit(link, Default::default());
+        for handle in &mut self.network_link_handles {
+            handle.finalizing();
+            handle.exit();
         }
 
         // Tear down workers
-        for worker in self.workers.values() {
+        for worker in self.workers.values_mut() {
             worker.shut_down(context);
         }
 

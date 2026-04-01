@@ -1754,6 +1754,7 @@ dependencies = [
  "quent-simulator-events",
  "quent-simulator-model",
  "quent-simulator-ui",
+ "quent-stdlib",
  "quent-time",
  "quent-ui",
  "rustc-hash",
@@ -1770,6 +1771,7 @@ dependencies = [
  "quent-model",
  "quent-query-engine-model",
  "quent-simulator-model",
+ "quent-stdlib",
  "serde",
  "uuid",
 ]

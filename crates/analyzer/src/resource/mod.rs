@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use super::*;
 
+pub mod analyzed;
 pub mod collection;
 pub mod runtime;
 pub mod tree;

@@ -140,31 +140,50 @@ pub struct InMemoryResources {
 }
 
 impl InMemoryResourcesBuilder {
-    fn try_builder(&mut self, id: Uuid) -> AnalyzerResult<&mut RtResourceBuilder> {
+    /// Get or create a resource builder for the given ID.
+    pub fn try_builder(&mut self, id: Uuid) -> AnalyzerResult<&mut RtResourceBuilder> {
         if let Entry::Vacant(e) = self.resources.entry(id) {
             e.insert(RtResourceBuilder::try_new(id)?);
         }
         Ok(self.resources.get_mut(&id).unwrap())
     }
 
-    fn insert_memory_resource(&mut self, type_name: &str) {
+    /// Register a memory resource type declaration (bytes occupancy capacity).
+    pub fn insert_memory_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
             let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_occupancy("bytes")]);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
     }
-    fn insert_processor_resource(&mut self, type_name: &str) {
+
+    /// Register a processor (unit) resource type declaration.
+    pub fn insert_processor_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
             let decl = ResourceTypeDecl::unit(type_name);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
     }
+
+    /// Register a channel resource type declaration (bytes rate capacity).
     // TODO(johanpel): see CapacityType and consider blocking/non-blocking channels
-    fn insert_channel_resource(&mut self, type_name: &str) {
+    pub fn insert_channel_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
             let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_rate("bytes")]);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
+    }
+
+    /// Insert a resource group directly.
+    pub fn push_group(&mut self, id: Uuid, group: quent_events::resource::GroupEvent) {
+        let _ = self.resource_groups.insert(
+            id,
+            RtResourceGroup {
+                id,
+                type_name: group.type_name,
+                instance_name: group.instance_name,
+                parent_group_id: group.parent_group_id,
+            },
+        );
     }
 
     pub fn try_push(&mut self, event: Event<ResourceEvent>) -> AnalyzerResult<()> {

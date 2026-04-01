@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_events::{resource::ResourceEvent, trace::TraceEvent};
+use quent_events::{resource::GroupEvent, trace::TraceEvent};
 use quent_query_engine_model::QueryEngineEvent;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,10 @@ pub type TaskEvent = task::TaskEvent;
 pub enum SimulatorEvent {
     QueryEngineEvent(QueryEngineEvent),
     Task(TaskEvent),
-    Resource(ResourceEvent),
+    Memory(quent_stdlib::MemoryEvent),
+    Processor(quent_stdlib::ProcessorEvent),
+    Channel(quent_stdlib::ChannelEvent),
+    ResourceGroup(GroupEvent),
     Trace(TraceEvent),
 }
 
@@ -56,9 +59,27 @@ impl From<TaskEvent> for SimulatorEvent {
     }
 }
 
-impl From<ResourceEvent> for SimulatorEvent {
-    fn from(event: ResourceEvent) -> Self {
-        SimulatorEvent::Resource(event)
+impl From<quent_stdlib::MemoryEvent> for SimulatorEvent {
+    fn from(event: quent_stdlib::MemoryEvent) -> Self {
+        SimulatorEvent::Memory(event)
+    }
+}
+
+impl From<quent_stdlib::ProcessorEvent> for SimulatorEvent {
+    fn from(event: quent_stdlib::ProcessorEvent) -> Self {
+        SimulatorEvent::Processor(event)
+    }
+}
+
+impl From<quent_stdlib::ChannelEvent> for SimulatorEvent {
+    fn from(event: quent_stdlib::ChannelEvent) -> Self {
+        SimulatorEvent::Channel(event)
+    }
+}
+
+impl From<GroupEvent> for SimulatorEvent {
+    fn from(event: GroupEvent) -> Self {
+        SimulatorEvent::ResourceGroup(event)
     }
 }
 

@@ -7,15 +7,18 @@ use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model,
     fsm::collection::FsmCollection,
     resource::{
-        Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl, Usage, Using,
+        CapacityValue, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
+        ResourceTypeDecl, Usage, Using,
         collection::{
             InMemoryResources, InMemoryResourcesBuilder, ResourceCollection,
             derive_resource_group_types,
         },
+        runtime::RtResourceTransition,
     },
     trace::RtTraceBuilder,
 };
 use quent_events::Event;
+use quent_model::FsmEvent;
 use quent_query_engine_analyzer::{
     QueryEngineModel,
     engine::Engine,
@@ -260,9 +263,19 @@ impl SimulatorModelBuilder {
             SimulatorEvent::QueryEngineEvent(qe) => {
                 self.query_engine.try_push(Event::new(id, timestamp, qe))
             }
-            SimulatorEvent::Resource(r) => self
-                .arbitrary_resources
-                .try_push(Event::new(id, timestamp, r)),
+            SimulatorEvent::Memory(m) => {
+                self.push_memory(id, timestamp, m)
+            }
+            SimulatorEvent::Processor(p) => {
+                self.push_processor(id, timestamp, p)
+            }
+            SimulatorEvent::Channel(c) => {
+                self.push_channel(id, timestamp, c)
+            }
+            SimulatorEvent::ResourceGroup(g) => {
+                self.arbitrary_resources.push_group(id, g);
+                Ok(())
+            }
             SimulatorEvent::Trace(t) => {
                 let trace_builder = self
                     .traces
@@ -272,6 +285,114 @@ impl SimulatorModelBuilder {
                 Ok(())
             }
         }
+    }
+
+    fn push_memory(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: quent_stdlib::MemoryEvent,
+    ) -> AnalyzerResult<()> {
+        let FsmEvent::Transition { state, .. } = event;
+        use quent_stdlib::MemoryTransition;
+        match state {
+            MemoryTransition::MemoryInitializing(init) => {
+                self.arbitrary_resources.insert_memory_resource(&init.resource_type_name);
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Init(timestamp));
+                bld.set_type_name(init.resource_type_name);
+                bld.set_instance_name(Some(init.instance_name));
+                bld.set_parent_group_id(init.parent_group_id);
+            }
+            MemoryTransition::MemoryOperating(op) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Operating(
+                    timestamp,
+                    ResourceCapacities(vec![CapacityValue::new("bytes", op.capacity_bytes)]),
+                ));
+            }
+            MemoryTransition::MemoryFinalizing(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Finalizing(timestamp));
+            }
+            MemoryTransition::Exit => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Exit(timestamp));
+            }
+        }
+        Ok(())
+    }
+
+    fn push_processor(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: quent_stdlib::ProcessorEvent,
+    ) -> AnalyzerResult<()> {
+        let FsmEvent::Transition { state, .. } = event;
+        use quent_stdlib::ProcessorTransition;
+        match state {
+            ProcessorTransition::ProcessorInitializing(init) => {
+                self.arbitrary_resources.insert_processor_resource(&init.resource_type_name);
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Init(timestamp));
+                bld.set_type_name(init.resource_type_name);
+                bld.set_instance_name(Some(init.instance_name));
+                bld.set_parent_group_id(init.parent_group_id);
+            }
+            ProcessorTransition::ProcessorOperating(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Operating(
+                    timestamp,
+                    ResourceCapacities(vec![]),
+                ));
+            }
+            ProcessorTransition::ProcessorFinalizing(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Finalizing(timestamp));
+            }
+            ProcessorTransition::Exit => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Exit(timestamp));
+            }
+        }
+        Ok(())
+    }
+
+    fn push_channel(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: quent_stdlib::ChannelEvent,
+    ) -> AnalyzerResult<()> {
+        let FsmEvent::Transition { state, .. } = event;
+        use quent_stdlib::ChannelTransition;
+        match state {
+            ChannelTransition::ChannelInitializing(init) => {
+                self.arbitrary_resources.insert_channel_resource(&init.resource_type_name);
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Init(timestamp));
+                bld.set_type_name(init.resource_type_name);
+                bld.set_instance_name(Some(init.instance_name));
+                bld.set_parent_group_id(init.parent_group_id);
+            }
+            ChannelTransition::ChannelOperating(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Operating(
+                    timestamp,
+                    ResourceCapacities(vec![]),
+                ));
+            }
+            ChannelTransition::ChannelFinalizing(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Finalizing(timestamp));
+            }
+            ChannelTransition::Exit => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Exit(timestamp));
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<SimulatorModel> {

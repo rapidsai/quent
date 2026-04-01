@@ -14,6 +14,7 @@ quent-model = { path = "../../../crates/model" }
 quent-simulator-events = { path = "../events" }
 quent-simulator-model = { path = "../model" }
 quent-simulator-ui = { path = "../ui" }
+quent-stdlib = { path = "../../../crates/stdlib" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
 rustc-hash.workspace = true
