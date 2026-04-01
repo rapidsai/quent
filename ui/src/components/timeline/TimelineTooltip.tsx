@@ -29,10 +29,8 @@ const TooltipSeriesStat = ({
       {series.color && (
         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
       )}
-      <DataText as="span" className="text-foreground">
-        {series.name}
-      </DataText>
-      <DataText as="span" className="font-semibold ml-auto text-foreground">
+      <DataText className="text-foreground">{series.name}</DataText>
+      <DataText className="font-semibold ml-auto text-foreground">
         {fmt(series.value ?? 0)}
       </DataText>
     </li>
@@ -79,7 +77,9 @@ function SegmentedBarRow({
 }) {
   return (
     <>
-      <DataText as="span" className={cn('text-foreground font-medium truncate', labelClassName)}>
+      <DataText
+        className={cn('text-foreground font-medium truncate tracking-tight', labelClassName)}
+      >
         {label}
       </DataText>
       <div className="relative text-[11px] leading-none min-w-0" style={{ height: 12 }}>
@@ -106,15 +106,17 @@ function SegmentedBarRow({
                 )}
                 title={seg.label}
               >
-                <DataText>{pct >= 25 ? seg.label : ''}</DataText>
+                <DataText className="tracking-tighter">{pct >= 30 ? seg.label : ''}</DataText>
               </div>
             );
           })}
         </div>
       </div>
       <DataText
-        as="span"
-        className={cn('text-foreground font-semibold text-[11px] text-right', valueClassName)}
+        className={cn(
+          'text-foreground font-semibold text-[11px] text-right tracking-tighter>',
+          valueClassName
+        )}
       >
         {fmt(total)}
       </DataText>
@@ -176,12 +178,8 @@ function ActiveMarksSection({
               borderColor: m.color + 'cc',
             }}
           />
-          <DataText as="span" className="text-muted-foreground">
-            {m.label}
-          </DataText>
-          <DataText as="span" className="text-foreground font-medium ml-auto">
-            {m.stateName}
-          </DataText>
+          <DataText className="text-muted-foreground">{m.label}</DataText>
+          <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
         </div>
       ))}
     </div>
@@ -211,7 +209,7 @@ function OverlayBarTooltip({
     <div
       className={cn(
         'px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50',
-        { 'min-w-[240px]': visibleBars.length > 0 }
+        { 'min-w-[280px]': visibleBars.length > 0 }
       )}
     >
       <DataText as="div" className="font-semibold mb-1.5 text-muted-foreground">

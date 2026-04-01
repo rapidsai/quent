@@ -22,7 +22,7 @@ export function DataText<T extends ElementType = 'span'>({
 }: DataTextProps<T>) {
   const Tag = (as ?? 'span') as ElementType;
   return (
-    <Tag className={cn('font-mono', className)} {...props}>
+    <Tag className={cn('font-mono tracking-tight', className)} {...props}>
       {children}
     </Tag>
   );

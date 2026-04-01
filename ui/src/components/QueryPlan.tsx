@@ -88,7 +88,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           </span>
         ) : (
           <span className="text-xs">
-            <span className="capitalize">{item.planType}</span>
+            <DataText className="capitalize">{item.planType}</DataText>
             {!hasChildren && (
               <span>
                 : <DataText>{item.id}</DataText>
@@ -98,12 +98,12 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         )}
         {item.workerId && (
           <span className="text-xs text-muted-foreground">
-            Worker: <DataText>{item.workerId}</DataText>
+            <DataText>Worker: {item.workerId}</DataText>
           </span>
         )}
         {hasChildren && (
           <span className="text-xs text-muted-foreground capitalize text-left">
-            ID: <DataText>{item.id}</DataText>
+            <DataText>{`ID: ${item.id}`}</DataText>
           </span>
         )}
       </div>

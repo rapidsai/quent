@@ -12,7 +12,7 @@ export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => 
   return (
     <div>
       <div>
-        <DataText as="span" className="text-xs font-bold">
+        <DataText className="text-xs font-bold">
           {resource.instance_name}{' '}
           {resource.type_name !== resource.instance_name && resource.type_name
             ? `(${resource.type_name})`

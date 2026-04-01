@@ -38,7 +38,7 @@ export const ResourceGroupRow = ({
   return (
     <div>
       <div>
-        <DataText as="span" className="text-sm font-bold">
+        <DataText className="text-sm font-bold">
           {group.instance_name}
         </DataText>
       </div>
