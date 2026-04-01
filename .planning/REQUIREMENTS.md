@@ -16,11 +16,11 @@
 
 ### @quent/utils
 
-- [ ] **UTILS-01**: `cn()` utility extracted from `ui/src/lib/utils.ts` and exported from `@quent/utils`
-- [ ] **UTILS-02**: All Rust-generated TypeScript types (currently at `~quent/types/*`) re-exported from `@quent/utils`; `~quent/types` path alias removed from `vite.config.ts` and `tsconfig.json` (replaced by `@quent/utils` imports)
-- [ ] **UTILS-03**: `parseJsonWithBigInt` utility exported from `@quent/utils`
-- [ ] **UTILS-04**: Color utilities extracted from `ui/src/services/colors.ts` and exported: `getOperationTypeColor`, `assignColors`, Wong palette constants
-- [ ] **UTILS-05**: Formatter utilities extracted from `ui/src/services/formatters.ts` and exported: duration, timestamp, and size formatters
+- [x] **UTILS-01**: `cn()` utility extracted from `ui/src/lib/utils.ts` and exported from `@quent/utils`
+- [x] **UTILS-02**: All Rust-generated TypeScript types (currently at `~quent/types/*`) re-exported from `@quent/utils`; `~quent/types` path alias removed from `vite.config.ts` and `tsconfig.json` (replaced by `@quent/utils` imports)
+- [x] **UTILS-03**: `parseJsonWithBigInt` utility exported from `@quent/utils`
+- [x] **UTILS-04**: Color utilities extracted from `ui/src/services/colors.ts` and exported: `getOperationTypeColor`, `assignColors`, Wong palette constants
+- [x] **UTILS-05**: Formatter utilities extracted from `ui/src/services/formatters.ts` and exported: duration, timestamp, and size formatters
 
 ### @quent/client
 
@@ -96,11 +96,11 @@
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Complete |
 | INFRA-06 | Phase 1 | Complete |
-| UTILS-01 | Phase 2 | Pending |
-| UTILS-02 | Phase 2 | Pending |
-| UTILS-03 | Phase 2 | Pending |
-| UTILS-04 | Phase 2 | Pending |
-| UTILS-05 | Phase 2 | Pending |
+| UTILS-01 | Phase 2 | Complete |
+| UTILS-02 | Phase 2 | Complete |
+| UTILS-03 | Phase 2 | Complete |
+| UTILS-04 | Phase 2 | Complete |
+| UTILS-05 | Phase 2 | Complete |
 | CLIENT-01 | Phase 3 | Pending |
 | CLIENT-02 | Phase 3 | Pending |
 | CLIENT-03 | Phase 3 | Pending |

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase complete — ready for verification
-stopped_at: Completed 01-workspace-scaffold/01-02-PLAN.md
-last_updated: "2026-04-01T18:43:45.070Z"
+status: Ready to execute
+stopped_at: Completed 02-extract-quent-utils-01-PLAN.md
+last_updated: "2026-04-01T20:06:47.715Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Components, state, and API access are each independently importable with zero coupling to the app shell — an agent can read the package exports and assemble a functional UI without reading implementation details.
-**Current focus:** Phase 01 — workspace-scaffold
+**Current focus:** Phase 02 — extract-quent-utils
 
 ## Current Position
 
-Phase: 01 (workspace-scaffold) — EXECUTING
+Phase: 02 (extract-quent-utils) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -48,6 +48,7 @@ Plan: 2 of 2
 *Updated after each plan completion*
 | Phase 01-workspace-scaffold P01 | 15 | 2 tasks | 19 files |
 | Phase 01-workspace-scaffold P02 | 15 | 2 tasks | 9 files |
+| Phase 02-extract-quent-utils P01 | 11 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 01-workspace-scaffold]: vitest.workspace.ts uses glob for per-package configs — unmatched globs silently ignored, auto-picks up configs in later phases
 - [Phase 01-workspace-scaffold]: resolve.dedupe in vite.config.ts ensures react/jotai/@tanstack stay singletons as packages link via workspace:*
 - [Phase 01-workspace-scaffold]: Package tsconfig extends path is ../../../tsconfig.base.json (packages are 3 levels deep in ui/packages/@quent/<name>/)
+- [Phase 02-extract-quent-utils]: tsconfig rootDir set to repo root so composite mode allows files from both src/ and ts-bindings/ — required for independent typecheck of types barrel
+- [Phase 02-extract-quent-utils]: tsconfig include uses 4-level path for ts-bindings (from package root), not 6 levels (which is correct only from src/types/ subdir)
+- [Phase 02-extract-quent-utils]: getOperationTypeColor placed in colors.ts alongside other color utilities rather than a separate file
 
 ### Pending Todos
 
@@ -79,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T18:43:45.067Z
-Stopped at: Completed 01-workspace-scaffold/01-02-PLAN.md
+Last session: 2026-04-01T20:06:47.713Z
+Stopped at: Completed 02-extract-quent-utils-01-PLAN.md
 Resume file: None

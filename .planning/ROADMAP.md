@@ -47,7 +47,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Populate @quent/utils package with source files, types barrel, and dependencies
+- [x] 02-01-PLAN.md — Populate @quent/utils package with source files, types barrel, and dependencies
 - [ ] 02-02-PLAN.md — Migrate all app imports to @quent/utils, remove aliases, delete old source files
 
 ### Phase 3: Extract @quent/client and @quent/hooks
