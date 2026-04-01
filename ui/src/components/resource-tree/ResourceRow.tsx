@@ -10,15 +10,11 @@ interface ResourceRowProps {
 
 export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => {
   return (
-    <div>
-      <div>
-        <DataText className="text-xs font-bold">
-          {resource.instance_name}{' '}
-          {resource.type_name !== resource.instance_name && resource.type_name
-            ? `(${resource.type_name})`
-            : ''}
-        </DataText>
-      </div>
-    </div>
+    <DataText className="text-xs font-bold">
+      {resource.instance_name}{' '}
+      {resource.type_name !== resource.instance_name && resource.type_name
+        ? `(${resource.type_name})`
+        : ''}
+    </DataText>
   );
 };

@@ -37,9 +37,7 @@ export const ResourceGroupRow = ({
 
   return (
     <div>
-      <div>
-        <DataText className="text-sm font-bold">{group.instance_name}</DataText>
-      </div>
+      <DataText className="text-sm font-bold">{group.instance_name}</DataText>
       {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
         <InlineSelector
           id={`${id}-resource-type`}
@@ -47,7 +45,6 @@ export const ResourceGroupRow = ({
           value={selectedType}
           options={availableResourceTypes}
           onChange={(_, value) => onTypeChange(id, value)}
-          className="mt-1"
         />
       )}
       {hasOneFsm && (
