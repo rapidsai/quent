@@ -12,7 +12,7 @@ Extract `ui/src/` into four scoped `@quent/*` workspace packages — utils, clie
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Workspace Scaffold** - Wire the pnpm workspace, tsconfig, Vite config, and per-package skeletons; no code extracted yet
+- [x] **Phase 1: Workspace Scaffold** - Wire the pnpm workspace, tsconfig, Vite config, and per-package skeletons; no code extracted yet (completed 2026-04-01)
 - [ ] **Phase 2: Extract @quent/utils** - Extract the zero-dependency foundation package; unblocks all other packages
 - [ ] **Phase 3: Extract @quent/client and @quent/hooks** - Extract the two sibling pure-TypeScript layers (API client and Jotai state hooks)
 - [ ] **Phase 4: Extract @quent/components and Migrate App Shell** - Extract all UI components and migrate the app to consume only `@quent/*` imports
@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `pnpm dev` starts without errors and the existing app UI renders normally in the browser
   4. `pnpm why react` from `ui/` shows a single hoisted React instance (no duplicates)
   5. Each package has an empty `index.ts` and a `tsup.config.ts` skeleton
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Create pnpm workspace, tsconfig base, and four @quent/* package skeletons
-- [ ] 01-02-PLAN.md — Integrate packages into app config (workspace deps, Vite guards, Tailwind @source, Vitest workspace)
+- [x] 01-02-PLAN.md — Integrate packages into app config (workspace deps, Vite guards, Tailwind @source, Vitest workspace)
 
 ### Phase 2: Extract @quent/utils
 **Goal**: `@quent/utils` is fully extracted and all app imports of `cn()`, Rust types, formatters, color utilities, and `parseJsonWithBigInt` resolve through the package
@@ -78,7 +78,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Workspace Scaffold | 1/2 | In Progress|  |
+| 1. Workspace Scaffold | 2/2 | Complete   | 2026-04-01 |
 | 2. Extract @quent/utils | 0/? | Not started | - |
 | 3. Extract @quent/client and @quent/hooks | 0/? | Not started | - |
 | 4. Extract @quent/components and Migrate App Shell | 0/? | Not started | - |

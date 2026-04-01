@@ -10,9 +10,9 @@
 - [x] **INFRA-01**: `ui/pnpm-workspace.yaml` created with `ui/packages/*` glob; all four packages resolved via `workspace:*` protocol
 - [x] **INFRA-02**: `ui/tsconfig.base.json` created with shared compiler options; each package `tsconfig.json` extends it with `composite: true`, `declaration: true`, `noEmit: false`
 - [x] **INFRA-03**: Each package has a `tsup.config.ts` (or equivalent) for publishability-ready builds (`esm` + `cjs`, `.d.ts` generation)
-- [ ] **INFRA-04**: `react`, `jotai`, `@tanstack/react-query`, and `@tanstack/react-router` are declared as `peerDependencies` in all packages that use them; `vite.config.ts` updated with `resolve.dedupe` for these modules
-- [ ] **INFRA-05**: Vitest workspace config (`ui/vitest.workspace.ts`) enables per-package test runs from the workspace root
-- [ ] **INFRA-06**: Tailwind CSS content scanning extended via `@source` directive in `ui/src/index.css` to cover `ui/packages/**/*.{ts,tsx}`
+- [x] **INFRA-04**: `react`, `jotai`, `@tanstack/react-query`, and `@tanstack/react-router` are declared as `peerDependencies` in all packages that use them; `vite.config.ts` updated with `resolve.dedupe` for these modules
+- [x] **INFRA-05**: Vitest workspace config (`ui/vitest.workspace.ts`) enables per-package test runs from the workspace root
+- [x] **INFRA-06**: Tailwind CSS content scanning extended via `@source` directive in `ui/src/index.css` to cover `ui/packages/**/*.{ts,tsx}`
 
 ### @quent/utils
 
@@ -93,9 +93,9 @@
 | INFRA-01 | Phase 1 | Complete |
 | INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
-| INFRA-04 | Phase 1 | Pending |
-| INFRA-05 | Phase 1 | Pending |
-| INFRA-06 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Complete |
+| INFRA-05 | Phase 1 | Complete |
+| INFRA-06 | Phase 1 | Complete |
 | UTILS-01 | Phase 2 | Pending |
 | UTILS-02 | Phase 2 | Pending |
 | UTILS-03 | Phase 2 | Pending |
