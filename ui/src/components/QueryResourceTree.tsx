@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
@@ -75,6 +78,7 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+  const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
@@ -107,6 +111,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     rootItem,
     expandedIds,
     selectedTypes,
+    groupFsmFilters: selectedFsmTypes,
     entities,
   });
 
@@ -118,7 +123,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     [handleExpandChange, handleExpand]
   );
 
-  const { data: rootTimelineData } = useQuery({
+  const { data: fetchedRootTimeline } = useQuery({
     queryKey: [
       'resourceGroupTimeline',
       'root',
@@ -179,21 +184,31 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item }: { item: TreeTableItem; level: number }) =>
-          item.type === 'operator-timeline' ? (
+        render: ({ item }: { item: TreeTableItem; level: number }) => {
+          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+          const availableFsmTypes = selectedType
+            ? entities.resource_types[selectedType]?.used_by
+            : undefined;
+          return item.type === 'operator-timeline' ? (
             <div className="flex items-center gap-2 py-2 text-foreground"></div>
           ) : (
             <ResourceColumn
               item={item}
-              selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
+              selectedType={selectedType}
               onTypeChange={(itemId, newType) => {
                 setSelectedTypes(prev => new Map(prev).set(itemId, newType));
                 if (itemId === rootItem.id) {
                   setRootResourceType(newType);
                 }
               }}
+              availableFsmTypes={availableFsmTypes}
+              selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
+              onFsmChange={(itemId, fsmType) => {
+                setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType));
+              }}
             />
-          ),
+          );
+        },
       },
       {
         key: 'usage',
@@ -204,7 +219,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             <TimelineController
               startTime={startTime}
               durationSeconds={durationSeconds}
-              timelineData={rootTimelineData}
+              timelineData={fetchedRootTimeline}
               onZoomChange={handleZoomChange}
             />
           </div>
@@ -230,6 +245,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
               engineId={engineId}
               queryBundle={queryBundle}
               selectedTypes={selectedTypes}
+              selectedFsmTypes={selectedFsmTypes}
               startTime={startTime}
               durationSeconds={durationSeconds}
             />
@@ -239,8 +255,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   }, [
     startTime,
     durationSeconds,
-    rootTimelineData,
+    fetchedRootTimeline,
     selectedTypes,
+    selectedFsmTypes,
+    entities,
     rootItem,
     engineId,
     queryBundle,

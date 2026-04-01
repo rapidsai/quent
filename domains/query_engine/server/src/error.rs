@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use axum::{http::StatusCode, response::IntoResponse};
 use quent_analyzer::AnalyzerError;
 use quent_exporter_types::ImporterError;

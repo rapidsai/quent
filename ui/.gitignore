@@ -39,3 +39,5 @@ coverage
 junit*
 
 stats.html
+# For now ignore agents md, add official one later
+AGENTS.md
