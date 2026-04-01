@@ -1,5 +1,8 @@
 [workspace]
 resolver = "3"
+exclude = [
+    "integrations/nvtx/vendor/nvtx-repo",
+]
 members = [
     # Application-agnostic crates
     "crates/analyzer",
@@ -22,6 +25,11 @@ members = [
     "domains/query_engine/events",
     "domains/query_engine/server",
     "domains/query_engine/ui",
+    # Integration crates
+    "integrations/nvtx/analyzer",
+    "integrations/nvtx/injection",
+    "integrations/nvtx/injection/events",
+    "integrations/nvtx/instrumentation",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",
