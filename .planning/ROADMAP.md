@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `pnpm dev` starts without errors and the existing app UI renders normally in the browser
   4. `pnpm why react` from `ui/` shows a single hoisted React instance (no duplicates)
   5. Each package has an empty `index.ts` and a `tsup.config.ts` skeleton
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Create pnpm workspace, tsconfig base, and four @quent/* package skeletons
+- [ ] 01-02-PLAN.md — Integrate packages into app config (workspace deps, Vite guards, Tailwind @source, Vitest workspace)
 
 ### Phase 2: Extract @quent/utils
 **Goal**: `@quent/utils` is fully extracted and all app imports of `cn()`, Rust types, formatters, color utilities, and `parseJsonWithBigInt` resolve through the package
@@ -74,7 +78,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Workspace Scaffold | 0/? | Not started | - |
+| 1. Workspace Scaffold | 0/2 | Planning complete | - |
 | 2. Extract @quent/utils | 0/? | Not started | - |
 | 3. Extract @quent/client and @quent/hooks | 0/? | Not started | - |
 | 4. Extract @quent/components and Migrate App Shell | 0/? | Not started | - |
