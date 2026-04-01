@@ -17,13 +17,14 @@ Components, state, and API access are each independently importable with zero co
 - ✓ ECharts timeline visualization — existing
 - ✓ Radix UI + Tailwind CSS v4 + CVA component system — existing
 - ✓ pnpm 9+ workspace with Vite + Vitest — existing
+- ✓ `@quent/utils` package — cn(), 52 Rust-generated types, formatters, colors, getOperationTypeColor — Validated in Phase 02: extract-quent-utils
+- ✓ Existing `ui/src` app migrated from legacy utils imports to `@quent/utils` — Validated in Phase 02: extract-quent-utils
 
 ### Active
 
 - [ ] `@quent/components` package — UI component library (DAG chart, timeline, query plan tree, node detail, resource tree, common UI primitives) with shadcn-style design, clear props interfaces, and no internal state coupling
 - [ ] `@quent/hooks` package — Jotai atoms wrapped in named hooks; no raw atom access outside this package; clean hook API surface for selection state, hovered state, timeline controls
 - [ ] `@quent/client` package — TanStack Query-based API client encapsulating all fetch logic; consumers call hooks, not raw fetch; typed by Rust-generated TypeScript bindings
-- [ ] `@quent/utils` package — Shared utilities: `cn()`, TypeScript types re-exported from `crates/server/ts-bindings`, formatters, constants
 - [ ] Existing `ui/src` app migrated to consume only from packages — no direct imports of internal modules that have been extracted
 - [ ] Each package has a clean `index.ts` barrel export listing everything an agent would need
 - [ ] Packages designed for eventual npm publishability (no app-shell coupling, no relative paths to app internals)
@@ -83,4 +84,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after initialization*
+*Last updated: 2026-04-01 after Phase 02 (extract-quent-utils) completion*
