@@ -62,9 +62,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // TODO: Using ts bindings from quent for now this will need to change
-      // to get bindings from webserver when we go that direction
-      '~quent/types': path.resolve(__dirname, '../examples/simulator/server/ts-bindings'),
       // Force elkjs to use bundled version (avoids web-worker module resolution issues)
       elkjs: 'elkjs/lib/elk.bundled.js',
     },
