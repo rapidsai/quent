@@ -4,6 +4,7 @@ members = [
     # Application-agnostic crates
     "crates/analyzer",
     "crates/attributes",
+    "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",

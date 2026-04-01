@@ -1333,6 +1333,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-codegen"
+version = "0.1.0"
+dependencies = [
+ "quent-model",
+ "quent-query-engine-model",
+ "quent-simulator-model",
+]
+
+[[package]]
 name = "quent-collector"
 version = "0.1.0"
 dependencies = [

@@ -66,6 +66,7 @@ documented in its own file with context and rationale.
 - [Model collection via type alias and tuple composition](./decisions/model-collection.md)
 - [CXX bridge for C++ FFI, no separate C++ runtime](./decisions/cxx-bridge-ffi.md)
 - [Codegen backend configuration](./decisions/codegen-backend-config.md)
+- [C++ CMake integration](./decisions/cpp-cmake-integration.md)
 
 **Implementation:**
 
