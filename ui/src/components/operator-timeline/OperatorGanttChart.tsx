@@ -119,9 +119,6 @@ export function OperatorGanttChart({
   const showYScroll = rowCount > MAX_VISIBLE_ROWS;
   const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
 
-  const xZoomStartPct = durationSeconds > 0 ? (zoomRange.start / durationSeconds) * 100 : 0;
-  const xZoomEndPct = durationSeconds > 0 ? (zoomRange.end / durationSeconds) * 100 : 100;
-
   const renderItem = useCallback(
     (
       params: {
@@ -181,6 +178,7 @@ export function OperatorGanttChart({
 
       const rect = {
         type: 'rect' as const,
+        transition: [] as string[],
         shape: { ...clippedShape, r: 2 },
         style: {
           fill,
@@ -195,6 +193,7 @@ export function OperatorGanttChart({
 
       const text = {
         type: 'text' as const,
+        transition: [] as string[],
         style: {
           text: barLabel,
           x: textX,
@@ -302,6 +301,7 @@ export function OperatorGanttChart({
         {
           type: 'custom',
           name: 'operator-span',
+          animation: false,
           data: customSeriesData,
           renderItem: renderItem as never,
           coordinateSystem: 'cartesian2d',
@@ -314,8 +314,6 @@ export function OperatorGanttChart({
           realtime: true,
           filterMode: 'none',
           xAxisIndex: [0],
-          start: xZoomStartPct,
-          end: xZoomEndPct,
         },
         {
           type: 'inside',
@@ -324,8 +322,6 @@ export function OperatorGanttChart({
           throttle: 30,
           filterMode: 'none',
           xAxisIndex: [0],
-          start: xZoomStartPct,
-          end: xZoomEndPct,
         },
         {
           type: 'inside',
@@ -335,8 +331,6 @@ export function OperatorGanttChart({
           throttle: 30,
           filterMode: 'none',
           xAxisIndex: [0],
-          start: xZoomStartPct,
-          end: xZoomEndPct,
         },
         ...(showYScroll
           ? [
@@ -360,16 +354,14 @@ export function OperatorGanttChart({
       gridOptions,
       startTimeMs,
       xAxisMax,
+      gridBorderColor,
+      timelineMarkupColor,
       yAxisCategories,
       customSeriesData,
       renderItem,
-      gridBorderColor,
-      timelineMarkupColor,
-      operators,
       showYScroll,
       yAxisZoomEnd,
-      xZoomStartPct,
-      xZoomEndPct,
+      operators,
     ]
   );
 
@@ -381,23 +373,35 @@ export function OperatorGanttChart({
 
   const handleDataZoom = useMemo(
     () => ({
-      dataZoom: () => {
+      dataZoom: (params: {
+        start?: number;
+        end?: number;
+        dataZoomIndex?: number;
+        batch?: Array<{ start?: number; end?: number; dataZoomIndex?: number }>;
+      }) => {
         if (selfTriggeredRef.current) {
           selfTriggeredRef.current = false;
           return;
         }
-        const instance = instanceRef.current;
-        if (!instance) return;
+        // x-axis dataZooms are at indices 0, 1, 2; y-axis scroll (when present) is index 3.
+        // Skip events that only involve y-axis scroll.
+        let start: number | undefined;
+        let end: number | undefined;
+        if (params.batch) {
+          const xItem = params.batch.find(item => (item.dataZoomIndex ?? 0) <= 2);
+          start = xItem?.start;
+          end = xItem?.end;
+        } else if ((params.dataZoomIndex ?? 0) <= 2) {
+          start = params.start;
+          end = params.end;
+        }
+        if (start === undefined || end === undefined) return;
         const dur = durationSecondsRef.current;
         if (dur <= 0) return;
-        const opt = instance.getOption() as { dataZoom: Array<{ start: number; end: number }> };
-        const dz = opt.dataZoom?.[0];
-        if (dz?.start !== undefined && dz?.end !== undefined) {
-          setZoomRange({
-            start: (dz.start / 100) * dur,
-            end: (dz.end / 100) * dur,
-          });
-        }
+        setZoomRange({
+          start: (start / 100) * dur,
+          end: (end / 100) * dur,
+        });
       },
     }),
     [setZoomRange]
