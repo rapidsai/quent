@@ -9,6 +9,7 @@ import { selectedNodeIdsAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
+import { DataText } from '@/components/ui/data-text';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -141,11 +142,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
       )}
 
-      <div
+      <DataText
+        as="div"
         className={`text-sm break-words text-center ${isSelected ? 'font-bold' : 'font-normal'}`}
       >
         {data.label}
-      </div>
+      </DataText>
 
       {data.hasOutgoing && (
         <Handle
