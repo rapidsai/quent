@@ -123,6 +123,19 @@ None - no external service configuration required.
 - Phase 2 (Extract @quent/utils) can begin — packages are fully registered and importable via workspace:* protocol
 - Blocker noted in STATE.md: verify Jotai v2 atomFamily migration specifics before writing Phase 3 tasks
 
+## Self-Check: PASSED
+
+- FOUND: ui/vitest.workspace.ts
+- FOUND: ui/vite.config.ts (with dedupe, optimizeDeps, followSymlinks)
+- FOUND: ui/src/index.css (with @source directive)
+- FOUND: .planning/phases/01-workspace-scaffold/01-02-SUMMARY.md
+- FOUND commit: 186d5687 (Task 1)
+- FOUND commit: ee71bfc5 (Task 2)
+- FOUND commit: ed8dd41e (plan metadata)
+- pnpm install: exit 0, 4 workspace packages resolved
+- pnpm typecheck: exit 0
+- pnpm test:run: exit 0, 37 tests passing
+
 ---
 *Phase: 01-workspace-scaffold*
 *Completed: 2026-04-01*
