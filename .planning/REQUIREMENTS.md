@@ -117,9 +117,9 @@
 | COMP-05 | Phase 4 | Pending |
 | COMP-06 | Phase 4 | Pending |
 | COMP-07 | Phase 4 | Pending |
-| MIG-01 | Phase 5 | Pending |
-| MIG-02 | Phase 5 | Pending |
-| MIG-03 | Phase 5 | Pending |
+| MIG-01 | Phase 4 | Pending |
+| MIG-02 | Phase 4 | Pending |
+| MIG-03 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total
@@ -128,4 +128,4 @@
 
 ---
 *Requirements defined: 2026-04-01*
-*Last updated: 2026-04-01 after initial definition*
+*Last updated: 2026-04-01 after roadmap creation (MIG-01/02/03 moved from Phase 5 → Phase 4; app migration combined with component extraction)*
