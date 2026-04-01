@@ -48,7 +48,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Populate @quent/utils package with source files, types barrel, and dependencies
-- [ ] 02-02-PLAN.md — Migrate all app imports to @quent/utils, remove aliases, delete old source files
+- [x] 02-02-PLAN.md — Migrate all app imports to @quent/utils, remove aliases, delete old source files
 
 ### Phase 3: Extract @quent/client and @quent/hooks
 **Goal**: All API fetch functions and `queryOptions` factories live in `@quent/client`; all Jotai atoms are hidden inside `@quent/hooks` with only named hooks exported; no raw atom access exists outside `@quent/hooks`
