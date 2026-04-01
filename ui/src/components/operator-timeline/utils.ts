@@ -52,9 +52,7 @@ export function stackOperatorsIntoRows<
 >(entries: T[]): T[] {
   if (entries.length === 0) return entries;
 
-  const sorted = [...entries].sort(
-    (a, b) => a.startMs - b.startMs || a.endMs - b.endMs
-  );
+  const sorted = [...entries].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
   /** For each row index, the end time of the rightmost bar in that row (no bar in row extends past this). */
   const rowEndMs: number[] = [];
 
