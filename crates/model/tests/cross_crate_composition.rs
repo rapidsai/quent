@@ -90,10 +90,10 @@ fn usage_with_stdlib_memory() {
     let usage: Usage<WorkerMemory> = Usage {
         resource_id: Ref::new(Uuid::nil()),
         capacity: quent_stdlib::MemoryOperating {
-            capacity_bytes: 1024 * 1024,
+            capacity_bytes: Capacity::new(1024 * 1024),
         },
     };
-    assert_eq!(usage.capacity.capacity_bytes, 1024 * 1024);
+    assert_eq!(usage.capacity.capacity_bytes.value, 1024 * 1024);
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn usage_with_stdlib_channel() {
     let _usage: Usage<FsToMem> = Usage {
         resource_id: Ref::new(Uuid::nil()),
         capacity: quent_stdlib::ChannelOperating {
-            capacity_bytes: Some(4096),
+            capacity_bytes: Capacity::new(Some(4096)),
         },
     };
 }
@@ -229,7 +229,7 @@ fn fsm_event_serde_roundtrip() {
             channel: Usage {
                 resource_id: Ref::new(Uuid::nil()),
                 capacity: quent_stdlib::ChannelOperating {
-                    capacity_bytes: Some(1024),
+                    capacity_bytes: Capacity::new(Some(1024)),
                 },
             },
         }),

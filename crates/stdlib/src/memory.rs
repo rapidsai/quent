@@ -13,8 +13,7 @@ use quent_model::prelude::*;
 /// The transition into `operating` declares the capacity in bytes.
 #[derive(Resource)]
 pub struct Memory {
-    #[capacity]
-    pub capacity_bytes: u64,
+    pub capacity_bytes: Capacity<u64, Occupancy>,
 }
 
 /// A resizable memory resource.
@@ -22,6 +21,5 @@ pub struct Memory {
 /// FSM: `entry -> initializing -> operating <-> resizing -> finalizing -> exit`
 #[derive(ResizableResource)]
 pub struct ResizableMemory {
-    #[capacity]
-    pub capacity_bytes: u64,
+    pub capacity_bytes: Capacity<u64, Occupancy>,
 }

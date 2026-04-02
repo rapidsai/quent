@@ -332,7 +332,7 @@ Access fields via `self.0.data().init`, `self.0.data().exit`, etc.
 
 | Derive | Helper attributes | Purpose |
 |--------|-------------------|---------|
-| `State` | `#[deferred]`, `#[capacity]`, `#[instance_name]`, `#[parent_group]` | FSM state struct |
+| `State` | `#[deferred]`, `#[instance_name]`, `#[parent_group]` + `Capacity<V,K>` type detection | FSM state struct |
 | `Fsm` | `#[entry]`, `#[to(...)]`, `#[resource(...)]`, `#[resource_group]` | FSM with states as fields |
 | `Entity` | `#[event]`, `#[resource_group]`, `#[resource_group(root)]` | Entity with events as fields |
 

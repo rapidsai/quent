@@ -43,9 +43,10 @@ mod util;
 ///
 /// Field-level attributes:
 /// - `#[deferred]` — marks an `Option<T>` deferred field
-/// - `#[capacity]` — marks a numeric capacity field
 /// - `#[instance_name]` — marks the field carrying the instance name
-#[proc_macro_derive(State, attributes(deferred, capacity, instance_name, parent_group))]
+///
+/// Capacity fields are detected by type (`Capacity<V, K>`), not by annotation.
+#[proc_macro_derive(State, attributes(deferred, instance_name, parent_group))]
 pub fn derive_state(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     state::expand_derive(input)
@@ -114,13 +115,11 @@ pub fn derive_resource_group(input: TokenStream) -> TokenStream {
 /// Generates the full resource FSM (Initializing → Operating → Finalizing → exit),
 /// state structs, handle, event types, and Resource trait impl.
 ///
-/// Field-level attributes:
-/// - `#[capacity]` — marks a field as a capacity value (goes on Operating state)
-///
-/// Non-capacity fields go on the generated Initializing state alongside
-/// standard metadata fields (instance_name, parent_group_id, resource_type_name).
+/// Fields with `Capacity<V, K>` type go on the generated Operating state.
+/// Other fields go on the generated Initializing state alongside standard
+/// metadata fields (instance_name, parent_group_id, resource_type_name).
 /// Unit structs produce a unit resource with no capacity.
-#[proc_macro_derive(Resource, attributes(capacity))]
+#[proc_macro_derive(Resource)]
 pub fn derive_resource(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     resource_derive::expand_resource(input)
@@ -131,7 +130,7 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
 /// Derive macro for resizable resource definitions.
 ///
 /// Same as `Resource` but adds a Resizing state and the operating ↔ resizing cycle.
-#[proc_macro_derive(ResizableResource, attributes(capacity))]
+#[proc_macro_derive(ResizableResource)]
 pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     resource_derive::expand_resizable_resource(input)

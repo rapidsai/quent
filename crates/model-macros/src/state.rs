@@ -13,7 +13,7 @@ struct StateFields {
     usages: Vec<UsageField>,
     /// Fields annotated with `#[deferred]`.
     deferred: Vec<DeferredField>,
-    /// Fields annotated with `#[capacity]` (numeric capacity values).
+    /// Fields with `Capacity<V, K>` type (detected by type, not annotation).
     capacities: Vec<CapacityField>,
     /// Field annotated with `#[instance_name]` (at most one).
     instance_name_field: Option<Ident>,
@@ -51,6 +51,16 @@ struct RegularField {
 }
 
 use crate::util::field_has_attr as has_attr;
+
+/// Check if a type is `Capacity<...>`.
+fn is_capacity_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty {
+        type_path.path.segments.last()
+            .is_some_and(|seg| seg.ident == "Capacity")
+    } else {
+        false
+    }
+}
 
 /// Check if a type is `Usage<...>`.
 fn is_usage_type(ty: &syn::Type) -> bool {
@@ -140,12 +150,19 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             let inner = unwrap_option_type(&field.ty).unwrap();
             let inner_ty = quote! { #inner };
             deferred.push(DeferredField { name, inner_ty, inner_type: inner.clone() });
-        } else if has_attr(field, "capacity") {
-            let optional = is_option_type(&field.ty);
+        } else if is_capacity_type(&field.ty) {
+            // Capacity<V, K> — inner value is accessed via .value
             capacities.push(CapacityField {
                 name,
                 ident: field_name.clone(),
-                optional,
+                optional: false,
+            });
+        } else if unwrap_option_type(&field.ty).is_some_and(|inner| is_capacity_type(inner)) {
+            // Option<Capacity<V, K>> — should not occur, but handle gracefully
+            capacities.push(CapacityField {
+                name,
+                ident: field_name.clone(),
+                optional: true,
             });
         } else if has_attr(field, "instance_name") {
             if instance_name_field.is_some() {
@@ -289,8 +306,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
     // Generate ExtractCapacities impl.
     // For unit structs (no fields at all): emit a single "unit" capacity.
-    // For structs with #[capacity] fields: emit one capacity per annotated field.
-    // For structs without #[capacity] fields: emit empty vec.
+    // For structs with Capacity<V, K> fields: emit one capacity per field.
+    // For structs without Capacity<V, K> fields: emit empty vec.
     let is_unit_struct = fields.regular.is_empty()
         && fields.usages.is_empty()
         && fields.deferred.is_empty()
@@ -308,15 +325,17 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 let field_ident = &c.ident;
                 let name = &c.name;
                 if c.optional {
+                    // Option<Capacity<V, K>> — extract value from inner Capacity
                     quote! {
                         quent_model::analyze::ExtractedCapacity {
                             name: #name,
-                            value: self.#field_ident.map(|v| v as u64),
+                            value: self.#field_ident.as_ref().map(|v| v.value as u64),
                         }
                     }
                 } else {
+                    // Capacity<V, K> — access .value
                     quote! {
-                        quent_model::analyze::ExtractedCapacity::new(#name, self.#field_ident as u64)
+                        quent_model::analyze::ExtractedCapacity::new(#name, self.#field_ident.value as u64)
                     }
                 }
             })

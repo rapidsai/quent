@@ -9,8 +9,7 @@ use quent_model::prelude::*;
 
 #[derive(Resource)]
 pub struct TestMem {
-    #[capacity]
-    pub bytes: u64,
+    pub bytes: Capacity<u64>,
 }
 
 // --- Unit resource (no capacity) ---
@@ -20,8 +19,8 @@ pub struct TestProc;
 
 #[test]
 fn resource_generates_operating_with_capacity() {
-    let op = TestMemOperating { bytes: 1024 };
-    assert_eq!(op.bytes, 1024);
+    let op = TestMemOperating { bytes: Capacity::new(1024) };
+    assert_eq!(op.bytes.value, 1024);
 }
 
 #[test]
@@ -73,8 +72,7 @@ fn resource_has_event_type() {
 
 #[derive(ResizableResource)]
 pub struct TestResizable {
-    #[capacity]
-    pub slots: u64,
+    pub slots: Capacity<u64>,
 }
 
 #[test]

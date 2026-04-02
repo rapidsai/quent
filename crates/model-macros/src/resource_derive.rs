@@ -5,7 +5,7 @@
 //!
 //! Generates the full resource FSM from a simple struct definition:
 //! - Initializing state (with instance_name, parent_group_id, resource_type_name + user init fields)
-//! - Operating state (with #[capacity] fields)
+//! - Operating state (with `Capacity<V, K>` fields)
 //! - Finalizing state (unit struct)
 //! - Resizing state (ResizableResource only)
 //! - FSM transition table, handle, event types
@@ -17,21 +17,21 @@ use syn::{DeriveInput, Field};
 
 use crate::util::to_snake_case;
 
-/// Check if a field has `#[capacity]`.
+/// Check if a field's type is `Capacity<...>`.
 fn is_capacity_field(field: &Field) -> bool {
-    field.attrs.iter().any(|a| {
-        a.path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "capacity")
-    })
+    if let syn::Type::Path(type_path) = &field.ty {
+        type_path.path.segments.last()
+            .is_some_and(|seg| seg.ident == "Capacity")
+    } else {
+        false
+    }
 }
 
 /// Categorize fields into init fields (non-capacity) and capacity fields.
 struct ResourceFields<'a> {
     /// Fields that go on the Initializing state (non-capacity).
     init_fields: Vec<&'a Field>,
-    /// Fields that go on the Operating state (#[capacity]).
+    /// Fields that go on the Operating state (Capacity<V, K> type).
     capacity_fields: Vec<&'a Field>,
 }
 
@@ -122,18 +122,8 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         .map(|f| {
             let ident = &f.ident;
             let ty = &f.ty;
-            // Strip the #[capacity] attribute for the generated struct
-            let other_attrs: Vec<_> = f
-                .attrs
-                .iter()
-                .filter(|a| {
-                    !a.path()
-                        .segments
-                        .last()
-                        .is_some_and(|seg| seg.ident == "capacity")
-                })
-                .collect();
-            quote! { #(#other_attrs)* pub #ident: #ty }
+            let attrs = &f.attrs;
+            quote! { #(#attrs)* pub #ident: #ty }
         })
         .collect();
 
@@ -144,31 +134,43 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         .collect();
 
     // Generate ExtractCapacities for the operating state
+    // Capacity fields are `Capacity<V, K>` — access inner value via `.value`
     let capacity_extractions: Vec<TokenStream> = fields
         .capacity_fields
         .iter()
         .filter_map(|f| {
             let ident = f.ident.as_ref()?;
             let name_str = ident.to_string();
-            // Check if it's Option<T>
-            let is_option = if let syn::Type::Path(tp) = &f.ty {
-                tp.path
-                    .segments
-                    .last()
-                    .is_some_and(|seg| seg.ident == "Option")
+            // Check if the Capacity's inner value type (V) is Option<T>
+            // by inspecting the first type argument of Capacity<V, K>
+            let inner_is_option = if let syn::Type::Path(tp) = &f.ty {
+                tp.path.segments.last().and_then(|seg| {
+                    if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
+                        args.args.first().and_then(|arg| {
+                            if let syn::GenericArgument::Type(syn::Type::Path(inner_tp)) = arg {
+                                inner_tp.path.segments.last()
+                                    .map(|s| s.ident == "Option")
+                            } else {
+                                None
+                            }
+                        })
+                    } else {
+                        None
+                    }
+                }).unwrap_or(false)
             } else {
                 false
             };
-            if is_option {
+            if inner_is_option {
                 Some(quote! {
                     quent_model::analyze::ExtractedCapacity {
                         name: #name_str,
-                        value: self.#ident.map(|v| v as u64),
+                        value: self.#ident.value.map(|v| v as u64),
                     }
                 })
             } else {
                 Some(quote! {
-                    quent_model::analyze::ExtractedCapacity::new(#name_str, self.#ident as u64)
+                    quent_model::analyze::ExtractedCapacity::new(#name_str, self.#ident.value as u64)
                 })
             }
         })

@@ -543,7 +543,7 @@ fn emit_state_conversion(state: &StateDef, model_crate: &str) -> String {
             ));
             for cap in &usage.capacities {
                 lines.push_str(&format!(
-                    "                    {cap_name}: data.{field_name}_{cap_name},\n",
+                    "                    {cap_name}: quent_model::Capacity::new(data.{field_name}_{cap_name}),\n",
                     cap_name = cap.name,
                 ));
             }

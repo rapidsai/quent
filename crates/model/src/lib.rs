@@ -9,6 +9,7 @@
 //! definitions built on these types.
 
 pub mod analyze;
+mod capacity;
 mod fsm_event;
 mod model;
 mod r#ref;
@@ -24,6 +25,7 @@ pub use model::{
     Model, ModelBuilder, ModelComponent, ResourceDef, ResourceGroupDef, ResourceKind, StateDef,
     TransitionDef, TransitionEndpoint, UsageDef, ValueType,
 };
+pub use capacity::{Capacity, Occupancy, Rate};
 pub use r#ref::Ref;
 pub use resource::Resource;
 pub use usage::Usage;
@@ -131,6 +133,7 @@ macro_rules! define_context {
 /// Prelude for convenient imports in model definition crates.
 pub mod prelude {
     pub use crate::{
+        Capacity, Occupancy, Rate,
         Entity, EntityEvent, Event, EventSender, Fsm, HasParentGroup, ResizableResource,
         Resource, ResourceGroup, State,
         FsmEvent, HasEventType, Model, ModelBuilder, ModelComponent, Ref,

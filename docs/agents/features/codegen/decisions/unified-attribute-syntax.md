@@ -23,8 +23,7 @@ pub struct Running {
     pub thread: Usage<ProcessorResource>,
     #[deferred]
     pub rows: Option<u64>,
-    #[capacity]
-    pub capacity_bytes: u64,
+    pub capacity_bytes: Capacity<u64>,
     #[instance_name]
     pub instance_name: String,
 }
@@ -140,8 +139,8 @@ leaf in the hierarchy — it cannot be a resource group. Any other entity
 ## Field-level annotations on State structs
 
 - `Usage<T>` fields are detected automatically by type (no annotation needed)
+- `Capacity<V, K>` fields are detected automatically by type (no annotation needed)
 - `#[deferred]` — marks an `Option<T>` field as settable after transition
-- `#[capacity]` — marks a numeric field as a capacity value
 - `#[instance_name]` — marks a String field as the entity instance name
 - `#[parent_group]` — marks a UUID field as the parent resource group reference
 

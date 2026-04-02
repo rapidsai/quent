@@ -12,7 +12,7 @@
 | **Resource** (dynamic bounds) | `#[derive(ResizableResource)]` | Resource with resizing cycle (operating↔resizing) |
 | **Resource Group** | `#[resource_group]` on Entity/Fsm | Hierarchical grouping for resource aggregation |
 | **Usage** | `Usage<T>` type (auto-detected) | Claim on a Resource's Capacity during a state |
-| **Capacity** | `#[capacity]` | Named quantity on a Resource that can be claimed |
+| **Capacity** | `Capacity<V, K>` type (auto-detected) | Named quantity on a Resource that can be claimed |
 | **Attribute** | struct fields | Typed data accompanying a Transition or Event |
 
 ---
@@ -38,8 +38,8 @@ pub struct Computing {
 | Annotation | Meaning | Spec concept |
 |---|---|---|
 | _(none — auto-detected)_ | `Usage<T>` fields are detected by type — claims capacity from a Resource | Usage |
+| _(none — auto-detected)_ | `Capacity<V, K>` fields are detected by type — capacity values on a Resource | Capacity |
 | `#[deferred]` | Field is `Option<T>` — settable after transition via amendment event | Deferred attribute |
-| `#[capacity]` | Field is a numeric capacity value (used by Resource derives) | Capacity |
 | `#[instance_name]` | Field provides the entity's instance name for the analyzer | Entity.instance_name |
 | `#[parent_group]` | Field provides the parent resource group UUID | ResourceGroup.parent_group_id |
 
@@ -144,8 +144,7 @@ lifecycle is generated automatically.
 ```rust
 #[derive(Resource)]
 pub struct Memory {
-    #[capacity]
-    pub capacity_bytes: u64,
+    pub capacity_bytes: Capacity<u64, Occupancy>,
 }
 
 #[derive(Resource)]
@@ -153,19 +152,22 @@ pub struct Processor;  // unit resource — no capacity
 
 #[derive(Resource)]
 pub struct Channel {
-    pub source_id: Uuid,      // goes on Initializing state
-    pub target_id: Uuid,      // goes on Initializing state
-    #[capacity]
-    pub capacity_bytes: Option<u64>,  // goes on Operating state
+    pub source_id: Uuid,                          // goes on Initializing state
+    pub target_id: Uuid,                          // goes on Initializing state
+    pub capacity_bytes: Capacity<Option<u64>, Rate>,  // goes on Operating state
 }
 ```
 
-**Field annotations on Resource:**
+**Field detection on Resource:**
 
-| Annotation | Meaning |
+| Field type | Meaning |
 |---|---|
-| `#[capacity]` | Field goes on the generated Operating state (the capacity being offered) |
-| _(no annotation)_ | Field goes on the generated Initializing state (metadata set at creation) |
+| `Capacity<V, K>` | Field goes on the generated Operating state (the capacity being offered) |
+| _(other)_ | Field goes on the generated Initializing state (metadata set at creation) |
+
+`Capacity<V, K>` wraps a value `V` with a kind marker `K` (`Occupancy` or
+`Rate`). The kind defaults to `Occupancy` if omitted: `Capacity<u64>` is
+equivalent to `Capacity<u64, Occupancy>`.
 
 **Auto-generated Initializing state fields:** `instance_name: String`,
 `parent_group_id: Uuid`, `resource_type_name: String` — present on every
@@ -185,8 +187,7 @@ Dynamic-Bounds Resource.
 ```rust
 #[derive(ResizableResource)]
 pub struct ResizableMemory {
-    #[capacity]
-    pub capacity_bytes: u64,
+    pub capacity_bytes: Capacity<u64, Occupancy>,
 }
 ```
 

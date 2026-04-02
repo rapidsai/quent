@@ -16,6 +16,5 @@ use quent_model::prelude::*;
 pub struct Channel {
     pub source_id: Uuid,
     pub target_id: Uuid,
-    #[capacity]
-    pub capacity_bytes: Option<u64>,
+    pub capacity_bytes: Capacity<Option<u64>, Rate>,
 }

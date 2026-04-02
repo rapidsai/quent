@@ -537,7 +537,7 @@ impl Worker {
             },
         );
         let filesystem = fs_handle.uuid();
-        fs_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: 0 });
+        fs_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(0) });
         memory_handles.push(fs_handle);
 
         // Memory pool
@@ -550,7 +550,7 @@ impl Worker {
             },
         );
         let memory = mem_handle.uuid();
-        mem_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: 0 });
+        mem_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(0) });
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
@@ -565,7 +565,7 @@ impl Worker {
             },
         );
         let fs_to_mem = fs_to_mem_handle.uuid();
-        fs_to_mem_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+        fs_to_mem_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
         channel_handles.push(fs_to_mem_handle);
 
         // Memory -> Filesystem channel
@@ -580,7 +580,7 @@ impl Worker {
             },
         );
         let mem_to_fs = mem_to_fs_handle.uuid();
-        mem_to_fs_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+        mem_to_fs_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
         channel_handles.push(mem_to_fs_handle);
 
         // Thread pool
@@ -669,7 +669,7 @@ impl Worker {
                 use_mem_to_fs: Usage {
                     resource_id: Ref::new(self.mem_to_fs),
                     capacity: quent_stdlib::ChannelOperating {
-                        capacity_bytes: Some(num_bytes),
+                        capacity_bytes: Capacity::new(Some(num_bytes)),
                     },
                 },
             });
@@ -686,13 +686,13 @@ impl Worker {
                 use_fs_to_mem: Usage {
                     resource_id: Ref::new(self.fs_to_mem),
                     capacity: quent_stdlib::ChannelOperating {
-                        capacity_bytes: Some(num_bytes),
+                        capacity_bytes: Capacity::new(Some(num_bytes)),
                     },
                 },
                 use_memory: Usage {
                     resource_id: mem_ref,
                     capacity: quent_stdlib::MemoryOperating {
-                        capacity_bytes: rng().random_range(0..4) * num_bytes,
+                        capacity_bytes: Capacity::new(rng().random_range(0..4) * num_bytes),
                     },
                 },
             });
@@ -704,7 +704,7 @@ impl Worker {
             use_memory: Usage {
                 resource_id: mem_ref,
                 capacity: quent_stdlib::MemoryOperating {
-                    capacity_bytes: rng().random_range(0..4) * num_bytes,
+                    capacity_bytes: Capacity::new(rng().random_range(0..4) * num_bytes),
                 },
             },
         });
@@ -724,7 +724,7 @@ impl Worker {
                     use_link: Usage {
                         resource_id: Ref::new(link),
                         capacity: quent_stdlib::ChannelOperating {
-                            capacity_bytes: Some(num_bytes),
+                            capacity_bytes: Capacity::new(Some(num_bytes)),
                         },
                     },
                 });
@@ -1173,7 +1173,7 @@ impl Engine {
                     },
                 );
                 let up_link_id = up_handle.uuid();
-                up_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+                up_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
                 self.network_link_handles.push(up_handle);
 
                 let mut down_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
@@ -1187,7 +1187,7 @@ impl Engine {
                     },
                 );
                 let down_link_id = down_handle.uuid();
-                down_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: None });
+                down_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
                 self.network_link_handles.push(down_handle);
 
                 self.network_links
