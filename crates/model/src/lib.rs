@@ -16,7 +16,7 @@ mod resource;
 mod usage;
 
 // Re-export derive macros.
-pub use quent_model_macros::{Entity, Fsm, ResizableResource, Resource, ResourceGroup, State};
+pub use quent_model_macros::{Entity, Fsm, ResizableResource, Resource, State};
 
 pub use fsm_event::FsmEvent;
 pub use model::{
@@ -84,6 +84,11 @@ pub trait ResourceGroup {
     const IS_ROOT: bool = false;
 }
 
+/// Marker trait for states that have a `#[parent_group]` field.
+/// Used by the Fsm derive to enforce that non-root resource group FSMs
+/// have a parent group reference on their entry state.
+pub trait HasParentGroup {}
+
 // Re-export instrumentation types needed by generated code.
 pub use quent_events::Event;
 pub use quent_exporter::ExporterOptions;
@@ -126,13 +131,13 @@ macro_rules! define_context {
 /// Prelude for convenient imports in model definition crates.
 pub mod prelude {
     pub use crate::{
-        Entity, EntityEvent, Event, EventSender, Fsm, ResizableResource, Resource,
-        ResourceGroup, State,
+        Entity, EntityEvent, Event, EventSender, Fsm, HasParentGroup, ResizableResource,
+        Resource, ResourceGroup, State,
         FsmEvent, HasEventType, Model, ModelBuilder, ModelComponent, Ref,
         StateMetadata, Usage,
         analyze::{
-            ExtractCapacities, ExtractInstanceName, ExtractUsages, ExtractedCapacity,
-            ExtractedUsage, TransitionInfo,
+            ExtractCapacities, ExtractInstanceName, ExtractParentGroupId, ExtractUsages,
+            ExtractedCapacity, ExtractedUsage, TransitionInfo,
         },
     };
     pub use uuid::Uuid;

@@ -122,8 +122,109 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         quote! {}
     };
 
-    if event_types.is_empty() {
-        // Simple entity (instant) with no events
+    if event_types.is_empty() && resource_group.is_some() {
+        // Resource group entity with no explicit events: generate implicit
+        // declaration event for lifecycle management.
+        let decl_struct = format_ident!("{}Declaration", name);
+        let event_enum = format_ident!("{}Event", name);
+        let observer_name = format_ident!("{}Observer", name);
+        let data_struct = format_ident!("{}Data", name);
+        let observer_method = format_ident!("{}", entity_snake);
+
+        let decl_fields = if is_root {
+            quote! { pub instance_name: String }
+        } else {
+            quote! {
+                pub instance_name: String,
+                pub parent_group_id: uuid::Uuid
+            }
+        };
+
+        let output = quote! {
+            // --- Declaration event struct ---
+            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #vis struct #decl_struct {
+                #decl_fields,
+            }
+
+            // --- Event enum ---
+            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #vis enum #event_enum {
+                Declaration(#decl_struct),
+            }
+
+            impl From<#decl_struct> for #event_enum {
+                fn from(e: #decl_struct) -> Self {
+                    #event_enum::Declaration(e)
+                }
+            }
+
+            // --- Observer ---
+            #[derive(Clone)]
+            #vis struct #observer_name<E>
+            where
+                E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            {
+                tx: quent_model::EventSender<E>,
+            }
+
+            impl<E> #observer_name<E>
+            where
+                E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            {
+                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                    Self { tx: tx.clone() }
+                }
+
+                pub fn #observer_method(&self, id: uuid::Uuid, event: #decl_struct) {
+                    self.tx.emit(id, #event_enum::from(event));
+                }
+            }
+
+            // --- Data struct for analyzer ---
+            #[derive(Debug, Default)]
+            #vis struct #data_struct {
+                pub declaration: Option<#decl_struct>,
+            }
+
+            // --- Traits ---
+            impl quent_model::Entity for #name {}
+
+            #rg_trait_impl
+
+            impl quent_model::HasEventType for #name {
+                type Event = #event_enum;
+            }
+
+            impl quent_model::EntityData for #name {
+                type Data = #data_struct;
+
+                fn push(data: &mut Self::Data, event: Self::Event) {
+                    match event {
+                        #event_enum::Declaration(e) => data.declaration = Some(e),
+                    }
+                }
+            }
+
+            impl quent_model::ModelComponent for #name {
+                fn collect(builder: &mut quent_model::ModelBuilder) {
+                    builder.add_entity(quent_model::EntityDef {
+                        name: #entity_snake.to_string(),
+                        attributes: vec![#(#attr_defs,)*],
+                        events: vec![
+                            quent_model::EntityEventDef {
+                                name: "declaration".to_string(),
+                                attributes: vec![],
+                            }
+                        ],
+                    });
+                    #rg_contribution
+                }
+            }
+        };
+        Ok(output)
+    } else if event_types.is_empty() {
+        // Simple entity (instant) with no events and no resource group
         let output = quote! {
             impl quent_model::Entity for #name {}
 

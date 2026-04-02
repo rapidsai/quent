@@ -17,6 +17,8 @@ struct StateFields {
     capacities: Vec<CapacityField>,
     /// Field annotated with `#[instance_name]` (at most one).
     instance_name_field: Option<Ident>,
+    /// Field annotated with `#[parent_group]` (at most one).
+    parent_group_field: Option<Ident>,
     /// Regular fields.
     regular: Vec<RegularField>,
 }
@@ -75,6 +77,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
     let mut deferred = Vec::new();
     let mut capacities = Vec::new();
     let mut instance_name_field = None;
+    let mut parent_group_field = None;
     let mut regular = Vec::new();
 
     let fields = match &input.data {
@@ -86,6 +89,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
                     deferred,
                     capacities,
                     instance_name_field,
+                    parent_group_field,
                     regular,
                 })
             }
@@ -149,6 +153,22 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
                 ty: field.ty.clone(),
                 optional,
             });
+        } else if has_attr(field, "parent_group") {
+            if parent_group_field.is_some() {
+                return Err(syn::Error::new_spanned(
+                    field,
+                    "only one field can be annotated with #[parent_group]",
+                ));
+            }
+            parent_group_field = Some(field_name.clone());
+            // Also add as a regular field for metadata
+            let optional = is_option_type(&field.ty);
+            regular.push(RegularField {
+                name,
+                ident: field_name.clone(),
+                ty: field.ty.clone(),
+                optional,
+            });
         } else {
             let optional = is_option_type(&field.ty);
             regular.push(RegularField {
@@ -165,6 +185,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
         deferred,
         capacities,
         instance_name_field,
+        parent_group_field,
         regular,
     })
 }
@@ -321,6 +342,21 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         None => quote! { None },
     };
 
+    // Generate ExtractParentGroupId impl.
+    let extract_parent_group_id_body = match &fields.parent_group_field {
+        Some(ident) => quote! { Some(self.#ident.into()) },
+        None => quote! { None },
+    };
+
+    // Generate HasParentGroup marker trait impl if applicable.
+    let has_parent_group_impl = if fields.parent_group_field.is_some() {
+        quote! {
+            impl quent_model::HasParentGroup for #state_name_ident {}
+        }
+    } else {
+        quote! {}
+    };
+
     let output = quote! {
         // --- Deferred enum ---
         #deferred_enum
@@ -366,6 +402,16 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 #extract_instance_name_body
             }
         }
+
+        // --- ExtractParentGroupId impl ---
+        impl quent_model::analyze::ExtractParentGroupId for #state_name_ident {
+            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> {
+                #extract_parent_group_id_body
+            }
+        }
+
+        // --- HasParentGroup marker (if applicable) ---
+        #has_parent_group_impl
     };
 
     Ok(output)

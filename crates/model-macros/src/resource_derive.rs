@@ -215,6 +215,10 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             impl quent_model::analyze::ExtractInstanceName for #op_state {
                 fn extract_instance_name(&self) -> Option<&str> { None }
             }
+
+            impl quent_model::analyze::ExtractParentGroupId for #op_state {
+                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
+            }
         }
     } else {
         quote! {
@@ -251,12 +255,17 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             impl quent_model::analyze::ExtractInstanceName for #op_state {
                 fn extract_instance_name(&self) -> Option<&str> { None }
             }
+
+            impl quent_model::analyze::ExtractParentGroupId for #op_state {
+                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
+            }
         }
     };
 
     // Transition variants and FSM structure
     let (transition_variants, transition_name_arms, transition_usages_arms,
-         transition_instance_name_arms, transition_defs, state_defs, from_impls,
+         transition_instance_name_arms, transition_parent_group_id_arms,
+         transition_defs, state_defs, from_impls,
          handle_transition_methods, resizing_code) = if resizable {
         // ResizableResource: init -> operating <-> resizing -> finalizing -> exit
         let variants = quote! {
@@ -288,6 +297,14 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #transition_enum::#op_state(data) => quent_model::analyze::ExtractInstanceName::extract_instance_name(data),
             #transition_enum::#resize_state(data) => quent_model::analyze::ExtractInstanceName::extract_instance_name(data),
             #transition_enum::#fin_state(data) => quent_model::analyze::ExtractInstanceName::extract_instance_name(data),
+            #transition_enum::Exit => None,
+        };
+
+        let parent_group_id_arms = quote! {
+            #transition_enum::#init_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
+            #transition_enum::#op_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
+            #transition_enum::#resize_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
+            #transition_enum::#fin_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
             #transition_enum::Exit => None,
         };
 
@@ -348,9 +365,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             impl quent_model::analyze::ExtractInstanceName for #resize_state {
                 fn extract_instance_name(&self) -> Option<&str> { None }
             }
+            impl quent_model::analyze::ExtractParentGroupId for #resize_state {
+                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
+            }
         };
 
-        (variants, name_arms, usages_arms, instance_name_arms, tdefs, sdefs, froms, methods, resize_code)
+        (variants, name_arms, usages_arms, instance_name_arms, parent_group_id_arms, tdefs, sdefs, froms, methods, resize_code)
     } else {
         // Fixed resource: init -> operating -> finalizing -> exit
         let variants = quote! {
@@ -381,6 +401,13 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #transition_enum::Exit => None,
         };
 
+        let parent_group_id_arms = quote! {
+            #transition_enum::#init_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
+            #transition_enum::#op_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
+            #transition_enum::#fin_state(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data),
+            #transition_enum::Exit => None,
+        };
+
         let tdefs = quote! {
             quent_model::TransitionDef { from: quent_model::TransitionEndpoint::Entry, to: quent_model::TransitionEndpoint::State("initializing".to_string()) },
             quent_model::TransitionDef { from: quent_model::TransitionEndpoint::State("initializing".to_string()), to: quent_model::TransitionEndpoint::State("operating".to_string()) },
@@ -405,7 +432,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             pub fn finalizing(&mut self) { self.transition(#fin_state); }
         };
 
-        (variants, name_arms, usages_arms, instance_name_arms, tdefs, sdefs, froms, methods, quote! {})
+        (variants, name_arms, usages_arms, instance_name_arms, parent_group_id_arms, tdefs, sdefs, froms, methods, quote! {})
     };
 
     let output = quote! {
@@ -442,6 +469,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         impl quent_model::analyze::ExtractInstanceName for #init_state {
             fn extract_instance_name(&self) -> Option<&str> { Some(&self.instance_name) }
         }
+        impl quent_model::analyze::ExtractParentGroupId for #init_state {
+            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { Some(self.parent_group_id) }
+        }
 
         // --- Operating state ---
         #op_state_def
@@ -474,6 +504,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         impl quent_model::analyze::ExtractInstanceName for #fin_state {
             fn extract_instance_name(&self) -> Option<&str> { None }
         }
+        impl quent_model::analyze::ExtractParentGroupId for #fin_state {
+            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
+        }
 
         // --- Resizing state (ResizableResource only) ---
         #resizing_code
@@ -500,6 +533,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
             fn instance_name(&self) -> Option<&str> {
                 match self { #transition_instance_name_arms }
+            }
+            fn parent_group_id(&self) -> Option<uuid::Uuid> {
+                match self { #transition_parent_group_id_arms }
             }
             fn fsm_type_name() -> &'static str { #name_snake }
             fn collect_model(builder: &mut quent_model::ModelBuilder) {

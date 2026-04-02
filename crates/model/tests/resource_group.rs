@@ -5,17 +5,13 @@
 
 use quent_model::prelude::*;
 
-#[derive(ResourceGroup)]
+#[derive(Entity)]
 #[resource_group(root)]
-pub struct Engine {
-    pub name: String,
-}
+pub struct Engine;
 
-#[derive(ResourceGroup)]
+#[derive(Entity)]
 #[resource_group]
-pub struct QueryGroup {
-    pub engine_id: Uuid,
-}
+pub struct QueryGroup;
 
 #[test]
 fn resource_group_trait_impl() {
@@ -41,4 +37,21 @@ fn resource_group_model_component() {
     assert!(builder.resource_groups[0].is_root);
     assert_eq!(builder.resource_groups[1].name, "query_group");
     assert!(!builder.resource_groups[1].is_root);
+}
+
+#[test]
+fn resource_group_has_event_type() {
+    // Resource group entities with no explicit events should still
+    // generate HasEventType via the implicit declaration event.
+    fn assert_has_event<T: quent_model::HasEventType>() {}
+    assert_has_event::<Engine>();
+    assert_has_event::<QueryGroup>();
+}
+
+#[test]
+fn resource_group_entity_data() {
+    // Verify EntityData is generated for resource group entities.
+    fn assert_entity_data<T: quent_model::EntityData>() {}
+    assert_entity_data::<Engine>();
+    assert_entity_data::<QueryGroup>();
 }

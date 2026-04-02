@@ -10,6 +10,7 @@ use quent_model::prelude::*;
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Init {
+    #[parent_group]
     pub query_group_id: Uuid,
     #[instance_name]
     pub instance_name: String,

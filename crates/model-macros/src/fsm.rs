@@ -244,6 +244,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     // Collect state idents and transitions from fields
     let mut transitions = Vec::new();
     let mut state_idents: Vec<Ident> = Vec::new();
+    let mut entry_state_type: Option<Ident> = None;
     let mut seen = HashSet::new();
 
     for field in fields {
@@ -258,6 +259,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         // Entry transition: entry -> this state
         if is_entry {
+            entry_state_type = Some(state_type.clone());
             transitions.push(Transition {
                 from: TransitionEndpoint::Entry,
                 to: TransitionEndpoint::State(state_type.clone()),
@@ -335,6 +337,15 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         })
         .collect();
 
+    let transition_parent_group_id_arms: Vec<TokenStream> = state_idents
+        .iter()
+        .map(|ident| {
+            quote! {
+                #transition_enum::#ident(data) => quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(data)
+            }
+        })
+        .collect();
+
     // Generate transition def tokens for ModelComponent
     let transition_def_tokens: Vec<TokenStream> = transitions
         .iter()
@@ -408,6 +419,22 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         quote! {}
     };
 
+    // Compile-time enforcement: non-root resource group FSMs must have
+    // a #[parent_group] field on their entry state.
+    let rg_parent_group_assert = match (resource_group, &entry_state_type) {
+        (Some(false), Some(entry_type)) => {
+            quote! {
+                const _: () = {
+                    fn _assert_entry_has_parent_group<T: quent_model::HasParentGroup>() {}
+                    fn _check() {
+                        _assert_entry_has_parent_group::<#entry_type>();
+                    }
+                };
+            }
+        }
+        _ => quote! {},
+    };
+
     let output = quote! {
         // --- Transition enum ---
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -437,6 +464,13 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             fn instance_name(&self) -> Option<&str> {
                 match self {
                     #(#transition_instance_name_arms,)*
+                    #transition_enum::Exit => None,
+                }
+            }
+
+            fn parent_group_id(&self) -> Option<uuid::Uuid> {
+                match self {
+                    #(#transition_parent_group_id_arms,)*
                     #transition_enum::Exit => None,
                 }
             }
@@ -565,6 +599,9 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         // --- ResourceGroup trait impl (if applicable) ---
         #rg_trait_impl
+
+        // --- Compile-time parent group assertion (non-root resource groups) ---
+        #rg_parent_group_assert
 
         // --- Resource marker (if resource directive was present) ---
         #resource_impl
