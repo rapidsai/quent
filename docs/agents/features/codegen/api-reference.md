@@ -301,6 +301,9 @@ quent_model::define_context!(pub SimulatorContext(SimulatorEvent));
 | Type | Purpose |
 |---|---|
 | `Usage<T: Resource>` | Resource usage — `{ resource_id: Ref<T>, capacity: T::CapacityValue }` |
+| `Capacity<V, K>` | Resource capacity value — `V` is the value type, `K` is `Occupancy` or `Rate` |
+| `Occupancy` | Capacity kind: usage value = amount held during a Span |
+| `Rate` | Capacity kind: usage value = total quantity processed over a Span |
 | `Ref<T>` | Typed entity reference — `Uuid` on the wire, type-safe at compile time |
 | `FsmEvent<S, D>` | Common FSM event wrapper — `Transition { seq, state }` or `Deferred { seq, deferred }` |
 | `{Name}Handle<E>` | FSM instrumentation handle — `new()`, `transition()`, `exit()`, auto-exit on Drop |
@@ -317,10 +320,10 @@ Predefined resources matching the spec's common entity types:
 
 | Type | Spec concept | Capacity |
 |---|---|---|
-| `Memory` | Fixed-bounds memory | `capacity_bytes: u64` |
-| `ResizableMemory` | Dynamic-bounds memory | `capacity_bytes: u64` |
+| `Memory` | Fixed-bounds memory | `capacity_bytes: Capacity<u64, Occupancy>` |
+| `ResizableMemory` | Dynamic-bounds memory | `capacity_bytes: Capacity<u64, Occupancy>` |
 | `Processor` | Unit resource (computation) | None (unit) |
-| `Channel` | Data transfer | `capacity_bytes: Option<u64>` |
+| `Channel` | Data transfer | `capacity_bytes: Capacity<Option<u64>, Rate>` |
 
 Usage in state definitions:
 
