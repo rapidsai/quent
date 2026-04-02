@@ -109,7 +109,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         })
         .collect();
 
-    let user_init_field_names: Vec<&Ident> = fields
+    let _user_init_field_names: Vec<&Ident> = fields
         .init_fields
         .iter()
         .filter_map(|f| f.ident.as_ref())
@@ -127,7 +127,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         })
         .collect();
 
-    let capacity_field_names: Vec<&Ident> = fields
+    let _capacity_field_names: Vec<&Ident> = fields
         .capacity_fields
         .iter()
         .filter_map(|f| f.ident.as_ref())

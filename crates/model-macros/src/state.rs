@@ -94,7 +94,7 @@ fn is_option_type(ty: &syn::Type) -> bool {
 
 fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
     let mut usages = Vec::new();
-    let mut deferred = Vec::new();
+    let deferred = Vec::new();
     let mut capacities = Vec::new();
     let mut instance_name_field = None;
     let mut parent_group_field = None;

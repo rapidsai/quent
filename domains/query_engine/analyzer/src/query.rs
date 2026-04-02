@@ -8,14 +8,14 @@
 
 use quent_analyzer::{
     AnalyzerResult, Entity,
-    fsm::{Fsm, Transition, FsmUsages, analyzed::{AnalyzedFsm, AnalyzedFsmBuilder, AnalyzedTransition}},
+    fsm::{Fsm, FsmUsages, analyzed::{AnalyzedFsm, AnalyzedFsmBuilder, AnalyzedTransition}},
     resource::{ResourceGroup, Usage, Using},
 };
 use quent_query_engine_events::query::{
-    Init, QueryDeferred, QueryTransition as ModelQueryTransition,
+    QueryDeferred, QueryTransition as ModelQueryTransition,
 };
 use quent_query_engine_ui as ui;
-use quent_time::{TimeUnixNanoSec, Timestamp, try_to_secs_relative};
+use quent_time::{Timestamp, try_to_secs_relative};
 use uuid::Uuid;
 
 /// Builder for Query FSMs.
