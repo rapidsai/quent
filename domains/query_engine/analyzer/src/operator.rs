@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
-use quent_analyzer::entity::analyzed::AnalyzedEntity;
+use quent_analyzer::entity::EntityEvents;
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_query_engine_events::operator;
@@ -13,7 +13,7 @@ use uuid::Uuid;
 /// An Operator in a Plan DAG.
 #[derive(Debug)]
 pub struct Operator {
-    inner: AnalyzedEntity<operator::Operator>,
+    inner: EntityEvents<operator::Operator>,
     /// Computed externally from task spans.
     pub active_span: Option<SpanUnixNanoSec>,
 }
@@ -21,7 +21,7 @@ pub struct Operator {
 impl Operator {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
-            inner: AnalyzedEntity::new(id)?,
+            inner: EntityEvents::new(id)?,
             active_span: None,
         })
     }

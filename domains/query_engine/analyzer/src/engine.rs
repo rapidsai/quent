@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::ResourceGroup};
-use quent_analyzer::entity::analyzed::AnalyzedEntity;
+use quent_analyzer::entity::EntityEvents;
 use quent_events::Event;
 use quent_query_engine_events::engine;
 use quent_query_engine_ui as ui;
@@ -11,11 +11,11 @@ use uuid::Uuid;
 
 /// The analyzer's Engine entity.
 #[derive(Debug)]
-pub struct Engine(AnalyzedEntity<engine::Engine>);
+pub struct Engine(EntityEvents<engine::Engine>);
 
 impl Engine {
     pub fn new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::new(id)?))
+        Ok(Self(EntityEvents::new(id)?))
     }
 
     pub fn push(&mut self, event: Event<engine::EngineEvent>) {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
-use quent_analyzer::entity::analyzed::AnalyzedEntity;
+use quent_analyzer::entity::EntityEvents;
 use quent_events::Event;
 use quent_query_engine_events::query_group;
 use quent_query_engine_ui as ui;
@@ -10,11 +10,11 @@ use uuid::Uuid;
 
 /// A QueryGroup is an entity that groups [`super::query::Query`]s
 #[derive(Debug)]
-pub struct QueryGroup(AnalyzedEntity<query_group::QueryGroup>);
+pub struct QueryGroup(EntityEvents<query_group::QueryGroup>);
 
 impl QueryGroup {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::new(id)?))
+        Ok(Self(EntityEvents::new(id)?))
     }
 
     pub fn push(&mut self, event: Event<query_group::QueryGroupEvent>) {

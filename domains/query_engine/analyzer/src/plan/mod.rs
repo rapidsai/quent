@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
-use quent_analyzer::entity::analyzed::AnalyzedEntity;
+use quent_analyzer::entity::EntityEvents;
 use quent_events::Event;
 use quent_query_engine_events::plan::{self, Edge, PlanParent};
 use quent_query_engine_ui as ui;
@@ -15,11 +15,11 @@ pub mod tree;
 /// Represents the dataflow starting at data sources, through operators
 /// performing transformations, to an output.
 #[derive(Debug)]
-pub struct Plan(AnalyzedEntity<plan::Plan>);
+pub struct Plan(EntityEvents<plan::Plan>);
 
 impl Plan {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::new(id)?))
+        Ok(Self(EntityEvents::new(id)?))
     }
 
     pub fn push(&mut self, event: Event<plan::PlanEvent>) {

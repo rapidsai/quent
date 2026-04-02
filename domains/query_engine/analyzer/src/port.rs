@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
-use quent_analyzer::entity::analyzed::AnalyzedEntity;
+use quent_analyzer::entity::EntityEvents;
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_query_engine_events::port;
@@ -12,11 +12,11 @@ use uuid::Uuid;
 
 /// A Port of an Operator in a Plan DAG.
 #[derive(Debug)]
-pub struct Port(AnalyzedEntity<port::Port>);
+pub struct Port(EntityEvents<port::Port>);
 
 impl Port {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::new(id)?))
+        Ok(Self(EntityEvents::new(id)?))
     }
 
     pub fn push(&mut self, event: Event<port::PortEvent>) {

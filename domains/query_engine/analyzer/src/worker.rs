@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::ResourceGroup};
-use quent_analyzer::entity::analyzed::AnalyzedEntity;
+use quent_analyzer::entity::EntityEvents;
 use quent_events::Event;
 use quent_query_engine_events::worker;
 use quent_query_engine_ui as ui;
@@ -11,11 +11,11 @@ use uuid::Uuid;
 
 /// A [`Worker`] is an [`Entity`] that executes [`Query`] [`Plans`].
 #[derive(Debug)]
-pub struct Worker(AnalyzedEntity<worker::Worker>);
+pub struct Worker(EntityEvents<worker::Worker>);
 
 impl Worker {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::new(id)?))
+        Ok(Self(EntityEvents::new(id)?))
     }
 
     pub fn push(&mut self, event: Event<worker::WorkerEvent>) {
