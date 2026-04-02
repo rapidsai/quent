@@ -12,7 +12,7 @@ use quent_model::prelude::*;
 
 use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 
-// --- States ---
+// States
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
@@ -51,7 +51,7 @@ pub struct Sending {
     pub use_link: Usage<ChannelResource>,
 }
 
-// --- FSM ---
+// FSM
 
 #[derive(Fsm)]
 pub struct Task {

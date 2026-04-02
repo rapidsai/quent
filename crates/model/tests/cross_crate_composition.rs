@@ -6,7 +6,7 @@
 
 use quent_model::prelude::*;
 
-// --- Simulate a domain model crate (inline) ---
+// Simulate a domain model crate (inline)
 
 #[derive(Entity)]
 pub struct Engine {
@@ -19,14 +19,14 @@ pub struct Operator {
     pub type_name: String,
 }
 
-// --- Application-specific types using stdlib resources ---
+// Application-specific types using stdlib resources
 
 // Use the resource marker types for Usage<T>
 type WorkerMemory = quent_stdlib::MemoryResource;
 type Thread = quent_stdlib::ProcessorResource;
 type FsToMem = quent_stdlib::ChannelResource;
 
-// --- Application FSM using stdlib resource types ---
+// Application FSM using stdlib resource types
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
@@ -56,7 +56,7 @@ pub struct Task {
     pub sending: Sending,
 }
 
-// --- Model composition ---
+// Model composition
 
 type DomainModel = Model<(Engine, Operator)>;
 // Use the metadata marker types in the model, not the resource marker types
@@ -68,7 +68,7 @@ type AppModel = Model<(
     quent_stdlib::Channel,
 )>;
 
-// --- Tests ---
+// Tests
 
 #[test]
 fn ref_type_safety() {

@@ -16,7 +16,7 @@
 
 use quent_model::prelude::*;
 
-// --- A valid linear FSM ---
+// A valid linear FSM
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct A;
@@ -46,7 +46,7 @@ fn linear_fsm_valid() {
     assert_eq!(fsm.transitions.len(), 4);
 }
 
-// --- A cyclic FSM ---
+// A cyclic FSM
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Idle;
@@ -71,7 +71,7 @@ fn cyclic_fsm_valid() {
     assert_eq!(fsm.transitions.len(), 4);
 }
 
-// --- Unit state (no fields) ---
+// Unit state (no fields)
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct EmptyState;
@@ -85,7 +85,7 @@ fn unit_state_metadata() {
     assert!(def.usages.is_empty());
 }
 
-// --- Complex model with nested composition ---
+// Complex model with nested composition
 
 type InnerModel = Model<(LinearFsm,)>;
 type OuterModel = Model<(InnerModel, CyclicFsm)>;
@@ -98,7 +98,7 @@ fn nested_model_composition() {
     assert!(builder.fsms.iter().any(|f| f.name == "cyclic_fsm"));
 }
 
-// --- Transition endpoint values ---
+// Transition endpoint values
 
 #[test]
 fn transition_endpoints() {

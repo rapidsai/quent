@@ -5,7 +5,7 @@
 
 use quent_model::prelude::*;
 
-// --- Minimal model components ---
+// Minimal model components
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Idle;
@@ -35,7 +35,7 @@ pub struct SimpleEntity {
     pub ping: Ping,
 }
 
-// --- define_model! usage ---
+// define_model! usage
 
 quent_model::define_model! {
     Test {

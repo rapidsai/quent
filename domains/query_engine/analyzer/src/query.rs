@@ -80,7 +80,7 @@ impl Query {
     }
 }
 
-// --- Delegate Entity (override instance_name for backward compat) ---
+// Delegate Entity (override instance_name for backward compat)
 
 impl Entity for Query {
     fn id(&self) -> Uuid {
@@ -94,7 +94,7 @@ impl Entity for Query {
     }
 }
 
-// --- Delegate Fsm ---
+// Delegate Fsm
 
 impl Fsm for Query {
     type TransitionType = TransitionEvent<ModelQueryTransition>;
@@ -106,7 +106,7 @@ impl Fsm for Query {
     }
 }
 
-// --- Delegate FsmUsages ---
+// Delegate FsmUsages
 
 impl<'a> FsmUsages<'a> for Query {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
@@ -114,7 +114,7 @@ impl<'a> FsmUsages<'a> for Query {
     }
 }
 
-// --- Delegate Using ---
+// Delegate Using
 
 impl Using for Query {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
@@ -122,7 +122,7 @@ impl Using for Query {
     }
 }
 
-// --- ResourceGroup (application-specific) ---
+// ResourceGroup (application-specific)
 
 impl ResourceGroup for Query {
     fn parent_group_id(&self) -> Option<Uuid> {

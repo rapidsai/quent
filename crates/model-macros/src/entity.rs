@@ -141,13 +141,13 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         };
 
         let output = quote! {
-            // --- Declaration event struct ---
+            // Declaration event struct
             #[derive(Debug, serde::Serialize, serde::Deserialize)]
             #vis struct #decl_struct {
                 #decl_fields,
             }
 
-            // --- Event enum ---
+            // Event enum
             #[derive(Debug, serde::Serialize, serde::Deserialize)]
             #vis enum #event_enum {
                 Declaration(#decl_struct),
@@ -159,7 +159,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 }
             }
 
-            // --- Observer ---
+            // Observer
             #[derive(Clone)]
             #vis struct #observer_name<E>
             where
@@ -181,13 +181,13 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 }
             }
 
-            // --- Data struct for analyzer ---
+            // Data struct for analyzer
             #[derive(Debug, Default)]
             #vis struct #data_struct {
                 pub declaration: Option<#decl_struct>,
             }
 
-            // --- Traits ---
+            // Traits
             impl quent_model::Entity for #name {}
 
             #rg_trait_impl
@@ -321,7 +321,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             .collect();
 
         let output = quote! {
-            // --- Event enum ---
+            // Event enum
             #[derive(Debug, serde::Serialize, serde::Deserialize)]
             #vis enum #event_enum {
                 #(#event_variants,)*
@@ -329,7 +329,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
             #(#from_impls)*
 
-            // --- Observer ---
+            // Observer
             #[derive(Clone)]
             #vis struct #observer_name<E>
             where
@@ -349,13 +349,13 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 #(#observer_methods)*
             }
 
-            // --- Data struct for analyzer ---
+            // Data struct for analyzer
             #[derive(Debug, Default)]
             #vis struct #data_struct {
                 #(#data_fields,)*
             }
 
-            // --- Traits ---
+            // Traits
             impl quent_model::Entity for #name {}
 
             #rg_trait_impl

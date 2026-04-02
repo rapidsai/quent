@@ -173,7 +173,7 @@ impl<T: TransitionInfo + std::fmt::Debug> FsmEvents<T> {
     }
 }
 
-// --- Entity ---
+// Entity
 
 impl<T: TransitionInfo + std::fmt::Debug> Entity for FsmEvents<T> {
     fn id(&self) -> Uuid {
@@ -187,7 +187,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Entity for FsmEvents<T> {
     }
 }
 
-// --- Fsm ---
+// Fsm
 
 impl<T: TransitionInfo + std::fmt::Debug> Fsm for FsmEvents<T> {
     type TransitionType = TransitionEvent<T>;
@@ -199,7 +199,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Fsm for FsmEvents<T> {
     }
 }
 
-// --- FsmUsages ---
+// FsmUsages
 
 impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for FsmEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
@@ -222,7 +222,7 @@ impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for FsmEvents<T
     }
 }
 
-// --- Using ---
+// Using
 
 impl<T: TransitionInfo + std::fmt::Debug> Using for FsmEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
@@ -239,7 +239,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Using for FsmEvents<T> {
     }
 }
 
-// --- FsmTypeDeclaration ---
+// FsmTypeDeclaration
 
 impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for FsmEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {

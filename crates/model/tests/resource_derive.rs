@@ -5,14 +5,14 @@
 
 use quent_model::prelude::*;
 
-// --- Fixed-bounds resource with capacity ---
+// Fixed-bounds resource with capacity
 
 #[derive(Resource)]
 pub struct TestMem {
     pub bytes: Capacity<u64>,
 }
 
-// --- Unit resource (no capacity) ---
+// Unit resource (no capacity)
 
 #[derive(Resource)]
 pub struct TestProc;
@@ -68,7 +68,7 @@ fn resource_has_event_type() {
     assert_has_event::<TestProc>();
 }
 
-// --- Resizable resource ---
+// Resizable resource
 
 #[derive(ResizableResource)]
 pub struct TestResizable {

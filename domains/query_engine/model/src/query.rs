@@ -6,7 +6,7 @@
 #[allow(unused_imports)]
 use quent_model::prelude::*;
 
-// --- States ---
+// States
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Init {
@@ -22,7 +22,7 @@ pub struct Planning;
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Executing;
 
-// --- FSM ---
+// FSM
 
 /// Query FSM: `entry -> Init -> Planning -> Executing -> exit`
 #[derive(Fsm)]

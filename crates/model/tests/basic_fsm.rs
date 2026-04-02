@@ -5,7 +5,7 @@
 
 use quent_model::prelude::*;
 
-// --- Define states ---
+// Define states
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
@@ -24,7 +24,7 @@ pub struct Sending {
     pub channel_id: Uuid,
 }
 
-// --- Define FSM ---
+// Define FSM
 
 #[derive(Fsm)]
 pub struct Task {
@@ -36,7 +36,7 @@ pub struct Task {
     pub sending: Sending,
 }
 
-// --- Tests ---
+// Tests
 
 #[test]
 fn transition_enum_variants_exist() {

@@ -12,7 +12,7 @@
 #[allow(unused_imports)]
 use quent_model::prelude::*;
 
-// --- Job: groups tasks, root resource group ---
+// Job: groups tasks, root resource group
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Submit {
@@ -32,7 +32,7 @@ pub struct Job {
     pub complete: Complete,
 }
 
-// --- ThreadPool: resource group containing threads ---
+// ThreadPool: resource group containing threads
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ThreadPoolInit {
@@ -46,7 +46,7 @@ pub struct ThreadPool {
     pub init: ThreadPoolInit,
 }
 
-// --- Task: FSM running on a thread ---
+// Task: FSM running on a thread
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Queued {
@@ -69,7 +69,7 @@ pub struct Task {
     pub running: Running,
 }
 
-// --- Model ---
+// Model
 
 quent_model::define_model! {
     Example {
