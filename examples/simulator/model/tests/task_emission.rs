@@ -55,7 +55,7 @@ fn task_handle_lifecycle() {
         use_memory: Usage {
             resource_id: Ref::new(Uuid::nil()),
             capacity: quent_stdlib::MemoryOperating {
-                capacity_bytes: Capacity::new(4096),
+                capacity_bytes: Capacity::new(Some(4096)),
             },
         },
     });
@@ -117,7 +117,7 @@ fn task_transition_types() {
         use_memory: Usage {
             resource_id: Ref::new(Uuid::nil()),
             capacity: quent_stdlib::MemoryOperating {
-                capacity_bytes: Capacity::new(8192),
+                capacity_bytes: Capacity::new(Some(8192)),
             },
         },
     });
@@ -131,7 +131,7 @@ fn task_transition_types() {
         use_memory: Usage {
             resource_id: Ref::new(Uuid::nil()),
             capacity: quent_stdlib::MemoryOperating {
-                capacity_bytes: Capacity::new(4096),
+                capacity_bytes: Capacity::new(Some(4096)),
             },
         },
     });

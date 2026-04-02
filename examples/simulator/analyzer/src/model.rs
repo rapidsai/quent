@@ -328,7 +328,7 @@ impl SimulatorModelBuilder {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Operating(
                     timestamp,
-                    ResourceCapacities(vec![CapacityValue::new("bytes", op.capacity_bytes.value)]),
+                    ResourceCapacities(vec![CapacityValue::new("bytes", op.capacity_bytes.value.unwrap_or(0))]),
                 ));
             }
             MemoryTransition::MemoryFinalizing(_) => {

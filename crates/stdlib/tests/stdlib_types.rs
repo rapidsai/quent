@@ -13,7 +13,7 @@ fn memory_types_exist() {
         resource_type_name: "memory".into(),
     };
     let _op = quent_stdlib::MemoryOperating {
-        capacity_bytes: Capacity::new(1024),
+        capacity_bytes: Capacity::new(Some(1024)),
     };
     let _fin = quent_stdlib::MemoryFinalizing;
 }

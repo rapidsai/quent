@@ -536,7 +536,7 @@ impl Worker {
             },
         );
         let filesystem = fs_handle.uuid();
-        fs_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(0) });
+        fs_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(Some(0)) });
         memory_handles.push(fs_handle);
 
         // Memory pool
@@ -549,7 +549,7 @@ impl Worker {
             },
         );
         let memory = mem_handle.uuid();
-        mem_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(0) });
+        mem_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(Some(0)) });
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
@@ -687,7 +687,7 @@ impl Worker {
                 use_memory: Usage {
                     resource_id: mem_ref,
                     capacity: quent_stdlib::MemoryOperating {
-                        capacity_bytes: Capacity::new(rng().random_range(0..4) * num_bytes),
+                        capacity_bytes: Capacity::new(Some(rng().random_range(0..4) * num_bytes)),
                     },
                 },
             });
@@ -699,7 +699,7 @@ impl Worker {
             use_memory: Usage {
                 resource_id: mem_ref,
                 capacity: quent_stdlib::MemoryOperating {
-                    capacity_bytes: Capacity::new(rng().random_range(0..4) * num_bytes),
+                    capacity_bytes: Capacity::new(Some(rng().random_range(0..4) * num_bytes)),
                 },
             },
         });
