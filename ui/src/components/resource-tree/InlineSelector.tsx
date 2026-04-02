@@ -41,7 +41,7 @@ export const InlineSelector = ({
           id={`type-select-${id}`}
           aria-labelledby={`type-select-label-${id}`}
           className={cn(
-            'h-auto w-auto min-w-0 max-w-80 border-0 border-b border-dashed border-muted-foreground/60 rounded-none bg-transparent px-0 py-px text-xs shadow-none cursor-pointer',
+            'h-auto w-auto min-w-0 max-w-80 border-0 border-b border-dashed border-muted-foreground/60 rounded-none bg-transparent px-0 py-px text-xs font-mono shadow-none cursor-pointer',
             'focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
             'data-[placeholder]:text-muted-foreground',
             '[&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0 [&>svg]:translate-y-px [&>svg]:opacity-70'
@@ -57,7 +57,7 @@ export const InlineSelector = ({
             <SelectItem
               key={option}
               value={option}
-              className="text-xs py-1.5 pl-8 pr-2 cursor-pointer"
+              className="text-xs font-mono py-1.5 pl-8 pr-2 cursor-pointer"
             >
               {option}
             </SelectItem>

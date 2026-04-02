@@ -3,6 +3,7 @@
 
 import { ResourceGroup } from '~quent/types/ResourceGroup';
 import { InlineSelector } from './InlineSelector';
+import { DataText } from '@/components/ui/data-text';
 
 const FSM_ALL = 'All';
 
@@ -36,9 +37,7 @@ export const ResourceGroupRow = ({
 
   return (
     <div>
-      <div>
-        <span className="text-sm font-bold">{group.instance_name}</span>
-      </div>
+      <DataText className="text-sm font-bold">{group.instance_name}</DataText>
       {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
         <InlineSelector
           id={`${id}-resource-type`}
@@ -46,12 +45,11 @@ export const ResourceGroupRow = ({
           value={selectedType}
           options={availableResourceTypes}
           onChange={(_, value) => onTypeChange(id, value)}
-          className="mt-1"
         />
       )}
       {hasOneFsm && (
         <p className="mt-1 text-xs text-muted-foreground">
-          FSM: <span className="text-foreground">{availableFsmTypes![0]}</span>
+          FSM: <DataText className="text-foreground">{availableFsmTypes![0]}</DataText>
         </p>
       )}
       {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (

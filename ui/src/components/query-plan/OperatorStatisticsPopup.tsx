@@ -3,6 +3,7 @@
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { StatValue } from '@/services/query-plan/types';
+import { DataText } from '@/components/ui/data-text';
 
 export interface OperatorStatisticsPopupProps {
   children: React.ReactNode;
@@ -27,12 +28,14 @@ export const OperatorStatisticsPopup = ({
       </HoverCardTrigger>
       <HoverCardContent className="flex w-72 flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-sm">{operatorLabel}</span>
-          <span className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded">
+          <DataText className="font-semibold text-sm">{operatorLabel}</DataText>
+          <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded">
             {operationType}
-          </span>
+          </DataText>
         </div>
-        <div className="text-xs text-muted-foreground font-mono truncate">{nodeId}</div>
+        <DataText as="div" className="text-xs text-muted-foreground truncate">
+          {nodeId}
+        </DataText>
         {data.length > 0 && (
           <div className="mt-1 border-t pt-1.5 max-h-56 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
             <div className="flex flex-col gap-1 pr-3">
@@ -40,22 +43,19 @@ export const OperatorStatisticsPopup = ({
                 <div key={key} className="text-xs mt-1">
                   {Array.isArray(value) ? (
                     <div className="flex items-center justify-between gap-0.5">
-                      <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+                      <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                       <div className="ml-2 flex flex-col gap-0.5">
                         {value.map((item, i) => (
-                          <span
-                            key={i}
-                            className="text-muted-foreground font-mono whitespace-pre-line"
-                          >
+                          <DataText key={i} className="text-muted-foreground whitespace-pre-line">
                             {item}
-                          </span>
+                          </DataText>
                         ))}
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between">
-                      <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
-                      <span className="text-muted-foreground ml-1 font-mono">{String(value)}</span>
+                      <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
+                      <DataText className="text-muted-foreground ml-1">{String(value)}</DataText>
                     </div>
                   )}
                 </div>

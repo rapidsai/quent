@@ -15,6 +15,7 @@ import {
   DEFAULT_OPERATION_COLOR,
 } from '@/services/query-plan/operationTypes';
 import { withOpacity } from '@/services/colors';
+import { DataText } from '@/components/ui/data-text';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -73,11 +74,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
       )}
 
-      <div
+      <DataText
+        as="div"
         className={cn("text-sm break-words text-center font-normal", { "font-bold": data.operationType === 'stage'  || isSelected})}
       >
         {data.label}
-      </div>
+      </DataText>
 
       {data.hasOutgoing && (
         <Handle
