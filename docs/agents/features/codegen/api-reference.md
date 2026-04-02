@@ -166,8 +166,10 @@ pub struct Channel {
 | _(other)_ | Field goes on the generated Initializing state (metadata set at creation) |
 
 `Capacity<V, K>` wraps a value `V` with a kind marker `K` (`Occupancy` or
-`Rate`). The kind defaults to `Occupancy` if omitted: `Capacity<u64>` is
-equivalent to `Capacity<u64, Occupancy>`.
+`Rate`). `V` is restricted to `u64` (bounded) or `Option<u64>` (unbounded,
+`None` = no maximum), matching the spec's non-negative integer requirement.
+The kind defaults to `Occupancy` if omitted: `Capacity<u64>` is equivalent
+to `Capacity<u64, Occupancy>`.
 
 **Auto-generated Initializing state fields:** `instance_name: String`,
 `parent_group_id: Uuid`, `resource_type_name: String` — present on every
@@ -301,7 +303,7 @@ quent_model::define_context!(pub SimulatorContext(SimulatorEvent));
 | Type | Purpose |
 |---|---|
 | `Usage<T: Resource>` | Resource usage — `{ resource_id: Ref<T>, capacity: T::CapacityValue }` |
-| `Capacity<V, K>` | Resource capacity value — `V` is the value type, `K` is `Occupancy` or `Rate` |
+| `Capacity<V, K>` | Resource capacity value — `V` is `u64` or `Option<u64>`, `K` is `Occupancy` or `Rate` |
 | `Occupancy` | Capacity kind: usage value = amount held during a Span |
 | `Rate` | Capacity kind: usage value = total quantity processed over a Span |
 | `Ref<T>` | Typed entity reference — `Uuid` on the wire, type-safe at compile time |
