@@ -16,7 +16,6 @@ pub struct Queueing {
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
     pub value: u64,
-    #[deferred]
     pub rows_processed: Option<u64>,
 }
 
@@ -65,24 +64,10 @@ fn from_impl_works() {
 }
 
 #[test]
-fn deferred_enum_exists() {
-    // Computing has a deferred field, so ComputingDeferred should have a variant
-    let _d = ComputingDeferred::RowsProcessed(42);
-
-    // TaskDeferred wraps per-state deferred types
-    let _td = TaskDeferred::Computing(ComputingDeferred::RowsProcessed(42));
-}
-
-#[test]
 fn event_type_alias_works() {
     let _event: TaskEvent = FsmEvent::Transition {
         seq: 0,
         state: TaskTransition::Exit,
-    };
-
-    let _deferred: TaskEvent = FsmEvent::Deferred {
-        seq: 1,
-        deferred: TaskDeferred::Computing(ComputingDeferred::RowsProcessed(100)),
     };
 }
 
@@ -94,8 +79,7 @@ fn state_metadata() {
 
     let def = Computing::state_def();
     assert_eq!(def.name, "computing");
-    assert_eq!(def.deferred_attributes.len(), 1);
-    assert_eq!(def.deferred_attributes[0].name, "rows_processed");
+    assert_eq!(def.deferred_attributes.len(), 0);
 }
 
 #[test]

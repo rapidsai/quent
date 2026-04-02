@@ -85,33 +85,6 @@ fn unit_state_metadata() {
     assert!(def.usages.is_empty());
 }
 
-// --- Multiple deferred fields ---
-
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
-pub struct MultiDeferred {
-    pub required_field: u64,
-    #[deferred]
-    pub deferred_a: Option<u32>,
-    #[deferred]
-    pub deferred_b: Option<String>,
-}
-
-#[test]
-fn multi_deferred_state() {
-    let def = MultiDeferred::state_def();
-    assert_eq!(def.attributes.len(), 1);
-    assert_eq!(def.attributes[0].name, "required_field");
-    assert_eq!(def.deferred_attributes.len(), 2);
-    assert_eq!(def.deferred_attributes[0].name, "deferred_a");
-    assert_eq!(def.deferred_attributes[1].name, "deferred_b");
-}
-
-#[test]
-fn multi_deferred_enum_variants() {
-    let _a = MultiDeferredDeferred::DeferredA(42);
-    let _b = MultiDeferredDeferred::DeferredB("hello".into());
-}
-
 // --- Complex model with nested composition ---
 
 type InnerModel = Model<(LinearFsm,)>;

@@ -38,7 +38,6 @@ pub struct Queueing {
 pub struct Computing {
     pub thread: Usage<Thread>,
     pub memory: Usage<WorkerMemory>,
-    #[deferred]
     pub rows_processed: Option<u64>,
 }
 
@@ -122,8 +121,7 @@ fn state_with_usage_fields() {
     assert_eq!(computing_def.usages.len(), 2);
     assert_eq!(computing_def.usages[0].field_name, "thread");
     assert_eq!(computing_def.usages[1].field_name, "memory");
-    assert_eq!(computing_def.deferred_attributes.len(), 1);
-    assert_eq!(computing_def.deferred_attributes[0].name, "rows_processed");
+    assert_eq!(computing_def.deferred_attributes.len(), 0);
 }
 
 #[test]
@@ -180,22 +178,6 @@ fn task_fsm_structure() {
 }
 
 #[test]
-fn deferred_event_types() {
-    // ComputingDeferred should have RowsProcessed variant
-    let d = ComputingDeferred::RowsProcessed(42);
-    match d {
-        ComputingDeferred::RowsProcessed(v) => assert_eq!(v, 42),
-    }
-
-    // TaskDeferred wraps per-state deferred types
-    let td = TaskDeferred::Computing(ComputingDeferred::RowsProcessed(100));
-    match td {
-        TaskDeferred::Computing(ComputingDeferred::RowsProcessed(v)) => assert_eq!(v, 100),
-        _ => panic!("unexpected variant"),
-    }
-}
-
-#[test]
 fn fsm_event_sequence_numbers() {
     let transition: TaskEvent = FsmEvent::Transition {
         seq: 0,
@@ -205,12 +187,6 @@ fn fsm_event_sequence_numbers() {
         }),
     };
     assert_eq!(transition.seq(), 0);
-
-    let deferred: TaskEvent = FsmEvent::Deferred {
-        seq: 1,
-        deferred: TaskDeferred::Computing(ComputingDeferred::RowsProcessed(42)),
-    };
-    assert_eq!(deferred.seq(), 1);
 }
 
 #[test]

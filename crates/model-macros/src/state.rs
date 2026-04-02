@@ -141,15 +141,11 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
                 ident: field_name.clone(),
             });
         } else if has_attr(field, "deferred") {
-            if !is_option_type(&field.ty) {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "deferred fields must be Option<T>",
-                ));
-            }
-            let inner = unwrap_option_type(&field.ty).unwrap();
-            let inner_ty = quote! { #inner };
-            deferred.push(DeferredField { name, inner_ty, inner_type: inner.clone() });
+            return Err(syn::Error::new_spanned(
+                field,
+                "#[deferred] is not yet implemented. \
+                 See https://github.com/rapidsai/quent/issues/75",
+            ));
         } else if is_capacity_type(&field.ty) {
             // Capacity<V, K> — inner value is accessed via .value
             capacities.push(CapacityField {
