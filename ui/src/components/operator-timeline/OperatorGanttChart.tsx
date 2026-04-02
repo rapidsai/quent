@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import {
   nanosToMs,
   connectChart,
@@ -13,7 +13,6 @@ import {
 import { echarts } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
-import { zoomRangeAtom } from '@/atoms/timeline';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom, selectedPlanIdAtom } from '@/atoms/dag';
 import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
@@ -25,7 +24,6 @@ const MAX_VISIBLE_ROWS = 10;
 const BAR_FONT_SIZE = 10;
 const BAR_HEIGHT = 16;
 
-/** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = stroke at ~15% opacity. */
 // TODO(joe): Temporary, use @cmatzenbach colors once in.
 const OPERATOR_COLORS: Record<string, string> = {
   source: '#3b82f6',
@@ -66,7 +64,6 @@ export function OperatorGanttChart({
   durationSeconds,
   height = DEFAULT_HEIGHT,
 }: OperatorGanttChartProps) {
-  const store = useStore();
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const setSelectedPlanId = useSetAtom(selectedPlanIdAtom);
@@ -357,23 +354,6 @@ export function OperatorGanttChart({
     );
   }, []);
 
-  // After a notMerge chart rebuild (operators change or selection change both cause one),
-  // re-apply the current zoom synchronously — useLayoutEffect runs in the same browser frame
-  // as ReactECharts' componentDidUpdate so there is no visible zoom-reset flash.
-  useLayoutEffect(() => {
-    const instance = instanceRef.current;
-    if (!instance) return;
-    const range = store.get(zoomRangeAtom);
-    const dur = durationSeconds;
-    if (dur <= 0) return;
-    instance.dispatchAction({
-      type: 'dataZoom',
-      dataZoomIndex: 0,
-      start: (range.start / dur) * 100,
-      end: (range.end / dur) * 100,
-    });
-  }, [operators, selectedNodeIds, store, durationSeconds]);
-
   useEffect(() => {
     return () => {
       if (instanceRef.current) {
@@ -401,7 +381,9 @@ export function OperatorGanttChart({
       style={{ height }}
       onChartReady={handleChartReady}
       onEvents={handleClick}
-      notMerge
+      notMerge={false}
+      lazyUpdate={false}
+      replaceMerge={['series']}
     />
   );
 }
