@@ -495,7 +495,7 @@ fn lower_logical(
 
 struct Worker {
     id: Uuid,
-    name: String,
+    _name: String,
     memory: Uuid,
     filesystem: Uuid,
     fs_to_mem: Uuid,
@@ -607,7 +607,7 @@ impl Worker {
 
         Self {
             id,
-            name,
+            _name: name,
             memory,
             filesystem,
             fs_to_mem,
