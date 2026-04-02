@@ -121,6 +121,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           <TreeView<QueryPlanDataItem>
             data={treeData}
             initialSelectedItemId={planId}
+            selectedItemId={planId}
             onSelectChange={handlePlanSelect}
             renderItem={renderItem}
           />

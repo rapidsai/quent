@@ -29,14 +29,14 @@ import { echarts } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom, selectedPlanIdAtom } from '@/atoms/dag';
 import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
 import { TIMELINE_SPACING } from '@/components/timeline/types';
 import { formatDurationForWindow } from '@/services/formatters';
 
 const DEFAULT_HEIGHT = 75;
-const MAX_VISIBLE_ROWS = 5;
+const MAX_VISIBLE_ROWS = 10;
 
 /** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = border at ~15% opacity. */
 const DAG_OPERATION_COLORS: Record<string, { fill: string; stroke: string }> = {
@@ -85,6 +85,7 @@ export function OperatorGanttChart({
   const store = useStore();
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
+  const setSelectedPlanId = useSetAtom(selectedPlanIdAtom);
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
     useTimelineChartColors();
   const barLabelTextColor = textColor;
@@ -381,10 +382,13 @@ export function OperatorGanttChart({
         } else {
           setSelectedNodeIds(new Set([op.operatorId]));
           setSelectedOperatorLabel(op.label);
+          if (op.planId) {
+            setSelectedPlanId(op.planId);
+          }
         }
       },
     }),
-    [operators, selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
+    [operators, selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel, setSelectedPlanId]
   );
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {

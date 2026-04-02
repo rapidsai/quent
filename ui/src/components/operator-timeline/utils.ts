@@ -120,6 +120,7 @@ export function operatorsWithActiveSpans(
       startMs,
       endMs,
       rowIndex: 0,
+      planId: planId ?? '',
     });
   }
 
@@ -163,6 +164,7 @@ export function operatorsWithActiveSpansForWorker(
       startMs,
       endMs,
       rowIndex: 0,
+      planId: op.plan_id ?? '',
     });
   }
 

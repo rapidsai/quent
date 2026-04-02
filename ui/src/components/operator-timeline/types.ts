@@ -12,4 +12,6 @@ export type OperatorActiveSpanEntry = {
   endMs: number;
   /** Row index for categorical y-axis (0-based). */
   rowIndex: number;
+  /** Plan ID this operator belongs to. */
+  planId: string;
 };
