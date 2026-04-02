@@ -3,12 +3,12 @@
 
 //! Query FSM analysis.
 //!
-//! Uses `AnalyzedFsm<QueryTransition>` for generic trait impls. A newtype
+//! Uses `FsmEvents<QueryTransition>` for generic trait impls. A newtype
 //! wrapper adds `ResourceGroup` and application-specific methods.
 
 use quent_analyzer::{
     AnalyzerResult, Entity,
-    fsm::{Fsm, FsmUsages, analyzed::{AnalyzedFsm, AnalyzedFsmBuilder, AnalyzedTransition}},
+    fsm::{Fsm, FsmUsages, events::{FsmEvents, FsmEventsBuilder, TransitionEvent}},
     resource::{ResourceGroup, Usage, Using},
 };
 use quent_query_engine_events::query::{
@@ -19,12 +19,12 @@ use quent_time::{Timestamp, try_to_secs_relative};
 use uuid::Uuid;
 
 /// Builder for Query FSMs.
-pub type QueryBuilder = AnalyzedFsmBuilder<ModelQueryTransition, QueryDeferred>;
+pub type QueryBuilder = FsmEventsBuilder<ModelQueryTransition, QueryDeferred>;
 
 /// A reconstructed Query FSM with resource group support.
 #[derive(Debug)]
 pub struct Query {
-    inner: AnalyzedFsm<ModelQueryTransition>,
+    inner: FsmEvents<ModelQueryTransition>,
 }
 
 impl Query {
@@ -97,7 +97,7 @@ impl Entity for Query {
 // --- Delegate Fsm ---
 
 impl Fsm for Query {
-    type TransitionType = AnalyzedTransition<ModelQueryTransition>;
+    type TransitionType = TransitionEvent<ModelQueryTransition>;
     fn len(&self) -> usize {
         self.inner.len()
     }

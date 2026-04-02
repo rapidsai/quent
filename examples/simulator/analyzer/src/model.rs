@@ -133,7 +133,7 @@ impl SimulatorModel {
     }
 }
 
-impl FsmCollection<Task, quent_analyzer::fsm::analyzed::AnalyzedTransition<quent_simulator_events::task::TaskTransition>> for SimulatorModel {
+impl FsmCollection<Task, quent_analyzer::fsm::events::TransitionEvent<quent_simulator_events::task::TaskTransition>> for SimulatorModel {
     fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a Task> + 'a
     where
         Task: 'a,

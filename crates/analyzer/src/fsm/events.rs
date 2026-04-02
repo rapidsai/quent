@@ -3,7 +3,7 @@
 
 //! Generic analyzed FSM reconstructed from model-generated events.
 //!
-//! `AnalyzedFsm<T>` works with any transition enum that implements
+//! `FsmEvents<T>` works with any transition enum that implements
 //! `TransitionInfo`, providing all the analyzer trait impls (`Entity`, `Fsm`,
 //! `FsmUsages`, `Using`, `FsmTypeDeclaration`) without per-FSM boilerplate.
 
@@ -22,7 +22,7 @@ use crate::{
 
 /// A single transition in an analyzed FSM.
 #[derive(Debug)]
-pub struct AnalyzedTransition<T> {
+pub struct TransitionEvent<T> {
     timestamp: TimeUnixNanoSec,
     state_name: &'static str,
     pub usages: SmallVec<[AnalyzedUsage; 3]>,
@@ -36,13 +36,13 @@ pub struct AnalyzedUsage {
     pub capacities: SmallVec<[CapacityValue; 3]>,
 }
 
-impl<T> Timestamp for AnalyzedTransition<T> {
+impl<T> Timestamp for TransitionEvent<T> {
     fn timestamp(&self) -> TimeUnixNanoSec {
         self.timestamp
     }
 }
 
-impl<T: std::fmt::Debug> Transition for AnalyzedTransition<T> {
+impl<T: std::fmt::Debug> Transition for TransitionEvent<T> {
     fn name(&self) -> &str {
         self.state_name
     }
@@ -73,15 +73,15 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
     }
 }
 
-/// Builder for reconstructing an `AnalyzedFsm` from model events.
-pub struct AnalyzedFsmBuilder<T: TransitionInfo, D> {
+/// Builder for reconstructing an `FsmEvents` from model events.
+pub struct FsmEventsBuilder<T: TransitionInfo, D> {
     id: Uuid,
     instance_name: String,
-    transitions: TimeOrderedCollector<AnalyzedTransition<T>>,
+    transitions: TimeOrderedCollector<TransitionEvent<T>>,
     _deferred: std::marker::PhantomData<D>,
 }
 
-impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
+impl<T: TransitionInfo, D> FsmEventsBuilder<T, D> {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
@@ -124,7 +124,7 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
                             .collect(),
                     })
                     .collect();
-                self.transitions.push(AnalyzedTransition {
+                self.transitions.push(TransitionEvent {
                     timestamp: event.timestamp,
                     state_name,
                     usages,
@@ -137,10 +137,10 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
         }
     }
 
-    pub fn try_build(self) -> AnalyzerResult<AnalyzedFsm<T>> {
-        let transitions: SmallVec<[AnalyzedTransition<T>; 4]> =
+    pub fn try_build(self) -> AnalyzerResult<FsmEvents<T>> {
+        let transitions: SmallVec<[TransitionEvent<T>; 4]> =
             self.transitions.into_inner().into();
-        Ok(AnalyzedFsm {
+        Ok(FsmEvents {
             id: self.id,
             instance_name: self.instance_name,
             transitions,
@@ -156,14 +156,14 @@ impl<T: TransitionInfo, D> AnalyzedFsmBuilder<T, D> {
 ///
 /// Implements `Entity`, `Fsm`, `FsmUsages`, `Using`, and `FsmTypeDeclaration`.
 #[derive(Debug)]
-pub struct AnalyzedFsm<T> {
+pub struct FsmEvents<T> {
     id: Uuid,
     instance_name: String,
-    transitions: SmallVec<[AnalyzedTransition<T>; 4]>,
+    transitions: SmallVec<[TransitionEvent<T>; 4]>,
 }
 
-impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
-    pub fn transitions(&self) -> &[AnalyzedTransition<T>] {
+impl<T: TransitionInfo + std::fmt::Debug> FsmEvents<T> {
+    pub fn transitions(&self) -> &[TransitionEvent<T>] {
         &self.transitions
     }
 
@@ -175,7 +175,7 @@ impl<T: TransitionInfo + std::fmt::Debug> AnalyzedFsm<T> {
 
 // --- Entity ---
 
-impl<T: TransitionInfo + std::fmt::Debug> Entity for AnalyzedFsm<T> {
+impl<T: TransitionInfo + std::fmt::Debug> Entity for FsmEvents<T> {
     fn id(&self) -> Uuid {
         self.id
     }
@@ -189,8 +189,8 @@ impl<T: TransitionInfo + std::fmt::Debug> Entity for AnalyzedFsm<T> {
 
 // --- Fsm ---
 
-impl<T: TransitionInfo + std::fmt::Debug> Fsm for AnalyzedFsm<T> {
-    type TransitionType = AnalyzedTransition<T>;
+impl<T: TransitionInfo + std::fmt::Debug> Fsm for FsmEvents<T> {
+    type TransitionType = TransitionEvent<T>;
     fn len(&self) -> usize {
         self.transitions.len().saturating_sub(1)
     }
@@ -201,7 +201,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Fsm for AnalyzedFsm<T> {
 
 // --- FsmUsages ---
 
-impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for AnalyzedFsm<T> {
+impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for FsmEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
         self.transitions.windows(2).flat_map(move |window| {
             let name = window[0].state_name;
@@ -224,7 +224,7 @@ impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for AnalyzedFsm
 
 // --- Using ---
 
-impl<T: TransitionInfo + std::fmt::Debug> Using for AnalyzedFsm<T> {
+impl<T: TransitionInfo + std::fmt::Debug> Using for FsmEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         self.transitions.windows(2).flat_map(move |window| {
             let start = window[0].timestamp();
@@ -241,7 +241,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Using for AnalyzedFsm<T> {
 
 // --- FsmTypeDeclaration ---
 
-impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for AnalyzedFsm<T> {
+impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for FsmEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {
         use crate::fsm::{FsmStateTypeDecl, FsmTransitionDecl};
 

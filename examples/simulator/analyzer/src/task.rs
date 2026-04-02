@@ -3,13 +3,13 @@
 
 //! Task FSM analysis types.
 //!
-//! With `AnalyzedFsm<T>` providing all generic trait impls (`Entity`, `Fsm`,
+//! With `FsmEvents<T>` providing all generic trait impls (`Entity`, `Fsm`,
 //! `FsmUsages`, `Using`, `FsmTypeDeclaration`), the task analyzer is just
 //! type aliases plus application-specific helper methods.
 
 use quent_analyzer::{
     AnalyzerResult, Entity,
-    fsm::{Transition, analyzed::{AnalyzedFsm, AnalyzedFsmBuilder}},
+    fsm::{Transition, events::{FsmEvents, FsmEventsBuilder}},
 };
 use quent_simulator_events::task::{
     TaskDeferred, TaskTransition as ModelTaskTransition,
@@ -19,10 +19,10 @@ use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
 use uuid::Uuid;
 
 /// The reconstructed Task FSM.
-pub type Task = AnalyzedFsm<ModelTaskTransition>;
+pub type Task = FsmEvents<ModelTaskTransition>;
 
 /// Builder for Task FSMs.
-pub type TaskBuilder = AnalyzedFsmBuilder<ModelTaskTransition, TaskDeferred>;
+pub type TaskBuilder = FsmEventsBuilder<ModelTaskTransition, TaskDeferred>;
 
 /// Application-specific methods on the Task FSM.
 pub trait TaskExt {
