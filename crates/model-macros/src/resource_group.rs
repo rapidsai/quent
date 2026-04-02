@@ -1,34 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
 
-use crate::util::to_snake_case;
-
-/// Check for `#[resource_group]` or `#[resource_group(root)]` outer attribute.
-fn parse_resource_group_attr(input: &DeriveInput) -> syn::Result<bool> {
-    for attr in &input.attrs {
-        if attr
-            .path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "resource_group")
-        {
-            // Check if it has (root) argument
-            if let syn::Meta::List(list) = &attr.meta {
-                if let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone()) {
-                    if ident == "root" {
-                        return Ok(true);
-                    }
-                }
-            }
-            return Ok(false);
-        }
-    }
-    Ok(false)
-}
+use crate::util::{parse_resource_group_attr, to_snake_case};
 
 /// Expand the ResourceGroup derive macro.
 ///
@@ -53,7 +30,7 @@ fn parse_resource_group_attr(input: &DeriveInput) -> syn::Result<bool> {
 /// Does NOT re-emit the struct (derive macros append).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
-    let is_root = parse_resource_group_attr(&input)?;
+    let is_root = parse_resource_group_attr(&input).unwrap_or(false);
     let group_snake = to_snake_case(name);
 
     let output = quote! {

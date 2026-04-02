@@ -16,5 +16,5 @@ pub struct Declaration {
 #[resource_group]
 pub struct QueryGroup {
     #[event]
-    declaration: Declaration,
+    pub declaration: Declaration,
 }

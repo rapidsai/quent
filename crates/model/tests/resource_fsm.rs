@@ -22,11 +22,11 @@ pub struct MemFinalizing;
 #[resource(capacity = MemOperating)]
 pub struct TestMemory {
     #[entry] #[to(MemOperating)]
-    mem_initializing: MemInitializing,
+    pub mem_initializing: MemInitializing,
     #[to(MemFinalizing)]
-    mem_operating: MemOperating,
+    pub mem_operating: MemOperating,
     #[to(exit)]
-    mem_finalizing: MemFinalizing,
+    pub mem_finalizing: MemFinalizing,
 }
 
 // A unit resource (processor-like)
@@ -44,11 +44,11 @@ pub struct ProcFinalizing;
 #[resource(capacity = ProcOperating)]
 pub struct TestProcessor {
     #[entry] #[to(ProcOperating)]
-    proc_initializing: ProcInitializing,
+    pub proc_initializing: ProcInitializing,
     #[to(ProcFinalizing)]
-    proc_operating: ProcOperating,
+    pub proc_operating: ProcOperating,
     #[to(exit)]
-    proc_finalizing: ProcFinalizing,
+    pub proc_finalizing: ProcFinalizing,
 }
 
 #[test]

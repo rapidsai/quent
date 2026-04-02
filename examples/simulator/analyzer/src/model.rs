@@ -256,8 +256,8 @@ impl SimulatorModelBuilder {
             SimulatorEvent::Task(t) => {
                 let task_builder = self
                     .tasks
-                    .entry(event.id)
-                    .or_insert_with(|| TaskBuilder::try_new(event.id).unwrap());
+                    .entry(id)
+                    .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
                 task_builder.push(Event::new(id, timestamp, t));
                 Ok(())
             }
@@ -298,8 +298,8 @@ impl SimulatorModelBuilder {
             SimulatorEvent::Trace(t) => {
                 let trace_builder = self
                     .traces
-                    .entry(event.id)
-                    .or_insert_with(|| RtTraceBuilder::try_new(event.id).unwrap());
+                    .entry(id)
+                    .or_insert_with(|| RtTraceBuilder::try_new(id).unwrap());
                 trace_builder.push(timestamp, t);
                 Ok(())
             }

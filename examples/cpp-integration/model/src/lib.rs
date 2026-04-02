@@ -27,9 +27,9 @@ pub struct Complete;
 #[resource_group(root)]
 pub struct Job {
     #[event]
-    submit: Submit,
+    pub submit: Submit,
     #[event]
-    complete: Complete,
+    pub complete: Complete,
 }
 
 // --- ThreadPool: resource group containing threads ---
@@ -43,7 +43,7 @@ pub struct ThreadPoolInit {
 #[resource_group]
 pub struct ThreadPool {
     #[event]
-    init: ThreadPoolInit,
+    pub init: ThreadPoolInit,
 }
 
 // --- Task: FSM running on a thread ---
@@ -65,9 +65,9 @@ pub struct Running {
 pub struct Task {
     #[entry]
     #[to(Running)]
-    queued: Queued,
+    pub queued: Queued,
     #[to(Queued, exit)]
-    running: Running,
+    pub running: Running,
 }
 
 // --- Model ---

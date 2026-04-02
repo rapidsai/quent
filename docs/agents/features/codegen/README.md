@@ -222,6 +222,26 @@ quent_model::define_model! {
 Domain models can be nested in application models by listing them as a
 component.
 
+### Non-model event types
+
+For event types that are not model components (e.g., trace events), use the
+`extra` block:
+
+```rust
+quent_model::define_model! {
+    Simulator {
+        task::Task,
+        quent_stdlib::Memory,
+    }
+    extra {
+        Trace: quent_events::trace::TraceEvent,
+    }
+}
+```
+
+Extra variants are included in the event enum with `From` impls but do not
+contribute to the `Model<T>` type alias.
+
 ### Context generation
 
 The `define_context!` macro generates the instrumentation context:

@@ -66,15 +66,15 @@ pub struct Sending {
 #[derive(Fsm)]
 pub struct Task {
     #[entry] #[to(Allocating)]
-    queueing: Queueing,
+    pub queueing: Queueing,
     #[to(Computing, Loading)]
-    allocating: Allocating,
+    pub allocating: Allocating,
     #[to(Computing)]
-    loading: Loading,
+    pub loading: Loading,
     #[to(Sending, Spilling, exit)]
-    computing: Computing,
+    pub computing: Computing,
     #[to(Allocating)]
-    spilling: Spilling,
+    pub spilling: Spilling,
     #[to(Queueing)]
-    sending: Sending,
+    pub sending: Sending,
 }

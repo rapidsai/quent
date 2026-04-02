@@ -7,7 +7,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::DeriveInput;
 
-use crate::util::to_snake_case;
+use crate::util::{field_has_attr, parse_resource_group_attr, to_snake_case};
 
 /// A single transition: `From -> To`
 struct Transition {
@@ -139,16 +139,6 @@ fn reachable_from(start: &str, adj: &HashMap<String, Vec<String>>) -> HashSet<St
     visited
 }
 
-/// Check if a field has a specific attribute.
-fn field_has_attr(field: &syn::Field, attr_name: &str) -> bool {
-    field.attrs.iter().any(|a| {
-        a.path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == attr_name)
-    })
-}
-
 /// Parse `#[to(StateA, StateB, exit)]` attribute on a field.
 fn parse_to_attr(field: &syn::Field) -> syn::Result<Vec<Ident>> {
     for attr in &field.attrs {
@@ -204,29 +194,6 @@ fn parse_resource_attr(input: &DeriveInput) -> syn::Result<Option<Ident>> {
     Ok(None)
 }
 
-/// Check for `#[resource_group]` or `#[resource_group(root)]` outer attribute.
-fn parse_resource_group_attr(input: &DeriveInput) -> Option<bool> {
-    for attr in &input.attrs {
-        if attr
-            .path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "resource_group")
-        {
-            // Check if it has (root) argument
-            if let syn::Meta::List(list) = &attr.meta {
-                if let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone()) {
-                    if ident == "root" {
-                        return Some(true);
-                    }
-                }
-            }
-            return Some(false);
-        }
-    }
-    None
-}
-
 /// Expand the Fsm derive macro.
 ///
 /// Parses struct fields with `#[entry]` and `#[to(...)]` attributes to build
@@ -257,6 +224,16 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             ));
         }
     };
+
+    // Validate all fields are pub
+    for field in fields {
+        if !matches!(field.vis, syn::Visibility::Public(_)) {
+            return Err(syn::Error::new_spanned(
+                field,
+                "FSM fields must be `pub` — they are part of the generated instrumentation API",
+            ));
+        }
+    }
 
     // Parse resource(capacity = T) from outer attributes
     let resource_capacity = parse_resource_attr(&input)?;
@@ -544,6 +521,11 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 }
             }
 
+            // TODO: add debug_assert for transition validation. The valid
+            // transitions are known at codegen time from the #[to(...)]
+            // attributes. Embedding them as a static lookup table here would
+            // allow runtime checks (in debug builds) that the sequence of
+            // states follows the declared transition graph.
             fn emit_transition(&mut self, state: #transition_enum) {
                 let seq = self.seq;
                 self.seq += 1;
@@ -586,6 +568,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         // --- Resource marker (if resource directive was present) ---
         #resource_impl
+
     };
 
     Ok(output)

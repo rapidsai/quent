@@ -27,7 +27,7 @@ pub struct Exit;
 #[resource_group(root)]
 pub struct Engine {
     #[event]
-    init: Init,
+    pub init: Init,
     #[event]
-    exit: Exit,
+    pub exit: Exit,
 }

@@ -43,9 +43,12 @@ fn generate_query_engine_cxx_bridge() {
     assert!(lib.content.contains("pub mod engine;"));
     assert!(lib.content.contains("pub mod query;"));
 
-    // Print for inspection
+    // Verify all generated Rust files are valid syntax
     for file in &files {
-        println!("=== {} ===\n{}\n", file.name, file.content);
+        if file.name.ends_with(".rs") {
+            syn::parse_file(&file.content)
+                .unwrap_or_else(|e| panic!("{}: {}", file.name, e));
+        }
     }
 }
 
@@ -69,5 +72,11 @@ fn generate_task_fsm_cxx_bridge() {
     assert!(task_file.content.contains("Queueing"));
     assert!(task_file.content.contains("Computing"));
 
-    println!("=== task.rs ===\n{}", task_file.content);
+    // Verify all generated Rust files are valid syntax
+    for file in &files {
+        if file.name.ends_with(".rs") {
+            syn::parse_file(&file.content)
+                .unwrap_or_else(|e| panic!("{}: {}", file.name, e));
+        }
+    }
 }

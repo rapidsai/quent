@@ -30,5 +30,5 @@ pub struct Declaration {
 #[resource_group]
 pub struct Plan {
     #[event]
-    declaration: Declaration,
+    pub declaration: Declaration,
 }

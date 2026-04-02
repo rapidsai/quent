@@ -25,7 +25,7 @@ pub struct Statistics {
 #[resource_group]
 pub struct Operator {
     #[event]
-    declaration: Declaration,
+    pub declaration: Declaration,
     #[event]
-    statistics: Statistics,
+    pub statistics: Statistics,
 }

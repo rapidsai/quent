@@ -126,6 +126,11 @@ target_include_directories(example PRIVATE
   context module is set during `create_context()` and read by all observers
   and handles via `global_sender()`.
 
+- **Single context per process**: The global `OnceLock<EventSender<E>>` in
+  the context module means only one telemetry context can be active per
+  process. Creating a second context will fail silently (the `OnceLock` is
+  already set). This is a deliberate simplification for C++ FFI.
+
 - **Header propagation**: Corrosion does not automatically propagate
   `cxx_build`-generated include paths to CMake targets. The `build.rs`
   copies headers to a stable `include/` directory that CMake references

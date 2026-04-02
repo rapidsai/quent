@@ -5,9 +5,14 @@
 //! but for now we verify the validation logic at runtime through the model
 //! metadata and by testing valid FSMs compile correctly).
 //!
-//! Invalid FSMs (missing entry, unreachable states, etc.) are tested via
-//! trybuild compile-fail tests if trybuild is available, or documented here
-//! as known constraints.
+//! Invalid FSMs (missing entry, unreachable states, etc.) produce compile
+//! errors via `syn::Error` in the proc macro. The valid cases below confirm
+//! that the validation passes for well-formed FSMs.
+//!
+//! TODO: Add `trybuild` compile-fail tests for invalid FSM definitions:
+//! - `fsm_no_entry.rs` — FSM with no `#[entry]` field
+//! - `fsm_unreachable_state.rs` — FSM with a state not reachable from entry
+//! - `fsm_no_exit.rs` — FSM with no path to exit
 
 use quent_model::prelude::*;
 
@@ -25,11 +30,11 @@ pub struct C;
 #[derive(Fsm)]
 pub struct LinearFsm {
     #[entry] #[to(B)]
-    a: A,
+    pub a: A,
     #[to(C)]
-    b: B,
+    pub b: B,
     #[to(exit)]
-    c: C,
+    pub c: C,
 }
 
 #[test]
@@ -52,9 +57,9 @@ pub struct Working;
 #[derive(Fsm)]
 pub struct CyclicFsm {
     #[entry] #[to(Working)]
-    idle: Idle,
+    pub idle: Idle,
     #[to(Idle, exit)]
-    working: Working,
+    pub working: Working,
 }
 
 #[test]

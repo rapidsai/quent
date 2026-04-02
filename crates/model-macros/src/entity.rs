@@ -5,17 +5,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::DeriveInput;
 
-use crate::util::to_snake_case;
-
-/// Check if a field has the `#[event]` attribute.
-fn field_has_event_attr(field: &syn::Field) -> bool {
-    field.attrs.iter().any(|a| {
-        a.path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "event")
-    })
-}
+use crate::util::{field_has_attr, parse_resource_group_attr, resolve_value_type, to_snake_case};
 
 /// Extract the type ident from a field's type (the last segment of the path).
 fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
@@ -28,29 +18,6 @@ fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
         ty,
         "expected a simple type path for event field",
     ))
-}
-
-/// Check for `#[resource_group]` or `#[resource_group(root)]` outer attribute.
-fn parse_resource_group_attr(input: &DeriveInput) -> Option<bool> {
-    for attr in &input.attrs {
-        if attr
-            .path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "resource_group")
-        {
-            // Check if it has (root) argument
-            if let syn::Meta::List(list) = &attr.meta {
-                if let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone()) {
-                    if ident == "root" {
-                        return Some(true);
-                    }
-                }
-            }
-            return Some(false);
-        }
-    }
-    None
 }
 
 /// Expand the Entity derive macro.
@@ -81,8 +48,17 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
             syn::Fields::Named(named) => {
+                // Validate all fields are pub
                 for field in &named.named {
-                    if field_has_event_attr(field) {
+                    if !matches!(field.vis, syn::Visibility::Public(_)) {
+                        return Err(syn::Error::new_spanned(
+                            field,
+                            "Entity fields must be `pub` — they are part of the generated instrumentation API",
+                        ));
+                    }
+                }
+                for field in &named.named {
+                    if field_has_attr(field, "event") {
                         event_types.push(type_ident(&field.ty)?);
                     } else {
                         regular_fields.push(field);
@@ -110,11 +86,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         .iter()
         .map(|field| {
             let field_name = field.ident.as_ref().unwrap().to_string();
+            let (value_type_tokens, optional) = resolve_value_type(&field.ty);
             quote! {
                 quent_model::AttributeDef {
                     name: #field_name.to_string(),
-                    value_type: quent_model::ValueType::String,
-                    optional: false,
+                    value_type: #value_type_tokens,
+                    optional: #optional,
                 }
             }
         })
@@ -162,6 +139,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     #rg_contribution
                 }
             }
+
         };
         Ok(output)
     } else {
@@ -187,7 +165,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             })
             .collect();
 
-        // Collect event names for EntityDef
+        // Collect event names for EntityDef.
+        //
+        // Known limitation: `attributes` is always empty because proc macros
+        // cannot introspect the fields of other structs at expansion time.
+        // The event type names are recorded so that downstream codegen (e.g.,
+        // build.rs) can patch in the full attribute list by inspecting the
+        // event structs directly. A future `#[derive(Event)]` on event structs
+        // could contribute their own metadata and close this gap.
         let event_name_strings: Vec<String> =
             event_types.iter().map(|ty| to_snake_case(ty)).collect();
         let event_defs: Vec<TokenStream> = event_name_strings
@@ -298,6 +283,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     #rg_contribution
                 }
             }
+
         };
 
         Ok(output)

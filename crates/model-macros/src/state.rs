@@ -3,9 +3,9 @@
 
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{DeriveInput, Field};
+use syn::DeriveInput;
 
-use crate::util::to_snake_case;
+use crate::util::{resolve_value_type, to_snake_case};
 
 /// Categorized fields of a state struct.
 struct StateFields {
@@ -34,25 +34,21 @@ struct UsageField {
 
 struct DeferredField {
     name: String,
-    /// The inner type (unwrapped from Option<T>).
+    /// The inner type (unwrapped from Option<T>), as tokens for code generation.
     inner_ty: TokenStream,
+    /// The inner type (unwrapped from Option<T>), as syn::Type for value type resolution.
+    inner_type: syn::Type,
 }
 
 struct RegularField {
     name: String,
     #[allow(dead_code)]
     ident: Ident,
+    ty: syn::Type,
     optional: bool,
 }
 
-fn has_attr(field: &Field, attr_name: &str) -> bool {
-    field.attrs.iter().any(|a| {
-        a.path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == attr_name)
-    })
-}
+use crate::util::field_has_attr as has_attr;
 
 /// Tries to extract T from Option<T>.
 fn unwrap_option_type(ty: &syn::Type) -> Option<&syn::Type> {
@@ -129,7 +125,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             }
             let inner = unwrap_option_type(&field.ty).unwrap();
             let inner_ty = quote! { #inner };
-            deferred.push(DeferredField { name, inner_ty });
+            deferred.push(DeferredField { name, inner_ty, inner_type: inner.clone() });
         } else if has_attr(field, "capacity") {
             let optional = is_option_type(&field.ty);
             capacities.push(CapacityField {
@@ -150,6 +146,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             regular.push(RegularField {
                 name,
                 ident: field_name.clone(),
+                ty: field.ty.clone(),
                 optional,
             });
         } else {
@@ -157,6 +154,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             regular.push(RegularField {
                 name,
                 ident: field_name.clone(),
+                ty: field.ty.clone(),
                 optional,
             });
         }
@@ -214,10 +212,11 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         .map(|r| {
             let name = &r.name;
             let optional = r.optional;
+            let (value_type_tokens, _) = resolve_value_type(&r.ty);
             quote! {
                 quent_model::AttributeDef {
                     name: #name.to_string(),
-                    value_type: quent_model::ValueType::String, // placeholder
+                    value_type: #value_type_tokens,
                     optional: #optional,
                 }
             }
@@ -230,10 +229,11 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         .iter()
         .map(|d| {
             let name = &d.name;
+            let (value_type_tokens, _) = resolve_value_type(&d.inner_type);
             quote! {
                 quent_model::AttributeDef {
                     name: #name.to_string(),
-                    value_type: quent_model::ValueType::String, // placeholder
+                    value_type: #value_type_tokens,
                     optional: true,
                 }
             }

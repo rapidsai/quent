@@ -1443,6 +1443,7 @@ dependencies = [
  "quent-model",
  "quent-query-engine-model",
  "quent-simulator-model",
+ "syn",
 ]
 
 [[package]]

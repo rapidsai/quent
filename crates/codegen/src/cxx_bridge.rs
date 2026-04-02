@@ -5,6 +5,13 @@
 //!
 //! Generates Rust `#[cxx::bridge]` modules from model definitions. The output
 //! is Rust source code that CXX compiles into C++ headers.
+//!
+//! TODO: The code generation currently uses `format!()` string concatenation.
+//! Using `quote!` (as a runtime dependency, not proc-macro) would be more
+//! robust, providing automatic identifier hygiene and compile-time token
+//! validation. However, `format!()` works correctly for the current scope and
+//! the generated code is validated by `cxx_build` and `syn::parse_file()` in
+//! tests.
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, ValueType};
 
@@ -516,16 +523,31 @@ fn emit_state_conversion(state: &StateDef, model_crate: &str) -> String {
             ));
             lines.push_str("            },\n");
         } else {
-            // Resource with capacity fields
+            // Resource with capacity fields — construct the capacity struct
+            let capacity_type = match usage.resource_name.as_str() {
+                "memory" => "quent_stdlib::MemoryOperating".to_string(),
+                "channel" => "quent_stdlib::ChannelOperating".to_string(),
+                other => {
+                    let pascal = to_pascal_case(other);
+                    format!("{model_crate}::{pascal}Operating")
+                }
+            };
             lines.push_str(&format!(
                 "            {field_name}: quent_model::Usage {{\n"
             ));
             lines.push_str(&format!(
                 "                resource_id: quent_model::Ref::new(uuid::Uuid::from(data.{field_name}_resource_id)),\n"
             ));
-            lines.push_str(
-                "                capacity: todo!(\"capacity conversion\"),\n",
-            );
+            lines.push_str(&format!(
+                "                capacity: {capacity_type} {{\n"
+            ));
+            for cap in &usage.capacities {
+                lines.push_str(&format!(
+                    "                    {cap_name}: data.{field_name}_{cap_name},\n",
+                    cap_name = cap.name,
+                ));
+            }
+            lines.push_str("                },\n");
             lines.push_str("            },\n");
         }
     }

@@ -19,7 +19,7 @@ pub struct Exit;
 #[resource_group]
 pub struct Worker {
     #[event]
-    init: Init,
+    pub init: Init,
     #[event]
-    exit: Exit,
+    pub exit: Exit,
 }

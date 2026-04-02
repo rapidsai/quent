@@ -10,3 +10,4 @@ quent-model = { path = "../model" }
 [dev-dependencies]
 quent-query-engine-model = { path = "../../domains/query_engine/model" }
 quent-simulator-model = { path = "../../examples/simulator/model" }
+syn = { version = "2", features = ["full", "parsing"] }
