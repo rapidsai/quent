@@ -115,6 +115,13 @@ export function NavBarNavigator() {
         navigate({
           to: '/profile/engine/$engineId/query/$queryId',
           params: { engineId: newEngineId, queryId: firstQuery.id },
+          search: {
+            planId: undefined,
+            operatorId: undefined,
+            zoomStart: undefined,
+            zoomEnd: undefined,
+            hideTasks: undefined,
+          },
         });
       }
     } catch {
@@ -134,6 +141,13 @@ export function NavBarNavigator() {
         navigate({
           to: '/profile/engine/$engineId/query/$queryId',
           params: { engineId: engineId!, queryId: firstQuery.id },
+          search: {
+            planId: undefined,
+            operatorId: undefined,
+            zoomStart: undefined,
+            zoomEnd: undefined,
+            hideTasks: undefined,
+          },
         });
       }
     } catch {
@@ -146,6 +160,13 @@ export function NavBarNavigator() {
     navigate({
       to: '/profile/engine/$engineId/query/$queryId',
       params: { engineId, queryId: newQueryId },
+      search: {
+        planId: undefined,
+        operatorId: undefined,
+        zoomStart: undefined,
+        zoomEnd: undefined,
+        hideTasks: undefined,
+      },
     });
   };
 

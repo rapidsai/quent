@@ -66,6 +66,12 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
     initialSelectedItemId
   );
 
+  // Keep internal selection in sync with prop changes (e.g. when URL state is restored
+  // after the component has already mounted with an empty initial value).
+  React.useEffect(() => {
+    setSelectedItemId(initialSelectedItemId);
+  }, [initialSelectedItemId]);
+
   const [draggedItem, setDraggedItem] = React.useState<T | null>(null);
 
   const handleSelectChange = React.useCallback(

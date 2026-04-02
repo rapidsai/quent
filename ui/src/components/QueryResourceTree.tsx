@@ -34,13 +34,14 @@ function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string |
 interface QueryResourceTreeProps {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
+  initialZoom?: { start: number; end: number };
 }
 
 export function QueryResourceTree(props: QueryResourceTreeProps) {
   return <QueryResourceTreeContent {...props} />;
 }
 
-function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
+function QueryResourceTreeContent({ queryBundle, engineId, initialZoom }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
   const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
@@ -49,9 +50,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const durationSeconds = queryBundle.duration_s;
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
+  const zoomInit = initialZoom ?? { start: 0, end: durationSeconds };
   useHydrateAtoms([
-    [zoomRangeAtom, { start: 0, end: durationSeconds }],
-    [debouncedZoomRangeAtom, { start: 0, end: durationSeconds }],
+    [zoomRangeAtom, zoomInit],
+    [debouncedZoomRangeAtom, zoomInit],
     [startTimeMsAtom, startTimeMs],
   ]);
 

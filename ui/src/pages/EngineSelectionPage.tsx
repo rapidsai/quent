@@ -52,6 +52,13 @@ export function EngineSelectionPage() {
       navigate({
         to: '/profile/engine/$engineId/query/$queryId',
         params: { engineId, queryId },
+        search: {
+          planId: undefined,
+          operatorId: undefined,
+          zoomStart: undefined,
+          zoomEnd: undefined,
+          hideTasks: undefined,
+        },
       });
     }
   };
