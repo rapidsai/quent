@@ -5,6 +5,7 @@
 //! Ref<T>, and full model collection.
 
 use quent_model::prelude::*;
+use quent_model::{FsmEvent, Model, ModelBuilder, ModelComponent, StateMetadata};
 
 // Simulate a domain model crate (inline)
 

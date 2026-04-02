@@ -15,6 +15,7 @@
 //! - `fsm_no_exit.rs` — FSM with no path to exit
 
 use quent_model::prelude::*;
+use quent_model::{Model, ModelBuilder, ModelComponent, StateMetadata};
 
 // A valid linear FSM
 

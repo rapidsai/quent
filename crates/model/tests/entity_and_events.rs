@@ -4,6 +4,7 @@
 //! Tests for entity and event macros.
 
 use quent_model::prelude::*;
+use quent_model::{ModelBuilder, ModelComponent};
 
 #[derive(Entity)]
 pub struct Operator {

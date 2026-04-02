@@ -4,6 +4,7 @@
 //! Tests for resource macro (FSM marked as a resource).
 
 use quent_model::prelude::*;
+use quent_model::Model;
 
 // A memory-like resource FSM
 

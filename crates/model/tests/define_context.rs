@@ -3,8 +3,6 @@
 
 //! Tests for `define_context!` macro.
 
-use quent_model::prelude::*;
-
 // Minimal event type for context
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum TestEvent {

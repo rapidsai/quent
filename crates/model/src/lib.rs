@@ -133,15 +133,10 @@ macro_rules! define_context {
 /// Prelude for convenient imports in model definition crates.
 pub mod prelude {
     pub use crate::{
-        Capacity, Occupancy, Rate,
-        Entity, EntityEvent, Event, EventSender, Fsm, HasParentGroup, ResizableResource,
-        Resource, ResourceGroup, State,
-        FsmEvent, HasEventType, Model, ModelBuilder, ModelComponent, Ref,
-        StateMetadata, Usage,
-        analyze::{
-            ExtractCapacities, ExtractInstanceName, ExtractParentGroupId, ExtractUsages,
-            ExtractedCapacity, ExtractedUsage, TransitionInfo,
-        },
+        // Types used in model struct fields
+        Capacity, Occupancy, Rate, Ref, Usage,
+        // Derive macros
+        Entity, Fsm, Resource, ResizableResource, State,
     };
     pub use uuid::Uuid;
 }

@@ -4,6 +4,7 @@
 //! Tests for resource_group macro.
 
 use quent_model::prelude::*;
+use quent_model::{ModelBuilder, ModelComponent, ResourceGroup};
 
 #[derive(Entity)]
 #[resource_group(root)]

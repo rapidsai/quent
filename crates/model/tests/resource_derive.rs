@@ -4,6 +4,7 @@
 //! Tests for `#[derive(Resource)]` and `#[derive(ResizableResource)]`.
 
 use quent_model::prelude::*;
+use quent_model::{HasEventType, ModelBuilder, ModelComponent};
 
 // Fixed-bounds resource with capacity
 
