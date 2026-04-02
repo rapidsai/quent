@@ -164,11 +164,6 @@ pub(crate) unsafe fn attributes_from_wchar(msg: *const i32) -> Option<NvtxAttrib
     })
 }
 
-/// Extract the u64 ID from an opaque handle pointer allocated by us.
-pub(crate) unsafe fn handle_to_id(handle: *mut c_void) -> u64 {
-    *(handle as *const u64)
-}
-
 /// Extract domain handle ID. Returns `None` for the default domain (null).
 pub(crate) unsafe fn domain_handle_id(handle: *mut c_void) -> Option<u64> {
     if handle.is_null() {

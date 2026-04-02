@@ -42,6 +42,11 @@ fn alloc_handle() -> (*mut c_void, u64) {
     (ptr as *mut c_void, id)
 }
 
+/// Reclaim a handle allocated by `alloc_handle`.
+///
+/// Per the NVTX spec, using a handle after its corresponding Destroy call
+/// is undefined behavior. The caller (application) is responsible for
+/// ensuring no concurrent use of a handle being destroyed.
 unsafe fn free_handle(ptr: *mut c_void) {
     if !ptr.is_null() {
         unsafe { drop(Box::from_raw(ptr as *mut u64)) };
@@ -339,7 +344,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_a(
 ) -> *mut c_void {
     let (handle_ptr, string_id) = alloc_handle();
     emit(NvtxEvent::RegisterString(RegisterString {
-        domain_handle_id: convert::handle_to_id(domain),
+        domain_handle_id: convert::domain_handle_id(domain),
         string_handle_id: string_id,
         value: convert::cstr_to_string(string),
     }));
@@ -353,7 +358,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_w(
 ) -> *mut c_void {
     let (handle_ptr, string_id) = alloc_handle();
     emit(NvtxEvent::RegisterString(RegisterString {
-        domain_handle_id: convert::handle_to_id(domain),
+        domain_handle_id: convert::domain_handle_id(domain),
         string_handle_id: string_id,
         value: convert::wstr_to_string(string),
     }));

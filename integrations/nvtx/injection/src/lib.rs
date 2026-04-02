@@ -15,6 +15,9 @@
 #[cfg(target_os = "windows")]
 compile_error!("quent-nvtx-injection does not support Windows (wchar_t size, weak symbol mechanism)");
 
+#[cfg(not(target_pointer_width = "64"))]
+compile_error!("quent-nvtx-injection requires a 64-bit target");
+
 #[allow(
     dead_code,
     non_upper_case_globals,

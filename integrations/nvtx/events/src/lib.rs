@@ -119,7 +119,7 @@ pub struct DomainDestroy {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RegisterString {
-    pub domain_handle_id: u64,
+    pub domain_handle_id: Option<u64>,
     pub string_handle_id: u64,
     pub value: String,
 }

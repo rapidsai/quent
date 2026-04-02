@@ -186,7 +186,7 @@ fn nvtx_injection_captures_events() {
         assert_eq!(captured.len(), 2, "expected RegisterString + Mark");
         match &captured[0] {
             NvtxEvent::RegisterString(r) => {
-                assert!(r.domain_handle_id > 0);
+                assert!(r.domain_handle_id.is_some());
                 assert_eq!(r.value, "registered msg");
             }
             other => panic!("expected RegisterString, got {other:?}"),
