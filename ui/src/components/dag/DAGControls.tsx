@@ -29,24 +29,11 @@ interface DAGFieldProps {
 }
 
 const DAGField = ({ label, icon: Icon, options, value, setValue, placeholder }: DAGFieldProps) => (
-  <div className="flex flex-col gap-1 min-w-0 flex-1">
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Icon className="h-3 w-3 shrink-0" />
-        <span>{label}</span>
-      </div>
-      {value && (
-        <button
-          onClick={() => setValue(null)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={`Clear ${label}`}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      )}
-    </div>
+  <div className="flex items-center gap-1.5 min-w-0">
+    <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+    <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{label}</span>
     <Select value={value} onValueChange={setValue}>
-      <SelectTrigger className="h-7 text-xs">
+      <SelectTrigger className="h-6 text-xs flex-1 min-w-0">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -67,6 +54,15 @@ const DAGField = ({ label, icon: Icon, options, value, setValue, placeholder }: 
         </ScrollArea>
       </SelectContent>
     </Select>
+    {value && (
+      <button
+        onClick={() => setValue(null)}
+        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        aria-label={`Clear ${label}`}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    )}
   </div>
 );
 
@@ -84,7 +80,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-b bg-card">
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-2">
         <CollapsibleTrigger className="flex items-center gap-2 group">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             DAG Controls
@@ -93,43 +89,39 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
         </CollapsibleTrigger>
         <DAGSettingsPopover />
       </div>
-      <CollapsibleContent className="px-4 pb-3 flex flex-col gap-2">
-        <div className="flex items-end gap-3">
-          <DAGField
-            label="Node color"
-            icon={Palette}
-            options={operatorStatFields}
-            value={colorField ?? ''}
-            setValue={setColorField}
-            placeholder="None"
-          />
-          <DAGField
-            label="Edge width"
-            icon={Spline}
-            options={portStatFields}
-            value={edgeWidthField ?? ''}
-            setValue={setEdgeWidthField}
-            placeholder="None"
-          />
-        </div>
-        <div className="flex items-end gap-3">
-          <DAGField
-            label="Edge color"
-            icon={Brush}
-            options={portStatFields}
-            value={edgeColorField ?? ''}
-            setValue={setEdgeColorField}
-            placeholder="None"
-          />
-          <DAGField
-            label="Display field"
-            icon={Tag}
-            options={operatorStatFields}
-            value={nodeDisplayField ?? ''}
-            setValue={setNodeDisplayField}
-            placeholder="None"
-          />
-        </div>
+      <CollapsibleContent className="px-4 pb-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+        <DAGField
+          label="Node color"
+          icon={Palette}
+          options={operatorStatFields}
+          value={colorField ?? ''}
+          setValue={setColorField}
+          placeholder="None"
+        />
+        <DAGField
+          label="Edge width"
+          icon={Spline}
+          options={portStatFields}
+          value={edgeWidthField ?? ''}
+          setValue={setEdgeWidthField}
+          placeholder="None"
+        />
+        <DAGField
+          label="Edge color"
+          icon={Brush}
+          options={portStatFields}
+          value={edgeColorField ?? ''}
+          setValue={setEdgeColorField}
+          placeholder="None"
+        />
+        <DAGField
+          label="Display field"
+          icon={Tag}
+          options={operatorStatFields}
+          value={nodeDisplayField ?? ''}
+          setValue={setNodeDisplayField}
+          placeholder="None"
+        />
       </CollapsibleContent>
     </Collapsible>
   );
