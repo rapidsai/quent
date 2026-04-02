@@ -187,29 +187,35 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         widthIndex: 0,
         isFirst: true,
         render: ({ item }: { item: TreeTableItem; level: number }) => {
-          const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
-          const availableFsmTypes = selectedType
-            ? entities.resource_types[selectedType]?.used_by
-            : undefined;
-          return item.type === OPERATOR_TIMELINE_ROW_TYPE ? (
-            <div className="flex items-center gap-2 py-2 text-foreground"></div>
-          ) : (
-            <ResourceColumn
-              item={item}
-              selectedType={selectedType}
-              onTypeChange={(itemId, newType) => {
-                setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-                if (itemId === rootItem.id) {
-                  setRootResourceType(newType);
-                }
-              }}
-              availableFsmTypes={availableFsmTypes}
-              selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
-              onFsmChange={(itemId, fsmType) => {
-                setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType));
-              }}
-            />
-          );
+          switch (item.type) {
+            case OPERATOR_TIMELINE_ROW_TYPE: {
+              return null;
+            }
+            default: {
+              const selectedType =
+                selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+              const availableFsmTypes = selectedType
+                ? entities.resource_types[selectedType]?.used_by
+                : undefined;
+              return (
+                <ResourceColumn
+                  item={item}
+                  selectedType={selectedType}
+                  onTypeChange={(itemId, newType) => {
+                    setSelectedTypes(prev => new Map(prev).set(itemId, newType));
+                    if (itemId === rootItem.id) {
+                      setRootResourceType(newType);
+                    }
+                  }}
+                  availableFsmTypes={availableFsmTypes}
+                  selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
+                  onFsmChange={(itemId, fsmType) => {
+                    setSelectedFsmTypes(prev => new Map(prev).set(itemId, fsmType));
+                  }}
+                />
+              );
+            }
+          }
         },
       },
       {
@@ -226,32 +232,36 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             />
           </div>
         ),
-        render: ({ item }: { item: TreeTableItem }) =>
-          item.type === OPERATOR_TIMELINE_ROW_TYPE ? (
-            <div className="h-full w-full" style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}>
-              <OperatorGanttChart
-                operators={
-                  workerIdFromOperatorTimelineRowId(item.id) != null
-                    ? (operatorEntriesByWorker.get(workerIdFromOperatorTimelineRowId(item.id)!) ??
-                      [])
-                    : []
-                }
-                startTime={startTime}
-                durationSeconds={durationSeconds}
-                height={DEFAULT_TIMELINE_HEIGHT * 1.2}
-              />
-            </div>
-          ) : (
-            <UsageColumn
-              item={item}
-              engineId={engineId}
-              queryBundle={queryBundle}
-              selectedTypes={selectedTypes}
-              selectedFsmTypes={selectedFsmTypes}
-              startTime={startTime}
-              durationSeconds={durationSeconds}
-            />
-          ),
+        render: ({ item }: { item: TreeTableItem }) => {
+          switch (item.type) {
+            case OPERATOR_TIMELINE_ROW_TYPE: {
+              const workerId = workerIdFromOperatorTimelineRowId(item.id);
+              const operators =
+                workerId != null ? (operatorEntriesByWorker.get(workerId) ?? []) : [];
+              return (
+                <OperatorGanttChart
+                  operators={operators}
+                  startTime={startTime}
+                  durationSeconds={durationSeconds}
+                  height={DEFAULT_TIMELINE_HEIGHT * 1.2}
+                />
+              );
+            }
+            default: {
+              return (
+                <UsageColumn
+                  item={item}
+                  engineId={engineId}
+                  queryBundle={queryBundle}
+                  selectedTypes={selectedTypes}
+                  selectedFsmTypes={selectedFsmTypes}
+                  startTime={startTime}
+                  durationSeconds={durationSeconds}
+                />
+              );
+            }
+          }
+        },
       },
     ] satisfies Column<TreeTableItem>[];
   }, [
