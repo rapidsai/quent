@@ -1,9 +1,46 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
+/// Find the NVTX C include directory by locating the `nvtx-sys` crate source
+/// in the workspace dependency graph (pulled from the NVIDIA/NVTX git repo).
+/// The C headers live at `<nvtx-repo>/c/include` relative to nvtx-sys's
+/// manifest at `<nvtx-repo>/rust/crates/nvtx-sys/Cargo.toml`.
+fn find_nvtx_include() -> PathBuf {
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .exec()
+        .expect("failed to run cargo metadata");
+
+    let nvtx_sys = metadata
+        .packages
+        .iter()
+        .find(|p| p.name == "nvtx-sys")
+        .expect("nvtx-sys not found in dependency graph");
+
+    // nvtx-sys manifest is at <repo>/rust/crates/nvtx-sys/Cargo.toml
+    // NVTX C headers are at <repo>/c/include
+    let nvtx_sys_dir = nvtx_sys
+        .manifest_path
+        .parent()
+        .expect("nvtx-sys has no parent dir");
+    let nvtx_repo_root = nvtx_sys_dir
+        .join("../../..")
+        .canonicalize()
+        .expect("failed to resolve NVTX repo root");
+    let include_dir = nvtx_repo_root.join("c/include");
+
+    assert!(
+        include_dir.join("nvtx3/nvToolsExt.h").exists(),
+        "NVTX headers not found at {}", include_dir.display()
+    );
+
+    include_dir.into()
+}
+
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let vendor_include = format!("{manifest_dir}/../vendor/nvtx-repo/c/include");
+    let nvtx_include = find_nvtx_include();
 
     // Compile the C file that provides the strong InitializeInjectionNvtx2_fnptr symbol.
     cc::Build::new()
@@ -21,10 +58,10 @@ fn main() {
         println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
     }
 
-    // Generate Rust bindings from vendored NVTX headers.
+    // Generate Rust bindings from NVTX headers.
     let bindings = bindgen::Builder::default()
         .header(format!("{manifest_dir}/wrapper.h"))
-        .clang_arg(format!("-I{vendor_include}"))
+        .clang_arg(format!("-I{}", nvtx_include.display()))
         // Public types
         .allowlist_type("nvtxEventAttributes_v2")
         .allowlist_type("nvtxResourceAttributes_v0")
@@ -49,7 +86,7 @@ fn main() {
         .generate()
         .expect("Unable to generate NVTX bindings");
 
-    let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let out_path = PathBuf::from(&out_dir);
     bindings
         .write_to_file(out_path.join("nvtx_bindings.rs"))
         .expect("Failed to write NVTX bindings");

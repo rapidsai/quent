@@ -11,6 +11,7 @@ libc = "0.2"
 [build-dependencies]
 bindgen = "0.72"
 cc = "1.2"
+cargo_metadata = "0.19"
 
 [dev-dependencies]
-nvidia-nvtx = { path = "../vendor/nvtx-repo/rust", default-features = false, features = [] }
+nvidia-nvtx = { git = "https://github.com/NVIDIA/NVTX", branch = "release-v3", default-features = false, features = [] }
