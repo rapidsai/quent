@@ -277,7 +277,7 @@ mod tests {
                             name: "using".into(),
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -316,10 +316,10 @@ mod tests {
         // Config shouldn't be modified.
         assert_eq!(timeline.config, config);
 
-        // We should have bin datapoints for the "bytes" capacity.
-        assert!(timeline.data.contains_key("bytes"));
+        // We should have bin datapoints for the "capacity_bytes" capacity.
+        assert!(timeline.data.contains_key("capacity_bytes"));
 
-        let values = timeline.data.get("bytes").unwrap();
+        let values = timeline.data.get("capacity_bytes").unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -370,7 +370,7 @@ mod tests {
                                 } else {
                                     resource_b_id
                                 },
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -415,7 +415,7 @@ mod tests {
             .unwrap();
         let timeline = builder.build();
 
-        let values = timeline.data.get("bytes").unwrap();
+        let values = timeline.data.get("capacity_bytes").unwrap();
 
         // Aggregated, it should produce the same result as
         // test_resource_timeline_aggregated
@@ -562,7 +562,7 @@ mod tests {
                             name: "state_a".into(),
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -571,7 +571,7 @@ mod tests {
                             name: "state_b".into(),
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
-                                [CapacityValue::new("bytes", 42)],
+                                [CapacityValue::new("capacity_bytes", 42)],
                             )],
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
@@ -618,8 +618,8 @@ mod tests {
 
         // For each capacity, we should have values per state
 
-        let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();
-        let state_b_bytes = timeline.data.get(&("state_b", "bytes")).unwrap();
+        let state_a_bytes = timeline.data.get(&("state_a", "capacity_bytes")).unwrap();
+        let state_b_bytes = timeline.data.get(&("state_b", "capacity_bytes")).unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -693,7 +693,7 @@ mod tests {
                                 } else {
                                     resource_b_id
                                 },
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -706,7 +706,7 @@ mod tests {
                                 } else {
                                     resource_b_id
                                 },
-                                [CapacityValue::new("bytes", 42)],
+                                [CapacityValue::new("capacity_bytes", 42)],
                             )],
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
@@ -754,8 +754,8 @@ mod tests {
         }
         let timeline = builder.build();
 
-        let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();
-        let state_b_bytes = timeline.data.get(&("state_b", "bytes")).unwrap();
+        let state_a_bytes = timeline.data.get(&("state_a", "capacity_bytes")).unwrap();
+        let state_b_bytes = timeline.data.get(&("state_b", "capacity_bytes")).unwrap();
 
         // If we aggregate over both resources we should get the same answer as
         // in test_resource_timeline_aggregated_multi_state
@@ -828,7 +828,7 @@ mod tests {
                         name: "using".into(),
                         usages: vec![RtFsmStateUsage::new(
                             resource_id,
-                            [CapacityValue::new("bytes", 1)],
+                            [CapacityValue::new("capacity_bytes", 1)],
                         )],
                         timestamp: start,
                         attributes: vec![],
