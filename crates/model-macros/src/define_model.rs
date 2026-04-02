@@ -21,15 +21,9 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{Path, Token};
 
-struct ExtraVariant {
-    variant_name: Ident,
-    event_type: Path,
-}
-
 struct DefineModelInput {
     name: Ident,
     components: Vec<Path>,
-    extras: Vec<ExtraVariant>,
 }
 
 impl Parse for DefineModelInput {
@@ -47,32 +41,9 @@ impl Parse for DefineModelInput {
             }
         }
 
-        // Optional: extra { Variant: Type, ... }
-        let mut extras = Vec::new();
-        if input.peek(syn::Ident) {
-            let kw: Ident = input.parse()?;
-            if kw == "extra" {
-                let extra_content;
-                syn::braced!(extra_content in input);
-                while !extra_content.is_empty() {
-                    let variant_name: Ident = extra_content.parse()?;
-                    extra_content.parse::<Token![:]>()?;
-                    let event_type: Path = extra_content.parse()?;
-                    extras.push(ExtraVariant {
-                        variant_name,
-                        event_type,
-                    });
-                    if extra_content.peek(Token![,]) {
-                        extra_content.parse::<Token![,]>()?;
-                    }
-                }
-            }
-        }
-
         Ok(DefineModelInput {
             name,
             components,
-            extras,
         })
     }
 }
@@ -102,30 +73,18 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let variants: Vec<Ident> = input.components.iter().map(last_segment).collect();
     let event_types: Vec<Path> = input.components.iter().map(event_type_path).collect();
 
-    let extra_variant_names: Vec<&Ident> = input.extras.iter().map(|e| &e.variant_name).collect();
-    let extra_event_types: Vec<&Path> = input.extras.iter().map(|e| &e.event_type).collect();
-
     let output = quote! {
         pub type #model_type = quent_model::Model<(#(#paths,)*)>;
 
         #[derive(Debug, serde::Serialize, serde::Deserialize)]
         pub enum #event_type {
             #(#variants(#event_types),)*
-            #(#extra_variant_names(#extra_event_types),)*
         }
 
         #(
             impl From<#event_types> for #event_type {
                 fn from(e: #event_types) -> Self {
                     #event_type::#variants(e)
-                }
-            }
-        )*
-
-        #(
-            impl From<#extra_event_types> for #event_type {
-                fn from(e: #extra_event_types) -> Self {
-                    #event_type::#extra_variant_names(e)
                 }
             }
         )*

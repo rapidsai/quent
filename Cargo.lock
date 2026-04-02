@@ -1727,7 +1727,6 @@ dependencies = [
  "clap",
  "petgraph",
  "quent-attributes",
- "quent-events",
  "quent-exporter",
  "quent-model",
  "quent-query-engine-events",
@@ -1769,7 +1768,6 @@ dependencies = [
 name = "quent-simulator-events"
 version = "0.1.0"
 dependencies = [
- "quent-events",
  "quent-model",
  "quent-query-engine-model",
  "quent-simulator-model",
@@ -1782,7 +1780,6 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
- "quent-instrumentation",
  "quent-model",
  "quent-simulator-events",
  "uuid",

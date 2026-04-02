@@ -14,12 +14,10 @@ quent_model::define_model! {
         quent_query_engine_model::operator::Operator,
         quent_query_engine_model::port::Port,
         quent_simulator_model::task::Task,
+        quent_simulator_model::ThreadPool,
+        quent_simulator_model::Network,
         quent_stdlib::Memory,
         quent_stdlib::Processor,
         quent_stdlib::Channel,
-    }
-    extra {
-        ResourceGroup: quent_events::resource::GroupEvent,
-        Trace: quent_events::trace::TraceEvent,
     }
 }

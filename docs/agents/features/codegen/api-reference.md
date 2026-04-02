@@ -267,21 +267,15 @@ quent_model::define_model! {
         quent_stdlib::Processor,
         quent_stdlib::Channel,
     }
-    extra {
-        Trace: quent_events::trace::TraceEvent,
-    }
 }
 ```
 
 **Generates:** `SimulatorModel` (type alias for `Model<(...)>`),
-`SimulatorEvent` (event enum with one variant per component + extras),
+`SimulatorEvent` (event enum with one variant per component),
 `From` impls for each component's event type.
 
 Variant names derived from last path segment: `quent_stdlib::Memory` →
 `Memory(MemoryEvent)`.
-
-The `extra {}` section includes non-model event types in the enum without
-adding them to the Model type.
 
 ---
 

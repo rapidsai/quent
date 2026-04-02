@@ -11,7 +11,6 @@ use std::{
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
-use quent_events::resource;
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
     PostcardExporterOptions,
@@ -585,15 +584,11 @@ impl Worker {
 
         // Thread pool
         let thread_pool = Uuid::now_v7();
-        tx.send(Event::new(
-            thread_pool,
-            quent_model::timestamp(),
-            SimulatorEvent::ResourceGroup(resource::GroupEvent {
-                type_name: "thread_pool".to_string(),
-                instance_name: "Thread Pool".to_string(),
-                parent_group_id: Some(id),
-            }),
-        ));
+        let tp_obs = quent_simulator_model::ThreadPoolObserver::new(&tx);
+        tp_obs.thread_pool(thread_pool, quent_simulator_model::ThreadPoolDeclaration {
+            instance_name: "Thread Pool".into(),
+            parent_group_id: id,
+        });
 
         let mut threads = Vec::new();
         for index in 0..num_threads {
@@ -709,9 +704,6 @@ impl Worker {
             },
         });
 
-        if operator.kind == Physical::JoinLocal {
-            simulate_cudf_trace(context, task.uuid())
-        };
 
         if send {
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
@@ -1148,15 +1140,11 @@ impl Engine {
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        tx.send(Event::new(
-            self.network,
-            quent_model::timestamp(),
-            SimulatorEvent::ResourceGroup(resource::GroupEvent {
-                type_name: "network".to_string(),
-                instance_name: "network".to_string(),
-                parent_group_id: Some(self.id),
-            }),
-        ));
+        let net_obs = quent_simulator_model::NetworkObserver::new(&tx);
+        net_obs.network(self.network, quent_simulator_model::NetworkDeclaration {
+            instance_name: "network".into(),
+            parent_group_id: self.id,
+        });
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
@@ -1215,115 +1203,6 @@ impl Engine {
         engine_obs.exit(self.id, engine::Exit);
         info!("Simulated engine shut down.")
     }
-}
-
-fn simulate_cudf_trace(context: &SimulatorContext, task_id: Uuid) {
-    // Nothing in this simulator aims to make too much sense to begin with, so this code is LLM generated.
-    let trace = context.trace_observer(task_id);
-
-    let kernel = trace.span(task_id, "kernel".into(), None);
-    kernel.enter(vec![]);
-
-    // Device memory allocation
-    let alloc = trace.span(task_id, "rmm::alloc".into(), Some(kernel.span_id()));
-    alloc.enter(vec![]);
-    sleep_short();
-    alloc.exit(vec![]);
-    alloc.close();
-
-    // Host-to-device transfer
-    let h2d = trace.span(task_id, "cudf::h2d_copy".into(), Some(kernel.span_id()));
-    h2d.enter(vec![]);
-    sleep_short();
-    h2d.exit(vec![]);
-    h2d.close();
-
-    // Column operations
-    let col_ops = trace.span(task_id, "cudf::column_ops".into(), Some(kernel.span_id()));
-    col_ops.enter(vec![]);
-
-    // Decompress input column
-    let decompress = trace.span(
-        task_id,
-        "nvcomp::decompress".into(),
-        Some(col_ops.span_id()),
-    );
-    decompress.enter(vec![]);
-    sleep_short();
-    decompress.exit(vec![]);
-    decompress.close();
-
-    // Apply filter predicate
-    if rng().random_bool(0.7) {
-        let filter = trace.span(
-            task_id,
-            "cudf::apply_filter".into(),
-            Some(col_ops.span_id()),
-        );
-        filter.enter(vec![]);
-
-        let pred = trace.span(
-            task_id,
-            "cudf::eval_predicate".into(),
-            Some(filter.span_id()),
-        );
-        pred.enter(vec![]);
-        sleep_short();
-        pred.exit(vec![]);
-        pred.close();
-
-        let gather = trace.span(task_id, "cudf::gather".into(), Some(filter.span_id()));
-        gather.enter(vec![]);
-        sleep_short();
-        gather.exit(vec![]);
-        gather.close();
-
-        filter.exit(vec![]);
-        filter.close();
-    }
-
-    // Hash partitioning
-    let hash = trace.span(
-        task_id,
-        "cudf::hash_partition".into(),
-        Some(col_ops.span_id()),
-    );
-    hash.enter(vec![]);
-
-    let murmur = trace.span(task_id, "cudf::murmur_hash".into(), Some(hash.span_id()));
-    murmur.enter(vec![]);
-    sleep_long();
-    murmur.exit(vec![]);
-    murmur.close();
-
-    let scatter = trace.span(task_id, "cudf::scatter".into(), Some(hash.span_id()));
-    scatter.enter(vec![]);
-    sleep_short();
-    scatter.exit(vec![]);
-    scatter.close();
-
-    hash.exit(vec![]);
-    hash.close();
-
-    col_ops.exit(vec![]);
-    col_ops.close();
-
-    // Device-to-host transfer
-    let d2h = trace.span(task_id, "cudf::d2h_copy".into(), Some(kernel.span_id()));
-    d2h.enter(vec![]);
-    sleep_short();
-    d2h.exit(vec![]);
-    d2h.close();
-
-    // Free device memory
-    let free = trace.span(task_id, "rmm::free".into(), Some(kernel.span_id()));
-    free.enter(vec![]);
-    sleep_short();
-    free.exit(vec![]);
-    free.close();
-
-    kernel.exit(vec![]);
-    kernel.close();
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

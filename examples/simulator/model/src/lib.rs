@@ -12,3 +12,11 @@
 use quent_model::prelude::*;
 
 pub mod task;
+
+#[derive(Entity)]
+#[resource_group]
+pub struct ThreadPool;
+
+#[derive(Entity)]
+#[resource_group]
+pub struct Network;

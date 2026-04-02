@@ -15,9 +15,8 @@ use quent_analyzer::{
         },
         runtime::RtResourceTransition,
     },
-    trace::RtTraceBuilder,
 };
-use quent_events::Event;
+use quent_events::{Event, resource};
 use quent_model::FsmEvent;
 use quent_query_engine_analyzer::{
     QueryEngineModel,
@@ -232,7 +231,6 @@ impl Using for SimulatorModel {
 pub struct SimulatorModelBuilder {
     query_engine: InMemoryQueryEngineModelBuilder,
     arbitrary_resources: InMemoryResourcesBuilder,
-    traces: HashMap<Uuid, RtTraceBuilder>,
     tasks: HashMap<Uuid, TaskBuilder>,
 }
 
@@ -242,7 +240,6 @@ impl SimulatorModelBuilder {
             query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
             arbitrary_resources: InMemoryResourcesBuilder::default(),
             tasks: HashMap::default(),
-            traces: HashMap::default(),
         })
     }
 
@@ -291,16 +288,20 @@ impl SimulatorModelBuilder {
             SimulatorEvent::Channel(c) => {
                 self.push_channel(id, timestamp, c)
             }
-            SimulatorEvent::ResourceGroup(g) => {
-                self.arbitrary_resources.push_group(id, g);
+            SimulatorEvent::ThreadPool(quent_simulator_model::ThreadPoolEvent::Declaration(d)) => {
+                self.arbitrary_resources.push_group(id, resource::GroupEvent {
+                    type_name: "thread_pool".to_string(),
+                    instance_name: d.instance_name,
+                    parent_group_id: Some(d.parent_group_id),
+                });
                 Ok(())
             }
-            SimulatorEvent::Trace(t) => {
-                let trace_builder = self
-                    .traces
-                    .entry(id)
-                    .or_insert_with(|| RtTraceBuilder::try_new(id).unwrap());
-                trace_builder.push(timestamp, t);
+            SimulatorEvent::Network(quent_simulator_model::NetworkEvent::Declaration(d)) => {
+                self.arbitrary_resources.push_group(id, resource::GroupEvent {
+                    type_name: "network".to_string(),
+                    instance_name: d.instance_name,
+                    parent_group_id: Some(d.parent_group_id),
+                });
                 Ok(())
             }
         }

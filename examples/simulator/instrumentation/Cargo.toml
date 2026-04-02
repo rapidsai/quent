@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 [dependencies]
-quent-instrumentation = { path = "../../../crates/instrumentation" }
 quent-model = { path = "../../../crates/model" }
 quent-simulator-events = { path = "../events" }
 uuid.workspace = true

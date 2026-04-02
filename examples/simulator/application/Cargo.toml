@@ -7,7 +7,6 @@ publish.workspace = true
 clap = {version = "4.5.57", features = ["derive", "env"] }
 petgraph = "0.8.3"
 quent-attributes = { path = "../../../crates/attributes" }
-quent-events = { path = "../../../crates/events" }
 quent-exporter = { path = "../../../crates/exporter" }
 quent-query-engine-events = { path = "../../../domains/query_engine/events" }
 quent-simulator-events = { path = "../events" }
