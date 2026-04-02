@@ -4,6 +4,22 @@ import type { Operator } from '~quent/types/Operator';
 import type { PlanTree } from '~quent/types/PlanTree';
 import type { OperatorActiveSpanEntry } from './types';
 import { nanosToMs } from '@/lib/timeline.utils';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils';
+
+/** Clip a rect to bounds (same behavior as ECharts custom-gantt-flight example). */
+export function clipRectByRect(
+  target: { x: number; y: number; width: number; height: number },
+  bounds: { x: number; y: number; width: number; height: number }
+): { x: number; y: number; width: number; height: number } | undefined {
+  const x = Math.max(target.x, bounds.x);
+  const x2 = Math.min(target.x + target.width, bounds.x + bounds.width);
+  const y = Math.max(target.y, bounds.y);
+  const y2 = Math.min(target.y + target.height, bounds.y + bounds.height);
+  if (x2 >= x && y2 >= y) {
+    return { x, y, width: x2 - x, height: y2 - y };
+  }
+  return undefined;
+}
 
 const OPERATOR_TIMELINE_ROW_ID_PREFIX = '__operator_timeline__';
 
@@ -121,6 +137,7 @@ export function operatorsWithActiveSpans(
       endMs,
       rowIndex: 0,
       planId: planId ?? '',
+      statistics: parseCustomStatistics(op),
     });
   }
 
@@ -165,6 +182,7 @@ export function operatorsWithActiveSpansForWorker(
       endMs,
       rowIndex: 0,
       planId: op.plan_id ?? '',
+      statistics: parseCustomStatistics(op),
     });
   }
 

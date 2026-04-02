@@ -1,20 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 
-/** Clip a rect to bounds (same behavior as ECharts custom-gantt-flight example). */
-function clipRectByRect(
-  target: { x: number; y: number; width: number; height: number },
-  bounds: { x: number; y: number; width: number; height: number }
-): { x: number; y: number; width: number; height: number } | undefined {
-  const x = Math.max(target.x, bounds.x);
-  const x2 = Math.min(target.x + target.width, bounds.x + bounds.width);
-  const y = Math.max(target.y, bounds.y);
-  const y2 = Math.min(target.y + target.height, bounds.y + bounds.height);
-  if (x2 >= x && y2 >= y) {
-    return { x, y, width: x2 - x, height: y2 - y };
-  }
-  return undefined;
-}
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
@@ -31,41 +17,40 @@ import { zoomRangeAtom } from '@/atoms/timeline';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom, selectedPlanIdAtom } from '@/atoms/dag';
 import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
-import { TIMELINE_SPACING } from '@/components/timeline/types';
+import { clipRectByRect } from './utils';
+import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '@/components/timeline/types';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 10;
+const BAR_FONT_SIZE = 10;
+const BAR_HEIGHT = 16;
 
-/** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = border at ~15% opacity. */
+/** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = stroke at ~15% opacity. */
 // TODO(joe): Temporary, use @cmatzenbach colors once in.
-const DAG_OPERATION_COLORS: Record<string, { fill: string; stroke: string }> = {
-  source: { stroke: '#3b82f6', fill: '' },
-  scan: { stroke: '#3b82f6', fill: '' },
-  filesystemscan: { stroke: '#3b82f6', fill: '' },
-  join: { stroke: '#a855f7', fill: '' },
-  joinlocal: { stroke: '#a855f7', fill: '' },
-  joinpartition: { stroke: '#a855f7', fill: '' },
-  aggregate: { stroke: '#22c55e', fill: '' },
-  exchange: { stroke: '#f97316', fill: '' },
-  output: { stroke: '#ef4444', fill: '' },
-  stage: { stroke: '#4f46e5', fill: '' },
-  local: { stroke: '#f59e0b', fill: '' },
-  project: { stroke: '#14b8a6', fill: '' },
-  filter: { stroke: '#06b6d4', fill: '' },
-  sort: { stroke: '#8b5cf6', fill: '' },
-  limit: { stroke: '#ec4899', fill: '' },
-  union: { stroke: '#10b981', fill: '' },
-  other: { stroke: '#6b7280', fill: '' },
+const OPERATOR_COLORS: Record<string, string> = {
+  source: '#3b82f6',
+  scan: '#3b82f6',
+  filesystemscan: '#3b82f6',
+  join: '#a855f7',
+  joinlocal: '#a855f7',
+  joinpartition: '#a855f7',
+  aggregate: '#22c55e',
+  exchange: '#f97316',
+  output: '#ef4444',
+  stage: '#4f46e5',
+  local: '#f59e0b',
+  project: '#14b8a6',
+  filter: '#06b6d4',
+  sort: '#8b5cf6',
+  limit: '#ec4899',
+  union: '#10b981',
+  other: '#6b7280',
 };
-// Fill = stroke at 15% opacity (matches DAG node bg-*-100/15)
-Object.keys(DAG_OPERATION_COLORS).forEach(k => {
-  const entry = DAG_OPERATION_COLORS[k];
-  entry.fill = withOpacity(entry.stroke, 0.15);
-});
 
 function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
   const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? 'other';
-  return DAG_OPERATION_COLORS[key] ?? DAG_OPERATION_COLORS.other;
+  const stroke = OPERATOR_COLORS[key] ?? OPERATOR_COLORS.other;
+  return { stroke, fill: withOpacity(stroke, 0.15) };
 }
 
 export interface OperatorGanttChartProps {
@@ -133,16 +118,13 @@ export function OperatorGanttChart({
       if (endMs <= startMs) return null;
       const startPoint = api.coord([startMs, rowIndex]);
       const endPoint = api.coord([endMs, rowIndex]);
-      const sizeResult = api.size?.([0, 1]);
-      const bandHeight = Array.isArray(sizeResult)
-        ? sizeResult[1]
-        : typeof sizeResult === 'number'
-          ? sizeResult
-          : 20;
-      const barHeight = Math.max(4, bandHeight * 0.7);
+
+      // Full band height
+      const barHeight = Math.max(BAR_FONT_SIZE + 4, BAR_HEIGHT);
       const y = startPoint[1] - barHeight / 2;
       const width = Math.max(1, endPoint[0] - startPoint[0]);
 
+      // Clips boxes to the chart container
       const coord = params.coordSys as { x?: number; y?: number; width?: number; height?: number };
       const clipBound =
         typeof coord.width === 'number' && typeof coord.height === 'number'
@@ -195,7 +177,7 @@ export function OperatorGanttChart({
           x: textX,
           y: textY,
           textVerticalAlign: 'middle' as const,
-          fontSize: 10,
+          fontSize: BAR_FONT_SIZE,
           fill: barLabelTextColor,
           overflow: 'truncate' as const,
           width: Math.max(0, clippedShape.width - 12),
@@ -214,8 +196,8 @@ export function OperatorGanttChart({
   const gridOptions = useMemo(
     () => ({
       ...TIMELINE_SPACING,
-      top: 0, //TIMELINE_SPACING.top + 10,
-      bottom: 0, //TIMELINE_SPACING.bottom + 10,
+      top: 0,
+      bottom: 0,
       left: TIMELINE_SPACING.left,
       right: showYScroll ? TIMELINE_SPACING.right : TIMELINE_SPACING.right,
       width: undefined as number | undefined,
@@ -255,6 +237,7 @@ export function OperatorGanttChart({
             color: timelineMarkupColor,
           },
         },
+        ...TIMELINE_X_AXIS_ANIMATION,
       },
       yAxis: {
         type: 'category',
