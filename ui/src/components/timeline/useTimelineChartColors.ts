@@ -21,6 +21,9 @@ const DATAZOOM_LABEL_BACKGROUND_OPACITY = 0.5;
 const OVERLAY_LIGHTEN = 0.6;
 const OVERLAY_LIGHTEN_DARK = 0.4;
 
+export const TIMELINE_MONO_FONT =
+  'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
+
 const MARK_AREA_FILL_OPACITY = 0.12;
 const MARK_AREA_BORDER_OPACITY = 0.75;
 const MARK_LABEL_TEXT_COLOR = WHITE;
