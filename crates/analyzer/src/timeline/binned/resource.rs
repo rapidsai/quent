@@ -174,76 +174,35 @@ mod tests {
             runtime::{RtFsm, RtFsmStateUsage, RtFsmTransition},
         },
         resource::{
-            CapacityDecl, Using,
+            CapacityDecl, ResourceCapacities, Using,
             collection::{InMemoryResourcesBuilder, ResourceCollection},
-            runtime::RtResource,
+            runtime::{RtResource, RtResourceTransition},
             tree::ResourceTreeNode,
         },
     };
 
     use super::*;
 
-    use quent_events::{
-        Event,
-        resource::{self, GroupEvent, ResourceEvent},
-    };
     use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
     const ROOT_RESOURCE_ID: Uuid = Uuid::from_u64_pair(0, 1);
 
-    fn root_resource_event() -> [Event<ResourceEvent>; 1] {
-        [Event::new(
-            ROOT_RESOURCE_ID,
+    // Populate the builder with a root group and a memory resource with
+    // Init(0) -> Operating(0, 1000 bytes) -> Finalizing(1000) -> Exit(1000).
+    fn build_root_and_memory(builder: &mut InMemoryResourcesBuilder, resource_id: Uuid) {
+        builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
+        builder.insert_memory_resource("test");
+        let bld = builder.try_builder(resource_id).unwrap();
+        bld.push(RtResourceTransition::Init(0));
+        bld.set_type_name("test".to_owned());
+        bld.set_instance_name(Some("test_inst".to_owned()));
+        bld.set_parent_group_id(ROOT_RESOURCE_ID);
+        bld.push(RtResourceTransition::Operating(
             0,
-            ResourceEvent::Group(GroupEvent {
-                type_name: "test".into(),
-                instance_name: "test".into(),
-                parent_group_id: None,
-            }),
-        )]
-    }
-
-    fn memory_events(resource_id: Uuid) -> [Event<ResourceEvent>; 4] {
-        [
-            Event::new(
-                resource_id,
-                0,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Init(
-                    resource::memory::Init {
-                        resource: resource::Resource {
-                            instance_name: "test_inst".to_string(),
-                            type_name: "test".to_string(),
-                            parent_group_id: ROOT_RESOURCE_ID,
-                        },
-                    },
-                )),
-            ),
-            Event::new(
-                resource_id,
-                0,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Operating(
-                    resource::memory::Operating {
-                        capacity_bytes: 1000,
-                    },
-                )),
-            ),
-            Event::new(
-                resource_id,
-                1000,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Finalizing(
-                    resource::memory::Finalizing {
-                        unreclaimed_bytes: 0,
-                    },
-                )),
-            ),
-            Event::new(
-                resource_id,
-                1000,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Exit(
-                    resource::memory::Exit {},
-                )),
-            ),
-        ]
+            ResourceCapacities(vec![CapacityValue::new("capacity_bytes", 1000)]),
+        ));
+        bld.push(RtResourceTransition::Finalizing(1000));
+        bld.push(RtResourceTransition::Exit(1000));
     }
 
     #[test]
@@ -251,13 +210,7 @@ mod tests {
         let resource_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
@@ -339,14 +292,8 @@ mod tests {
         let resource_b_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_a_id))
-                    .chain(memory_events(resource_b_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_a_id);
+        build_root_and_memory(&mut resources, resource_b_id);
         let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
@@ -431,11 +378,9 @@ mod tests {
     fn test_resource_timeline_aggregated_multi_capacity() {
         let resource_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(root_resource_event().into_iter())
-            .unwrap();
-        let mut resources = resources.try_build().unwrap();
+        let mut builder = InMemoryResourcesBuilder::default();
+        builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
+        let mut resources = builder.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
 
@@ -536,13 +481,7 @@ mod tests {
         let resource_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
@@ -662,14 +601,8 @@ mod tests {
         let resource_b_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_a_id))
-                    .chain(memory_events(resource_b_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_a_id);
+        build_root_and_memory(&mut resources, resource_b_id);
         let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
@@ -797,13 +730,7 @@ mod tests {
         let resource_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
         // Config window: [1000, 2000], threshold: 100 ns (all spans below exceed it)

@@ -16,7 +16,7 @@ use quent_analyzer::{
         runtime::RtResourceTransition,
     },
 };
-use quent_events::{Event, resource};
+use quent_events::Event;
 use quent_model::FsmEvent;
 use quent_query_engine_analyzer::{
     QueryEngineModel,
@@ -289,19 +289,15 @@ impl SimulatorModelBuilder {
                 self.push_channel(id, timestamp, c)
             }
             SimulatorEvent::ThreadPool(quent_simulator_model::ThreadPoolEvent::Declaration(d)) => {
-                self.arbitrary_resources.push_group(id, resource::GroupEvent {
-                    type_name: "thread_pool".to_string(),
-                    instance_name: d.instance_name,
-                    parent_group_id: Some(d.parent_group_id),
-                });
+                self.arbitrary_resources.push_group_raw(
+                    id, "thread_pool", &d.instance_name, Some(d.parent_group_id),
+                );
                 Ok(())
             }
             SimulatorEvent::Network(quent_simulator_model::NetworkEvent::Declaration(d)) => {
-                self.arbitrary_resources.push_group(id, resource::GroupEvent {
-                    type_name: "network".to_string(),
-                    instance_name: d.instance_name,
-                    parent_group_id: Some(d.parent_group_id),
-                });
+                self.arbitrary_resources.push_group_raw(
+                    id, "network", &d.instance_name, Some(d.parent_group_id),
+                );
                 Ok(())
             }
         }

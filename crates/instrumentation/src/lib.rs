@@ -20,7 +20,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-pub mod resource;
 pub mod trace;
 
 /// Wrapper around an optional channel sender. When the inner sender is `None`

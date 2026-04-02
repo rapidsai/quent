@@ -7,7 +7,6 @@ use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub mod resource;
 pub mod trace;
 
 #[derive(Debug, Deserialize, Serialize)]
