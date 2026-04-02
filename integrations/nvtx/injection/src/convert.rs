@@ -5,7 +5,6 @@
 
 #![allow(unsafe_op_in_unsafe_fn)]
 
-
 use std::ffi::{CStr, c_void};
 
 use quent_nvtx_events::{NvtxAttributes, NvtxMessage, NvtxPayload, NvtxResourceAttributes};

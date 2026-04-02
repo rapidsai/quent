@@ -32,7 +32,8 @@ fn find_nvtx_include() -> PathBuf {
 
     assert!(
         include_dir.join("nvtx3/nvToolsExt.h").exists(),
-        "NVTX headers not found at {}", include_dir.display()
+        "NVTX headers not found at {}",
+        include_dir.display()
     );
 
     include_dir.into()

@@ -103,9 +103,7 @@ pub(crate) unsafe extern "C" fn cb_mark_w(msg: *const i32) {
 }
 
 // Slot 4: RangeStartEx
-pub(crate) unsafe extern "C" fn cb_range_start_ex(
-    attr: *const nvtxEventAttributes_v2,
-) -> u64 {
+pub(crate) unsafe extern "C" fn cb_range_start_ex(attr: *const nvtxEventAttributes_v2) -> u64 {
     let id = next_range_id();
     emit(NvtxEvent::RangeStart(RangeStart {
         range_handle_id: id,
@@ -146,9 +144,7 @@ pub(crate) unsafe extern "C" fn cb_range_end(id: u64) {
 }
 
 // Slot 8: RangePushEx
-pub(crate) unsafe extern "C" fn cb_range_push_ex(
-    attr: *const nvtxEventAttributes_v2,
-) -> i32 {
+pub(crate) unsafe extern "C" fn cb_range_push_ex(attr: *const nvtxEventAttributes_v2) -> i32 {
     emit(NvtxEvent::Push(Push {
         thread_id: current_thread_id(),
         domain_handle_id: None,
