@@ -55,9 +55,11 @@ export function EngineSelectionPage() {
         search: {
           planId: undefined,
           operatorId: undefined,
+          operatorLabel: undefined,
           zoomStart: undefined,
           zoomEnd: undefined,
           hideTasks: undefined,
+          treeState: undefined,
         },
       });
     }

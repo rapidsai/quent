@@ -118,9 +118,11 @@ export function NavBarNavigator() {
           search: {
             planId: undefined,
             operatorId: undefined,
+            operatorLabel: undefined,
             zoomStart: undefined,
             zoomEnd: undefined,
             hideTasks: undefined,
+            treeState: undefined,
           },
         });
       }
@@ -144,9 +146,11 @@ export function NavBarNavigator() {
           search: {
             planId: undefined,
             operatorId: undefined,
+            operatorLabel: undefined,
             zoomStart: undefined,
             zoomEnd: undefined,
             hideTasks: undefined,
+            treeState: undefined,
           },
         });
       }
@@ -163,9 +167,11 @@ export function NavBarNavigator() {
       search: {
         planId: undefined,
         operatorId: undefined,
+        operatorLabel: undefined,
         zoomStart: undefined,
         zoomEnd: undefined,
         hideTasks: undefined,
+        treeState: undefined,
       },
     });
   };

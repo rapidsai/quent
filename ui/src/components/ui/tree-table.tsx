@@ -397,6 +397,8 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   highlightedItemIds?: Set<string>;
+  /** When provided, overrides the auto-computed expand path and directly controls which IDs start expanded. */
+  expandedItemIds?: string[];
 };
 
 const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
@@ -412,6 +414,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       className,
       renderItem,
       highlightedItemIds,
+      expandedItemIds: expandedItemIdsProp,
       ...props
     },
     ref
@@ -428,7 +431,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       [onSelectChange]
     );
 
-    const expandedItemIds = useMemo(() => {
+    const computedExpandedItemIds = useMemo(() => {
       if (!initialSelectedItemId) {
         return [] as string[];
       }
@@ -454,6 +457,8 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       walkTreeItems(data, initialSelectedItemId);
       return ids;
     }, [data, expandAll, initialSelectedItemId]);
+
+    const expandedItemIds = expandedItemIdsProp ?? computedExpandedItemIds;
 
     return (
       <div className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}>

@@ -5,12 +5,13 @@ import { useEffect } from 'react';
 import { useAtomValue } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import { useNavigate } from '@tanstack/react-router';
-import { selectedPlanIdAtom, selectedNodeIdsAtom } from '@/atoms/dag';
+import { selectedPlanIdAtom, selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { debouncedZoomRangeAtom, hideTasksAtom } from '@/atoms/timeline';
 
 export interface QueryIndexSearch {
   planId?: string;
   operatorId?: string;
+  operatorLabel?: string;
   zoomStart?: number;
   zoomEnd?: number;
   hideTasks?: boolean;
@@ -31,11 +32,13 @@ export function useUrlStateSync(search: QueryIndexSearch) {
   useHydrateAtoms([
     [selectedPlanIdAtom, search.planId ?? ''],
     [selectedNodeIdsAtom, search.operatorId ? new Set([search.operatorId]) : new Set<string>()],
+    [selectedOperatorLabelAtom, search.operatorLabel ?? null],
     [hideTasksAtom, search.hideTasks ?? false],
   ]);
 
   const planId = useAtomValue(selectedPlanIdAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
   const hideTasks = useAtomValue(hideTasksAtom);
 
@@ -55,11 +58,12 @@ export function useUrlStateSync(search: QueryIndexSearch) {
         ...prev,
         planId: planId || undefined,
         operatorId,
+        operatorLabel: operatorLabel ?? undefined,
         zoomStart: zoomRange.start,
         zoomEnd: zoomRange.end,
         hideTasks: hideTasks || undefined,
       }),
       replace: true,
     });
-  }, [planId, operatorId, zoomRange.start, zoomRange.end, hideTasks, navigate]);
+  }, [planId, operatorId, operatorLabel, zoomRange.start, zoomRange.end, hideTasks, navigate]);
 }
