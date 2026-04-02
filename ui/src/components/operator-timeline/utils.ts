@@ -21,6 +21,8 @@ export function clipRectByRect(
   return undefined;
 }
 
+/** Row type identifier for synthetic operator-timeline rows in the resource tree. */
+export const OPERATOR_TIMELINE_ROW_TYPE = 'operator-timeline';
 const OPERATOR_TIMELINE_ROW_ID_PREFIX = '__operator_timeline__';
 
 /** Id used for the synthetic operator-timeline row under a worker resource. */

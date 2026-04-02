@@ -8,7 +8,7 @@ export type TreeTableItem = {
   id: string;
   type: string;
   entity: EntityTypeValue;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   children?: TreeTableItem[];
   availableResourceTypes?: string[];
 };

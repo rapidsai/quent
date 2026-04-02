@@ -13,7 +13,6 @@ import { EntityRefKey } from '@/types';
 import { TreeTableItem } from './resource-tree/types';
 import { ResourceColumn } from './resource-tree/ResourceColumn';
 import { UsageColumn } from './resource-tree/UsageColumn';
-import { BarChart3 } from 'lucide-react';
 import { DEFAULT_TIMELINE_HEIGHT } from './timeline/types';
 import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
@@ -28,6 +27,7 @@ import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 import {
   OperatorGanttChart,
+  OPERATOR_TIMELINE_ROW_TYPE,
   getWorkerIdsFromPlanTree,
   operatorTimelineRowId,
   operatorsWithActiveSpansForWorker,
@@ -44,15 +44,17 @@ function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string |
 function createOperatorTimelineRow(workerId: string): TreeTableItem {
   return {
     id: operatorTimelineRowId(workerId),
-    type: 'operator-timeline',
+    type: OPERATOR_TIMELINE_ROW_TYPE,
     entity: {} as TreeTableItem['entity'],
-    icon: BarChart3,
   };
 }
 
 /**
  * Inject an expandable "Operator timeline" row under each resource whose id matches a plan_tree worker.
  * Injected rows default to collapsed.
+ *
+ * If we have more than just operator timelines we should create a section for each of a certain type of
+ * resource that can handle multiple tabbed sections, something like that.
  */
 function injectOperatorTimelineRows(item: TreeTableItem, workerIds: Set<string>): TreeTableItem {
   const transformedChildren = item.children?.map(child =>
@@ -189,7 +191,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           const availableFsmTypes = selectedType
             ? entities.resource_types[selectedType]?.used_by
             : undefined;
-          return item.type === 'operator-timeline' ? (
+          return item.type === OPERATOR_TIMELINE_ROW_TYPE ? (
             <div className="flex items-center gap-2 py-2 text-foreground"></div>
           ) : (
             <ResourceColumn
@@ -225,7 +227,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           </div>
         ),
         render: ({ item }: { item: TreeTableItem }) =>
-          item.type === 'operator-timeline' ? (
+          item.type === OPERATOR_TIMELINE_ROW_TYPE ? (
             <div className="h-full w-full" style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}>
               <OperatorGanttChart
                 operators={
