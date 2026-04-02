@@ -76,7 +76,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
       <DataText
         as="div"
-        className={cn("text-sm break-words text-center font-normal", { "font-bold": data.operationType === 'stage'  || isSelected})}
+        className={cn('text-sm break-words text-center font-normal', {
+          'font-bold': data.operationType === 'stage' || isSelected,
+        })}
       >
         {data.label}
       </DataText>
