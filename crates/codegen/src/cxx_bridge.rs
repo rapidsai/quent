@@ -40,19 +40,8 @@ fn value_type_to_cxx(ty: &ValueType) -> &'static str {
 
 /// Convert snake_case to PascalCase.
 fn to_pascal_case(s: &str) -> String {
-    s.split('_')
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                None => String::new(),
-                Some(first) => {
-                    let mut result = first.to_uppercase().to_string();
-                    result.extend(chars);
-                    result
-                }
-            }
-        })
-        .collect()
+    use convert_case::{Case, Casing};
+    s.to_case(Case::Pascal)
 }
 
 /// Generate CXX bridge files for all model components.

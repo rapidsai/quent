@@ -1,40 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use convert_case::{Case, Casing};
 use proc_macro2::Ident;
 
 /// Converts a PascalCase identifier to snake_case.
 pub fn to_snake_case(ident: &Ident) -> String {
-    let s = ident.to_string();
-    let mut result = String::with_capacity(s.len() + 4);
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.push(c.to_lowercase().next().unwrap());
-        } else {
-            result.push(c);
-        }
-    }
-    result
+    ident.to_string().to_case(Case::Snake)
 }
 
 /// Converts a snake_case string to PascalCase.
 pub fn to_pascal_case(s: &str) -> String {
-    s.split('_')
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                None => String::new(),
-                Some(first) => {
-                    let mut result = first.to_uppercase().to_string();
-                    result.extend(chars);
-                    result
-                }
-            }
-        })
-        .collect()
+    s.to_case(Case::Pascal)
 }
 
 /// Check if a field has a specific attribute.
@@ -179,7 +156,7 @@ mod tests {
     #[test]
     fn snake_case_consecutive_uppercase() {
         let ident = Ident::new("ABC", Span::call_site());
-        assert_eq!(to_snake_case(&ident), "a_b_c");
+        assert_eq!(to_snake_case(&ident), "abc");
     }
 
     #[test]
