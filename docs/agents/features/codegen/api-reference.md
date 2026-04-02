@@ -10,7 +10,7 @@
 | **Transition** | `#[entry]`, `#[to(...)]` | Allowed state changes (declared on FSM fields) |
 | **Resource** (fixed bounds) | `#[derive(Resource)]` | Entity+FSM with Capacities (init→operating→finalizing→exit) |
 | **Resource** (dynamic bounds) | `#[derive(ResizableResource)]` | Resource with resizing cycle (operating↔resizing) |
-| **Resource Group** | `#[derive(ResourceGroup)]` or `#[resource_group]` | Hierarchical grouping for resource aggregation |
+| **Resource Group** | `#[resource_group]` on Entity/Fsm | Hierarchical grouping for resource aggregation |
 | **Usage** | `Usage<T>` type + `#[usage]` | Claim on a Resource's Capacity during a state |
 | **Capacity** | `#[capacity]` | Named quantity on a Resource that can be claimed |
 | **Attribute** | struct fields | Typed data accompanying a Transition or Event |
@@ -41,6 +41,7 @@ pub struct Computing {
 | `#[deferred]` | Field is `Option<T>` — settable after transition via amendment event | Deferred attribute |
 | `#[capacity]` | Field is a numeric capacity value (used by Resource derives) | Capacity |
 | `#[instance_name]` | Field provides the entity's instance name for the analyzer | Entity.instance_name |
+| `#[parent_group]` | Field provides the parent resource group UUID | ResourceGroup.parent_group_id |
 
 ---
 
@@ -193,15 +194,57 @@ Additional generated: `{Name}Resizing` state, `resizing()` method on handle.
 
 ---
 
-### `#[derive(ResourceGroup)]`
+### Resource groups
 
-Standalone resource group (not an Entity or FSM). For resource groups that
-ARE entities, use `#[resource_group]` on the Entity/Fsm struct instead.
+Resource groups are always entities. Use `#[resource_group]` on an Entity or
+Fsm struct — there is no standalone `#[derive(ResourceGroup)]`.
+
+**Eventless resource group** — the derive generates an implicit declaration
+event with `instance_name` (and `parent_group_id` for non-root):
 
 ```rust
-#[derive(ResourceGroup)]
+#[derive(Entity)]
+#[resource_group]
+pub struct ThreadPool;
+// Generates: ThreadPoolDeclaration { instance_name, parent_group_id }
+
+#[derive(Entity)]
 #[resource_group(root)]
-pub struct MyGroup;
+pub struct Engine;
+// Generates: EngineDeclaration { instance_name }
+```
+
+**Entity with events + resource group** — user defines events, should include
+a parent reference field:
+
+```rust
+#[derive(Entity)]
+#[resource_group]
+pub struct Operator {
+    #[event] pub declaration: Declaration,
+    #[event] pub statistics: Statistics,
+}
+```
+
+**FSM + resource group** — the entry state MUST have `#[parent_group]` on
+a field (enforced at compile time for non-root):
+
+```rust
+#[derive(State)]
+pub struct Init {
+    #[parent_group]
+    pub query_group_id: Uuid,
+    #[instance_name]
+    pub instance_name: String,
+}
+
+#[derive(Fsm)]
+#[resource_group]
+pub struct Query {
+    #[entry] #[to(Planning)]
+    pub init: Init,
+    ...
+}
 ```
 
 ---
