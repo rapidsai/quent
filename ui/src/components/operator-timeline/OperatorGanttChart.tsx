@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 
 /** Clip a rect to bounds (same behavior as ECharts custom-gantt-flight example). */
@@ -33,12 +32,12 @@ import { selectedNodeIdsAtom, selectedOperatorLabelAtom, selectedPlanIdAtom } fr
 import { withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
 import { TIMELINE_SPACING } from '@/components/timeline/types';
-import { formatDurationForWindow } from '@/services/formatters';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 10;
 
 /** Border colors aligned with QueryPlanNode (Tailwind palette). Fill = border at ~15% opacity. */
+// TODO(joe): Temporary, use @cmatzenbach colors once in.
 const DAG_OPERATION_COLORS: Record<string, { fill: string; stroke: string }> = {
   source: { stroke: '#3b82f6', fill: '' },
   scan: { stroke: '#3b82f6', fill: '' },
@@ -89,12 +88,7 @@ export function OperatorGanttChart({
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
     useTimelineChartColors();
   const barLabelTextColor = textColor;
-  const zoomRange = useAtomValue(zoomRangeAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const windowMsRef = useRef(0);
-  windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
-  const cursorTimestampMsRef = useRef<number>(0);
-
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
   const xAxisMax = useMemo(
     () => startTimeMs + durationSeconds * 1_000,
@@ -237,34 +231,7 @@ export function OperatorGanttChart({
   const option: EChartsOption = useMemo(
     () => ({
       animation: false,
-      tooltip: {
-        trigger: 'item',
-        transitionDuration: 0,
-        backgroundColor: 'transparent',
-        borderWidth: 0,
-        padding: 0,
-        confine: true,
-        appendToBody: true,
-        formatter: (params: unknown) => {
-          const p = params as { name: string; dataIndex: number };
-          const timestampMs =
-            cursorTimestampMsRef.current > 0 ? cursorTimestampMsRef.current : null;
-          const offsetMs = timestampMs != null ? timestampMs - startTimeMs : 0;
-          const timeStr =
-            timestampMs != null ? formatDurationForWindow(offsetMs, windowMsRef.current) : '';
-          const op = operators[p.dataIndex];
-          const operatorLabel =
-            op && op.typeName && op.typeName !== op.label ? `${op.typeName}: ${op.label}` : p.name;
-          return renderToStaticMarkup(
-            <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50 min-w-[120px]">
-              {timeStr ? (
-                <div className="font-semibold text-muted-foreground mb-1">{timeStr}</div>
-              ) : null}
-              <div>{operatorLabel}</div>
-            </div>
-          );
-        },
-      },
+      tooltip: { show: false },
       axisPointer: {
         link: [{ xAxisIndex: 'all' }],
       },
@@ -364,7 +331,6 @@ export function OperatorGanttChart({
       renderItem,
       showYScroll,
       yAxisZoomEnd,
-      operators,
     ]
   );
 
@@ -399,23 +365,6 @@ export function OperatorGanttChart({
     connectChart(instance, CHART_GROUP, false);
     registerAxisPointerSync(instance, 0, { receiveShowTip: false });
     const dom = instance.getDom();
-    const zr = instance.getZr();
-    zr.on('mousemove', (e: { offsetX: number }) => {
-      try {
-        const value = instance.convertFromPixel({ xAxisIndex: 0 }, e.offsetX) as number;
-        if (value != null && isFinite(value)) {
-          cursorTimestampMsRef.current = value;
-        }
-      } catch {
-        // ignore when out of range
-      }
-    });
-    zr.on('globalout', () => {
-      cursorTimestampMsRef.current = 0;
-    });
-    dom.addEventListener('pointerdown', () => {
-      instance.dispatchAction({ type: 'hideTip' });
-    });
     dom.addEventListener(
       'wheel',
       (e: WheelEvent) => {
