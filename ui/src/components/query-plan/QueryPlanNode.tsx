@@ -13,7 +13,7 @@ import {
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { continuousColor } from '@/services/colors';
+import { continuousColor, isLightColor } from '@/services/colors';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -153,6 +153,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return { fieldColor: color, fieldDimmed: !color };
   }, [nodeColoring, operatorId, nodePalette]);
 
+  const hasSelection = selectedNodeIds.size > 0;
+  const isDimmed = fieldDimmed || (hasSelection && !isSelected);
+
   const nodeContent = (
     <div
       className={nodeVariants({
@@ -161,9 +164,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       })}
       style={{
         zIndex: 10,
-        opacity: fieldDimmed ? 0.25 : 1,
+        opacity: isDimmed ? 0.25 : 1,
         transition: 'opacity 150ms, background-color 150ms, border-color 150ms',
-        ...(fieldColor && { backgroundColor: fieldColor, borderColor: fieldColor }),
+        ...(fieldColor && {
+          backgroundColor: fieldColor,
+          borderColor: fieldColor,
+          color: isLightColor(fieldColor) ? '#111827' : undefined,
+        }),
       }}
     >
       {data.hasIncoming && (

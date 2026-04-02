@@ -63,7 +63,7 @@ export const DAGSettingsPopover = () => {
                     <div className="flex items-center gap-2">
                       <span
                         className="inline-block h-3 w-3 rounded-sm shrink-0"
-                        style={{ background: continuousColor(0.7, key) }}
+                        style={{ background: continuousColor(1, key) }}
                       />
                       {label}
                     </div>
@@ -87,7 +87,7 @@ export const DAGSettingsPopover = () => {
                     <div className="flex items-center gap-2">
                       <span
                         className="inline-block h-3 w-3 rounded-sm shrink-0"
-                        style={{ background: continuousColor(0.7, key) }}
+                        style={{ background: continuousColor(1, key) }}
                       />
                       {label}
                     </div>

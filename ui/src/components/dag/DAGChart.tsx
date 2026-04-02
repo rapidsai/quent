@@ -30,6 +30,8 @@ const elk = new ELK();
 
 const VariableWidthEdge = ({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -40,6 +42,7 @@ const VariableWidthEdge = ({
   const edgeWidthConfig = useAtomValue(edgeWidthConfigAtom);
   const edgeColoring = useAtomValue(edgeColoringAtom);
   const edgePalette = useAtomValue(edgeColorPaletteAtom);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
 
   let strokeWidth = 1.5;
   if (edgeWidthConfig) {
@@ -74,6 +77,10 @@ const VariableWidthEdge = ({
     }
   }
 
+  const hasSelection = selectedNodeIds.size > 0;
+  const isEdgeDimmed =
+    edgeDimmed || (hasSelection && !selectedNodeIds.has(source) && !selectedNodeIds.has(target));
+
   const arrowWidth = strokeWidth * 1.5 + 8;
   const arrowDepth = arrowWidth * 0.6;
   const markerId = `arrow-${id}`;
@@ -101,7 +108,7 @@ const VariableWidthEdge = ({
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
             fill={edgeColor ?? 'currentColor'}
-            opacity={edgeDimmed ? 0.15 : 1}
+            opacity={isEdgeDimmed ? 0.15 : 1}
           />
         </marker>
       </defs>
@@ -114,7 +121,7 @@ const VariableWidthEdge = ({
           stroke: edgeColor ?? 'currentColor',
           strokeWidth,
           fill: 'none',
-          opacity: edgeDimmed ? 0.15 : 1,
+          opacity: isEdgeDimmed ? 0.15 : 1,
           transition: 'opacity 150ms, stroke 150ms',
         }}
       />

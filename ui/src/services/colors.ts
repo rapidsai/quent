@@ -307,24 +307,31 @@ const VIRIDIS_STOPS: [number, number, number][] = [
   [253, 231, 37], // t=1.00 yellow
 ];
 
-function singleHueAlpha(r: number, g: number, b: number, t: number): string {
-  const alpha = 0.1 + t * 0.6;
-  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+// Neutral starting color for continuous palettes: Tailwind gray-200
+const NEUTRAL: [number, number, number] = [229, 231, 235];
+
+function blendToColor(r: number, g: number, b: number, t: number): string {
+  const c = Math.min(1, Math.max(0, t));
+  const rr = Math.round(NEUTRAL[0] + (r - NEUTRAL[0]) * c);
+  const gg = Math.round(NEUTRAL[1] + (g - NEUTRAL[1]) * c);
+  const bb = Math.round(NEUTRAL[2] + (b - NEUTRAL[2]) * c);
+  return `#${rr.toString(16).padStart(2, '0')}${gg.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`;
 }
 
 /**
  * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
+ * Returns a fully opaque color that blends from neutral gray at t=0 to the palette color at t=1.
  */
 export function continuousColor(t: number, palette: ContinuousPaletteName): string {
   switch (palette) {
     case 'blue':
-      return singleHueAlpha(59, 130, 246, t); // blue-500
+      return blendToColor(59, 130, 246, t); // blue-500
     case 'teal':
-      return singleHueAlpha(20, 184, 166, t); // teal-500
+      return blendToColor(20, 184, 166, t); // teal-500
     case 'purple':
-      return singleHueAlpha(168, 85, 247, t); // purple-500
+      return blendToColor(168, 85, 247, t); // purple-500
     case 'orange':
-      return singleHueAlpha(249, 115, 22, t); // orange-500
+      return blendToColor(249, 115, 22, t); // orange-500
     case 'viridis': {
       const clamped = Math.min(1, Math.max(0, t));
       const scaled = clamped * (VIRIDIS_STOPS.length - 1);
@@ -336,9 +343,20 @@ export function continuousColor(t: number, palette: ContinuousPaletteName): stri
       const r = Math.round(r1 + (r2 - r1) * frac);
       const g = Math.round(g1 + (g2 - g1) * frac);
       const b = Math.round(b1 + (b2 - b1) * frac);
-      return `rgba(${r}, ${g}, ${b}, 0.85)`;
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
     }
   }
+}
+
+/**
+ * Returns true if the given hex color (#rrggbb) has high perceived luminance,
+ * meaning dark text should be used on top of it for readability.
+ */
+export function isLightColor(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 0.5;
 }
 
 /**
