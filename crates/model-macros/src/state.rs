@@ -9,7 +9,7 @@ use crate::util::{resolve_value_type, to_snake_case};
 
 /// Categorized fields of a state struct.
 struct StateFields {
-    /// Fields annotated with `#[usage]`.
+    /// Fields with `Usage<T>` type (detected automatically).
     usages: Vec<UsageField>,
     /// Fields annotated with `#[deferred]`.
     deferred: Vec<DeferredField>,
@@ -51,6 +51,16 @@ struct RegularField {
 }
 
 use crate::util::field_has_attr as has_attr;
+
+/// Check if a type is `Usage<...>`.
+fn is_usage_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty {
+        type_path.path.segments.last()
+            .is_some_and(|seg| seg.ident == "Usage")
+    } else {
+        false
+    }
+}
 
 /// Tries to extract T from Option<T>.
 fn unwrap_option_type(ty: &syn::Type) -> Option<&syn::Type> {
@@ -115,7 +125,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             .ok_or_else(|| syn::Error::new_spanned(field, "unnamed fields not supported"))?;
         let name = field_name.to_string();
 
-        if has_attr(field, "usage") {
+        if is_usage_type(&field.ty) {
             usages.push(UsageField {
                 name,
                 ident: field_name.clone(),
@@ -314,7 +324,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         quote! { vec![#(#extractions,)*] }
     };
 
-    // Generate ExtractUsages impl from #[usage] fields.
+    // Generate ExtractUsages impl from Usage<T> fields.
     let extract_usages_body = if fields.usages.is_empty() {
         quote! { vec![] }
     } else {

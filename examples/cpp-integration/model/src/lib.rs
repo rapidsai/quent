@@ -57,7 +57,6 @@ pub struct Queued {
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Running {
-    #[usage]
     pub thread: Usage<quent_stdlib::ProcessorResource>,
 }
 

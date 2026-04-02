@@ -132,4 +132,4 @@ applied to any FSM to mark it as usable with `Usage<T>`.
   standard ones don't fit.
 - The proc macro surface is smaller: `#[derive(Fsm)]`, `#[derive(State)]`,
   `#[resource(...)]`, `#[derive(Entity)]`, `#[event]`,
-  `#[deferred]`, `#[usage]`, `#[resource_group]`, `#[parent_group]`.
+  `#[deferred]`, `#[resource_group]`, `#[parent_group]`.

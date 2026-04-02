@@ -11,7 +11,7 @@
 | **Resource** (fixed bounds) | `#[derive(Resource)]` | Entity+FSM with Capacities (init→operating→finalizing→exit) |
 | **Resource** (dynamic bounds) | `#[derive(ResizableResource)]` | Resource with resizing cycle (operating↔resizing) |
 | **Resource Group** | `#[resource_group]` on Entity/Fsm | Hierarchical grouping for resource aggregation |
-| **Usage** | `Usage<T>` type + `#[usage]` | Claim on a Resource's Capacity during a state |
+| **Usage** | `Usage<T>` type (auto-detected) | Claim on a Resource's Capacity during a state |
 | **Capacity** | `#[capacity]` | Named quantity on a Resource that can be claimed |
 | **Attribute** | struct fields | Typed data accompanying a Transition or Event |
 
@@ -27,8 +27,8 @@ entering this state.
 ```rust
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
-    #[usage]    pub thread: Usage<ProcessorResource>,  // resource claim
-    #[usage]    pub memory: Usage<MemoryResource>,     // resource claim
+    pub thread: Usage<ProcessorResource>,              // resource claim (auto-detected)
+    pub memory: Usage<MemoryResource>,                 // resource claim (auto-detected)
     #[deferred] pub rows_processed: Option<u64>,       // set after transition
 }
 ```
@@ -37,7 +37,7 @@ pub struct Computing {
 
 | Annotation | Meaning | Spec concept |
 |---|---|---|
-| `#[usage]` | Field is a `Usage<T>` — claims capacity from a Resource | Usage |
+| _(none — auto-detected)_ | `Usage<T>` fields are detected by type — claims capacity from a Resource | Usage |
 | `#[deferred]` | Field is `Option<T>` — settable after transition via amendment event | Deferred attribute |
 | `#[capacity]` | Field is a numeric capacity value (used by Resource derives) | Capacity |
 | `#[instance_name]` | Field provides the entity's instance name for the analyzer | Entity.instance_name |
@@ -326,7 +326,7 @@ Usage in state definitions:
 ```rust
 #[derive(State)]
 pub struct Computing {
-    #[usage] pub thread: Usage<ProcessorResource>,
-    #[usage] pub memory: Usage<MemoryResource>,
+    pub thread: Usage<ProcessorResource>,
+    pub memory: Usage<MemoryResource>,
 }
 ```

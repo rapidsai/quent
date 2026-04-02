@@ -36,9 +36,7 @@ pub struct Queueing {
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
-    #[usage]
     pub thread: Usage<Thread>,
-    #[usage]
     pub memory: Usage<WorkerMemory>,
     #[deferred]
     pub rows_processed: Option<u64>,
@@ -46,7 +44,6 @@ pub struct Computing {
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Sending {
-    #[usage]
     pub channel: Usage<FsToMem>,
 }
 

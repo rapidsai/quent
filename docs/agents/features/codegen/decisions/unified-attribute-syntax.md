@@ -20,7 +20,6 @@ definitions self-documenting and IDE-friendly.
 ```rust
 #[derive(State)]
 pub struct Running {
-    #[usage]
     pub thread: Usage<ProcessorResource>,
     #[deferred]
     pub rows: Option<u64>,
@@ -140,7 +139,7 @@ leaf in the hierarchy — it cannot be a resource group. Any other entity
 
 ## Field-level annotations on State structs
 
-- `#[usage]` — marks a `Usage<T>` field as a resource usage
+- `Usage<T>` fields are detected automatically by type (no annotation needed)
 - `#[deferred]` — marks an `Option<T>` field as settable after transition
 - `#[capacity]` — marks a numeric field as a capacity value
 - `#[instance_name]` — marks a String field as the entity instance name

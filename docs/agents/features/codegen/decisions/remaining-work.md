@@ -45,7 +45,7 @@ the CXX bridge (C++ side), but the Rust API could offer handles.
 
 The `State` derive macro uses `ValueType::String` as a placeholder for field
 types it doesn't recognize (anything other than fields annotated with
-`#[usage]`, `#[deferred]`, `#[capacity]`, `#[instance_name]`). Proper type
+`#[deferred]`, `#[capacity]`, `#[instance_name]`). Proper type
 resolution would map `Uuid` → `ValueType::Uuid`, `u64` → `ValueType::U64`,
 `Ref<T>` → `ValueType::Ref(name)`, etc. The `Entity` derive has the same
 gap for event struct fields — it records event names but not their field

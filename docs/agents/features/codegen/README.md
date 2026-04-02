@@ -83,9 +83,7 @@ usages, deferred attributes, capacity values, and instance names.
 ```rust
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
-    #[usage]
     pub thread: Usage<ProcessorResource>,
-    #[usage]
     pub memory: Usage<MemoryResource>,
     #[deferred]
     pub rows_processed: Option<u64>,
@@ -216,16 +214,14 @@ use quent_stdlib::{MemoryResource, ProcessorResource, ChannelResource};
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
-    #[usage]
     pub thread: Usage<ProcessorResource>,
-    #[usage]
     pub memory: Usage<MemoryResource>,
 }
 ```
 
 ### Resource usages
 
-State fields annotated with `#[usage]` link an FSM state to a resource.
+State fields with `Usage<T>` type are automatically detected and link an FSM state to a resource.
 `Usage<T>` is a generic struct that requires `T: Resource`:
 
 ```rust
@@ -336,7 +332,7 @@ Access fields via `self.0.data().init`, `self.0.data().exit`, etc.
 
 | Derive | Helper attributes | Purpose |
 |--------|-------------------|---------|
-| `State` | `#[usage]`, `#[deferred]`, `#[capacity]`, `#[instance_name]`, `#[parent_group]` | FSM state struct |
+| `State` | `#[deferred]`, `#[capacity]`, `#[instance_name]`, `#[parent_group]` | FSM state struct |
 | `Fsm` | `#[entry]`, `#[to(...)]`, `#[resource(...)]`, `#[resource_group]` | FSM with states as fields |
 | `Entity` | `#[event]`, `#[resource_group]`, `#[resource_group(root)]` | Entity with events as fields |
 

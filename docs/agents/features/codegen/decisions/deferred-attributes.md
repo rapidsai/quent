@@ -19,9 +19,7 @@ per-instance sequence number for ordering and association.
 ```rust
 #[derive(State)]
 pub struct Computing {
-    #[usage]
     pub thread: Usage<Thread>,
-    #[usage]
     pub memory: Usage<WorkerMemory>,
     #[deferred]
     pub rows_processed: Option<u64>,

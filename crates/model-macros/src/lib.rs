@@ -42,11 +42,10 @@ mod util;
 /// Derive macro for FSM state structs.
 ///
 /// Field-level attributes:
-/// - `#[usage]` — marks a `Usage<T>` resource usage field
 /// - `#[deferred]` — marks an `Option<T>` deferred field
 /// - `#[capacity]` — marks a numeric capacity field
 /// - `#[instance_name]` — marks the field carrying the instance name
-#[proc_macro_derive(State, attributes(usage, deferred, capacity, instance_name, parent_group))]
+#[proc_macro_derive(State, attributes(deferred, capacity, instance_name, parent_group))]
 pub fn derive_state(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     state::expand_derive(input)

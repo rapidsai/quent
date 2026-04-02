@@ -18,9 +18,7 @@ states, it is declared as `Option<T>`.
 ```rust
 #[derive(State)]
 pub struct Computing {
-    #[usage]
     pub thread: Usage<Thread>,
-    #[usage]
     pub memory: Usage<WorkerMemory>,
     pub allocation_time_ns: Option<u64>,  // only set when coming from Allocating
 }

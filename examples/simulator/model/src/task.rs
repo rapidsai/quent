@@ -23,41 +23,31 @@ pub struct Queueing {
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
-    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[usage]
     pub use_memory: Usage<MemoryResource>,
 }
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Allocating {
-    #[usage]
     pub use_thread: Usage<ProcessorResource>,
 }
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Loading {
-    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[usage]
     pub use_fs_to_mem: Usage<ChannelResource>,
-    #[usage]
     pub use_memory: Usage<MemoryResource>,
 }
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Spilling {
-    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[usage]
     pub use_mem_to_fs: Usage<ChannelResource>,
 }
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Sending {
-    #[usage]
     pub use_thread: Usage<ProcessorResource>,
-    #[usage]
     pub use_link: Usage<ChannelResource>,
 }
 
