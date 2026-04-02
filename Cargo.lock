@@ -1450,9 +1450,12 @@ name = "quent-codegen"
 version = "0.1.0"
 dependencies = [
  "convert_case",
+ "prettyplease",
+ "proc-macro2",
  "quent-model",
  "quent-query-engine-model",
  "quent-simulator-model",
+ "quote",
  "syn",
 ]
 
