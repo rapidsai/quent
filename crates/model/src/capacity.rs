@@ -6,6 +6,9 @@
 //! `Capacity<V, K>` wraps a value `V` with a kind marker `K` that indicates
 //! whether the capacity represents occupancy (amount held during a span) or
 //! rate (total quantity processed over a span).
+//!
+//! `V` is restricted to `u64` or `Option<u64>` (the spec requires
+//! non-negative integer bounds).
 
 /// Marker for occupancy-type capacity: usage value represents the amount held during a Span.
 #[derive(Debug, Clone, Copy)]
@@ -15,20 +18,32 @@ pub struct Occupancy;
 #[derive(Debug, Clone, Copy)]
 pub struct Rate;
 
-/// A capacity value on a resource. `V` is the value type, `K` is the kind marker.
+/// Sealed trait restricting capacity value types to `u64` and `Option<u64>`.
+pub trait CapacityValue: private::Sealed {}
+
+impl CapacityValue for u64 {}
+impl CapacityValue for Option<u64> {}
+
+mod private {
+    pub trait Sealed {}
+    impl Sealed for u64 {}
+    impl Sealed for Option<u64> {}
+}
+
+/// A capacity value on a resource. `V` is the value type (`u64` or
+/// `Option<u64>`), `K` is the kind marker (`Occupancy` or `Rate`).
 ///
-/// The kind marker (`Occupancy` or `Rate`) is erased at runtime (zero-cost
-/// phantom type). Serialization is transparent: `Capacity<u64>` serializes
-/// as a plain `u64`.
+/// The kind marker is erased at runtime (zero-cost phantom type).
+/// Serialization is transparent: `Capacity<u64>` serializes as a plain `u64`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
-pub struct Capacity<V, K = Occupancy> {
+pub struct Capacity<V: CapacityValue, K = Occupancy> {
     pub value: V,
     #[serde(skip)]
     _kind: std::marker::PhantomData<K>,
 }
 
-impl<V, K> Capacity<V, K> {
+impl<V: CapacityValue, K> Capacity<V, K> {
     pub fn new(value: V) -> Self {
         Self {
             value,
@@ -37,7 +52,7 @@ impl<V, K> Capacity<V, K> {
     }
 }
 
-impl<V, K> std::ops::Deref for Capacity<V, K> {
+impl<V: CapacityValue, K> std::ops::Deref for Capacity<V, K> {
     type Target = V;
     fn deref(&self) -> &V {
         &self.value
