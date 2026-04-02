@@ -224,6 +224,8 @@ const FlowLayout = ({
     >
       <Background />
       <MiniMap
+        pannable
+        zoomable
         nodeStrokeWidth={3}
         style={{ background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
