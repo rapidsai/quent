@@ -3,7 +3,7 @@
 
 //! Quent integration for NVTX.
 //!
-//! Thin wrapper around [`nvtx_injection`] that connects NVTX event capture
+//! Thin wrapper around [`quent_nvtx_injection`] that connects NVTX event capture
 //! to Quent's [`EventSender`](quent_instrumentation::EventSender).
 
 use std::fmt::Debug;

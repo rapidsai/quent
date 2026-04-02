@@ -21,7 +21,7 @@ fn nvtx_injection_captures_events() {
         events_clone.lock().unwrap().push(event);
     });
 
-    // --- Mark (default domain) ---
+    // Mark (default domain)
     nvtx::mark("test mark");
 
     {
@@ -39,7 +39,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Push/Pop (LocalRange, default domain) ---
+    // Push/Pop (LocalRange, default domain)
     {
         let _range = nvtx::LocalRange::new("my range");
     }
@@ -66,7 +66,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Start/End (Range, default domain) ---
+    // Start/End (Range, default domain)
     {
         let _range = nvtx::Range::new("process range");
     }
@@ -93,7 +93,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Nested push/pop ---
+    // Nested push/pop
     {
         let _outer = nvtx::LocalRange::new("outer");
         {
@@ -111,7 +111,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Domain creation + domain-scoped mark ---
+    // Domain creation + domain-scoped mark
     let domain = nvtx::Domain::new("test-domain");
 
     {
@@ -143,7 +143,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Domain-scoped push/pop ---
+    // Domain-scoped push/pop
     {
         let _range = domain.local_range("domain local range");
     }
@@ -177,7 +177,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Registered string ---
+    // Registered string
     let reg = domain.register_string("registered msg");
     domain.mark(reg);
 
@@ -204,7 +204,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Category ---
+    // Category
     let cat = domain.register_category("test-category");
 
     {
@@ -221,7 +221,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Mark with color and category via EventAttributes ---
+    // Mark with color and category via EventAttributes
     let attrs = domain
         .event_attributes_builder()
         .message("colored mark")
@@ -249,7 +249,7 @@ fn nvtx_injection_captures_events() {
     }
     events.lock().unwrap().clear();
 
-    // --- Domain destroy (drop) ---
+    // Domain destroy (drop)
     drop(domain);
 
     {

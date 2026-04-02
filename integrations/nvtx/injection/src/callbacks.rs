@@ -20,9 +20,7 @@ use crate::bindings::{nvtxEventAttributes_v2, nvtxResourceAttributes_v0};
 use crate::convert;
 use crate::emit;
 
-// ---------------------------------------------------------------------------
 // Counters
-// ---------------------------------------------------------------------------
 
 // Relaxed is sufficient — we only need uniqueness, not cross-thread ordering.
 static RANGE_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -53,9 +51,7 @@ unsafe fn free_handle(ptr: *mut c_void) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Thread ID
-// ---------------------------------------------------------------------------
 
 // Return values are not checked: gettid() cannot fail, and
 // pthread_threadid_np(0, _) always succeeds (0 = current thread).
@@ -77,9 +73,7 @@ fn current_thread_id() -> u64 {
     0
 }
 
-// ---------------------------------------------------------------------------
 // CORE module callbacks
-// ---------------------------------------------------------------------------
 
 // Slot 1: MarkEx
 pub(crate) unsafe extern "C" fn cb_mark_ex(attr: *const nvtxEventAttributes_v2) {
@@ -226,9 +220,7 @@ pub(crate) unsafe extern "C" fn cb_name_os_thread_w(tid: u32, name: *const i32) 
     }));
 }
 
-// ---------------------------------------------------------------------------
 // CORE2 module callbacks (domain-aware)
-// ---------------------------------------------------------------------------
 
 // Slot 1: DomainMarkEx
 pub(crate) unsafe extern "C" fn cb_domain_mark_ex(

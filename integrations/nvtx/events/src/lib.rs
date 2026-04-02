@@ -63,8 +63,7 @@ pub enum NvtxEvent {
     MarkPayload(MarkPayload),
 }
 
-// --- Core push/pop ---
-
+// Core push/pop
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Push {
     pub thread_id: u64,
@@ -78,8 +77,7 @@ pub struct Pop {
     pub domain_handle_id: Option<u64>,
 }
 
-// --- Start/End ranges ---
-
+// Start/End ranges
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RangeStart {
     pub range_handle_id: u64,
@@ -93,8 +91,7 @@ pub struct RangeEnd {
     pub domain_handle_id: Option<u64>,
 }
 
-// --- Marks ---
-
+// Marks
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Mark {
     pub thread_id: u64,
@@ -102,8 +99,7 @@ pub struct Mark {
     pub attributes: Option<NvtxAttributes>,
 }
 
-// --- Domains ---
-
+// Domains
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct DomainCreate {
     pub domain_handle_id: u64,
@@ -115,8 +111,7 @@ pub struct DomainDestroy {
     pub domain_handle_id: u64,
 }
 
-// --- Registered strings ---
-
+// Registered strings
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RegisterString {
     pub domain_handle_id: Option<u64>,
@@ -124,8 +119,7 @@ pub struct RegisterString {
     pub value: String,
 }
 
-// --- Categories ---
-
+// Categories
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NameCategory {
     pub domain_handle_id: Option<u64>,
@@ -133,16 +127,14 @@ pub struct NameCategory {
     pub name: String,
 }
 
-// --- Thread naming ---
-
+// Thread naming
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NameThread {
     pub os_thread_id: u32,
     pub name: String,
 }
 
-// --- Resources ---
-
+// Resources
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ResourceCreate {
     pub domain_handle_id: Option<u64>,
