@@ -52,32 +52,17 @@ gap for event struct fields — it records event names but not their field
 schemas. The codegen `build.rs` currently patches metadata manually to
 compensate.
 
-## 7. SimulatorEvent via define_model!
+## ~~7. SimulatorEvent via define_model!~~ (resolved)
 
-`SimulatorEvent` is hand-written because it includes `ResourceEvent` and
-`TraceEvent` from `quent-events`, which are not model components and don't
-implement `HasEventType`. The `define_model!` macro only handles model
-components. Options:
+Resolved: `define_model!` now supports an `extra { Variant: Type }` section
+for non-model event types. `SimulatorEvent` is generated via `define_model!`.
 
-- Extend `define_model!` with an `extra { Variant: Type }` section for
-  non-model event types that get included in the enum and `From` impls
-  but don't contribute to the `Model<T>` type alias.
-- Implement `HasEventType` for `ResourceEvent` and `TraceEvent` so they
-  can be treated as model components.
-- Keep `SimulatorEvent` hand-written (acceptable if the boilerplate is small).
+## ~~8. Resource observer generation~~ (resolved)
 
-## 8. Resource observer generation
+Resolved: resources migrated to model-generated events via
+`#[derive(Resource)]` and `#[derive(ResizableResource)]`.
 
-Memory, Processor, and Channel resource observers are still provided by
-`quent-instrumentation` (hand-written generics), not model-generated.
-Since resources are stdlib FSMs, their observers could be generated from
-the FSM definitions. This would make the resource observer API consistent
-with entity and FSM observers.
+## ~~9. Transitive From impls~~ (resolved)
 
-## 9. Transitive From impls
-
-The simulator events crate manually implements `From<EntityEvent> for
-SimulatorEvent` via `impl_from_via_qe!` macro for each query engine entity
-event type. This boilerplate could be eliminated if `define_model!`
-generated transitive `From` impls when composing nested models, or if the
-`extra {}` section (item 7) handled it.
+Resolved: the `extra {}` section in `define_model!` and model composition
+eliminate the need for manual transitive `From` impls.

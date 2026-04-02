@@ -12,43 +12,77 @@ definition, and whether they are type-level constraints or runtime assignments.
 
 ## Decision
 
-Domain model entities may declare a fixed parent type via
-`parent = T` on `#[resource_group]`. All other resource groups and resources
-assign their parent at runtime via an `Option<Uuid>`.
+Resource groups are always entities (Entity or FSM). The `#[resource_group]`
+outer attribute marks an entity or FSM as a resource group. There is no
+standalone `ResourceGroup` derive.
+
+Parent-child relationships are expressed via:
+- `#[parent_group]` field annotation on FSM entry states (compile-time enforced
+  for non-root resource group FSMs)
+- Runtime assignment via event data for entities
 
 ## Design
 
-### Fixed parent (domain models)
+### Resource group entities
 
-Domain entities that form a known hierarchy declare the parent type:
+Entity resource groups use `#[resource_group]` as an outer attribute on
+`#[derive(Entity)]`. The root uses `#[resource_group(root)]`:
 
 ```rust
-#[derive(Entity, ResourceGroup)]
+#[derive(Entity)]
 #[resource_group(root)]
-pub struct Engine { pub name: String }
+pub struct Engine {
+    #[event]
+    init: Init,
+    #[event]
+    exit: Exit,
+}
 
-#[derive(Entity, ResourceGroup)]
+#[derive(Entity)]
 #[resource_group]
-pub struct QueryGroup { /* ... */ }
-
-#[derive(Entity, ResourceGroup)]
-#[resource_group]
-pub struct Query { /* ... */ }
-
-#[derive(Entity, ResourceGroup)]
-#[resource_group]
-pub struct Plan { /* ... */ }
+pub struct Plan {
+    #[event]
+    declaration: Declaration,
+}
 ```
 
-The root resource group (`Engine`) declares no parent.
+### Eventless resource groups
 
-When `parent = T` is specified:
+Entity resource groups with no `#[event]` fields get an implicit declaration
+event. This reduces boilerplate for pure grouping entities:
 
-- The proc macro validates that `T` is a resource group.
-- The generated API accepts an instance of `T` (or its ID), not a raw UUID.
-  This is a compile-time guarantee that the parent is the correct type.
-- The hierarchy is known statically. Codegen and the UI can render the tree
-  structure without runtime discovery.
+```rust
+#[derive(Entity)]
+#[resource_group]
+pub struct QueryGroup;
+```
+
+### FSM resource groups with `#[parent_group]`
+
+FSMs that are resource groups use `#[resource_group]` as an outer attribute on
+`#[derive(Fsm)]`. Non-root resource group FSMs must annotate a field on their
+entry state with `#[parent_group]` to provide the parent resource group UUID.
+This is enforced at compile time — the derive macro emits an error if a
+non-root resource group FSM's entry state lacks `#[parent_group]`.
+
+```rust
+#[derive(State)]
+pub struct Init {
+    #[parent_group]
+    pub query_group_id: Uuid,
+}
+
+#[derive(Fsm)]
+#[resource_group]
+pub struct Query {
+    #[entry, to(Planning)]
+    init: Init,
+    #[to(Executing)]
+    planning: Planning,
+    #[to(exit)]
+    executing: Executing,
+}
+```
 
 ### Flexible parent (application-specific)
 
@@ -64,7 +98,7 @@ pub struct WorkerMemory {
     operating: Operating,
 }
 
-#[derive(Entity, ResourceGroup)]
+#[derive(Entity)]
 #[resource_group]
 pub struct MyCustomGroup;
 ```
@@ -82,14 +116,14 @@ placement is an instance-level decision, not a type-level one.
 
 ## Rationale
 
-- Some domain models (e.g., query engine) define a fixed entity hierarchy that
-  tooling (UI, analyzer) depends on. For these domains, the hierarchy should be
-  part of the type definition so it can be validated at compile time and emitted
-  statically.
-- Other domain models may not have a rigid hierarchy. The `parent = T`
-  parameter is a tool available to domain model authors, not a framework
-  requirement. Whether a domain model constrains its hierarchy is a
-  domain-specific decision.
+- Resource groups are always entities — they represent identifiable things in
+  the system. The `#[resource_group]` attribute modifies behavior rather than
+  defining a separate trait, keeping the derive list clean.
+- `#[parent_group]` on FSM entry states provides compile-time enforcement that
+  non-root FSM resource groups supply a parent UUID on creation. This catches
+  missing parent assignments at compile time rather than runtime.
+- Eventless resource groups with implicit declaration events reduce boilerplate
+  for entities that exist purely for grouping (e.g., `QueryGroup`).
 - Application-specific resources and groups should not be restricted to a
   particular parent type. Different applications using the same domain model may
   organize their resources differently.

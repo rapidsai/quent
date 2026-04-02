@@ -8,7 +8,7 @@
 
 2. **`quent-model` proc macros** — `#[derive(Fsm)]`, `#[derive(State)]`,
    `#[resource(...)]`, `#[derive(Entity)]`, `#[event]`,
-   `#[deferred]`, `#[usage]`, `#[derive(ResourceGroup)]`.
+   `#[deferred]`, `#[usage]`, `#[resource_group]`, `#[parent_group]`.
    Start with `#[derive(Fsm)]` + `#[derive(State)]` as the core.
 
 3. **`quent-stdlib`** — Memory, Processor, Channel FSM definitions using the

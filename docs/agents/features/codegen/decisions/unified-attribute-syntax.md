@@ -68,10 +68,15 @@ pub struct Statistics { pub rows: u64 }
 - The field name becomes the observer method name
 - The field type becomes the event enum variant
 
-### Resource Group — composable with Entity or FSM
+### Resource Group — outer attribute on Entity or FSM
+
+Resource groups are always entities. The `#[resource_group]` (or
+`#[resource_group(root)]`) outer attribute is detected by the `Entity` and
+`Fsm` derives. There is no standalone `ResourceGroup` derive.
 
 ```rust
-#[derive(Entity, ResourceGroup)]
+#[derive(Entity)]
+#[resource_group(root)]
 pub struct Engine {
     #[event]
     init: Init,
@@ -79,7 +84,8 @@ pub struct Engine {
     exit: Exit,
 }
 
-#[derive(Fsm, ResourceGroup)]
+#[derive(Fsm)]
+#[resource_group]
 pub struct Query {
     #[entry, to(Planning)]
     init: Init,
@@ -90,13 +96,25 @@ pub struct Query {
 }
 ```
 
-`ResourceGroup` composes with both `Entity` and `Fsm` via multiple derives.
-The root resource group uses `#[resource_group(root)]`:
+Eventless resource group entities (no `#[event]` fields) get an implicit
+declaration event:
 
 ```rust
-#[derive(Entity, ResourceGroup)]
-#[resource_group(root)]
-pub struct Engine { ... }
+#[derive(Entity)]
+#[resource_group]
+pub struct QueryGroup;
+```
+
+Non-root resource group FSMs must have `#[parent_group]` on a field in their
+entry state to provide the parent resource group UUID. This is enforced at
+compile time.
+
+```rust
+#[derive(State)]
+pub struct Init {
+    #[parent_group]
+    pub query_group_id: Uuid,
+}
 ```
 
 ## Model composition
@@ -126,12 +144,19 @@ leaf in the hierarchy — it cannot be a resource group. Any other entity
 - `#[deferred]` — marks an `Option<T>` field as settable after transition
 - `#[capacity]` — marks a numeric field as a capacity value
 - `#[instance_name]` — marks a String field as the entity instance name
+- `#[parent_group]` — marks a UUID field as the parent resource group reference
 
 ## Rationale
 
 - Derive macros are IDE-friendly (autocomplete, trait documentation)
 - Entity events and FSM states are struct fields — self-documenting
 - `#[event]` on entity fields mirrors `#[to(...)]` on FSM fields
-- `ResourceGroup` composes naturally via multiple derives
+- `#[resource_group]` as an outer attribute keeps resource group semantics
+  separate from the derive list — it modifies behavior rather than defining a
+  new trait impl
+- `#[parent_group]` on State fields provides compile-time enforcement of
+  parent resource group linkage for non-root FSM resource groups
+- Eventless resource groups get implicit declaration events, reducing
+  boilerplate for pure grouping entities
 - Field names drive generated API (observer method names, data struct fields)
 - Consistent pattern: both FSMs and entities use fields to declare components
