@@ -286,13 +286,14 @@ code extends it with additional observer factories via impl blocks.
 
 ## FSM instantiation and event emission
 
-Each FSM instance is created via `{Name}Handle::new()`, returning an owned
-handle with auto-generated UUIDv7, sequence counter, and event sender. Events
-are emitted immediately on transition.
+Each FSM instance is created via a named constructor on `{Name}Handle` matching
+the entry state's field name, returning an owned handle with auto-generated
+UUIDv7, sequence counter, and event sender. Events are emitted immediately on
+transition.
 
 ```rust
 let tx = context.events_sender();
-let mut task = TaskHandle::new(&tx, Queueing { ... });
+let mut task = TaskHandle::queueing(&tx, Queueing { ... });
 task.transition(Computing { ... });
 task.exit(); // or auto-exits on Drop
 ```

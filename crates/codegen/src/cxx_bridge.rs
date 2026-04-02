@@ -424,20 +424,22 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         format!(
             r#"pub fn create(data: ffi::{entry_pascal}) -> Box<{handle_name}> {{
 {conversion}    Box::new({handle_name} {{
-        inner: {model_crate}::{pascal_name}Handle::new(&super::context::global_sender(), state),
+        inner: {model_crate}::{pascal_name}Handle::{entry_name}(&super::context::global_sender(), state),
     }})
 }}
-"#
+"#,
+            entry_name = entry_state.name,
         )
     } else {
         format!(
             r#"pub fn create() -> Box<{handle_name}> {{
     let state = {model_crate}::{entry_pascal};
     Box::new({handle_name} {{
-        inner: {model_crate}::{pascal_name}Handle::new(&super::context::global_sender(), state),
+        inner: {model_crate}::{pascal_name}Handle::{entry_name}(&super::context::global_sender(), state),
     }})
 }}
-"#
+"#,
+            entry_name = entry_state.name,
         )
     };
 

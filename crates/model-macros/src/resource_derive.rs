@@ -586,10 +586,10 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         where
             E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
         {
-            pub fn new(tx: &quent_model::EventSender<E>, initial_state: #init_state) -> Self {
+            pub fn initializing(tx: &quent_model::EventSender<E>, state: #init_state) -> Self {
                 let id = uuid::Uuid::now_v7();
                 let mut handle = Self { id, seq: 0, exited: false, tx: tx.clone() };
-                handle.emit_transition(#transition_enum::from(initial_state));
+                handle.emit_transition(#transition_enum::from(state));
                 handle
             }
 

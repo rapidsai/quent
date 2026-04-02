@@ -81,8 +81,8 @@ exit, no transitions out of exit, all fields must be `pub`.
 
 **Generates:** `TaskTransition` enum, `TaskDeferred` enum, `TaskEvent` type
 alias (`FsmEvent<S, D>`), `TaskHandle<E>` (instrumentation handle with
-`new()`, `transition()`, `exit()`, auto-exit on Drop), `ModelComponent` impl,
-`TransitionInfo` impl, `HasEventType` impl.
+`{entry_field_name}()` named constructor, `transition()`, `exit()`, auto-exit
+on Drop), `ModelComponent` impl, `TransitionInfo` impl, `HasEventType` impl.
 
 **Struct-level annotations on Fsm:**
 

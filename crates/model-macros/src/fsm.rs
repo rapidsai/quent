@@ -245,6 +245,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let mut transitions = Vec::new();
     let mut state_idents: Vec<Ident> = Vec::new();
     let mut entry_state_type: Option<Ident> = None;
+    let mut entry_state_field_name: Option<String> = None;
     let mut seen = HashSet::new();
 
     for field in fields {
@@ -260,6 +261,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         // Entry transition: entry -> this state
         if is_entry {
             entry_state_type = Some(state_type.clone());
+            entry_state_field_name = field.ident.as_ref().map(|i| i.to_string());
             transitions.push(Transition {
                 from: TransitionEndpoint::Entry,
                 to: TransitionEndpoint::State(state_type.clone()),
@@ -281,6 +283,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     }
 
     validate_fsm(fsm_name, &transitions)?;
+
+    let entry_state_type = entry_state_type.expect("validate_fsm ensures entry exists");
+    let entry_constructor = format_ident!(
+        "{}",
+        entry_state_field_name.expect("entry field has a name")
+    );
 
     let fsm_snake = to_snake_case(fsm_name);
 
@@ -421,18 +429,18 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
     // Compile-time enforcement: non-root resource group FSMs must have
     // a #[parent_group] field on their entry state.
-    let rg_parent_group_assert = match (resource_group, &entry_state_type) {
-        (Some(false), Some(entry_type)) => {
-            quote! {
-                const _: () = {
-                    fn _assert_entry_has_parent_group<T: quent_model::HasParentGroup>() {}
-                    fn _check() {
-                        _assert_entry_has_parent_group::<#entry_type>();
-                    }
-                };
-            }
+    let rg_parent_group_assert = if resource_group == Some(false) {
+        let entry_type = &entry_state_type;
+        quote! {
+            const _: () = {
+                fn _assert_entry_has_parent_group<T: quent_model::HasParentGroup>() {}
+                fn _check() {
+                    _assert_entry_has_parent_group::<#entry_type>();
+                }
+            };
         }
-        _ => quote! {},
+    } else {
+        quote! {}
     };
 
     let output = quote! {
@@ -525,7 +533,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
         {
             /// Creates a new FSM instance, emitting the entry transition event.
-            pub fn new(tx: &quent_model::EventSender<E>, initial_state: impl Into<#transition_enum>) -> Self {
+            pub fn #entry_constructor(tx: &quent_model::EventSender<E>, state: #entry_state_type) -> Self {
                 let id = uuid::Uuid::now_v7();
                 let mut handle = Self {
                     id,
@@ -533,7 +541,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     exited: false,
                     tx: tx.clone(),
                 };
-                handle.emit_transition(initial_state.into());
+                handle.emit_transition(state.into());
                 handle
             }
 

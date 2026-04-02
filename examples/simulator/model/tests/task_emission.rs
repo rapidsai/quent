@@ -27,7 +27,7 @@ fn task_handle_lifecycle() {
     let tx = ctx.events_sender();
 
     // Create task — emits entry -> Queueing (seq 0)
-    let mut task = TaskHandle::new(
+    let mut task = TaskHandle::queueing(
         &tx,
         Queueing {
             operator_id: Uuid::nil(),
@@ -70,7 +70,7 @@ fn task_handle_auto_exit_on_drop() {
     let tx = ctx.events_sender();
 
     // Create and immediately drop — should not panic, auto-exits.
-    let task = TaskHandle::new(
+    let task = TaskHandle::queueing(
         &tx,
         Queueing {
             operator_id: Uuid::nil(),
@@ -86,7 +86,7 @@ fn task_transition_types() {
     let ctx = quent_instrumentation::Context::<TestEvent>::try_new(None, Uuid::now_v7()).unwrap();
     let tx = ctx.events_sender();
 
-    let mut task = TaskHandle::new(
+    let mut task = TaskHandle::queueing(
         &tx,
         Queueing {
             operator_id: Uuid::nil(),

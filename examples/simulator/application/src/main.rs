@@ -528,7 +528,7 @@ impl Worker {
         let mut processor_handles = Vec::new();
 
         // Filesystem
-        let mut fs_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::new(
+        let mut fs_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::initializing(
             &tx,
             quent_stdlib::MemoryInitializing {
                 instance_name: "Filesystem".into(),
@@ -541,7 +541,7 @@ impl Worker {
         memory_handles.push(fs_handle);
 
         // Memory pool
-        let mut mem_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::new(
+        let mut mem_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::initializing(
             &tx,
             quent_stdlib::MemoryInitializing {
                 instance_name: "Memory".into(),
@@ -554,7 +554,7 @@ impl Worker {
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
-        let mut fs_to_mem_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+        let mut fs_to_mem_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
             &tx,
             quent_stdlib::ChannelInitializing {
                 instance_name: "Filesystem -> Memory".into(),
@@ -569,7 +569,7 @@ impl Worker {
         channel_handles.push(fs_to_mem_handle);
 
         // Memory -> Filesystem channel
-        let mut mem_to_fs_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+        let mut mem_to_fs_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
             &tx,
             quent_stdlib::ChannelInitializing {
                 instance_name: "Memory -> Filesystem".into(),
@@ -597,7 +597,7 @@ impl Worker {
 
         let mut threads = Vec::new();
         for index in 0..num_threads {
-            let mut thread_handle = quent_stdlib::ProcessorHandle::<SimulatorEvent>::new(
+            let mut thread_handle = quent_stdlib::ProcessorHandle::<SimulatorEvent>::initializing(
                 &tx,
                 quent_stdlib::ProcessorInitializing {
                     instance_name: format!("Thread {index}"),
@@ -638,7 +638,7 @@ impl Worker {
         let mem_ref = Ref::new(self.memory);
 
         // Create task — emits entry -> Queueing
-        let mut task = TaskHandle::<SimulatorEvent>::new(
+        let mut task = TaskHandle::<SimulatorEvent>::queueing(
             &tx,
             Queueing {
                 operator_id: operator.id,
@@ -1162,7 +1162,7 @@ impl Engine {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
 
-                let mut up_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+                let mut up_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
                     &tx,
                     quent_stdlib::ChannelInitializing {
                         instance_name: format!("worker {worker_index} -> {other_worker_index}"),
@@ -1176,7 +1176,7 @@ impl Engine {
                 up_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
                 self.network_link_handles.push(up_handle);
 
-                let mut down_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::new(
+                let mut down_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
                     &tx,
                     quent_stdlib::ChannelInitializing {
                         instance_name: format!("worker {other_worker_index} -> {worker_index}"),
@@ -1386,7 +1386,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..args.num_queries
         {
-            let mut query_handle = query::QueryHandle::<SimulatorEvent>::new(
+            let mut query_handle = query::QueryHandle::<SimulatorEvent>::init(
                 &tx,
                 query::Init {
                     query_group_id,
