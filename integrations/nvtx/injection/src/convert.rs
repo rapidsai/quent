@@ -5,8 +5,6 @@
 
 #![allow(unsafe_op_in_unsafe_fn)]
 
-#[cfg(target_os = "windows")]
-compile_error!("wchar_t handling assumes 4-byte UTF-32 (Linux/macOS); Windows 2-byte UTF-16 is not yet supported");
 
 use std::ffi::{CStr, c_void};
 
@@ -77,6 +75,9 @@ pub(crate) unsafe fn convert_resource_attributes(
     }
 }
 
+// Safety: union field access is guarded by the discriminant match — each arm
+// only reads the variant that payloadType/messageType guarantees is active.
+
 unsafe fn convert_payload(
     payload_type: i32,
     payload: &crate::bindings::nvtxEventAttributes_v2_payload_t,
@@ -135,7 +136,7 @@ unsafe fn wchar_to_string(ptr: *const i32) -> String {
     let slice = std::slice::from_raw_parts(ptr as *const u32, len);
     slice
         .iter()
-        .filter_map(|&c| char::from_u32(c))
+        .map(|&c| char::from_u32(c).unwrap_or(char::REPLACEMENT_CHARACTER))
         .collect()
 }
 
@@ -145,12 +146,10 @@ pub(crate) unsafe fn attributes_from_ascii(msg: *const i8) -> Option<NvtxAttribu
         return None;
     }
     Some(NvtxAttributes {
-        category_id: 0,
-        color: None,
-        payload: None,
         message: Some(NvtxMessage::String(
             CStr::from_ptr(msg).to_string_lossy().into_owned(),
         )),
+        ..Default::default()
     })
 }
 
@@ -160,11 +159,14 @@ pub(crate) unsafe fn attributes_from_wchar(msg: *const i32) -> Option<NvtxAttrib
         return None;
     }
     Some(NvtxAttributes {
-        category_id: 0,
-        color: None,
-        payload: None,
         message: Some(NvtxMessage::String(wchar_to_string(msg))),
+        ..Default::default()
     })
+}
+
+/// Extract the u64 ID from an opaque handle pointer allocated by us.
+pub(crate) unsafe fn handle_to_id(handle: *mut c_void) -> u64 {
+    *(handle as *const u64)
 }
 
 /// Extract domain handle ID. Returns `None` for the default domain (null).

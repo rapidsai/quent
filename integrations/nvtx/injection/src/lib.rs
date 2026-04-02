@@ -7,10 +7,13 @@
 //! values through a user-provided callback.
 //!
 //! ```ignore
-//! nvtx_injection::install_hook(|event| {
+//! quent_nvtx_injection::install_hook(|event| {
 //!     println!("{event:?}");
 //! });
 //! ```
+
+#[cfg(target_os = "windows")]
+compile_error!("quent-nvtx-injection does not support Windows (wchar_t size, weak symbol mechanism)");
 
 #[allow(
     dead_code,
@@ -44,8 +47,9 @@ static SENDER: OnceLock<Box<dyn Fn(NvtxEvent) + Send + Sync>> = OnceLock::new();
 /// `install_hook()` is called are silently dropped.
 ///
 /// Can only be called once per process (NVTX initialization is one-shot).
-pub fn install_hook(hook: impl Fn(NvtxEvent) + Send + Sync + 'static) {
-    SENDER.set(Box::new(hook)).ok();
+/// Returns `false` if a hook was already installed.
+pub fn install_hook(hook: impl Fn(NvtxEvent) + Send + Sync + 'static) -> bool {
+    SENDER.set(Box::new(hook)).is_ok()
 }
 
 /// Emit an NvtxEvent through the installed hook.

@@ -47,8 +47,9 @@ fn main() {
         .file(format!("{manifest_dir}/c/symbol.c"))
         .compile("quent_nvtx_symbol");
 
-    // The static injection library must be linked with --whole-archive / -force_load
-    // so the strong symbol overrides NVTX's weak definition.
+    // Force-load the archive so the linker includes our strong
+    // InitializeInjectionNvtx2_fnptr symbol, overriding the weak
+    // definition from nvtx-sys in the final binary.
     let out_dir = std::env::var("OUT_DIR").unwrap();
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-arg=-Wl,-force_load,{out_dir}/libquent_nvtx_symbol.a");

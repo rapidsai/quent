@@ -3,7 +3,7 @@
 ## NvtxEvent enum
 
 The `NvtxEvent` enum represents all raw NVTX API calls. It lives in
-the `quent-nvtx-events` crate at `integrations/nvtx/injection/events/`.
+the `quent-nvtx-events` crate at `integrations/nvtx/events/`.
 
 The application's top-level event enum must include a variant wrapping
 `NvtxEvent`:

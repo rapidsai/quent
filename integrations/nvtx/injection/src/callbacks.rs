@@ -24,9 +24,12 @@ use crate::emit;
 // Counters
 // ---------------------------------------------------------------------------
 
+// Relaxed is sufficient — we only need uniqueness, not cross-thread ordering.
 static RANGE_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 static HANDLE_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
+/// Returned from push/pop callbacks to signal that this injection does not
+/// track nesting depth. NVTX interprets this as "depth not available".
 const NO_PUSH_POP_TRACKING: i32 = -2;
 
 fn next_range_id() -> u64 {
@@ -48,6 +51,9 @@ unsafe fn free_handle(ptr: *mut c_void) {
 // ---------------------------------------------------------------------------
 // Thread ID
 // ---------------------------------------------------------------------------
+
+// Return values are not checked: gettid() cannot fail, and
+// pthread_threadid_np(0, _) always succeeds (0 = current thread).
 
 #[cfg(target_os = "linux")]
 fn current_thread_id() -> u64 {
@@ -333,7 +339,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_a(
 ) -> *mut c_void {
     let (handle_ptr, string_id) = alloc_handle();
     emit(NvtxEvent::RegisterString(RegisterString {
-        domain_handle_id: convert::domain_handle_id(domain),
+        domain_handle_id: convert::handle_to_id(domain),
         string_handle_id: string_id,
         value: convert::cstr_to_string(string),
     }));
@@ -347,7 +353,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_w(
 ) -> *mut c_void {
     let (handle_ptr, string_id) = alloc_handle();
     emit(NvtxEvent::RegisterString(RegisterString {
-        domain_handle_id: convert::domain_handle_id(domain),
+        domain_handle_id: convert::handle_to_id(domain),
         string_handle_id: string_id,
         value: convert::wstr_to_string(string),
     }));
@@ -358,7 +364,7 @@ pub(crate) unsafe extern "C" fn cb_domain_register_string_w(
 pub(crate) unsafe extern "C" fn cb_domain_create_a(name: *const i8) -> *mut c_void {
     let (handle_ptr, domain_id) = alloc_handle();
     emit(NvtxEvent::DomainCreate(DomainCreate {
-        domain_handle_id: Some(domain_id),
+        domain_handle_id: domain_id,
         name: convert::cstr_to_string(name),
     }));
     handle_ptr
@@ -368,7 +374,7 @@ pub(crate) unsafe extern "C" fn cb_domain_create_a(name: *const i8) -> *mut c_vo
 pub(crate) unsafe extern "C" fn cb_domain_create_w(name: *const i32) -> *mut c_void {
     let (handle_ptr, domain_id) = alloc_handle();
     emit(NvtxEvent::DomainCreate(DomainCreate {
-        domain_handle_id: Some(domain_id),
+        domain_handle_id: domain_id,
         name: convert::wstr_to_string(name),
     }));
     handle_ptr
@@ -379,7 +385,7 @@ pub(crate) unsafe extern "C" fn cb_domain_destroy(domain: *mut c_void) {
     if !domain.is_null() {
         let id = *(domain as *const u64);
         emit(NvtxEvent::DomainDestroy(DomainDestroy {
-            domain_handle_id: Some(id),
+            domain_handle_id: id,
         }));
         free_handle(domain);
     }

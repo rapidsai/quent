@@ -119,7 +119,7 @@ fn nvtx_injection_captures_events() {
         assert_eq!(captured.len(), 1, "expected 1 DomainCreate event");
         match &captured[0] {
             NvtxEvent::DomainCreate(d) => {
-                assert!(d.domain_handle_id.is_some());
+                assert!(d.domain_handle_id > 0);
                 assert_eq!(d.name, "test-domain");
             }
             other => panic!("expected DomainCreate, got {other:?}"),
@@ -186,7 +186,7 @@ fn nvtx_injection_captures_events() {
         assert_eq!(captured.len(), 2, "expected RegisterString + Mark");
         match &captured[0] {
             NvtxEvent::RegisterString(r) => {
-                assert!(r.domain_handle_id.is_some());
+                assert!(r.domain_handle_id > 0);
                 assert_eq!(r.value, "registered msg");
             }
             other => panic!("expected RegisterString, got {other:?}"),
@@ -257,7 +257,7 @@ fn nvtx_injection_captures_events() {
         assert_eq!(captured.len(), 1, "expected 1 DomainDestroy event");
         match &captured[0] {
             NvtxEvent::DomainDestroy(d) => {
-                assert!(d.domain_handle_id.is_some());
+                assert!(d.domain_handle_id > 0);
             }
             other => panic!("expected DomainDestroy, got {other:?}"),
         }

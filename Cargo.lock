@@ -1713,10 +1713,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-nvtx-analyzer"
-version = "0.1.0"
-
-[[package]]
 name = "quent-nvtx-events"
 version = "0.1.0"
 dependencies = [

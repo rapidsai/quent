@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Attributes from `nvtxEventAttributes_t`.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct NvtxAttributes {
     /// User-defined category ID (0 = no category).
     pub category_id: u32,

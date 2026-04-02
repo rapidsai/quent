@@ -44,7 +44,7 @@ Under `integrations/nvtx/`. Separate from core crates and domains.
 Sub-crates:
 - `quent-nvtx-injection` at `integrations/nvtx/injection/` — stateless
   forwarder, `install_hook()` API
-- `quent-nvtx-events` at `integrations/nvtx/injection/events/` — `NvtxEvent`
+- `quent-nvtx-events` at `integrations/nvtx/events/` — `NvtxEvent`
   enum and per-variant types
 - `quent-nvtx` at `integrations/nvtx/instrumentation/` — Quent wrapper,
   `install()` with `EventSender`

@@ -23,7 +23,6 @@ members = [
     "domains/query_engine/server",
     "domains/query_engine/ui",
     # Integration crates
-    "integrations/nvtx/analyzer",
     "integrations/nvtx/injection",
     "integrations/nvtx/events",
     "integrations/nvtx/instrumentation",
