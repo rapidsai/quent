@@ -13,6 +13,7 @@ import {
   OPERATION_TYPE_COLORS,
   DEFAULT_OPERATION_COLOR,
 } from '@/services/query-plan/operationTypes';
+import { withOpacity } from '@/services/colors';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -52,7 +53,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const color = OPERATION_TYPE_COLORS[data.operationType] ?? DEFAULT_OPERATION_COLOR;
-  const bgOpacity = isSelected ? '4d' : isHovered ? '38' : '26';
+  const bgColor = withOpacity(color, isSelected ? 0.3 : isHovered ? 0.22 : 0.15);
 
   const nodeContent = (
     <div
@@ -62,7 +63,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       style={
         {
           borderColor: color,
-          backgroundColor: color + bgOpacity,
+          backgroundColor: bgColor,
           '--glow-color': color,
         } as React.CSSProperties
       }
@@ -72,7 +73,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       <div
-        className={`text-sm break-words text-center ${data.operationType === 'stage' ? 'font-bold' : isSelected ? 'font-bold' : 'font-normal'}`}
+        className={cn("text-sm break-words text-center font-normal", { "font-bold": data.operationType === 'stage'  || isSelected})}
       >
         {data.label}
       </div>
