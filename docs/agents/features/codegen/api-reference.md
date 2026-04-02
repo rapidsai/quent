@@ -88,7 +88,6 @@ on Drop), `ModelComponent` impl, `TransitionInfo` impl, `HasEventType` impl.
 
 | Annotation | Meaning |
 |---|---|
-| `#[resource(capacity = T)]` | This FSM is a Resource; `T` is the Operating state providing capacity |
 | `#[resource_group]` | This FSM is also a Resource Group |
 | `#[resource_group(root)]` | This FSM is the root Resource Group |
 
