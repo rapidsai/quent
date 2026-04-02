@@ -227,7 +227,7 @@ const FlowLayout = ({
         pannable
         zoomable
         nodeStrokeWidth={3}
-        style={{ background: 'hsl(var(--card))' }}
+        style={{ width: '125', height: '125', background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
         nodeColor={(node: Node<QueryPlanNodeData>) =>
           OPERATION_TYPE_COLORS[(node.data as QueryPlanNodeData).operationType] ??
