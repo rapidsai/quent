@@ -42,7 +42,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
       <div className="flex items-center justify-between px-4 py-2">
         <CollapsibleTrigger className="flex items-center gap-2 group">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            DAG Controls
+            Plan Controls
           </span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 cursor-pointer group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
