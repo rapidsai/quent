@@ -5,7 +5,7 @@ import { useAtomValue } from 'jotai';
 import {
   selectedNodeIdsAtom,
   nodeColoringAtom,
-  selectedNodeDisplayFieldAtom,
+  selectedColorField,
   nodeColorPaletteAtom,
   selectedNodeLabelFieldAtom,
   NODE_LABEL_FIELD,
@@ -129,7 +129,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isSelected = selectedNodeIds.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
-  const nodeDisplayField = useAtomValue(selectedNodeDisplayFieldAtom);
+  const colorField = useAtomValue(selectedColorField);
   const nodeLabelField = useAtomValue(selectedNodeLabelFieldAtom);
 
   const resolvedLabel = useMemo(() => {
@@ -178,11 +178,14 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       <div className="text-sm font-normal break-words text-center">{resolvedLabel}</div>
-      {nodeDisplayField &&
+      {colorField &&
         (() => {
-          const displayValue = statistics.find(s => s.key === nodeDisplayField)?.value ?? null;
+          const displayValue = statistics.find(s => s.key === colorField)?.value ?? null;
           return displayValue !== null ? (
-            <div className="text-xs text-muted-foreground text-center mt-0.5">
+            <div
+              className="text-xs text-center mt-0.5"
+              style={{ color: fieldColor && isLightColor(fieldColor) ? '#6b7280' : undefined }}
+            >
               {String(displayValue)}
             </div>
           ) : null;

@@ -2,6 +2,7 @@ import ELK from 'elkjs';
 import { useCallback, useEffect, useLayoutEffect, useRef, MouseEvent, type RefObject } from 'react';
 import {
   Background,
+  EdgeLabelRenderer,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
@@ -27,6 +28,13 @@ import {
 import { continuousColor } from '@/services/colors';
 
 const elk = new ELK();
+
+function formatMetricValue(v: number): string {
+  if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  return Number.isInteger(v) ? String(v) : v.toFixed(2);
+}
 
 const VariableWidthEdge = ({
   id,
@@ -81,10 +89,31 @@ const VariableWidthEdge = ({
   const isEdgeDimmed =
     edgeDimmed || (hasSelection && !selectedNodeIds.has(source) && !selectedNodeIds.has(target));
 
+  let edgeLabelValue: string | undefined;
+  if (edgeColoring) {
+    if (edgeColoring.type === 'continuous') {
+      const v = edgeColoring.values.get(id);
+      if (v !== undefined) edgeLabelValue = formatMetricValue(v);
+    } else {
+      const v = edgeColoring.labelMap.get(id);
+      if (v !== undefined) edgeLabelValue = v;
+    }
+  } else if (edgeWidthConfig) {
+    const v = edgeWidthConfig.values.get(id);
+    if (v !== undefined) edgeLabelValue = formatMetricValue(v);
+  }
+
+  // Offset label perpendicular to edge direction so it doesn't overlap the line
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const isMoreVertical = Math.abs(dy) >= Math.abs(dx);
+  const edgeLabelOffsetX = isMoreVertical ? 22 : 0;
+  const edgeLabelOffsetY = isMoreVertical ? 0 : -14;
+
   const arrowWidth = strokeWidth * 1.5 + 8;
   const arrowDepth = arrowWidth * 0.6;
   const markerId = `arrow-${id}`;
-  const [edgePath] = getSmoothStepPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
@@ -125,6 +154,22 @@ const VariableWidthEdge = ({
           transition: 'opacity 150ms, stroke 150ms',
         }}
       />
+      {edgeLabelValue && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX + edgeLabelOffsetX}px,${labelY + edgeLabelOffsetY}px)`,
+              pointerEvents: 'none',
+              opacity: isEdgeDimmed ? 0.15 : 1,
+              transition: 'opacity 150ms',
+            }}
+            className="text-[10px] font-medium px-1 py-0.5 rounded bg-background/80 text-muted-foreground border border-border/50"
+          >
+            {edgeLabelValue}
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 };

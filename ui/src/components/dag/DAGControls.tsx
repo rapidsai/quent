@@ -13,9 +13,11 @@ import {
   selectedColorField,
   selectedEdgeWidthFieldAtom,
   selectedEdgeColorFieldAtom,
-  selectedNodeDisplayFieldAtom,
+  selectedNodeLabelFieldAtom,
+  NODE_LABEL_FIELD,
+  type NodeLabelField,
 } from '@/atoms/dag';
-import { Palette, Spline, X, Brush, Tag, ChevronDown } from 'lucide-react';
+import { Palette, Spline, X, Brush, ChevronDown, Type } from 'lucide-react';
 import { DAGSettingsPopover } from './DAGSettingsPopover';
 import { useState } from 'react';
 
@@ -26,9 +28,20 @@ interface DAGFieldProps {
   value: string;
   setValue: (value: string | null) => void;
   placeholder: string;
+  clearable?: boolean;
+  optionLabels?: Record<string, string>;
 }
 
-const DAGField = ({ label, icon: Icon, options, value, setValue, placeholder }: DAGFieldProps) => (
+const DAGField = ({
+  label,
+  icon: Icon,
+  options,
+  value,
+  setValue,
+  placeholder,
+  clearable = true,
+  optionLabels,
+}: DAGFieldProps) => (
   <div className="flex items-center gap-1.5 min-w-0">
     <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
     <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{label}</span>
@@ -46,7 +59,7 @@ const DAGField = ({ label, icon: Icon, options, value, setValue, placeholder }: 
             ) : (
               options.map(opt => (
                 <SelectItem key={opt} value={opt} className="text-xs">
-                  {opt}
+                  {optionLabels?.[opt] ?? opt}
                 </SelectItem>
               ))
             )}
@@ -54,7 +67,7 @@ const DAGField = ({ label, icon: Icon, options, value, setValue, placeholder }: 
         </ScrollArea>
       </SelectContent>
     </Select>
-    {value && (
+    {clearable && value && (
       <button
         onClick={() => setValue(null)}
         className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
@@ -71,11 +84,14 @@ interface DAGControlsProps {
   portStatFields: string[];
 }
 
+const NODE_LABEL_OPTIONS = [NODE_LABEL_FIELD.NAME, NODE_LABEL_FIELD.ID, NODE_LABEL_FIELD.TYPE];
+const NODE_LABEL_DISPLAY: Record<string, string> = { name: 'Name', id: 'ID', type: 'Type' };
+
 export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsProps) => {
   const [colorField, setColorField] = useAtom(selectedColorField);
   const [edgeWidthField, setEdgeWidthField] = useAtom(selectedEdgeWidthFieldAtom);
   const [edgeColorField, setEdgeColorField] = useAtom(selectedEdgeColorFieldAtom);
-  const [nodeDisplayField, setNodeDisplayField] = useAtom(selectedNodeDisplayFieldAtom);
+  const [nodeLabelField, setNodeLabelField] = useAtom(selectedNodeLabelFieldAtom);
   const [open, setOpen] = useState(true);
 
   return (
@@ -115,12 +131,14 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
           placeholder="None"
         />
         <DAGField
-          label="Display field"
-          icon={Tag}
-          options={operatorStatFields}
-          value={nodeDisplayField ?? ''}
-          setValue={setNodeDisplayField}
-          placeholder="None"
+          label="Node label"
+          icon={Type}
+          options={NODE_LABEL_OPTIONS}
+          optionLabels={NODE_LABEL_DISPLAY}
+          value={nodeLabelField}
+          setValue={v => v && setNodeLabelField(v as NodeLabelField)}
+          placeholder="Name"
+          clearable={false}
         />
       </CollapsibleContent>
     </Collapsible>

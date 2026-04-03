@@ -9,13 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Settings2 } from 'lucide-react';
 import { useAtom } from 'jotai';
-import {
-  nodeColorPaletteAtom,
-  edgeColorPaletteAtom,
-  selectedNodeLabelFieldAtom,
-  NODE_LABEL_FIELD,
-  type NodeLabelField,
-} from '@/atoms/dag';
+import { nodeColorPaletteAtom, edgeColorPaletteAtom } from '@/atoms/dag';
 import {
   CONTINUOUS_PALETTES,
   continuousColor,
@@ -30,7 +24,6 @@ const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [
 export const DAGSettingsPopover = () => {
   const [nodePalette, setNodePalette] = useAtom(nodeColorPaletteAtom);
   const [edgePalette, setEdgePalette] = useAtom(edgeColorPaletteAtom);
-  const [nodeLabelField, setNodeLabelField] = useAtom(selectedNodeLabelFieldAtom);
 
   return (
     <Popover>
@@ -93,28 +86,6 @@ export const DAGSettingsPopover = () => {
                     </div>
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1 w-fit">
-            <span className="text-xs text-muted-foreground">Node label</span>
-            <Select
-              value={nodeLabelField}
-              onValueChange={v => setNodeLabelField(v as NodeLabelField)}
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NODE_LABEL_FIELD.NAME} className="text-xs">
-                  Name
-                </SelectItem>
-                <SelectItem value={NODE_LABEL_FIELD.ID} className="text-xs">
-                  ID
-                </SelectItem>
-                <SelectItem value={NODE_LABEL_FIELD.TYPE} className="text-xs">
-                  Type
-                </SelectItem>
               </SelectContent>
             </Select>
           </div>

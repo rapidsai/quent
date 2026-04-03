@@ -32,9 +32,6 @@ export const selectedEdgeColorFieldAtom = atom<string | null>(null);
 /** Computed edge coloring config (written by QueryPlan, read by VariableWidthEdge) */
 export const edgeColoringAtom = atom<EdgeColoring>(null);
 
-/** Field displayed below operator name on DAG node */
-export const selectedNodeDisplayFieldAtom = atom<string | null>(null);
-
 /** Which field to use as the primary label on each DAG node */
 export const NODE_LABEL_FIELD = {
   NAME: 'name',

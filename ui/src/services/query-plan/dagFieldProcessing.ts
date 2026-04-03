@@ -57,6 +57,7 @@ export function computeEdgeColoring(edges: DAGEdge[], field: string | null): Edg
   return {
     type: 'categorical',
     colorMap: new Map(entries.map(e => [e.id, valueColor.get(String(e.value))!])),
+    labelMap: new Map(entries.map(e => [e.id, String(e.value)])),
   };
 }
 
