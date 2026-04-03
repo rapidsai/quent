@@ -3,18 +3,12 @@ import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { useAtomValue } from 'jotai';
-import {
-  selectedNodeIdsAtom,
-  nodeColoringAtom,
-  selectedColorField,
-  nodeColorPaletteAtom,
-  selectedNodeLabelFieldAtom,
-  NODE_LABEL_FIELD,
-} from '@/atoms/dag';
+import { selectedNodeLabelFieldAtom, NODE_LABEL_FIELD } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { continuousColor, isLightColor } from '@/services/colors';
+import { isLightColor } from '@/services/colors';
+import { useNodeColoring } from '@/hooks/useNodeColoring';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -124,38 +118,16 @@ function resolveOperationType(type: string): OperationType {
 }
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const nodeColoring = useAtomValue(nodeColoringAtom);
-  const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const operatorId = data.metadata?.rawNode?.id ?? '';
-  const isSelected = selectedNodeIds.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
-  const colorField = useAtomValue(selectedColorField);
   const nodeLabelField = useAtomValue(selectedNodeLabelFieldAtom);
+  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId);
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
     if (nodeLabelField === NODE_LABEL_FIELD.TYPE) return data.operationType;
     return data.label;
   }, [nodeLabelField, data]);
-
-  const { fieldColor, fieldDimmed } = useMemo(() => {
-    if (!nodeColoring) return { fieldColor: undefined, fieldDimmed: false };
-    if (nodeColoring.type === 'continuous') {
-      const v = nodeColoring.values.get(operatorId);
-      if (v === undefined) return { fieldColor: undefined, fieldDimmed: true };
-      const t =
-        nodeColoring.max > nodeColoring.min
-          ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
-          : 0.5;
-      return { fieldColor: continuousColor(t, nodePalette), fieldDimmed: false };
-    }
-    const color = nodeColoring.colorMap.get(operatorId);
-    return { fieldColor: color, fieldDimmed: !color };
-  }, [nodeColoring, operatorId, nodePalette]);
-
-  const hasSelection = selectedNodeIds.size > 0;
-  const isDimmed = fieldDimmed || (hasSelection && !isSelected);
 
   const nodeContent = (
     <div
