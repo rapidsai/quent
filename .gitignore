@@ -5,4 +5,5 @@ target/
 .idea
 .zed
 .claude
+.playwright-mcp/
 tarpaulin-report.html

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -17,7 +20,7 @@ import {
 } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import { useTimelineChartColors } from './useTimelineChartColors';
+import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 const CONTROLLER_HEIGHT = 50;
@@ -134,8 +137,9 @@ export function TimelineController({
         hideOverlap: false,
         fontSize: 10,
         color: colors.timelineMarkupColor,
+        fontFamily: TIMELINE_MONO_FONT,
         formatter: (value: number) => {
-          return formatDuration(Number(value) - startTimeMillis);
+          return formatDuration(Number(value) - startTimeMillis, 0);
         },
       },
       splitLine: {
@@ -248,9 +252,10 @@ export function TimelineController({
             backgroundColor: colors.dataZoomTextBackgroundColor,
             padding: [2, 4],
             borderRadius: 2,
+            fontFamily: TIMELINE_MONO_FONT,
           },
           labelFormatter: (tsMilliseconds: number) => {
-            return formatDuration(Number(tsMilliseconds) - startTimeMillis);
+            return formatDuration(Number(tsMilliseconds) - startTimeMillis, 0);
           },
           emphasis: {
             handleStyle: {

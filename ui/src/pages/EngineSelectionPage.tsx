@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -10,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { DataText } from '@/components/ui/data-text';
 
 export function EngineSelectionPage() {
   const navigate = useNavigate();
@@ -80,7 +84,7 @@ export function EngineSelectionPage() {
               ) : (
                 enginesList.data?.map(engine => (
                   <SelectItem key={engine.id} value={engine.id}>
-                    {engine.instance_name ?? engine.id}
+                    <DataText>{engine.instance_name ?? engine.id}</DataText>
                   </SelectItem>
                 ))
               )}
@@ -109,7 +113,7 @@ export function EngineSelectionPage() {
               ) : (
                 coordinatorsList.data?.map(coordinator => (
                   <SelectItem key={coordinator.id} value={coordinator.id}>
-                    {coordinator.instance_name ?? coordinator.id}
+                    <DataText>{coordinator.instance_name ?? coordinator.id}</DataText>
                   </SelectItem>
                 ))
               )}
@@ -138,7 +142,7 @@ export function EngineSelectionPage() {
               ) : (
                 queryList.data?.map(query => (
                   <SelectItem key={query.id} value={query.id}>
-                    {query.instance_name ?? query.id}
+                    <DataText>{query.instance_name ?? query.id}</DataText>
                   </SelectItem>
                 ))
               )}

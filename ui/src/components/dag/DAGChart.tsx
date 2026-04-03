@@ -1,8 +1,12 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import ELK from 'elkjs';
 import { useCallback, useEffect, useLayoutEffect, useRef, MouseEvent, type RefObject } from 'react';
 import {
   Background,
   EdgeLabelRenderer,
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
@@ -17,6 +21,10 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
+import {
+  OPERATION_TYPE_COLORS,
+  DEFAULT_OPERATION_COLOR,
+} from '@/services/query-plan/operationTypes';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import {
@@ -30,7 +38,6 @@ import { continuousColor } from '@/services/colors';
 import { formatMetricValue } from '@/services/query-plan/dagFieldProcessing';
 
 const elk = new ELK();
-
 
 const VariableWidthEdge = ({
   id,
@@ -357,6 +364,17 @@ const FlowLayout = ({
     >
       <Background />
       <DAGLegend />
+      <MiniMap
+        pannable
+        zoomable
+        nodeStrokeWidth={3}
+        style={{ width: '125', height: '125', background: 'hsl(var(--card))' }}
+        maskColor="hsl(var(--muted) / 0.7)"
+        nodeColor={(node: Node<QueryPlanNodeData>) =>
+          OPERATION_TYPE_COLORS[(node.data as QueryPlanNodeData).operationType] ??
+          DEFAULT_OPERATION_COLOR
+        }
+      />
     </ReactFlow>
   );
 };

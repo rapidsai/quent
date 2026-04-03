@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, lazy, Suspense } from 'react';
 import { useAtom, useSetAtom } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
@@ -15,6 +18,7 @@ import {
   useOperatorStatFields,
   usePortStatFields,
 } from '@/hooks/useDagControls';
+import { DataText } from '@/components/ui/data-text';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -93,18 +97,28 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         onMouseLeave={() => setHoveredWorkerId(null)}
       >
         {singleQueryPlan ? (
-          <span className="text-xs">Query: {item.queryId}</span>
+          <span className="text-xs">
+            Query: <DataText>{item.queryId}</DataText>
+          </span>
         ) : (
           <span className="text-xs">
-            <span className="capitalize">{item.planType}</span>
-            {!hasChildren && <span>: {item.id}</span>}
+            <DataText className="capitalize">{item.planType}</DataText>
+            {!hasChildren && (
+              <span>
+                : <DataText>{item.id}</DataText>
+              </span>
+            )}
           </span>
         )}
         {item.workerId && (
-          <span className="text-xs text-muted-foreground">Worker: {item.workerId}</span>
+          <span className="text-xs text-muted-foreground">
+            <DataText>Worker: {item.workerId}</DataText>
+          </span>
         )}
         {hasChildren && (
-          <span className="text-xs text-muted-foreground capitalize text-left">ID: {item.id}</span>
+          <span className="text-xs text-muted-foreground capitalize text-left">
+            <DataText>{`ID: ${item.id}`}</DataText>
+          </span>
         )}
       </div>
     );
@@ -116,8 +130,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <Network className="h-4 w-4 text-primary" />
         <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
         <div className="text-xs text-muted-foreground">
-          {queryBundle.entities.query_group.instance_name} -{' '}
-          {queryBundle.entities.query.instance_name}
+          <DataText>{queryBundle.entities.query_group.instance_name}</DataText>
+          {' - '}
+          <DataText>{queryBundle.entities.query.instance_name}</DataText>
         </div>
       </div>
 

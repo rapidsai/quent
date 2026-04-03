@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::resource::{channel::ChannelEvent, memory::MemoryEvent, processor::ProcessorEvent};
 
 use super::*;
@@ -83,7 +86,9 @@ pub mod channel {
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
-    pub struct Operating {}
+    pub struct Operating {
+        pub capacity_bytes: Option<u64>,
+    }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Finalizing {}

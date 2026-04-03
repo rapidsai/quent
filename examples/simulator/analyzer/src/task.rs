@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity,
     fsm::{Fsm, FsmTypeDecl, FsmTypeDeclaration, FsmUsages, Transition},
@@ -23,7 +26,6 @@ pub enum TaskTransitionData {
     Allocating(Allocating),
     Spilling(Spilling),
     Sending(Sending),
-    Finalizing,
     Exit,
 }
 
@@ -76,7 +78,6 @@ impl Transition for TaskTransition {
             TaskTransitionData::Allocating(_) => "allocating",
             TaskTransitionData::Spilling(_) => "spilling",
             TaskTransitionData::Sending(_) => "sending",
-            TaskTransitionData::Finalizing => "finalizing",
             TaskTransitionData::Exit => "exit",
         }
     }
@@ -133,11 +134,14 @@ fn create_usages(data: &TaskTransitionData) -> SmallVec<[TaskUsage; 3]> {
                 capacities: smallvec![CapacityValue::new("unit", 1)],
             },
             TaskUsage {
+                resource_id: data.use_memory,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_memory_bytes)],
+            },
+            TaskUsage {
                 resource_id: data.use_link,
                 capacities: smallvec![CapacityValue::new("bytes", data.use_link_bytes)],
             },
         ],
-        TaskTransitionData::Finalizing => SmallVec::new(),
         TaskTransitionData::Exit => SmallVec::new(),
     }
 }
@@ -343,7 +347,11 @@ impl FsmTypeDeclaration for Task {
             },
             FsmStateTypeDecl {
                 name: "sending".to_string(),
-                usages: vec!["thread".to_string(), "link".to_string()],
+                usages: vec![
+                    "thread".to_string(),
+                    "memory".to_string(),
+                    "link".to_string(),
+                ],
             },
             FsmStateTypeDecl {
                 name: "exit".to_string(),

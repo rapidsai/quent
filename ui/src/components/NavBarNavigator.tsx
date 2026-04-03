@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -10,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
 import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@/services/api';
+import { DataText } from '@/components/ui/data-text';
 
 function BreadcrumbDropdown({
   label,
@@ -26,7 +30,7 @@ function BreadcrumbDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-0.5 px-1.5 py-0.5 -mx-1.5 rounded-sm hover:text-foreground hover:bg-accent transition-colors cursor-pointer">
-          {label}
+          <DataText>{label}</DataText>
           <ChevronDown className="h-3 w-3 opacity-50" />
         </button>
       </DropdownMenuTrigger>
@@ -37,7 +41,7 @@ function BreadcrumbDropdown({
             onSelect={() => onSelect(item.id)}
             className={cn(item.id === activeId && 'font-semibold bg-accent')}
           >
-            {item.label}
+            <DataText>{item.label}</DataText>
           </DropdownMenuItem>
         ))}
         {(!items || items.length === 0) && <DropdownMenuItem disabled>No items</DropdownMenuItem>}

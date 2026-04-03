@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use quent_events::{resource::ResourceEvent, trace::TraceEvent};
 use quent_query_engine_events::QueryEngineEvent;
 use serde::{Deserialize, Serialize};
@@ -44,6 +47,8 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Sending {
         pub use_thread: Uuid,
+        pub use_memory: Uuid,
+        pub use_memory_bytes: u64,
         pub use_link: Uuid,
         pub use_link_bytes: u64,
     }

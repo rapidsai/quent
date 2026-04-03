@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
@@ -7,7 +10,7 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
-import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
+import { withOpacity } from '@/services/colors';
 import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
@@ -17,10 +20,11 @@ import {
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
 import { connectChart, nanosToMs } from '@/lib/timeline.utils';
-import { useTimelineChartColors } from './useTimelineChartColors';
+import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
+const DIMMED_OPACITY = 0.25;
 
 export function Timeline({
   startTime,
@@ -62,6 +66,7 @@ export function Timeline({
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
       const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
+      const isDimmed = seriesData.isDimmed ?? false;
 
       return {
         name,
@@ -78,13 +83,8 @@ export function Timeline({
         lineStyle: { width: 0 },
         itemStyle: { color },
         areaStyle: {
-          color: isOverlay
-            ? {
-                image: createStripePattern(color),
-                repeat: 'repeat',
-              }
-            : color,
-          opacity: 1,
+          color,
+          opacity: isDimmed ? DIMMED_OPACITY : 1,
         },
         z: isOverlay ? 5 : 2,
         sampling: 'lttb',
@@ -101,7 +101,8 @@ export function Timeline({
     for (let i = 0; i < maxMarkCountRef.current; i++) {
       const m = marks?.[i];
       if (m) {
-        const stateColor = getColorForKey(m.stateName);
+        const stateColor = m.color;
+        const dimmed = m.isDimmed ?? false;
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -111,13 +112,14 @@ export function Timeline({
             {
               value: [m.xStart, 1],
               label: {
-                show: true,
-                formatter: () => m.label,
+                show: !dimmed,
+                formatter: () =>
+                  `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
                 position: [0, -5],
                 fontSize: 9,
                 fontWeight: 500,
                 color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, 1),
+                backgroundColor: withOpacity(stateColor, 0.85),
                 borderRadius: 1,
                 padding: [1, 2],
               },
@@ -130,10 +132,10 @@ export function Timeline({
           symbolSize: 0,
           lineStyle: {
             width: 1,
-            color: withOpacity(stateColor, markAreaBorderOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaBorderOpacity),
           },
           areaStyle: {
-            color: withOpacity(stateColor, markAreaFillOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaFillOpacity),
             opacity: 1,
           },
           tooltip: { show: false },
@@ -186,6 +188,7 @@ export function Timeline({
           margin: 8,
           fontSize: 10,
           color: timelineMarkupColor,
+          fontFamily: TIMELINE_MONO_FONT,
           formatter: yAxisFormatter,
         },
       },
@@ -274,11 +277,12 @@ export function Timeline({
                 name: p.seriesName,
                 value: p.data[1],
                 isOverlay: series[p.seriesName]?.isOverlay ?? false,
+                isDimmed: series[p.seriesName]?.isDimmed ?? false,
               };
             });
           const activeMarks = marks
             ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
-            .map(m => ({ label: m.label, stateName: m.stateName }));
+            .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
           const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent
