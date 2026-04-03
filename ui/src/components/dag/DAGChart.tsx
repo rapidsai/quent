@@ -33,9 +33,11 @@ import {
   edgeWidthConfigAtom,
   edgeColoringAtom,
   edgeColorPaletteAtom,
+  selectedEdgeWidthFieldAtom,
+  selectedEdgeColorFieldAtom,
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
-import { formatMetricValue } from '@/services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 
 const elk = new ELK();
 
@@ -54,6 +56,8 @@ const VariableWidthEdge = ({
   const edgeColoring = useAtomValue(edgeColoringAtom);
   const edgePalette = useAtomValue(edgeColorPaletteAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const edgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
+  const edgeColorField = useAtomValue(selectedEdgeColorFieldAtom);
 
   let strokeWidth = 1.5;
   if (edgeWidthConfig) {
@@ -96,14 +100,20 @@ const VariableWidthEdge = ({
   if (edgeColoring) {
     if (edgeColoring.type === 'continuous') {
       const v = edgeColoring.values.get(id);
-      if (v !== undefined) edgeLabelValue = formatMetricValue(v);
+      if (v !== undefined) {
+        const fmt = inferFieldFormatter(edgeColorField ?? '');
+        edgeLabelValue = fmt ? fmt(v) : String(v);
+      }
     } else {
       const v = edgeColoring.labelMap.get(id);
       if (v !== undefined) edgeLabelValue = v;
     }
   } else if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
-    if (v !== undefined) edgeLabelValue = formatMetricValue(v);
+    if (v !== undefined) {
+      const fmt = inferFieldFormatter(edgeWidthField ?? '');
+      edgeLabelValue = fmt ? fmt(v) : String(v);
+    }
   }
 
   const arrowWidth = strokeWidth * 1.5 + 8;

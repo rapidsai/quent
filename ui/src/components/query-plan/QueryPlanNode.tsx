@@ -12,6 +12,7 @@ import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 import { isLightColor, withOpacity } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
+import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import {
   OPERATION_TYPE_COLORS,
   DEFAULT_OPERATION_COLOR,
@@ -93,14 +94,18 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       {colorField &&
         (() => {
           const displayValue = statistics.find(s => s.key === colorField)?.value ?? null;
-          return displayValue !== null ? (
+          if (displayValue === null) return null;
+          const fmt = inferFieldFormatter(colorField);
+          const formatted =
+            typeof displayValue === 'number' && fmt ? fmt(displayValue) : String(displayValue);
+          return (
             <div
               className="text-xs text-center mt-0.5"
               style={{ color: fieldColor && isLightColor(fieldColor) ? '#6b7280' : undefined }}
             >
-              {String(displayValue)}
+              {formatted}
             </div>
-          ) : null;
+          );
         })()}
 
       {data.hasOutgoing && (
