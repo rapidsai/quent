@@ -137,11 +137,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           />
         </ResizablePanel>
 
+        <ResizableHandle withHandle data-panel-group-direction="vertical" />
+
         <div className="border-t border-border">
             <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} />
         </div>
-
-        <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
         <ResizablePanel

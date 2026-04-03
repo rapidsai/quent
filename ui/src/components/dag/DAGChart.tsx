@@ -99,13 +99,6 @@ const VariableWidthEdge = ({
     if (v !== undefined) edgeLabelValue = formatMetricValue(v);
   }
 
-  // Offset label perpendicular to edge direction so it doesn't overlap the line
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const isMoreVertical = Math.abs(dy) >= Math.abs(dx);
-  const edgeLabelOffsetX = isMoreVertical ? 22 : 0;
-  const edgeLabelOffsetY = isMoreVertical ? 0 : -14;
-
   const arrowWidth = strokeWidth * 1.5 + 8;
   const arrowDepth = arrowWidth * 0.6;
   const markerId = `arrow-${id}`;
@@ -155,7 +148,7 @@ const VariableWidthEdge = ({
           <div
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX + edgeLabelOffsetX}px,${labelY + edgeLabelOffsetY}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'none',
               opacity: isEdgeDimmed ? 0.15 : 1,
               transition: 'opacity 150ms',
