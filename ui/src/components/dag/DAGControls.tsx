@@ -1,16 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SelectGroup,
-} from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { SelectField, type SelectFieldOption } from '@/components/ui/select-field';
 import { useAtom } from 'jotai';
 import {
   selectedColorField,
@@ -20,75 +12,20 @@ import {
   NODE_LABEL_FIELD,
   type NodeLabelField,
 } from '@/atoms/dag';
-import { Palette, Spline, X, Brush, ChevronDown, Type } from 'lucide-react';
+import { Palette, Spline, Brush, ChevronDown, Type } from 'lucide-react';
 import { DAGSettingsPopover } from './DAGSettingsPopover';
 import { useState } from 'react';
-
-interface DAGFieldProps {
-  label: string;
-  icon: React.ElementType;
-  options: string[];
-  value: string;
-  setValue: (value: string | null) => void;
-  placeholder: string;
-  clearable?: boolean;
-  optionLabels?: Record<string, string>;
-}
-
-const DAGField = ({
-  label,
-  icon: Icon,
-  options,
-  value,
-  setValue,
-  placeholder,
-  clearable = true,
-  optionLabels,
-}: DAGFieldProps) => (
-  <div className="flex items-center gap-1.5 min-w-0">
-    <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
-    <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{label}</span>
-    <Select value={value} onValueChange={setValue}>
-      <SelectTrigger className="h-6 text-xs flex-1 min-w-0">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <ScrollArea viewportClassName="max-h-[10rem]">
-          <SelectGroup>
-            {options.length === 0 ? (
-              <SelectItem value="_empty" disabled>
-                No data available
-              </SelectItem>
-            ) : (
-              options.map(opt => (
-                <SelectItem key={opt} value={opt} className="text-xs">
-                  {optionLabels?.[opt] ?? opt}
-                </SelectItem>
-              ))
-            )}
-          </SelectGroup>
-        </ScrollArea>
-      </SelectContent>
-    </Select>
-    {clearable && value && (
-      <button
-        onClick={() => setValue(null)}
-        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        aria-label={`Clear ${label}`}
-      >
-        <X className="h-3 w-3" />
-      </button>
-    )}
-  </div>
-);
 
 interface DAGControlsProps {
   operatorStatFields: string[];
   portStatFields: string[];
 }
 
-const NODE_LABEL_OPTIONS = [NODE_LABEL_FIELD.NAME, NODE_LABEL_FIELD.ID, NODE_LABEL_FIELD.TYPE];
-const NODE_LABEL_DISPLAY: Record<string, string> = { name: 'Name', id: 'ID', type: 'Type' };
+const NODE_LABEL_OPTIONS: SelectFieldOption[] = [
+  { value: NODE_LABEL_FIELD.NAME, label: 'Name' },
+  { value: NODE_LABEL_FIELD.ID, label: 'ID' },
+  { value: NODE_LABEL_FIELD.TYPE, label: 'Type' },
+];
 
 export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsProps) => {
   const [colorField, setColorField] = useAtom(selectedColorField);
@@ -96,6 +33,9 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
   const [edgeColorField, setEdgeColorField] = useAtom(selectedEdgeColorFieldAtom);
   const [nodeLabelField, setNodeLabelField] = useAtom(selectedNodeLabelFieldAtom);
   const [open, setOpen] = useState(true);
+
+  const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({ value: f }));
+  const portOptions: SelectFieldOption[] = portStatFields.map(f => ({ value: f }));
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-b bg-card">
@@ -109,39 +49,42 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
         <DAGSettingsPopover />
       </div>
       <CollapsibleContent className="px-4 pb-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
-        <DAGField
+        <SelectField
           label="Node color"
           icon={Palette}
-          options={operatorStatFields}
+          options={operatorOptions}
           value={colorField ?? ''}
-          setValue={setColorField}
+          onValueChange={setColorField}
           placeholder="None"
+          triggerClassName="h-6 text-xs"
         />
-        <DAGField
+        <SelectField
           label="Edge width"
           icon={Spline}
-          options={portStatFields}
+          options={portOptions}
           value={edgeWidthField ?? ''}
-          setValue={setEdgeWidthField}
+          onValueChange={setEdgeWidthField}
           placeholder="None"
+          triggerClassName="h-6 text-xs"
         />
-        <DAGField
+        <SelectField
           label="Edge color"
           icon={Brush}
-          options={portStatFields}
+          options={portOptions}
           value={edgeColorField ?? ''}
-          setValue={setEdgeColorField}
+          onValueChange={setEdgeColorField}
           placeholder="None"
+          triggerClassName="h-6 text-xs"
         />
-        <DAGField
+        <SelectField
           label="Node label"
           icon={Type}
           options={NODE_LABEL_OPTIONS}
-          optionLabels={NODE_LABEL_DISPLAY}
           value={nodeLabelField}
-          setValue={v => v && setNodeLabelField(v as NodeLabelField)}
+          onValueChange={v => v && setNodeLabelField(v as NodeLabelField)}
           placeholder="Name"
           clearable={false}
+          triggerClassName="h-6 text-xs"
         />
       </CollapsibleContent>
     </Collapsible>
