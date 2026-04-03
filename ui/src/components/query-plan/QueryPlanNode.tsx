@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
 import { useAtomValue } from 'jotai';
 import {
   selectedNodeIdsAtom,
@@ -158,13 +159,15 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={nodeVariants({
-        operationType: resolveOperationType(data.operationType),
-        selected: isSelected,
-      })}
+      className={cn(
+        nodeVariants({
+          operationType: resolveOperationType(data.operationType),
+          selected: isSelected,
+        }),
+        isDimmed && 'opacity-25'
+      )}
       style={{
         zIndex: 10,
-        opacity: isDimmed ? 0.25 : 1,
         transition: 'opacity 150ms, background-color 150ms, border-color 150ms',
         ...(fieldColor && {
           backgroundColor: fieldColor,
@@ -174,7 +177,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       }}
     >
       {data.hasIncoming && (
-        <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
+        <Handle type="target" position={Position.Top} className="w-2 h-2 opacity-0" />
       )}
 
       <div className="text-sm font-normal break-words text-center">{resolvedLabel}</div>

@@ -112,9 +112,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
-      <div>
-        <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} />
-      </div>
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-card flex-shrink-0">
         <Network className="h-4 w-4 text-primary" />
         <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
@@ -139,6 +136,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
             renderItem={renderItem}
           />
         </ResizablePanel>
+
+        <div className="border-t border-border">
+            <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} />
+        </div>
 
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
