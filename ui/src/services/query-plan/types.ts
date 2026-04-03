@@ -38,6 +38,7 @@ export type ContinuousNodeColoring = {
 export type CategoricalNodeColoring = {
   type: 'categorical';
   colorMap: Map<string, string>; // operatorId → hex color
+  categoryMap: Map<string, string>; // category value → hex color
 };
 
 export type NodeColoring = ContinuousNodeColoring | CategoricalNodeColoring | null;
@@ -59,6 +60,7 @@ export type CategoricalEdgeColoring = {
   type: 'categorical';
   colorMap: Map<string, string>; // edgeId → hex color
   labelMap: Map<string, string>; // edgeId → raw value string
+  categoryMap: Map<string, string>; // category value → hex color
 };
 
 export type EdgeColoring = ContinuousEdgeColoring | CategoricalEdgeColoring | null;

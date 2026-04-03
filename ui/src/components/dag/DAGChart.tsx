@@ -18,6 +18,7 @@ import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
+import { DAGLegend } from './DAGLegend';
 import {
   selectedNodeIdsAtom,
   selectedOperatorLabelAtom,
@@ -26,15 +27,10 @@ import {
   edgeColorPaletteAtom,
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
+import { formatMetricValue } from '@/services/query-plan/dagFieldProcessing';
 
 const elk = new ELK();
 
-function formatMetricValue(v: number): string {
-  if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
-  if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
-  if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return Number.isInteger(v) ? String(v) : v.toFixed(2);
-}
 
 const VariableWidthEdge = ({
   id,
@@ -367,6 +363,7 @@ const FlowLayout = ({
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
+      <DAGLegend />
     </ReactFlow>
   );
 };
