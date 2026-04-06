@@ -101,7 +101,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           return (
             <div
               className="text-xs text-center mt-0.5"
-              style={{ color: fieldColor && isLightColor(fieldColor) ? '#6b7280' : undefined }}
+              style={{
+                color: fieldColor
+                  ? isLightColor(fieldColor)
+                    ? 'rgba(0,0,0,0.5)'
+                    : 'rgba(255,255,255,0.65)'
+                  : undefined,
+              }}
             >
               {formatted}
             </div>

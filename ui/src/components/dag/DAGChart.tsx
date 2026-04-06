@@ -186,7 +186,7 @@ const VariableWidthEdge = ({
 const elkOptions = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '50',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '100',
   'elk.spacing.nodeNode': '50',
 };
 
