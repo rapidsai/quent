@@ -10,7 +10,7 @@ import { selectedNodeLabelFieldAtom, NODE_LABEL_FIELD } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { isLightColor, withOpacity } from '@/services/colors';
+import { isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import {
@@ -61,6 +61,16 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return data.label;
   }, [nodeLabelField, data]);
 
+  const colorFieldValue = colorField
+    ? (statistics.find(s => s.key === colorField)?.value ?? null)
+    : null;
+  const formattedColorFieldValue =
+    colorFieldValue === null
+      ? null
+      : typeof colorFieldValue === 'number'
+        ? inferFieldFormatter(colorField!)(colorFieldValue)
+        : String(colorFieldValue);
+
   const baseColor = OPERATION_TYPE_COLORS[data.operationType] ?? DEFAULT_OPERATION_COLOR;
   const activeColor = fieldColor ?? baseColor;
   const bgColor = fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHovered ? 0.22 : 0.15);
@@ -91,29 +101,20 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       >
         {resolvedLabel}
       </DataText>
-      {colorField &&
-        (() => {
-          const displayValue = statistics.find(s => s.key === colorField)?.value ?? null;
-          if (displayValue === null) return null;
-          const formatted =
-            typeof displayValue === 'number'
-              ? inferFieldFormatter(colorField)(displayValue)
-              : String(displayValue);
-          return (
-            <div
-              className="text-xs text-center mt-0.5"
-              style={{
-                color: fieldColor
-                  ? isLightColor(fieldColor)
-                    ? 'rgba(0,0,0,0.5)'
-                    : 'rgba(255,255,255,0.65)'
-                  : undefined,
-              }}
-            >
-              {formatted}
-            </div>
-          );
-        })()}
+      {formattedColorFieldValue !== null && (
+        <div
+          className="text-xs text-center mt-0.5"
+          style={{
+            color: fieldColor
+              ? isLightColor(fieldColor)
+                ? withOpacity(BLACK, 0.5)
+                : withOpacity(WHITE, 0.65)
+              : undefined,
+          }}
+        >
+          {formattedColorFieldValue}
+        </div>
+      )}
 
       {data.hasOutgoing && (
         <Handle type="source" position={Position.Bottom} className="w-2 h-2 opacity-0" />
