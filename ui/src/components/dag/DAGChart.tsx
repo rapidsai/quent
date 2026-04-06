@@ -42,6 +42,28 @@ import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 
 const elk = new ELK();
 
+// Edge geometry constants
+const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
+const EDGE_STROKE_WIDTH_MIN = 2;
+const EDGE_STROKE_WIDTH_RANGE = 10; // stroke = MIN + t * RANGE → [2, 12] px
+const EDGE_DIMMED_OPACITY = 0.15;
+const EDGE_TRANSITION_MS = 150;
+const ARROW_WIDTH_MULTIPLIER = 1.5;
+const ARROW_WIDTH_BASE = 8;
+const ARROW_DEPTH_RATIO = 0.6;
+const FALLBACK_NORMALIZED_T = 0.5; // used when min === max
+
+// Layout constants
+const NODE_LAYOUT_WIDTH = 200;
+const NODE_LAYOUT_HEIGHT = 60;
+const FIT_VIEW_PADDING = 0.1;
+const FLOW_MIN_ZOOM = 0.1;
+const FLOW_MAX_ZOOM = 2;
+
+// MiniMap constants
+const MINIMAP_SIZE = 125;
+const MINIMAP_NODE_STROKE_WIDTH = 3;
+
 const VariableWidthEdge = ({
   id,
   source,
@@ -62,15 +84,15 @@ const VariableWidthEdge = ({
   const { theme } = useTheme();
   const isDarkMode = theme === THEME_DARK;
 
-  let strokeWidth = 1.5;
+  let strokeWidth = EDGE_STROKE_WIDTH_DEFAULT;
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
       const t =
         edgeWidthConfig.max > edgeWidthConfig.min
           ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
-          : 0.5;
-      strokeWidth = 2 + t * 10; // [2, 12] px
+          : FALLBACK_NORMALIZED_T;
+      strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
 
@@ -85,7 +107,7 @@ const VariableWidthEdge = ({
         const t =
           edgeColoring.max > edgeColoring.min
             ? (v - edgeColoring.min) / (edgeColoring.max - edgeColoring.min)
-            : 0.5;
+            : FALLBACK_NORMALIZED_T;
         edgeColor = continuousColor(t, edgePalette, isDarkMode);
       }
     } else {
@@ -117,8 +139,8 @@ const VariableWidthEdge = ({
     }
   }
 
-  const arrowWidth = strokeWidth * 1.5 + 8;
-  const arrowDepth = arrowWidth * 0.6;
+  const arrowWidth = strokeWidth * ARROW_WIDTH_MULTIPLIER + ARROW_WIDTH_BASE;
+  const arrowDepth = arrowWidth * ARROW_DEPTH_RATIO;
   const markerId = `arrow-${id}`;
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -144,7 +166,7 @@ const VariableWidthEdge = ({
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
             fill={edgeColor ?? 'currentColor'}
-            opacity={isEdgeDimmed ? 0.15 : 1}
+            opacity={isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1}
           />
         </marker>
       </defs>
@@ -157,8 +179,8 @@ const VariableWidthEdge = ({
           stroke: edgeColor ?? 'currentColor',
           strokeWidth,
           fill: 'none',
-          opacity: isEdgeDimmed ? 0.15 : 1,
-          transition: 'opacity 150ms, stroke 150ms',
+          opacity: isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1,
+          transition: `opacity ${EDGE_TRANSITION_MS}ms, stroke ${EDGE_TRANSITION_MS}ms`,
         }}
       />
       {edgeLabelValue && (
@@ -168,8 +190,8 @@ const VariableWidthEdge = ({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'none',
-              opacity: isEdgeDimmed ? 0.15 : 1,
-              transition: 'opacity 150ms',
+              opacity: isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1,
+              transition: `opacity ${EDGE_TRANSITION_MS}ms`,
             }}
             className="text-[10px] font-medium px-1 py-0.5 rounded bg-background/80 text-muted-foreground border border-border/50"
           >
@@ -181,11 +203,14 @@ const VariableWidthEdge = ({
   );
 };
 
+const ELK_LAYER_SPACING = '100';
+const ELK_NODE_SPACING = '50';
+
 const elkOptions = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '100',
-  'elk.spacing.nodeNode': '50',
+  'elk.layered.spacing.nodeNodeBetweenLayers': ELK_LAYER_SPACING,
+  'elk.spacing.nodeNode': ELK_NODE_SPACING,
 };
 
 const edgeTypes = {
@@ -229,8 +254,8 @@ async function calculateLayout(
     layoutOptions: elkOptions,
     children: nodes.map(node => ({
       id: node.id,
-      width: 200,
-      height: 60,
+      width: NODE_LAYOUT_WIDTH,
+      height: NODE_LAYOUT_HEIGHT,
     })),
     edges: edges.map(edge => ({
       id: edge.id,
@@ -292,7 +317,7 @@ const FlowLayout = ({
         },
         style: {
           width: 'auto',
-          minWidth: 200,
+          minWidth: NODE_LAYOUT_WIDTH,
           background: 'transparent',
           boxShadow: 'none',
           border: 0,
@@ -332,7 +357,7 @@ const FlowLayout = ({
     if (!container) return;
     const observer = new ResizeObserver(() => {
       if (nodes.length > 0 && !hasUserInteracted.current) {
-        fitView({ padding: 0.1, minZoom: 0.1 });
+        fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM });
       }
     });
     observer.observe(container);
@@ -351,7 +376,7 @@ const FlowLayout = ({
       setEdges(layoutResult.edges);
 
       // Fit view after layout
-      setTimeout(() => fitView({ padding: 0.1, minZoom: 0.1 }), 0);
+      setTimeout(() => fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM }), 0);
     };
 
     applyLayout();
@@ -369,8 +394,8 @@ const FlowLayout = ({
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       fitView
-      minZoom={0.1}
-      maxZoom={2}
+      minZoom={FLOW_MIN_ZOOM}
+      maxZoom={FLOW_MAX_ZOOM}
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
@@ -378,8 +403,8 @@ const FlowLayout = ({
       <MiniMap
         pannable
         zoomable
-        nodeStrokeWidth={3}
-        style={{ width: '125', height: '125', background: 'hsl(var(--card))' }}
+        nodeStrokeWidth={MINIMAP_NODE_STROKE_WIDTH}
+        style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE, background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
         nodeColor={(node: Node<QueryPlanNodeData>) =>
           OPERATION_TYPE_COLORS[(node.data as QueryPlanNodeData).operationType] ??
