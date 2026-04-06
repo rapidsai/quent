@@ -63,6 +63,31 @@ export function formatDurationForWindow(ms: number, windowMs: number): string {
   return formatDuration(ms, decimals);
 }
 
+/**
+ * Format a duration with precision derived from the axis tick interval.
+ * Ensures no two adjacent axis labels produce the same string by choosing
+ * enough decimals so that one interval step is distinguishable in the
+ * label's display unit.
+ */
+export function formatDurationForAxisInterval(ms: number, intervalMs: number): string {
+  const absMs = Math.abs(ms);
+
+  let unitMs: number;
+  if (absMs < 0.001) unitMs = 1e-6;
+  else if (absMs < 1) unitMs = 0.001;
+  else if (absMs < MS_PER_SECOND) unitMs = 1;
+  else if (absMs < MS_PER_MINUTE) unitMs = MS_PER_SECOND;
+  else if (absMs < MS_PER_HOUR) unitMs = MS_PER_MINUTE;
+  else if (absMs < MS_PER_DAY) unitMs = MS_PER_HOUR;
+  else unitMs = MS_PER_DAY;
+
+  const intervalInUnit = intervalMs / unitMs;
+  const decimals =
+    intervalInUnit > 0 ? Math.min(6, Math.max(0, Math.ceil(-Math.log10(intervalInUnit)))) : 2;
+
+  return formatDuration(ms, decimals);
+}
+
 // Precomputed threshold/divisor tables to avoid Math.log/Math.pow per call.
 const SI_UP: readonly [number, string][] = [
   [1e15, 'P'],
