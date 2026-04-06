@@ -334,7 +334,11 @@ function blendToColor(
  * Returns a fully opaque color that blends from neutral gray at t=0 to the palette color at t=1.
  * @param darkMode - When true, blends from a dark neutral (gray-700) instead of light neutral (gray-200)
  */
-export function continuousColor(t: number, palette: ContinuousPaletteName, darkMode = false): string {
+export function continuousColor(
+  t: number,
+  palette: ContinuousPaletteName,
+  darkMode = false
+): string {
   const neutral = darkMode ? NEUTRAL_DARK : NEUTRAL;
   switch (palette) {
     case 'blue':
