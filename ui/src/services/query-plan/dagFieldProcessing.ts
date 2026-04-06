@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import { getActivePalette } from '@/services/colors';
