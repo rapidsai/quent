@@ -310,31 +310,41 @@ const VIRIDIS_STOPS: [number, number, number][] = [
   [253, 231, 37], // t=1.00 yellow
 ];
 
-// Neutral starting color for continuous palettes: Tailwind gray-200
+// Neutral starting color for continuous palettes (light mode): Tailwind gray-200
 const NEUTRAL: [number, number, number] = [229, 231, 235];
+// Neutral starting color for continuous palettes (dark mode): Tailwind gray-700
+const NEUTRAL_DARK: [number, number, number] = [55, 65, 81];
 
-function blendToColor(r: number, g: number, b: number, t: number): string {
+function blendToColor(
+  r: number,
+  g: number,
+  b: number,
+  t: number,
+  neutral: [number, number, number] = NEUTRAL
+): string {
   const c = Math.min(1, Math.max(0, t));
-  const rr = Math.round(NEUTRAL[0] + (r - NEUTRAL[0]) * c);
-  const gg = Math.round(NEUTRAL[1] + (g - NEUTRAL[1]) * c);
-  const bb = Math.round(NEUTRAL[2] + (b - NEUTRAL[2]) * c);
+  const rr = Math.round(neutral[0] + (r - neutral[0]) * c);
+  const gg = Math.round(neutral[1] + (g - neutral[1]) * c);
+  const bb = Math.round(neutral[2] + (b - neutral[2]) * c);
   return `#${rr.toString(16).padStart(2, '0')}${gg.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`;
 }
 
 /**
  * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
  * Returns a fully opaque color that blends from neutral gray at t=0 to the palette color at t=1.
+ * @param darkMode - When true, blends from a dark neutral (gray-700) instead of light neutral (gray-200)
  */
-export function continuousColor(t: number, palette: ContinuousPaletteName): string {
+export function continuousColor(t: number, palette: ContinuousPaletteName, darkMode = false): string {
+  const neutral = darkMode ? NEUTRAL_DARK : NEUTRAL;
   switch (palette) {
     case 'blue':
-      return blendToColor(59, 130, 246, t); // blue-500
+      return blendToColor(59, 130, 246, t, neutral); // blue-500
     case 'teal':
-      return blendToColor(20, 184, 166, t); // teal-500
+      return blendToColor(20, 184, 166, t, neutral); // teal-500
     case 'purple':
-      return blendToColor(168, 85, 247, t); // purple-500
+      return blendToColor(168, 85, 247, t, neutral); // purple-500
     case 'orange':
-      return blendToColor(249, 115, 22, t); // orange-500
+      return blendToColor(249, 115, 22, t, neutral); // orange-500
     case 'viridis': {
       const clamped = Math.min(1, Math.max(0, t));
       const scaled = clamped * (VIRIDIS_STOPS.length - 1);

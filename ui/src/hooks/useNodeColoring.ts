@@ -7,6 +7,7 @@ import {
   nodeColorPaletteAtom,
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 interface NodeColoringResult {
   /** Computed hex color for this node, or undefined if no coloring is active */
@@ -27,6 +28,8 @@ export function useNodeColoring(operatorId: string): NodeColoringResult {
   const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const colorField = useAtomValue(selectedColorField);
 
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
   const isSelected = selectedNodeIds.has(operatorId);
 
   const { fieldColor, fieldDimmed } = useMemo(() => {
@@ -38,11 +41,11 @@ export function useNodeColoring(operatorId: string): NodeColoringResult {
         nodeColoring.max > nodeColoring.min
           ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
           : 0.5;
-      return { fieldColor: continuousColor(t, nodePalette), fieldDimmed: false };
+      return { fieldColor: continuousColor(t, nodePalette, isDarkMode), fieldDimmed: false };
     }
     const color = nodeColoring.colorMap.get(operatorId);
     return { fieldColor: color, fieldDimmed: !color };
-  }, [nodeColoring, operatorId, nodePalette]);
+  }, [nodeColoring, operatorId, nodePalette, isDarkMode]);
 
   const hasSelection = selectedNodeIds.size > 0;
   const isDimmed = fieldDimmed || (hasSelection && !isSelected);

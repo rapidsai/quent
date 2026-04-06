@@ -37,6 +37,7 @@ import {
   selectedEdgeColorFieldAtom,
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 
 const elk = new ELK();
@@ -58,6 +59,8 @@ const VariableWidthEdge = ({
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const edgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
   const edgeColorField = useAtomValue(selectedEdgeColorFieldAtom);
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
 
   let strokeWidth = 1.5;
   if (edgeWidthConfig) {
@@ -83,7 +86,7 @@ const VariableWidthEdge = ({
           edgeColoring.max > edgeColoring.min
             ? (v - edgeColoring.min) / (edgeColoring.max - edgeColoring.min)
             : 0.5;
-        edgeColor = continuousColor(t, edgePalette);
+        edgeColor = continuousColor(t, edgePalette, isDarkMode);
       }
     } else {
       const color = edgeColoring.colorMap.get(id);

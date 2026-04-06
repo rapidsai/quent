@@ -15,6 +15,7 @@ import {
   continuousColor,
   type ContinuousPaletteName,
 } from '@/services/colors';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [
   ContinuousPaletteName,
@@ -24,6 +25,8 @@ const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [
 export const DAGSettingsPopover = () => {
   const [nodePalette, setNodePalette] = useAtom(nodeColorPaletteAtom);
   const [edgePalette, setEdgePalette] = useAtom(edgeColorPaletteAtom);
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
 
   return (
     <Popover>
@@ -56,7 +59,7 @@ export const DAGSettingsPopover = () => {
                     <div className="flex items-center gap-2">
                       <span
                         className="inline-block h-3 w-3 rounded-sm shrink-0"
-                        style={{ background: continuousColor(1, key) }}
+                        style={{ background: continuousColor(1, key, isDarkMode) }}
                       />
                       {label}
                     </div>
@@ -80,7 +83,7 @@ export const DAGSettingsPopover = () => {
                     <div className="flex items-center gap-2">
                       <span
                         className="inline-block h-3 w-3 rounded-sm shrink-0"
-                        style={{ background: continuousColor(1, key) }}
+                        style={{ background: continuousColor(1, key, isDarkMode) }}
                       />
                       {label}
                     </div>

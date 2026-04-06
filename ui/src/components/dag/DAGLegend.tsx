@@ -10,6 +10,7 @@ import {
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { NodeColoring, EdgeColoring } from '@/services/query-plan/types';
 import type { ContinuousPaletteName } from '@/services/colors';
 
@@ -24,6 +25,8 @@ interface ContinuousLegendProps {
 
 const ContinuousLegend = ({ field, min, max, palette }: ContinuousLegendProps) => {
   const fmt = inferFieldFormatter(field) ?? String;
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -32,7 +35,7 @@ const ContinuousLegend = ({ field, min, max, palette }: ContinuousLegendProps) =
       <div
         className="h-2 w-36 rounded-sm"
         style={{
-          background: `linear-gradient(to right, ${continuousColor(0, palette)}, ${continuousColor(1, palette)})`,
+          background: `linear-gradient(to right, ${continuousColor(0, palette, isDarkMode)}, ${continuousColor(1, palette, isDarkMode)})`,
         }}
       />
       <div className="flex justify-between">
