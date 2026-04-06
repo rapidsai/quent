@@ -370,10 +370,7 @@ export function continuousColor(
  * Viridis returns a stop per keyframe so all hue transitions are visible.
  * Single-color palettes return just the two endpoints.
  */
-export function getLegendGradientStops(
-  palette: ContinuousPaletteName,
-  darkMode = false
-): string[] {
+export function getLegendGradientStops(palette: ContinuousPaletteName, darkMode = false): string[] {
   if (palette === 'viridis') {
     return VIRIDIS_STOPS.map((_, i) =>
       continuousColor(i / (VIRIDIS_STOPS.length - 1), 'viridis', darkMode)
