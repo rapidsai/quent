@@ -366,6 +366,23 @@ export function continuousColor(
 }
 
 /**
+ * Returns the CSS gradient color stops for a palette legend bar.
+ * Viridis returns a stop per keyframe so all hue transitions are visible.
+ * Single-color palettes return just the two endpoints.
+ */
+export function getLegendGradientStops(
+  palette: ContinuousPaletteName,
+  darkMode = false
+): string[] {
+  if (palette === 'viridis') {
+    return VIRIDIS_STOPS.map((_, i) =>
+      continuousColor(i / (VIRIDIS_STOPS.length - 1), 'viridis', darkMode)
+    );
+  }
+  return [continuousColor(0, palette, darkMode), continuousColor(1, palette, darkMode)];
+}
+
+/**
  * Returns true if the given hex color (#rrggbb) has high perceived luminance,
  * meaning dark text should be used on top of it for readability.
  */

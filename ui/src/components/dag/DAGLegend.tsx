@@ -11,7 +11,7 @@ import {
   selectedColorField,
   selectedEdgeColorFieldAtom,
 } from '@/atoms/dag';
-import { continuousColor } from '@/services/colors';
+import { getLegendGradientStops } from '@/services/colors';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { NodeColoring, EdgeColoring } from '@/services/query-plan/types';
@@ -38,7 +38,7 @@ const ContinuousLegend = ({ field, min, max, palette }: ContinuousLegendProps) =
       <div
         className="h-2 w-36 rounded-sm"
         style={{
-          background: `linear-gradient(to right, ${continuousColor(0, palette, isDarkMode)}, ${continuousColor(1, palette, isDarkMode)})`,
+          background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDarkMode).join(', ')})`,
         }}
       />
       <div className="flex justify-between">
