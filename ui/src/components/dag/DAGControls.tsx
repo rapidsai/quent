@@ -48,7 +48,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields }: DAGControlsP
         </CollapsibleTrigger>
         <DAGSettingsPopover />
       </div>
-      <CollapsibleContent className="px-4 pb-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+      <CollapsibleContent className="px-4 pb-2 grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5">
         <SelectField
           label="Node color"
           icon={Palette}
