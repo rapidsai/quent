@@ -95,9 +95,10 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         (() => {
           const displayValue = statistics.find(s => s.key === colorField)?.value ?? null;
           if (displayValue === null) return null;
-          const fmt = inferFieldFormatter(colorField);
           const formatted =
-            typeof displayValue === 'number' && fmt ? fmt(displayValue) : String(displayValue);
+            typeof displayValue === 'number'
+              ? inferFieldFormatter(colorField)(displayValue)
+              : String(displayValue);
           return (
             <div
               className="text-xs text-center mt-0.5"

@@ -104,8 +104,7 @@ const VariableWidthEdge = ({
     if (edgeColoring.type === 'continuous') {
       const v = edgeColoring.values.get(id);
       if (v !== undefined) {
-        const fmt = inferFieldFormatter(edgeColorField ?? '');
-        edgeLabelValue = fmt ? fmt(v) : String(v);
+        edgeLabelValue = inferFieldFormatter(edgeColorField ?? '')(v);
       }
     } else {
       const v = edgeColoring.labelMap.get(id);
@@ -114,8 +113,7 @@ const VariableWidthEdge = ({
   } else if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const fmt = inferFieldFormatter(edgeWidthField ?? '');
-      edgeLabelValue = fmt ? fmt(v) : String(v);
+      edgeLabelValue = inferFieldFormatter(edgeWidthField ?? '')(v);
     }
   }
 

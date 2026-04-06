@@ -27,7 +27,7 @@ interface ContinuousLegendProps {
 }
 
 const ContinuousLegend = ({ field, min, max, palette }: ContinuousLegendProps) => {
-  const fmt = inferFieldFormatter(field) ?? String;
+  const fmt = inferFieldFormatter(field);
   const { theme } = useTheme();
   const isDarkMode = theme === THEME_DARK;
   return (

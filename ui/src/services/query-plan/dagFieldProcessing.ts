@@ -4,23 +4,13 @@
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import { getActivePalette } from '@/services/colors';
-import { formatDuration } from '@/services/formatters';
-
-function formatBytes(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1099511627776) return `${sign}${(abs / 1099511627776).toFixed(1)} TiB`;
-  if (abs >= 1073741824) return `${sign}${(abs / 1073741824).toFixed(1)} GiB`;
-  if (abs >= 1048576) return `${sign}${(abs / 1048576).toFixed(1)} MiB`;
-  if (abs >= 1024) return `${sign}${(abs / 1024).toFixed(1)} KiB`;
-  return `${sign}${Math.round(abs)} B`;
-}
+import { formatDuration, formatBytes, formatNumber } from '@/services/formatters';
 
 /**
  * Infer a display formatter for a DAG stat field based on its name.
- * Returns null when no special formatting applies — callers should fall back to String(value).
+ * Falls back to formatNumber for unrecognized fields.
  */
-export function inferFieldFormatter(fieldName: string): ((value: number) => string) | null {
+export function inferFieldFormatter(fieldName: string): (value: number) => string {
   if (fieldName.endsWith('_ns')) return v => formatDuration(v / 1e6);
   if (fieldName.endsWith('_bytes') || fieldName === 'bytes') return formatBytes;
   if (fieldName.endsWith('_mbs')) return v => `${v.toFixed(1)} MB/s`;
@@ -32,7 +22,7 @@ export function inferFieldFormatter(fieldName: string): ((value: number) => stri
     fieldName.endsWith('_rate')
   )
     return v => `${(v * 100).toFixed(1)}%`;
-  return null;
+  return formatNumber;
 }
 
 export function computeNodeColoring(nodes: DAGNode[], field: string | null): NodeColoring {
