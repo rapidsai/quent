@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { X, Maximize2, Filter, Settings } from 'lucide-react';
+import { X, Maximize2, Filter, Settings2 } from 'lucide-react';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { hideTasksAtom, zoomRangeAtom, debouncedZoomRangeAtom } from '@/atoms/timeline';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -68,7 +68,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
             className="inline-flex items-center rounded-sm p-0.5 hover:bg-accent hover:text-accent-foreground transition-colors"
             title="Timeline settings"
           >
-            <Settings className="h-3.5 w-3.5" />
+            <Settings2 className="h-3.5 w-3.5" />
           </button>
         </PopoverTrigger>
         <PopoverContent className="text-xs">

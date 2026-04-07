@@ -127,6 +127,22 @@ function formatWithPrefix(
 }
 
 /**
+ * Format a plain number with locale-appropriate grouping separators and sensible decimal places.
+ * Integers are formatted with commas (e.g. 1,234,567).
+ * Floats are rounded to 3 significant figures (e.g. 0.00123, 1.23, 12,300).
+ */
+export function formatNumber(value: number): string {
+  if (Number.isInteger(value)) {
+    return new Intl.NumberFormat().format(value);
+  }
+  return new Intl.NumberFormat(undefined, { maximumSignificantDigits: 3 }).format(value);
+}
+
+export function formatBytes(value: number, decimals = 1): string {
+  return formatWithPrefix(value, 'B', 'Iec', decimals);
+}
+
+/**
  * Format a value using a QuantitySpec and CapacityKind.
  * Selects the appropriate prefix system based on the capacity kind.
  */

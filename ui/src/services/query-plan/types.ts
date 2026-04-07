@@ -28,7 +28,45 @@ export interface DAGEdge {
   source: string;
   target: string;
   type?: 'smoothstep' | 'default' | 'straight';
+  portStats?: Array<{ key: string; value: StatValue }>; // from source port
 }
+
+export type ContinuousNodeColoring = {
+  type: 'continuous';
+  values: Map<string, number>; // operatorId → numeric value
+  min: number;
+  max: number;
+};
+
+export type CategoricalNodeColoring = {
+  type: 'categorical';
+  colorMap: Map<string, string>; // operatorId → hex color
+  categoryMap: Map<string, string>; // category value → hex color
+};
+
+export type NodeColoring = ContinuousNodeColoring | CategoricalNodeColoring | null;
+
+export type EdgeWidthConfig = {
+  values: Map<string, number>; // edgeId → numeric value
+  min: number;
+  max: number;
+} | null;
+
+export type ContinuousEdgeColoring = {
+  type: 'continuous';
+  values: Map<string, number>; // edgeId → numeric value
+  min: number;
+  max: number;
+};
+
+export type CategoricalEdgeColoring = {
+  type: 'categorical';
+  colorMap: Map<string, string>; // edgeId → hex color
+  labelMap: Map<string, string>; // edgeId → raw value string
+  categoryMap: Map<string, string>; // category value → hex color
+};
+
+export type EdgeColoring = ContinuousEdgeColoring | CategoricalEdgeColoring | null;
 
 export interface DAGData {
   nodes: DAGNode[];
