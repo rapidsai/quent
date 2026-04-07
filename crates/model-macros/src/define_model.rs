@@ -59,6 +59,19 @@ fn event_type_path(path: &Path) -> Path {
     event_path
 }
 
+/// Build a nested tuple type from a list of paths, chunking into groups of 16.
+fn nested_tuple(paths: &[Path]) -> TokenStream {
+    if paths.len() <= 16 {
+        quote! { (#(#paths,)*) }
+    } else {
+        let chunks: Vec<TokenStream> = paths
+            .chunks(16)
+            .map(|chunk| quote! { (#(#chunk,)*) })
+            .collect();
+        quote! { (#(#chunks,)*) }
+    }
+}
+
 pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let serde_derives = crate::util::serde_derives();
     let input: DefineModelInput = syn::parse2(input)?;
@@ -70,9 +83,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let paths = &input.components;
     let variants: Vec<Ident> = input.components.iter().map(last_segment).collect();
     let event_types: Vec<Path> = input.components.iter().map(event_type_path).collect();
+    let model_tuple = nested_tuple(paths);
 
     let output = quote! {
-        pub type #model_type = quent_model::Model<(#(#paths,)*)>;
+        pub type #model_type = quent_model::Model<#model_tuple>;
 
 
         #[derive(Debug #serde_derives)]
