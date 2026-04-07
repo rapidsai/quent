@@ -15,6 +15,5 @@ pub struct Declaration {
 #[derive(quent_model::Entity)]
 #[resource_group]
 pub struct QueryGroup {
-    #[event]
     pub declaration: Declaration,
 }

@@ -5,7 +5,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::DeriveInput;
 
-use crate::util::{field_has_attr, parse_resource_group_attr, resolve_value_type, to_snake_case};
+use crate::util::{parse_resource_group_attr, to_snake_case};
 
 /// Extract the type ident from a field's type (the last segment of the path).
 fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
@@ -22,11 +22,9 @@ fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
 
 /// Expand the Entity derive macro.
 ///
-/// Parses struct fields with `#[event]` attribute to extract event types.
-/// If there are no `#[event]` fields, generates a simple entity with no events
-/// (the "instant" entity case). If there are event fields, generates event
-/// enum, observer, data struct, From impls, HasEventType, EntityData, and
-/// ModelComponent.
+/// All named fields are event types (must implement `EventMetadata`).
+/// Unit structs produce entities with no events. If a resource group
+/// unit struct has no fields, an implicit declaration event is generated.
 ///
 /// Also detects `#[resource_group]`/`#[resource_group(root)]` outer attributes
 /// and includes resource group metadata in ModelComponent if present.
@@ -41,14 +39,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let resource_group = parse_resource_group_attr(&input);
     let is_root = resource_group.unwrap_or(false);
 
-    // Collect event fields and non-event fields
+    // All named fields are event types
     let mut event_types: Vec<Ident> = Vec::new();
-    let mut regular_fields: Vec<&syn::Field> = Vec::new();
 
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
             syn::Fields::Named(named) => {
-                // Validate all fields are pub
                 for field in &named.named {
                     if !matches!(field.vis, syn::Visibility::Public(_)) {
                         return Err(syn::Error::new_spanned(
@@ -56,13 +52,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                             "Entity fields must be `pub` — they are part of the generated instrumentation API",
                         ));
                     }
-                }
-                for field in &named.named {
-                    if field_has_attr(field, "event") {
-                        event_types.push(type_ident(&field.ty)?);
-                    } else {
-                        regular_fields.push(field);
-                    }
+                    event_types.push(type_ident(&field.ty)?);
                 }
             }
             syn::Fields::Unit => {}
@@ -80,22 +70,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             ));
         }
     };
-
-    // Collect attribute defs from regular (non-event) fields
-    let attr_defs: Vec<TokenStream> = regular_fields
-        .iter()
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap().to_string();
-            let (value_type_tokens, optional) = resolve_value_type(&field.ty);
-            quote! {
-                quent_model::AttributeDef {
-                    name: #field_name.to_string(),
-                    value_type: #value_type_tokens,
-                    optional: #optional,
-                }
-            }
-        })
-        .collect();
 
     // When #[resource_group] is present, Entity derive generates both the
     // ResourceGroup trait impl and the ModelComponent contribution, so
@@ -233,7 +207,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 fn collect(builder: &mut quent_model::ModelBuilder) {
                     builder.add_entity(quent_model::EntityDef {
                         name: #entity_snake.to_string(),
-                        attributes: vec![#(#attr_defs,)*],
                         events: vec![
                             quent_model::EntityEventDef {
                                 name: "declaration".to_string(),
@@ -257,7 +230,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 fn collect(builder: &mut quent_model::ModelBuilder) {
                     builder.add_entity(quent_model::EntityDef {
                         name: #entity_snake.to_string(),
-                        attributes: vec![#(#attr_defs,)*],
                         events: vec![],
                     });
                     #rg_contribution
@@ -387,7 +359,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 fn collect(builder: &mut quent_model::ModelBuilder) {
                     builder.add_entity(quent_model::EntityDef {
                         name: #entity_snake.to_string(),
-                        attributes: vec![#(#attr_defs,)*],
                         events: vec![#(#event_defs,)*],
                     });
                     #rg_contribution

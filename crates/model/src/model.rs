@@ -182,7 +182,6 @@ pub struct ResourceGroupDef {
 #[derive(Debug, Clone)]
 pub struct EntityDef {
     pub name: String,
-    pub attributes: Vec<AttributeDef>,
     pub events: Vec<EntityEventDef>,
 }
 

@@ -7,10 +7,7 @@ use quent_model::prelude::*;
 use quent_model::{ModelBuilder, ModelComponent};
 
 #[derive(Entity)]
-pub struct Operator {
-    pub plan_id: Uuid,
-    pub type_name: String,
-}
+pub struct Operator;
 
 #[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
 pub struct PlanCreated {
@@ -25,9 +22,7 @@ pub struct Stats {
 
 #[derive(Entity)]
 pub struct Worker {
-    #[event]
     pub plan_created: PlanCreated,
-    #[event]
     pub stats: Stats,
 }
 
@@ -38,13 +33,13 @@ fn entity_trait_impl() {
 }
 
 #[test]
-fn entity_model_component() {
+fn unit_entity_has_no_events() {
     let mut builder = ModelBuilder::new();
     Operator::collect(&mut builder);
 
     assert_eq!(builder.entities.len(), 1);
     assert_eq!(builder.entities[0].name, "operator");
-    assert_eq!(builder.entities[0].attributes.len(), 2);
+    assert_eq!(builder.entities[0].events.len(), 0);
 }
 
 #[test]

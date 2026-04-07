@@ -10,15 +10,10 @@ use quent_model::{FsmEvent, Model, ModelBuilder, ModelComponent, StateMetadata};
 // Simulate a domain model crate (inline)
 
 #[derive(Entity)]
-pub struct Engine {
-    pub name: String,
-}
+pub struct Engine;
 
 #[derive(Entity)]
-pub struct Operator {
-    pub plan_id: Uuid,
-    pub type_name: String,
-}
+pub struct Operator;
 
 // Application-specific types using stdlib resources
 

@@ -32,7 +32,6 @@ pub struct Ping {
 #[allow(dead_code)]
 #[derive(Entity)]
 pub struct SimpleEntity {
-    #[event]
     pub ping: Ping,
 }
 

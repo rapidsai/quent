@@ -26,8 +26,6 @@ pub struct Exit;
 #[derive(quent_model::Entity)]
 #[resource_group(root)]
 pub struct Engine {
-    #[event]
     pub init: Init,
-    #[event]
     pub exit: Exit,
 }

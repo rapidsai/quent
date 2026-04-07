@@ -17,15 +17,13 @@
 //!
 //! #[derive(Entity)]
 //! pub struct Engine {
-//!     #[event]
-//!     init: Init,
+//!     pub init: Init,
 //! }
 //!
-//! #[derive(Entity, ResourceGroup)]
+//! #[derive(Entity)]
 //! #[resource_group(root)]
 //! pub struct Engine {
-//!     #[event]
-//!     init: Init,
+//!     pub init: Init,
 //! }
 //! ```
 
@@ -87,14 +85,12 @@ pub fn derive_fsm(input: TokenStream) -> TokenStream {
 
 /// Derive macro for entity definitions.
 ///
-/// Field-level attributes:
-/// - `#[event]` — marks a field as an event type for this entity
+/// All named fields are event types (must derive `Event`).
+/// Unit structs produce entities with no events.
 ///
 /// Struct-level attributes (optional):
 /// - `#[resource_group]` / `#[resource_group(root)]` — resource group metadata
-///
-/// If no `#[event]` fields are present, generates a simple (instant) entity.
-#[proc_macro_derive(Entity, attributes(event, resource_group))]
+#[proc_macro_derive(Entity, attributes(resource_group))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     entity::expand_derive(input)

@@ -26,9 +26,7 @@ pub struct Complete;
 #[derive(Entity)]
 #[resource_group(root)]
 pub struct Job {
-    #[event]
     pub submit: Submit,
-    #[event]
     pub complete: Complete,
 }
 
@@ -42,7 +40,6 @@ pub struct ThreadPoolInit {
 #[derive(Entity)]
 #[resource_group]
 pub struct ThreadPool {
-    #[event]
     pub init: ThreadPoolInit,
 }
 

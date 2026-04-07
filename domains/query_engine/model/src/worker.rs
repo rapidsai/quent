@@ -18,8 +18,6 @@ pub struct Exit;
 #[derive(quent_model::Entity)]
 #[resource_group]
 pub struct Worker {
-    #[event]
     pub init: Init,
-    #[event]
     pub exit: Exit,
 }
