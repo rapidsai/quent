@@ -12,7 +12,8 @@ use std::path::PathBuf;
 
 fn main() {
     let manifest_dir: PathBuf = std::env::var("CARGO_MANIFEST_DIR").unwrap().into();
-    let gen_dir = manifest_dir.join("src").join("bridge");
+    let out_dir: PathBuf = std::env::var("OUT_DIR").unwrap().into();
+    let gen_dir = out_dir.join("bridge");
     fs::create_dir_all(&gen_dir).unwrap();
 
     // Collect model metadata
@@ -99,15 +100,27 @@ fn main() {
     let files = quent_codegen::emit_cxx(&builder, &options);
 
     let mut bridge_files = Vec::new();
+    let mut mod_lines = Vec::new();
     for file in &files {
         if file.name == "lib.rs" {
             continue; // We provide our own lib.rs
         }
         let path = gen_dir.join(&file.name);
         fs::write(&path, &file.content).unwrap();
-        // Pass relative path so CXX generates sane include paths
-        bridge_files.push(format!("src/bridge/{}", file.name));
+        bridge_files.push(path.display().to_string());
+
+        // Collect module declarations for bridge_mod.rs
+        let mod_name = file.name.trim_end_matches(".rs");
+        mod_lines.push(format!(
+            "#[path = \"{}/{}\"]\npub mod {};",
+            gen_dir.display(),
+            file.name,
+            mod_name
+        ));
     }
+
+    // Write the bridge_mod.rs that lib.rs includes
+    fs::write(out_dir.join("bridge_mod.rs"), mod_lines.join("\n")).unwrap();
 
     // Run cxx_build on the generated bridge files to produce C++ headers
     cxx_build::bridges(bridge_files)
@@ -117,7 +130,6 @@ fn main() {
     // Copy CXX-generated headers to a stable location for CMake.
     // cxx_build puts them in OUT_DIR/cxxbridge/include/ but Corrosion
     // doesn't propagate these paths. Copy to instrumentation/include/.
-    let out_dir: PathBuf = std::env::var("OUT_DIR").unwrap().into();
     let cxx_include = out_dir.join("cxxbridge").join("include");
     let header_dir = manifest_dir.join("include");
     if cxx_include.exists() {
