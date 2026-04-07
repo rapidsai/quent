@@ -28,8 +28,8 @@ members = [
     "domains/query_engine/server",
     "domains/query_engine/ui",
     # C++ integration example
-    "examples/cpp-integration/model",
     "examples/cpp-integration/instrumentation",
+    "examples/cpp-integration/bridge",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",

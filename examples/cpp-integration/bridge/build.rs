@@ -5,7 +5,7 @@
 //! runs cxx_build to generate C++ headers from them.
 
 use quent_codegen::CxxOptions;
-use quent_cpp_example_model::{Job, Task, ThreadPool};
+use quent_cpp_example_instrumentation::{Job, Task, ThreadPool};
 use quent_model::ModelComponent;
 use std::fs;
 use std::path::PathBuf;
@@ -42,10 +42,10 @@ fn main() {
     // Generate CXX bridge Rust source files
     let options = CxxOptions {
         namespace: "telemetry".to_string(),
-        crate_name: "quent-cpp-example-instrumentation".to_string(),
+        crate_name: "quent-cpp-example-bridge".to_string(),
         bridge_path: "src/bridge".to_string(),
-        model_crate: "quent_cpp_example_model".to_string(),
-        event_type: "quent_cpp_example_model::ExampleEvent".to_string(),
+        model_crate: "quent_cpp_example_instrumentation".to_string(),
+        event_type: "quent_cpp_example_instrumentation::ExampleEvent".to_string(),
     };
     let files = quent_codegen::emit_cxx(&builder, &options);
 
@@ -79,11 +79,11 @@ fn main() {
     // Run cxx_build on the generated bridge files to produce C++ headers
     cxx_build::bridges(bridge_files)
         .std("c++20")
-        .compile("quent_cpp_example_instrumentation");
+        .compile("quent_cpp_example_bridge");
 
     // Copy CXX-generated headers to a stable location for CMake.
     // cxx_build puts them in OUT_DIR/cxxbridge/include/ but Corrosion
-    // doesn't propagate these paths. Copy to instrumentation/include/.
+    // doesn't propagate these paths. Copy to bridge/include/.
     let cxx_include = out_dir.join("cxxbridge").join("include");
     let header_dir = manifest_dir.join("include");
     if cxx_include.exists() {
