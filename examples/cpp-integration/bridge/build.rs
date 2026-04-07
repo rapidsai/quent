@@ -5,8 +5,6 @@
 //! runs cxx_build to generate C++ headers from them.
 
 use quent_codegen::CxxOptions;
-use quent_cpp_example_instrumentation::{Job, Task, ThreadPool};
-use quent_model::ModelComponent;
 use std::fs;
 use std::path::PathBuf;
 
@@ -14,11 +12,7 @@ fn main() {
     let manifest_dir: PathBuf = std::env::var("CARGO_MANIFEST_DIR").unwrap().into();
     let out_dir: PathBuf = std::env::var("OUT_DIR").unwrap().into();
 
-    // Collect model metadata
-    let mut builder = quent_model::ModelBuilder::new();
-    Job::collect(&mut builder);
-    ThreadPool::collect(&mut builder);
-    Task::collect(&mut builder);
+    let builder = quent_cpp_example_instrumentation::ExampleModel::build();
 
     // Generate CXX bridge Rust source files into gen/
     // C++ include paths will be: quent-bridge/gen/{file}.rs.h

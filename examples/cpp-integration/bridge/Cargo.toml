@@ -22,4 +22,3 @@ uuid = { workspace = true, features = ["serde", "v7"] }
 cxx-build = "1"
 quent-codegen = { path = "../../../crates/codegen" }
 quent-cpp-example-instrumentation = { path = "../instrumentation" }
-quent-model = { path = "../../../crates/model" }
