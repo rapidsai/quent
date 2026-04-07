@@ -225,10 +225,6 @@ pub enum ValueType {
     Ref(std::string::String),
 }
 
-//------------------------------------------------------------------------
-// ModelComponent impls for tuples (up to 16 elements)
-//------------------------------------------------------------------------
-
 // Unit tuple (base case)
 impl ModelComponent for () {
     fn collect(_builder: &mut ModelBuilder) {}
