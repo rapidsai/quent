@@ -26,3 +26,12 @@ cmake --build build
 ```bash
 ./build/example
 ```
+
+This produces an ndjson file in `cpp/data/`. Verify it contains events:
+
+```bash
+cat data/*.ndjson | head -5
+```
+
+Each line is a JSON object with an `id`, `timestamp`, and `data` field
+representing an FSM transition or entity event.
