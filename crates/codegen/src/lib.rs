@@ -18,9 +18,9 @@ pub struct CxxOptions {
     pub crate_name: String,
     /// Path prefix for bridge modules within the crate (e.g., "src/bridge").
     pub bridge_path: String,
-    /// Rust path to the model crate (e.g., "quent_cpp_example_model").
+    /// Rust path to the instrumentation crate (e.g., "quent_cpp_example_instrumentation").
     pub model_crate: String,
-    /// The top-level event enum type path (e.g., "quent_cpp_example_model::ExampleEvent").
+    /// The top-level event enum type path (e.g., "quent_cpp_example_instrumentation::ExampleEvent").
     pub event_type: String,
 }
 
@@ -29,7 +29,7 @@ impl Default for CxxOptions {
         Self {
             namespace: "quent".to_string(),
             crate_name: "instrumentation".to_string(),
-            bridge_path: ".".to_string(),
+            bridge_path: "gen".to_string(),
             model_crate: "model".to_string(),
             event_type: "model::Event".to_string(),
         }
