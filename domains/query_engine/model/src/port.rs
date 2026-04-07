@@ -7,13 +7,13 @@ use quent_attributes::Attribute;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Declaration {
     pub operator_id: Uuid,
     pub instance_name: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Statistics {
     pub custom_attributes: Vec<Attribute>,
 }

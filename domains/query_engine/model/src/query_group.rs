@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, quent_model::Event, Serialize, Deserialize)]
 pub struct Declaration {
     pub instance_name: String,
     pub engine_id: Uuid,

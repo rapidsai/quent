@@ -14,13 +14,13 @@ use quent_model::prelude::*;
 
 // Job: groups tasks, root resource group
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
 pub struct Submit {
     pub name: String,
     pub num_tasks: u32,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
 pub struct Complete;
 
 #[derive(Entity)]
@@ -34,7 +34,7 @@ pub struct Job {
 
 // ThreadPool: resource group containing threads
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
 pub struct ThreadPoolInit {
     pub num_threads: u32,
 }

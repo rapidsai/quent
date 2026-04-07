@@ -24,7 +24,7 @@ pub struct SimpleFsm {
     pub active: Active,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
 pub struct Ping {
     pub value: u64,
 }

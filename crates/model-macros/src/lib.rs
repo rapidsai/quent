@@ -33,6 +33,7 @@ use proc_macro::TokenStream;
 
 mod define_model;
 mod entity;
+mod event;
 mod fsm;
 mod resource_derive;
 mod resource_group;
@@ -50,6 +51,18 @@ mod util;
 pub fn derive_state(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     state::expand_derive(input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Derive macro for entity event structs.
+///
+/// Generates `EventMetadata` impl so that `#[derive(Entity)]` can populate
+/// `EntityEventDef.attributes` with the event's field names and types.
+#[proc_macro_derive(Event)]
+pub fn derive_event(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    event::expand_derive(input)
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

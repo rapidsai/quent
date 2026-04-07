@@ -6,13 +6,13 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, quent_model::Event, Deserialize, Serialize)]
 pub struct Init {
     pub parent_engine_id: Uuid,
     pub instance_name: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Exit;
 
 #[derive(quent_model::Entity)]

@@ -18,7 +18,7 @@ pub enum PlanParent {
     Plan(Uuid),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Declaration {
     pub parent: PlanParent,
     pub instance_name: String,

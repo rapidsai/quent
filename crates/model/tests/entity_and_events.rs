@@ -12,6 +12,25 @@ pub struct Operator {
     pub type_name: String,
 }
 
+#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+pub struct PlanCreated {
+    pub plan_id: Uuid,
+    pub query_text: String,
+}
+
+#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+pub struct Stats {
+    pub rows: u64,
+}
+
+#[derive(Entity)]
+pub struct Worker {
+    #[event]
+    pub plan_created: PlanCreated,
+    #[event]
+    pub stats: Stats,
+}
+
 #[test]
 fn entity_trait_impl() {
     fn assert_entity<T: quent_model::Entity>() {}
@@ -26,4 +45,25 @@ fn entity_model_component() {
     assert_eq!(builder.entities.len(), 1);
     assert_eq!(builder.entities[0].name, "operator");
     assert_eq!(builder.entities[0].attributes.len(), 2);
+}
+
+#[test]
+fn entity_event_attributes_populated() {
+    let mut builder = ModelBuilder::new();
+    Worker::collect(&mut builder);
+
+    assert_eq!(builder.entities.len(), 1);
+    let entity = &builder.entities[0];
+    assert_eq!(entity.events.len(), 2);
+
+    let plan_event = &entity.events[0];
+    assert_eq!(plan_event.name, "plan_created");
+    assert_eq!(plan_event.attributes.len(), 2);
+    assert_eq!(plan_event.attributes[0].name, "plan_id");
+    assert_eq!(plan_event.attributes[1].name, "query_text");
+
+    let stats_event = &entity.events[1];
+    assert_eq!(stats_event.name, "stats");
+    assert_eq!(stats_event.attributes.len(), 1);
+    assert_eq!(stats_event.attributes[0].name, "rows");
 }

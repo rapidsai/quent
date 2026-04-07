@@ -131,13 +131,36 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         let data_struct = format_ident!("{}Data", name);
         let observer_method = format_ident!("{}", entity_snake);
 
-        let decl_fields = if is_root {
-            quote! { pub instance_name: String }
+        let (decl_fields, decl_attr_defs) = if is_root {
+            (
+                quote! { pub instance_name: String },
+                quote! {
+                    quent_model::AttributeDef {
+                        name: "instance_name".to_string(),
+                        value_type: quent_model::ValueType::String,
+                        optional: false,
+                    }
+                },
+            )
         } else {
-            quote! {
-                pub instance_name: String,
-                pub parent_group_id: uuid::Uuid
-            }
+            (
+                quote! {
+                    pub instance_name: String,
+                    pub parent_group_id: uuid::Uuid
+                },
+                quote! {
+                    quent_model::AttributeDef {
+                        name: "instance_name".to_string(),
+                        value_type: quent_model::ValueType::String,
+                        optional: false,
+                    },
+                    quent_model::AttributeDef {
+                        name: "parent_group_id".to_string(),
+                        value_type: quent_model::ValueType::Uuid,
+                        optional: false,
+                    }
+                },
+            )
         };
 
         let output = quote! {
@@ -214,7 +237,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                         events: vec![
                             quent_model::EntityEventDef {
                                 name: "declaration".to_string(),
-                                attributes: vec![],
+                                attributes: vec![#decl_attr_defs],
                             }
                         ],
                     });
@@ -266,24 +289,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             })
             .collect();
 
-        // Collect event names for EntityDef.
-        //
-        // Known limitation: `attributes` is always empty because proc macros
-        // cannot introspect the fields of other structs at expansion time.
-        // The event type names are recorded so that downstream codegen (e.g.,
-        // build.rs) can patch in the full attribute list by inspecting the
-        // event structs directly. A future `#[derive(Event)]` on event structs
-        // could contribute their own metadata and close this gap.
-        let event_name_strings: Vec<String> =
-            event_types.iter().map(|ty| to_snake_case(ty)).collect();
-        let event_defs: Vec<TokenStream> = event_name_strings
+        // Collect event defs via EventMetadata trait.
+        let event_defs: Vec<TokenStream> = event_types
             .iter()
-            .map(|name| {
+            .map(|ty| {
                 quote! {
-                    quent_model::EntityEventDef {
-                        name: #name.to_string(),
-                        attributes: vec![],
-                    }
+                    <#ty as quent_model::EventMetadata>::event_def()
                 }
             })
             .collect();

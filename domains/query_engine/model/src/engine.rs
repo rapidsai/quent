@@ -13,13 +13,13 @@ pub struct EngineImplementationAttributes {
     pub custom_attributes: Vec<Attribute>,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, quent_model::Event, Deserialize, Serialize)]
 pub struct Init {
     pub implementation: Option<EngineImplementationAttributes>,
     pub instance_name: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Exit;
 
 /// Engine is the root resource group.
