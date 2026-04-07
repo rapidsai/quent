@@ -24,20 +24,23 @@ type FsToMem = quent_stdlib::ChannelResource;
 
 // Application FSM using stdlib resource types
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Queueing {
     pub operator_id: Ref<Operator>,
     pub instance_name: String,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Computing {
     pub thread: Usage<Thread>,
     pub memory: Usage<WorkerMemory>,
     pub rows_processed: Option<u64>,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sending {
     pub channel: Usage<FsToMem>,
 }
@@ -188,6 +191,7 @@ fn fsm_event_sequence_numbers() {
     assert_eq!(transition.seq(), 0);
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn ref_serde_roundtrip() {
     let original: Ref<Operator> = Ref::new(uuid::Uuid::from_u128(0x1234));
@@ -196,6 +200,7 @@ fn ref_serde_roundtrip() {
     assert_eq!(original, deserialized);
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn fsm_event_serde_roundtrip() {
     let event: TaskEvent = FsmEvent::Transition {

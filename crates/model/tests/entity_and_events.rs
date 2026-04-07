@@ -9,13 +9,15 @@ use quent_model::{ModelBuilder, ModelComponent};
 #[derive(Entity)]
 pub struct Operator;
 
-#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlanCreated {
     pub plan_id: Uuid,
     pub query_text: String,
 }
 
-#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Stats {
     pub rows: u64,
 }
@@ -64,7 +66,8 @@ fn entity_event_attributes_populated() {
 }
 
 // Self-event entity: #[derive(Entity, Event)] — struct IS the event
-#[derive(Debug, Entity, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Entity, Event)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Alert {
     pub severity: u32,
     pub message: String,

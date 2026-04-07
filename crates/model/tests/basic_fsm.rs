@@ -8,19 +8,22 @@ use quent_model::{FsmEvent, Model, ModelBuilder, ModelComponent, StateMetadata};
 
 // Define states
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Queueing {
     pub operator_id: Uuid,
     pub instance_name: String,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Computing {
     pub value: u64,
     pub rows_processed: Option<u64>,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sending {
     pub channel_id: Uuid,
 }

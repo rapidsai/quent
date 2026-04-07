@@ -8,10 +8,12 @@ use quent_model::prelude::*;
 
 // Minimal model components
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Idle;
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, State)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Active;
 
 #[allow(dead_code)]
@@ -24,7 +26,8 @@ pub struct SimpleFsm {
     pub active: Active,
 }
 
-#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Event)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ping {
     pub value: u64,
 }

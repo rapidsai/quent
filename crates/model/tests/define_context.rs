@@ -4,7 +4,8 @@
 //! Tests for `define_context!` macro.
 
 // Minimal event type for context
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TestEvent {
     Ping,
 }
