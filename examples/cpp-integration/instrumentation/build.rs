@@ -6,7 +6,7 @@
 
 use quent_codegen::CxxOptions;
 use quent_cpp_example_model::{Job, Task, ThreadPool};
-use quent_model::{AttributeDef, ModelComponent, ValueType};
+use quent_model::ModelComponent;
 use std::fs;
 use std::path::PathBuf;
 
@@ -22,68 +22,18 @@ fn main() {
     ThreadPool::collect(&mut builder);
     Task::collect(&mut builder);
 
-    // Patch metadata that the derive macros do not yet extract automatically.
-
-    // Entity event attributes: the Entity derive macro records event type names
-    // but does not introspect event struct fields.
-    for entity in &mut builder.entities {
-        match entity.name.as_str() {
-            "job" => {
-                for event in &mut entity.events {
-                    if event.name == "submit" {
-                        event.attributes = vec![
-                            AttributeDef {
-                                name: "name".to_string(),
-                                value_type: ValueType::String,
-                                optional: false,
-                            },
-                            AttributeDef {
-                                name: "num_tasks".to_string(),
-                                value_type: ValueType::U32,
-                                optional: false,
-                            },
-                        ];
-                    }
-                    // complete is a unit event — no attributes needed
-                }
-            }
-            "thread_pool" => {
-                for event in &mut entity.events {
-                    if event.name == "thread_pool_init" {
-                        event.attributes = vec![AttributeDef {
-                            name: "num_threads".to_string(),
-                            value_type: ValueType::U32,
-                            optional: false,
-                        }];
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // FSM state metadata: the State derive macro uses placeholder ValueTypes
-    // and leaves resource_name empty. Patch both.
+    // Patch Usage resource_name: the State derive cannot resolve
+    // Usage<T> to a resource name because that mapping lives in the
+    // Resource trait impl, not available at macro expansion time.
     for fsm in &mut builder.fsms {
         if fsm.name == "task" {
             for state in &mut fsm.states {
-                match state.name.as_str() {
-                    "queued" => {
-                        // Fix job_id type: Uuid, not String
-                        for attr in &mut state.attributes {
-                            if attr.name == "job_id" {
-                                attr.value_type = ValueType::Uuid;
-                            }
+                if state.name == "running" {
+                    for usage in &mut state.usages {
+                        if usage.field_name == "thread" {
+                            usage.resource_name = "processor".to_string();
                         }
                     }
-                    "running" => {
-                        for usage in &mut state.usages {
-                            if usage.field_name == "thread" {
-                                usage.resource_name = "processor".to_string();
-                            }
-                        }
-                    }
-                    _ => {}
                 }
             }
         }
