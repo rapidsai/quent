@@ -13,8 +13,8 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir: PathBuf = std::env::var("CARGO_MANIFEST_DIR").unwrap().into();
     let out_dir: PathBuf = std::env::var("OUT_DIR").unwrap().into();
-    let gen_dir = out_dir.join("bridge");
-    fs::create_dir_all(&gen_dir).unwrap();
+    let src_bridge_dir = manifest_dir.join("src").join("bridge");
+    fs::create_dir_all(&src_bridge_dir).unwrap();
 
     // Collect model metadata
     let mut builder = quent_model::ModelBuilder::new();
@@ -105,15 +105,19 @@ fn main() {
         if file.name == "lib.rs" {
             continue; // We provide our own lib.rs
         }
-        let path = gen_dir.join(&file.name);
+        // Write to src/bridge/ for cxx_build (needs relative paths for correct
+        // C++ #include generation)
+        let path = src_bridge_dir.join(&file.name);
         fs::write(&path, &file.content).unwrap();
-        bridge_files.push(path.display().to_string());
+        bridge_files.push(format!("src/bridge/{}", file.name));
 
-        // Collect module declarations for bridge_mod.rs
+        // Collect module declarations for bridge_mod.rs (uses absolute paths
+        // so lib.rs can include! from OUT_DIR without mod declarations that
+        // cargo fmt would try to resolve)
         let mod_name = file.name.trim_end_matches(".rs");
         mod_lines.push(format!(
             "#[path = \"{}/{}\"]\npub mod {};",
-            gen_dir.display(),
+            src_bridge_dir.display(),
             file.name,
             mod_name
         ));
