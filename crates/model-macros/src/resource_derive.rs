@@ -17,6 +17,46 @@ use syn::{DeriveInput, Field};
 
 use crate::util::to_snake_case;
 
+/// Generate StateMetadata + Extract* impls for a unit state (no data fields).
+fn emit_unit_state_impls(
+    state_ident: &proc_macro2::Ident,
+    state_name: &str,
+    extract_capacities: TokenStream,
+    extract_instance_name: TokenStream,
+    extract_parent_group_id: TokenStream,
+) -> TokenStream {
+    quote! {
+        impl quent_model::StateMetadata for #state_ident {
+            fn state_name() -> &'static str { #state_name }
+            fn state_def() -> quent_model::StateDef {
+                quent_model::StateDef {
+                    name: #state_name.to_string(),
+                    attributes: vec![],
+                    usages: vec![],
+                }
+            }
+        }
+
+        impl quent_model::analyze::ExtractCapacities for #state_ident {
+            fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> {
+                #extract_capacities
+            }
+        }
+
+        impl quent_model::analyze::ExtractUsages for #state_ident {
+            fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
+        }
+
+        impl quent_model::analyze::ExtractInstanceName for #state_ident {
+            fn extract_instance_name(&self) -> Option<&str> { #extract_instance_name }
+        }
+
+        impl quent_model::analyze::ExtractParentGroupId for #state_ident {
+            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { #extract_parent_group_id }
+        }
+    }
+}
+
 /// Check if a field's type is `Capacity<...>`.
 fn is_capacity_field(field: &Field) -> bool {
     crate::util::is_capacity_type(&field.ty)
@@ -169,74 +209,32 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     // Operating state definition
     let op_state_def = if capacity_field_defs.is_empty() {
         // Unit resource — empty operating state
+        let impls = emit_unit_state_impls(
+            &op_state,
+            "operating",
+            quote! { vec![quent_model::analyze::ExtractedCapacity::unit()] },
+            quote! { None },
+            quote! { None },
+        );
         quote! {
             #[derive(Debug, Clone #serde_derives)]
             #vis struct #op_state;
-
-            impl quent_model::StateMetadata for #op_state {
-                fn state_name() -> &'static str { "operating" }
-                fn state_def() -> quent_model::StateDef {
-                    quent_model::StateDef {
-                        name: "operating".to_string(),
-                        attributes: vec![],
-                        usages: vec![],
-                    }
-                }
-            }
-
-            impl quent_model::analyze::ExtractCapacities for #op_state {
-                fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> {
-                    vec![quent_model::analyze::ExtractedCapacity::unit()]
-                }
-            }
-
-            impl quent_model::analyze::ExtractUsages for #op_state {
-                fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
-            }
-
-            impl quent_model::analyze::ExtractInstanceName for #op_state {
-                fn extract_instance_name(&self) -> Option<&str> { None }
-            }
-
-            impl quent_model::analyze::ExtractParentGroupId for #op_state {
-                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
-            }
+            #impls
         }
     } else {
+        let impls = emit_unit_state_impls(
+            &op_state,
+            "operating",
+            extract_capacities_body,
+            quote! { None },
+            quote! { None },
+        );
         quote! {
             #[derive(Debug, Clone #serde_derives)]
             #vis struct #op_state {
                 #(#capacity_field_defs,)*
             }
-
-            impl quent_model::StateMetadata for #op_state {
-                fn state_name() -> &'static str { "operating" }
-                fn state_def() -> quent_model::StateDef {
-                    quent_model::StateDef {
-                        name: "operating".to_string(),
-                        attributes: vec![],
-                        usages: vec![],
-                    }
-                }
-            }
-
-            impl quent_model::analyze::ExtractCapacities for #op_state {
-                fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> {
-                    #extract_capacities_body
-                }
-            }
-
-            impl quent_model::analyze::ExtractUsages for #op_state {
-                fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
-            }
-
-            impl quent_model::analyze::ExtractInstanceName for #op_state {
-                fn extract_instance_name(&self) -> Option<&str> { None }
-            }
-
-            impl quent_model::analyze::ExtractParentGroupId for #op_state {
-                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
-            }
+            #impls
         }
     };
 
@@ -323,33 +321,17 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             pub fn finalizing(&mut self) { self.transition(#fin_state); }
         };
 
+        let resize_impls = emit_unit_state_impls(
+            &resize_state,
+            "resizing",
+            quote! { vec![] },
+            quote! { None },
+            quote! { None },
+        );
         let resize_code = quote! {
             #[derive(Debug, Clone #serde_derives)]
             #vis struct #resize_state;
-
-            impl quent_model::StateMetadata for #resize_state {
-                fn state_name() -> &'static str { "resizing" }
-                fn state_def() -> quent_model::StateDef {
-                    quent_model::StateDef {
-                        name: "resizing".to_string(),
-                        attributes: vec![],
-                        usages: vec![],
-                    }
-                }
-            }
-
-            impl quent_model::analyze::ExtractCapacities for #resize_state {
-                fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> { vec![] }
-            }
-            impl quent_model::analyze::ExtractUsages for #resize_state {
-                fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
-            }
-            impl quent_model::analyze::ExtractInstanceName for #resize_state {
-                fn extract_instance_name(&self) -> Option<&str> { None }
-            }
-            impl quent_model::analyze::ExtractParentGroupId for #resize_state {
-                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
-            }
+            #resize_impls
         };
 
         (
@@ -439,6 +421,22 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         )
     };
 
+    let init_state_impls = emit_unit_state_impls(
+        &init_state,
+        "initializing",
+        quote! { vec![] },
+        quote! { Some(&self.instance_name) },
+        quote! { Some(self.parent_group_id) },
+    );
+
+    let fin_state_impls = emit_unit_state_impls(
+        &fin_state,
+        "finalizing",
+        quote! { vec![] },
+        quote! { None },
+        quote! { None },
+    );
+
     let output = quote! {
         // Initializing state
         #[derive(Debug, Clone #serde_derives)]
@@ -449,29 +447,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #(#user_init_field_defs,)*
         }
 
-        impl quent_model::StateMetadata for #init_state {
-            fn state_name() -> &'static str { "initializing" }
-            fn state_def() -> quent_model::StateDef {
-                quent_model::StateDef {
-                    name: "initializing".to_string(),
-                    attributes: vec![],
-                    usages: vec![],
-                }
-            }
-        }
-
-        impl quent_model::analyze::ExtractCapacities for #init_state {
-            fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> { vec![] }
-        }
-        impl quent_model::analyze::ExtractUsages for #init_state {
-            fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
-        }
-        impl quent_model::analyze::ExtractInstanceName for #init_state {
-            fn extract_instance_name(&self) -> Option<&str> { Some(&self.instance_name) }
-        }
-        impl quent_model::analyze::ExtractParentGroupId for #init_state {
-            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { Some(self.parent_group_id) }
-        }
+        #init_state_impls
 
         // Operating state
         #op_state_def
@@ -479,30 +455,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         // Finalizing state
         #[derive(Debug, Clone #serde_derives)]
         #vis struct #fin_state;
-
-        impl quent_model::StateMetadata for #fin_state {
-            fn state_name() -> &'static str { "finalizing" }
-            fn state_def() -> quent_model::StateDef {
-                quent_model::StateDef {
-                    name: "finalizing".to_string(),
-                    attributes: vec![],
-                    usages: vec![],
-                }
-            }
-        }
-
-        impl quent_model::analyze::ExtractCapacities for #fin_state {
-            fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> { vec![] }
-        }
-        impl quent_model::analyze::ExtractUsages for #fin_state {
-            fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
-        }
-        impl quent_model::analyze::ExtractInstanceName for #fin_state {
-            fn extract_instance_name(&self) -> Option<&str> { None }
-        }
-        impl quent_model::analyze::ExtractParentGroupId for #fin_state {
-            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
-        }
+        #fin_state_impls
 
         // Resizing state (ResizableResource only)
         #resizing_code
