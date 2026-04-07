@@ -51,7 +51,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     // Detect EmitOnce<T> fields; if none found on a named-fields struct,
     // the struct itself is a single-event entity (self-event).
     let mut event_types: Vec<Ident> = Vec::new();
-    let mut is_self_event = false;
 
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
@@ -69,7 +68,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 }
                 if event_types.is_empty() {
                     // No EmitOnce<T> fields — self-event entity
-                    is_self_event = true;
                     event_types.push(name.clone());
                 }
             }
