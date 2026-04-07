@@ -593,6 +593,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         impl quent_model::Resource for #resource_marker {
             type CapacityValue = #op_state;
+            const RESOURCE_NAME: &'static str = #name_snake;
         }
 
         // ModelComponent

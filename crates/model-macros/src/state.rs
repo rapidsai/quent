@@ -32,6 +32,8 @@ struct CapacityField {
 struct UsageField {
     name: String,
     ident: Ident,
+    /// The inner resource type T from Usage<T>.
+    resource_ty: syn::Type,
 }
 
 struct DeferredField {
@@ -65,17 +67,22 @@ fn is_capacity_type(ty: &syn::Type) -> bool {
     }
 }
 
-/// Check if a type is `Usage<...>`.
-fn is_usage_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty {
-        type_path
-            .path
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "Usage")
-    } else {
-        false
+/// Extract the inner type T from `Usage<T>`, or return None.
+fn extract_usage_inner(ty: &syn::Type) -> Option<syn::Type> {
+    let syn::Type::Path(type_path) = ty else {
+        return None;
+    };
+    let seg = type_path.path.segments.last()?;
+    if seg.ident != "Usage" {
+        return None;
     }
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
+    let syn::GenericArgument::Type(inner) = args.args.first()? else {
+        return None;
+    };
+    Some(inner.clone())
 }
 
 /// Tries to extract T from Option<T>.
@@ -140,10 +147,11 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             .ok_or_else(|| syn::Error::new_spanned(field, "unnamed fields not supported"))?;
         let name = field_name.to_string();
 
-        if is_usage_type(&field.ty) {
+        if let Some(resource_ty) = extract_usage_inner(&field.ty) {
             usages.push(UsageField {
                 name,
                 ident: field_name.clone(),
+                resource_ty,
             });
         } else if has_attr(field, "deferred") {
             return Err(syn::Error::new_spanned(
@@ -296,10 +304,11 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         .iter()
         .map(|u| {
             let name = &u.name;
+            let resource_ty = &u.resource_ty;
             quote! {
                 quent_model::UsageDef {
                     field_name: #name.to_string(),
-                    resource_name: String::new(), // resolved at collection time
+                    resource_name: <#resource_ty as quent_model::Resource>::RESOURCE_NAME.to_string(),
                     capacities: vec![],
                 }
             }

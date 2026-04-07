@@ -402,6 +402,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
             impl quent_model::Resource for #resource_marker {
                 type CapacityValue = #cap_state;
+                const RESOURCE_NAME: &'static str = #fsm_snake;
             }
         }
     });

@@ -20,23 +20,6 @@ fn main() {
     ThreadPool::collect(&mut builder);
     Task::collect(&mut builder);
 
-    // Patch Usage resource_name: the State derive cannot resolve
-    // Usage<T> to a resource name because that mapping lives in the
-    // Resource trait impl, not available at macro expansion time.
-    for fsm in &mut builder.fsms {
-        if fsm.name == "task" {
-            for state in &mut fsm.states {
-                if state.name == "running" {
-                    for usage in &mut state.usages {
-                        if usage.field_name == "thread" {
-                            usage.resource_name = "processor".to_string();
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Generate CXX bridge Rust source files into gen/
     // C++ include paths will be: quent-bridge/gen/{file}.rs.h
     let gen_dir = manifest_dir.join("gen");

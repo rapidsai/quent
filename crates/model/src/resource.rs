@@ -15,4 +15,8 @@ pub trait Resource {
     /// The capacity value type, derived from the resource FSM's operating
     /// state fields.
     type CapacityValue;
+
+    /// The snake_case name of this resource (e.g., "processor", "memory").
+    /// Used by the State derive to resolve `Usage<T>` field metadata.
+    const RESOURCE_NAME: &'static str;
 }
