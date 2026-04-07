@@ -15,5 +15,5 @@ pub struct Declaration {
 #[derive(quent_model::Entity)]
 #[resource_group]
 pub struct QueryGroup {
-    pub declaration: Declaration,
+    pub declaration: quent_model::EmitOnce<Declaration>,
 }

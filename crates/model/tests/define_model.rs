@@ -32,7 +32,7 @@ pub struct Ping {
 #[allow(dead_code)]
 #[derive(Entity)]
 pub struct SimpleEntity {
-    pub ping: Ping,
+    pub ping: EmitOnce<Ping>,
 }
 
 // define_model! usage

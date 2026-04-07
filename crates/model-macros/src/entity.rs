@@ -7,22 +7,29 @@ use syn::DeriveInput;
 
 use crate::util::{parse_resource_group_attr, to_snake_case};
 
-/// Extract the type ident from a field's type (the last segment of the path).
-fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
-    if let syn::Type::Path(type_path) = ty
-        && let Some(seg) = type_path.path.segments.last()
-    {
-        return Ok(seg.ident.clone());
+/// If the field type is `EmitOnce<T>`, return the inner `T` ident.
+fn extract_emits_once(ty: &syn::Type) -> Option<Ident> {
+    let syn::Type::Path(type_path) = ty else {
+        return None;
+    };
+    let seg = type_path.path.segments.last()?;
+    if seg.ident != "EmitOnce" {
+        return None;
     }
-    Err(syn::Error::new_spanned(
-        ty,
-        "expected a simple type path for event field",
-    ))
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
+    let syn::GenericArgument::Type(syn::Type::Path(inner)) = args.args.first()? else {
+        return None;
+    };
+    Some(inner.path.segments.last()?.ident.clone())
 }
 
 /// Expand the Entity derive macro.
 ///
-/// All named fields are event types (must implement `EventMetadata`).
+/// Fields with type `EmitOnce<T>` declare event types (T must implement
+/// `EventMetadata`). If a struct has named fields but none are `EmitOnce<T>`,
+/// it is treated as a self-event entity (must also derive `Event`).
 /// Unit structs produce entities with no events. If a resource group
 /// unit struct has no fields, an implicit declaration event is generated.
 ///
@@ -39,8 +46,10 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let resource_group = parse_resource_group_attr(&input);
     let is_root = resource_group.unwrap_or(false);
 
-    // All named fields are event types
+    // Detect EmitOnce<T> fields; if none found on a named-fields struct,
+    // the struct itself is a single-event entity (self-event).
     let mut event_types: Vec<Ident> = Vec::new();
+    let mut is_self_event = false;
 
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
@@ -52,7 +61,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                             "Entity fields must be `pub` — they are part of the generated instrumentation API",
                         ));
                     }
-                    event_types.push(type_ident(&field.ty)?);
+                    if let Some(inner) = extract_emits_once(&field.ty) {
+                        event_types.push(inner);
+                    }
+                }
+                if event_types.is_empty() {
+                    // No EmitOnce<T> fields — self-event entity
+                    is_self_event = true;
+                    event_types.push(name.clone());
                 }
             }
             syn::Fields::Unit => {}

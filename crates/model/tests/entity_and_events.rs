@@ -22,8 +22,8 @@ pub struct Stats {
 
 #[derive(Entity)]
 pub struct Worker {
-    pub plan_created: PlanCreated,
-    pub stats: Stats,
+    pub plan_created: EmitOnce<PlanCreated>,
+    pub stats: EmitOnce<Stats>,
 }
 
 #[test]
@@ -61,4 +61,26 @@ fn entity_event_attributes_populated() {
     assert_eq!(stats_event.name, "stats");
     assert_eq!(stats_event.attributes.len(), 1);
     assert_eq!(stats_event.attributes[0].name, "rows");
+}
+
+// Self-event entity: #[derive(Entity, Event)] — struct IS the event
+#[derive(Debug, Entity, Event, serde::Serialize, serde::Deserialize)]
+pub struct Alert {
+    pub severity: u32,
+    pub message: String,
+}
+
+#[test]
+fn self_event_entity() {
+    let mut builder = ModelBuilder::new();
+    Alert::collect(&mut builder);
+
+    assert_eq!(builder.entities.len(), 1);
+    let entity = &builder.entities[0];
+    assert_eq!(entity.name, "alert");
+    assert_eq!(entity.events.len(), 1);
+    assert_eq!(entity.events[0].name, "alert");
+    assert_eq!(entity.events[0].attributes.len(), 2);
+    assert_eq!(entity.events[0].attributes[0].name, "severity");
+    assert_eq!(entity.events[0].attributes[1].name, "message");
 }

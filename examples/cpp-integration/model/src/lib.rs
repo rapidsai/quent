@@ -26,8 +26,8 @@ pub struct Complete;
 #[derive(Entity)]
 #[resource_group(root)]
 pub struct Job {
-    pub submit: Submit,
-    pub complete: Complete,
+    pub submit: EmitOnce<Submit>,
+    pub complete: EmitOnce<Complete>,
 }
 
 // ThreadPool: resource group containing threads
@@ -40,7 +40,7 @@ pub struct ThreadPoolInit {
 #[derive(Entity)]
 #[resource_group]
 pub struct ThreadPool {
-    pub init: ThreadPoolInit,
+    pub init: EmitOnce<ThreadPoolInit>,
 }
 
 // Task: FSM running on a thread

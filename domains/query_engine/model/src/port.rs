@@ -21,6 +21,6 @@ pub struct Statistics {
 #[derive(quent_model::Entity)]
 #[resource_group]
 pub struct Port {
-    pub declaration: Declaration,
-    pub statistics: Statistics,
+    pub declaration: quent_model::EmitOnce<Declaration>,
+    pub statistics: quent_model::EmitOnce<Statistics>,
 }

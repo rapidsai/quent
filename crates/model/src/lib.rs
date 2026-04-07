@@ -30,6 +30,21 @@ pub use r#ref::Ref;
 pub use resource::Resource;
 pub use usage::Usage;
 
+/// Marker type for entity fields that emit an event at most once per instance.
+///
+/// Used in entity struct definitions to declare event types:
+/// ```ignore
+/// #[derive(Entity)]
+/// pub struct Job {
+///     pub submit: EmitOnce<Submit>,
+///     pub complete: EmitOnce<Complete>,
+/// }
+/// ```
+///
+/// The Entity derive detects `EmitOnce<T>` fields by type and extracts `T`
+/// as an event type (which must implement `EventMetadata` via `#[derive(Event)]`).
+pub struct EmitOnce<T: EventMetadata>(std::marker::PhantomData<T>);
+
 /// Marker trait for types declared as FSM states via `#[derive(State)]`.
 pub trait State: StateMetadata {}
 
@@ -145,6 +160,7 @@ pub mod prelude {
     pub use crate::{
         // Types used in model struct fields
         Capacity,
+        EmitOnce,
         // Derive macros
         Entity,
         Event,
