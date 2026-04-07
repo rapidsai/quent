@@ -10,6 +10,14 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
 import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
+import { DAGControls } from '@/components/dag/DAGControls';
+import {
+  useDagNodeColoring,
+  useDagEdgeWidthConfig,
+  useDagEdgeColoring,
+  useOperatorStatFields,
+  usePortStatFields,
+} from '@/hooks/useDagControls';
 import { DataText } from '@/components/ui/data-text';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
@@ -28,6 +36,12 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
+
+  useDagNodeColoring(dagData.nodes);
+  useDagEdgeWidthConfig(dagData.edges);
+  useDagEdgeColoring(dagData.edges);
+  const operatorStatFields = useOperatorStatFields(dagData.nodes);
+  const portStatFields = usePortStatFields(dagData.edges);
 
   const handlePlanSelect = (item: QueryPlanDataItem | undefined) => {
     if (item) {
@@ -139,6 +153,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         </ResizablePanel>
 
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
+
+        <div className="border-t border-border">
+          <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} />
+        </div>
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
         <ResizablePanel

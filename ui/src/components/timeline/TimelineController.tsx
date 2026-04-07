@@ -8,7 +8,7 @@ import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { withOpacity } from '@/services/colors';
-import { formatDuration } from '@/services/formatters';
+import { formatDurationForAxisInterval } from '@/services/formatters';
 import {
   buildBinnedTimelineSeries,
   connectChart,
@@ -139,7 +139,7 @@ export function TimelineController({
         color: colors.timelineMarkupColor,
         fontFamily: TIMELINE_MONO_FONT,
         formatter: (value: number) => {
-          return formatDuration(Number(value) - startTimeMillis, 0);
+          return formatDurationForAxisInterval(Number(value) - startTimeMillis, interval);
         },
       },
       splitLine: {
@@ -255,7 +255,12 @@ export function TimelineController({
             fontFamily: TIMELINE_MONO_FONT,
           },
           labelFormatter: (tsMilliseconds: number) => {
-            return formatDuration(Number(tsMilliseconds) - startTimeMillis, 0);
+            const spanMs = endTimeMillis - startTimeMillis;
+            const zoomInterval = getTimelineXAxisIntervalMs(spanMs, CONTROLLER_X_MIN_LABELS);
+            return formatDurationForAxisInterval(
+              Number(tsMilliseconds) - startTimeMillis,
+              zoomInterval
+            );
           },
           emphasis: {
             handleStyle: {
