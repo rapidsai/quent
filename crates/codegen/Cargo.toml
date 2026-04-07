@@ -14,5 +14,5 @@ syn = { version = "2", features = ["full", "parsing"] }
 
 [dev-dependencies]
 quent-query-engine-model = { path = "../../domains/query_engine/model" }
-quent-simulator-model = { path = "../../examples/simulator/model" }
+quent-simulator-instrumentation = { path = "../../examples/simulator/instrumentation" }
 syn = { version = "2", features = ["full", "parsing"] }

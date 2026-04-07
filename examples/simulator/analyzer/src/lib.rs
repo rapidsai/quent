@@ -32,7 +32,7 @@ use quent_analyzer::{
         ResourceTimelineByKeyBuilder,
     },
 };
-use quent_simulator_events::SimulatorEvent;
+use quent_simulator_instrumentation::SimulatorEvent;
 use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, to_nanosecs, to_secs};
 use uuid::Uuid;

@@ -14,7 +14,7 @@ use quent_exporter::{
 };
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_events::SimulatorEvent;
+use quent_simulator_instrumentation::SimulatorEvent;
 use tokio::net::TcpListener;
 
 mod defaults {

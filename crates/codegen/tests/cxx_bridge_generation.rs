@@ -58,7 +58,7 @@ fn generate_query_engine_cxx_bridge() {
 #[test]
 fn generate_task_fsm_cxx_bridge() {
     let mut builder = quent_model::ModelBuilder::new();
-    quent_simulator_model::task::Task::collect(&mut builder);
+    quent_simulator_instrumentation::task::Task::collect(&mut builder);
 
     let options = CxxOptions::default();
     let files = emit_cxx(&builder, &options);

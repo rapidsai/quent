@@ -20,9 +20,9 @@ use quent_query_engine_events::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
 };
-use quent_simulator_events::SimulatorEvent;
 use quent_simulator_instrumentation::SimulatorContext;
-use quent_simulator_model::task::*;
+use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_instrumentation::task::*;
 use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -597,10 +597,10 @@ impl Worker {
 
         // Thread pool
         let thread_pool = Uuid::now_v7();
-        let tp_obs = quent_simulator_model::ThreadPoolObserver::new(&tx);
+        let tp_obs = quent_simulator_instrumentation::ThreadPoolObserver::new(&tx);
         tp_obs.thread_pool(
             thread_pool,
-            quent_simulator_model::ThreadPoolDeclaration {
+            quent_simulator_instrumentation::ThreadPoolDeclaration {
                 instance_name: "Thread Pool".into(),
                 parent_group_id: id,
             },
@@ -1179,10 +1179,10 @@ impl Engine {
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        let net_obs = quent_simulator_model::NetworkObserver::new(&tx);
+        let net_obs = quent_simulator_instrumentation::NetworkObserver::new(&tx);
         net_obs.network(
             self.network,
-            quent_simulator_model::NetworkDeclaration {
+            quent_simulator_instrumentation::NetworkDeclaration {
                 instance_name: "network".into(),
                 parent_group_id: self.id,
             },

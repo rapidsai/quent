@@ -30,7 +30,7 @@ use quent_query_engine_analyzer::{
     worker::Worker,
 };
 use quent_query_engine_model::QueryEngineEvent;
-use quent_simulator_events::SimulatorEvent;
+use quent_simulator_instrumentation::SimulatorEvent;
 use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
@@ -136,7 +136,9 @@ impl SimulatorModel {
 impl
     FsmCollection<
         Task,
-        quent_analyzer::fsm::events::TransitionEvent<quent_simulator_events::task::TaskTransition>,
+        quent_analyzer::fsm::events::TransitionEvent<
+            quent_simulator_instrumentation::task::TaskTransition,
+        >,
     > for SimulatorModel
 {
     fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a Task> + 'a
@@ -295,7 +297,9 @@ impl SimulatorModelBuilder {
             SimulatorEvent::Memory(m) => self.push_memory(id, timestamp, m),
             SimulatorEvent::Processor(p) => self.push_processor(id, timestamp, p),
             SimulatorEvent::Channel(c) => self.push_channel(id, timestamp, c),
-            SimulatorEvent::ThreadPool(quent_simulator_model::ThreadPoolEvent::Declaration(d)) => {
+            SimulatorEvent::ThreadPool(
+                quent_simulator_instrumentation::ThreadPoolEvent::Declaration(d),
+            ) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
                     "thread_pool",
@@ -304,7 +308,9 @@ impl SimulatorModelBuilder {
                 );
                 Ok(())
             }
-            SimulatorEvent::Network(quent_simulator_model::NetworkEvent::Declaration(d)) => {
+            SimulatorEvent::Network(
+                quent_simulator_instrumentation::NetworkEvent::Declaration(d),
+            ) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
                     "network",

@@ -12,8 +12,7 @@ quent-query-engine-events = { path = "../../../domains/query_engine/events" }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-model = { path = "../../../crates/model" }
-quent-simulator-events = { path = "../events" }
-quent-simulator-model = { path = "../model" }
+quent-simulator-instrumentation = { path = "../instrumentation" }
 quent-simulator-ui = { path = "../ui" }
 quent-stdlib = { path = "../../../crates/stdlib" }
 quent-time = { path = "../../../crates/time" }

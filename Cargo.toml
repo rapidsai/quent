@@ -33,9 +33,7 @@ members = [
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",
-    "examples/simulator/events",
     "examples/simulator/instrumentation",
-    "examples/simulator/model",
     "examples/simulator/server",
     "examples/simulator/ui",
 ]
