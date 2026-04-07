@@ -364,24 +364,33 @@ fn emit_state_conversion_tokens(
         .map(|a| emit_field_conversion_tokens(a, q))
         .collect();
 
+    // Generate type aliases for capacity types (associated type projection
+    // cannot be used directly in struct literal position on stable Rust).
+    let capacity_aliases: Vec<TokenStream> = state
+        .usages
+        .iter()
+        .map(|usage| {
+            let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
+            let resource_ty: syn::Type = syn::parse_str(&usage.resource_type_path).unwrap();
+            quote! {
+                type #alias = <#resource_ty as #q::Resource>::CapacityValue;
+            }
+        })
+        .collect();
+
     let usage_fields: Vec<TokenStream> = state
         .usages
         .iter()
         .map(|usage| {
             let field_name = format_ident!("{}", usage.field_name);
             let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
-            // TODO: capacity type path should come from model metadata
-            let capacity_type: syn::Type = {
-                let pascal = to_pascal_case(&usage.resource_name);
-                let path = format!("quent_stdlib::{}Operating", pascal);
-                syn::parse_str(&path).unwrap()
-            };
+            let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
 
             if usage.capacities.is_empty() {
                 quote! {
                     #field_name: #q::Usage {
                         resource_id: #q::Ref::new(#q::uuid::Uuid::from(data.#resource_id_field)),
-                        capacity: #capacity_type {},
+                        capacity: #alias {},
                     },
                 }
             } else {
@@ -400,7 +409,7 @@ fn emit_state_conversion_tokens(
                 quote! {
                     #field_name: #q::Usage {
                         resource_id: #q::Ref::new(#q::uuid::Uuid::from(data.#resource_id_field)),
-                        capacity: #capacity_type {
+                        capacity: #alias {
                             #(#cap_fields)*
                         },
                     },
@@ -410,6 +419,7 @@ fn emit_state_conversion_tokens(
         .collect();
 
     quote! {
+        #(#capacity_aliases)*
         let state = #icrate::#state_pascal {
             #(#attr_fields)*
             #(#usage_fields)*

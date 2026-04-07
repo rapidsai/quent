@@ -305,10 +305,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         .map(|u| {
             let name = &u.name;
             let resource_ty = &u.resource_ty;
+            let resource_ty_str = quote!(#resource_ty).to_string();
             quote! {
                 quent_model::UsageDef {
                     field_name: #name.to_string(),
                     resource_name: <#resource_ty as quent_model::Resource>::RESOURCE_NAME.to_string(),
+                    resource_type_path: #resource_ty_str.to_string(),
                     capacities: vec![],
                 }
             }
