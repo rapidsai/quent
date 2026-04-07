@@ -41,7 +41,7 @@ fn main() {
 
     // Generate CXX bridge Rust source files
     let options = CxxOptions {
-        namespace: "telemetry".to_string(),
+        namespace: "quent".to_string(),
         crate_name: "quent-cpp-example-bridge".to_string(),
         bridge_path: "src/bridge".to_string(),
         model_crate: "quent_cpp_example_instrumentation".to_string(),

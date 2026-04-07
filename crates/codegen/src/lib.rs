@@ -12,7 +12,7 @@ use quent_model::ModelBuilder;
 
 /// Configuration for the CXX bridge backend.
 pub struct CxxOptions {
-    /// C++ namespace for generated types (e.g., "myapp::telemetry").
+    /// C++ namespace for generated types (e.g., "myapp::quent").
     pub namespace: String,
     /// The Rust crate name (used for CXX include paths).
     pub crate_name: String,
@@ -27,7 +27,7 @@ pub struct CxxOptions {
 impl Default for CxxOptions {
     fn default() -> Self {
         Self {
-            namespace: "telemetry".to_string(),
+            namespace: "quent".to_string(),
             crate_name: "instrumentation".to_string(),
             bridge_path: "src/bridge".to_string(),
             model_crate: "model".to_string(),
