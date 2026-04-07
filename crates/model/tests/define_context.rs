@@ -14,9 +14,8 @@ quent_model::define_context!(pub TestContext(TestEvent));
 
 #[test]
 fn define_context_struct_exists() {
-    // Verify the generated struct has the expected methods.
-    // We cannot actually create a context without an exporter, but we can
-    // verify the type and its API exist.
+    // Verify the generated struct has the expected method.
+    #[allow(clippy::type_complexity)]
     let _: fn(
         Option<quent_model::ExporterOptions>,
         uuid::Uuid,
