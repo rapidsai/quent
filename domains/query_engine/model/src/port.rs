@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 #[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Declaration {
+    /// The ID of the operator this port belongs to.
     pub operator_id: Uuid,
+    /// The name of this port.
     pub instance_name: String,
 }
 
