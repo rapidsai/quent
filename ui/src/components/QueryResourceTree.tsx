@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Column, TreeTable } from '@/components/ui/tree-table';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useAtom, useAtomValue } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
+import { useNavigate } from '@tanstack/react-router';
 import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
 import { ResourceTree } from '~quent/types/ResourceTree';
 import { TimelineController } from './timeline/TimelineController';
@@ -23,7 +25,10 @@ import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/time
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import { expandedIdsAtom, selectedTypesAtom, selectedFsmTypesAtom } from '@/atoms/resourceTree';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
+import { encodeTreeState } from '@/lib/treeStateParam';
+import type { TreeState } from '@/lib/treeStateParam';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -34,31 +39,68 @@ function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string |
 interface QueryResourceTreeProps {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
+  initialZoom?: { start: number; end: number };
+  initialTreeState?: TreeState | null;
 }
 
 export function QueryResourceTree(props: QueryResourceTreeProps) {
   return <QueryResourceTreeContent {...props} />;
 }
 
-function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
+function QueryResourceTreeContent({
+  queryBundle,
+  engineId,
+  initialZoom,
+  initialTreeState,
+}: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
-  const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
-  const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
-  useHydrateAtoms([
-    [zoomRangeAtom, { start: 0, end: durationSeconds }],
-    [debouncedZoomRangeAtom, { start: 0, end: durationSeconds }],
-    [startTimeMsAtom, startTimeMs],
-  ]);
-
   const rootItem = useMemo(
     () => transformResourceTree(entities, resourceTree),
     [resourceTree, entities]
   );
+
+  const zoomInit = initialZoom ?? { start: 0, end: durationSeconds };
+
+  const initialExpandedIds = useMemo(
+    () =>
+      initialTreeState ? new Set(initialTreeState.expandedIds) : new Set<string>([rootItem.id]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  const initialSelectedTypes = useMemo(
+    () =>
+      initialTreeState
+        ? new Map(Object.entries(initialTreeState.selectedTypes))
+        : new Map<string, string>(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  const initialSelectedFsmTypes = useMemo(
+    () =>
+      initialTreeState
+        ? new Map(Object.entries(initialTreeState.selectedFsmTypes))
+        : new Map<string, string | null>(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  useHydrateAtoms([
+    [zoomRangeAtom, zoomInit],
+    [debouncedZoomRangeAtom, zoomInit],
+    [startTimeMsAtom, startTimeMs],
+    [expandedIdsAtom, initialExpandedIds],
+    [selectedTypesAtom, initialSelectedTypes],
+    [selectedFsmTypesAtom, initialSelectedFsmTypes],
+  ]);
+
+  const [selectedTypes, setSelectedTypes] = useAtom(selectedTypesAtom);
+  const [selectedFsmTypes, setSelectedFsmTypes] = useAtom(selectedFsmTypesAtom);
+  const expandedIds = useAtomValue(expandedIdsAtom);
 
   const highlightedItemIds = useHighlightedItemIds(rootItem);
 
@@ -68,7 +110,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
-  const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
+  const { handleExpandChange } = useExpandedIds();
+  const expandedIdsArray = useMemo(() => [...expandedIds], [expandedIds]);
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
@@ -87,6 +130,19 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     },
     [handleExpandChange, handleExpand]
   );
+
+  const navigate = useNavigate({ from: '/profile/engine/$engineId/query/$queryId/' });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const encoded = encodeTreeState({ expandedIds, selectedTypes, selectedFsmTypes });
+      void navigate({
+        search: prev => ({ ...prev, treeState: encoded }),
+        replace: true,
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [expandedIds, selectedTypes, selectedFsmTypes, navigate]);
 
   const { data: fetchedRootTimeline } = useQuery({
     queryKey: [
@@ -194,6 +250,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     handleZoomChange,
+    setSelectedTypes,
+    setSelectedFsmTypes,
   ]);
 
   return (
@@ -204,6 +262,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           data={treeData}
           columns={columns}
           initialSelectedItemId={rootItem.id}
+          expandedItemIds={expandedIdsArray}
           columnWidths={[275, 'auto']}
           onExpandChange={onExpandChange}
           highlightedItemIds={highlightedItemIds}

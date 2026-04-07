@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, lazy, Suspense } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom, useSetAtom, useStore } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
@@ -28,6 +28,7 @@ const DAGChart = lazy(() =>
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const [planId, setPlanId] = useAtom(selectedPlanIdAtom);
   const setHoveredWorkerId = useSetAtom(hoveredWorkerIdAtom);
+  const store = useStore();
 
   const {
     data: queryBundle,
@@ -49,12 +50,15 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     }
   };
 
-  // TODO: Currently fetching root plan when bundle loads - is this correct?
+  // Set the default plan only when the atom is empty at effect-run time.
+  // Reading via store.get() instead of the closure-captured planId ensures we see any
+  // value that useHydrateAtoms in the child route may have written during the same
+  // render cycle, preventing it from being overridden by the root-plan default.
   useEffect(() => {
-    if (queryBundle && !planId) {
+    if (queryBundle && !store.get(selectedPlanIdAtom)) {
       setPlanId(queryBundle.plan_tree.id);
     }
-  }, [queryBundle, planId, setPlanId]);
+  }, [queryBundle, setPlanId, store]);
 
   // handle loading and error states
   if (queryBundleLoading) {

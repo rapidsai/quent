@@ -336,6 +336,12 @@ export function TimelineController({
 
   const zoomRange = useAtomValue(zoomRangeAtom);
 
+  // Refs for use inside handleChartReady (stable callback with no deps).
+  const zoomRangeRef = useRef(zoomRange);
+  zoomRangeRef.current = zoomRange;
+  const durationSecondsRef = useRef(durationSeconds);
+  durationSecondsRef.current = durationSeconds;
+
   useEffect(() => {
     if (selfTriggeredRef.current) {
       selfTriggeredRef.current = false;
@@ -359,6 +365,20 @@ export function TimelineController({
     instanceRef.current = instance;
     connectChart(instance);
     registerAxisPointerSync(instance, 0);
+
+    // Dispatch the initial zoom immediately so the chart group zoom state is correct
+    // before any Timeline row charts call connectChart and read it. The useEffect that
+    // normally handles zoom sync can't do this because instanceRef is null when it first runs.
+    const dur = durationSecondsRef.current;
+    if (dur > 0) {
+      const zoom = zoomRangeRef.current;
+      instance.dispatchAction({
+        type: 'dataZoom',
+        dataZoomIndex: 0,
+        start: (zoom.start / dur) * 100,
+        end: (zoom.end / dur) * 100,
+      });
+    }
   }, []);
 
   useEffect(() => {
