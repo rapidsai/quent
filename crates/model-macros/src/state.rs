@@ -325,7 +325,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let output = quote! {
-        // StateMetadata impl
         impl quent_model::StateMetadata for #state_name_ident {
             fn state_name() -> &'static str {
                 #state_snake
@@ -340,35 +339,30 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        // ExtractCapacities impl
         impl quent_model::analyze::ExtractCapacities for #state_name_ident {
             fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> {
                 #extract_capacities_body
             }
         }
 
-        // ExtractUsages impl
         impl quent_model::analyze::ExtractUsages for #state_name_ident {
             fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> {
                 #extract_usages_body
             }
         }
 
-        // ExtractInstanceName impl
         impl quent_model::analyze::ExtractInstanceName for #state_name_ident {
             fn extract_instance_name(&self) -> Option<&str> {
                 #extract_instance_name_body
             }
         }
 
-        // ExtractParentGroupId impl
         impl quent_model::analyze::ExtractParentGroupId for #state_name_ident {
             fn extract_parent_group_id(&self) -> Option<uuid::Uuid> {
                 #extract_parent_group_id_body
             }
         }
 
-        // HasParentGroup marker (if applicable)
         #has_parent_group_impl
     };
 

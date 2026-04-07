@@ -446,7 +446,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let output = quote! {
-        // Transition enum
         #[derive(Debug, Clone #serde_derives)]
         #vis enum #transition_enum {
             #(#transition_variants,)*
@@ -455,7 +454,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         #(#from_impls)*
 
-        // TransitionInfo impl
         impl quent_model::analyze::TransitionInfo for #transition_enum {
             fn state_name(&self) -> &'static str {
                 match self {
@@ -494,10 +492,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        // Event type alias
         #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
 
-        // ModelComponent impl (on the original struct)
         impl quent_model::ModelComponent for #fsm_name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
@@ -513,7 +509,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        // The FSM handle struct
         #vis struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
@@ -586,18 +581,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        // HasEventType impl
         impl quent_model::HasEventType for #fsm_name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
 
-        // ResourceGroup trait impl (if applicable)
         #rg_trait_impl
 
-        // Compile-time parent group assertion (non-root resource groups)
         #rg_parent_group_assert
 
-        // Resource marker (if resource directive was present)
         #resource_impl
 
     };

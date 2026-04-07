@@ -438,7 +438,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     );
 
     let output = quote! {
-        // Initializing state
         #[derive(Debug, Clone #serde_derives)]
         #vis struct #init_state {
             pub instance_name: String,
@@ -449,18 +448,14 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #init_state_impls
 
-        // Operating state
         #op_state_def
 
-        // Finalizing state
         #[derive(Debug, Clone #serde_derives)]
         #vis struct #fin_state;
         #fin_state_impls
 
-        // Resizing state (ResizableResource only)
         #resizing_code
 
-        // Transition enum
         #[derive(Debug, Clone #serde_derives)]
         #vis enum #transition_enum {
             #transition_variants
@@ -468,7 +463,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #from_impls
 
-        // TransitionInfo
         impl quent_model::analyze::TransitionInfo for #transition_enum {
             fn state_name(&self) -> &'static str {
                 match self { #transition_name_arms }
@@ -488,15 +482,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         }
 
-        // Event type alias
         #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
 
-        // HasEventType
         impl quent_model::HasEventType for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
 
-        // Resource marker
         #vis struct #resource_marker;
 
         impl quent_model::Resource for #resource_marker {
@@ -504,7 +495,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             const RESOURCE_NAME: &'static str = #name_snake;
         }
 
-        // ModelComponent
         impl quent_model::ModelComponent for #name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
@@ -515,7 +505,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         }
 
-        // Handle
         #vis struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
