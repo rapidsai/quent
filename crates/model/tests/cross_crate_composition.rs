@@ -121,7 +121,6 @@ fn state_with_usage_fields() {
     assert_eq!(computing_def.usages.len(), 2);
     assert_eq!(computing_def.usages[0].field_name, "thread");
     assert_eq!(computing_def.usages[1].field_name, "memory");
-    assert_eq!(computing_def.deferred_attributes.len(), 0);
 }
 
 #[test]

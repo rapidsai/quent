@@ -197,9 +197,9 @@ fn parse_resource_attr(input: &DeriveInput) -> syn::Result<Option<Ident>> {
 /// Expand the Fsm derive macro.
 ///
 /// Parses struct fields with `#[entry]` and `#[to(...)]` attributes to build
-/// the transition table, then generates transition enum, deferred enum, event
-/// type alias, handle struct, ModelComponent impl, TransitionInfo impl, and
-/// HasEventType impl.
+/// the transition table, then generates transition enum, event type alias,
+/// handle struct, ModelComponent impl, TransitionInfo impl, and HasEventType
+/// impl.
 ///
 /// Does NOT re-emit the struct (derive macros append).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
@@ -296,7 +296,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
     // Names for generated types
     let transition_enum = format_ident!("{}Transition", fsm_name);
-    let deferred_enum = format_ident!("{}Deferred", fsm_name);
     let event_type = format_ident!("{}Event", fsm_name);
     let handle_name = format_ident!("{}Handle", fsm_name);
 
@@ -495,14 +494,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        // Deferred enum
-        #[derive(Debug, Clone #serde_derives)]
-        #vis enum #deferred_enum {
-            #(#state_idents(<#state_idents as quent_model::StateMetadata>::Deferred),)*
-        }
-
         // Event type alias
-        #vis type #event_type = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
+        #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
 
         // ModelComponent impl (on the original struct)
         impl quent_model::ModelComponent for #fsm_name {
@@ -595,7 +588,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         // HasEventType impl
         impl quent_model::HasEventType for #fsm_name {
-            type Event = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
+            type Event = quent_model::FsmEvent<#transition_enum>;
         }
 
         // ResourceGroup trait impl (if applicable)

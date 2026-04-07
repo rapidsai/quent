@@ -74,14 +74,13 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
 }
 
 /// Builder for reconstructing an `FsmEvents` from model events.
-pub struct FsmEventsBuilder<T: TransitionInfo, D> {
+pub struct FsmEventsBuilder<T: TransitionInfo> {
     id: Uuid,
     instance_name: String,
     transitions: TimeOrderedCollector<TransitionEvent<T>>,
-    _deferred: std::marker::PhantomData<D>,
 }
 
-impl<T: TransitionInfo, D> FsmEventsBuilder<T, D> {
+impl<T: TransitionInfo> FsmEventsBuilder<T> {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
@@ -92,7 +91,6 @@ impl<T: TransitionInfo, D> FsmEventsBuilder<T, D> {
                 id,
                 instance_name: String::new(),
                 transitions: TimeOrderedCollector::default(),
-                _deferred: std::marker::PhantomData,
             })
         }
     }
@@ -102,39 +100,33 @@ impl<T: TransitionInfo, D> FsmEventsBuilder<T, D> {
         self.id
     }
 
-    pub fn push(&mut self, event: Event<FsmEvent<T, D>>) {
-        match event.data {
-            FsmEvent::Transition { state, .. } => {
-                let state_name = state.state_name();
-                // Capture instance name from the first transition that provides one.
-                if self.instance_name.is_empty()
-                    && let Some(name) = state.instance_name()
-                {
-                    self.instance_name = name.to_owned();
-                }
-                let extracted = state.usages();
-                let usages: SmallVec<[AnalyzedUsage; 3]> = extracted
-                    .into_iter()
-                    .map(|u| AnalyzedUsage {
-                        resource_id: u.resource_id,
-                        capacities: u
-                            .capacities
-                            .into_iter()
-                            .map(|c| CapacityValue::new(c.name, c.value.unwrap_or(0)))
-                            .collect(),
-                    })
-                    .collect();
-                self.transitions.push(TransitionEvent {
-                    timestamp: event.timestamp,
-                    state_name,
-                    usages,
-                    data: state,
-                });
-            }
-            FsmEvent::Deferred { .. } => {
-                // Deferred events will be merged in future work.
-            }
+    pub fn push(&mut self, event: Event<FsmEvent<T>>) {
+        let FsmEvent::Transition { state, .. } = event.data;
+        let state_name = state.state_name();
+        // Capture instance name from the first transition that provides one.
+        if self.instance_name.is_empty()
+            && let Some(name) = state.instance_name()
+        {
+            self.instance_name = name.to_owned();
         }
+        let extracted = state.usages();
+        let usages: SmallVec<[AnalyzedUsage; 3]> = extracted
+            .into_iter()
+            .map(|u| AnalyzedUsage {
+                resource_id: u.resource_id,
+                capacities: u
+                    .capacities
+                    .into_iter()
+                    .map(|c| CapacityValue::new(c.name, c.value.unwrap_or(0)))
+                    .collect(),
+            })
+            .collect();
+        self.transitions.push(TransitionEvent {
+            timestamp: event.timestamp,
+            state_name,
+            usages,
+            data: state,
+        });
     }
 
     pub fn try_build(self) -> AnalyzerResult<FsmEvents<T>> {

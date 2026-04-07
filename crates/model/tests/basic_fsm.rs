@@ -84,7 +84,6 @@ fn state_metadata() {
 
     let def = Computing::state_def();
     assert_eq!(def.name, "computing");
-    assert_eq!(def.deferred_attributes.len(), 0);
 }
 
 #[test]

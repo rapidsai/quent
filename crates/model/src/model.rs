@@ -101,7 +101,6 @@ pub struct FsmDef {
 pub struct StateDef {
     pub name: String,
     pub attributes: Vec<AttributeDef>,
-    pub deferred_attributes: Vec<AttributeDef>,
     pub usages: Vec<UsageDef>,
 }
 

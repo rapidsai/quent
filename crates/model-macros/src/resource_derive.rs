@@ -90,7 +90,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let fin_state = format_ident!("{}Finalizing", name);
     let resize_state = format_ident!("{}Resizing", name);
     let transition_enum = format_ident!("{}Transition", name);
-    let deferred_enum = format_ident!("{}Deferred", name);
     let event_type = format_ident!("{}Event", name);
     let handle_name = format_ident!("{}Handle", name);
     let resource_marker = format_ident!("{}Resource", name);
@@ -174,16 +173,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #[derive(Debug, Clone #serde_derives)]
             #vis struct #op_state;
 
-            impl quent_model::State for #op_state {}
-
             impl quent_model::StateMetadata for #op_state {
-                type Deferred = #deferred_enum;
                 fn state_name() -> &'static str { "operating" }
                 fn state_def() -> quent_model::StateDef {
                     quent_model::StateDef {
                         name: "operating".to_string(),
                         attributes: vec![],
-                        deferred_attributes: vec![],
                         usages: vec![],
                     }
                 }
@@ -214,16 +209,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
                 #(#capacity_field_defs,)*
             }
 
-            impl quent_model::State for #op_state {}
-
             impl quent_model::StateMetadata for #op_state {
-                type Deferred = #deferred_enum;
                 fn state_name() -> &'static str { "operating" }
                 fn state_def() -> quent_model::StateDef {
                     quent_model::StateDef {
                         name: "operating".to_string(),
                         attributes: vec![],
-                        deferred_attributes: vec![],
                         usages: vec![],
                     }
                 }
@@ -336,16 +327,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #[derive(Debug, Clone #serde_derives)]
             #vis struct #resize_state;
 
-            impl quent_model::State for #resize_state {}
-
             impl quent_model::StateMetadata for #resize_state {
-                type Deferred = #deferred_enum;
                 fn state_name() -> &'static str { "resizing" }
                 fn state_def() -> quent_model::StateDef {
                     quent_model::StateDef {
                         name: "resizing".to_string(),
                         attributes: vec![],
-                        deferred_attributes: vec![],
                         usages: vec![],
                     }
                 }
@@ -462,16 +449,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #(#user_init_field_defs,)*
         }
 
-        impl quent_model::State for #init_state {}
-
         impl quent_model::StateMetadata for #init_state {
-            type Deferred = #deferred_enum;
             fn state_name() -> &'static str { "initializing" }
             fn state_def() -> quent_model::StateDef {
                 quent_model::StateDef {
                     name: "initializing".to_string(),
                     attributes: vec![],
-                    deferred_attributes: vec![],
                     usages: vec![],
                 }
             }
@@ -497,16 +480,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #[derive(Debug, Clone #serde_derives)]
         #vis struct #fin_state;
 
-        impl quent_model::State for #fin_state {}
-
         impl quent_model::StateMetadata for #fin_state {
-            type Deferred = #deferred_enum;
             fn state_name() -> &'static str { "finalizing" }
             fn state_def() -> quent_model::StateDef {
                 quent_model::StateDef {
                     name: "finalizing".to_string(),
                     attributes: vec![],
-                    deferred_attributes: vec![],
                     usages: vec![],
                 }
             }
@@ -527,10 +506,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         // Resizing state (ResizableResource only)
         #resizing_code
-
-        // Deferred enum (empty — resources have no deferred fields)
-        #[derive(Debug, Clone #serde_derives)]
-        #vis enum #deferred_enum {}
 
         // Transition enum
         #[derive(Debug, Clone #serde_derives)]
@@ -561,11 +536,11 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
 
         // Event type alias
-        #vis type #event_type = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
+        #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
 
         // HasEventType
         impl quent_model::HasEventType for #name {
-            type Event = quent_model::FsmEvent<#transition_enum, #deferred_enum>;
+            type Event = quent_model::FsmEvent<#transition_enum>;
         }
 
         // Resource marker

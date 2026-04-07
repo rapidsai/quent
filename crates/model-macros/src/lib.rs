@@ -40,7 +40,6 @@ mod util;
 /// Derive macro for FSM state structs.
 ///
 /// Field-level attributes:
-/// - `#[deferred]` — marks an `Option<T>` deferred field
 /// - `#[instance_name]` — marks the field carrying the instance name
 ///
 /// Capacity fields are detected by type (`Capacity<V, K>`), not by annotation.

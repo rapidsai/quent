@@ -14,13 +14,13 @@ use quent_analyzer::{
     },
     resource::{ResourceGroup, Usage, Using},
 };
-use quent_query_engine_model::query::{QueryDeferred, QueryTransition as ModelQueryTransition};
+use quent_query_engine_model::query::QueryTransition as ModelQueryTransition;
 use quent_query_engine_ui as ui;
 use quent_time::{Timestamp, try_to_secs_relative};
 use uuid::Uuid;
 
 /// Builder for Query FSMs.
-pub type QueryBuilder = FsmEventsBuilder<ModelQueryTransition, QueryDeferred>;
+pub type QueryBuilder = FsmEventsBuilder<ModelQueryTransition>;
 
 /// A reconstructed Query FSM with resource group support.
 #[derive(Debug)]

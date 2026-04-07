@@ -43,11 +43,6 @@ pub fn to_snake_case(ident: &Ident) -> String {
     ident.to_string().to_case(Case::Snake)
 }
 
-/// Converts a snake_case string to PascalCase.
-pub fn to_pascal_case(s: &str) -> String {
-    s.to_case(Case::Pascal)
-}
-
 /// Check if a field has a specific attribute.
 pub fn field_has_attr(field: &syn::Field, attr_name: &str) -> bool {
     field.attrs.iter().any(|a| {
@@ -193,25 +188,5 @@ mod tests {
     fn snake_case_already_lowercase() {
         let ident = Ident::new("hello", Span::call_site());
         assert_eq!(to_snake_case(&ident), "hello");
-    }
-
-    #[test]
-    fn pascal_case_basic() {
-        assert_eq!(to_pascal_case("foo_bar"), "FooBar");
-    }
-
-    #[test]
-    fn pascal_case_single_word() {
-        assert_eq!(to_pascal_case("hello"), "Hello");
-    }
-
-    #[test]
-    fn pascal_case_already_pascal() {
-        assert_eq!(to_pascal_case("FooBar"), "FooBar");
-    }
-
-    #[test]
-    fn pascal_case_empty_segments() {
-        assert_eq!(to_pascal_case("foo__bar"), "FooBar");
     }
 }

@@ -14,7 +14,7 @@ use quent_analyzer::{
         events::{FsmEvents, FsmEventsBuilder},
     },
 };
-use quent_simulator_instrumentation::task::{TaskDeferred, TaskTransition as ModelTaskTransition};
+use quent_simulator_instrumentation::task::TaskTransition as ModelTaskTransition;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative};
 use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
 use uuid::Uuid;
@@ -23,7 +23,7 @@ use uuid::Uuid;
 pub type Task = FsmEvents<ModelTaskTransition>;
 
 /// Builder for Task FSMs.
-pub type TaskBuilder = FsmEventsBuilder<ModelTaskTransition, TaskDeferred>;
+pub type TaskBuilder = FsmEventsBuilder<ModelTaskTransition>;
 
 /// Application-specific methods on the Task FSM.
 pub trait TaskExt {

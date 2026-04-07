@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::DeriveInput;
 
 use crate::util::{resolve_value_type, to_snake_case};
@@ -11,8 +11,6 @@ use crate::util::{resolve_value_type, to_snake_case};
 struct StateFields {
     /// Fields with `Usage<T>` type (detected automatically).
     usages: Vec<UsageField>,
-    /// Fields annotated with `#[deferred]`.
-    deferred: Vec<DeferredField>,
     /// Fields with `Capacity<V, K>` type (detected by type, not annotation).
     capacities: Vec<CapacityField>,
     /// Field annotated with `#[instance_name]` (at most one).
@@ -34,14 +32,6 @@ struct UsageField {
     ident: Ident,
     /// The inner resource type T from Usage<T>.
     resource_ty: syn::Type,
-}
-
-struct DeferredField {
-    name: String,
-    /// The inner type (unwrapped from Option<T>), as tokens for code generation.
-    inner_ty: TokenStream,
-    /// The inner type (unwrapped from Option<T>), as syn::Type for value type resolution.
-    inner_type: syn::Type,
 }
 
 struct RegularField {
@@ -93,7 +83,6 @@ fn is_option_type(ty: &syn::Type) -> bool {
 
 fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
     let mut usages = Vec::new();
-    let deferred = Vec::new();
     let mut capacities = Vec::new();
     let mut instance_name_field = None;
     let mut parent_group_field = None;
@@ -105,7 +94,6 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             syn::Fields::Unit => {
                 return Ok(StateFields {
                     usages,
-                    deferred,
                     capacities,
                     instance_name_field,
                     parent_group_field,
@@ -205,7 +193,6 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
 
     Ok(StateFields {
         usages,
-        deferred,
         capacities,
         instance_name_field,
         parent_group_field,
@@ -213,42 +200,12 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
     })
 }
 
-/// Expand the State derive macro. Only emits impl blocks and the Deferred enum.
+/// Expand the State derive macro. Only emits impl blocks.
 /// Does NOT re-emit the struct (derive macros append, they don't replace).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
-    let serde_derives = crate::util::serde_derives();
-    let vis = &input.vis;
     let state_name_ident = &input.ident;
     let state_snake = to_snake_case(state_name_ident);
     let fields = categorize_fields(&input)?;
-
-    // Generate the deferred enum
-    let deferred_ident = format_ident!("{}Deferred", state_name_ident);
-
-    let deferred_variants: Vec<TokenStream> = fields
-        .deferred
-        .iter()
-        .map(|d| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&d.name));
-            let inner = &d.inner_ty;
-            quote! { #variant(#inner) }
-        })
-        .collect();
-
-    let deferred_enum = if fields.deferred.is_empty() {
-        // Uninhabitable enum -- no deferred fields
-        quote! {
-            #[derive(Debug, Clone #serde_derives)]
-            #vis enum #deferred_ident {}
-        }
-    } else {
-        quote! {
-            #[derive(Debug, Clone #serde_derives)]
-            #vis enum #deferred_ident {
-                #(#deferred_variants,)*
-            }
-        }
-    };
 
     // Generate attribute defs for regular fields
     let regular_attr_defs: Vec<TokenStream> = fields
@@ -263,23 +220,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     name: #name.to_string(),
                     value_type: #value_type_tokens,
                     optional: #optional,
-                }
-            }
-        })
-        .collect();
-
-    // Generate deferred attribute defs
-    let deferred_attr_defs: Vec<TokenStream> = fields
-        .deferred
-        .iter()
-        .map(|d| {
-            let name = &d.name;
-            let (value_type_tokens, _) = resolve_value_type(&d.inner_type);
-            quote! {
-                quent_model::AttributeDef {
-                    name: #name.to_string(),
-                    value_type: #value_type_tokens,
-                    optional: true,
                 }
             }
         })
@@ -308,10 +248,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     // For unit structs (no fields at all): emit a single "unit" capacity.
     // For structs with Capacity<V, K> fields: emit one capacity per field.
     // For structs without Capacity<V, K> fields: emit empty vec.
-    let is_unit_struct = fields.regular.is_empty()
-        && fields.usages.is_empty()
-        && fields.deferred.is_empty()
-        && fields.capacities.is_empty();
+    let is_unit_struct =
+        fields.regular.is_empty() && fields.usages.is_empty() && fields.capacities.is_empty();
 
     let extract_capacities_body = if is_unit_struct {
         quote! { vec![quent_model::analyze::ExtractedCapacity::unit()] }
@@ -387,16 +325,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let output = quote! {
-        // Deferred enum
-        #deferred_enum
-
-        // State trait impl
-        impl quent_model::State for #state_name_ident {}
-
         // StateMetadata impl
         impl quent_model::StateMetadata for #state_name_ident {
-            type Deferred = #deferred_ident;
-
             fn state_name() -> &'static str {
                 #state_snake
             }
@@ -405,7 +335,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 quent_model::StateDef {
                     name: #state_snake.to_string(),
                     attributes: vec![#(#regular_attr_defs,)*],
-                    deferred_attributes: vec![#(#deferred_attr_defs,)*],
                     usages: vec![#(#usage_defs,)*],
                 }
             }

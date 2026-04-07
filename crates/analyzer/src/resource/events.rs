@@ -103,15 +103,15 @@ impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for ResourceEvents<
 
 /// Builder for `ResourceEvents<T>`.
 ///
-/// Wraps `FsmEventsBuilder<T, D>` and extracts `parent_group_id` and
+/// Wraps `FsmEventsBuilder<T>` and extracts `parent_group_id` and
 /// `resource_type_name` from the first (Initializing) transition.
-pub struct ResourceEventsBuilder<T: TransitionInfo, D> {
-    inner: FsmEventsBuilder<T, D>,
+pub struct ResourceEventsBuilder<T: TransitionInfo> {
+    inner: FsmEventsBuilder<T>,
     parent_group_id: Option<Uuid>,
     resource_type_name: Option<String>,
 }
 
-impl<T: TransitionInfo, D> ResourceEventsBuilder<T, D> {
+impl<T: TransitionInfo> ResourceEventsBuilder<T> {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
             inner: FsmEventsBuilder::try_new(id)?,
@@ -130,7 +130,7 @@ impl<T: TransitionInfo, D> ResourceEventsBuilder<T, D> {
         self.resource_type_name = Some(name);
     }
 
-    pub fn push(&mut self, event: Event<FsmEvent<T, D>>) {
+    pub fn push(&mut self, event: Event<FsmEvent<T>>) {
         self.inner.push(event);
     }
 

@@ -90,7 +90,6 @@ fn unit_state_metadata() {
     let def = EmptyState::state_def();
     assert_eq!(def.name, "empty_state");
     assert!(def.attributes.is_empty());
-    assert!(def.deferred_attributes.is_empty());
     assert!(def.usages.is_empty());
 }
 
