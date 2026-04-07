@@ -4,11 +4,11 @@
 //
 // Pipeline: model (Rust) -> quent-codegen -> CXX bridge -> C++ headers -> this
 
-#include "quent-bridge/uuid.rs.h"
-#include "quent-bridge/context.rs.h"
-#include "quent-bridge/job.rs.h"
-#include "quent-bridge/thread_pool.rs.h"
-#include "quent-bridge/task.rs.h"
+#include "quent-bridge/gen/uuid.rs.h"
+#include "quent-bridge/gen/context.rs.h"
+#include "quent-bridge/gen/job.rs.h"
+#include "quent-bridge/gen/thread_pool.rs.h"
+#include "quent-bridge/gen/task.rs.h"
 
 #include <string>
 

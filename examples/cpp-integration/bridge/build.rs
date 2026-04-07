@@ -37,11 +37,14 @@ fn main() {
         }
     }
 
-    // Generate CXX bridge Rust source files
-    // Include paths will be: quent-bridge/{file}.rs.h
+    // Generate CXX bridge Rust source files into gen/
+    // C++ include paths will be: quent-bridge/gen/{file}.rs.h
+    let gen_dir = manifest_dir.join("gen");
+    fs::create_dir_all(&gen_dir).unwrap();
+
     let options = CxxOptions {
         crate_name: "quent-bridge".into(),
-        bridge_path: ".".into(),
+        bridge_path: "gen".into(),
         model_crate: "quent_cpp_example_instrumentation".into(),
         event_type: "quent_cpp_example_instrumentation::ExampleEvent".into(),
         ..Default::default()
@@ -54,14 +57,14 @@ fn main() {
         if file.name == "lib.rs" {
             continue; // We provide our own lib.rs
         }
-        let path = manifest_dir.join(&file.name);
+        let path = gen_dir.join(&file.name);
         fs::write(&path, &file.content).unwrap();
-        bridge_files.push(file.name.clone());
+        bridge_files.push(format!("gen/{}", file.name));
 
         let mod_name = file.name.trim_end_matches(".rs");
         mod_lines.push(format!(
             "#[path = \"{}/{}\"]\npub mod {};",
-            manifest_dir.display(),
+            gen_dir.display(),
             file.name,
             mod_name
         ));
