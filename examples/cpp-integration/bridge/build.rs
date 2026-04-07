@@ -41,11 +41,10 @@ fn main() {
 
     // Generate CXX bridge Rust source files
     let options = CxxOptions {
-        namespace: "quent".to_string(),
-        crate_name: "quent-cpp-example-bridge".to_string(),
-        bridge_path: "src/bridge".to_string(),
-        model_crate: "quent_cpp_example_instrumentation".to_string(),
-        event_type: "quent_cpp_example_instrumentation::ExampleEvent".to_string(),
+        crate_name: "quent-cpp-example-bridge".into(),
+        model_crate: "quent_cpp_example_instrumentation".into(),
+        event_type: "quent_cpp_example_instrumentation::ExampleEvent".into(),
+        ..Default::default()
     };
     let files = quent_codegen::emit_cxx(&builder, &options);
 
