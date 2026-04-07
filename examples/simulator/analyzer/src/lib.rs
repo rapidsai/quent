@@ -60,7 +60,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
-        use quent_query_engine_events::engine::EngineEvent;
+        use quent_query_engine_model::engine::EngineEvent;
         for event in events {
             if let SimulatorEvent::Engine(EngineEvent::Init(init)) = event.data {
                 return Ok(quent_query_engine_ui::Engine {

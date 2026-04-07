@@ -23,7 +23,6 @@ members = [
     "crates/ui",
     # Domain-specific crates
     "domains/query_engine/analyzer",
-    "domains/query_engine/events",
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",

@@ -4,7 +4,7 @@
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity};
-use quent_query_engine_events::plan::PlanParent;
+use quent_query_engine_model::plan::PlanParent;
 use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
@@ -129,7 +129,7 @@ impl<'a> Iterator for PlanTreeIter<'a> {
 #[cfg(test)]
 mod tests {
     use quent_events::Event;
-    use quent_query_engine_events::plan::{Declaration, PlanEvent};
+    use quent_query_engine_model::plan::{Declaration, PlanEvent};
     use quent_time::TimeUnixNanoSec;
 
     use super::*;

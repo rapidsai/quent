@@ -5,7 +5,7 @@ use quent_analyzer::entity::EntityEvents;
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_attributes::Attribute;
 use quent_events::Event;
-use quent_query_engine_events::port;
+use quent_query_engine_model::port;
 use quent_query_engine_ui as ui;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;

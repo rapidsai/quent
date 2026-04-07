@@ -14,7 +14,7 @@ use quent_analyzer::{
     },
     resource::{ResourceGroup, Usage, Using},
 };
-use quent_query_engine_events::query::{QueryDeferred, QueryTransition as ModelQueryTransition};
+use quent_query_engine_model::query::{QueryDeferred, QueryTransition as ModelQueryTransition};
 use quent_query_engine_ui as ui;
 use quent_time::{Timestamp, try_to_secs_relative};
 use uuid::Uuid;

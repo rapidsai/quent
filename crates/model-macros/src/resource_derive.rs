@@ -11,7 +11,7 @@
 //! - FSM transition table, handle, event types
 //! - Resource trait impl, ModelComponent, TransitionInfo, HasEventType
 
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{DeriveInput, Field};
 
@@ -19,15 +19,7 @@ use crate::util::to_snake_case;
 
 /// Check if a field's type is `Capacity<...>`.
 fn is_capacity_field(field: &Field) -> bool {
-    if let syn::Type::Path(type_path) = &field.ty {
-        type_path
-            .path
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "Capacity")
-    } else {
-        false
-    }
+    crate::util::is_capacity_type(&field.ty)
 }
 
 /// Categorize fields into init fields (non-capacity) and capacity fields.
@@ -114,12 +106,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         })
         .collect();
 
-    let _user_init_field_names: Vec<&Ident> = fields
-        .init_fields
-        .iter()
-        .filter_map(|f| f.ident.as_ref())
-        .collect();
-
     // Generate operating state fields (capacity fields only)
     let capacity_field_defs: Vec<TokenStream> = fields
         .capacity_fields
@@ -130,12 +116,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             let attrs = &f.attrs;
             quote! { #(#attrs)* pub #ident: #ty }
         })
-        .collect();
-
-    let _capacity_field_names: Vec<&Ident> = fields
-        .capacity_fields
-        .iter()
-        .filter_map(|f| f.ident.as_ref())
         .collect();
 
     // Generate ExtractCapacities for the operating state

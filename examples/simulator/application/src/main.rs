@@ -16,7 +16,7 @@ use quent_exporter::{
     PostcardExporterOptions,
 };
 use quent_model::prelude::*;
-use quent_query_engine_events::{
+use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
 };

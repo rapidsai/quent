@@ -30,11 +30,6 @@ impl CxxOptions {
     pub fn event_type(&self) -> String {
         format!("{}::{}Event", self.instrumentation_crate, self.model_name)
     }
-
-    /// The path prefix for framework types re-exported by `define_model!`.
-    pub fn bridge_module(&self) -> String {
-        format!("{}::__bridge", self.instrumentation_crate)
-    }
 }
 
 impl Default for CxxOptions {

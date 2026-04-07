@@ -1660,19 +1660,12 @@ dependencies = [
  "quent-attributes",
  "quent-events",
  "quent-model",
- "quent-query-engine-events",
+ "quent-query-engine-model",
  "quent-query-engine-ui",
  "quent-time",
  "quent-ui",
  "rustc-hash",
  "uuid",
-]
-
-[[package]]
-name = "quent-query-engine-events"
-version = "0.1.0"
-dependencies = [
- "quent-query-engine-model",
 ]
 
 [[package]]
@@ -1721,7 +1714,7 @@ version = "0.1.0"
 dependencies = [
  "quent-analyzer",
  "quent-attributes",
- "quent-query-engine-events",
+ "quent-query-engine-model",
  "quent-time",
  "quent-ui",
  "serde",
@@ -1738,7 +1731,7 @@ dependencies = [
  "quent-attributes",
  "quent-exporter",
  "quent-model",
- "quent-query-engine-events",
+ "quent-query-engine-model",
  "quent-simulator-instrumentation",
  "quent-stdlib",
  "rand",
@@ -1756,7 +1749,6 @@ dependencies = [
  "quent-events",
  "quent-model",
  "quent-query-engine-analyzer",
- "quent-query-engine-events",
  "quent-query-engine-model",
  "quent-query-engine-ui",
  "quent-simulator-instrumentation",

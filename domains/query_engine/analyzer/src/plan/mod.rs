@@ -4,7 +4,7 @@
 use quent_analyzer::entity::EntityEvents;
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_events::Event;
-use quent_query_engine_events::plan::{self, Edge, PlanParent};
+use quent_query_engine_model::plan::{self, Edge, PlanParent};
 use quent_query_engine_ui as ui;
 use uuid::Uuid;
 

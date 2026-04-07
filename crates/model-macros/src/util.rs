@@ -25,6 +25,19 @@ pub fn serde_bound() -> TokenStream {
     }
 }
 
+/// Check if a type is `Capacity<...>`.
+pub fn is_capacity_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty {
+        type_path
+            .path
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == "Capacity")
+    } else {
+        false
+    }
+}
+
 /// Converts a PascalCase identifier to snake_case.
 pub fn to_snake_case(ident: &Ident) -> String {
     ident.to_string().to_case(Case::Snake)

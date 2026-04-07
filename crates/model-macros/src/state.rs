@@ -52,20 +52,7 @@ struct RegularField {
     optional: bool,
 }
 
-use crate::util::field_has_attr as has_attr;
-
-/// Check if a type is `Capacity<...>`.
-fn is_capacity_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty {
-        type_path
-            .path
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "Capacity")
-    } else {
-        false
-    }
-}
+use crate::util::{field_has_attr as has_attr, is_capacity_type};
 
 /// Extract the inner type T from `Usage<T>`, or return None.
 fn extract_usage_inner(ty: &syn::Type) -> Option<syn::Type> {

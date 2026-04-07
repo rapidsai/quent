@@ -582,16 +582,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 ));
             }
 
-            fn emit_deferred(&mut self, deferred: #deferred_enum) {
-                let seq = self.seq;
-                self.seq += 1;
-                let event = quent_model::FsmEvent::Deferred { seq, deferred };
-                self.tx.send(quent_model::Event::new(
-                    self.id,
-                    quent_model::timestamp(),
-                    E::from(event),
-                ));
-            }
         }
 
         impl<E> Drop for #handle_name<E>

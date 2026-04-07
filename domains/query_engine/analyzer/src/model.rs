@@ -6,7 +6,7 @@ use quent_analyzer::{
     resource::{Resource, ResourceGroup, ResourceTypeDecl, collection::ResourceCollection},
 };
 use quent_events::Event;
-use quent_query_engine_events::QueryEngineEvent;
+use quent_query_engine_model::QueryEngineEvent;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
