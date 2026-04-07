@@ -2,14 +2,13 @@
 
 ## Structure
 
-```
-instrumentation/   Rust model definitions and event types
-bridge/            CXX bridge generation (build.rs produces gen/ and include/)
-cpp/               C++ application using generated headers
-```
-
-After building, `bridge/gen/` contains generated Rust FFI modules and
-`bridge/include/` contains the C++ headers included by `cpp/src/main.cpp`.
+| Directory | Description | Generated |
+|---|---|---|
+| `instrumentation/` | Rust model definitions and event types | No |
+| `bridge/` | CXX bridge crate with `build.rs` | No |
+| `bridge/gen/` | Rust FFI modules | Yes |
+| `bridge/include/` | C++ headers for `main.cpp` | Yes |
+| `cpp/` | C++ application | No |
 
 ## Build
 
