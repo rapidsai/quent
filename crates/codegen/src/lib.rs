@@ -90,9 +90,6 @@ pub fn write_bridge_files(files: &[GeneratedFile], options: &CxxOptions) -> Vec<
 
     fs::write(out_dir.join("bridge_mod.rs"), mod_lines.join("\n")).unwrap();
 
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=src/lib.rs");
-
     bridge_files
 }
 
