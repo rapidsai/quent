@@ -5,13 +5,14 @@ Demonstrates the full pipeline from Rust model definition to C++ API.
 ## Model
 
 Defined in `instrumentation/src/model.rs` — a job scheduler with:
+
 - **Job**: entity (root resource group) with Submit/Complete events
 - **ThreadPool**: entity (resource group) with Init event
 - **Task**: FSM (Queued → Running → exit) using thread resources
 
 ## Structure
 
-```
+```text
 instrumentation/
   src/
     lib.rs                  crate root
@@ -26,7 +27,7 @@ cpp/
 
 ## Pipeline
 
-```
+```text
 instrumentation/src/model.rs     Rust model definition
         |
         v
