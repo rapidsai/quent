@@ -27,7 +27,8 @@ pub struct Executing;
 /// Query FSM: `entry -> Init -> Planning -> Executing -> exit`
 #[derive(Fsm)]
 pub struct Query {
-    #[entry] #[to(Planning)]
+    #[entry]
+    #[to(Planning)]
     pub init: Init,
     #[to(Executing)]
     pub planning: Planning,

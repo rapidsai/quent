@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_analyzer::entity::EntityEvents;
+use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_query_engine_events::operator;
@@ -32,11 +32,7 @@ impl Operator {
 
     /// The ID of the plan this operator belongs to.
     pub fn plan_id(&self) -> Option<Uuid> {
-        self.inner
-            .data()
-            .declaration
-            .as_ref()
-            .map(|d| d.plan_id)
+        self.inner.data().declaration.as_ref().map(|d| d.plan_id)
     }
 
     /// The span of time between the first moment an operator started processing
@@ -88,10 +84,7 @@ impl Operator {
                 .declaration
                 .as_ref()
                 .map(|decl| decl.instance_name.clone()),
-            operator_type_name: d
-                .declaration
-                .as_ref()
-                .map(|decl| decl.type_name.clone()),
+            operator_type_name: d.declaration.as_ref().map(|decl| decl.type_name.clone()),
             custom_attributes,
             statistics,
             active_span: self

@@ -75,8 +75,9 @@ impl PlanTree {
         let root_plans: Vec<_> = plans
             .values()
             .filter(|p: &&&Plan| {
-                p.parent()
-                    .is_some_and(|parent| matches!(parent, PlanParent::Query(uuid) if *uuid == query_id))
+                p.parent().is_some_and(
+                    |parent| matches!(parent, PlanParent::Query(uuid) if *uuid == query_id),
+                )
             })
             .collect();
 

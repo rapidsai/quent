@@ -9,12 +9,13 @@
 
 use quent_analyzer::{
     AnalyzerResult, Entity,
-    fsm::{Transition, events::{FsmEvents, FsmEventsBuilder}},
+    fsm::{
+        Transition,
+        events::{FsmEvents, FsmEventsBuilder},
+    },
 };
-use quent_simulator_events::task::{
-    TaskDeferred, TaskTransition as ModelTaskTransition,
-};
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec, Timestamp, to_secs_relative};
+use quent_simulator_events::task::{TaskDeferred, TaskTransition as ModelTaskTransition};
+use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative};
 use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
 use uuid::Uuid;
 

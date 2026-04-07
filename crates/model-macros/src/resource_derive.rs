@@ -20,7 +20,10 @@ use crate::util::to_snake_case;
 /// Check if a field's type is `Capacity<...>`.
 fn is_capacity_field(field: &Field) -> bool {
     if let syn::Type::Path(type_path) = &field.ty {
-        type_path.path.segments.last()
+        type_path
+            .path
+            .segments
+            .last()
             .is_some_and(|seg| seg.ident == "Capacity")
     } else {
         false
@@ -265,10 +268,18 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     };
 
     // Transition variants and FSM structure
-    let (transition_variants, transition_name_arms, transition_usages_arms,
-         transition_instance_name_arms, transition_parent_group_id_arms,
-         transition_defs, state_defs, from_impls,
-         handle_transition_methods, resizing_code) = if resizable {
+    let (
+        transition_variants,
+        transition_name_arms,
+        transition_usages_arms,
+        transition_instance_name_arms,
+        transition_parent_group_id_arms,
+        transition_defs,
+        state_defs,
+        from_impls,
+        handle_transition_methods,
+        resizing_code,
+    ) = if resizable {
         // ResizableResource: init -> operating <-> resizing -> finalizing -> exit
         let variants = quote! {
             #init_state(#init_state),
@@ -372,7 +383,18 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         };
 
-        (variants, name_arms, usages_arms, instance_name_arms, parent_group_id_arms, tdefs, sdefs, froms, methods, resize_code)
+        (
+            variants,
+            name_arms,
+            usages_arms,
+            instance_name_arms,
+            parent_group_id_arms,
+            tdefs,
+            sdefs,
+            froms,
+            methods,
+            resize_code,
+        )
     } else {
         // Fixed resource: init -> operating -> finalizing -> exit
         let variants = quote! {
@@ -434,7 +456,18 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             pub fn finalizing(&mut self) { self.transition(#fin_state); }
         };
 
-        (variants, name_arms, usages_arms, instance_name_arms, parent_group_id_arms, tdefs, sdefs, froms, methods, quote! {})
+        (
+            variants,
+            name_arms,
+            usages_arms,
+            instance_name_arms,
+            parent_group_id_arms,
+            tdefs,
+            sdefs,
+            froms,
+            methods,
+            quote! {},
+        )
     };
 
     let output = quote! {

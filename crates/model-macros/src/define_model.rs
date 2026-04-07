@@ -41,10 +41,7 @@ impl Parse for DefineModelInput {
             }
         }
 
-        Ok(DefineModelInput {
-            name,
-            components,
-        })
+        Ok(DefineModelInput { name, components })
     }
 }
 

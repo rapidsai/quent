@@ -20,7 +20,9 @@ pub struct TestProc;
 
 #[test]
 fn resource_generates_operating_with_capacity() {
-    let op = TestMemOperating { bytes: Capacity::new(1024) };
+    let op = TestMemOperating {
+        bytes: Capacity::new(1024),
+    };
     assert_eq!(op.bytes.value, 1024);
 }
 

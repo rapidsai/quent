@@ -90,11 +90,9 @@ pub trait QueryEngineModel: Model {
     /// Return the time at which a query started.
     fn query_epoch(&self, query_id: Uuid) -> AnalyzerResult<TimeUnixNanoSec> {
         self.query(query_id).and_then(|q| {
-            q.transition(0)
-                .map(|init| init.timestamp())
-                .ok_or_else(|| {
-                    AnalyzerError::Validation("query does not have any transitions".to_string())
-                })
+            q.transition(0).map(|init| init.timestamp()).ok_or_else(|| {
+                AnalyzerError::Validation("query does not have any transitions".to_string())
+            })
         })
     }
 

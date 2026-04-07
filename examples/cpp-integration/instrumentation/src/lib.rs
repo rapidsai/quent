@@ -7,9 +7,9 @@
 
 #[allow(unused, clippy::all)]
 mod bridge {
-    pub mod uuid;
     pub mod context;
     pub mod job;
-    pub mod thread_pool;
     pub mod task;
+    pub mod thread_pool;
+    pub mod uuid;
 }

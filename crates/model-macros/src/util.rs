@@ -37,12 +37,11 @@ pub fn parse_resource_group_attr(input: &syn::DeriveInput) -> Option<bool> {
             .is_some_and(|seg| seg.ident == "resource_group")
         {
             // Check if it has (root) argument
-            if let syn::Meta::List(list) = &attr.meta {
-                if let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone()) {
-                    if ident == "root" {
-                        return Some(true);
-                    }
-                }
+            if let syn::Meta::List(list) = &attr.meta
+                && let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone())
+                && ident == "root"
+            {
+                return Some(true);
             }
             return Some(false);
         }
@@ -62,74 +61,71 @@ pub fn parse_resource_group_attr(input: &syn::DeriveInput) -> Option<bool> {
 pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
     use quote::quote;
 
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(seg) = type_path.path.segments.last() {
-            let ident_str = seg.ident.to_string();
+    if let syn::Type::Path(type_path) = ty
+        && let Some(seg) = type_path.path.segments.last()
+    {
+        let ident_str = seg.ident.to_string();
 
-            // Check for Option<T>
-            if ident_str == "Option" {
-                if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        let (inner_vt, _) = resolve_value_type(inner);
-                        return (inner_vt, true);
-                    }
-                }
-                return (quote! { quent_model::ValueType::String }, true);
+        // Check for Option<T>
+        if ident_str == "Option" {
+            if let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+                && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+            {
+                let (inner_vt, _) = resolve_value_type(inner);
+                return (inner_vt, true);
             }
-
-            // Check for Vec<T>
-            if ident_str == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        let (inner_vt, _) = resolve_value_type(inner);
-                        return (
-                            quote! { quent_model::ValueType::List(Box::new(#inner_vt)) },
-                            false,
-                        );
-                    }
-                }
-                return (
-                    quote! { quent_model::ValueType::List(Box::new(quent_model::ValueType::String)) },
-                    false,
-                );
-            }
-
-            // Check for Ref<T>
-            if ident_str == "Ref" {
-                if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        let inner_name = quote! { #inner }.to_string();
-                        return (
-                            quote! { quent_model::ValueType::Ref(#inner_name.to_string()) },
-                            false,
-                        );
-                    }
-                }
-                return (
-                    quote! { quent_model::ValueType::Ref(String::new()) },
-                    false,
-                );
-            }
-
-            // Primitive and well-known types
-            let vt = match ident_str.as_str() {
-                "bool" => quote! { quent_model::ValueType::Bool },
-                "u8" => quote! { quent_model::ValueType::U8 },
-                "u16" => quote! { quent_model::ValueType::U16 },
-                "u32" => quote! { quent_model::ValueType::U32 },
-                "u64" => quote! { quent_model::ValueType::U64 },
-                "i8" => quote! { quent_model::ValueType::I8 },
-                "i16" => quote! { quent_model::ValueType::I16 },
-                "i32" => quote! { quent_model::ValueType::I32 },
-                "i64" => quote! { quent_model::ValueType::I64 },
-                "f32" => quote! { quent_model::ValueType::F32 },
-                "f64" => quote! { quent_model::ValueType::F64 },
-                "String" => quote! { quent_model::ValueType::String },
-                "Uuid" => quote! { quent_model::ValueType::Uuid },
-                _ => quote! { quent_model::ValueType::String }, // fallback
-            };
-            return (vt, false);
+            return (quote! { quent_model::ValueType::String }, true);
         }
+
+        // Check for Vec<T>
+        if ident_str == "Vec" {
+            if let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+                && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+            {
+                let (inner_vt, _) = resolve_value_type(inner);
+                return (
+                    quote! { quent_model::ValueType::List(Box::new(#inner_vt)) },
+                    false,
+                );
+            }
+            return (
+                quote! { quent_model::ValueType::List(Box::new(quent_model::ValueType::String)) },
+                false,
+            );
+        }
+
+        // Check for Ref<T>
+        if ident_str == "Ref" {
+            if let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+                && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+            {
+                let inner_name = quote! { #inner }.to_string();
+                return (
+                    quote! { quent_model::ValueType::Ref(#inner_name.to_string()) },
+                    false,
+                );
+            }
+            return (quote! { quent_model::ValueType::Ref(String::new()) }, false);
+        }
+
+        // Primitive and well-known types
+        let vt = match ident_str.as_str() {
+            "bool" => quote! { quent_model::ValueType::Bool },
+            "u8" => quote! { quent_model::ValueType::U8 },
+            "u16" => quote! { quent_model::ValueType::U16 },
+            "u32" => quote! { quent_model::ValueType::U32 },
+            "u64" => quote! { quent_model::ValueType::U64 },
+            "i8" => quote! { quent_model::ValueType::I8 },
+            "i16" => quote! { quent_model::ValueType::I16 },
+            "i32" => quote! { quent_model::ValueType::I32 },
+            "i64" => quote! { quent_model::ValueType::I64 },
+            "f32" => quote! { quent_model::ValueType::F32 },
+            "f64" => quote! { quent_model::ValueType::F64 },
+            "String" => quote! { quent_model::ValueType::String },
+            "Uuid" => quote! { quent_model::ValueType::Uuid },
+            _ => quote! { quent_model::ValueType::String }, // fallback
+        };
+        return (vt, false);
     }
 
     // Fallback for non-path types

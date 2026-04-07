@@ -62,8 +62,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
     ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
         use quent_query_engine_events::engine::EngineEvent;
         for event in events {
-            if let SimulatorEvent::Engine(EngineEvent::Init(init)) = event.data
-            {
+            if let SimulatorEvent::Engine(EngineEvent::Init(init)) = event.data {
                 return Ok(quent_query_engine_ui::Engine {
                     id: engine_id,
                     start_time_unix_ns: Some(event.timestamp),

@@ -236,10 +236,7 @@ fn emit_field_conversion_tokens(attr: &AttributeDef) -> TokenStream {
 }
 
 /// Generate a CXX bridge for an entity with events.
-fn emit_entity_bridge(
-    entity: &quent_model::EntityDef,
-    options: &CxxOptions,
-) -> GeneratedFile {
+fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> GeneratedFile {
     let entity_name = &entity.name;
     let ns = format!("{}::{}", options.namespace, entity_name);
     let pascal_name = to_pascal_case(entity_name);
@@ -270,10 +267,7 @@ fn emit_entity_bridge(
 
         if event.attributes.is_empty() {
             // Unit event -- method takes only id
-            extern_rust_body.push_str(&format!(
-                "        fn {}(&self, id: UUID);\n",
-                event.name,
-            ));
+            extern_rust_body.push_str(&format!("        fn {}(&self, id: UUID);\n", event.name,));
             observer_impl_methods.push(quote! {
                 pub fn #event_method(&self, id: ffi::UUID) {
                     let model_event = #model_crate::#event_pascal;
@@ -480,9 +474,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             "        fn create(data: {entry_pascal_str}) -> Box<{handle_name_str}>;\n"
         ));
     } else {
-        extern_rust_body.push_str(&format!(
-            "        fn create() -> Box<{handle_name_str}>;\n"
-        ));
+        extern_rust_body.push_str(&format!("        fn create() -> Box<{handle_name_str}>;\n"));
     }
 
     // Transition methods

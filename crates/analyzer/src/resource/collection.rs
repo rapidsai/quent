@@ -143,7 +143,8 @@ impl InMemoryResourcesBuilder {
     /// Register a memory resource type declaration (bytes occupancy capacity).
     pub fn insert_memory_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
-            let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_occupancy("capacity_bytes")]);
+            let decl =
+                ResourceTypeDecl::new(type_name, [CapacityDecl::new_occupancy("capacity_bytes")]);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
     }

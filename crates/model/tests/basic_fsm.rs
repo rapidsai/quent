@@ -29,7 +29,8 @@ pub struct Sending {
 
 #[derive(Fsm)]
 pub struct Task {
-    #[entry] #[to(Computing)]
+    #[entry]
+    #[to(Computing)]
     pub queueing: Queueing,
     #[to(Sending, exit)]
     pub computing: Computing,

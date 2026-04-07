@@ -30,7 +30,8 @@ pub struct C;
 
 #[derive(Fsm)]
 pub struct LinearFsm {
-    #[entry] #[to(B)]
+    #[entry]
+    #[to(B)]
     pub a: A,
     #[to(C)]
     pub b: B,
@@ -57,7 +58,8 @@ pub struct Working;
 
 #[derive(Fsm)]
 pub struct CyclicFsm {
-    #[entry] #[to(Working)]
+    #[entry]
+    #[to(Working)]
     pub idle: Idle,
     #[to(Idle, exit)]
     pub working: Working,
@@ -108,7 +110,10 @@ fn transition_endpoints() {
     let fsm = &builder.fsms[0];
 
     // First transition: entry -> A
-    assert_eq!(fsm.transitions[0].from, quent_model::TransitionEndpoint::Entry);
+    assert_eq!(
+        fsm.transitions[0].from,
+        quent_model::TransitionEndpoint::Entry
+    );
     assert_eq!(
         fsm.transitions[0].to,
         quent_model::TransitionEndpoint::State("a".to_string())

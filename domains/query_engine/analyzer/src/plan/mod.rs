@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_analyzer::entity::EntityEvents;
+use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_events::Event;
 use quent_query_engine_events::plan::{self, Edge, PlanParent};
 use quent_query_engine_ui as ui;
@@ -28,20 +28,12 @@ impl Plan {
 
     /// The parent of this plan (query or parent plan).
     pub fn parent(&self) -> Option<&PlanParent> {
-        self.0
-            .data()
-            .declaration
-            .as_ref()
-            .map(|d| &d.parent)
+        self.0.data().declaration.as_ref().map(|d| &d.parent)
     }
 
     /// The worker that executed this plan, if any.
     pub fn worker_id(&self) -> Option<Uuid> {
-        self.0
-            .data()
-            .declaration
-            .as_ref()
-            .and_then(|d| d.worker_id)
+        self.0.data().declaration.as_ref().and_then(|d| d.worker_id)
     }
 
     /// The edges between operators of this plan.
@@ -103,9 +95,10 @@ impl ResourceGroup for Plan {
     fn parent_group_id(&self) -> Option<Uuid> {
         // If this is a plan associated with a worker, we consider this plan to
         // be a resource group under the worker resource group
-        self.worker_id().or(self.parent().map(|parent| match parent {
-            PlanParent::Query(uuid) => *uuid,
-            PlanParent::Plan(uuid) => *uuid,
-        }))
+        self.worker_id()
+            .or(self.parent().map(|parent| match parent {
+                PlanParent::Query(uuid) => *uuid,
+                PlanParent::Plan(uuid) => *uuid,
+            }))
     }
 }

@@ -3,8 +3,8 @@
 
 //! Tests for resource macro (FSM marked as a resource).
 
-use quent_model::prelude::*;
 use quent_model::Model;
+use quent_model::prelude::*;
 
 // A memory-like resource FSM
 
@@ -22,7 +22,8 @@ pub struct MemFinalizing;
 #[derive(Fsm)]
 #[resource(capacity = MemOperating)]
 pub struct TestMemory {
-    #[entry] #[to(MemOperating)]
+    #[entry]
+    #[to(MemOperating)]
     pub mem_initializing: MemInitializing,
     #[to(MemFinalizing)]
     pub mem_operating: MemOperating,
@@ -44,7 +45,8 @@ pub struct ProcFinalizing;
 #[derive(Fsm)]
 #[resource(capacity = ProcOperating)]
 pub struct TestProcessor {
-    #[entry] #[to(ProcOperating)]
+    #[entry]
+    #[to(ProcOperating)]
     pub proc_initializing: ProcInitializing,
     #[to(ProcFinalizing)]
     pub proc_operating: ProcOperating,

@@ -107,10 +107,10 @@ impl<T: TransitionInfo, D> FsmEventsBuilder<T, D> {
             FsmEvent::Transition { state, .. } => {
                 let state_name = state.state_name();
                 // Capture instance name from the first transition that provides one.
-                if self.instance_name.is_empty() {
-                    if let Some(name) = state.instance_name() {
-                        self.instance_name = name.to_owned();
-                    }
+                if self.instance_name.is_empty()
+                    && let Some(name) = state.instance_name()
+                {
+                    self.instance_name = name.to_owned();
                 }
                 let extracted = state.usages();
                 let usages: SmallVec<[AnalyzedUsage; 3]> = extracted
@@ -138,8 +138,7 @@ impl<T: TransitionInfo, D> FsmEventsBuilder<T, D> {
     }
 
     pub fn try_build(self) -> AnalyzerResult<FsmEvents<T>> {
-        let transitions: SmallVec<[TransitionEvent<T>; 4]> =
-            self.transitions.into_inner().into();
+        let transitions: SmallVec<[TransitionEvent<T>; 4]> = self.transitions.into_inner().into();
         Ok(FsmEvents {
             id: self.id,
             instance_name: self.instance_name,
@@ -260,7 +259,7 @@ impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for FsmEvents<T> {
 
         let mut transitions = Vec::new();
         for t in &fsm_def.transitions {
-            use quent_model::{TransitionEndpoint as TE};
+            use quent_model::TransitionEndpoint as TE;
             match (&t.from, &t.to) {
                 (TE::Entry, TE::State(to)) => {
                     transitions.push(FsmTransitionDecl::Entry(to.clone()));

@@ -49,7 +49,8 @@ pub struct Sending {
 
 #[derive(Fsm)]
 pub struct Task {
-    #[entry] #[to(Computing)]
+    #[entry]
+    #[to(Computing)]
     pub queueing: Queueing,
     #[to(Sending, exit)]
     pub computing: Computing,
@@ -168,12 +169,14 @@ fn task_fsm_structure() {
     assert!(state_names.contains(&"sending"));
 
     // Verify transitions include entry and exit
-    let has_entry = fsm.transitions.iter().any(|t| {
-        t.from == quent_model::TransitionEndpoint::Entry
-    });
-    let has_exit = fsm.transitions.iter().any(|t| {
-        t.to == quent_model::TransitionEndpoint::Exit
-    });
+    let has_entry = fsm
+        .transitions
+        .iter()
+        .any(|t| t.from == quent_model::TransitionEndpoint::Entry);
+    let has_exit = fsm
+        .transitions
+        .iter()
+        .any(|t| t.to == quent_model::TransitionEndpoint::Exit);
     assert!(has_entry);
     assert!(has_exit);
 }

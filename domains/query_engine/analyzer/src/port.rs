@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_analyzer::entity::EntityEvents;
+use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_attributes::Attribute;
 use quent_events::Event;
 use quent_query_engine_events::port;
@@ -25,11 +25,7 @@ impl Port {
 
     /// The ID of the operator to which this port belongs.
     pub fn operator_id(&self) -> Option<Uuid> {
-        self.0
-            .data()
-            .declaration
-            .as_ref()
-            .map(|d| d.operator_id)
+        self.0.data().declaration.as_ref().map(|d| d.operator_id)
     }
 
     pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Port {

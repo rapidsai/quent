@@ -141,10 +141,7 @@ impl<T: TransitionInfo, D> ResourceEventsBuilder<T, D> {
         let id = self.inner.id();
         let inner = self.inner.try_build()?;
         let parent_group_id = self.parent_group_id.ok_or_else(|| {
-            AnalyzerError::IncompleteEntity(format!(
-                "resource {} must have a parent group id",
-                id
-            ))
+            AnalyzerError::IncompleteEntity(format!("resource {} must have a parent group id", id))
         })?;
         let resource_type_name = self.resource_type_name.ok_or_else(|| {
             AnalyzerError::IncompleteEntity(format!(

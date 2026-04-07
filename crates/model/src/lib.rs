@@ -19,13 +19,13 @@ mod usage;
 // Re-export derive macros.
 pub use quent_model_macros::{Entity, Event, Fsm, ResizableResource, Resource, State};
 
+pub use capacity::{Capacity, Occupancy, Rate};
 pub use fsm_event::FsmEvent;
 pub use model::{
     AttributeDef, CapacityDef, CapacityType, CapacityValueDef, EntityDef, EntityEventDef, FsmDef,
     Model, ModelBuilder, ModelComponent, ResourceDef, ResourceGroupDef, ResourceKind, StateDef,
     TransitionDef, TransitionEndpoint, UsageDef, ValueType,
 };
-pub use capacity::{Capacity, Occupancy, Rate};
 pub use r#ref::Ref;
 pub use resource::Resource;
 pub use usage::Usage;
@@ -144,9 +144,18 @@ macro_rules! define_context {
 pub mod prelude {
     pub use crate::{
         // Types used in model struct fields
-        Capacity, Occupancy, Rate, Ref, Usage,
+        Capacity,
         // Derive macros
-        Entity, Event, Fsm, Resource, ResizableResource, State,
+        Entity,
+        Event,
+        Fsm,
+        Occupancy,
+        Rate,
+        Ref,
+        ResizableResource,
+        Resource,
+        State,
+        Usage,
     };
     pub use uuid::Uuid;
 }

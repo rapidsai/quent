@@ -24,7 +24,11 @@ fn generate_query_engine_cxx_bridge() {
     let files = emit_cxx(&builder, &options);
 
     // Should generate: uuid.rs + 6 entities + 1 FSM + lib.rs = 9 files
-    assert!(files.len() >= 9, "expected at least 9 files, got {}", files.len());
+    assert!(
+        files.len() >= 9,
+        "expected at least 9 files, got {}",
+        files.len()
+    );
 
     // Check uuid bridge exists
     assert!(files.iter().any(|f| f.name == "uuid.rs"));
@@ -46,8 +50,7 @@ fn generate_query_engine_cxx_bridge() {
     // Verify all generated Rust files are valid syntax
     for file in &files {
         if file.name.ends_with(".rs") {
-            syn::parse_file(&file.content)
-                .unwrap_or_else(|e| panic!("{}: {}", file.name, e));
+            syn::parse_file(&file.content).unwrap_or_else(|e| panic!("{}: {}", file.name, e));
         }
     }
 }
@@ -75,8 +78,7 @@ fn generate_task_fsm_cxx_bridge() {
     // Verify all generated Rust files are valid syntax
     for file in &files {
         if file.name.ends_with(".rs") {
-            syn::parse_file(&file.content)
-                .unwrap_or_else(|e| panic!("{}: {}", file.name, e));
+            syn::parse_file(&file.content).unwrap_or_else(|e| panic!("{}: {}", file.name, e));
         }
     }
 }

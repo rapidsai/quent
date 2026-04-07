@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::ResourceGroup};
 use quent_analyzer::entity::EntityEvents;
+use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Span, resource::ResourceGroup};
 use quent_events::Event;
 use quent_query_engine_events::engine;
 use quent_query_engine_ui as ui;
@@ -38,7 +38,10 @@ impl Engine {
             start_time_unix_ns: start,
             duration_s,
             instance_name: d.init.as_ref().and_then(|i| i.instance_name.clone()),
-            implementation: d.init.as_ref().and_then(|i| i.implementation.as_ref().map(|imp| imp.into())),
+            implementation: d
+                .init
+                .as_ref()
+                .and_then(|i| i.implementation.as_ref().map(|imp| imp.into())),
         })
     }
 }
@@ -51,7 +54,8 @@ impl Entity for Engine {
         "engine"
     }
     fn instance_name(&self) -> &str {
-        self.0.data()
+        self.0
+            .data()
             .init
             .as_ref()
             .and_then(|i| i.instance_name.as_deref())

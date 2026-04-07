@@ -9,10 +9,10 @@ use crate::util::{field_has_attr, parse_resource_group_attr, resolve_value_type,
 
 /// Extract the type ident from a field's type (the last segment of the path).
 fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(seg) = type_path.path.segments.last() {
-            return Ok(seg.ident.clone());
-        }
+    if let syn::Type::Path(type_path) = ty
+        && let Some(seg) = type_path.path.segments.last()
+    {
+        return Ok(seg.ident.clone());
     }
     Err(syn::Error::new_spanned(
         ty,
@@ -271,10 +271,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         let event_enum = format_ident!("{}Event", name);
 
         // Generate the event enum
-        let event_variants: Vec<TokenStream> = event_types
-            .iter()
-            .map(|ty| quote! { #ty(#ty) })
-            .collect();
+        let event_variants: Vec<TokenStream> =
+            event_types.iter().map(|ty| quote! { #ty(#ty) }).collect();
 
         let from_impls: Vec<TokenStream> = event_types
             .iter()

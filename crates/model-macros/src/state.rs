@@ -55,7 +55,10 @@ use crate::util::field_has_attr as has_attr;
 /// Check if a type is `Capacity<...>`.
 fn is_capacity_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty {
-        type_path.path.segments.last()
+        type_path
+            .path
+            .segments
+            .last()
             .is_some_and(|seg| seg.ident == "Capacity")
     } else {
         false
@@ -65,7 +68,10 @@ fn is_capacity_type(ty: &syn::Type) -> bool {
 /// Check if a type is `Usage<...>`.
 fn is_usage_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty {
-        type_path.path.segments.last()
+        type_path
+            .path
+            .segments
+            .last()
             .is_some_and(|seg| seg.ident == "Usage")
     } else {
         false
@@ -76,12 +82,11 @@ fn is_usage_type(ty: &syn::Type) -> bool {
 fn unwrap_option_type(ty: &syn::Type) -> Option<&syn::Type> {
     if let syn::Type::Path(type_path) = ty {
         let seg = type_path.path.segments.last()?;
-        if seg.ident == "Option" {
-            if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                    return Some(inner);
-                }
-            }
+        if seg.ident == "Option"
+            && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+            && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+        {
+            return Some(inner);
         }
     }
     None
@@ -111,7 +116,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
                     instance_name_field,
                     parent_group_field,
                     regular,
-                })
+                });
             }
             _ => {
                 return Err(syn::Error::new_spanned(
@@ -153,7 +158,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
                 ident: field_name.clone(),
                 optional: false,
             });
-        } else if unwrap_option_type(&field.ty).is_some_and(|inner| is_capacity_type(inner)) {
+        } else if unwrap_option_type(&field.ty).is_some_and(is_capacity_type) {
             // Option<Capacity<V, K>> — should not occur, but handle gracefully
             capacities.push(CapacityField {
                 name,

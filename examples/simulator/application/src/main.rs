@@ -15,11 +15,11 @@ use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
     PostcardExporterOptions,
 };
+use quent_model::prelude::*;
 use quent_query_engine_events::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
 };
-use quent_model::prelude::*;
 use quent_simulator_events::SimulatorEvent;
 use quent_simulator_instrumentation::SimulatorContext;
 use quent_simulator_model::task::*;
@@ -240,8 +240,7 @@ impl<T: Debug> Plan<T> {
                         target: edge.weight().target.id,
                     })
                     .collect(),
-            }
-            .into(),
+            },
         );
 
         // Declare all operators
@@ -509,7 +508,13 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: Uuid, name: String, context: &SimulatorContext, parent_engine_id: Uuid, num_threads: usize) -> Self {
+    fn new(
+        id: Uuid,
+        name: String,
+        context: &SimulatorContext,
+        parent_engine_id: Uuid,
+        num_threads: usize,
+    ) -> Self {
         let tx = context.events_sender();
         let worker_obs = worker::WorkerObserver::new(&tx);
 
@@ -536,7 +541,9 @@ impl Worker {
             },
         );
         let filesystem = fs_handle.uuid();
-        fs_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(Some(0)) });
+        fs_handle.operating(quent_stdlib::MemoryOperating {
+            capacity_bytes: Capacity::new(Some(0)),
+        });
         memory_handles.push(fs_handle);
 
         // Memory pool
@@ -549,7 +556,9 @@ impl Worker {
             },
         );
         let memory = mem_handle.uuid();
-        mem_handle.operating(quent_stdlib::MemoryOperating { capacity_bytes: Capacity::new(Some(0)) });
+        mem_handle.operating(quent_stdlib::MemoryOperating {
+            capacity_bytes: Capacity::new(Some(0)),
+        });
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
@@ -564,7 +573,9 @@ impl Worker {
             },
         );
         let fs_to_mem = fs_to_mem_handle.uuid();
-        fs_to_mem_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
+        fs_to_mem_handle.operating(quent_stdlib::ChannelOperating {
+            capacity_bytes: Capacity::new(None),
+        });
         channel_handles.push(fs_to_mem_handle);
 
         // Memory -> Filesystem channel
@@ -579,16 +590,21 @@ impl Worker {
             },
         );
         let mem_to_fs = mem_to_fs_handle.uuid();
-        mem_to_fs_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
+        mem_to_fs_handle.operating(quent_stdlib::ChannelOperating {
+            capacity_bytes: Capacity::new(None),
+        });
         channel_handles.push(mem_to_fs_handle);
 
         // Thread pool
         let thread_pool = Uuid::now_v7();
         let tp_obs = quent_simulator_model::ThreadPoolObserver::new(&tx);
-        tp_obs.thread_pool(thread_pool, quent_simulator_model::ThreadPoolDeclaration {
-            instance_name: "Thread Pool".into(),
-            parent_group_id: id,
-        });
+        tp_obs.thread_pool(
+            thread_pool,
+            quent_simulator_model::ThreadPoolDeclaration {
+                instance_name: "Thread Pool".into(),
+                parent_group_id: id,
+            },
+        );
 
         let mut threads = Vec::new();
         for index in 0..num_threads {
@@ -654,13 +670,19 @@ impl Worker {
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
         task.transition(Allocating {
-            use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+            use_thread: Usage {
+                resource_id: thread_ref,
+                capacity: quent_stdlib::ProcessorOperating {},
+            },
         });
         sleep_short();
 
         if spill {
             task.transition(Spilling {
-                use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                use_thread: Usage {
+                    resource_id: thread_ref,
+                    capacity: quent_stdlib::ProcessorOperating {},
+                },
                 use_mem_to_fs: Usage {
                     resource_id: Ref::new(self.mem_to_fs),
                     capacity: quent_stdlib::ChannelOperating {
@@ -670,14 +692,20 @@ impl Worker {
             });
             sleep_sometimes_really_long();
             task.transition(Allocating {
-                use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                use_thread: Usage {
+                    resource_id: thread_ref,
+                    capacity: quent_stdlib::ProcessorOperating {},
+                },
             });
             sleep_short();
         }
 
         if load {
             task.transition(Loading {
-                use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                use_thread: Usage {
+                    resource_id: thread_ref,
+                    capacity: quent_stdlib::ProcessorOperating {},
+                },
                 use_fs_to_mem: Usage {
                     resource_id: Ref::new(self.fs_to_mem),
                     capacity: quent_stdlib::ChannelOperating {
@@ -695,7 +723,10 @@ impl Worker {
         }
 
         task.transition(Computing {
-            use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+            use_thread: Usage {
+                resource_id: thread_ref,
+                capacity: quent_stdlib::ProcessorOperating {},
+            },
             use_memory: Usage {
                 resource_id: mem_ref,
                 capacity: quent_stdlib::MemoryOperating {
@@ -704,7 +735,6 @@ impl Worker {
             },
         });
 
-
         if send {
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
 
@@ -712,7 +742,10 @@ impl Worker {
                 let link = *engine.network_links.get(&(self.id, *other)).unwrap();
 
                 task.transition(Sending {
-                    use_thread: Usage { resource_id: thread_ref, capacity: quent_stdlib::ProcessorOperating {} },
+                    use_thread: Usage {
+                        resource_id: thread_ref,
+                        capacity: quent_stdlib::ProcessorOperating {},
+                    },
                     use_link: Usage {
                         resource_id: Ref::new(link),
                         capacity: quent_stdlib::ChannelOperating {
@@ -1134,17 +1167,26 @@ impl Engine {
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-            let worker = Worker::new(*worker_id, format!("drone-{worker_index}"), context, self.id, num_threads);
+            let worker = Worker::new(
+                *worker_id,
+                format!("drone-{worker_index}"),
+                context,
+                self.id,
+                num_threads,
+            );
             self.workers.insert(*worker_id, worker);
         }
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
         let net_obs = quent_simulator_model::NetworkObserver::new(&tx);
-        net_obs.network(self.network, quent_simulator_model::NetworkDeclaration {
-            instance_name: "network".into(),
-            parent_group_id: self.id,
-        });
+        net_obs.network(
+            self.network,
+            quent_simulator_model::NetworkDeclaration {
+                instance_name: "network".into(),
+                parent_group_id: self.id,
+            },
+        );
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
@@ -1161,7 +1203,9 @@ impl Engine {
                     },
                 );
                 let up_link_id = up_handle.uuid();
-                up_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
+                up_handle.operating(quent_stdlib::ChannelOperating {
+                    capacity_bytes: Capacity::new(None),
+                });
                 self.network_link_handles.push(up_handle);
 
                 let mut down_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
@@ -1175,7 +1219,9 @@ impl Engine {
                     },
                 );
                 let down_link_id = down_handle.uuid();
-                down_handle.operating(quent_stdlib::ChannelOperating { capacity_bytes: Capacity::new(None) });
+                down_handle.operating(quent_stdlib::ChannelOperating {
+                    capacity_bytes: Capacity::new(None),
+                });
                 self.network_link_handles.push(down_handle);
 
                 self.network_links
@@ -1258,13 +1304,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             query_group::Declaration {
                 engine_id: engine.id,
                 instance_name: format!("TPC-H (iteration {query_group_index})"),
-            }
-            .into(),
+            },
         );
 
         // "Run" the specified number of queries, sequentially for now.
-        for query_index in 0..args.num_queries
-        {
+        for query_index in 0..args.num_queries {
             let mut query_handle = query::QueryHandle::<SimulatorEvent>::init(
                 &tx,
                 query::Init {
