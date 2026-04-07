@@ -118,9 +118,10 @@ pub trait HasParentGroup {}
 
 // Re-export instrumentation types needed by generated code.
 pub use quent_events::Event;
-pub use quent_exporter::ExporterOptions;
+pub use quent_exporter::{self as exporter, ExporterOptions};
 pub use quent_instrumentation::{Context, EventSender};
 pub use quent_time::timestamp;
+pub use uuid;
 
 // define_model! is a proc macro — see quent_model_macros::define_model
 pub use quent_model_macros::define_model;

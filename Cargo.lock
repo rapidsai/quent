@@ -1453,12 +1453,7 @@ dependencies = [
  "cxx-build",
  "quent-codegen",
  "quent-cpp-example-instrumentation",
- "quent-events",
- "quent-exporter",
- "quent-instrumentation",
- "quent-model",
  "quent-stdlib",
- "uuid",
 ]
 
 [[package]]

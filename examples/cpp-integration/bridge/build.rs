@@ -8,8 +8,8 @@ fn main() {
 
     let options = CxxOptions {
         crate_name: "quent-bridge".into(),
-        model_crate: "quent_cpp_example_instrumentation".into(),
-        event_type: "quent_cpp_example_instrumentation::ExampleEvent".into(),
+        instrumentation_crate: "quent_cpp_example_instrumentation".into(),
+        model_name: "Example".into(),
         ..Default::default()
     };
 

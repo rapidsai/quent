@@ -11,12 +11,7 @@ crate-type = ["staticlib"]
 [dependencies]
 cxx = "1"
 quent-cpp-example-instrumentation = { path = "../instrumentation" }
-quent-events = { path = "../../../crates/events" }
-quent-exporter = { path = "../../../crates/exporter" }
-quent-instrumentation = { path = "../../../crates/instrumentation" }
-quent-model = { path = "../../../crates/model" }
 quent-stdlib = { path = "../../../crates/stdlib" }
-uuid = { workspace = true, features = ["serde", "v7"] }
 
 [build-dependencies]
 cxx-build = "1"

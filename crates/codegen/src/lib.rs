@@ -14,24 +14,37 @@ use quent_model::ModelBuilder;
 pub struct CxxOptions {
     /// C++ namespace for generated types (e.g., "myapp::quent").
     pub namespace: String,
-    /// The Rust crate name (used for CXX include paths).
+    /// The Rust crate name for CXX include paths (e.g., "quent-bridge").
     pub crate_name: String,
-    /// Path prefix for bridge modules within the crate (e.g., "src/bridge").
+    /// Directory for generated bridge files, relative to CARGO_MANIFEST_DIR.
     pub bridge_path: String,
     /// Rust path to the instrumentation crate (e.g., "quent_cpp_example_instrumentation").
-    pub model_crate: String,
-    /// The top-level event enum type path (e.g., "quent_cpp_example_instrumentation::ExampleEvent").
-    pub event_type: String,
+    pub instrumentation_crate: String,
+    /// Model name as passed to `define_model!` (e.g., "Example").
+    /// Used to derive the event type: `{instrumentation_crate}::{model_name}Event`.
+    pub model_name: String,
+}
+
+impl CxxOptions {
+    /// The fully qualified event type path.
+    pub fn event_type(&self) -> String {
+        format!("{}::{}Event", self.instrumentation_crate, self.model_name)
+    }
+
+    /// The path prefix for framework types re-exported by `define_model!`.
+    pub fn bridge_module(&self) -> String {
+        format!("{}::__bridge", self.instrumentation_crate)
+    }
 }
 
 impl Default for CxxOptions {
     fn default() -> Self {
         Self {
             namespace: "quent".to_string(),
-            crate_name: "instrumentation".to_string(),
+            crate_name: "quent-bridge".to_string(),
             bridge_path: "gen".to_string(),
-            model_crate: "model".to_string(),
-            event_type: "model::Event".to_string(),
+            instrumentation_crate: "instrumentation".to_string(),
+            model_name: "App".to_string(),
         }
     }
 }

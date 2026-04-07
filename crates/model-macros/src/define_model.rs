@@ -74,6 +74,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let output = quote! {
         pub type #model_type = quent_model::Model<(#(#paths,)*)>;
 
+
         #[derive(Debug #serde_derives)]
         pub enum #event_type {
             #(#variants(#event_types),)*
@@ -86,6 +87,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
             }
         )*
+
+        // Re-export for generated bridge code so the bridge crate only needs
+        // to depend on the instrumentation crate.
+        pub use quent_model as __quent;
     };
 
     Ok(output)
