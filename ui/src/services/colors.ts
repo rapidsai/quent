@@ -31,13 +31,25 @@ export const PALETTES = {
     '#9a60b4', // Purple
     '#ea7ccc', // Pink
   ],
+  /** Tol qualitative colorblind-friendly palette */
+  extended: [
+    '#44AA99', // Teal
+    '#CC6677', // Rose
+    '#332288', // Indigo
+    '#DDCC77', // Sand
+    '#AA4499', // Purple
+    '#88CCEE', // Cyan
+    '#882255', // Wine
+    '#88AA55', // Muted Lime
+    '#666666', // Grey
+  ],
 } as const;
 
 export type PaletteName = keyof typeof PALETTES;
 export type ChartColor = string;
 
 // Current active palette
-let activePalette: PaletteName = 'echarts';
+let activePalette: PaletteName = 'extended';
 
 /**
  * Get the currently active palette.
@@ -73,43 +85,40 @@ function hashString(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
-// Track color assignments: key -> palette index
+// Cache: key -> palette index
 const colorAssignments = new Map<string, number>();
-// Track which palette indices are in use
+// Track which palette indices are taken
 const usedIndices = new Set<number>();
 
 /**
  * Get a deterministic color for a given key.
- * Uses a hash of the key to select a color, with collision handling to ensure
- * all colors are used before any color is assigned to multiple keys.
+ * Uses a hash to pick a starting index, then probes forward to avoid
+ * collisions so different keys get different colors (until the palette
+ * is exhausted, after which duplicates are allowed).
  */
 export function getColorForKey(key: string): ChartColor {
   const palette = getActivePalette();
 
-  // Return cached assignment if exists
   if (colorAssignments.has(key)) {
     return palette[colorAssignments.get(key)!];
   }
 
-  // Get hash-based starting index
   const hashIndex = hashString(key) % palette.length;
 
-  // If all colors are used, just use the hash index (allow duplicates)
+  // If palette is full, just use the hash index
   if (usedIndices.size >= palette.length) {
     colorAssignments.set(key, hashIndex);
     return palette[hashIndex];
   }
 
-  // Find an available index, starting from hash index and probing forward
+  // Probe forward from hash index to find an unused slot
   let index = hashIndex;
   while (usedIndices.has(index)) {
     index = (index + 1) % palette.length;
   }
 
-  // Assign and mark as used
   colorAssignments.set(key, index);
   usedIndices.add(index);
-
   return palette[index];
 }
 
@@ -151,7 +160,6 @@ export function withOpacity(hex: string, opacity: number): string {
  */
 export function resetColorAssignments(): void {
   colorAssignments.clear();
-  usedIndices.clear();
 }
 
 /**
