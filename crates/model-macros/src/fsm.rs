@@ -203,6 +203,8 @@ fn parse_resource_attr(input: &DeriveInput) -> syn::Result<Option<Ident>> {
 ///
 /// Does NOT re-emit the struct (derive macros append).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
+    let serde_derives = crate::util::serde_derives();
+    let serde_bound = crate::util::serde_bound();
     let vis = &input.vis;
     let fsm_name = &input.ident;
 
@@ -445,7 +447,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
     let output = quote! {
         // Transition enum
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone #serde_derives)]
         #vis enum #transition_enum {
             #(#transition_variants,)*
             Exit,
@@ -493,7 +495,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         }
 
         // Deferred enum
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone #serde_derives)]
         #vis enum #deferred_enum {
             #(#state_idents(<#state_idents as quent_model::StateMetadata>::Deferred),)*
         }
@@ -520,7 +522,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         // The FSM handle struct
         #vis struct #handle_name<E>
         where
-            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
             id: uuid::Uuid,
             seq: u64,
@@ -530,7 +532,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         impl<E> #handle_name<E>
         where
-            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
             /// Creates a new FSM instance, emitting the entry transition event.
             pub fn #entry_constructor(tx: &quent_model::EventSender<E>, state: #entry_state_type) -> Self {
@@ -593,7 +595,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         impl<E> Drop for #handle_name<E>
         where
-            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
             fn drop(&mut self) {
                 self.exit();

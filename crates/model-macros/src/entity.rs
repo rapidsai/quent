@@ -5,7 +5,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::DeriveInput;
 
-use crate::util::{parse_resource_group_attr, to_snake_case};
+use crate::util::{parse_resource_group_attr, serde_bound, serde_derives, to_snake_case};
 
 /// If the field type is `EmitOnce<T>`, return the inner `T` ident.
 fn extract_emits_once(ty: &syn::Type) -> Option<Ident> {
@@ -38,6 +38,8 @@ fn extract_emits_once(ty: &syn::Type) -> Option<Ident> {
 ///
 /// Does NOT re-emit the struct (derive macros append).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
+    let serde_derives = serde_derives();
+    let serde_bound = serde_bound();
     let vis = &input.vis;
     let name = &input.ident;
     let entity_snake = to_snake_case(name);
@@ -155,13 +157,13 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         let output = quote! {
             // Declaration event struct
-            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug #serde_derives)]
             #vis struct #decl_struct {
                 #decl_fields,
             }
 
             // Event enum
-            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug #serde_derives)]
             #vis enum #event_enum {
                 Declaration(#decl_struct),
             }
@@ -176,14 +178,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             #[derive(Clone)]
             #vis struct #observer_name<E>
             where
-                E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+                E: From<#event_enum> #serde_bound + Send + std::fmt::Debug + 'static,
             {
                 tx: quent_model::EventSender<E>,
             }
 
             impl<E> #observer_name<E>
             where
-                E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+                E: From<#event_enum> #serde_bound + Send + std::fmt::Debug + 'static,
             {
                 pub fn new(tx: &quent_model::EventSender<E>) -> Self {
                     Self { tx: tx.clone() }
@@ -319,7 +321,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         let output = quote! {
             // Event enum
-            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug #serde_derives)]
             #vis enum #event_enum {
                 #(#event_variants,)*
             }
@@ -330,14 +332,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             #[derive(Clone)]
             #vis struct #observer_name<E>
             where
-                E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+                E: From<#event_enum> #serde_bound + Send + std::fmt::Debug + 'static,
             {
                 tx: quent_model::EventSender<E>,
             }
 
             impl<E> #observer_name<E>
             where
-                E: From<#event_enum> + serde::Serialize + Send + std::fmt::Debug + 'static,
+                E: From<#event_enum> #serde_bound + Send + std::fmt::Debug + 'static,
             {
                 pub fn new(tx: &quent_model::EventSender<E>) -> Self {
                     Self { tx: tx.clone() }

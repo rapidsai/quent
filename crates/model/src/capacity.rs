@@ -35,11 +35,12 @@ mod private {
 ///
 /// The kind marker is erased at runtime (zero-cost phantom type).
 /// Serialization is transparent: `Capacity<u64>` serializes as a plain `u64`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Capacity<V: CapacityValue, K = Occupancy> {
     pub value: V,
-    #[serde(skip)]
+    #[cfg_attr(feature = "serde", serde(skip))]
     _kind: std::marker::PhantomData<K>,
 }
 

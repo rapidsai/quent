@@ -4,9 +4,13 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+default = ["serde"]
+serde = ["dep:serde", "quent-model-macros/serde"]
+
 [dependencies]
 uuid = { workspace = true, features = ["serde", "v7"] }
-serde.workspace = true
+serde = { workspace = true, optional = true }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }

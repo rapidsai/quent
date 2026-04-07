@@ -2,7 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use convert_case::{Case, Casing};
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
+use quote::quote;
+
+/// Returns `serde::Serialize, serde::Deserialize` derive tokens when the
+/// `serde` feature is enabled, or empty tokens otherwise.
+pub fn serde_derives() -> TokenStream {
+    if cfg!(feature = "serde") {
+        quote! { , serde::Serialize, serde::Deserialize }
+    } else {
+        quote! {}
+    }
+}
+
+/// Returns `+ serde::Serialize` trait bound when the `serde` feature is
+/// enabled, or empty tokens otherwise.
+pub fn serde_bound() -> TokenStream {
+    if cfg!(feature = "serde") {
+        quote! { + serde::Serialize }
+    } else {
+        quote! {}
+    }
+}
 
 /// Converts a PascalCase identifier to snake_case.
 pub fn to_snake_case(ident: &Ident) -> String {

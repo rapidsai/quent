@@ -3,8 +3,6 @@
 
 //! Common event wrapper for all FSM event types.
 
-use serde::{Deserialize, Serialize};
-
 /// Common wrapper for all FSM events.
 ///
 /// Every generated FSM event type is an alias over `FsmEvent<S, D>`:
@@ -17,7 +15,8 @@ use serde::{Deserialize, Serialize};
 /// `D` is the deferred enum (one variant per deferred field across all states).
 ///
 /// For FSMs with no deferred fields, `D` is an empty (uninhabitable) enum.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FsmEvent<S, D> {
     /// A transition into a new state.
     Transition {

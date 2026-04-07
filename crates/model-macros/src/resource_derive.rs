@@ -84,6 +84,8 @@ pub fn expand_resizable_resource(input: DeriveInput) -> syn::Result<TokenStream>
 }
 
 fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> {
+    let serde_derives = crate::util::serde_derives();
+    let serde_bound = crate::util::serde_bound();
     let vis = &input.vis;
     let name = &input.ident;
     let name_snake = to_snake_case(name);
@@ -189,7 +191,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let op_state_def = if capacity_field_defs.is_empty() {
         // Unit resource — empty operating state
         quote! {
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug, Clone #serde_derives)]
             #vis struct #op_state;
 
             impl quent_model::State for #op_state {}
@@ -227,7 +229,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
     } else {
         quote! {
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug, Clone #serde_derives)]
             #vis struct #op_state {
                 #(#capacity_field_defs,)*
             }
@@ -351,7 +353,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         };
 
         let resize_code = quote! {
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug, Clone #serde_derives)]
             #vis struct #resize_state;
 
             impl quent_model::State for #resize_state {}
@@ -472,7 +474,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
     let output = quote! {
         // Initializing state
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone #serde_derives)]
         #vis struct #init_state {
             pub instance_name: String,
             pub parent_group_id: uuid::Uuid,
@@ -512,7 +514,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #op_state_def
 
         // Finalizing state
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone #serde_derives)]
         #vis struct #fin_state;
 
         impl quent_model::State for #fin_state {}
@@ -547,11 +549,11 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #resizing_code
 
         // Deferred enum (empty — resources have no deferred fields)
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone #serde_derives)]
         #vis enum #deferred_enum {}
 
         // Transition enum
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone #serde_derives)]
         #vis enum #transition_enum {
             #transition_variants
         }
@@ -607,7 +609,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         // Handle
         #vis struct #handle_name<E>
         where
-            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
             id: uuid::Uuid,
             seq: u64,
@@ -617,7 +619,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         impl<E> #handle_name<E>
         where
-            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
             pub fn initializing(tx: &quent_model::EventSender<E>, state: #init_state) -> Self {
                 let id = uuid::Uuid::now_v7();
@@ -655,7 +657,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         impl<E> Drop for #handle_name<E>
         where
-            E: From<#event_type> + serde::Serialize + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
             fn drop(&mut self) { self.exit(); }
         }

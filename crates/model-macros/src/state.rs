@@ -221,6 +221,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
 /// Expand the State derive macro. Only emits impl blocks and the Deferred enum.
 /// Does NOT re-emit the struct (derive macros append, they don't replace).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
+    let serde_derives = crate::util::serde_derives();
     let vis = &input.vis;
     let state_name_ident = &input.ident;
     let state_snake = to_snake_case(state_name_ident);
@@ -242,12 +243,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let deferred_enum = if fields.deferred.is_empty() {
         // Uninhabitable enum -- no deferred fields
         quote! {
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug, Clone #serde_derives)]
             #vis enum #deferred_ident {}
         }
     } else {
         quote! {
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug, Clone #serde_derives)]
             #vis enum #deferred_ident {
                 #(#deferred_variants,)*
             }

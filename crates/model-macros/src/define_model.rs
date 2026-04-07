@@ -60,6 +60,7 @@ fn event_type_path(path: &Path) -> Path {
 }
 
 pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
+    let serde_derives = crate::util::serde_derives();
     let input: DefineModelInput = syn::parse2(input)?;
     let name = &input.name;
 
@@ -73,7 +74,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let output = quote! {
         pub type #model_type = quent_model::Model<(#(#paths,)*)>;
 
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug #serde_derives)]
         pub enum #event_type {
             #(#variants(#event_types),)*
         }

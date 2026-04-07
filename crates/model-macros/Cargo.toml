@@ -7,6 +7,10 @@ publish.workspace = true
 [lib]
 proc-macro = true
 
+[features]
+default = ["serde"]
+serde = []
+
 [dependencies]
 convert_case = "0.8"
 syn = { version = "2", features = ["full", "extra-traits"] }
