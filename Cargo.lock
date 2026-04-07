@@ -1446,6 +1446,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-bridge"
+version = "0.1.0"
+dependencies = [
+ "cxx",
+ "cxx-build",
+ "quent-codegen",
+ "quent-cpp-example-instrumentation",
+ "quent-events",
+ "quent-exporter",
+ "quent-instrumentation",
+ "quent-model",
+ "quent-stdlib",
+ "uuid",
+]
+
+[[package]]
 name = "quent-codegen"
 version = "0.1.0"
 dependencies = [
@@ -1501,22 +1517,6 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
-]
-
-[[package]]
-name = "quent-cpp-example-bridge"
-version = "0.1.0"
-dependencies = [
- "cxx",
- "cxx-build",
- "quent-codegen",
- "quent-cpp-example-instrumentation",
- "quent-events",
- "quent-exporter",
- "quent-instrumentation",
- "quent-model",
- "quent-stdlib",
- "uuid",
 ]
 
 [[package]]

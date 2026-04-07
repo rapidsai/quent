@@ -13,8 +13,6 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir: PathBuf = std::env::var("CARGO_MANIFEST_DIR").unwrap().into();
     let out_dir: PathBuf = std::env::var("OUT_DIR").unwrap().into();
-    let src_bridge_dir = manifest_dir.join("src").join("bridge");
-    fs::create_dir_all(&src_bridge_dir).unwrap();
 
     // Collect model metadata
     let mut builder = quent_model::ModelBuilder::new();
@@ -40,8 +38,10 @@ fn main() {
     }
 
     // Generate CXX bridge Rust source files
+    // Include paths will be: quent-bridge/{file}.rs.h
     let options = CxxOptions {
-        crate_name: "quent-cpp-example-bridge".into(),
+        crate_name: "quent-bridge".into(),
+        bridge_path: ".".into(),
         model_crate: "quent_cpp_example_instrumentation".into(),
         event_type: "quent_cpp_example_instrumentation::ExampleEvent".into(),
         ..Default::default()
@@ -54,19 +54,14 @@ fn main() {
         if file.name == "lib.rs" {
             continue; // We provide our own lib.rs
         }
-        // Write to src/bridge/ for cxx_build (needs relative paths for correct
-        // C++ #include generation)
-        let path = src_bridge_dir.join(&file.name);
+        let path = manifest_dir.join(&file.name);
         fs::write(&path, &file.content).unwrap();
-        bridge_files.push(format!("src/bridge/{}", file.name));
+        bridge_files.push(file.name.clone());
 
-        // Collect module declarations for bridge_mod.rs (uses absolute paths
-        // so lib.rs can include! from OUT_DIR without mod declarations that
-        // cargo fmt would try to resolve)
         let mod_name = file.name.trim_end_matches(".rs");
         mod_lines.push(format!(
             "#[path = \"{}/{}\"]\npub mod {};",
-            src_bridge_dir.display(),
+            manifest_dir.display(),
             file.name,
             mod_name
         ));
@@ -78,11 +73,9 @@ fn main() {
     // Run cxx_build on the generated bridge files to produce C++ headers
     cxx_build::bridges(bridge_files)
         .std("c++20")
-        .compile("quent_cpp_example_bridge");
+        .compile("quent_bridge");
 
     // Copy CXX-generated headers to a stable location for CMake.
-    // cxx_build puts them in OUT_DIR/cxxbridge/include/ but Corrosion
-    // doesn't propagate these paths. Copy to bridge/include/.
     let cxx_include = out_dir.join("cxxbridge").join("include");
     let header_dir = manifest_dir.join("include");
     if cxx_include.exists() {

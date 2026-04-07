@@ -29,7 +29,7 @@ impl Default for CxxOptions {
         Self {
             namespace: "quent".to_string(),
             crate_name: "instrumentation".to_string(),
-            bridge_path: "src/bridge".to_string(),
+            bridge_path: ".".to_string(),
             model_crate: "model".to_string(),
             event_type: "model::Event".to_string(),
         }

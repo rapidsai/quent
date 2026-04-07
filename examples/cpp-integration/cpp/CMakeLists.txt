@@ -13,20 +13,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Corrosion)
 
-# --- Import the Rust instrumentation crate (CXX bridges) ---
+# --- Import the Rust bridge crate (CXX bridges) ---
 corrosion_import_crate(
-    MANIFEST_PATH ${CMAKE_SOURCE_DIR}/../instrumentation/Cargo.toml
-    CRATES quent-cpp-example-instrumentation
+    MANIFEST_PATH ${CMAKE_SOURCE_DIR}/../bridge/Cargo.toml
+    CRATES quent-bridge
 )
 
 # --- The C++ application ---
 add_executable(example src/main.cpp)
 
 # Link against the Rust static library
-target_link_libraries(example PRIVATE quent_cpp_example_instrumentation)
+target_link_libraries(example PRIVATE quent_bridge)
 
-# CXX-generated headers are copied to instrumentation/include/ by build.rs.
+# CXX-generated headers are copied to bridge/include/ by build.rs.
 # This directory contains rust/cxx.h and the per-module .rs.h headers.
 target_include_directories(example PRIVATE
-    ${CMAKE_SOURCE_DIR}/../instrumentation/include
+    ${CMAKE_SOURCE_DIR}/../bridge/include
 )
