@@ -36,8 +36,6 @@ struct UsageField {
 
 struct RegularField {
     name: String,
-    #[allow(dead_code)]
-    ident: Ident,
     ty: syn::Type,
     optional: bool,
 }
@@ -160,7 +158,6 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             let optional = is_option_type(&field.ty);
             regular.push(RegularField {
                 name,
-                ident: field_name.clone(),
                 ty: field.ty.clone(),
                 optional,
             });
@@ -176,7 +173,6 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             let optional = is_option_type(&field.ty);
             regular.push(RegularField {
                 name,
-                ident: field_name.clone(),
                 ty: field.ty.clone(),
                 optional,
             });
@@ -184,7 +180,6 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             let optional = is_option_type(&field.ty);
             regular.push(RegularField {
                 name,
-                ident: field_name.clone(),
                 ty: field.ty.clone(),
                 optional,
             });
@@ -238,7 +233,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     field_name: #name.to_string(),
                     resource_name: <#resource_ty as quent_model::Resource>::RESOURCE_NAME.to_string(),
                     resource_type_path: #resource_ty_str.to_string(),
-                    capacities: vec![],
                 }
             }
         })

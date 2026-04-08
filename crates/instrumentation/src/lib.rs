@@ -20,8 +20,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-pub mod trace;
-
 /// Wrapper around an optional channel sender. When the inner sender is `None`
 /// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
 /// channel or event-forwarding overhead.

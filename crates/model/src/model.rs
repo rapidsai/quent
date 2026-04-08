@@ -57,7 +57,6 @@ impl<T: ModelComponent> Model<T> {
 #[derive(Debug, Default)]
 pub struct ModelBuilder {
     pub fsms: Vec<FsmDef>,
-    pub resources: Vec<ResourceDef>,
     pub entities: Vec<EntityDef>,
     pub resource_groups: Vec<ResourceGroupDef>,
 }
@@ -69,10 +68,6 @@ impl ModelBuilder {
 
     pub fn add_fsm(&mut self, fsm: FsmDef) {
         self.fsms.push(fsm);
-    }
-
-    pub fn add_resource(&mut self, resource: ResourceDef) {
-        self.resources.push(resource);
     }
 
     pub fn add_entity(&mut self, entity: EntityDef) {
@@ -127,46 +122,6 @@ pub struct UsageDef {
     /// Rust path to the resource marker type (e.g., "quent_stdlib::ProcessorResource").
     /// The codegen uses `<T as Resource>::CapacityValue` to get the operating state type.
     pub resource_type_path: String,
-    pub capacities: Vec<CapacityValueDef>,
-}
-
-/// A capacity value within a usage.
-#[derive(Debug, Clone)]
-pub struct CapacityValueDef {
-    pub name: String,
-    pub value_type: ValueType,
-}
-
-/// A resource definition (an FSM marked with `#[quent::resource]`).
-#[derive(Debug, Clone)]
-pub struct ResourceDef {
-    pub name: String,
-    pub kind: ResourceKind,
-    pub capacities: Vec<CapacityDef>,
-}
-
-/// The kind of resource (determined by its FSM structure).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResourceKind {
-    Unit,
-    FixedBounds,
-    DynamicBounds,
-}
-
-/// A capacity declared on a resource.
-#[derive(Debug, Clone)]
-pub struct CapacityDef {
-    pub name: String,
-    pub capacity_type: CapacityType,
-    pub value_type: ValueType,
-    pub bounded: bool,
-}
-
-/// Whether a capacity tracks occupancy or rate.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CapacityType {
-    Occupancy,
-    Rate,
 }
 
 /// A resource group definition.

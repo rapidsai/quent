@@ -497,34 +497,11 @@ fn emit_state_conversion_tokens(
             let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
             let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
 
-            if usage.capacities.is_empty() {
-                quote! {
-                    #field_name: #q::Usage {
-                        resource_id: #q::Ref::new(#q::uuid::Uuid::from(data.#resource_id_field)),
-                        capacity: #alias {},
-                    },
-                }
-            } else {
-                let cap_fields: Vec<TokenStream> = usage
-                    .capacities
-                    .iter()
-                    .map(|cap| {
-                        let cap_name = format_ident!("{}", cap.name);
-                        let data_field = format_ident!("{}_{}", usage.field_name, cap.name);
-                        quote! {
-                            #cap_name: #q::Capacity::new(data.#data_field),
-                        }
-                    })
-                    .collect();
-
-                quote! {
-                    #field_name: #q::Usage {
-                        resource_id: #q::Ref::new(#q::uuid::Uuid::from(data.#resource_id_field)),
-                        capacity: #alias {
-                            #(#cap_fields)*
-                        },
-                    },
-                }
+            quote! {
+                #field_name: #q::Usage {
+                    resource_id: #q::Ref::new(#q::uuid::Uuid::from(data.#resource_id_field)),
+                    capacity: #alias {},
+                },
             }
         })
         .collect();
@@ -583,13 +560,6 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
                 "        pub {}_resource_id: UUID,\n",
                 usage.field_name
             ));
-            for cap in &usage.capacities {
-                let cxx_type = value_type_to_cxx(&cap.value_type);
-                fields_str.push_str(&format!(
-                    "        pub {}_{}: {},\n",
-                    usage.field_name, cap.name, cxx_type
-                ));
-            }
         }
         shared_structs_str.push_str(&format!(
             "    #[derive(Debug)]\n    pub struct {state_pascal} {{\n{fields_str}    }}\n\n"

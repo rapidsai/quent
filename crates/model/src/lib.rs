@@ -22,9 +22,8 @@ pub use quent_model_macros::{Entity, Event, Fsm, ResizableResource, Resource, St
 pub use capacity::{Capacity, Occupancy, Rate};
 pub use fsm_event::FsmEvent;
 pub use model::{
-    AttributeDef, CapacityDef, CapacityType, CapacityValueDef, EntityDef, EntityEventDef, FsmDef,
-    Model, ModelBuilder, ModelComponent, ResourceDef, ResourceGroupDef, ResourceKind, StateDef,
-    TransitionDef, TransitionEndpoint, UsageDef, ValueType,
+    AttributeDef, EntityDef, EntityEventDef, FsmDef, Model, ModelBuilder, ModelComponent,
+    ResourceGroupDef, StateDef, TransitionDef, TransitionEndpoint, UsageDef, ValueType,
 };
 pub use r#ref::Ref;
 pub use resource::Resource;
@@ -106,7 +105,9 @@ pub trait HasParentGroup {}
 pub use quent_attributes as attributes;
 pub use quent_events::Event;
 pub use quent_exporter::{self as exporter, ExporterOptions};
-pub use quent_instrumentation::{Context, EventSender};
+pub use quent_instrumentation::Context;
+#[doc(hidden)]
+pub use quent_instrumentation::EventSender;
 pub use quent_time::timestamp;
 pub use uuid;
 

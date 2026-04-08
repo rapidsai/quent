@@ -1621,7 +1621,6 @@ dependencies = [
  "quent-exporter",
  "quent-exporter-types",
  "serde",
- "thiserror",
  "tokio",
  "tokio-util",
  "tracing",
