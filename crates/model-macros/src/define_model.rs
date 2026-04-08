@@ -102,8 +102,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             }
         )*
 
-        // Re-export for generated bridge code so the bridge crate only needs
-        // to depend on the instrumentation crate.
+        #[doc(hidden)]
         pub use quent_model as __quent;
     };
 

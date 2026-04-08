@@ -52,10 +52,3 @@ impl<V: CapacityValue, K> Capacity<V, K> {
         }
     }
 }
-
-impl<V: CapacityValue, K> std::ops::Deref for Capacity<V, K> {
-    type Target = V;
-    fn deref(&self) -> &V {
-        &self.value
-    }
-}

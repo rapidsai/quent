@@ -3,8 +3,6 @@
 
 //! Resource usage type linking FSM states to resources.
 
-use serde::{Deserialize, Serialize};
-
 use crate::Ref;
 use crate::Resource;
 
@@ -17,11 +15,14 @@ use crate::Resource;
 /// - For a `Memory` resource: `CapacityValue` contains `used_bytes: u64`
 /// - For a `Processor` (unit resource): `CapacityValue` is `()`
 /// - For custom resources: `CapacityValue` matches the operating state fields
-#[derive(Serialize, Deserialize)]
-#[serde(bound(
-    serialize = "T::CapacityValue: Serialize",
-    deserialize = "T::CapacityValue: serde::de::DeserializeOwned"
-))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "T::CapacityValue: serde::Serialize",
+        deserialize = "T::CapacityValue: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct Usage<T: Resource> {
     /// Typed reference to the resource instance being used.
     pub resource_id: Ref<T>,

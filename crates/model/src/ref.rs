@@ -9,7 +9,6 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// A typed reference to an entity, FSM, or resource instance.
@@ -20,11 +19,11 @@ use uuid::Uuid;
 ///
 /// The type parameter is erased at serialization time — on the wire, a
 /// `Ref<T>` is just a `Uuid`.
-#[derive(Serialize, Deserialize)]
-#[serde(transparent)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Ref<T> {
     id: Uuid,
-    #[serde(skip)]
+    #[cfg_attr(feature = "serde", serde(skip))]
     _phantom: PhantomData<fn() -> T>,
 }
 

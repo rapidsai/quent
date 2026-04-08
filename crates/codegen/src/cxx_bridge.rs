@@ -159,11 +159,12 @@ fn emit_context_bridge(options: &CxxOptions) -> GeneratedFile {
         pub mod ffi {
             extern "Rust" {
                 type Context;
-                fn create_context(exporter: String, output_dir: String) -> Box<Context>;
+                fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>>;
             }
         }
 
         /// Global event sender, initialized by `create_context`.
+        /// Returns a noop sender if context has not been created yet.
         static SENDER: OnceLock<#q::EventSender<#event_type>> = OnceLock::new();
 
         pub struct Context {
@@ -173,11 +174,11 @@ fn emit_context_bridge(options: &CxxOptions) -> GeneratedFile {
         pub fn global_sender() -> #q::EventSender<#event_type> {
             SENDER
                 .get()
-                .expect("create_context must be called first")
-                .clone()
+                .cloned()
+                .unwrap_or_default()
         }
 
-        pub fn create_context(exporter: String, output_dir: String) -> Box<Context> {
+        pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
                 "ndjson" => Some(#q::exporter::ExporterOptions::Ndjson(
                     #q::exporter::NdjsonExporterOptions {
@@ -186,10 +187,10 @@ fn emit_context_bridge(options: &CxxOptions) -> GeneratedFile {
                 )),
                 _ => None,
             };
-            let inner =
-                #q::Context::try_new(opts, #q::uuid::Uuid::now_v7()).unwrap();
+            let inner = #q::Context::try_new(opts, #q::uuid::Uuid::now_v7())
+                .map_err(|e| e.to_string())?;
             let _ = SENDER.set(inner.events_sender());
-            Box::new(Context { _inner: inner })
+            Ok(Box::new(Context { _inner: inner }))
         }
     };
 
