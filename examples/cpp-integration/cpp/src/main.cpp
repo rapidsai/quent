@@ -5,6 +5,7 @@
 // Pipeline: model (Rust) -> quent-codegen -> CXX bridge -> C++ headers -> this
 
 #include "quent-bridge/gen/uuid.rs.h"
+#include "quent-bridge/gen/custom_attributes.rs.h"
 #include "quent-bridge/gen/context.rs.h"
 #include "quent-bridge/gen/job.rs.h"
 #include "quent-bridge/gen/thread_pool.rs.h"
@@ -54,8 +55,13 @@ int main() {
         task->exit();
     }
 
-    // Job complete (unit event — no data parameter).
-    job_obs->complete(job_id);
+    // Job complete — with custom attributes.
+    quent::CustomAttributes metadata;
+    metadata.string_attrs.push_back({"status", "success"});
+    metadata.i64_attrs.push_back({"tasks_completed", 4});
+    job_obs->complete(job_id, quent::job::Complete{
+        .metadata = std::move(metadata),
+    });
 
     // Context destruction flushes all pending events.
     return 0;

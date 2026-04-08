@@ -21,7 +21,9 @@ pub struct Submit {
 }
 
 #[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
-pub struct Complete;
+pub struct Complete {
+    pub metadata: quent_attributes::CustomAttributes,
+}
 
 #[derive(Entity)]
 #[resource_group(root)]

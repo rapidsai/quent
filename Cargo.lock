@@ -1518,6 +1518,7 @@ dependencies = [
 name = "quent-cpp-example-instrumentation"
 version = "0.1.0"
 dependencies = [
+ "quent-attributes",
  "quent-model",
  "quent-stdlib",
  "serde",
