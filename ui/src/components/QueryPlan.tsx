@@ -10,6 +10,15 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
 import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
+import { DAGControls } from '@/components/dag/DAGControls';
+import {
+  useDagNodeColoring,
+  useDagEdgeWidthConfig,
+  useDagEdgeColoring,
+  useOperatorStatFields,
+  usePortStatFields,
+} from '@/hooks/useDagControls';
+import { DataText } from '@/components/ui/data-text';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() =>
@@ -27,6 +36,12 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
+
+  useDagNodeColoring(dagData.nodes);
+  useDagEdgeWidthConfig(dagData.edges);
+  useDagEdgeColoring(dagData.edges);
+  const operatorStatFields = useOperatorStatFields(dagData.nodes);
+  const portStatFields = usePortStatFields(dagData.edges);
 
   const handlePlanSelect = (item: QueryPlanDataItem | undefined) => {
     if (item) {
@@ -82,18 +97,28 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         onMouseLeave={() => setHoveredWorkerId(null)}
       >
         {singleQueryPlan ? (
-          <span className="text-xs">Query: {item.queryId}</span>
+          <span className="text-xs">
+            Query: <DataText>{item.queryId}</DataText>
+          </span>
         ) : (
           <span className="text-xs">
-            <span className="capitalize">{item.planType}</span>
-            {!hasChildren && <span>: {item.id}</span>}
+            <DataText className="capitalize">{item.planType}</DataText>
+            {!hasChildren && (
+              <span>
+                : <DataText>{item.id}</DataText>
+              </span>
+            )}
           </span>
         )}
         {item.workerId && (
-          <span className="text-xs text-muted-foreground">Worker: {item.workerId}</span>
+          <span className="text-xs text-muted-foreground">
+            <DataText>Worker: {item.workerId}</DataText>
+          </span>
         )}
         {hasChildren && (
-          <span className="text-xs text-muted-foreground capitalize text-left">ID: {item.id}</span>
+          <span className="text-xs text-muted-foreground capitalize text-left">
+            <DataText>{`ID: ${item.id}`}</DataText>
+          </span>
         )}
       </div>
     );
@@ -105,8 +130,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <Network className="h-4 w-4 text-primary" />
         <h3 className="text-xs font-semibold text-foreground">Query Plan Explorer</h3>
         <div className="text-xs text-muted-foreground">
-          {queryBundle.entities.query_group.instance_name} -{' '}
-          {queryBundle.entities.query.instance_name}
+          <DataText>{queryBundle.entities.query_group.instance_name}</DataText>
+          {' - '}
+          <DataText>{queryBundle.entities.query.instance_name}</DataText>
         </div>
       </div>
 
@@ -127,6 +153,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         </ResizablePanel>
 
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
+
+        <div className="border-t border-border">
+          <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} />
+        </div>
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
         <ResizablePanel

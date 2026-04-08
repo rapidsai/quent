@@ -8,7 +8,7 @@ import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { withOpacity } from '@/services/colors';
-import { formatDuration } from '@/services/formatters';
+import { formatDurationForAxisInterval } from '@/services/formatters';
 import {
   buildBinnedTimelineSeries,
   connectChart,
@@ -20,7 +20,7 @@ import {
 } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import { useTimelineChartColors } from './useTimelineChartColors';
+import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 const CONTROLLER_HEIGHT = 50;
@@ -137,8 +137,9 @@ export function TimelineController({
         hideOverlap: false,
         fontSize: 10,
         color: colors.timelineMarkupColor,
+        fontFamily: TIMELINE_MONO_FONT,
         formatter: (value: number) => {
-          return formatDuration(Number(value) - startTimeMillis);
+          return formatDurationForAxisInterval(Number(value) - startTimeMillis, interval);
         },
       },
       splitLine: {
@@ -251,9 +252,15 @@ export function TimelineController({
             backgroundColor: colors.dataZoomTextBackgroundColor,
             padding: [2, 4],
             borderRadius: 2,
+            fontFamily: TIMELINE_MONO_FONT,
           },
           labelFormatter: (tsMilliseconds: number) => {
-            return formatDuration(Number(tsMilliseconds) - startTimeMillis);
+            const spanMs = endTimeMillis - startTimeMillis;
+            const zoomInterval = getTimelineXAxisIntervalMs(spanMs, CONTROLLER_X_MIN_LABELS);
+            return formatDurationForAxisInterval(
+              Number(tsMilliseconds) - startTimeMillis,
+              zoomInterval
+            );
           },
           emphasis: {
             handleStyle: {

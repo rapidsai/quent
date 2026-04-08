@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { X, Maximize2, Filter, Settings } from 'lucide-react';
+import { X, Maximize2, Filter, Settings2 } from 'lucide-react';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { hideTasksAtom, zoomRangeAtom, debouncedZoomRangeAtom } from '@/atoms/timeline';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { DataText } from '@/components/ui/data-text';
 
 export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
@@ -33,7 +34,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
         <Filter className="h-3 w-3" />
         {operatorLabel ? (
           <span className="inline-flex items-center gap-1 rounded-sm bg-primary/15 text-primary px-1.5 py-0.5 font-medium">
-            {operatorLabel}
+            <DataText>{operatorLabel}</DataText>
             <button
               onClick={clearOperator}
               className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors"
@@ -67,7 +68,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
             className="inline-flex items-center rounded-sm p-0.5 hover:bg-accent hover:text-accent-foreground transition-colors"
             title="Timeline settings"
           >
-            <Settings className="h-3.5 w-3.5" />
+            <Settings2 className="h-3.5 w-3.5" />
           </button>
         </PopoverTrigger>
         <PopoverContent className="text-xs">

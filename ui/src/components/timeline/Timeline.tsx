@@ -20,7 +20,7 @@ import {
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
 import { connectChart, nanosToMs } from '@/lib/timeline.utils';
-import { useTimelineChartColors } from './useTimelineChartColors';
+import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
@@ -188,6 +188,7 @@ export function Timeline({
           margin: 8,
           fontSize: 10,
           color: timelineMarkupColor,
+          fontFamily: TIMELINE_MONO_FONT,
           formatter: yAxisFormatter,
         },
       },
