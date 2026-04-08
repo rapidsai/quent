@@ -143,3 +143,24 @@ pub fn define_model(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }
+
+/// Generates the instrumentation context with observer factory methods.
+///
+/// Takes the same syntax as `define_model!`. Generates `{Name}Context`
+/// with a `try_new()` constructor and `{component}_observer()` methods
+/// for each model component.
+///
+/// ```ignore
+/// define_instrumentation! {
+///     App {
+///         Task,
+///         quent_stdlib::Memory,
+///     }
+/// }
+/// ```
+#[proc_macro]
+pub fn define_instrumentation(input: TokenStream) -> TokenStream {
+    define_model::expand_instrumentation(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}

@@ -111,37 +111,7 @@ pub use quent_time::timestamp;
 pub use uuid;
 
 // define_model! is a proc macro — see quent_model_macros::define_model
-pub use quent_model_macros::define_model;
-
-/// Generates an instrumentation context for a given event type.
-///
-/// The context wraps `Context<E>` and provides `events_sender()`.
-/// Application code can extend it with additional methods via impl blocks.
-///
-/// ```ignore
-/// quent_model::define_context!(pub SimulatorContext(SimulatorEvent));
-/// ```
-#[macro_export]
-macro_rules! define_context {
-    ($vis:vis $context_name:ident($event_type:ty)) => {
-        $vis struct $context_name {
-            inner: $crate::Context<$event_type>,
-        }
-
-        impl $context_name {
-            pub fn try_new(
-                exporter: Option<$crate::ExporterOptions>,
-                id: uuid::Uuid,
-            ) -> Result<Self, Box<dyn std::error::Error>> {
-                $crate::Context::try_new(exporter, id).map(|inner| Self { inner })
-            }
-
-            pub fn events_sender(&self) -> $crate::EventSender<$event_type> {
-                self.inner.events_sender()
-            }
-        }
-    };
-}
+pub use quent_model_macros::{define_instrumentation, define_model};
 
 /// Prelude for convenient imports in model definition crates.
 pub mod prelude {

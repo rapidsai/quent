@@ -218,9 +218,9 @@ where
 
 impl<T: Debug> Plan<T> {
     pub fn declare(&self, context: &SimulatorContext, worker_id: Option<Uuid>) {
-        let plan_obs = plan::PlanObserver::new(&context.events_sender());
-        let operator_obs = operator::OperatorObserver::new(&context.events_sender());
-        let port_obs = port::PortObserver::new(&context.events_sender());
+        let plan_obs = context.plan_observer();
+        let operator_obs = context.operator_observer();
+        let port_obs = context.port_observer();
 
         plan_obs.declaration(
             self.id,
@@ -515,8 +515,7 @@ impl Worker {
         parent_engine_id: Uuid,
         num_threads: usize,
     ) -> Self {
-        let tx = context.events_sender();
-        let worker_obs = worker::WorkerObserver::new(&tx);
+        let worker_obs = context.worker_observer();
 
         info!("Spawning worker {name}");
         worker_obs.init(
@@ -531,15 +530,16 @@ impl Worker {
         let mut channel_handles = Vec::new();
         let mut processor_handles = Vec::new();
 
+        let mem_obs = context.memory_observer();
+        let ch_obs = context.channel_observer();
+        let proc_obs = context.processor_observer();
+
         // Filesystem
-        let mut fs_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::initializing(
-            &tx,
-            quent_stdlib::MemoryInitializing {
-                instance_name: "Filesystem".into(),
-                parent_group_id: id,
-                resource_type_name: "filesystem".into(),
-            },
-        );
+        let mut fs_handle = mem_obs.initializing(quent_stdlib::MemoryInitializing {
+            instance_name: "Filesystem".into(),
+            parent_group_id: id,
+            resource_type_name: "filesystem".into(),
+        });
         let filesystem = fs_handle.uuid();
         fs_handle.operating(quent_stdlib::MemoryOperating {
             capacity_bytes: Capacity::new(Some(0)),
@@ -547,14 +547,11 @@ impl Worker {
         memory_handles.push(fs_handle);
 
         // Memory pool
-        let mut mem_handle = quent_stdlib::MemoryHandle::<SimulatorEvent>::initializing(
-            &tx,
-            quent_stdlib::MemoryInitializing {
-                instance_name: "Memory".into(),
-                parent_group_id: id,
-                resource_type_name: "memory".into(),
-            },
-        );
+        let mut mem_handle = mem_obs.initializing(quent_stdlib::MemoryInitializing {
+            instance_name: "Memory".into(),
+            parent_group_id: id,
+            resource_type_name: "memory".into(),
+        });
         let memory = mem_handle.uuid();
         mem_handle.operating(quent_stdlib::MemoryOperating {
             capacity_bytes: Capacity::new(Some(0)),
@@ -562,16 +559,13 @@ impl Worker {
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
-        let mut fs_to_mem_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
-            &tx,
-            quent_stdlib::ChannelInitializing {
-                instance_name: "Filesystem -> Memory".into(),
-                parent_group_id: id,
-                resource_type_name: "fs_to_mem".into(),
-                source_id: filesystem,
-                target_id: memory,
-            },
-        );
+        let mut fs_to_mem_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
+            instance_name: "Filesystem -> Memory".into(),
+            parent_group_id: id,
+            resource_type_name: "fs_to_mem".into(),
+            source_id: filesystem,
+            target_id: memory,
+        });
         let fs_to_mem = fs_to_mem_handle.uuid();
         fs_to_mem_handle.operating(quent_stdlib::ChannelOperating {
             capacity_bytes: Capacity::new(None),
@@ -579,16 +573,13 @@ impl Worker {
         channel_handles.push(fs_to_mem_handle);
 
         // Memory -> Filesystem channel
-        let mut mem_to_fs_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
-            &tx,
-            quent_stdlib::ChannelInitializing {
-                instance_name: "Memory -> Filesystem".into(),
-                parent_group_id: id,
-                resource_type_name: "mem_to_fs".into(),
-                source_id: memory,
-                target_id: filesystem,
-            },
-        );
+        let mut mem_to_fs_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
+            instance_name: "Memory -> Filesystem".into(),
+            parent_group_id: id,
+            resource_type_name: "mem_to_fs".into(),
+            source_id: memory,
+            target_id: filesystem,
+        });
         let mem_to_fs = mem_to_fs_handle.uuid();
         mem_to_fs_handle.operating(quent_stdlib::ChannelOperating {
             capacity_bytes: Capacity::new(None),
@@ -597,7 +588,7 @@ impl Worker {
 
         // Thread pool
         let thread_pool = Uuid::now_v7();
-        let tp_obs = quent_simulator_instrumentation::ThreadPoolObserver::new(&tx);
+        let tp_obs = context.thread_pool_observer();
         tp_obs.thread_pool(
             thread_pool,
             quent_simulator_instrumentation::ThreadPoolDeclaration {
@@ -608,14 +599,11 @@ impl Worker {
 
         let mut threads = Vec::new();
         for index in 0..num_threads {
-            let mut thread_handle = quent_stdlib::ProcessorHandle::<SimulatorEvent>::initializing(
-                &tx,
-                quent_stdlib::ProcessorInitializing {
-                    instance_name: format!("Thread {index}"),
-                    parent_group_id: thread_pool,
-                    resource_type_name: "thread".into(),
-                },
-            );
+            let mut thread_handle = proc_obs.initializing(quent_stdlib::ProcessorInitializing {
+                instance_name: format!("Thread {index}"),
+                parent_group_id: thread_pool,
+                resource_type_name: "thread".into(),
+            });
             threads.push(thread_handle.uuid());
             thread_handle.operating(quent_stdlib::ProcessorOperating {});
             processor_handles.push(thread_handle);
@@ -644,18 +632,15 @@ impl Worker {
         operator: &Operator<Physical>,
         thread: Uuid,
     ) {
-        let tx = context.events_sender();
         let thread_ref = Ref::new(thread);
         let mem_ref = Ref::new(self.memory);
 
         // Create task — emits entry -> Queueing
-        let mut task = TaskHandle::<SimulatorEvent>::queueing(
-            &tx,
-            Queueing {
-                operator_id: operator.id,
-                instance_name: format!("task-{index}"),
-            },
-        );
+        let task_obs = context.task_observer();
+        let mut task = task_obs.queueing(Queueing {
+            operator_id: operator.id,
+            instance_name: format!("task-{index}"),
+        });
 
         sleep_long();
         let (spill, load, send) = match operator.kind {
@@ -872,8 +857,8 @@ impl Worker {
             };
         }
 
-        let op_obs = operator::OperatorObserver::new(&context.events_sender());
-        let port_obs = port::PortObserver::new(&context.events_sender());
+        let op_obs = context.operator_observer();
+        let port_obs = context.port_observer();
         for node_idx in nodes.iter() {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
@@ -1102,7 +1087,7 @@ impl Worker {
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        let worker_obs = worker::WorkerObserver::new(&context.events_sender());
+        let worker_obs = context.worker_observer();
 
         for handle in &mut self.memory_handles {
             handle.finalizing();
@@ -1143,11 +1128,9 @@ impl Engine {
     }
 
     fn spawn(&mut self, context: &SimulatorContext, num_workers: usize, num_threads: usize) {
-        let tx = context.events_sender();
-
         info!("Simulating Engine:");
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
-        let engine_obs = engine::EngineObserver::new(&tx);
+        let engine_obs = context.engine_observer();
 
         engine_obs.init(
             self.id,
@@ -1179,7 +1162,7 @@ impl Engine {
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        let net_obs = quent_simulator_instrumentation::NetworkObserver::new(&tx);
+        let net_obs = context.network_observer();
         net_obs.network(
             self.network,
             quent_simulator_instrumentation::NetworkDeclaration {
@@ -1187,37 +1170,32 @@ impl Engine {
                 parent_group_id: self.id,
             },
         );
+        let ch_obs = context.channel_observer();
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
 
-                let mut up_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
-                    &tx,
-                    quent_stdlib::ChannelInitializing {
-                        instance_name: format!("worker {worker_index} -> {other_worker_index}"),
-                        parent_group_id: self.network,
-                        resource_type_name: "link".into(),
-                        source_id: self.workers.get(&worker_id).unwrap().memory,
-                        target_id: self.workers.get(&other_worker_id).unwrap().memory,
-                    },
-                );
+                let mut up_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
+                    instance_name: format!("worker {worker_index} -> {other_worker_index}"),
+                    parent_group_id: self.network,
+                    resource_type_name: "link".into(),
+                    source_id: self.workers.get(&worker_id).unwrap().memory,
+                    target_id: self.workers.get(&other_worker_id).unwrap().memory,
+                });
                 let up_link_id = up_handle.uuid();
                 up_handle.operating(quent_stdlib::ChannelOperating {
                     capacity_bytes: Capacity::new(None),
                 });
                 self.network_link_handles.push(up_handle);
 
-                let mut down_handle = quent_stdlib::ChannelHandle::<SimulatorEvent>::initializing(
-                    &tx,
-                    quent_stdlib::ChannelInitializing {
-                        instance_name: format!("worker {other_worker_index} -> {worker_index}"),
-                        parent_group_id: self.network,
-                        resource_type_name: "link".into(),
-                        source_id: self.workers.get(&other_worker_id).unwrap().memory,
-                        target_id: self.workers.get(&worker_id).unwrap().memory,
-                    },
-                );
+                let mut down_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
+                    instance_name: format!("worker {other_worker_index} -> {worker_index}"),
+                    parent_group_id: self.network,
+                    resource_type_name: "link".into(),
+                    source_id: self.workers.get(&other_worker_id).unwrap().memory,
+                    target_id: self.workers.get(&worker_id).unwrap().memory,
+                });
                 let down_link_id = down_handle.uuid();
                 down_handle.operating(quent_stdlib::ChannelOperating {
                     capacity_bytes: Capacity::new(None),
@@ -1233,7 +1211,7 @@ impl Engine {
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        let engine_obs = engine::EngineObserver::new(&context.events_sender());
+        let engine_obs = context.engine_observer();
 
         // Tear down network
         for handle in &mut self.network_link_handles {
@@ -1296,8 +1274,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             engine.id
         );
 
-        let query_group_obs = query_group::QueryGroupObserver::new(&context.events_sender());
-        let tx = context.events_sender();
+        let query_group_obs = context.query_group_observer();
 
         query_group_obs.declaration(
             query_group_id,
@@ -1309,13 +1286,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..args.num_queries {
-            let mut query_handle = query::QueryHandle::<SimulatorEvent>::init(
-                &tx,
-                query::Init {
-                    query_group_id,
-                    instance_name: format!("Q{query_index}"),
-                },
-            );
+            let query_obs = context.query_observer();
+            let mut query_handle = query_obs.init(query::Init {
+                query_group_id,
+                instance_name: format!("Q{query_index}"),
+            });
             let query_id = query_handle.uuid();
             info!("Simulating Query:");
             info!(

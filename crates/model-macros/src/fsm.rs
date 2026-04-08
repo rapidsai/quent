@@ -270,6 +270,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let transition_enum = format_ident!("{}Transition", fsm_name);
     let event_type = format_ident!("{}Event", fsm_name);
     let handle_name = format_ident!("{}Handle", fsm_name);
+    let observer_name = format_ident!("{}Observer", fsm_name);
 
     // Generate transition enum variants
     let transition_variants: Vec<TokenStream> = state_idents
@@ -469,6 +470,35 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
+        #[derive(Clone)]
+        #vis struct #observer_name<E>
+        where
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+        {
+            tx: quent_model::EventSender<E>,
+        }
+
+        impl<E> #observer_name<E>
+        where
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+        {
+            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                Self { tx: tx.clone() }
+            }
+
+            pub fn #entry_constructor(&self, state: #entry_state_type) -> #handle_name<E> {
+                let id = uuid::Uuid::now_v7();
+                let mut handle = #handle_name {
+                    id,
+                    seq: 0,
+                    exited: false,
+                    tx: self.tx.clone(),
+                };
+                handle.emit_transition(state.into());
+                handle
+            }
+        }
+
         #vis struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
@@ -483,19 +513,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         where
             E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
-            /// Creates a new FSM instance, emitting the entry transition event.
-            pub fn #entry_constructor(tx: &quent_model::EventSender<E>, state: #entry_state_type) -> Self {
-                let id = uuid::Uuid::now_v7();
-                let mut handle = Self {
-                    id,
-                    seq: 0,
-                    exited: false,
-                    tx: tx.clone(),
-                };
-                handle.emit_transition(state.into());
-                handle
-            }
-
             /// Returns the raw UUID of this FSM instance.
             pub fn uuid(&self) -> uuid::Uuid {
                 self.id

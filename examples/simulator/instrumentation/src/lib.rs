@@ -36,4 +36,4 @@ quent_model::define_model! {
     }
 }
 
-quent_model::define_context!(pub SimulatorContext(SimulatorEvent));
+quent_model::define_instrumentation!(Simulator);

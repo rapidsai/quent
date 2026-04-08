@@ -542,16 +542,15 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         })
         .collect();
 
+    let observer_name = format_ident!("{}Observer", pascal_name);
     let factory_fn = if has_entry_data {
         let conversion = emit_state_conversion_tokens(entry_state, &icrate, &q);
         quote! {
             pub fn create(data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #conversion
+                let obs = #icrate::#observer_name::new(&super::context::global_sender());
                 Box::new(#handle_name {
-                    inner: #icrate::#handle_name::#entry_name(
-                        &super::context::global_sender(),
-                        state,
-                    ),
+                    inner: obs.#entry_name(state),
                 })
             }
         }
@@ -559,11 +558,9 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         quote! {
             pub fn create() -> Box<#handle_name> {
                 let state = #icrate::#entry_pascal;
+                let obs = #icrate::#observer_name::new(&super::context::global_sender());
                 Box::new(#handle_name {
-                    inner: #icrate::#handle_name::#entry_name(
-                        &super::context::global_sender(),
-                        state,
-                    ),
+                    inner: obs.#entry_name(state),
                 })
             }
         }

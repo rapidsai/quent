@@ -76,4 +76,4 @@ quent_model::define_model! {
     }
 }
 
-quent_model::define_context!(pub ExampleContext(ExampleEvent));
+quent_model::define_instrumentation!(Example);

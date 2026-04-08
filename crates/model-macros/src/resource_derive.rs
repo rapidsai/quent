@@ -132,6 +132,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let transition_enum = format_ident!("{}Transition", name);
     let event_type = format_ident!("{}Event", name);
     let handle_name = format_ident!("{}Handle", name);
+    let observer_name = format_ident!("{}Observer", name);
     let resource_marker = format_ident!("{}Resource", name);
 
     // Generate init state fields: standard metadata + user init fields
@@ -505,6 +506,30 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         }
 
+        #[derive(Clone)]
+        #vis struct #observer_name<E>
+        where
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+        {
+            tx: quent_model::EventSender<E>,
+        }
+
+        impl<E> #observer_name<E>
+        where
+            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+        {
+            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                Self { tx: tx.clone() }
+            }
+
+            pub fn initializing(&self, state: #init_state) -> #handle_name<E> {
+                let id = uuid::Uuid::now_v7();
+                let mut handle = #handle_name { id, seq: 0, exited: false, tx: self.tx.clone() };
+                handle.emit_transition(#transition_enum::from(state));
+                handle
+            }
+        }
+
         #vis struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
@@ -519,13 +544,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         where
             E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
         {
-            pub fn initializing(tx: &quent_model::EventSender<E>, state: #init_state) -> Self {
-                let id = uuid::Uuid::now_v7();
-                let mut handle = Self { id, seq: 0, exited: false, tx: tx.clone() };
-                handle.emit_transition(#transition_enum::from(state));
-                handle
-            }
-
             pub fn uuid(&self) -> uuid::Uuid { self.id }
 
             #handle_transition_methods
