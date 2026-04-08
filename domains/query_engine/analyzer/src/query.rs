@@ -37,7 +37,7 @@ impl Query {
 
     pub fn query_group_id(&self) -> Option<Uuid> {
         self.inner.first_data().and_then(|t| match t {
-            ModelQueryTransition::Init(init) => Some(init.query_group_id),
+            ModelQueryTransition::Init(init) => Some(init.query_group_id.uuid()),
             _ => None,
         })
     }

@@ -1288,7 +1288,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for query_index in 0..args.num_queries {
             let query_obs = context.query_observer();
             let mut query_handle = query_obs.init(query::Init {
-                query_group_id,
+                query_group_id: quent_model::Ref::new(query_group_id),
                 instance_name: format!("Q{query_index}"),
             });
             let query_id = query_handle.uuid();

@@ -11,7 +11,7 @@ use quent_model::prelude::*;
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Init {
     #[parent_group]
-    pub query_group_id: Uuid,
+    pub query_group_id: quent_model::Ref<super::query_group::QueryGroup>,
     #[instance_name]
     pub instance_name: String,
 }
@@ -26,6 +26,7 @@ pub struct Executing;
 
 /// Query FSM: `entry -> Init -> Planning -> Executing -> exit`
 #[derive(Fsm)]
+#[resource_group]
 pub struct Query {
     #[entry]
     #[to(Planning)]
