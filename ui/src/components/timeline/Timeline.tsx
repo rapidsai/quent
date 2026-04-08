@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -25,6 +25,11 @@ import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
+
+export const disconnectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+  unregisterChartFromGroup(instance, chartGroup);
+  disconnect(chartGroup);
+};
 
 export function Timeline({
   startTime,
@@ -361,6 +366,15 @@ export function Timeline({
       },
       { capture: true, passive: true }
     );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (instanceRef.current) {
+        disconnectChart(instanceRef.current, CHART_GROUP);
+        instanceRef.current = null;
+      }
+    };
   }, []);
 
   return (
