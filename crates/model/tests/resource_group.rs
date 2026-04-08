@@ -23,8 +23,8 @@ fn resource_group_trait_impl() {
 
 #[test]
 fn root_resource_group() {
-    assert!(Engine::IS_ROOT);
-    assert!(!QueryGroup::IS_ROOT);
+    const { assert!(Engine::IS_ROOT) };
+    const { assert!(!QueryGroup::IS_ROOT) };
 }
 
 #[test]
