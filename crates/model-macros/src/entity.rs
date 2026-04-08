@@ -102,8 +102,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     // When #[resource_group] is present, Entity derive generates both the
-    // ResourceGroup trait impl and the ModelComponent contribution, so
-    // #[derive(ResourceGroup)] is NOT needed alongside #[derive(Entity)].
+    // ResourceGroup trait impl and the ModelComponent contribution, so a
+    // separate ResourceGroup derive is not needed alongside `#[derive(Entity)]`.
     let rg_trait_impl = if resource_group.is_some() {
         quote! {
             impl quent_model::ResourceGroup for #name {

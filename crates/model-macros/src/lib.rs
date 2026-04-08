@@ -3,11 +3,14 @@
 
 //! Proc macros for defining Quent application models.
 //!
-//! Four derive macros replace the former `#[quent_model(...)]` attribute:
+//! Six derive macros replace the former `#[quent_model(...)]` attribute:
 //!
 //! ```ignore
 //! #[derive(State)]
 //! pub struct Planning;
+//!
+//! #[derive(Event)]
+//! pub struct Tick { pub cycle: u64 }
 //!
 //! #[derive(Fsm)]
 //! pub struct MyFsm {
@@ -20,11 +23,11 @@
 //!     pub init: Init,
 //! }
 //!
-//! #[derive(Entity)]
-//! #[resource_group(root)]
-//! pub struct Engine {
-//!     pub init: Init,
-//! }
+//! #[derive(Resource)]
+//! pub struct Memory;
+//!
+//! #[derive(ResizableResource)]
+//! pub struct Gpu;
 //! ```
 
 use proc_macro::TokenStream;
@@ -128,6 +131,7 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 /// ```ignore
 /// define_model! {
 ///     Simulator {
+///         root: ResourceRoot,
 ///         quent_query_engine_model::Engine,
 ///         task::Task,
 ///         quent_stdlib::Memory,
@@ -146,17 +150,12 @@ pub fn define_model(input: TokenStream) -> TokenStream {
 
 /// Generates the instrumentation context with observer factory methods.
 ///
-/// Takes the same syntax as `define_model!`. Generates `{Name}Context`
+/// Takes the model name as its single argument. Generates `{Name}Context`
 /// with a `try_new()` constructor and `{component}_observer()` methods
 /// for each model component.
 ///
 /// ```ignore
-/// define_instrumentation! {
-///     App {
-///         Task,
-///         quent_stdlib::Memory,
-///     }
-/// }
+/// define_instrumentation!(App);
 /// ```
 #[proc_macro]
 pub fn define_instrumentation(input: TokenStream) -> TokenStream {

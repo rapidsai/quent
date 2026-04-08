@@ -132,7 +132,7 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
             return Err(syn::Error::new_spanned(
                 field,
                 "#[deferred] is not yet implemented. \
-                 See https://github.com/rapidsai/quent/issues/75",
+                 See https://github.com/NVIDIA/quent/issues/75",
             ));
         } else if is_capacity_type(&field.ty) {
             // Capacity<V, K> — inner value is accessed via .value

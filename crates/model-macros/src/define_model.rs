@@ -7,6 +7,7 @@
 //! ```ignore
 //! define_model! {
 //!     Simulator {
+//!         root: ResourceRoot,
 //!         quent_query_engine_model::Engine,
 //!         task::Task,
 //!         quent_stdlib::Memory,
