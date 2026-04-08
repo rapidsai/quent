@@ -253,7 +253,7 @@ impl<T: Debug> Plan<T> {
                     parent_operator_ids: op.parents.clone(),
                     instance_name: format!("{}-{node_idx:?}", op.name()),
                     type_name: op.name(),
-                    custom_attributes: vec![],
+                    custom_attributes: Default::default(),
                 },
             );
 
@@ -1064,7 +1064,7 @@ impl Worker {
             op_obs.statistics(
                 op.id,
                 operator::Statistics {
-                    custom_attributes: attributes,
+                    custom_attributes: attributes.into(),
                 },
             );
 
@@ -1079,7 +1079,8 @@ impl Worker {
                         custom_attributes: vec![
                             Attribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
                             Attribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
-                        ],
+                        ]
+                        .into(),
                     },
                 );
             }
@@ -1139,7 +1140,7 @@ impl Engine {
                 implementation: Some(EngineImplementationAttributes {
                     name: Some("Simulator".into()),
                     version: Some("0.0.0-PoC".into()),
-                    custom_attributes: vec![],
+                    custom_attributes: Default::default(),
                 }),
             },
         );

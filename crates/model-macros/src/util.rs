@@ -139,6 +139,7 @@ pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
 
         // Primitive and well-known types
         let vt = match ident_str.as_str() {
+            "CustomAttributes" => quote! { quent_model::ValueType::CustomAttributes },
             "bool" => quote! { quent_model::ValueType::Bool },
             "u8" => quote! { quent_model::ValueType::U8 },
             "u16" => quote! { quent_model::ValueType::U16 },

@@ -1631,6 +1631,7 @@ dependencies = [
 name = "quent-model"
 version = "0.1.0"
 dependencies = [
+ "quent-attributes",
  "quent-events",
  "quent-exporter",
  "quent-instrumentation",

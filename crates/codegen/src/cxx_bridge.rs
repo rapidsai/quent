@@ -41,6 +41,7 @@ fn value_type_to_cxx(ty: &ValueType) -> &'static str {
         ValueType::F32 => "f32",
         ValueType::F64 => "f64",
         ValueType::Ref(_) => "UUID",
+        ValueType::CustomAttributes => "Box<CustomAttributes>",
         ValueType::List(_) | ValueType::Struct(_) => "String", // fallback: serialize as JSON string
     }
 }
@@ -64,6 +65,24 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     // Generate UUID bridge (shared type used by all bridges)
     files.push(emit_uuid_bridge(options));
 
+    // Generate custom attributes bridge if any component uses CustomAttributes
+    let uses_custom_attrs = model.entities.iter().any(|e| {
+        e.events.iter().any(|ev| {
+            ev.attributes
+                .iter()
+                .any(|a| a.value_type == ValueType::CustomAttributes)
+        })
+    }) || model.fsms.iter().any(|f| {
+        f.states.iter().any(|s| {
+            s.attributes
+                .iter()
+                .any(|a| a.value_type == ValueType::CustomAttributes)
+        })
+    });
+    if uses_custom_attrs {
+        files.push(emit_custom_attributes_bridge(options));
+    }
+
     // Generate context bridge
     files.push(emit_context_bridge(options));
 
@@ -81,6 +100,58 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     files.push(emit_lib_rs(model, options));
 
     files
+}
+
+/// Generate the CustomAttributes opaque type bridge.
+fn emit_custom_attributes_bridge(options: &CxxOptions) -> GeneratedFile {
+    let q = quent_path(options);
+
+    let tokens = quote! {
+        #[cxx::bridge(namespace = "quent")]
+        pub mod ffi {
+            extern "Rust" {
+                type CustomAttributes;
+                fn create_custom_attributes() -> Box<CustomAttributes>;
+                fn add_string(self: &mut CustomAttributes, key: String, value: String);
+                fn add_u64(self: &mut CustomAttributes, key: String, value: u64);
+                fn add_i64(self: &mut CustomAttributes, key: String, value: i64);
+                fn add_f64(self: &mut CustomAttributes, key: String, value: f64);
+            }
+        }
+
+        pub struct CustomAttributes {
+            inner: #q::attributes::CustomAttributes,
+        }
+
+        fn create_custom_attributes() -> Box<CustomAttributes> {
+            Box::new(CustomAttributes {
+                inner: #q::attributes::CustomAttributes::new(),
+            })
+        }
+
+        impl CustomAttributes {
+            fn add_string(&mut self, key: String, value: String) {
+                self.inner.add_string(key, value);
+            }
+
+            fn add_u64(&mut self, key: String, value: u64) {
+                self.inner.add_u64(key, value);
+            }
+
+            fn add_i64(&mut self, key: String, value: i64) {
+                self.inner.add_i64(key, value);
+            }
+
+            fn add_f64(&mut self, key: String, value: f64) {
+                self.inner.add_f64(key, value);
+            }
+        }
+    };
+
+    GeneratedFile {
+        name: "custom_attributes.rs".to_string(),
+        content: pretty_print(tokens),
+    }
 }
 
 /// Generate the UUID shared type bridge.
@@ -236,6 +307,9 @@ fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStre
         },
         ValueType::Ref(_) => quote! {
             #name: #q::Ref::new(#q::uuid::Uuid::from(data.#name)),
+        },
+        ValueType::CustomAttributes => quote! {
+            #name: data.#name.inner,
         },
         _ => quote! {
             #name: data.#name,

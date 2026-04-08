@@ -3,7 +3,6 @@
 
 //! Port entity: input or output of an operator.
 
-use quent_attributes::Attribute;
 use quent_model::{EmitOnce, Entity, Event};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,7 +17,7 @@ pub struct Declaration {
 
 #[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Statistics {
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
 #[derive(Entity)]

@@ -104,6 +104,7 @@ pub trait ResourceGroup {
 pub trait HasParentGroup {}
 
 // Re-export instrumentation types needed by generated code.
+pub use quent_attributes as attributes;
 pub use quent_events::Event;
 pub use quent_exporter::{self as exporter, ExporterOptions};
 pub use quent_instrumentation::{Context, EventSender};

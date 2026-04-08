@@ -3,7 +3,6 @@
 
 //! Operator entity: sinks, sources, or transforms data within a plan.
 
-use quent_attributes::Attribute;
 use quent_model::{EmitOnce, Entity, Event, Ref};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -14,12 +13,12 @@ pub struct Declaration {
     pub parent_operator_ids: Vec<Uuid>,
     pub instance_name: String,
     pub type_name: String,
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
 #[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Statistics {
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
 #[derive(Entity)]
