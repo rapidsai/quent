@@ -24,7 +24,7 @@ pub struct Submit {
 pub struct Complete;
 
 #[derive(Entity)]
-#[resource_group]
+#[resource_group(root)]
 pub struct Job {
     pub submit: EmitOnce<Submit>,
     pub complete: EmitOnce<Complete>,

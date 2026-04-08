@@ -108,6 +108,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let model_type = format_ident!("{}Model", name);
     let event_type = format_ident!("{}Event", name);
 
+    let root = &input.root;
+
     // Root is the first component, followed by the rest
     let mut all_components = vec![input.root.clone()];
     all_components.extend(input.components.iter().cloned());
@@ -149,6 +151,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
             }
         )*
+
+        const _: () = {
+            assert!(
+                <#root as quent_model::ResourceGroup>::IS_ROOT,
+                "the `root:` component must be annotated with #[resource_group(root)]"
+            );
+        };
 
         #[doc(hidden)]
         pub use quent_model as __quent;
