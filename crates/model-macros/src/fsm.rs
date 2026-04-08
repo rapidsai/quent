@@ -169,31 +169,6 @@ fn type_ident(ty: &syn::Type) -> syn::Result<Ident> {
     ))
 }
 
-/// Check if a struct-level attribute is `#[resource(capacity = T)]`.
-fn parse_resource_attr(input: &DeriveInput) -> syn::Result<Option<Ident>> {
-    for attr in &input.attrs {
-        if attr
-            .path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "resource")
-        {
-            let mut cap: Option<Ident> = None;
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("capacity") {
-                    let value = meta.value()?;
-                    cap = Some(value.parse::<Ident>()?);
-                    Ok(())
-                } else {
-                    Err(meta.error("expected `capacity`"))
-                }
-            })?;
-            return Ok(cap);
-        }
-    }
-    Ok(None)
-}
-
 /// Expand the Fsm derive macro.
 ///
 /// Parses struct fields with `#[entry]` and `#[to(...)]` attributes to build
@@ -236,9 +211,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             ));
         }
     }
-
-    // Parse resource(capacity = T) from outer attributes
-    let resource_capacity = parse_resource_attr(&input)?;
 
     // Parse resource_group from outer attributes
     let resource_group = parse_resource_group_attr(&input);
@@ -393,18 +365,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         })
         .collect();
-
-    let resource_marker = format_ident!("{}Resource", fsm_name);
-    let resource_impl = resource_capacity.map(|cap_state| {
-        quote! {
-            #vis struct #resource_marker;
-
-            impl quent_model::Resource for #resource_marker {
-                type CapacityValue = #cap_state;
-                const RESOURCE_NAME: &'static str = #fsm_snake;
-            }
-        }
-    });
 
     // Resource group contribution
     let rg_contribution = if let Some(is_root) = resource_group {
@@ -588,8 +548,6 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         #rg_trait_impl
 
         #rg_parent_group_assert
-
-        #resource_impl
 
     };
 

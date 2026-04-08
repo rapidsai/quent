@@ -71,9 +71,8 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
 /// - `#[to(StateA, StateB, exit)]` — declares transitions from this state
 ///
 /// Struct-level attributes (optional):
-/// - `#[resource(capacity = T)]` — marks this FSM as a resource
 /// - `#[resource_group]` / `#[resource_group(root)]` — resource group metadata
-#[proc_macro_derive(Fsm, attributes(entry, to, resource, resource_group))]
+#[proc_macro_derive(Fsm, attributes(entry, to, resource_group))]
 pub fn derive_fsm(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     fsm::expand_derive(input)
