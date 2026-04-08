@@ -26,7 +26,7 @@ impl Worker {
         let d = self.0.data();
         ui::Worker {
             id: self.0.id(),
-            parent_engine_id: d.init.as_ref().map(|i| i.parent_engine_id),
+            parent_engine_id: d.init.as_ref().map(|i| i.parent_engine_id.uuid()),
             instance_name: d.init.as_ref().map(|i| i.instance_name.clone()),
             start_unix_ns: self.0.first_timestamp(),
             end_unix_ns: self.0.last_timestamp(),
@@ -65,6 +65,10 @@ impl Span for Worker {
 
 impl ResourceGroup for Worker {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.0.data().init.as_ref().map(|i| i.parent_engine_id)
+        self.0
+            .data()
+            .init
+            .as_ref()
+            .map(|i| i.parent_engine_id.uuid())
     }
 }

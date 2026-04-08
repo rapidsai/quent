@@ -3,13 +3,12 @@
 
 //! Worker entity: responsible for executing plans.
 
-use quent_model::{EmitOnce, Entity, Event};
+use quent_model::{EmitOnce, Entity, Event, Ref};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-#[derive(Debug, Default, Event, Deserialize, Serialize)]
+#[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Init {
-    pub parent_engine_id: Uuid,
+    pub parent_engine_id: Ref<super::engine::Engine>,
     pub instance_name: String,
 }
 

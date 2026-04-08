@@ -226,18 +226,17 @@ impl<T: Debug> Plan<T> {
             self.id,
             plan::Declaration {
                 instance_name: self.name.clone(),
-                parent: self
-                    .parent_plan_id
-                    .map_or(plan::PlanParent::Query(self.query_id), |parent_id| {
-                        plan::PlanParent::Plan(parent_id)
-                    }),
-                worker_id,
+                parent: self.parent_plan_id.map_or(
+                    plan::PlanParent::Query(Ref::new(self.query_id)),
+                    |parent_id| plan::PlanParent::Plan(Ref::new(parent_id)),
+                ),
+                worker_id: worker_id.map(Ref::new),
                 edges: self
                     .dag
                     .edge_references()
                     .map(|edge| plan::Edge {
-                        source: edge.weight().source.id,
-                        target: edge.weight().target.id,
+                        source: Ref::new(edge.weight().source.id),
+                        target: Ref::new(edge.weight().target.id),
                     })
                     .collect(),
             },
@@ -265,7 +264,7 @@ impl<T: Debug> Plan<T> {
                     (
                         edge.weight().target.id,
                         port::Declaration {
-                            operator_id: op.id,
+                            operator_id: Ref::new(op.id),
                             instance_name: edge.weight().target.name.to_string(),
                         },
                     )
@@ -277,7 +276,7 @@ impl<T: Debug> Plan<T> {
                             (
                                 edge.weight().source.id,
                                 port::Declaration {
-                                    operator_id: op.id,
+                                    operator_id: Ref::new(op.id),
                                     instance_name: edge.weight().source.name.to_string(),
                                 },
                             )
@@ -521,7 +520,7 @@ impl Worker {
         worker_obs.init(
             id,
             worker::Init {
-                parent_engine_id,
+                parent_engine_id: Ref::new(parent_engine_id),
                 instance_name: name.clone(),
             },
         );

@@ -25,7 +25,11 @@ impl Port {
 
     /// The ID of the operator to which this port belongs.
     pub fn operator_id(&self) -> Option<Uuid> {
-        self.0.data().declaration.as_ref().map(|d| d.operator_id)
+        self.0
+            .data()
+            .declaration
+            .as_ref()
+            .map(|d| d.operator_id.uuid())
     }
 
     pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Port {

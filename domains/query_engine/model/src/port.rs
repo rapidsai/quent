@@ -3,14 +3,13 @@
 
 //! Port entity: input or output of an operator.
 
-use quent_model::{EmitOnce, Entity, Event};
+use quent_model::{EmitOnce, Entity, Event, Ref};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Declaration {
     /// The ID of the operator this port belongs to.
-    pub operator_id: Uuid,
+    pub operator_id: Ref<super::operator::Operator>,
     /// The name of this port.
     pub instance_name: String,
 }

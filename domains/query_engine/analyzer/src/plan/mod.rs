@@ -33,7 +33,11 @@ impl Plan {
 
     /// The worker that executed this plan, if any.
     pub fn worker_id(&self) -> Option<Uuid> {
-        self.0.data().declaration.as_ref().and_then(|d| d.worker_id)
+        self.0
+            .data()
+            .declaration
+            .as_ref()
+            .and_then(|d| d.worker_id.map(|r| r.uuid()))
     }
 
     /// The edges between operators of this plan.
@@ -48,8 +52,8 @@ impl Plan {
 
     pub fn to_ui(&self) -> ui::Plan {
         let parent = self.parent().map(|p| match p {
-            PlanParent::Query(uuid) => *uuid,
-            PlanParent::Plan(uuid) => *uuid,
+            PlanParent::Query(r) => r.uuid(),
+            PlanParent::Plan(r) => r.uuid(),
         });
 
         ui::Plan {
@@ -66,8 +70,8 @@ impl Plan {
                 .edges()
                 .iter()
                 .map(|e| ui::Edge {
-                    source: e.source,
-                    target: e.target,
+                    source: e.source.uuid(),
+                    target: e.target.uuid(),
                 })
                 .collect(),
         }
@@ -97,8 +101,8 @@ impl ResourceGroup for Plan {
         // be a resource group under the worker resource group
         self.worker_id()
             .or(self.parent().map(|parent| match parent {
-                PlanParent::Query(uuid) => *uuid,
-                PlanParent::Plan(uuid) => *uuid,
+                PlanParent::Query(r) => r.uuid(),
+                PlanParent::Plan(r) => r.uuid(),
             }))
     }
 }

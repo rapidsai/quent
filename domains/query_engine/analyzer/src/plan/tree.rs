@@ -45,7 +45,7 @@ impl PlanTree {
             .filter(|p| {
                 p.parent()
                     .map(|parent| match parent {
-                        PlanParent::Plan(uuid) => *uuid == current_plan_id,
+                        PlanParent::Plan(r) => r.uuid() == current_plan_id,
                         PlanParent::Query(_) => false,
                     })
                     .unwrap_or(false)
@@ -76,7 +76,7 @@ impl PlanTree {
             .values()
             .filter(|p: &&&Plan| {
                 p.parent().is_some_and(
-                    |parent| matches!(parent, PlanParent::Query(uuid) if *uuid == query_id),
+                    |parent| matches!(parent, PlanParent::Query(r) if r.uuid() == query_id),
                 )
             })
             .collect();
@@ -129,6 +129,7 @@ impl<'a> Iterator for PlanTreeIter<'a> {
 #[cfg(test)]
 mod tests {
     use quent_events::Event;
+    use quent_model::Ref;
     use quent_query_engine_model::plan::{Declaration, PlanEvent};
     use quent_time::TimeUnixNanoSec;
 
@@ -143,7 +144,7 @@ mod tests {
                 parent,
                 instance_name: String::new(),
                 edges: Vec::new(),
-                worker_id,
+                worker_id: worker_id.map(Ref::new),
             }),
         ));
         plan
@@ -162,11 +163,11 @@ mod tests {
 
         plans.insert(
             trunk_ids[0],
-            make_plan(trunk_ids[0], PlanParent::Query(query_id), None),
+            make_plan(trunk_ids[0], PlanParent::Query(Ref::new(query_id)), None),
         );
         plans.insert(
             trunk_ids[1],
-            make_plan(trunk_ids[1], PlanParent::Plan(trunk_ids[0]), None),
+            make_plan(trunk_ids[1], PlanParent::Plan(Ref::new(trunk_ids[0])), None),
         );
 
         for i in 0..3 {
@@ -174,7 +175,7 @@ mod tests {
                 leaf_ids[i],
                 make_plan(
                     leaf_ids[i],
-                    PlanParent::Plan(trunk_ids[1]),
+                    PlanParent::Plan(Ref::new(trunk_ids[1])),
                     Some(worker_ids[i]),
                 ),
             );
@@ -207,7 +208,7 @@ mod tests {
         let mut plans = HashMap::default();
         plans.insert(
             plan_id,
-            make_plan(plan_id, PlanParent::Query(query_id), None),
+            make_plan(plan_id, PlanParent::Query(Ref::new(query_id)), None),
         );
 
         let result = PlanTree::try_new(plans.values(), query_id);
