@@ -246,6 +246,10 @@ fn emit_custom_attributes_bridge(options: &CxxOptions) -> GeneratedFile {
     let tokens = quote! {
         #[cxx::bridge(namespace = "quent")]
         pub mod ffi {
+            unsafe extern "C++" {
+                include!("rust/cxx.h");
+            }
+
             #[derive(Debug, Default)]
             pub struct StringAttr {
                 pub key: String,
@@ -338,6 +342,10 @@ fn emit_uuid_bridge(model: &ModelBuilder, options: &CxxOptions) -> GeneratedFile
     let tokens = quote! {
         #[cxx::bridge(namespace = "uuid")]
         pub mod ffi {
+            unsafe extern "C++" {
+                include!("rust/cxx.h");
+            }
+
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
             pub struct UUID {
                 pub high_bits: u64,
@@ -410,6 +418,10 @@ fn emit_context_bridge(options: &CxxOptions) -> GeneratedFile {
 
         #[cxx::bridge(namespace = #ns)]
         pub mod ffi {
+            unsafe extern "C++" {
+                include!("rust/cxx.h");
+            }
+
             extern "Rust" {
                 type Context;
                 fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>>;
@@ -486,6 +498,10 @@ fn build_ffi_module_string(
     format!(
         r#"#[cxx::bridge(namespace = "{ns}")]
 pub mod ffi {{
+    unsafe extern "C++" {{
+        include!("rust/cxx.h");
+    }}
+
     #[namespace = "uuid"]
     unsafe extern "C++" {{
         include!("{include_path}");
