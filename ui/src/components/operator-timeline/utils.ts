@@ -106,6 +106,31 @@ export function spanToMs(
   return { startMs, endMs };
 }
 
+function buildOperatorActiveSpanEntry(
+  operatorId: string,
+  op: Operator,
+  startTimeNs: bigint,
+  fallbackPlanId?: string
+): OperatorActiveSpanEntry | null {
+  const span = op.active_span;
+  if (span == null) return null;
+
+  const { startMs, endMs } = spanToMs(span, startTimeNs);
+  const typeName = op.operator_type_name ?? '';
+  const label = op.instance_name ?? op.operator_type_name ?? operatorId.slice(0, 8);
+
+  return {
+    operatorId,
+    label,
+    typeName,
+    startMs,
+    endMs,
+    rowIndex: 0,
+    planId: op.plan_id ?? fallbackPlanId ?? '',
+    statistics: parseCustomStatistics(op),
+  };
+}
+
 /**
  * Extract operators that have a non-null active_span and convert to chart entries.
  * When planId is provided (non-empty), only operators belonging to that plan are included.
@@ -127,23 +152,8 @@ export function operatorsWithActiveSpans(
     .sort(([a], [b]) => a.localeCompare(b));
 
   for (const [operatorId, op] of sorted) {
-    const span = op.active_span;
-    if (span == null) continue;
-
-    const { startMs, endMs } = spanToMs(span, startTimeNs);
-    const typeName = op.operator_type_name ?? '';
-    const label = op.instance_name ?? op.operator_type_name ?? operatorId.slice(0, 8);
-
-    entries.push({
-      operatorId,
-      label,
-      typeName,
-      startMs,
-      endMs,
-      rowIndex: 0,
-      planId: planId ?? '',
-      statistics: parseCustomStatistics(op),
-    });
+    const entry = buildOperatorActiveSpanEntry(operatorId, op, startTimeNs, planId);
+    if (entry) entries.push(entry);
   }
 
   return stackOperatorsIntoRows(entries);
@@ -172,23 +182,8 @@ export function operatorsWithActiveSpansForWorker(
     .sort(([a], [b]) => a.localeCompare(b));
 
   for (const [operatorId, op] of sorted) {
-    const span = op.active_span;
-    if (span == null) continue;
-
-    const { startMs, endMs } = spanToMs(span, startTimeNs);
-    const typeName = op.operator_type_name ?? '';
-    const label = op.instance_name ?? op.operator_type_name ?? operatorId.slice(0, 8);
-
-    entries.push({
-      operatorId,
-      label,
-      typeName,
-      startMs,
-      endMs,
-      rowIndex: 0,
-      planId: op.plan_id ?? '',
-      statistics: parseCustomStatistics(op),
-    });
+    const entry = buildOperatorActiveSpanEntry(operatorId, op, startTimeNs);
+    if (entry) entries.push(entry);
   }
 
   return stackOperatorsIntoRows(entries);

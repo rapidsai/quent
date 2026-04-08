@@ -6,6 +6,7 @@ import ReactECharts from 'echarts-for-react/lib/core';
 
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
+import type { CustomSeriesOption } from 'echarts/charts';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
   nanosToMs,
@@ -99,19 +100,10 @@ export function OperatorGanttChart({
   );
   const showYScroll = rowCount > MAX_VISIBLE_ROWS;
   const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
+  type RenderItem = NonNullable<CustomSeriesOption['renderItem']>;
 
-  const renderItem = useCallback(
-    (
-      params: {
-        dataIndexInside: number;
-        coordSys: { x: number; y: number; width: number; height: number };
-      },
-      api: {
-        coord: (value: number[]) => number[];
-        size: (value: number[]) => number[];
-        value: (dim: number) => number;
-      }
-    ) => {
+  const renderItem: RenderItem = useCallback(
+    (params, api) => {
       const startMs = api.value(0) as number;
       const endMs = api.value(1) as number;
       const rowIndex = api.value(2) as number;
@@ -156,7 +148,6 @@ export function OperatorGanttChart({
 
       const rect = {
         type: 'rect' as const,
-        transition: [] as string[],
         shape: { ...clippedShape, r: 2 },
         style: {
           fill,
@@ -171,7 +162,6 @@ export function OperatorGanttChart({
 
       const text = {
         type: 'text' as const,
-        transition: [] as string[],
         style: {
           text: barLabel,
           x: textX,
@@ -199,7 +189,7 @@ export function OperatorGanttChart({
       top: 0,
       bottom: 0,
       left: TIMELINE_SPACING.left,
-      right: showYScroll ? TIMELINE_SPACING.right : TIMELINE_SPACING.right,
+      right: TIMELINE_SPACING.right,
       width: undefined as number | undefined,
       height: undefined as number | undefined,
       backgroundColor: gridBackgroundColor,
@@ -207,7 +197,7 @@ export function OperatorGanttChart({
       borderColor: gridBorderColor,
       show: true,
     }),
-    [gridBackgroundColor, gridBorderColor, showYScroll]
+    [gridBackgroundColor, gridBorderColor]
   );
 
   const option: EChartsOption = useMemo(
