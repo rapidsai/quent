@@ -24,7 +24,7 @@ pub struct Submit {
 pub struct Complete;
 
 #[derive(Entity)]
-#[resource_group(root)]
+#[resource_group]
 pub struct Job {
     pub submit: EmitOnce<Submit>,
     pub complete: EmitOnce<Complete>,
@@ -70,7 +70,7 @@ pub struct Task {
 
 quent_model::define_model! {
     Example {
-        Job,
+        root: Job,
         ThreadPool,
         Task,
     }

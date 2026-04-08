@@ -20,7 +20,7 @@ pub use task::TaskEvent;
 
 quent_model::define_model! {
     Simulator {
-        quent_query_engine_model::engine::Engine,
+        root: quent_query_engine_model::engine::Engine,
         quent_query_engine_model::worker::Worker,
         quent_query_engine_model::query_group::QueryGroup,
         quent_query_engine_model::query::Query,

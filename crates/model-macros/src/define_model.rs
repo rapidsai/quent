@@ -23,6 +23,7 @@ use syn::{Path, Token};
 
 struct DefineModelInput {
     name: Ident,
+    root: Path,
     components: Vec<Path>,
 }
 
@@ -33,6 +34,20 @@ impl Parse for DefineModelInput {
         let content;
         syn::braced!(content in input);
 
+        // First entry must be `root: Path`
+        let root_kw: Ident = content.parse()?;
+        if root_kw != "root" {
+            return Err(syn::Error::new_spanned(
+                root_kw,
+                "first entry must be `root: <RootResourceGroup>`",
+            ));
+        }
+        content.parse::<Token![:]>()?;
+        let root: Path = content.parse()?;
+        if content.peek(Token![,]) {
+            content.parse::<Token![,]>()?;
+        }
+
         let mut components = Vec::new();
         while !content.is_empty() {
             components.push(content.parse::<Path>()?);
@@ -41,7 +56,11 @@ impl Parse for DefineModelInput {
             }
         }
 
-        Ok(DefineModelInput { name, components })
+        Ok(DefineModelInput {
+            name,
+            root,
+            components,
+        })
     }
 }
 
@@ -89,11 +108,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let model_type = format_ident!("{}Model", name);
     let event_type = format_ident!("{}Event", name);
 
-    let paths = &input.components;
-    let variants: Vec<Ident> = input.components.iter().map(last_segment).collect();
-    let event_types: Vec<Path> = input.components.iter().map(event_type_path).collect();
-    let observer_types: Vec<Path> = input.components.iter().map(observer_type_path).collect();
-    let model_tuple = nested_tuple(paths);
+    // Root is the first component, followed by the rest
+    let mut all_components = vec![input.root.clone()];
+    all_components.extend(input.components.iter().cloned());
+    let variants: Vec<Ident> = all_components.iter().map(last_segment).collect();
+    let event_types: Vec<Path> = all_components.iter().map(event_type_path).collect();
+    let observer_types: Vec<Path> = all_components.iter().map(observer_type_path).collect();
+    let model_tuple = nested_tuple(&all_components);
     let context_type = format_ident!("{}Context", name);
     let impl_macro_name = format_ident!(
         "__define_{}_instrumentation",

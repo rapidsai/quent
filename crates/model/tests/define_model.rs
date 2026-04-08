@@ -38,10 +38,13 @@ pub struct SimpleEntity {
     pub ping: EmitOnce<Ping>,
 }
 
-// define_model! usage
+#[derive(Entity)]
+#[resource_group(root)]
+pub struct TestRoot;
 
 quent_model::define_model! {
     Test {
+        root: TestRoot,
         SimpleFsm,
         SimpleEntity,
     }
@@ -60,7 +63,7 @@ fn define_model_generates_event_enum() {
 fn define_model_generates_model_type() {
     let builder = TestModel::build();
     assert_eq!(builder.fsms.len(), 1);
-    assert_eq!(builder.entities.len(), 1);
+    assert_eq!(builder.entities.len(), 2); // TestRoot + SimpleEntity
 }
 
 #[test]

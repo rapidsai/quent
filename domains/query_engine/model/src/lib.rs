@@ -16,8 +16,8 @@ pub mod worker;
 
 quent_model::define_model! {
     QueryEngine {
+        root: engine::Engine,
         query::Query,
-        engine::Engine,
         worker::Worker,
         query_group::QueryGroup,
         plan::Plan,

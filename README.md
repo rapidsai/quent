@@ -102,10 +102,20 @@ pub struct Task {
     pub running: Running,
 }
 
+// The root resource group
+#[derive(Entity)]
+#[resource_group(root)]
+pub struct Scheduler;
+
 // Defines an application model, generates all event types
 // for the components of the model defined above.
 quent_model::define_model! {
-    App { Task, Thread, Queue }
+    App {
+        root: Scheduler,
+        Task,
+        Thread,
+        Queue,
+    }
 }
 
 // Generates the instrumentation context from which event
