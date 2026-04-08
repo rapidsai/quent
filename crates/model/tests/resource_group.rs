@@ -56,3 +56,29 @@ fn resource_group_entity_data() {
     assert_entity_data::<Engine>();
     assert_entity_data::<QueryGroup>();
 }
+
+// Resource group with custom declaration fields
+#[derive(Entity)]
+#[resource_group(root)]
+pub struct Server {
+    pub version: String,
+    pub port: u32,
+}
+
+#[test]
+fn resource_group_custom_declaration_fields() {
+    let mut builder = ModelBuilder::new();
+    Server::collect(&mut builder);
+
+    assert_eq!(builder.entities.len(), 1);
+    let entity = &builder.entities[0];
+    assert_eq!(entity.events.len(), 1);
+
+    let decl = &entity.events[0];
+    assert_eq!(decl.name, "declaration");
+    // instance_name + version + port
+    assert_eq!(decl.attributes.len(), 3);
+    assert_eq!(decl.attributes[0].name, "instance_name");
+    assert_eq!(decl.attributes[1].name, "version");
+    assert_eq!(decl.attributes[2].name, "port");
+}

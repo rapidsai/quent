@@ -5,7 +5,9 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::DeriveInput;
 
-use crate::util::{parse_resource_group_attr, serde_bound, serde_derives, to_snake_case};
+use crate::util::{
+    parse_resource_group_attr, resolve_value_type, serde_bound, serde_derives, to_snake_case,
+};
 
 /// If the field type is `EmitOnce<T>`, return the inner `T` ident.
 fn extract_emits_once(ty: &syn::Type) -> Option<Ident> {
@@ -48,9 +50,10 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let resource_group = parse_resource_group_attr(&input);
     let is_root = resource_group.unwrap_or(false);
 
-    // Detect EmitOnce<T> fields; if none found on a named-fields struct,
-    // the struct itself is a single-event entity (self-event).
+    // Collect EmitOnce<T> fields as event types, and non-EmitOnce fields
+    // as declaration fields (for resource groups) or self-event trigger.
     let mut event_types: Vec<Ident> = Vec::new();
+    let mut extra_decl_fields: Vec<&syn::Field> = Vec::new();
 
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
@@ -64,12 +67,23 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     }
                     if let Some(inner) = extract_emits_once(&field.ty) {
                         event_types.push(inner);
+                    } else {
+                        extra_decl_fields.push(field);
                     }
                 }
-                if event_types.is_empty() {
-                    // No EmitOnce<T> fields — self-event entity
+                if event_types.is_empty() && extra_decl_fields.is_empty() {
+                    // No fields at all on a named struct — shouldn't happen,
+                    // but treat as self-event for safety
+                    event_types.push(name.clone());
+                } else if event_types.is_empty() && resource_group.is_none() {
+                    // Non-EmitOnce fields on a non-resource-group entity:
+                    // self-event entity (struct IS the event)
+                    extra_decl_fields.clear();
                     event_types.push(name.clone());
                 }
+                // If event_types is empty but extra_decl_fields is non-empty
+                // and resource_group is Some, those fields become declaration
+                // fields — handled below.
             }
             syn::Fields::Unit => {}
             _ => {
@@ -121,22 +135,52 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         let data_struct = format_ident!("{}Data", name);
         let observer_method = format_ident!("{}", entity_snake);
 
+        // User-defined fields on the entity struct become declaration fields
+        let user_field_defs: Vec<TokenStream> = extra_decl_fields
+            .iter()
+            .map(|f| {
+                let ident = &f.ident;
+                let ty = &f.ty;
+                quote! { pub #ident: #ty }
+            })
+            .collect();
+
+        let user_attr_defs: Vec<TokenStream> = extra_decl_fields
+            .iter()
+            .map(|f| {
+                let field_name = f.ident.as_ref().unwrap().to_string();
+                let (value_type_tokens, optional) = resolve_value_type(&f.ty);
+                quote! {
+                    quent_model::AttributeDef {
+                        name: #field_name.to_string(),
+                        value_type: #value_type_tokens,
+                        optional: #optional,
+                    }
+                }
+            })
+            .collect();
+
         let (decl_fields, decl_attr_defs) = if is_root {
             (
-                quote! { pub instance_name: String },
+                quote! {
+                    pub instance_name: String,
+                    #(#user_field_defs,)*
+                },
                 quote! {
                     quent_model::AttributeDef {
                         name: "instance_name".to_string(),
                         value_type: quent_model::ValueType::String,
                         optional: false,
-                    }
+                    },
+                    #(#user_attr_defs,)*
                 },
             )
         } else {
             (
                 quote! {
                     pub instance_name: String,
-                    pub parent_group_id: uuid::Uuid
+                    pub parent_group_id: uuid::Uuid,
+                    #(#user_field_defs,)*
                 },
                 quote! {
                     quent_model::AttributeDef {
@@ -148,7 +192,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                         name: "parent_group_id".to_string(),
                         value_type: quent_model::ValueType::Uuid,
                         optional: false,
-                    }
+                    },
+                    #(#user_attr_defs,)*
                 },
             )
         };
@@ -156,7 +201,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         let output = quote! {
             #[derive(Debug #serde_derives)]
             #vis struct #decl_struct {
-                #decl_fields,
+                #decl_fields
             }
 
             #[derive(Debug #serde_derives)]
