@@ -153,7 +153,17 @@ pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
             "f64" => quote! { quent_model::ValueType::F64 },
             "String" => quote! { quent_model::ValueType::String },
             "Uuid" => quote! { quent_model::ValueType::Uuid },
-            _ => quote! { quent_model::ValueType::String }, // fallback
+            _ => {
+                // Unknown type — try to resolve via EventMetadata
+                return (
+                    quote! {
+                        quent_model::ValueType::Struct(
+                            <#ty as quent_model::EventMetadata>::event_def().attributes
+                        )
+                    },
+                    false,
+                );
+            }
         };
         return (vt, false);
     }

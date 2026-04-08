@@ -66,6 +66,19 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Derive macro for nested struct types used inside events or states.
+///
+/// Generates `EventMetadata` impl so that the struct's field names and types
+/// are available to the model and codegen. Use this on helper types like
+/// `Edge`, `PlanParent`, etc. that appear as fields in events or states.
+#[proc_macro_derive(Attributes)]
+pub fn derive_attributes(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    event::expand_derive(input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
 /// Derive macro for FSM definitions.
 ///
 /// The struct must have named fields where each field's type is a state type.

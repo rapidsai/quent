@@ -25,24 +25,44 @@ fn quent_path(options: &CxxOptions) -> syn::Path {
 }
 
 /// Map a Quent `ValueType` to a CXX-compatible Rust type string.
-fn value_type_to_cxx(ty: &ValueType) -> &'static str {
-    match ty {
-        ValueType::Bool => "bool",
-        ValueType::Uuid => "UUID",
-        ValueType::String => "String",
-        ValueType::U8 => "u8",
-        ValueType::U16 => "u16",
-        ValueType::U32 => "u32",
-        ValueType::U64 => "u64",
-        ValueType::I8 => "i8",
-        ValueType::I16 => "i16",
-        ValueType::I32 => "i32",
-        ValueType::I64 => "i64",
-        ValueType::F32 => "f32",
-        ValueType::F64 => "f64",
-        ValueType::Ref(_) => "UUID",
-        ValueType::CustomAttributes => "CustomAttributes",
-        ValueType::List(_) | ValueType::Struct(_) => "String", // fallback: serialize as JSON string
+/// Map a Quent `ValueType` to a CXX-compatible Rust type string.
+/// Returns None if the type is not representable in CXX.
+fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
+    let base = match ty {
+        ValueType::Bool => "bool".to_string(),
+        ValueType::Uuid => "UUID".to_string(),
+        ValueType::String => "String".to_string(),
+        ValueType::U8 => "u8".to_string(),
+        ValueType::U16 => "u16".to_string(),
+        ValueType::U32 => "u32".to_string(),
+        ValueType::U64 => "u64".to_string(),
+        ValueType::I8 => "i8".to_string(),
+        ValueType::I16 => "i16".to_string(),
+        ValueType::I32 => "i32".to_string(),
+        ValueType::I64 => "i64".to_string(),
+        ValueType::F32 => "f32".to_string(),
+        ValueType::F64 => "f64".to_string(),
+        ValueType::Ref(_) => "UUID".to_string(),
+        ValueType::CustomAttributes => "CustomAttributes".to_string(),
+        ValueType::List(inner) => {
+            let inner_cxx = value_type_to_cxx(inner, false)?;
+            format!("Vec<{inner_cxx}>")
+        }
+        // Nested structs are handled by generating separate shared structs.
+        // The caller must provide a name for the generated struct type.
+        ValueType::Struct(_) => return None,
+    };
+    // For optional types, CXX uses the base type with sentinels:
+    // Option<Ref<T>> → UUID (nil = None)
+    // Option<String> → String (empty = None)
+    // Other optional types are not supported
+    if optional {
+        match ty {
+            ValueType::Ref(_) | ValueType::Uuid | ValueType::String => Some(base),
+            _ => None,
+        }
+    } else {
+        Some(base)
     }
 }
 
@@ -325,9 +345,97 @@ pub mod ffi {{
     )
 }
 
+/// Generate a CXX shared struct definition string for a set of attributes.
+/// Recursively generates nested struct definitions for `ValueType::Struct` fields.
+/// Returns (field definitions string, additional struct definitions string).
+fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (String, String) {
+    let mut fields_str = String::new();
+    let mut nested_structs = String::new();
+
+    for attr in attrs {
+        if let ValueType::Struct(inner_attrs) = &attr.value_type {
+            // Generate a nested struct with PascalCase name from the field name
+            let nested_name = to_pascal_case(&attr.name);
+            let (inner_fields, more_nested) = generate_cxx_struct_fields(inner_attrs, &nested_name);
+            nested_structs.push_str(&more_nested);
+            nested_structs.push_str(&format!(
+                "    #[derive(Debug, Default)]\n    pub struct {nested_name} {{\n{inner_fields}    }}\n\n"
+            ));
+
+            if attr.optional {
+                // Optional nested struct: include a has_ flag
+                fields_str.push_str(&format!("        pub has_{}: bool,\n", attr.name));
+            }
+
+            // Vec<Struct> or plain struct
+            if let ValueType::List(_) = &attr.value_type {
+                fields_str.push_str(&format!(
+                    "        pub {}: Vec<{}>,\n",
+                    attr.name, nested_name
+                ));
+            } else {
+                fields_str.push_str(&format!("        pub {}: {},\n", attr.name, nested_name));
+            }
+        } else if let ValueType::List(inner) = &attr.value_type {
+            if let ValueType::Struct(inner_attrs) = inner.as_ref() {
+                let nested_name = to_pascal_case(&attr.name);
+                let (inner_fields, more_nested) =
+                    generate_cxx_struct_fields(inner_attrs, &nested_name);
+                nested_structs.push_str(&more_nested);
+                nested_structs.push_str(&format!(
+                    "    #[derive(Debug, Default)]\n    pub struct {nested_name} {{\n{inner_fields}    }}\n\n"
+                ));
+                fields_str.push_str(&format!(
+                    "        pub {}: Vec<{}>,\n",
+                    attr.name, nested_name
+                ));
+            } else {
+                let cxx_type =
+                    value_type_to_cxx(&attr.value_type, attr.optional).unwrap_or_else(|| {
+                        panic!(
+                            "field `{}` on `{}` has type not representable in CXX",
+                            attr.name, parent_name,
+                        )
+                    });
+                fields_str.push_str(&format!("        pub {}: {},\n", attr.name, cxx_type));
+            }
+        } else {
+            let cxx_type =
+                value_type_to_cxx(&attr.value_type, attr.optional).unwrap_or_else(|| {
+                    panic!(
+                        "field `{}` on `{}` has type not representable in CXX",
+                        attr.name, parent_name,
+                    )
+                });
+            fields_str.push_str(&format!("        pub {}: {},\n", attr.name, cxx_type));
+        }
+    }
+
+    (fields_str, nested_structs)
+}
+
 /// Generate a field conversion expression for an attribute: `name: <conversion>(data.name)`.
 fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStream {
     let name = format_ident!("{}", attr.name);
+
+    if attr.optional {
+        // Optional field: CXX uses sentinels
+        return match &attr.value_type {
+            ValueType::Ref(_) | ValueType::Uuid => quote! {
+                #name: {
+                    let uuid = #q::uuid::Uuid::from(data.#name);
+                    if uuid.is_nil() { None } else { Some(#q::Ref::new(uuid)) }
+                },
+            },
+            ValueType::String => quote! {
+                #name: if data.#name.is_empty() { None } else { Some(data.#name) },
+            },
+            _ => quote! {
+                #name: data.#name,
+            },
+        };
+    }
+
     match &attr.value_type {
         ValueType::Uuid => quote! {
             #name: #q::uuid::Uuid::from(data.#name),
@@ -337,6 +445,17 @@ fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStre
         },
         ValueType::CustomAttributes => quote! {
             #name: data.#name.into_model(),
+        },
+        ValueType::List(inner) => match inner.as_ref() {
+            ValueType::Ref(_) => quote! {
+                #name: data.#name.into_iter().map(|u| #q::Ref::new(#q::uuid::Uuid::from(u))).collect(),
+            },
+            ValueType::Uuid => quote! {
+                #name: data.#name.into_iter().map(|u| #q::uuid::Uuid::from(u)).collect(),
+            },
+            _ => quote! {
+                #name: data.#name,
+            },
         },
         _ => quote! {
             #name: data.#name,
@@ -389,12 +508,9 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
             });
         } else {
             // Struct event -- generate shared struct and conversion
-            let mut fields_str = String::new();
-            for attr in &event.attributes {
-                let cxx_type = value_type_to_cxx(&attr.value_type);
-                fields_str.push_str(&format!("        pub {}: {},\n", attr.name, cxx_type));
-            }
-
+            let (fields_str, nested_structs) =
+                generate_cxx_struct_fields(&event.attributes, &event_pascal_str);
+            shared_structs_str.push_str(&nested_structs);
             shared_structs_str.push_str(&format!(
                 "    #[derive(Debug)]\n    pub struct {event_pascal_str} {{\n{fields_str}    }}\n\n"
             ));
@@ -550,11 +666,10 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             continue;
         }
         let state_pascal = to_pascal_case(&state.name);
-        let mut fields_str = String::new();
-        for attr in &state.attributes {
-            let cxx_type = value_type_to_cxx(&attr.value_type);
-            fields_str.push_str(&format!("        pub {}: {},\n", attr.name, cxx_type));
-        }
+        let (attr_fields_str, nested_structs) =
+            generate_cxx_struct_fields(&state.attributes, &state_pascal);
+        shared_structs_str.push_str(&nested_structs);
+        let mut fields_str = attr_fields_str;
         for usage in &state.usages {
             fields_str.push_str(&format!(
                 "        pub {}_resource_id: UUID,\n",

@@ -3,11 +3,11 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
-use quent_model::{EmitOnce, Entity, Event, Ref};
+use quent_model::{Attributes, EmitOnce, Entity, Event, Ref};
 use serde::{Deserialize, Serialize};
 
 /// A directed edge of a Plan DAG.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Edge {
     /// The ID of the port sourcing data.
     pub source: Ref<super::port::Port>,
@@ -18,7 +18,7 @@ pub struct Edge {
 /// A reference to the parent of a Plan. Exactly one field should be set.
 /// If `query_id` is set, this is a root plan under a query.
 /// If `plan_id` is set, this is a nested plan (e.g. logical → physical).
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Attributes, Deserialize, Serialize)]
 pub struct PlanParent {
     pub query_id: Option<Ref<super::query::Query>>,
     pub plan_id: Option<Ref<super::plan::Plan>>,
