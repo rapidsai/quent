@@ -179,7 +179,7 @@ impl Attribute {
 /// A collection of custom key-value attributes.
 ///
 /// Used in model definitions for fields that carry arbitrary runtime metadata.
-/// The CXX bridge codegen emits this as an opaque type with builder methods.
+/// The CXX bridge codegen emits this as a shared struct with typed vectors.
 #[derive(TS, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(transparent)]
 pub struct CustomAttributes(pub Vec<Attribute>);
