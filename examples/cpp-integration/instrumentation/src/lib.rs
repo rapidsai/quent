@@ -9,8 +9,8 @@
 //! - ThreadPool: resource group containing Thread resources
 //! - Thread: processor resource (from stdlib)
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::{EmitOnce, Entity, Event, Fsm, State, Usage};
+use uuid::Uuid;
 
 // Job: groups tasks, root resource group
 

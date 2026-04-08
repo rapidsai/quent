@@ -3,8 +3,8 @@
 
 //! Tests for entity and event macros.
 
-use quent_model::prelude::*;
-use quent_model::{ModelBuilder, ModelComponent};
+use quent_model::{EmitOnce, Entity, Event, ModelBuilder, ModelComponent};
+use uuid::Uuid;
 
 #[derive(Entity)]
 pub struct Operator;
@@ -30,7 +30,7 @@ pub struct Worker {
 
 #[test]
 fn entity_trait_impl() {
-    fn assert_entity<T: quent_model::Entity>() {}
+    fn assert_entity<T: Entity>() {}
     assert_entity::<Operator>();
 }
 

@@ -3,8 +3,7 @@
 
 //! Tests for resource_group macro.
 
-use quent_model::prelude::*;
-use quent_model::{ModelBuilder, ModelComponent, ResourceGroup};
+use quent_model::{Entity, EntityData, HasEventType, ModelBuilder, ModelComponent, ResourceGroup};
 
 #[derive(Entity)]
 #[resource_group(root)]
@@ -16,7 +15,7 @@ pub struct QueryGroup;
 
 #[test]
 fn resource_group_trait_impl() {
-    fn assert_rg<T: quent_model::ResourceGroup>() {}
+    fn assert_rg<T: ResourceGroup>() {}
     assert_rg::<Engine>();
     assert_rg::<QueryGroup>();
 }
@@ -44,7 +43,7 @@ fn resource_group_model_component() {
 fn resource_group_has_event_type() {
     // Resource group entities with no explicit events should still
     // generate HasEventType via the implicit declaration event.
-    fn assert_has_event<T: quent_model::HasEventType>() {}
+    fn assert_has_event<T: HasEventType>() {}
     assert_has_event::<Engine>();
     assert_has_event::<QueryGroup>();
 }
@@ -52,7 +51,7 @@ fn resource_group_has_event_type() {
 #[test]
 fn resource_group_entity_data() {
     // Verify EntityData is generated for resource group entities.
-    fn assert_entity_data<T: quent_model::EntityData>() {}
+    fn assert_entity_data<T: EntityData>() {}
     assert_entity_data::<Engine>();
     assert_entity_data::<QueryGroup>();
 }

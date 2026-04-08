@@ -3,15 +3,14 @@
 
 //! Query FSM: the top-level unit of work executed by an engine.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::{Fsm, Ref, State};
 
 // States
 
 #[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
 pub struct Init {
     #[parent_group]
-    pub query_group_id: quent_model::Ref<super::query_group::QueryGroup>,
+    pub query_group_id: Ref<super::query_group::QueryGroup>,
     #[instance_name]
     pub instance_name: String,
 }

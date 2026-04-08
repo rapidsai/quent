@@ -3,8 +3,7 @@
 
 //! Simulator instrumentation: model definitions, event types, and context.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::Entity;
 
 pub mod task;
 

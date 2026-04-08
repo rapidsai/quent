@@ -3,8 +3,8 @@
 
 //! Tests verifying stdlib resource types exist and are usable.
 
-use quent_model::prelude::*;
-use quent_model::{ModelBuilder, ModelComponent};
+use quent_model::{Capacity, ModelBuilder, ModelComponent, Resource};
+use uuid::Uuid;
 
 #[test]
 fn memory_types_exist() {

@@ -3,8 +3,7 @@
 
 //! Memory resource definitions.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::{Capacity, Occupancy, ResizableResource, Resource};
 
 /// A fixed-bounds memory resource.
 ///

@@ -14,8 +14,9 @@
 //! - `fsm_unreachable_state.rs` — FSM with a state not reachable from entry
 //! - `fsm_no_exit.rs` — FSM with no path to exit
 
-use quent_model::prelude::*;
-use quent_model::{Model, ModelBuilder, ModelComponent, StateMetadata};
+use quent_model::{
+    Fsm, Model, ModelBuilder, ModelComponent, State, StateMetadata, TransitionEndpoint,
+};
 
 // A valid linear FSM
 
@@ -115,19 +116,16 @@ fn transition_endpoints() {
     let fsm = &builder.fsms[0];
 
     // First transition: entry -> A
-    assert_eq!(
-        fsm.transitions[0].from,
-        quent_model::TransitionEndpoint::Entry
-    );
+    assert_eq!(fsm.transitions[0].from, TransitionEndpoint::Entry);
     assert_eq!(
         fsm.transitions[0].to,
-        quent_model::TransitionEndpoint::State("a".to_string())
+        TransitionEndpoint::State("a".to_string())
     );
 
     // Last transition: C -> exit
     assert_eq!(
         fsm.transitions[3].from,
-        quent_model::TransitionEndpoint::State("c".to_string())
+        TransitionEndpoint::State("c".to_string())
     );
-    assert_eq!(fsm.transitions[3].to, quent_model::TransitionEndpoint::Exit);
+    assert_eq!(fsm.transitions[3].to, TransitionEndpoint::Exit);
 }

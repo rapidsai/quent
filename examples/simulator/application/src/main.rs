@@ -15,7 +15,7 @@ use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
     PostcardExporterOptions,
 };
-use quent_model::prelude::*;
+use quent_model::{Capacity, Ref, Usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query, query_group, worker,
@@ -249,7 +249,7 @@ impl<T: Debug> Plan<T> {
             operator_obs.declaration(
                 op.id,
                 operator::Declaration {
-                    plan_id: quent_model::Ref::new(self.id),
+                    plan_id: Ref::new(self.id),
                     parent_operator_ids: op.parents.clone(),
                     instance_name: format!("{}-{node_idx:?}", op.name()),
                     type_name: op.name(),
@@ -1288,7 +1288,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for query_index in 0..args.num_queries {
             let query_obs = context.query_observer();
             let mut query_handle = query_obs.init(query::Init {
-                query_group_id: quent_model::Ref::new(query_group_id),
+                query_group_id: Ref::new(query_group_id),
                 instance_name: format!("Q{query_index}"),
             });
             let query_id = query_handle.uuid();

@@ -3,10 +3,11 @@
 
 //! QueryGroup entity: encapsulates a set of queries.
 
+use quent_model::{EmitOnce, Entity, Event};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, quent_model::Event, Serialize, Deserialize)]
+#[derive(Debug, Event, Serialize, Deserialize)]
 pub struct Declaration {
     /// The name of this instance of a query group.
     pub instance_name: String,
@@ -14,8 +15,8 @@ pub struct Declaration {
     pub engine_id: Uuid,
 }
 
-#[derive(quent_model::Entity)]
+#[derive(Entity)]
 #[resource_group]
 pub struct QueryGroup {
-    pub declaration: quent_model::EmitOnce<Declaration>,
+    pub declaration: EmitOnce<Declaration>,
 }

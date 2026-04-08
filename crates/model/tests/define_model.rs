@@ -3,8 +3,7 @@
 
 //! Tests for `define_model!` macro.
 
-use quent_model::FsmEvent;
-use quent_model::prelude::*;
+use quent_model::{EmitOnce, Entity, Event, Fsm, FsmEvent, State};
 
 // Minimal model components
 

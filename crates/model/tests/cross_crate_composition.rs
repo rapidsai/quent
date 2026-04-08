@@ -4,8 +4,11 @@
 //! Tests for cross-crate model composition, Usage<T> with stdlib types,
 //! Ref<T>, and full model collection.
 
-use quent_model::prelude::*;
-use quent_model::{FsmEvent, Model, ModelBuilder, ModelComponent, StateMetadata};
+use quent_model::{
+    Capacity, Entity, Fsm, FsmEvent, Model, ModelBuilder, ModelComponent, Ref, State,
+    StateMetadata, TransitionEndpoint, Usage,
+};
+use uuid::Uuid;
 
 // Simulate a domain model crate (inline)
 
@@ -169,11 +172,11 @@ fn task_fsm_structure() {
     let has_entry = fsm
         .transitions
         .iter()
-        .any(|t| t.from == quent_model::TransitionEndpoint::Entry);
+        .any(|t| t.from == TransitionEndpoint::Entry);
     let has_exit = fsm
         .transitions
         .iter()
-        .any(|t| t.to == quent_model::TransitionEndpoint::Exit);
+        .any(|t| t.to == TransitionEndpoint::Exit);
     assert!(has_entry);
     assert!(has_exit);
 }

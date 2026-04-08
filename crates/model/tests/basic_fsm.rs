@@ -3,8 +3,8 @@
 
 //! Basic integration test for FSM and state macro code generation.
 
-use quent_model::prelude::*;
-use quent_model::{FsmEvent, Model, ModelBuilder, ModelComponent, StateMetadata};
+use quent_model::{Fsm, FsmEvent, Model, ModelBuilder, ModelComponent, State, StateMetadata};
+use uuid::Uuid;
 
 // Define states
 

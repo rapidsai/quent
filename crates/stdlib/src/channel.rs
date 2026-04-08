@@ -3,8 +3,8 @@
 
 //! Channel resource definition.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::{Capacity, Rate, Resource};
+use uuid::Uuid;
 
 /// A unidirectional data transfer resource.
 ///

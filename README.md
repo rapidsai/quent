@@ -62,7 +62,7 @@ The model describes the structure of things you want to track in your
 application:
 
 ```rust
-use quent_model::prelude::*;
+use quent_model::{Capacity, Entity, Fsm, Resource, State, Usage};
 
 // A "unit resource", only one entity can use this at a time.
 #[derive(Resource)]

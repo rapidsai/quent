@@ -3,21 +3,22 @@
 
 //! Worker entity: responsible for executing plans.
 
+use quent_model::{EmitOnce, Entity, Event};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Default, quent_model::Event, Deserialize, Serialize)]
+#[derive(Debug, Default, Event, Deserialize, Serialize)]
 pub struct Init {
     pub parent_engine_id: Uuid,
     pub instance_name: String,
 }
 
-#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
+#[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Exit;
 
-#[derive(quent_model::Entity)]
+#[derive(Entity)]
 #[resource_group]
 pub struct Worker {
-    pub init: quent_model::EmitOnce<Init>,
-    pub exit: quent_model::EmitOnce<Exit>,
+    pub init: EmitOnce<Init>,
+    pub exit: EmitOnce<Exit>,
 }

@@ -7,8 +7,8 @@
 //! It transitions through states like queueing, computing, allocating,
 //! loading, spilling, and sending.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::{Fsm, State, Usage};
+use uuid::Uuid;
 
 use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 

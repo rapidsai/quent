@@ -3,8 +3,7 @@
 
 //! Processor (unit resource) definition.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
+use quent_model::Resource;
 
 /// A unit resource representing a processor (e.g., a thread).
 ///

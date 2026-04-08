@@ -112,24 +112,3 @@ pub use uuid;
 
 // define_model! is a proc macro — see quent_model_macros::define_model
 pub use quent_model_macros::{define_instrumentation, define_model};
-
-/// Prelude for convenient imports in model definition crates.
-pub mod prelude {
-    pub use crate::{
-        // Types used in model struct fields
-        Capacity,
-        EmitOnce,
-        // Derive macros
-        Entity,
-        Event,
-        Fsm,
-        Occupancy,
-        Rate,
-        Ref,
-        ResizableResource,
-        Resource,
-        State,
-        Usage,
-    };
-    pub use uuid::Uuid;
-}

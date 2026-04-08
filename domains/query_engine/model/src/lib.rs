@@ -3,9 +3,6 @@
 
 //! Query engine domain model.
 
-#[allow(unused_imports)]
-use quent_model::prelude::*;
-
 pub mod engine;
 pub mod operator;
 pub mod plan;

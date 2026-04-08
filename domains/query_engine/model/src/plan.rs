@@ -3,6 +3,7 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
+use quent_model::{EmitOnce, Entity, Event};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -28,7 +29,7 @@ pub enum PlanParent {
     Plan(Uuid),
 }
 
-#[derive(Debug, quent_model::Event, Deserialize, Serialize)]
+#[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Declaration {
     pub parent: PlanParent,
     pub instance_name: String,
@@ -36,8 +37,8 @@ pub struct Declaration {
     pub worker_id: Option<Uuid>,
 }
 
-#[derive(quent_model::Entity)]
+#[derive(Entity)]
 #[resource_group]
 pub struct Plan {
-    pub declaration: quent_model::EmitOnce<Declaration>,
+    pub declaration: EmitOnce<Declaration>,
 }
