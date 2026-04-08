@@ -180,7 +180,7 @@ impl Attribute {
 ///
 /// Used in model definitions for fields that carry arbitrary runtime metadata.
 /// The CXX bridge codegen emits this as a shared struct with typed vectors.
-#[derive(TS, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(transparent)]
 pub struct CustomAttributes(pub Vec<Attribute>);
 
