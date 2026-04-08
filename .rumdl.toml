@@ -1,8 +1,6 @@
-[global]
-exclude = ["SECURITY.md"]
+exclude = ["CONTRIBUTING.md", "SECURITY.md"]
 
 [MD013]
 code-blocks = false
 tables = false
 reflow = true
-
