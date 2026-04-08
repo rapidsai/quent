@@ -14,7 +14,7 @@ import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
 import type { QuantitySpec } from '~quent/types/QuantitySpec';
 import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
-import { connect, getInstanceByDom } from '@/lib/echarts';
+import { connect, disconnect } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
@@ -312,13 +312,41 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   return maxAllowedStep;
 }
 
+const chartGroupRegistry = new Map<string, Set<EChartsInstance>>();
+
+function isInstanceDisposed(instance: EChartsInstance): boolean {
+  const candidate = instance as unknown as { isDisposed?: () => boolean };
+  return typeof candidate.isDisposed === 'function' ? candidate.isDisposed() : false;
+}
+
+function registerChartInGroup(instance: EChartsInstance, chartGroup: string) {
+  let groupEntries = chartGroupRegistry.get(chartGroup);
+  if (!groupEntries) {
+    groupEntries = new Set<EChartsInstance>();
+    chartGroupRegistry.set(chartGroup, groupEntries);
+  }
+  groupEntries.add(instance);
+}
+
+function unregisterChartFromGroup(instance: EChartsInstance, chartGroup: string) {
+  const groupEntries = chartGroupRegistry.get(chartGroup);
+  if (!groupEntries) return;
+  groupEntries.delete(instance);
+  if (groupEntries.size === 0) {
+    chartGroupRegistry.delete(chartGroup);
+  }
+}
+
 function findExistingChartInGroup(chartGroup: string): EChartsInstance | null {
-  const chartElements = document.querySelectorAll('[_echarts_instance_]');
-  for (const el of chartElements) {
-    const instance = getInstanceByDom(el as HTMLElement);
-    if (instance && instance.group === chartGroup) {
-      return instance as unknown as EChartsInstance;
+  const groupEntries = chartGroupRegistry.get(chartGroup);
+  if (!groupEntries) return null;
+
+  for (const instance of groupEntries) {
+    if (isInstanceDisposed(instance)) {
+      groupEntries.delete(instance);
+      continue;
     }
+    return instance;
   }
   return null;
 }
@@ -369,6 +397,11 @@ export const connectChart = (
 
   instance.group = chartGroup;
   connect(chartGroup);
+};
+
+export const disconnectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
+  unregisterChartFromGroup(instance, chartGroup);
+  disconnect(chartGroup);
 };
 
 /* Axis pointer sync — manual crosshair sync across charts

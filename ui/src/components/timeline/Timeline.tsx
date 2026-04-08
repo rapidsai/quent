@@ -19,17 +19,12 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart, nanosToMs } from '@/lib/timeline.utils';
+import { connectChart, disconnectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
-
-export const disconnectChart = (instance: EChartsInstance, chartGroup: string = CHART_GROUP) => {
-  unregisterChartFromGroup(instance, chartGroup);
-  disconnect(chartGroup);
-};
 
 export function Timeline({
   startTime,
