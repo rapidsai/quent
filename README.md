@@ -116,6 +116,7 @@ quent_model::define_instrumentation!(App);
 ### Rust instrumentation
 
 The derive macros generate a type-safe instrumentation API from the model.
+See [examples/simulator](examples/simulator/) for a complete example.
 
 ```rust
 let ctx = AppContext::try_new(exporter, uuid::Uuid::now_v7())?;
@@ -145,6 +146,7 @@ task.exit();
 
 The same model can target C++ via CXX bridge code generation. Capacity wrappers
 and typed references are flattened into plain fields.
+See [examples/cpp-integration](examples/cpp-integration/) for a complete example.
 
 ```cpp
 auto ctx = quent::create_context("ndjson", "data");
