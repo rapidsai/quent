@@ -51,9 +51,11 @@ impl Plan {
     }
 
     pub fn to_ui(&self) -> ui::Plan {
-        let parent = self.parent().map(|p| match p {
-            PlanParent::Query(r) => r.uuid(),
-            PlanParent::Plan(r) => r.uuid(),
+        let parent = self.parent().map(|p| {
+            p.query_id
+                .map(|r| r.uuid())
+                .or(p.plan_id.map(|r| r.uuid()))
+                .unwrap_or_default()
         });
 
         ui::Plan {
@@ -99,10 +101,11 @@ impl ResourceGroup for Plan {
     fn parent_group_id(&self) -> Option<Uuid> {
         // If this is a plan associated with a worker, we consider this plan to
         // be a resource group under the worker resource group
-        self.worker_id()
-            .or(self.parent().map(|parent| match parent {
-                PlanParent::Query(r) => r.uuid(),
-                PlanParent::Plan(r) => r.uuid(),
-            }))
+        self.worker_id().or(self.parent().and_then(|parent| {
+            parent
+                .query_id
+                .map(|r| r.uuid())
+                .or(parent.plan_id.map(|r| r.uuid()))
+        }))
     }
 }

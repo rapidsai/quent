@@ -3,7 +3,6 @@
 
 //! Engine entity: top-level entry point and root resource group.
 
-use quent_attributes::Attribute;
 use quent_model::{EmitOnce, Entity, Event};
 use serde::{Deserialize, Serialize};
 
@@ -15,12 +14,12 @@ pub struct EngineImplementationAttributes {
     /// The version of this Engine implementation, e.g. "13.3.7"
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
 #[derive(Debug, Default, Event, Deserialize, Serialize)]
 pub struct Init {
-    pub implementation: Option<EngineImplementationAttributes>,
+    pub implementation: EngineImplementationAttributes,
     pub instance_name: Option<String>,
 }
 

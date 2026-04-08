@@ -226,10 +226,16 @@ impl<T: Debug> Plan<T> {
             self.id,
             plan::Declaration {
                 instance_name: self.name.clone(),
-                parent: self.parent_plan_id.map_or(
-                    plan::PlanParent::Query(Ref::new(self.query_id)),
-                    |parent_id| plan::PlanParent::Plan(Ref::new(parent_id)),
-                ),
+                parent: match self.parent_plan_id {
+                    None => plan::PlanParent {
+                        query_id: Some(Ref::new(self.query_id)),
+                        plan_id: None,
+                    },
+                    Some(parent_id) => plan::PlanParent {
+                        query_id: None,
+                        plan_id: Some(Ref::new(parent_id)),
+                    },
+                },
                 worker_id: worker_id.map(Ref::new),
                 edges: self
                     .dag
@@ -1136,11 +1142,11 @@ impl Engine {
             self.id,
             engine::Init {
                 instance_name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
-                implementation: Some(EngineImplementationAttributes {
+                implementation: EngineImplementationAttributes {
                     name: Some("Simulator".into()),
                     version: Some("0.0.0-PoC".into()),
                     custom_attributes: Default::default(),
-                }),
+                },
             },
         );
 

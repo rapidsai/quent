@@ -15,17 +15,13 @@ pub struct Edge {
     pub target: Ref<super::port::Port>,
 }
 
-/// A reference to the parent of Plan.
-#[derive(Debug, Deserialize, Serialize)]
-pub enum PlanParent {
-    /// The parent of this plan is a query, which means this is the source plan.
-    Query(Ref<super::query::Query>),
-    /// This is a nested plan.
-    ///
-    /// This is useful if an application constructs various types of plans
-    /// before execution, sometimes referred to as "lowering". Examples include
-    /// a logical and physical plan.
-    Plan(Ref<super::plan::Plan>),
+/// A reference to the parent of a Plan. Exactly one field should be set.
+/// If `query_id` is set, this is a root plan under a query.
+/// If `plan_id` is set, this is a nested plan (e.g. logical → physical).
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct PlanParent {
+    pub query_id: Option<Ref<super::query::Query>>,
+    pub plan_id: Option<Ref<super::plan::Plan>>,
 }
 
 #[derive(Debug, Event, Deserialize, Serialize)]

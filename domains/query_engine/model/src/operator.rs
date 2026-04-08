@@ -5,7 +5,6 @@
 
 use quent_model::{EmitOnce, Entity, Event, Ref};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Declaration {

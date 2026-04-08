@@ -68,10 +68,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     start_time_unix_ns: Some(event.timestamp),
                     duration_s: None,
                     instance_name: init.instance_name,
-                    implementation: init
-                        .implementation
-                        .as_ref()
-                        .map(quent_query_engine_ui::EngineImplementationAttributes::from),
+                    implementation: Some(
+                        quent_query_engine_ui::EngineImplementationAttributes::from(
+                            &init.implementation,
+                        ),
+                    ),
                 });
             }
         }

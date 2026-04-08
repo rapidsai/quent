@@ -38,10 +38,7 @@ impl Engine {
             start_time_unix_ns: start,
             duration_s,
             instance_name: d.init.as_ref().and_then(|i| i.instance_name.clone()),
-            implementation: d
-                .init
-                .as_ref()
-                .and_then(|i| i.implementation.as_ref().map(|imp| imp.into())),
+            implementation: d.init.as_ref().map(|i| (&i.implementation).into()),
         })
     }
 }
