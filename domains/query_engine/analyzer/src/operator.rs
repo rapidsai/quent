@@ -32,7 +32,11 @@ impl Operator {
 
     /// The ID of the plan this operator belongs to.
     pub fn plan_id(&self) -> Option<Uuid> {
-        self.inner.data().declaration.as_ref().map(|d| d.plan_id)
+        self.inner
+            .data()
+            .declaration
+            .as_ref()
+            .map(|d| d.plan_id.uuid())
     }
 
     /// The span of time between the first moment an operator started processing

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 #[derive(Debug, quent_model::Event, Deserialize, Serialize)]
 pub struct Declaration {
-    pub plan_id: Uuid,
+    pub plan_id: quent_model::Ref<super::plan::Plan>,
     pub parent_operator_ids: Vec<Uuid>,
     pub instance_name: String,
     pub type_name: String,

@@ -249,7 +249,7 @@ impl<T: Debug> Plan<T> {
             operator_obs.declaration(
                 op.id,
                 operator::Declaration {
-                    plan_id: self.id,
+                    plan_id: quent_model::Ref::new(self.id),
                     parent_operator_ids: op.parents.clone(),
                     instance_name: format!("{}-{node_idx:?}", op.name()),
                     type_name: op.name(),
