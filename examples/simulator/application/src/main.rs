@@ -250,7 +250,7 @@ impl<T: Debug> Plan<T> {
                 op.id,
                 operator::Declaration {
                     plan_id: Ref::new(self.id),
-                    parent_operator_ids: op.parents.clone(),
+                    parent_operator_ids: op.parents.iter().map(|&id| Ref::new(id)).collect(),
                     instance_name: format!("{}-{node_idx:?}", op.name()),
                     type_name: op.name(),
                     custom_attributes: Default::default(),

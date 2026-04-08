@@ -82,7 +82,7 @@ impl Operator {
             parent_operator_ids: d
                 .declaration
                 .as_ref()
-                .map(|decl| decl.parent_operator_ids.clone())
+                .map(|decl| decl.parent_operator_ids.iter().map(|r| r.uuid()).collect())
                 .unwrap_or_default(),
             instance_name: d
                 .declaration
