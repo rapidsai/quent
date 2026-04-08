@@ -41,7 +41,7 @@ fn value_type_to_cxx(ty: &ValueType) -> &'static str {
         ValueType::F32 => "f32",
         ValueType::F64 => "f64",
         ValueType::Ref(_) => "UUID",
-        ValueType::CustomAttributes => "Box<CustomAttributes>",
+        ValueType::CustomAttributes => "CustomAttributes",
         ValueType::List(_) | ValueType::Struct(_) => "String", // fallback: serialize as JSON string
     }
 }
@@ -102,48 +102,56 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     files
 }
 
-/// Generate the CustomAttributes opaque type bridge.
+/// Generate the CustomAttributes CXX shared type bridge.
+///
+/// Uses CXX shared structs (one per value type) that C++ can construct
+/// natively. A Rust conversion function assembles them into
+/// `quent_attributes::CustomAttributes`.
 fn emit_custom_attributes_bridge(options: &CxxOptions) -> GeneratedFile {
     let q = quent_path(options);
 
     let tokens = quote! {
         #[cxx::bridge(namespace = "quent")]
         pub mod ffi {
-            extern "Rust" {
-                type CustomAttributes;
-                fn create_custom_attributes() -> Box<CustomAttributes>;
-                fn add_string(self: &mut CustomAttributes, key: String, value: String);
-                fn add_u64(self: &mut CustomAttributes, key: String, value: u64);
-                fn add_i64(self: &mut CustomAttributes, key: String, value: i64);
-                fn add_f64(self: &mut CustomAttributes, key: String, value: f64);
+            #[derive(Debug, Default)]
+            pub struct StringAttr {
+                pub key: String,
+                pub value: String,
+            }
+
+            #[derive(Debug, Default)]
+            pub struct I64Attr {
+                pub key: String,
+                pub value: i64,
+            }
+
+            #[derive(Debug, Default)]
+            pub struct F64Attr {
+                pub key: String,
+                pub value: f64,
+            }
+
+            #[derive(Debug, Default)]
+            pub struct CustomAttributes {
+                pub string_attrs: Vec<StringAttr>,
+                pub i64_attrs: Vec<I64Attr>,
+                pub f64_attrs: Vec<F64Attr>,
             }
         }
 
-        pub struct CustomAttributes {
-            inner: #q::attributes::CustomAttributes,
-        }
-
-        fn create_custom_attributes() -> Box<CustomAttributes> {
-            Box::new(CustomAttributes {
-                inner: #q::attributes::CustomAttributes::new(),
-            })
-        }
-
-        impl CustomAttributes {
-            fn add_string(&mut self, key: String, value: String) {
-                self.inner.add_string(key, value);
-            }
-
-            fn add_u64(&mut self, key: String, value: u64) {
-                self.inner.add_u64(key, value);
-            }
-
-            fn add_i64(&mut self, key: String, value: i64) {
-                self.inner.add_i64(key, value);
-            }
-
-            fn add_f64(&mut self, key: String, value: f64) {
-                self.inner.add_f64(key, value);
+        impl ffi::CustomAttributes {
+            pub fn into_model(self) -> #q::attributes::CustomAttributes {
+                let mut attrs = #q::attributes::CustomAttributes::new();
+                for a in self.string_attrs {
+                    attrs.add_string(a.key, a.value);
+                }
+                for a in self.i64_attrs {
+                    attrs.add_i64(a.key, a.value);
+                }
+                for a in self.f64_attrs {
+                    attrs.add_f64(a.key, a.value);
+                }
+                attrs
             }
         }
     };
@@ -281,7 +289,26 @@ fn build_ffi_module_string(
     include_path: &str,
     shared_structs: &str,
     extern_rust_body: &str,
+    uses_custom_attrs: bool,
 ) -> String {
+    let ca_include = include_path.replace("uuid.rs.h", "custom_attributes.rs.h");
+    let custom_attrs_types = if uses_custom_attrs {
+        format!(
+            r#"
+    #[namespace = "quent"]
+    unsafe extern "C++" {{
+        include!("{ca_include}");
+        type StringAttr = crate::bridge::custom_attributes::ffi::StringAttr;
+        type I64Attr = crate::bridge::custom_attributes::ffi::I64Attr;
+        type F64Attr = crate::bridge::custom_attributes::ffi::F64Attr;
+        type CustomAttributes = crate::bridge::custom_attributes::ffi::CustomAttributes;
+    }}
+"#
+        )
+    } else {
+        String::new()
+    };
+
     format!(
         r#"#[cxx::bridge(namespace = "{ns}")]
 pub mod ffi {{
@@ -290,7 +317,7 @@ pub mod ffi {{
         include!("{include_path}");
         type UUID = crate::bridge::uuid::ffi::UUID;
     }}
-
+{custom_attrs_types}
 {shared_structs}    extern "Rust" {{
 {extern_rust_body}    }}
 }}
@@ -309,7 +336,7 @@ fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStre
             #name: #q::Ref::new(#q::uuid::Uuid::from(data.#name)),
         },
         ValueType::CustomAttributes => quote! {
-            #name: data.#name.inner,
+            #name: data.#name.into_model(),
         },
         _ => quote! {
             #name: data.#name,
@@ -397,9 +424,18 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
         }
     }
 
-    // Build ffi module as string
-    let ffi_module =
-        build_ffi_module_string(&ns, &include_path, &shared_structs_str, &extern_rust_body);
+    let entity_uses_custom_attrs = entity.events.iter().any(|ev| {
+        ev.attributes
+            .iter()
+            .any(|a| a.value_type == ValueType::CustomAttributes)
+    });
+    let ffi_module = build_ffi_module_string(
+        &ns,
+        &include_path,
+        &shared_structs_str,
+        &extern_rust_body,
+        entity_uses_custom_attrs,
+    );
 
     // Build impl code via quote! + prettyplease
     let impl_tokens = quote! {
@@ -587,8 +623,13 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     }
     extern_rust_body.push_str("        fn exit(&mut self);\n");
 
-    let ffi_module =
-        build_ffi_module_string(&ns, &include_path, &shared_structs_str, &extern_rust_body);
+    let ffi_module = build_ffi_module_string(
+        &ns,
+        &include_path,
+        &shared_structs_str,
+        &extern_rust_body,
+        false,
+    );
 
     // Build impl code via quote! + prettyplease
     let impl_transition_methods: Vec<TokenStream> = fsm
