@@ -155,10 +155,12 @@ pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
             "Uuid" => quote! { quent_model::ValueType::Uuid },
             _ => {
                 // Unknown type — try to resolve via EventMetadata
+                let type_path_str = quote!(#ty).to_string();
                 return (
                     quote! {
                         quent_model::ValueType::Struct(
-                            <#ty as quent_model::EventMetadata>::event_def().attributes
+                            #type_path_str.to_string(),
+                            <#ty as quent_model::EventMetadata>::event_def().attributes,
                         )
                     },
                     false,

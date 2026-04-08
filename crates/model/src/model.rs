@@ -174,7 +174,8 @@ pub enum ValueType {
     F32,
     F64,
     List(Box<ValueType>),
-    Struct(Vec<AttributeDef>),
+    /// A nested struct type. The string is the Rust type path for construction.
+    Struct(std::string::String, Vec<AttributeDef>),
     /// A typed reference to another entity, FSM, or resource.
     /// The string is the referenced type's canonical name.
     Ref(std::string::String),

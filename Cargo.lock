@@ -1654,6 +1654,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-qe-bridge"
+version = "0.1.0"
+dependencies = [
+ "cxx",
+ "cxx-build",
+ "quent-codegen",
+ "quent-qe-cpp-instrumentation",
+ "quent-stdlib",
+]
+
+[[package]]
+name = "quent-qe-cpp-instrumentation"
+version = "0.1.0"
+dependencies = [
+ "quent-attributes",
+ "quent-model",
+ "quent-query-engine-model",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-query-engine-analyzer"
 version = "0.1.0"
 dependencies = [

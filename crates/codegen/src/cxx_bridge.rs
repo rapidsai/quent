@@ -19,6 +19,124 @@ use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, ValueType};
 
 use crate::{CxxOptions, GeneratedFile};
 
+/// Recursively check whether any attribute in the list (or nested structs) uses `CustomAttributes`.
+fn attrs_use_custom_attributes(attrs: &[AttributeDef]) -> bool {
+    attrs.iter().any(|a| match &a.value_type {
+        ValueType::CustomAttributes => true,
+        ValueType::Struct(_, inner) => attrs_use_custom_attributes(inner),
+        ValueType::List(inner) => match inner.as_ref() {
+            ValueType::Struct(_, inner_attrs) => attrs_use_custom_attributes(inner_attrs),
+            _ => false,
+        },
+        _ => false,
+    })
+}
+
+/// C++ reserved keywords that cannot be used as namespace names.
+const CXX_RESERVED_KEYWORDS: &[&str] = &[
+    "alignas",
+    "alignof",
+    "and",
+    "and_eq",
+    "asm",
+    "auto",
+    "bitand",
+    "bitor",
+    "bool",
+    "break",
+    "case",
+    "catch",
+    "char",
+    "char8_t",
+    "char16_t",
+    "char32_t",
+    "class",
+    "compl",
+    "concept",
+    "const",
+    "consteval",
+    "constexpr",
+    "constinit",
+    "const_cast",
+    "continue",
+    "co_await",
+    "co_return",
+    "co_yield",
+    "decltype",
+    "default",
+    "delete",
+    "do",
+    "double",
+    "dynamic_cast",
+    "else",
+    "enum",
+    "explicit",
+    "export",
+    "extern",
+    "false",
+    "float",
+    "for",
+    "friend",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "mutable",
+    "namespace",
+    "new",
+    "noexcept",
+    "not",
+    "not_eq",
+    "nullptr",
+    "operator",
+    "or",
+    "or_eq",
+    "private",
+    "protected",
+    "public",
+    "register",
+    "reinterpret_cast",
+    "requires",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "static_assert",
+    "static_cast",
+    "struct",
+    "switch",
+    "template",
+    "this",
+    "thread_local",
+    "throw",
+    "true",
+    "try",
+    "typedef",
+    "typeid",
+    "typename",
+    "union",
+    "unsigned",
+    "using",
+    "virtual",
+    "void",
+    "volatile",
+    "wchar_t",
+    "while",
+    "xor",
+    "xor_eq",
+];
+
+/// Sanitize a name to avoid C++ reserved keywords by appending an underscore.
+fn cxx_safe_name(name: &str) -> String {
+    if CXX_RESERVED_KEYWORDS.contains(&name) {
+        format!("{name}_")
+    } else {
+        name.to_string()
+    }
+}
+
 /// Parse the `__quent` re-export path from options: `{instrumentation_crate}::__quent`.
 fn quent_path(options: &CxxOptions) -> syn::Path {
     syn::parse_str(&format!("{}::__quent", options.instrumentation_crate)).unwrap()
@@ -49,8 +167,7 @@ fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
             format!("Vec<{inner_cxx}>")
         }
         // Nested structs are handled by generating separate shared structs.
-        // The caller must provide a name for the generated struct type.
-        ValueType::Struct(_) => return None,
+        ValueType::Struct(_, _) => return None,
     };
     // For optional types, CXX uses the base type with sentinels:
     // Option<Ref<T>> → UUID (nil = None)
@@ -83,21 +200,17 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     let mut files = Vec::new();
 
     // Generate UUID bridge (shared type used by all bridges)
-    files.push(emit_uuid_bridge(options));
+    files.push(emit_uuid_bridge(model, options));
 
     // Generate custom attributes bridge if any component uses CustomAttributes
     let uses_custom_attrs = model.entities.iter().any(|e| {
-        e.events.iter().any(|ev| {
-            ev.attributes
-                .iter()
-                .any(|a| a.value_type == ValueType::CustomAttributes)
-        })
+        e.events
+            .iter()
+            .any(|ev| attrs_use_custom_attributes(&ev.attributes))
     }) || model.fsms.iter().any(|f| {
-        f.states.iter().any(|s| {
-            s.attributes
-                .iter()
-                .any(|a| a.value_type == ValueType::CustomAttributes)
-        })
+        f.states
+            .iter()
+            .any(|s| attrs_use_custom_attributes(&s.attributes))
     });
     if uses_custom_attrs {
         files.push(emit_custom_attributes_bridge(options));
@@ -183,8 +296,45 @@ fn emit_custom_attributes_bridge(options: &CxxOptions) -> GeneratedFile {
 }
 
 /// Generate the UUID shared type bridge.
-fn emit_uuid_bridge(options: &CxxOptions) -> GeneratedFile {
+fn emit_uuid_bridge(model: &ModelBuilder, options: &CxxOptions) -> GeneratedFile {
     let q = quent_path(options);
+    // Check if any model component uses Vec<UUID> (Vec<Ref<_>> or Vec<Uuid>)
+    let needs_vec_uuid = model.entities.iter().any(|e| {
+        e.events.iter().any(|ev| {
+            ev.attributes.iter().any(|a| {
+                matches!(
+                    &a.value_type,
+                    ValueType::List(inner) if matches!(inner.as_ref(), ValueType::Ref(_) | ValueType::Uuid)
+                )
+            })
+        })
+    }) || model.fsms.iter().any(|f| {
+        f.states.iter().any(|s| {
+            s.attributes.iter().any(|a| {
+                matches!(
+                    &a.value_type,
+                    ValueType::List(inner) if matches!(inner.as_ref(), ValueType::Ref(_) | ValueType::Uuid)
+                )
+            })
+        })
+    });
+
+    // If Vec<UUID> is needed in other bridge modules, expose a dummy function
+    // in the uuid bridge so CXX generates the ImplVec trait for UUID.
+    let (vec_uuid_ffi, vec_uuid_impl) = if needs_vec_uuid {
+        (
+            quote! {
+                fn uuid_vec_noop(_v: &Vec<UUID>);
+            },
+            quote! {
+                #[allow(unused)]
+                fn uuid_vec_noop(_v: &Vec<ffi::UUID>) {}
+            },
+        )
+    } else {
+        (quote! {}, quote! {})
+    };
+
     let tokens = quote! {
         #[cxx::bridge(namespace = "uuid")]
         pub mod ffi {
@@ -200,8 +350,12 @@ fn emit_uuid_bridge(options: &CxxOptions) -> GeneratedFile {
 
                 #[cxx_name = "new_nil"]
                 fn uuid_new_nil() -> UUID;
+
+                #vec_uuid_ffi
             }
         }
+
+        #vec_uuid_impl
 
         fn uuid_now_v7() -> ffi::UUID {
             let id = #q::uuid::Uuid::now_v7();
@@ -353,7 +507,7 @@ fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (Str
     let mut nested_structs = String::new();
 
     for attr in attrs {
-        if let ValueType::Struct(inner_attrs) = &attr.value_type {
+        if let ValueType::Struct(_, inner_attrs) = &attr.value_type {
             // Generate a nested struct with PascalCase name from the field name
             let nested_name = to_pascal_case(&attr.name);
             let (inner_fields, more_nested) = generate_cxx_struct_fields(inner_attrs, &nested_name);
@@ -377,7 +531,7 @@ fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (Str
                 fields_str.push_str(&format!("        pub {}: {},\n", attr.name, nested_name));
             }
         } else if let ValueType::List(inner) = &attr.value_type {
-            if let ValueType::Struct(inner_attrs) = inner.as_ref() {
+            if let ValueType::Struct(_, inner_attrs) = inner.as_ref() {
                 let nested_name = to_pascal_case(&attr.name);
                 let (inner_fields, more_nested) =
                     generate_cxx_struct_fields(inner_attrs, &nested_name);
@@ -415,7 +569,12 @@ fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (Str
 }
 
 /// Generate a field conversion expression for an attribute: `name: <conversion>(data.name)`.
-fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStream {
+/// `component_mod` is the path prefix for model types (e.g., `icrate::engine`).
+fn emit_field_conversion_tokens(
+    attr: &AttributeDef,
+    q: &syn::Path,
+    component_mod: &syn::Path,
+) -> TokenStream {
     let name = format_ident!("{}", attr.name);
 
     if attr.optional {
@@ -446,6 +605,15 @@ fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStre
         ValueType::CustomAttributes => quote! {
             #name: data.#name.into_model(),
         },
+        ValueType::Struct(type_path, inner_attrs) => {
+            let conversion = emit_struct_conversion(type_path, inner_attrs, q, component_mod);
+            quote! {
+                #name: {
+                    let data = data.#name;
+                    #conversion
+                },
+            }
+        }
         ValueType::List(inner) => match inner.as_ref() {
             ValueType::Ref(_) => quote! {
                 #name: data.#name.into_iter().map(|u| #q::Ref::new(#q::uuid::Uuid::from(u))).collect(),
@@ -453,6 +621,14 @@ fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStre
             ValueType::Uuid => quote! {
                 #name: data.#name.into_iter().map(|u| #q::uuid::Uuid::from(u)).collect(),
             },
+            ValueType::Struct(type_path, inner_attrs) => {
+                let conversion = emit_struct_conversion(type_path, inner_attrs, q, component_mod);
+                quote! {
+                    #name: data.#name.iter().map(|data| {
+                        #conversion
+                    }).collect(),
+                }
+            }
             _ => quote! {
                 #name: data.#name,
             },
@@ -463,15 +639,43 @@ fn emit_field_conversion_tokens(attr: &AttributeDef, q: &syn::Path) -> TokenStre
     }
 }
 
+/// Generate a conversion expression from CXX shared struct to a Rust model struct.
+/// `data` is assumed to be in scope as the CXX shared struct value.
+/// `component_mod` qualifies the struct type (e.g., `icrate::engine`).
+fn emit_struct_conversion(
+    type_path: &str,
+    attrs: &[AttributeDef],
+    q: &syn::Path,
+    component_mod: &syn::Path,
+) -> TokenStream {
+    let type_ident: syn::Ident = syn::parse_str(type_path).unwrap();
+    let field_conversions: Vec<TokenStream> = attrs
+        .iter()
+        .map(|a| emit_field_conversion_tokens(a, q, component_mod))
+        .collect();
+    quote! {
+        #component_mod::#type_ident {
+            #(#field_conversions)*
+        }
+    }
+}
+
 /// Generate a CXX bridge for an entity with events.
 fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> GeneratedFile {
     let entity_name = &entity.name;
-    let ns = format!("{}::{}", options.namespace, entity_name);
+    let safe_name = cxx_safe_name(entity_name);
+    let ns = format!("{}::{}", options.namespace, safe_name);
     let pascal_name = to_pascal_case(entity_name);
     let observer_name_str = format!("{pascal_name}Observer");
     let observer_name = format_ident!("{}", observer_name_str);
     let q = quent_path(options);
     let icrate: syn::Path = syn::parse_str(&options.instrumentation_crate).unwrap();
+    let entity_mod = format_ident!("{}", entity_name);
+    let component_mod: syn::Path = syn::parse_str(&format!(
+        "{}::{}",
+        options.instrumentation_crate, entity_name
+    ))
+    .unwrap();
     let event_type: syn::Type = syn::parse_str(&options.event_type()).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
@@ -499,10 +703,10 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
             extern_rust_body.push_str(&format!("        fn {}(&self, id: UUID);\n", event.name,));
             observer_impl_methods.push(quote! {
                 pub fn #event_method(&self, id: ffi::UUID) {
-                    let model_event = #icrate::#event_pascal;
+                    let model_event = #icrate::#entity_mod::#event_pascal;
                     self.tx.send(#q::Event::new_now(
                         #q::uuid::Uuid::from(id),
-                        #icrate::#entity_event_enum::from(model_event).into(),
+                        #icrate::#entity_mod::#entity_event_enum::from(model_event).into(),
                     ));
                 }
             });
@@ -523,28 +727,27 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
             let field_conversions: Vec<TokenStream> = event
                 .attributes
                 .iter()
-                .map(|a| emit_field_conversion_tokens(a, &q))
+                .map(|a| emit_field_conversion_tokens(a, &q, &component_mod))
                 .collect();
 
             observer_impl_methods.push(quote! {
                 pub fn #event_method(&self, id: ffi::UUID, data: ffi::#event_pascal) {
-                    let model_event = #icrate::#event_pascal {
+                    let model_event = #icrate::#entity_mod::#event_pascal {
                         #(#field_conversions)*
                     };
                     self.tx.send(#q::Event::new_now(
                         #q::uuid::Uuid::from(id),
-                        #icrate::#entity_event_enum::from(model_event).into(),
+                        #icrate::#entity_mod::#entity_event_enum::from(model_event).into(),
                     ));
                 }
             });
         }
     }
 
-    let entity_uses_custom_attrs = entity.events.iter().any(|ev| {
-        ev.attributes
-            .iter()
-            .any(|a| a.value_type == ValueType::CustomAttributes)
-    });
+    let entity_uses_custom_attrs = entity
+        .events
+        .iter()
+        .any(|ev| attrs_use_custom_attributes(&ev.attributes));
     let ffi_module = build_ffi_module_string(
         &ns,
         &include_path,
@@ -578,9 +781,10 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
 }
 
 /// Generate tokens for converting FFI struct fields to a model state struct.
+/// `component_mod` is the path prefix for model types (e.g., `icrate::query`).
 fn emit_state_conversion_tokens(
     state: &StateDef,
-    icrate: &syn::Path,
+    component_mod: &syn::Path,
     q: &syn::Path,
 ) -> TokenStream {
     let state_pascal = format_ident!("{}", to_pascal_case(&state.name));
@@ -588,7 +792,7 @@ fn emit_state_conversion_tokens(
     let attr_fields: Vec<TokenStream> = state
         .attributes
         .iter()
-        .map(|a| emit_field_conversion_tokens(a, q))
+        .map(|a| emit_field_conversion_tokens(a, q, component_mod))
         .collect();
 
     // Generate type aliases for capacity types (associated type projection
@@ -624,7 +828,7 @@ fn emit_state_conversion_tokens(
 
     quote! {
         #(#capacity_aliases)*
-        let state = #icrate::#state_pascal {
+        let state = #component_mod::#state_pascal {
             #(#attr_fields)*
             #(#usage_fields)*
         };
@@ -634,18 +838,23 @@ fn emit_state_conversion_tokens(
 /// Generate a CXX bridge for an FSM.
 fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     let fsm_name = &fsm.name;
-    let ns = format!("{}::{}", options.namespace, fsm_name);
+    let safe_name = cxx_safe_name(fsm_name);
+    let ns = format!("{}::{}", options.namespace, safe_name);
     let pascal_name = to_pascal_case(fsm_name);
     let handle_name_str = format!("{pascal_name}Handle");
     let handle_name = format_ident!("{}", handle_name_str);
     let q = quent_path(options);
     let icrate: syn::Path = syn::parse_str(&options.instrumentation_crate).unwrap();
+    let fsm_mod = format_ident!("{}", fsm_name);
+    let component_mod: syn::Path =
+        syn::parse_str(&format!("{}::{}", options.instrumentation_crate, fsm_name)).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
     let model_handle: syn::Type = {
         let s = format!(
-            "{}::{}Handle<{}>",
+            "{}::{}::{}Handle<{}>",
             options.instrumentation_crate,
+            fsm_name,
             pascal_name,
             options.event_type(),
         );
@@ -726,12 +935,12 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             if state.attributes.is_empty() && state.usages.is_empty() {
                 quote! {
                     pub fn #method_name(&mut self) {
-                        let state = #icrate::#state_pascal_ident;
+                        let state = #icrate::#fsm_mod::#state_pascal_ident;
                         self.inner.transition(state);
                     }
                 }
             } else {
-                let conversion = emit_state_conversion_tokens(state, &icrate, &q);
+                let conversion = emit_state_conversion_tokens(state, &component_mod, &q);
                 quote! {
                     pub fn #method_name(&mut self, data: ffi::#state_pascal_ident) {
                         #conversion
@@ -744,11 +953,11 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
 
     let observer_name = format_ident!("{}Observer", pascal_name);
     let factory_fn = if has_entry_data {
-        let conversion = emit_state_conversion_tokens(entry_state, &icrate, &q);
+        let conversion = emit_state_conversion_tokens(entry_state, &component_mod, &q);
         quote! {
             pub fn create(data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #conversion
-                let obs = #icrate::#observer_name::new(&super::context::global_sender());
+                let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
                 Box::new(#handle_name {
                     inner: obs.#entry_name(state),
                 })
@@ -757,8 +966,8 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     } else {
         quote! {
             pub fn create() -> Box<#handle_name> {
-                let state = #icrate::#entry_pascal;
-                let obs = #icrate::#observer_name::new(&super::context::global_sender());
+                let state = #icrate::#fsm_mod::#entry_pascal;
+                let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
                 Box::new(#handle_name {
                     inner: obs.#entry_name(state),
                 })
