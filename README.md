@@ -6,9 +6,9 @@ application. It provides a set of modeling concepts (especially Finite State
 Machines, Resources, and their relationships) from which a statically typed
 instrumentation API is generated. Applications instrumented with this API emit
 structured telemetry that can be stored, analyzed, and visualized. Quent
-provides building blocks for each of these layers, so you can mix and match
-things to build a dedicated, semantically rich profiling / telemetry tool for
-your application.
+provides building blocks for each of these layers, so you (or preferably your
+coding agent) can mix and match things to build a dedicated, semantically rich
+profiling / telemetry tool for your application.
 
 In this experimental stage, the first domain we target is that of query engines,
 but the basic concepts are domain-agnostic and may be applied to other domains.
@@ -145,8 +145,8 @@ task.exit();
 ### C++ instrumentation
 
 The same model can target C++ via CXX bridge code generation. Capacity wrappers
-and typed references are flattened into plain fields.
-See [examples/cpp-integration](examples/cpp-integration/) for a complete example.
+and typed references are flattened into plain fields. See
+[examples/cpp-integration](examples/cpp-integration/) for a complete example.
 
 ```cpp
 auto ctx = quent::create_context("ndjson", "data");
