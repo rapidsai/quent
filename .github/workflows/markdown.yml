@@ -27,4 +27,4 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-rumdl-0.1.67
       - if: steps.rumdl-cache.outputs.cache-hit != 'true'
         run: cargo install rumdl --locked --version 0.1.67
-      - run: rumdl check --diff --exclude .cargo
+      - run: rumdl check --diff
