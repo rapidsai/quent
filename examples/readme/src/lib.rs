@@ -125,15 +125,12 @@ quent_model::define_instrumentation!(App);
 
 fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     let context = AppContext::try_new(None, Uuid::now_v7())?;
-    let cluster = context.cluster_observer().cluster(
-        Uuid::now_v7(),
-        ClusterDeclaration {
-            instance_name: "example_cluster".to_string(),
-        },
-    );
-    let workers = context.worker_observer().worker(id, event);
+    let cluster_id = context.cluster_observer().cluster("example_cluster");
+    let _worker_id = context
+        .worker_observer()
+        .worker("worker-0", cluster_id, Ref::new(cluster_id));
     let pool_handle = context.memory_pool_observer().initializing(
-        /*instance name*/ "hi", /*parent group id*/ cluster,
+        /*instance name*/ "hi", /*parent group id*/ cluster_id,
     );
     // instead of this:
     // .initializing(MemoryPoolInitializing {

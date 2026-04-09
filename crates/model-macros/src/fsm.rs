@@ -486,8 +486,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 Self { tx: tx.clone() }
             }
 
-            pub fn #entry_constructor(&self, state: #entry_state_type) -> #handle_name<E> {
-                let id = uuid::Uuid::now_v7();
+            pub fn #entry_constructor(&self, id: uuid::Uuid, state: #entry_state_type) -> #handle_name<E> {
                 let mut handle = #handle_name {
                     id,
                     seq: 0,

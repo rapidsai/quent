@@ -974,8 +974,9 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             pub fn create(data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #conversion
                 let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
+                let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
-                    inner: obs.#entry_name(state),
+                    inner: obs.#entry_name(id, state),
                 })
             }
         }
@@ -984,8 +985,9 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             pub fn create() -> Box<#handle_name> {
                 let state = #icrate::#fsm_mod::#entry_pascal;
                 let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
+                let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
-                    inner: obs.#entry_name(state),
+                    inner: obs.#entry_name(id, state),
                 })
             }
         }

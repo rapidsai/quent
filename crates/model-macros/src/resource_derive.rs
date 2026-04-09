@@ -146,6 +146,22 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         })
         .collect();
 
+    let user_init_field_names: Vec<&proc_macro2::Ident> = fields
+        .init_fields
+        .iter()
+        .filter_map(|f| f.ident.as_ref())
+        .collect();
+
+    let user_init_param_defs: Vec<TokenStream> = fields
+        .init_fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            let ty = &f.ty;
+            quote! { #ident: #ty }
+        })
+        .collect();
+
     // Generate operating state fields (capacity fields only)
     let capacity_field_defs: Vec<TokenStream> = fields
         .capacity_fields
@@ -527,8 +543,13 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
                 Self { tx: tx.clone() }
             }
 
-            pub fn initializing(&self, state: #init_state) -> #handle_name<E> {
-                let id = uuid::Uuid::now_v7();
+            pub fn initializing(&self, id: uuid::Uuid, instance_name: &str, parent_group_id: uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name<E> {
+                let state = #init_state {
+                    instance_name: instance_name.to_string(),
+                    parent_group_id,
+                    resource_type_name: #name_snake.to_string(),
+                    #(#user_init_field_names,)*
+                };
                 let mut handle = #handle_name { id, seq: 0, exited: false, tx: self.tx.clone() };
                 handle.emit_transition(#transition_enum::from(state));
                 handle

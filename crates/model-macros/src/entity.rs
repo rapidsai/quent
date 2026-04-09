@@ -160,6 +160,20 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             })
             .collect();
 
+        let user_param_defs: Vec<TokenStream> = extra_decl_fields
+            .iter()
+            .map(|f| {
+                let ident = &f.ident;
+                let ty = &f.ty;
+                quote! { #ident: #ty }
+            })
+            .collect();
+
+        let user_field_names: Vec<&proc_macro2::Ident> = extra_decl_fields
+            .iter()
+            .filter_map(|f| f.ident.as_ref())
+            .collect();
+
         let (decl_fields, decl_attr_defs) = if is_root {
             (
                 quote! {
@@ -198,6 +212,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             )
         };
 
+        let (observer_params, observer_decl_init): (Vec<TokenStream>, TokenStream) = if is_root {
+            (user_param_defs.clone(), quote! {})
+        } else {
+            let mut params = vec![quote! { parent_group_id: uuid::Uuid }];
+            params.extend(user_param_defs.clone());
+            (params, quote! { parent_group_id, })
+        };
+
         let output = quote! {
             #[derive(#serde_derives)]
             #vis struct #decl_struct {
@@ -231,7 +253,12 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     Self { tx: tx.clone() }
                 }
 
-                pub fn #observer_method(&self, id: uuid::Uuid, event: #decl_struct) {
+                pub fn #observer_method(&self, id: uuid::Uuid, instance_name: &str, #(#observer_params,)*) {
+                    let event = #decl_struct {
+                        instance_name: instance_name.to_string(),
+                        #observer_decl_init
+                        #(#user_field_names,)*
+                    };
                     self.tx.emit(id, #event_enum::from(event));
                 }
             }

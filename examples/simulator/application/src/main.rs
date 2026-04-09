@@ -540,76 +540,50 @@ impl Worker {
         let proc_obs = context.processor_observer();
 
         // Filesystem
-        let mut fs_handle = mem_obs.initializing(quent_stdlib::MemoryInitializing {
-            instance_name: "Filesystem".into(),
-            parent_group_id: id,
-            resource_type_name: "filesystem".into(),
-        });
-        let filesystem = fs_handle.uuid();
+        let filesystem = Uuid::now_v7();
+        let mut fs_handle = mem_obs.initializing(filesystem, "Filesystem", id);
         fs_handle.operating(quent_stdlib::MemoryOperating {
             capacity_bytes: Capacity::new(Some(0)),
         });
         memory_handles.push(fs_handle);
 
         // Memory pool
-        let mut mem_handle = mem_obs.initializing(quent_stdlib::MemoryInitializing {
-            instance_name: "Memory".into(),
-            parent_group_id: id,
-            resource_type_name: "memory".into(),
-        });
-        let memory = mem_handle.uuid();
+        let memory = Uuid::now_v7();
+        let mut mem_handle = mem_obs.initializing(memory, "Memory", id);
         mem_handle.operating(quent_stdlib::MemoryOperating {
             capacity_bytes: Capacity::new(Some(0)),
         });
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
-        let mut fs_to_mem_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
-            instance_name: "Filesystem -> Memory".into(),
-            parent_group_id: id,
-            resource_type_name: "fs_to_mem".into(),
-            source_id: filesystem,
-            target_id: memory,
-        });
-        let fs_to_mem = fs_to_mem_handle.uuid();
+        let fs_to_mem = Uuid::now_v7();
+        let mut fs_to_mem_handle =
+            ch_obs.initializing(fs_to_mem, "Filesystem -> Memory", id, filesystem, memory);
         fs_to_mem_handle.operating(quent_stdlib::ChannelOperating {
             capacity_bytes: Capacity::new(None),
         });
         channel_handles.push(fs_to_mem_handle);
 
         // Memory -> Filesystem channel
-        let mut mem_to_fs_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
-            instance_name: "Memory -> Filesystem".into(),
-            parent_group_id: id,
-            resource_type_name: "mem_to_fs".into(),
-            source_id: memory,
-            target_id: filesystem,
-        });
-        let mem_to_fs = mem_to_fs_handle.uuid();
+        let mem_to_fs = Uuid::now_v7();
+        let mut mem_to_fs_handle =
+            ch_obs.initializing(mem_to_fs, "Memory -> Filesystem", id, memory, filesystem);
         mem_to_fs_handle.operating(quent_stdlib::ChannelOperating {
             capacity_bytes: Capacity::new(None),
         });
         channel_handles.push(mem_to_fs_handle);
 
         // Thread pool
-        let thread_pool = Uuid::now_v7();
         let tp_obs = context.thread_pool_observer();
-        tp_obs.thread_pool(
-            thread_pool,
-            quent_simulator_instrumentation::ThreadPoolDeclaration {
-                instance_name: "Thread Pool".into(),
-                parent_group_id: id,
-            },
-        );
+        let thread_pool = Uuid::now_v7();
+        tp_obs.thread_pool(thread_pool, "Thread Pool", id);
 
         let mut threads = Vec::new();
         for index in 0..num_threads {
-            let mut thread_handle = proc_obs.initializing(quent_stdlib::ProcessorInitializing {
-                instance_name: format!("Thread {index}"),
-                parent_group_id: thread_pool,
-                resource_type_name: "thread".into(),
-            });
-            threads.push(thread_handle.uuid());
+            let thread_id = Uuid::now_v7();
+            let mut thread_handle =
+                proc_obs.initializing(thread_id, &format!("Thread {index}"), thread_pool);
+            threads.push(thread_id);
             thread_handle.operating(quent_stdlib::ProcessorOperating {});
             processor_handles.push(thread_handle);
         }
@@ -642,10 +616,13 @@ impl Worker {
 
         // Create task — emits entry -> Queueing
         let task_obs = context.task_observer();
-        let mut task = task_obs.queueing(Queueing {
-            operator_id: operator.id,
-            instance_name: format!("task-{index}"),
-        });
+        let mut task = task_obs.queueing(
+            Uuid::now_v7(),
+            Queueing {
+                operator_id: operator.id,
+                instance_name: format!("task-{index}"),
+            },
+        );
 
         sleep_long();
         let (spill, load, send) = match operator.kind {
@@ -1169,40 +1146,35 @@ impl Engine {
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
         let net_obs = context.network_observer();
-        net_obs.network(
-            self.network,
-            quent_simulator_instrumentation::NetworkDeclaration {
-                instance_name: "network".into(),
-                parent_group_id: self.id,
-            },
-        );
+        self.network = Uuid::now_v7();
+        net_obs.network(self.network, "network", self.id);
         let ch_obs = context.channel_observer();
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
 
-                let mut up_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
-                    instance_name: format!("worker {worker_index} -> {other_worker_index}"),
-                    parent_group_id: self.network,
-                    resource_type_name: "link".into(),
-                    source_id: self.workers.get(&worker_id).unwrap().memory,
-                    target_id: self.workers.get(&other_worker_id).unwrap().memory,
-                });
-                let up_link_id = up_handle.uuid();
+                let up_link_id = Uuid::now_v7();
+                let mut up_handle = ch_obs.initializing(
+                    up_link_id,
+                    &format!("worker {worker_index} -> {other_worker_index}"),
+                    self.network,
+                    self.workers.get(&worker_id).unwrap().memory,
+                    self.workers.get(&other_worker_id).unwrap().memory,
+                );
                 up_handle.operating(quent_stdlib::ChannelOperating {
                     capacity_bytes: Capacity::new(None),
                 });
                 self.network_link_handles.push(up_handle);
 
-                let mut down_handle = ch_obs.initializing(quent_stdlib::ChannelInitializing {
-                    instance_name: format!("worker {other_worker_index} -> {worker_index}"),
-                    parent_group_id: self.network,
-                    resource_type_name: "link".into(),
-                    source_id: self.workers.get(&other_worker_id).unwrap().memory,
-                    target_id: self.workers.get(&worker_id).unwrap().memory,
-                });
-                let down_link_id = down_handle.uuid();
+                let down_link_id = Uuid::now_v7();
+                let mut down_handle = ch_obs.initializing(
+                    down_link_id,
+                    &format!("worker {other_worker_index} -> {worker_index}"),
+                    self.network,
+                    self.workers.get(&other_worker_id).unwrap().memory,
+                    self.workers.get(&worker_id).unwrap().memory,
+                );
                 down_handle.operating(quent_stdlib::ChannelOperating {
                     capacity_bytes: Capacity::new(None),
                 });
@@ -1293,11 +1265,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..args.num_queries {
             let query_obs = context.query_observer();
-            let mut query_handle = query_obs.init(query::Init {
-                query_group_id: Ref::new(query_group_id),
-                instance_name: format!("Q{query_index}"),
-            });
-            let query_id = query_handle.uuid();
+            let query_id = Uuid::now_v7();
+            let mut query_handle = query_obs.init(
+                query_id,
+                query::Init {
+                    query_group_id: Ref::new(query_group_id),
+                    instance_name: format!("Q{query_index}"),
+                },
+            );
             info!("Simulating Query:");
             info!(
                 "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
