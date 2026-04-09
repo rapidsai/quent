@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
+import { useSelectedNodeIds } from '@quent/hooks';
 import { useAtomValue } from 'jotai';
 import {
-  selectedNodeIdsAtom,
   nodeColoringAtom,
   selectedColorField,
   nodeColorPaletteAtom,
-} from '@/atoms/dag';
+} from '@/atoms/dagControls';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
@@ -26,7 +26,7 @@ interface NodeColoringResult {
 }
 
 export function useNodeColoring(operatorId: string): NodeColoringResult {
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const selectedNodeIds = useSelectedNodeIds();
   const nodeColoring = useAtomValue(nodeColoringAtom);
   const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const colorField = useAtomValue(selectedColorField);

@@ -6,7 +6,7 @@ import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtomValue } from 'jotai';
+import { useZoomRange } from '@quent/hooks';
 import { withOpacity, formatDuration } from '@quent/utils';
 import type { ZoomRange } from '@quent/utils';
 import {
@@ -21,7 +21,6 @@ import {
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
-import { zoomRangeAtom } from '@/atoms/timeline';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
@@ -322,7 +321,7 @@ export function TimelineController({
   const instanceRef = useRef<EChartsInstance | null>(null);
   const selfTriggeredRef = useRef(false);
 
-  const zoomRange = useAtomValue(zoomRangeAtom);
+  const zoomRange = useZoomRange();
 
   useEffect(() => {
     if (selfTriggeredRef.current) {

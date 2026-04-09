@@ -4,7 +4,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@/services/api';
+import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@quent/client';
 import {
   Select,
   SelectContent,

@@ -8,7 +8,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtomValue } from 'jotai';
+import { useZoomRange } from '@quent/hooks';
 import { TooltipContent } from './TimelineTooltip';
 import { withOpacity } from '@quent/utils';
 import type { TimelineSeriesEntry } from './types';
@@ -21,7 +21,6 @@ import {
 } from './types';
 import { connectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
-import { zoomRangeAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
@@ -54,7 +53,7 @@ export function Timeline({
     markLabelTextColor,
   } = useTimelineChartColors();
 
-  const zoomRange = useAtomValue(zoomRangeAtom);
+  const zoomRange = useZoomRange();
   const windowMsRef = useRef(0);
   windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
 

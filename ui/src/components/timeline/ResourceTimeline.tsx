@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { DEFAULT_STALE_TIME, fetchSingleTimeline } from '@/services/api';
-import { useAtomValue } from 'jotai';
+import { DEFAULT_STALE_TIME, fetchSingleTimeline } from '@quent/client';
 import {
-  bulkInitializedAtom,
-  debouncedZoomRangeAtom,
-  hideTasksAtom,
+  useBulkInitialized,
+  useDebouncedZoomRange,
+  useHideTasks,
   timelineCacheKey,
-  timelineDataAtom,
-} from '@/atoms/timeline';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
+  useTimelineData,
+  useSelectedNodeIds,
+  useSelectedOperatorLabel,
+} from '@quent/hooks';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { useMemo, lazy, Suspense } from 'react';
@@ -77,12 +77,12 @@ export function ResourceTimeline({
   quantitySpecs,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
-  const zoomRange = useAtomValue(debouncedZoomRangeAtom);
-  const bulkInitialized = useAtomValue(bulkInitializedAtom);
-  const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
-  const hideTasks = useAtomValue(hideTasksAtom);
+  const zoomRange = useDebouncedZoomRange();
+  const bulkInitialized = useBulkInitialized();
+  const operatorLabel = useSelectedOperatorLabel();
+  const hideTasks = useHideTasks();
 
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const selectedNodeIds = useSelectedNodeIds();
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
 
   const cacheResourceTypeName =
@@ -92,7 +92,7 @@ export function ResourceTimeline({
     resourceTypeName: cacheResourceTypeName,
     fsmTypeName,
   });
-  const preloadedData = useAtomValue(timelineDataAtom(baseCacheKey));
+  const preloadedData = useTimelineData(baseCacheKey);
 
   const operatorCacheKey = timelineCacheKey({
     resourceId,
@@ -100,7 +100,7 @@ export function ResourceTimeline({
     fsmTypeName,
     operatorId,
   });
-  const operatorTimelineData = useAtomValue(timelineDataAtom(operatorCacheKey));
+  const operatorTimelineData = useTimelineData(operatorCacheKey);
   const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
 
   const {

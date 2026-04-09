@@ -4,8 +4,7 @@
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { useSelectedNodeIds } from '@quent/hooks';
 import { Operator } from '@quent/utils';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
@@ -123,7 +122,7 @@ function resolveOperationType(type: string): OperationType {
 }
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const selectedNodeIds = useSelectedNodeIds();
   const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
   const hasSelection = selectedNodeIds.size > 0;
   const isDimmed = hasSelection && !isSelected;

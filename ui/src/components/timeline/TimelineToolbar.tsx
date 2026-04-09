@@ -1,20 +1,27 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { X, Maximize2, Filter, Settings2 } from 'lucide-react';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
-import { hideTasksAtom, zoomRangeAtom, debouncedZoomRangeAtom } from '@/atoms/timeline';
+import {
+  useSelectedOperatorLabel,
+  useSetSelectedNodeIds,
+  useSetSelectedOperatorLabel,
+  useHideTasks,
+  useSetHideTasks,
+  useSetZoomRange,
+  useSetDebouncedZoomRange,
+} from '@quent/hooks';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { DataText } from '@/components/ui/data-text';
 
 export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
-  const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
-  const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
-  const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
-  const [hideTasks, setHideTasks] = useAtom(hideTasksAtom);
-  const setZoomRange = useSetAtom(zoomRangeAtom);
-  const setDebouncedZoomRange = useSetAtom(debouncedZoomRangeAtom);
+  const operatorLabel = useSelectedOperatorLabel();
+  const setSelectedNodeIds = useSetSelectedNodeIds();
+  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const hideTasks = useHideTasks();
+  const setHideTasks = useSetHideTasks();
+  const setZoomRange = useSetZoomRange();
+  const setDebouncedZoomRange = useSetDebouncedZoomRange();
 
   const clearOperator = () => {
     setSelectedNodeIds(new Set());

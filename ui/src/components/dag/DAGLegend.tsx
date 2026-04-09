@@ -10,7 +10,7 @@ import {
   edgeColorPaletteAtom,
   selectedColorField,
   selectedEdgeColorFieldAtom,
-} from '@/atoms/dag';
+} from '@/atoms/dagControls';
 import { getLegendGradientStops } from '@/services/colors';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';

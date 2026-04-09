@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, lazy, Suspense } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
-import { useQueryBundle } from '@/hooks/useQueryBundle';
+import { useQueryBundle } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@/components/ui/tree-view';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { type QueryPlanDataItem } from '@/services/query-plan/types';
 import { Network } from 'lucide-react';
-import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
+import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
 import { DAGControls } from '@/components/dag/DAGControls';
 import {
   useDagNodeColoring,
@@ -26,8 +25,9 @@ const DAGChart = lazy(() =>
 );
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
-  const [planId, setPlanId] = useAtom(selectedPlanIdAtom);
-  const setHoveredWorkerId = useSetAtom(hoveredWorkerIdAtom);
+  const planId = useSelectedPlanId();
+  const setPlanId = useSetSelectedPlanId();
+  const setHoveredWorkerId = useSetHoveredWorkerId();
 
   const {
     data: queryBundle,

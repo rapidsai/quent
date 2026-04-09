@@ -4,8 +4,7 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useHydrateAtoms } from 'jotai/utils';
-import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
+import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
 import { ResourceTree, QueryBundle } from '@quent/utils';
 import type { EntityRef, SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
 import { TimelineController } from './timeline/TimelineController';
@@ -14,11 +13,16 @@ import { EntityRefKey } from '@/types';
 import { TreeTableItem } from './resource-tree/types';
 import { ResourceColumn } from './resource-tree/ResourceColumn';
 import { UsageColumn } from './resource-tree/UsageColumn';
-import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
-import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
+import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@quent/client';
+import {
+  transformResourceTree,
+  getAdaptiveNumBins,
+  nanosToMs,
+  collectVisibleEntries,
+  buildBulkParamsForItem,
+  findItemById,
+} from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
-import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -45,11 +49,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const durationSeconds = queryBundle.duration_s;
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
-  useHydrateAtoms([
-    [zoomRangeAtom, { start: 0, end: durationSeconds }],
-    [debouncedZoomRangeAtom, { start: 0, end: durationSeconds }],
-    [startTimeMsAtom, startTimeMs],
-  ]);
+  useHydrateTimelineAtoms({
+    zoomRange: { start: 0, end: durationSeconds },
+    debouncedZoomRange: { start: 0, end: durationSeconds },
+    startTimeMs,
+  });
 
   const rootItem = useMemo(
     () => transformResourceTree(entities, resourceTree),
@@ -74,6 +78,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     selectedTypes,
     groupFsmFilters: selectedFsmTypes,
     entities,
+    collectVisibleEntriesFn: collectVisibleEntries,
+    buildBulkParamsFn: buildBulkParamsForItem,
+    findItemByIdFn: findItemById,
   });
 
   const onExpandChange = useCallback(

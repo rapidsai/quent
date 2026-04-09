@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { useAtomValue } from 'jotai';
-import { hoveredWorkerIdAtom } from '@/atoms/dag';
+import { useHoveredWorkerId } from '@quent/hooks';
 import { TreeTableItem } from '@/components/resource-tree/types';
 
 /**
@@ -11,7 +10,7 @@ import { TreeTableItem } from '@/components/resource-tree/types';
  * hovered worker node, or undefined when nothing is hovered.
  */
 export function useHighlightedItemIds(rootItem: TreeTableItem): Set<string> | undefined {
-  const hoveredWorkerId = useAtomValue(hoveredWorkerIdAtom);
+  const hoveredWorkerId = useHoveredWorkerId();
 
   return useMemo(() => {
     if (!hoveredWorkerId) return undefined;
