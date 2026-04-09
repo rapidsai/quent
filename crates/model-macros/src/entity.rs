@@ -6,7 +6,8 @@ use quote::{format_ident, quote};
 use syn::DeriveInput;
 
 use crate::util::{
-    parse_resource_group_attr, resolve_value_type, serde_bound, serde_derives, to_snake_case,
+    field_has_attr, parse_resource_group_attr, resolve_value_type, serde_bound, serde_derives,
+    to_snake_case,
 };
 
 /// If the field type is `EmitOnce<T>`, return the inner `T` ident.
@@ -174,7 +175,28 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             .filter_map(|f| f.ident.as_ref())
             .collect();
 
+        // Check if a user field is annotated with #[parent_group]
+        let has_parent_group_field = extra_decl_fields
+            .iter()
+            .any(|f| field_has_attr(f, "parent_group"));
+
         let (decl_fields, decl_attr_defs) = if is_root {
+            (
+                quote! {
+                    pub instance_name: String,
+                    #(#user_field_defs,)*
+                },
+                quote! {
+                    quent_model::AttributeDef {
+                        name: "instance_name".to_string(),
+                        value_type: quent_model::ValueType::String,
+                        optional: false,
+                    },
+                    #(#user_attr_defs,)*
+                },
+            )
+        } else if has_parent_group_field {
+            // User provides the parent group field — don't generate a separate one
             (
                 quote! {
                     pub instance_name: String,
@@ -212,13 +234,16 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             )
         };
 
-        let (observer_params, observer_decl_init): (Vec<TokenStream>, TokenStream) = if is_root {
-            (user_param_defs.clone(), quote! {})
-        } else {
-            let mut params = vec![quote! { parent_group_id: uuid::Uuid }];
-            params.extend(user_param_defs.clone());
-            (params, quote! { parent_group_id, })
-        };
+        let (observer_params, observer_decl_init): (Vec<TokenStream>, TokenStream) =
+            if is_root || has_parent_group_field {
+                // Root: no parent group param. Has parent_group field: user field covers it.
+                (user_param_defs.clone(), quote! {})
+            } else {
+                // Non-root without explicit parent_group field: generate parent_group_id param
+                let mut params = vec![quote! { parent_group_id: uuid::Uuid }];
+                params.extend(user_param_defs.clone());
+                (params, quote! { parent_group_id, })
+            };
 
         let output = quote! {
             #[derive(#serde_derives)]

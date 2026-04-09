@@ -103,7 +103,7 @@ pub fn derive_fsm(input: TokenStream) -> TokenStream {
 ///
 /// Struct-level attributes (optional):
 /// - `#[resource_group]` / `#[resource_group(root)]` — resource group metadata
-#[proc_macro_derive(Entity, attributes(resource_group))]
+#[proc_macro_derive(Entity, attributes(resource_group, parent_group))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     entity::expand_derive(input)

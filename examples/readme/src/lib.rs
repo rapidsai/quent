@@ -71,6 +71,7 @@ pub struct AsyncSend {
 #[derive(Entity)]
 #[resource_group]
 pub struct Worker {
+    #[parent_group]
     pub cluster: Ref<Cluster>,
 }
 
@@ -125,10 +126,12 @@ quent_model::define_instrumentation!(App);
 
 fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     let context = AppContext::try_new(None, Uuid::now_v7())?;
-    let cluster_id = context.cluster_observer().cluster("example_cluster");
+    let cluster_id = context
+        .cluster_observer()
+        .cluster(Uuid::now_v7(), "example_cluster");
     let _worker_id = context
         .worker_observer()
-        .worker("worker-0", cluster_id, Ref::new(cluster_id));
+        .worker(Uuid::now_v7(), "hi", Ref::new(cluster_id));
     let pool_handle = context.memory_pool_observer().initializing(
         /*instance name*/ "hi", /*parent group id*/ cluster_id,
     );
