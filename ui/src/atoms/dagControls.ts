@@ -3,7 +3,7 @@
 
 import { atom } from 'jotai';
 import type { NodeColoring, EdgeWidthConfig, EdgeColoring } from '@/services/query-plan/types';
-import type { ContinuousPaletteName } from '@/services/colors';
+import type { ContinuousPaletteName } from '@quent/utils';
 
 /** Field to color each DAG node by */
 export const selectedColorField = atom<string | null>(null);

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@quent/utils';
 import {
   Select,
   SelectContent,

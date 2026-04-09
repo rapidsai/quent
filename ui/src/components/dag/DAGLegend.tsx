@@ -11,11 +11,11 @@ import {
   selectedColorField,
   selectedEdgeColorFieldAtom,
 } from '@/atoms/dagControls';
-import { getLegendGradientStops } from '@/services/colors';
+import { getLegendGradientStops } from '@quent/utils';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { NodeColoring, EdgeColoring } from '@/services/query-plan/types';
-import type { ContinuousPaletteName } from '@/services/colors';
+import type { ContinuousPaletteName } from '@quent/utils';
 
 const MAX_CATEGORICAL_ENTRIES = 8;
 

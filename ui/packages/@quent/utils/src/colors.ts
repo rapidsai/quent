@@ -320,3 +320,84 @@ const OPERATION_TYPE_COLORS: Record<string, string> = {
 export function getOperationTypeColor(operationType: string): string {
   return OPERATION_TYPE_COLORS[operationType.toLowerCase()] ?? OPERATION_TYPE_COLORS.other;
 }
+
+// ---------------------------------------------------------------------------
+// Continuous color palettes (heatmap-style)
+// ---------------------------------------------------------------------------
+
+export const CONTINUOUS_PALETTES = {
+  blue: { label: 'Blue' },
+  teal: { label: 'Teal' },
+  purple: { label: 'Purple' },
+  orange: { label: 'Orange' },
+  viridis: { label: 'Viridis' },
+} as const;
+
+export type ContinuousPaletteName = keyof typeof CONTINUOUS_PALETTES;
+
+const VIRIDIS_STOPS: [number, number, number][] = [
+  [68, 1, 84],
+  [59, 82, 139],
+  [33, 145, 140],
+  [94, 201, 98],
+  [253, 231, 37],
+];
+
+const NEUTRAL: [number, number, number] = [229, 231, 235];
+const NEUTRAL_DARK: [number, number, number] = [55, 65, 81];
+
+function blendToColor(
+  r: number,
+  g: number,
+  b: number,
+  t: number,
+  neutral: [number, number, number] = NEUTRAL
+): string {
+  const c = Math.min(1, Math.max(0, t));
+  const rr = Math.round(neutral[0] + (r - neutral[0]) * c);
+  const gg = Math.round(neutral[1] + (g - neutral[1]) * c);
+  const bb = Math.round(neutral[2] + (b - neutral[2]) * c);
+  return `#${rr.toString(16).padStart(2, '0')}${gg.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
+ */
+export function continuousColor(t: number, palette: ContinuousPaletteName, darkMode = false): string {
+  const neutral = darkMode ? NEUTRAL_DARK : NEUTRAL;
+  switch (palette) {
+    case 'blue':
+      return blendToColor(59, 130, 246, t, neutral);
+    case 'teal':
+      return blendToColor(20, 184, 166, t, neutral);
+    case 'purple':
+      return blendToColor(168, 85, 247, t, neutral);
+    case 'orange':
+      return blendToColor(249, 115, 22, t, neutral);
+    case 'viridis': {
+      const clamped = Math.min(1, Math.max(0, t));
+      const scaled = clamped * (VIRIDIS_STOPS.length - 1);
+      const lo = Math.floor(scaled);
+      const hi = Math.min(VIRIDIS_STOPS.length - 1, lo + 1);
+      const frac = scaled - lo;
+      const [r1, g1, b1] = VIRIDIS_STOPS[lo];
+      const [r2, g2, b2] = VIRIDIS_STOPS[hi];
+      const r = Math.round(r1 + (r2 - r1) * frac);
+      const g = Math.round(g1 + (g2 - g1) * frac);
+      const b = Math.round(b1 + (b2 - b1) * frac);
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+  }
+}
+
+/**
+ * Returns the CSS gradient color stops for a palette legend bar.
+ */
+export function getLegendGradientStops(palette: ContinuousPaletteName, darkMode = false): string[] {
+  if (palette === 'viridis') {
+    return VIRIDIS_STOPS.map((_, i) =>
+      continuousColor(i / (VIRIDIS_STOPS.length - 1), 'viridis', darkMode)
+    );
+  }
+  return [continuousColor(0, palette, darkMode), continuousColor(1, palette, darkMode)];
+}

@@ -21,11 +21,14 @@ export {
   createCrosshatchPattern,
   BLACK,
   WHITE,
+  CONTINUOUS_PALETTES,
+  continuousColor,
+  getLegendGradientStops,
 } from './colors';
-export type { PaletteName, ChartColor } from './colors';
+export type { PaletteName, ChartColor, ContinuousPaletteName } from './colors';
 
 // Formatter utilities
-export { formatDuration, formatDurationForWindow, formatQuantity } from './formatters';
+export { formatDuration, formatDurationForWindow, formatQuantity, formatBytes, formatNumber } from './formatters';
 
 // Rust-generated TypeScript types
 export * from './types/index';

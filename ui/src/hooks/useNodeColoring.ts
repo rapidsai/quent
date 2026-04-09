@@ -9,7 +9,7 @@ import {
   selectedColorField,
   nodeColorPaletteAtom,
 } from '@/atoms/dagControls';
-import { continuousColor } from '@/services/colors';
+import { continuousColor } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 interface NodeColoringResult {

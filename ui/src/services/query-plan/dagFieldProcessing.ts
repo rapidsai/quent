@@ -3,8 +3,8 @@
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
-import { getActivePalette } from '@/services/colors';
-import { formatDuration, formatBytes, formatNumber } from '@/services/formatters';
+import { getActivePalette } from '@quent/utils';
+import { formatDuration, formatBytes, formatNumber } from '@quent/utils';
 
 /**
  * Infer a display formatter for a DAG stat field based on its name.

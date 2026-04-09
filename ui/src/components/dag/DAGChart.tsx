@@ -35,7 +35,7 @@ import {
   selectedEdgeColorFieldAtom,
 } from '@/atoms/dagControls';
 import { useAtomValue } from 'jotai';
-import { continuousColor } from '@/services/colors';
+import { continuousColor } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 

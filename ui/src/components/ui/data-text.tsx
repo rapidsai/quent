@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ElementType, ComponentPropsWithoutRef } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@quent/utils';
 
 type DataTextProps<T extends ElementType = 'span'> = {
   as?: T;

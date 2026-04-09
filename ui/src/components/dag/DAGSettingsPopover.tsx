@@ -17,7 +17,7 @@ import {
   CONTINUOUS_PALETTES,
   continuousColor,
   type ContinuousPaletteName,
-} from '@/services/colors';
+} from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [
