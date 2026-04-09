@@ -71,6 +71,8 @@ pub struct AsyncSend {
 #[derive(Entity)]
 #[resource_group]
 pub struct Worker {
+    // A ref to another resource group can be marked as a parent-child relation.
+    // A resource or resource group can only have one parent.
     #[parent_group]
     pub cluster: Ref<Cluster>,
 }
@@ -129,12 +131,14 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     let cluster_id = context
         .cluster_observer()
         .cluster(Uuid::now_v7(), "example_cluster");
-    let _worker_id = context
-        .worker_observer()
-        .worker(Uuid::now_v7(), "hi", Ref::new(cluster_id));
-    let pool_handle = context.memory_pool_observer().initializing(
-        /*instance name*/ "hi", /*parent group id*/ cluster_id,
-    );
+    let worker_id =
+        context
+            .worker_observer()
+            .worker(Uuid::now_v7(), "worker_0", Ref::new(cluster_id));
+    let pool_handle =
+        context
+            .memory_pool_observer()
+            .initializing(Uuid::now_v7(), "task_pool", worker_id);
     // instead of this:
     // .initializing(MemoryPoolInitializing {
     //     instance_name: "hi".to_string(),

@@ -278,13 +278,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     Self { tx: tx.clone() }
                 }
 
-                pub fn #observer_method(&self, id: uuid::Uuid, instance_name: &str, #(#observer_params,)*) {
+                pub fn #observer_method(&self, id: uuid::Uuid, instance_name: &str, #(#observer_params,)*) -> uuid::Uuid {
                     let event = #decl_struct {
                         instance_name: instance_name.to_string(),
                         #observer_decl_init
                         #(#user_field_names,)*
                     };
                     self.tx.emit(id, #event_enum::from(event));
+                    id
                 }
             }
 
