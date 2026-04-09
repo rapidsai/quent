@@ -11,7 +11,7 @@ import {
   edgeWidthConfigAtom,
   selectedEdgeColorFieldAtom,
   edgeColoringAtom,
-} from '@/atoms/dag';
+} from '@/atoms/dagControls';
 import {
   computeNodeColoring,
   computeEdgeWidthConfig,

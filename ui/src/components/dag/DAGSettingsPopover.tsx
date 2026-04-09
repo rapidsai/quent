@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Settings2 } from 'lucide-react';
 import { useAtom } from 'jotai';
-import { nodeColorPaletteAtom, edgeColorPaletteAtom } from '@/atoms/dag';
+import { nodeColorPaletteAtom, edgeColorPaletteAtom } from '@/atoms/dagControls';
 import {
   CONTINUOUS_PALETTES,
   continuousColor,

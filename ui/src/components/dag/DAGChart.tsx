@@ -19,7 +19,7 @@ import {
   type OnMoveStart,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useSelectedNodeIds, useSetSelectedNodeIds, useSetSelectedOperatorLabel } from '@quent/hooks';
 import type { DAGData } from '@/services/query-plan/types';
 import {
   OPERATION_TYPE_COLORS,
@@ -28,14 +28,13 @@ import {
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import {
-  selectedNodeIdsAtom,
-  selectedOperatorLabelAtom,
   edgeWidthConfigAtom,
   edgeColoringAtom,
   edgeColorPaletteAtom,
   selectedEdgeWidthFieldAtom,
   selectedEdgeColorFieldAtom,
-} from '@/atoms/dag';
+} from '@/atoms/dagControls';
+import { useAtomValue } from 'jotai';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
@@ -78,7 +77,7 @@ const VariableWidthEdge = ({
   const edgeWidthConfig = useAtomValue(edgeWidthConfigAtom);
   const edgeColoring = useAtomValue(edgeColoringAtom);
   const edgePalette = useAtomValue(edgeColorPaletteAtom);
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const selectedNodeIds = useSelectedNodeIds();
   const edgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
   const edgeColorField = useAtomValue(selectedEdgeColorFieldAtom);
   const { theme } = useTheme();
@@ -286,9 +285,9 @@ const FlowLayout = ({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
-  const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
-  const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const setSelectedNodeIds = useSetSelectedNodeIds();
+  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const selectedNodeIds = useSelectedNodeIds();
   const hasUserInteracted = useRef(false);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {

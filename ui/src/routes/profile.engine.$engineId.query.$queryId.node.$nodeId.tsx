@@ -3,7 +3,7 @@
 
 import { createFileRoute } from '@tanstack/react-router';
 import { QueryResourceTree } from '@/components/QueryResourceTree';
-import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
+import { queryBundleQueryOptions } from '@quent/client';
 import { queryClient } from '@/lib/queryClient';
 import { QueryBundle } from '@quent/utils';
 import type { EntityRef } from '@quent/utils';

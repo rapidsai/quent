@@ -11,7 +11,7 @@ import {
   selectedNodeLabelFieldAtom,
   NODE_LABEL_FIELD,
   type NodeLabelField,
-} from '@/atoms/dag';
+} from '@/atoms/dagControls';
 import { Palette, Spline, Brush, ChevronDown, Type } from 'lucide-react';
 import { DAGSettingsPopover } from './DAGSettingsPopover';
 import { useState } from 'react';

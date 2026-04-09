@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { QueryResourceTree } from '@/components/QueryResourceTree';
-import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
+import { queryBundleQueryOptions } from '@quent/client';
 import { queryClient } from '@/lib/queryClient';
 import { createFileRoute } from '@tanstack/react-router';
 import { QueryBundle } from '@quent/utils';

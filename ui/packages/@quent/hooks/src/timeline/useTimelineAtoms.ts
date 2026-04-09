@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAtomValue, useSetAtom } from 'jotai';
+import { useHydrateAtoms } from 'jotai/utils';
 import {
   timelineDataMapAtom,
   zoomRangeAtom,
@@ -12,7 +13,7 @@ import {
   visibleEntriesAtom,
   hideTasksAtom,
 } from '../atoms/timeline';
-import type { SingleTimelineResponse } from '@quent/utils';
+import type { ZoomRange, SingleTimelineResponse } from '@quent/utils';
 
 // Record-based replacement for atomFamily(timelineDataAtom(key))
 export function useTimelineData(key: string): SingleTimelineResponse | undefined {
@@ -40,3 +41,20 @@ export const useVisibleEntries = () => useAtomValue(visibleEntriesAtom);
 export const useSetVisibleEntries = () => useSetAtom(visibleEntriesAtom);
 export const useHideTasks = () => useAtomValue(hideTasksAtom);
 export const useSetHideTasks = () => useSetAtom(hideTasksAtom);
+
+/**
+ * Hydrates the timeline atoms with initial values synchronously during render.
+ * Use this in the root component of a query view to initialize zoom and start time
+ * before child components read them.
+ */
+export function useHydrateTimelineAtoms(params: {
+  zoomRange: ZoomRange;
+  debouncedZoomRange: ZoomRange;
+  startTimeMs: number;
+}): void {
+  useHydrateAtoms([
+    [zoomRangeAtom, params.zoomRange],
+    [debouncedZoomRangeAtom, params.debouncedZoomRange],
+    [startTimeMsAtom, params.startTimeMs],
+  ]);
+}

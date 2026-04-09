@@ -25,6 +25,7 @@ export {
   useSetVisibleEntries,
   useHideTasks,
   useSetHideTasks,
+  useHydrateTimelineAtoms,
 } from './timeline/useTimelineAtoms';
 
 // Timeline cache key helper (consumers need this to address per-item data)

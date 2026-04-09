@@ -11,8 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@quent/utils';
-import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
-import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@/services/api';
+import { queryBundleQueryOptions, fetchListEngines, fetchListCoordinators, fetchListQueries } from '@quent/client';
 import { DataText } from '@/components/ui/data-text';
 
 function BreadcrumbDropdown({

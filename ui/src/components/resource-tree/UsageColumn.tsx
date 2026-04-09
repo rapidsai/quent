@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAtomValue, useSetAtom } from 'jotai';
 import { EntityTypeKey } from '@/types';
 import { QueryBundle } from '@quent/utils';
 import type { EntityRef } from '@quent/utils';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
-import { isTimelineHoveredAtom, hoveredTimelineIdAtom } from '@/atoms/timeline';
+import { useIsTimelineHovered, useSetHoveredTimelineId } from '@quent/hooks';
 
 type UsageColumnProps = {
   item: TreeTableItem;
@@ -28,8 +27,8 @@ export function UsageColumn({
   startTime,
   durationSeconds,
 }: UsageColumnProps): React.ReactNode {
-  const isHovered = useAtomValue(isTimelineHoveredAtom(item.id));
-  const setHoveredId = useSetAtom(hoveredTimelineIdAtom);
+  const isHovered = useIsTimelineHovered(item.id);
+  const setHoveredId = useSetHoveredTimelineId();
 
   const entity = item?.entity ?? {};
   const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
