@@ -60,7 +60,12 @@ Plans:
   3. No file in `ui/src/` imports directly from `ui/src/atoms/` or `ui/src/services/api.ts` after migration
   4. The Jotai `<Provider>` per-query scoping pattern works correctly; switching between queries resets state as before
   5. `tsc --noEmit` passes from inside `ui/packages/@quent/client/` and `ui/packages/@quent/hooks/`
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Pre-conditions (ZoomRange relocation, package.json fixes) + populate @quent/client
+- [ ] 03-02-PLAN.md — Populate @quent/hooks (atoms, hook wrappers, Jotai-aware hooks)
+- [ ] 03-03-PLAN.md — Migrate all app imports to packages, delete old source files
 
 ### Phase 4: Extract @quent/components and Migrate App Shell
 **Goal**: All UI components live in `@quent/components`; the app shell imports everything exclusively from `@quent/*` package names; production build passes and renders correctly
@@ -84,5 +89,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Workspace Scaffold | 2/2 | Complete   | 2026-04-01 |
 | 2. Extract @quent/utils | 0/2 | Planning complete | - |
-| 3. Extract @quent/client and @quent/hooks | 0/? | Not started | - |
+| 3. Extract @quent/client and @quent/hooks | 0/3 | Planning complete | - |
 | 4. Extract @quent/components and Migrate App Shell | 0/? | Not started | - |
