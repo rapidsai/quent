@@ -6,8 +6,9 @@ Timestamps are 64-bit unsigned integers (`u64`) representing the amount of
 nanoseconds passed since the Unix Epoch as defined in the
 [POSIX](https://posix.opengroup.org/) standard (IEEE Std 1003.1-2024).
 
-> Rationale: The choice of nanoseconds represented as `u64` values allows timestamps
-> to extend approximately $`584.6`$ average Gregorian years past the Unix Epoch.
+> Rationale: The choice of nanoseconds represented as `u64` values allows
+> timestamps to extend approximately $`584.6`$ average Gregorian years past the
+> Unix Epoch.
 
 ## Span
 

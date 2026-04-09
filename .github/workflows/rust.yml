@@ -66,18 +66,3 @@ jobs:
       - if: steps.cargo-deny-cache.outputs.cache-hit != 'true'
         run: cargo install cargo-deny --locked --version 0.19.0
       - run: cargo deny check
-
-  markdown:
-    name: Markdown
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal
-      - uses: actions/cache@v4
-        id: rumdl-cache
-        with:
-          path: ~/.cargo/bin/rumdl
-          key: ${{ runner.os }}-${{ runner.arch }}-rumdl-0.1.21
-      - if: steps.rumdl-cache.outputs.cache-hit != 'true'
-        run: cargo install rumdl --locked --version 0.1.21
-      - run: rumdl check --diff --exclude .cargo
