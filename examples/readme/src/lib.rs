@@ -19,26 +19,19 @@ pub struct Thread;
 // Multiple entities may hold on to a certain amount of this resource simultaneously.
 #[derive(Resource)]
 pub struct Cache {
-    pub slots: Capacity<u64>,
+    pub capacity_slots: Capacity<u64>,
 }
 
 // A resource with a single, bounded capacity, which is resizable.
 #[derive(ResizableResource)]
 pub struct MemoryPool {
-    pub bytes: Capacity<u64>,
+    pub capacity_bytes: Capacity<u64>,
 }
 
 // A resource with a potentially unbounded capacity (by setting the Option to none).
 #[derive(Resource)]
 pub struct Queue {
-    pub depth: Capacity<Option<u64>>,
-}
-
-// Structs with key-value attributes
-#[derive(Attributes, Serialize, Deserialize)]
-pub struct AppDetails {
-    pub version: String,          // key known at compile-time
-    pub custom: CustomAttributes, // for keys known at run-time only
+    pub capacity_depth: Capacity<Option<u64>>,
 }
 
 // A trivial single-event entity.
@@ -67,6 +60,13 @@ pub struct AsyncSend {
     pub collected: EmitOnce<Collected>,
 }
 
+// Structs with key-value attributes
+#[derive(Attributes, Serialize, Deserialize)]
+pub struct Details {
+    pub version: String,          // key known at compile-time
+    pub custom: CustomAttributes, // for keys known at run-time only
+}
+
 // An entity can be marked as a Resource Group.
 #[derive(Entity)]
 #[resource_group]
@@ -75,6 +75,8 @@ pub struct Worker {
     // A resource or resource group can only have one parent.
     #[parent_group]
     pub cluster: Ref<Cluster>,
+    // Nested attributes
+    pub details: Details,
 }
 
 // There must be at least one root resource.
@@ -128,25 +130,49 @@ quent_model::define_instrumentation!(App);
 
 fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     let context = AppContext::try_new(None, Uuid::now_v7())?;
+    // Spawn a cluster
     let cluster_id = context
         .cluster_observer()
         .cluster(Uuid::now_v7(), "example_cluster");
+
+    // Spawn a worker.
     let worker_id =
         context
             .worker_observer()
             .worker(Uuid::now_v7(), "worker_0", Ref::new(cluster_id));
-    let pool_handle =
+
+    // Construct a queue.
+    let mut queue_handle =
+        context
+            .queue_observer()
+            .initializing(Uuid::now_v7(), "my_queue", worker_id);
+    // ... queue getting spawned goes here
+    queue_handle.operating(None);
+
+    // Construct a memory pool.
+    let mut mem_pool_handle =
         context
             .memory_pool_observer()
-            .initializing(Uuid::now_v7(), "task_pool", worker_id);
+            .initializing(Uuid::now_v7(), "my_memory_pool", worker_id);
     // ... pool doing pool things goes here
-    pool_handle.operating(1337);
+    mem_pool_handle.operating(1337);
 
-    // instead of this:
-    // .initializing(MemoryPoolInitializing {
-    //     instance_name: "hi".to_string(),
-    //     parent_group_id: cluster,
-    //     resource_type_name: (),
-    // });
+    // Spawn a thread.
+    let mut thread_handle =
+        context
+            .thread_observer()
+            .initializing(Uuid::now_v7(), "my_thread", worker_id);
+    // ... thread getting spawned goes here
+    thread_handle.operating();
+
+    // Single event entity
+    context.info_observer().info(
+        Uuid::now_v7(),
+        Info {
+            message: "ready to operate".to_string(),
+            source: Some(std::file!().to_string()),
+        },
+    );
+
     Ok(())
 }

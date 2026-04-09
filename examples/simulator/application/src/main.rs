@@ -222,45 +222,41 @@ impl<T: Debug> Plan<T> {
         let operator_obs = context.operator_observer();
         let port_obs = context.port_observer();
 
-        plan_obs.declaration(
-            self.id,
-            plan::Declaration {
-                instance_name: self.name.clone(),
-                parent: match self.parent_plan_id {
-                    None => plan::PlanParent {
-                        query_id: Some(Ref::new(self.query_id)),
-                        plan_id: None,
-                    },
-                    Some(parent_id) => plan::PlanParent {
-                        query_id: None,
-                        plan_id: Some(Ref::new(parent_id)),
-                    },
+        let plan_handle = plan_obs.create(self.id);
+        plan_handle.declaration(plan::Declaration {
+            instance_name: self.name.clone(),
+            parent: match self.parent_plan_id {
+                None => plan::PlanParent {
+                    query_id: Some(Ref::new(self.query_id)),
+                    plan_id: None,
                 },
-                worker_id: worker_id.map(Ref::new),
-                edges: self
-                    .dag
-                    .edge_references()
-                    .map(|edge| plan::Edge {
-                        source: Ref::new(edge.weight().source.id),
-                        target: Ref::new(edge.weight().target.id),
-                    })
-                    .collect(),
+                Some(parent_id) => plan::PlanParent {
+                    query_id: None,
+                    plan_id: Some(Ref::new(parent_id)),
+                },
             },
-        );
+            worker_id: worker_id.map(Ref::new),
+            edges: self
+                .dag
+                .edge_references()
+                .map(|edge| plan::Edge {
+                    source: Ref::new(edge.weight().source.id),
+                    target: Ref::new(edge.weight().target.id),
+                })
+                .collect(),
+        });
 
         // Declare all operators
         for node_idx in self.dag.node_indices() {
             let op = &self.dag[node_idx];
-            operator_obs.declaration(
-                op.id,
-                operator::Declaration {
-                    plan_id: Ref::new(self.id),
-                    parent_operator_ids: op.parents.iter().map(|&id| Ref::new(id)).collect(),
-                    instance_name: format!("{}-{node_idx:?}", op.name()),
-                    type_name: op.name(),
-                    custom_attributes: Default::default(),
-                },
-            );
+            let op_handle = operator_obs.create(op.id);
+            op_handle.declaration(operator::Declaration {
+                plan_id: Ref::new(self.id),
+                parent_operator_ids: op.parents.iter().map(|&id| Ref::new(id)).collect(),
+                instance_name: format!("{}-{node_idx:?}", op.name()),
+                type_name: op.name(),
+                custom_attributes: Default::default(),
+            });
 
             // Declare operator ports
             for (id, event) in self
@@ -289,7 +285,8 @@ impl<T: Debug> Plan<T> {
                         }),
                 )
             {
-                port_obs.declaration(id, event)
+                let port_handle = port_obs.create(id);
+                port_handle.declaration(event);
             }
         }
     }
@@ -523,13 +520,11 @@ impl Worker {
         let worker_obs = context.worker_observer();
 
         info!("Spawning worker {name}");
-        worker_obs.init(
-            id,
-            worker::Init {
-                parent_engine_id: Ref::new(parent_engine_id),
-                instance_name: name.clone(),
-            },
-        );
+        let worker_handle = worker_obs.create(id);
+        worker_handle.init(worker::Init {
+            parent_engine_id: Ref::new(parent_engine_id),
+            instance_name: name.clone(),
+        });
 
         let mut memory_handles = Vec::new();
         let mut channel_handles = Vec::new();
@@ -1035,28 +1030,24 @@ impl Worker {
                     ]);
                 }
             }
-            op_obs.statistics(
-                op.id,
-                operator::Statistics {
-                    custom_attributes: attributes.into(),
-                },
-            );
+            let op_handle = op_obs.create(op.id);
+            op_handle.statistics(operator::Statistics {
+                custom_attributes: attributes.into(),
+            });
 
             let edges = physical_plan
                 .dag
                 .edges_directed(*node_idx, Direction::Incoming);
             for edge in edges {
                 let port = &edge.weight().target;
-                port_obs.statistics(
-                    port.id,
-                    port::Statistics {
-                        custom_attributes: vec![
-                            Attribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
-                            Attribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
-                        ]
-                        .into(),
-                    },
-                );
+                let port_handle = port_obs.create(port.id);
+                port_handle.statistics(port::Statistics {
+                    custom_attributes: vec![
+                        Attribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
+                        Attribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
+                    ]
+                    .into(),
+                });
             }
         }
     }
@@ -1079,7 +1070,8 @@ impl Worker {
             handle.exit();
         }
         sleep_long();
-        worker_obs.exit(self.id, worker::Exit);
+        let worker_handle = worker_obs.create(self.id);
+        worker_handle.exit(worker::Exit);
     }
 }
 
@@ -1107,17 +1099,15 @@ impl Engine {
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
         let engine_obs = context.engine_observer();
 
-        engine_obs.init(
-            self.id,
-            engine::Init {
-                instance_name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
-                implementation: EngineImplementationAttributes {
-                    name: Some("Simulator".into()),
-                    version: Some("0.0.0-PoC".into()),
-                    custom_attributes: Default::default(),
-                },
+        let engine_handle = engine_obs.create(self.id);
+        engine_handle.init(engine::Init {
+            instance_name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
+            implementation: EngineImplementationAttributes {
+                name: Some("Simulator".into()),
+                version: Some("0.0.0-PoC".into()),
+                custom_attributes: Default::default(),
             },
-        );
+        });
 
         // Workers
         let worker_ids = std::iter::repeat_with(Uuid::now_v7)
@@ -1190,7 +1180,8 @@ impl Engine {
             worker.shut_down(context);
         }
 
-        engine_obs.exit(self.id, engine::Exit);
+        let engine_handle = engine_obs.create(self.id);
+        engine_handle.exit(engine::Exit);
         info!("Simulated engine shut down.")
     }
 }
@@ -1242,13 +1233,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let query_group_obs = context.query_group_observer();
 
-        query_group_obs.declaration(
-            query_group_id,
-            query_group::Declaration {
-                engine_id: engine.id,
-                instance_name: format!("TPC-H (iteration {query_group_index})"),
-            },
-        );
+        let query_group_handle = query_group_obs.create(query_group_id);
+        query_group_handle.declaration(query_group::Declaration {
+            engine_id: engine.id,
+            instance_name: format!("TPC-H (iteration {query_group_index})"),
+        });
 
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..args.num_queries {

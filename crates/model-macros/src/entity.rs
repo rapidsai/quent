@@ -396,15 +396,17 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             })
             .collect();
 
-        // Generate the observer struct with one method per event type
+        // Generate entity handle and observer
         let observer_name = format_ident!("{}Observer", name);
-        let observer_methods: Vec<TokenStream> = event_types
+        let handle_name = format_ident!("{}Handle", name);
+
+        let handle_methods: Vec<TokenStream> = event_types
             .iter()
             .map(|ty| {
                 let method_name = format_ident!("{}", to_snake_case(ty));
                 quote! {
-                    pub fn #method_name(&self, id: uuid::Uuid, event: #ty) {
-                        self.tx.emit(id, #event_enum::from(event));
+                    pub fn #method_name(&self, event: #ty) {
+                        self.tx.emit(self.id, #event_enum::from(event));
                     }
                 }
             })
@@ -417,6 +419,23 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             }
 
             #(#from_impls)*
+
+            #vis struct #handle_name<E>
+            where
+                E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                id: uuid::Uuid,
+                tx: quent_model::EventSender<E>,
+            }
+
+            impl<E> #handle_name<E>
+            where
+                E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                pub fn uuid(&self) -> uuid::Uuid { self.id }
+
+                #(#handle_methods)*
+            }
 
             #[derive(Clone)]
             #vis struct #observer_name<E>
@@ -434,7 +453,9 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     Self { tx: tx.clone() }
                 }
 
-                #(#observer_methods)*
+                pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
+                    #handle_name { id, tx: self.tx.clone() }
+                }
             }
 
             #[derive(Default)]
