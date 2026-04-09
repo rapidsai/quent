@@ -3,7 +3,7 @@
 
 //! README example — verifies the code in the top-level README compiles.
 
-use quent_attributes::CustomAttributes;
+use quent_attributes::{Attribute, CustomAttributes};
 use quent_model::{
     Attributes, Capacity, EmitOnce, Entity, Event, Fsm, Ref, ResizableResource, Resource, State,
     Usage,
@@ -41,23 +41,25 @@ pub struct Info {
     pub source: Option<String>,
 }
 
-// An arbitrary entity event
+// Events for a multi-event entity
 #[derive(Event, Serialize, Deserialize)]
-pub struct Launched {
-    pub size: u64,
+pub struct Checksum {
+    pub algorithm: String,
+    pub value: String,
 }
 
 #[derive(Event, Serialize, Deserialize)]
-pub struct Collected {
-    pub acknowleded: bool,
+pub struct Decompressed {
+    pub algorithm: String,
+    pub ratio: f64,
 }
 
-// An entity with an arbitrary number of one-shot events.
-// TODO(johanpel): add EmitMultiple, which can be used to define e.g. metric streams
+// A multi-event entity.
+// Each event can arrive independently, in any order.
 #[derive(Entity)]
-pub struct AsyncSend {
-    pub launched: EmitOnce<Launched>,
-    pub collected: EmitOnce<Collected>,
+pub struct FileStats {
+    pub checksum: EmitOnce<Checksum>,
+    pub decompressed: EmitOnce<Decompressed>,
 }
 
 // Structs with key-value attributes
@@ -119,7 +121,7 @@ quent_model::define_model! {
         Cache,
         MemoryPool,
         Queue,
-        AsyncSend,
+        FileStats,
         Task,
         Info,
     }
@@ -136,10 +138,15 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
         .cluster(Uuid::now_v7(), "example_cluster");
 
     // Spawn a worker.
-    let worker_id =
-        context
-            .worker_observer()
-            .worker(Uuid::now_v7(), "worker_0", Ref::new(cluster_id));
+    let worker_id = context.worker_observer().worker(
+        Uuid::now_v7(),
+        "worker_0",
+        Ref::new(cluster_id),
+        Details {
+            version: "42.1.2".to_string(),
+            custom: vec![Attribute::u64("threads", 256)].into(),
+        },
+    );
 
     // Construct a queue.
     let mut queue_handle =
@@ -162,17 +169,31 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
         context
             .thread_observer()
             .initializing(Uuid::now_v7(), "my_thread", worker_id);
-    // ... thread getting spawned goes here
+    // ... thread getting spawned and handle moved into it goes here
     thread_handle.operating();
 
     // Single event entity
     context.info_observer().info(
         Uuid::now_v7(),
-        Info {
-            message: "ready to operate".to_string(),
-            source: Some(std::file!().to_string()),
-        },
+        "ready to operate".to_string(),
+        Some(std::file!().to_string()),
     );
+
+    // Multi-event entities can emit in any order from an entity handle.
+    let mut file_stats_handle = context.file_stats_observer().create(Uuid::now_v7());
+    // Pretend to calculate a checksum and decompress in parallel.
+    file_stats_handle.checksum(Checksum {
+        algorithm: "sha256".to_string(),
+        value: "abc123def456".to_string(),
+    });
+    // Calculate other stuff
+    file_stats_handle.decompressed(Decompressed {
+        algorithm: "snappy".to_string(),
+        ratio: 0.4,
+    });
+
+    // Queue a task. The entry transition returns an FSM handle.
+    let task = context.task_observer().queued(Uuid::now_v7(), "my_task_31415", worker_id, /*use_queue:*/ queue_handle.into(), /*use_queue_slots:*/ 1 });
 
     Ok(())
 }
