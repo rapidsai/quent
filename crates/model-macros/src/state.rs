@@ -364,19 +364,30 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         flat_construction.push(quote! { #rf_ident });
     }
 
-    // Usage fields → Ref<T> + capacity arg
+    // Usage fields → Ref<T> + flat capacity params via resource callback
     for usage in &fields.usages {
         let u_ident = &usage.ident;
         let resource_ty = &usage.resource_ty;
         let ref_param = format_ident!("{}", usage.name);
         flat_params.push(quote! { #ref_param: quent_model::Ref<#resource_ty> });
-        let cap_param = format_ident!("{}_capacity", usage.name);
-        flat_params
-            .push(quote! { #cap_param: <#resource_ty as quent_model::Resource>::CapacityValue });
+
+        // Derive resource callback name from resource type's last segment
+        let resource_name = if let syn::Type::Path(p) = &usage.resource_ty {
+            p.path.segments.last().map(|s| to_snake_case(&s.ident))
+        } else {
+            None
+        };
+        let resource_callback = format_ident!(
+            "__quent_resource_{}",
+            resource_name.as_deref().unwrap_or("unknown")
+        );
+
+        // Capacity params come from the resource callback macro (via paste)
+        flat_params.push(quote! { #resource_callback!(usage_params #u_ident) });
         flat_construction.push(quote! {
             #u_ident: quent_model::Usage {
                 resource_id: #ref_param,
-                capacity: #cap_param,
+                capacity: #resource_callback!(usage_construct #u_ident),
             }
         });
     }
