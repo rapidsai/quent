@@ -29,10 +29,6 @@ const MARK_AREA_BORDER_OPACITY = 0.75;
 const MARK_LABEL_TEXT_COLOR = WHITE;
 const MARK_LABEL_TEXT_COLOR_DARK = WHITE;
 
-/** Softer than pure black/white for chart text to reduce contrast. */
-const TEXT_COLOR_LIGHT = '#333333';
-const TEXT_COLOR_DARK = '#d4d4d4';
-
 /**
  * Theme-dependent colors for timeline ECharts (Timeline + TimelineController).
  * Centralizes all color constants and decisions so all timeline components stay in sync
@@ -52,10 +48,7 @@ export function useTimelineChartColors() {
       DATAZOOM_LABEL_BACKGROUND_OPACITY
     );
 
-    const textColor = theme === THEME_DARK ? TEXT_COLOR_DARK : TEXT_COLOR_LIGHT;
-
     return {
-      textColor,
       timelineMarkupColor,
       gridBorderColor,
       gridBackgroundColor: withOpacity(timelineMarkupColor, GRID_BACKGROUND_OPACITY),
