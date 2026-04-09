@@ -5,6 +5,8 @@
  * Centralized color palette and mapping utilities for charts and visualizations.
  */
 
+import type { FsmTypeDecl } from '~quent/types/FsmTypeDecl';
+
 /**
  * Available color palettes for charts.
  */
@@ -139,6 +141,37 @@ export function assignColors<T extends string>(keys: T[]): Record<T, ChartColor>
 export function getColorByIndex(index: number): ChartColor {
   const palette = getActivePalette();
   return palette[index % palette.length];
+}
+
+export function createFsmTypeColorFn(fsmTypes: { [key in string]?: FsmTypeDecl }): (
+  stateName: string
+) => ChartColor {
+  const stateIndexMap = buildFsmStateIndexMap(fsmTypes);
+  return (stateName: string) => {
+    const stateIndex = stateIndexMap.get(stateName);
+    return stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(stateName);
+  };
+}
+
+/**
+ * Build a deterministic state->index lookup from FSM declarations.
+ * State index controls palette position so same state names stay consistent.
+ */
+export function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<
+  string,
+  number
+> {
+  const stateIndexMap = new Map<string, number>();
+  if (!fsmTypes) return stateIndexMap;
+
+  for (const decl of Object.values(fsmTypes)) {
+    if (!decl) continue;
+    for (let i = 0; i < decl.states.length; i++) {
+      stateIndexMap.set(decl.states[i]!.name, i);
+    }
+  }
+
+  return stateIndexMap;
 }
 
 /**

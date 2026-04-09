@@ -18,7 +18,7 @@ import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import {
   assignColors,
-  getColorByIndex,
+  createFsmTypeColorFn,
   getColorForKey,
   WHITE,
   withOpacity,
@@ -109,25 +109,14 @@ export function buildBinnedTimelineSeries(
     }
   } else if ('BinnedByState' in data) {
     const { capacities_states_values } = data.BinnedByState;
-    // Build a state→index lookup from FsmTypeDecl so the same state always
-    // gets the same palette color across all timelines.
-    const stateIndexMap = new Map<string, number>();
-    if (fsmTypes) {
-      for (const decl of Object.values(fsmTypes)) {
-        if (!decl) continue;
-        for (let i = 0; i < decl.states.length; i++) {
-          stateIndexMap.set(decl.states[i]!.name, i);
-        }
-      }
-    }
+    const colorFsm = createFsmTypeColorFn(fsmTypes ?? {});
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
         const formatter = getFormatter(capacityType);
         if (values) {
-          const stateIndex = stateIndexMap.get(state);
           series[state] = {
-            color: stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(state),
+            color: colorFsm(state),
             binDuration: bin_duration,
             formatter,
             values,
@@ -180,17 +169,7 @@ export function buildTimelineMarks(
   if (longFsms.length === 0) return undefined;
 
   const startTimeMs = nanosToMs(startTime);
-
-  // Build same state→index lookup as buildBinnedTimelineSeries so colors match.
-  const stateIndexMap = new Map<string, number>();
-  if (fsmTypes) {
-    for (const decl of Object.values(fsmTypes)) {
-      if (!decl) continue;
-      for (let i = 0; i < decl.states.length; i++) {
-        stateIndexMap.set(decl.states[i]!.name, i);
-      }
-    }
-  }
+  const colorFsm = createFsmTypeColorFn(fsmTypes ?? {});
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -207,9 +186,7 @@ export function buildTimelineMarks(
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
-        const stateIndex = stateIndexMap.get(transition.name);
-        const color =
-          stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(transition.name);
+        const color = colorFsm(transition.name);
         return {
           label,
           stateName: transition.name,
