@@ -222,29 +222,31 @@ impl<T: Debug> Plan<T> {
         let operator_obs = context.operator_observer();
         let port_obs = context.port_observer();
 
-        let plan_handle = plan_obs.create(self.id);
-        plan_handle.declaration(plan::Declaration {
-            instance_name: self.name.clone(),
-            parent: match self.parent_plan_id {
-                None => plan::PlanParent {
-                    query_id: Some(Ref::new(self.query_id)),
-                    plan_id: None,
+        plan_obs.declaration(
+            self.id,
+            plan::Declaration {
+                instance_name: self.name.clone(),
+                parent: match self.parent_plan_id {
+                    None => plan::PlanParent {
+                        query_id: Some(Ref::new(self.query_id)),
+                        plan_id: None,
+                    },
+                    Some(parent_id) => plan::PlanParent {
+                        query_id: None,
+                        plan_id: Some(Ref::new(parent_id)),
+                    },
                 },
-                Some(parent_id) => plan::PlanParent {
-                    query_id: None,
-                    plan_id: Some(Ref::new(parent_id)),
-                },
+                worker_id: worker_id.map(Ref::new),
+                edges: self
+                    .dag
+                    .edge_references()
+                    .map(|edge| plan::Edge {
+                        source: Ref::new(edge.weight().source.id),
+                        target: Ref::new(edge.weight().target.id),
+                    })
+                    .collect(),
             },
-            worker_id: worker_id.map(Ref::new),
-            edges: self
-                .dag
-                .edge_references()
-                .map(|edge| plan::Edge {
-                    source: Ref::new(edge.weight().source.id),
-                    target: Ref::new(edge.weight().target.id),
-                })
-                .collect(),
-        });
+        );
 
         // Declare all operators
         for node_idx in self.dag.node_indices() {
@@ -1233,11 +1235,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let query_group_obs = context.query_group_observer();
 
-        let query_group_handle = query_group_obs.create(query_group_id);
-        query_group_handle.declaration(query_group::Declaration {
-            engine_id: engine.id,
-            instance_name: format!("TPC-H (iteration {query_group_index})"),
-        });
+        query_group_obs.declaration(
+            query_group_id,
+            query_group::Declaration {
+                engine_id: engine.id,
+                instance_name: format!("TPC-H (iteration {query_group_index})"),
+            },
+        );
 
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..args.num_queries {
