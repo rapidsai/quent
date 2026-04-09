@@ -12,6 +12,9 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@quent/utils": "workspace:*"
+  },
   "peerDependencies": {
     "react": "^19.0.0",
     "@tanstack/react-query": "^5.0.0",

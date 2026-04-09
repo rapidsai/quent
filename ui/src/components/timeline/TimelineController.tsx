@@ -8,6 +8,7 @@ import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { withOpacity, formatDuration } from '@quent/utils';
+import type { ZoomRange } from '@quent/utils';
 import {
   buildBinnedTimelineSeries,
   connectChart,
@@ -25,11 +26,6 @@ import { zoomRangeAtom } from '@/atoms/timeline';
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
 const CONTROLLER_X_MIN_LABELS = 8;
-
-export interface ZoomRange {
-  start: number;
-  end: number;
-}
 
 type TimelineControllerProps = {
   /** Start time in nanoseconds (bigint) */
