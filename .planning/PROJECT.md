@@ -19,12 +19,13 @@ Components, state, and API access are each independently importable with zero co
 - ✓ pnpm 9+ workspace with Vite + Vitest — existing
 - ✓ `@quent/utils` package — cn(), 52 Rust-generated types, formatters, colors, getOperationTypeColor — Validated in Phase 02: extract-quent-utils
 - ✓ Existing `ui/src` app migrated from legacy utils imports to `@quent/utils` — Validated in Phase 02: extract-quent-utils
+- ✓ `@quent/client` package — 6 fetch functions, 6 queryOptions factories, 5 pure TanStack Query hooks, DEFAULT_STALE_TIME — Validated in Phase 03: extract-quent-client-and-quent-hooks
+- ✓ `@quent/hooks` package — all Jotai atoms internal; 28+ named hooks; atomFamily replaced with record-based atoms; jotai-family removed — Validated in Phase 03: extract-quent-client-and-quent-hooks
+- ✓ Existing `ui/src` app migrated from @/services/api and @/atoms/* to @quent/client and @quent/hooks — Validated in Phase 03: extract-quent-client-and-quent-hooks
 
 ### Active
 
 - [ ] `@quent/components` package — UI component library (DAG chart, timeline, query plan tree, node detail, resource tree, common UI primitives) with shadcn-style design, clear props interfaces, and no internal state coupling
-- [ ] `@quent/hooks` package — Jotai atoms wrapped in named hooks; no raw atom access outside this package; clean hook API surface for selection state, hovered state, timeline controls
-- [ ] `@quent/client` package — TanStack Query-based API client encapsulating all fetch logic; consumers call hooks, not raw fetch; typed by Rust-generated TypeScript bindings
 - [ ] Existing `ui/src` app migrated to consume only from packages — no direct imports of internal modules that have been extracted
 - [ ] Each package has a clean `index.ts` barrel export listing everything an agent would need
 - [ ] Packages designed for eventual npm publishability (no app-shell coupling, no relative paths to app internals)
@@ -41,7 +42,7 @@ Components, state, and API access are each independently importable with zero co
 
 **Codebase:** Full-stack Rust + TypeScript monorepo. Frontend is a single Vite app in `ui/src/` consuming a Rust analyzer API. TypeScript types are generated from Rust structs via `ts-rs` and live in `crates/server/ts-bindings/` and `examples/simulator/server/ts-bindings/`.
 
-**Current state:** All UI code is co-located in `ui/src/`. Jotai atoms are in `ui/src/atoms/`. API fetch functions are in `ui/src/lib/`. Components are in `ui/src/components/`. No package boundaries exist yet.
+**Current state (Phase 3 complete):** `@quent/utils`, `@quent/client`, and `@quent/hooks` fully extracted. App imports route through packages. Only `@quent/components` and final app-shell migration remain (Phase 4).
 
 **Motivation:** An agent tasked with building a new visualization or adapting the UI for a new domain currently has to trace across the entire codebase. The goal is to make the component/state/data layers independently legible — a package's `index.ts` should be a complete API surface.
 
@@ -84,4 +85,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after Phase 02 (extract-quent-utils) completion*
+*Last updated: 2026-04-09
