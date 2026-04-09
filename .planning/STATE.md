@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 03-extract-quent-client-and-quent-hooks-03-01-PLAN.md
-last_updated: "2026-04-09T17:34:48.046Z"
+stopped_at: Completed 03-extract-quent-client-and-quent-hooks-03-02-PLAN.md
+last_updated: "2026-04-09T18:02:11.771Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 ## Current Position
 
 Phase: 03 (extract-quent-client-and-quent-hooks) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Plan: 2 of 3
 | Phase 02-extract-quent-utils P01 | 11 | 2 tasks | 10 files |
 | Phase 02-extract-quent-utils P02 | 11 | 2 tasks | 44 files |
 | Phase 03-extract-quent-client-and-quent-hooks P01 | 7 | 2 tasks | 19 files |
+| Phase 03-extract-quent-client-and-quent-hooks P02 | 5 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 03-extract-quent-client-and-quent-hooks]: vite-env.d.ts added to @quent/client/src/ for import.meta.env typecheck support without vite devDependency
 - [Phase 03-extract-quent-client-and-quent-hooks]: ZoomRange relocated to @quent/utils to break circular dep and enable import without React
 - [Phase 03-extract-quent-client-and-quent-hooks]: apiFetch kept internal (non-exported) per D-02; stub types excluded per D-03; useBulkTimelines omitted per D-01 (goes in @quent/hooks)
+- [Phase 03-extract-quent-client-and-quent-hooks]: Dependency injection for tree utilities in useBulkTimelines: package accepts callback functions (collectVisibleEntriesFn, buildBulkParamsFn, findItemByIdFn) to avoid importing app-layer TreeTableItem types
+- [Phase 03-extract-quent-client-and-quent-hooks]: Record-based atom pattern: atom<Record<string, T>> replaces atomFamily — timelineDataMapAtom written via store.set(atom, prev => ({ ...prev, updates }))
+- [Phase 03-extract-quent-client-and-quent-hooks]: Only 3 timeline.utils functions moved to package (getResourceTypeName, getFsmTypeName, setOperatorOnEntry); app-layer tree traversal functions remain in app
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-09T17:34:48.044Z
-Stopped at: Completed 03-extract-quent-client-and-quent-hooks-03-01-PLAN.md
+Last session: 2026-04-09T18:02:11.769Z
+Stopped at: Completed 03-extract-quent-client-and-quent-hooks-03-02-PLAN.md
 Resume file: None

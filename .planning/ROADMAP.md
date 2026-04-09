@@ -64,7 +64,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Pre-conditions (ZoomRange relocation, package.json fixes) + populate @quent/client
-- [ ] 03-02-PLAN.md — Populate @quent/hooks (atoms, hook wrappers, Jotai-aware hooks)
+- [x] 03-02-PLAN.md — Populate @quent/hooks (atoms, hook wrappers, Jotai-aware hooks)
 - [ ] 03-03-PLAN.md — Migrate all app imports to packages, delete old source files
 
 ### Phase 4: Extract @quent/components and Migrate App Shell

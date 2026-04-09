@@ -32,10 +32,10 @@
 
 ### @quent/hooks
 
-- [ ] **HOOKS-01**: `atomFamily` usage in `ui/src/atoms/` migrated to plain record-based atoms (fixes module-global leak) before atoms are moved to the package
-- [ ] **HOOKS-02**: Jotai atoms remain internal to `@quent/hooks`; no raw atom exports; only hook functions exported
-- [ ] **HOOKS-03**: All Jotai-backed state hooks exported by name: `useSelectedNodeId`, `useSetSelectedNodeId`, `useSelectedPlanId`, `useSetSelectedPlanId`, `useHoveredWorkerId`, `useSetHoveredWorkerId`, and any timeline selection hooks
-- [ ] **HOOKS-04**: `<Provider>` scoping pattern preserved — the Jotai Provider used per-query in route files continues to work correctly after atom extraction
+- [x] **HOOKS-01**: `atomFamily` usage in `ui/src/atoms/` migrated to plain record-based atoms (fixes module-global leak) before atoms are moved to the package
+- [x] **HOOKS-02**: Jotai atoms remain internal to `@quent/hooks`; no raw atom exports; only hook functions exported
+- [x] **HOOKS-03**: All Jotai-backed state hooks exported by name: `useSelectedNodeId`, `useSetSelectedNodeId`, `useSelectedPlanId`, `useSetSelectedPlanId`, `useHoveredWorkerId`, `useSetHoveredWorkerId`, and any timeline selection hooks
+- [x] **HOOKS-04**: `<Provider>` scoping pattern preserved — the Jotai Provider used per-query in route files continues to work correctly after atom extraction
 
 ### @quent/components
 
@@ -106,10 +106,10 @@
 | CLIENT-03 | Phase 3 | Complete |
 | CLIENT-04 | Phase 3 | Complete |
 | CLIENT-05 | Phase 3 | Complete |
-| HOOKS-01 | Phase 3 | Pending |
-| HOOKS-02 | Phase 3 | Pending |
-| HOOKS-03 | Phase 3 | Pending |
-| HOOKS-04 | Phase 3 | Pending |
+| HOOKS-01 | Phase 3 | Complete |
+| HOOKS-02 | Phase 3 | Complete |
+| HOOKS-03 | Phase 3 | Complete |
+| HOOKS-04 | Phase 3 | Complete |
 | COMP-01 | Phase 4 | Pending |
 | COMP-02 | Phase 4 | Pending |
 | COMP-03 | Phase 4 | Pending |
