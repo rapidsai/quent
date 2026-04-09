@@ -661,6 +661,24 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         {
             fn drop(&mut self) { self.exit(); }
         }
+
+        impl<E> From<&#handle_name<E>> for quent_model::Ref<#resource_marker>
+        where
+            E: From<#event_type> #serde_bound + Send + 'static,
+        {
+            fn from(handle: &#handle_name<E>) -> Self {
+                quent_model::Ref::new(handle.uuid())
+            }
+        }
+
+        impl<E> From<&#handle_name<E>> for quent_model::Ref<#name>
+        where
+            E: From<#event_type> #serde_bound + Send + 'static,
+        {
+            fn from(handle: &#handle_name<E>) -> Self {
+                quent_model::Ref::new(handle.uuid())
+            }
+        }
     };
 
     Ok(output)
