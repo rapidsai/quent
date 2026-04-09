@@ -32,6 +32,8 @@ members = [
     # Query engine C++ integration example
     "examples/query-engine-cpp/instrumentation",
     "examples/query-engine-cpp/bridge",
+    # README example
+    "examples/readme",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",

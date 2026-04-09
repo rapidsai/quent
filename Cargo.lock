@@ -1746,6 +1746,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-readme-example"
+version = "0.1.0"
+dependencies = [
+ "quent-attributes",
+ "quent-model",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-simulator"
 version = "0.1.0"
 dependencies = [
