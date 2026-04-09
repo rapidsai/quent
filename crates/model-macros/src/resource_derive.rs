@@ -97,6 +97,14 @@ fn categorize_fields<'a>(input: &'a DeriveInput) -> syn::Result<ResourceFields<'
             syn::Fields::Named(named) => {
                 for field in &named.named {
                     if is_capacity_field(field) {
+                        if let Some(ident) = &field.ident {
+                            if !ident.to_string().starts_with("capacity_") {
+                                return Err(syn::Error::new_spanned(
+                                    ident,
+                                    "Capacity fields must be prefixed with `capacity_` (e.g., `capacity_bytes`)",
+                                ));
+                            }
+                        }
                         capacity_fields.push(field);
                     } else {
                         init_fields.push(field);

@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 #[derive(Resource)]
 pub struct TestMem {
-    pub bytes: Capacity<u64>,
+    pub capacity_bytes: Capacity<u64>,
 }
 
 // Unit resource (no capacity)
@@ -23,9 +23,9 @@ pub struct TestProc;
 #[test]
 fn resource_generates_operating_with_capacity() {
     let op = TestMemOperating {
-        bytes: Capacity::new(1024),
+        capacity_bytes: Capacity::new(1024),
     };
-    assert_eq!(op.bytes.value, 1024);
+    assert_eq!(op.capacity_bytes.value, 1024);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn resource_has_event_type() {
 
 #[derive(ResizableResource)]
 pub struct TestResizable {
-    pub slots: Capacity<u64>,
+    pub capacity_slots: Capacity<u64>,
 }
 
 #[test]

@@ -133,7 +133,12 @@ fn categorize_fields(input: &DeriveInput) -> syn::Result<StateFields> {
                  See https://github.com/NVIDIA/quent/issues/75",
             ));
         } else if is_capacity_type(&field.ty) {
-            // Capacity<V, K> — inner value is accessed via .value
+            if !name.starts_with("capacity_") {
+                return Err(syn::Error::new_spanned(
+                    field_name,
+                    "Capacity fields must be prefixed with `capacity_` (e.g., `capacity_bytes`)",
+                ));
+            }
             capacities.push(CapacityField {
                 name,
                 ident: field_name.clone(),

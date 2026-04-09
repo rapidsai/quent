@@ -140,9 +140,7 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
             .memory_pool_observer()
             .initializing(Uuid::now_v7(), "task_pool", worker_id);
     // ... pool doing pool things goes here
-    pool_handle.operating(MemoryPoolOperating {
-        bytes: Capacity::new(1337),
-    });
+    pool_handle.operating(1337);
 
     // instead of this:
     // .initializing(MemoryPoolInitializing {
