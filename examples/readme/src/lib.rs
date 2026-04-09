@@ -9,6 +9,7 @@ use quent_model::{
     Usage,
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 // A "unit" resource. Only one entity may use this at a time.
 #[derive(Resource)]
@@ -59,7 +60,7 @@ pub struct Collected {
 }
 
 // An entity with an arbitrary number of one-shot events.
-// TODO(johanpel): follow-up PRs will add EmitMultiple.
+// TODO(johanpel): add EmitMultiple, which can be used to define e.g. metric streams
 #[derive(Entity)]
 pub struct AsyncSend {
     pub launched: EmitOnce<Launched>,
@@ -104,8 +105,7 @@ pub struct Task {
     pub computing: Computing,
 }
 
-// -- Model + Instrumentation --
-
+// Generates all event-related types.
 quent_model::define_model! {
     App {
         root: Cluster,
@@ -120,4 +120,26 @@ quent_model::define_model! {
     }
 }
 
+// Generates the isntrumentation API
 quent_model::define_instrumentation!(App);
+
+fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
+    let context = AppContext::try_new(None, Uuid::now_v7())?;
+    let cluster = context.cluster_observer().cluster(
+        Uuid::now_v7(),
+        ClusterDeclaration {
+            instance_name: "example_cluster".to_string(),
+        },
+    );
+    let workers = context.worker_observer().worker(id, event);
+    let pool_handle = context.memory_pool_observer().initializing(
+        /*instance name*/ "hi", /*parent group id*/ cluster,
+    );
+    // instead of this:
+    // .initializing(MemoryPoolInitializing {
+    //     instance_name: "hi".to_string(),
+    //     parent_group_id: cluster,
+    //     resource_type_name: (),
+    // });
+    Ok(())
+}

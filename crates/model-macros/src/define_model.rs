@@ -174,7 +174,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
                 impl #context_type {
                     pub fn try_new(
-                        exporter: Option<quent_model::ExporterOptions>,
+                        exporter: Option<quent_model::exporter::ExporterOptions>,
                         id: uuid::Uuid,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
                         let inner = quent_model::Context::try_new(exporter, id)?;
