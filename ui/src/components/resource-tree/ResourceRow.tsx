@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Resource } from '~quent/types/Resource';
-import { DataText } from '@/components/ui/data-text';
+import { Resource } from '@quent/utils';
 
 interface ResourceRowProps {
   resource: Resource;
@@ -10,11 +9,15 @@ interface ResourceRowProps {
 
 export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => {
   return (
-    <DataText className="text-xs font-bold">
-      {resource.instance_name}{' '}
-      {resource.type_name !== resource.instance_name && resource.type_name
-        ? `(${resource.type_name})`
-        : ''}
-    </DataText>
+    <div>
+      <div>
+        <span className="text-xs font-bold">
+          {resource.instance_name}{' '}
+          {resource.type_name !== resource.instance_name && resource.type_name
+            ? `(${resource.type_name})`
+            : ''}
+        </span>
+      </div>
+    </div>
   );
 };

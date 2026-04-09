@@ -3,10 +3,7 @@
 
 import { atom } from 'jotai';
 import { atomFamily } from 'jotai-family';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import type { TimelineRequest } from '~quent/types/TimelineRequest';
-import type { TaskFilter } from '~quent/types/TaskFilter';
-import type { ZoomRange } from '@/components/timeline/TimelineController';
+import type { SingleTimelineResponse, TimelineRequest, TaskFilter, ZoomRange } from '@quent/utils';
 
 /**
  * All dimensions that distinguish a cached timeline entry.

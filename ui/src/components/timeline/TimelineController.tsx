@@ -7,8 +7,8 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
-import { withOpacity } from '@/services/colors';
-import { formatDurationForAxisInterval } from '@/services/formatters';
+import { withOpacity, formatDuration } from '@quent/utils';
+import type { ZoomRange } from '@quent/utils';
 import {
   buildBinnedTimelineSeries,
   connectChart,
@@ -19,18 +19,13 @@ import {
   unregisterAxisPointerSync,
 } from '@/lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
+import type { SingleTimelineResponse } from '@quent/utils';
+import { useTimelineChartColors } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
 const CONTROLLER_X_MIN_LABELS = 8;
-
-export interface ZoomRange {
-  start: number;
-  end: number;
-}
 
 type TimelineControllerProps = {
   /** Start time in nanoseconds (bigint) */
@@ -137,9 +132,8 @@ export function TimelineController({
         hideOverlap: false,
         fontSize: 10,
         color: colors.timelineMarkupColor,
-        fontFamily: TIMELINE_MONO_FONT,
         formatter: (value: number) => {
-          return formatDurationForAxisInterval(Number(value) - startTimeMillis, interval);
+          return formatDuration(Number(value) - startTimeMillis);
         },
       },
       splitLine: {
@@ -252,15 +246,9 @@ export function TimelineController({
             backgroundColor: colors.dataZoomTextBackgroundColor,
             padding: [2, 4],
             borderRadius: 2,
-            fontFamily: TIMELINE_MONO_FONT,
           },
           labelFormatter: (tsMilliseconds: number) => {
-            const spanMs = endTimeMillis - startTimeMillis;
-            const zoomInterval = getTimelineXAxisIntervalMs(spanMs, CONTROLLER_X_MIN_LABELS);
-            return formatDurationForAxisInterval(
-              Number(tsMilliseconds) - startTimeMillis,
-              zoomInterval
-            );
+            return formatDuration(Number(tsMilliseconds) - startTimeMillis);
           },
           emphasis: {
             handleStyle: {

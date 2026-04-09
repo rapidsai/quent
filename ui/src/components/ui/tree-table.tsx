@@ -5,7 +5,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallba
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@quent/utils';
 
 // Tree-table specific styling variants
 const treeVariants = cva(

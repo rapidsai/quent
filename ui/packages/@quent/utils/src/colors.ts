@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 /**
  * Centralized color palette and mapping utilities for charts and visualizations.
  */
@@ -175,6 +172,7 @@ export function lightenColor(hex: string, amount: number): string {
  * Alternates between the given color and a darkened variant at -45deg.
  * @param hex - Base hex color
  * @param stripeWidth - Width of each stripe band in px (default 4)
+ * @remarks Browser-only — requires `document.createElement('canvas')`. Do not call in SSR or Node.js environments.
  */
 export function createStripePattern(hex: string, stripeWidth = 3): HTMLCanvasElement {
   const dark = darkenColor(hex, 0.2);
@@ -212,6 +210,7 @@ export function createStripePattern(hex: string, stripeWidth = 3): HTMLCanvasEle
  * @param hex - Base hex color
  * @param dotRadius - Radius of each dot in px (default 1.5)
  * @param spacing - Distance between dot centers in px (default 6)
+ * @remarks Browser-only — requires `document.createElement('canvas')`. Do not call in SSR or Node.js environments.
  */
 export function createDotPattern(hex: string, dotRadius = 1, spacing = 3): HTMLCanvasElement {
   const dark = darkenColor(hex, 0.3);
@@ -237,6 +236,7 @@ export function createDotPattern(hex: string, dotRadius = 1, spacing = 3): HTMLC
  * @param hex - Base hex color
  * @param lineWidth - Width of each hatch line in px (default 1)
  * @param spacing - Distance between lines in px (default 6)
+ * @remarks Browser-only — requires `document.createElement('canvas')`. Do not call in SSR or Node.js environments.
  */
 export function createCrosshatchPattern(
   hex: string,
@@ -290,110 +290,33 @@ export const BLACK = '#000000';
 export const WHITE = '#ffffff';
 
 /**
- * Available continuous color palettes for heatmap-style coloring.
+ * Maps a query plan operation type to its associated color string.
+ * Colors are derived from the CVA variants in QueryPlanNode.tsx.
+ * Returns CSS color values suitable for programmatic use (SVG, canvas, etc.).
+ *
+ * @param operationType - The operation type string (e.g., 'source', 'join', 'aggregate')
+ * @returns A CSS color string (Tailwind color name mapped to its standard hex value)
  */
-export const CONTINUOUS_PALETTES = {
-  blue: { label: 'Blue' },
-  teal: { label: 'Teal' },
-  purple: { label: 'Purple' },
-  orange: { label: 'Orange' },
-  viridis: { label: 'Viridis' },
-} as const;
+const OPERATION_TYPE_COLORS: Record<string, string> = {
+  source: '#3b82f6', // blue-500
+  scan: '#3b82f6', // blue-500
+  filesystemscan: '#3b82f6', // blue-500
+  join: '#a855f7', // purple-500
+  joinlocal: '#a855f7', // purple-500
+  joinpartition: '#a855f7', // purple-500
+  aggregate: '#22c55e', // green-500
+  exchange: '#f97316', // orange-500
+  output: '#ef4444', // red-500
+  stage: '#4f46e5', // indigo-600
+  local: '#f59e0b', // amber-500
+  project: '#14b8a6', // teal-500
+  filter: '#06b6d4', // cyan-500
+  sort: '#8b5cf6', // violet-500
+  limit: '#ec4899', // pink-500
+  union: '#10b981', // emerald-500
+  other: '#6b7280', // gray-500
+};
 
-export type ContinuousPaletteName = keyof typeof CONTINUOUS_PALETTES;
-
-const VIRIDIS_STOPS: [number, number, number][] = [
-  [68, 1, 84], // t=0.00 dark purple
-  [59, 82, 139], // t=0.25 blue-purple
-  [33, 145, 140], // t=0.50 teal
-  [94, 201, 98], // t=0.75 green
-  [253, 231, 37], // t=1.00 yellow
-];
-
-// Neutral starting color for continuous palettes (light mode): Tailwind gray-200
-const NEUTRAL: [number, number, number] = [229, 231, 235];
-// Neutral starting color for continuous palettes (dark mode): Tailwind gray-700
-const NEUTRAL_DARK: [number, number, number] = [55, 65, 81];
-
-function blendToColor(
-  r: number,
-  g: number,
-  b: number,
-  t: number,
-  neutral: [number, number, number] = NEUTRAL
-): string {
-  const c = Math.min(1, Math.max(0, t));
-  const rr = Math.round(neutral[0] + (r - neutral[0]) * c);
-  const gg = Math.round(neutral[1] + (g - neutral[1]) * c);
-  const bb = Math.round(neutral[2] + (b - neutral[2]) * c);
-  return `#${rr.toString(16).padStart(2, '0')}${gg.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`;
-}
-
-/**
- * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
- * Returns a fully opaque color that blends from neutral gray at t=0 to the palette color at t=1.
- * @param darkMode - When true, blends from a dark neutral (gray-700) instead of light neutral (gray-200)
- */
-export function continuousColor(
-  t: number,
-  palette: ContinuousPaletteName,
-  darkMode = false
-): string {
-  const neutral = darkMode ? NEUTRAL_DARK : NEUTRAL;
-  switch (palette) {
-    case 'blue':
-      return blendToColor(59, 130, 246, t, neutral); // blue-500
-    case 'teal':
-      return blendToColor(20, 184, 166, t, neutral); // teal-500
-    case 'purple':
-      return blendToColor(168, 85, 247, t, neutral); // purple-500
-    case 'orange':
-      return blendToColor(249, 115, 22, t, neutral); // orange-500
-    case 'viridis': {
-      const clamped = Math.min(1, Math.max(0, t));
-      const scaled = clamped * (VIRIDIS_STOPS.length - 1);
-      const lo = Math.floor(scaled);
-      const hi = Math.min(VIRIDIS_STOPS.length - 1, lo + 1);
-      const frac = scaled - lo;
-      const [r1, g1, b1] = VIRIDIS_STOPS[lo];
-      const [r2, g2, b2] = VIRIDIS_STOPS[hi];
-      const r = Math.round(r1 + (r2 - r1) * frac);
-      const g = Math.round(g1 + (g2 - g1) * frac);
-      const b = Math.round(b1 + (b2 - b1) * frac);
-      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    }
-  }
-}
-
-/**
- * Returns the CSS gradient color stops for a palette legend bar.
- * Viridis returns a stop per keyframe so all hue transitions are visible.
- * Single-color palettes return just the two endpoints.
- */
-export function getLegendGradientStops(palette: ContinuousPaletteName, darkMode = false): string[] {
-  if (palette === 'viridis') {
-    return VIRIDIS_STOPS.map((_, i) =>
-      continuousColor(i / (VIRIDIS_STOPS.length - 1), 'viridis', darkMode)
-    );
-  }
-  return [continuousColor(0, palette, darkMode), continuousColor(1, palette, darkMode)];
-}
-
-/**
- * Returns true if the given hex color (#rrggbb) has high perceived luminance,
- * meaning dark text should be used on top of it for readability.
- */
-export function isLightColor(hex: string): boolean {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b > 0.5;
-}
-
-/**
- * @deprecated Use continuousColor(t, 'blue') instead.
- * Compute a heatmap background color for a normalized value t ∈ [0, 1].
- */
-export function continuousHeatmapBg(t: number): string {
-  return continuousColor(t, 'blue');
+export function getOperationTypeColor(operationType: string): string {
+  return OPERATION_TYPE_COLORS[operationType.toLowerCase()] ?? OPERATION_TYPE_COLORS.other;
 }

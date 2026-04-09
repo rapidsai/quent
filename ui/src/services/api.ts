@@ -6,51 +6,25 @@
  * Replace these with actual API endpoints
  */
 
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { QueryGroup } from '~quent/types/QueryGroup';
-import type { Query } from '~quent/types/Query';
-import type { BulkTimelinesResponse } from '~quent/types/BulkTimelinesResponse';
-import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import type { BulkTimelineRequest } from '~quent/types/BulkTimelineRequest';
-import type { QueryFilter } from '~quent/types/QueryFilter';
-import type { TaskFilter } from '~quent/types/TaskFilter';
-import type { EntityRef } from '~quent/types/EntityRef';
-import type { Engine } from '~quent/types/Engine';
+import { parseJsonWithBigInt } from '@quent/utils';
+import type {
+  QueryBundle,
+  QueryGroup,
+  Query,
+  BulkTimelinesResponse,
+  SingleTimelineRequest,
+  SingleTimelineResponse,
+  BulkTimelineRequest,
+  QueryFilter,
+  TaskFilter,
+  EntityRef,
+  Engine,
+} from '@quent/utils';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 export const DEFAULT_STALE_TIME = 5 * 60 * 1000;
-
-/**
- * TODO: Figure out a more permanent solution for this
- * Parse JSON with BigInt support for large integers.
- * Integers larger than Number.MAX_SAFE_INTEGER are converted to BigInt.
- */
-export function parseJsonWithBigInt<T>(text: string): T {
-  // Match integers that are too large for Number (and not floats)
-  // This regex finds: a number boundary, optional minus, digits only (no decimal/exponent)
-  // We convert integers > MAX_SAFE_INTEGER to BigInt
-  const processed = text.replace(
-    /([:\s[,]|^)(-?\d{16,})(?=[,\s}\]]|$)/g,
-    (match, prefix, numStr) => {
-      const num = Number(numStr);
-      // Only convert if it exceeds safe integer range
-      if (!Number.isSafeInteger(num)) {
-        return `${prefix}"__bigint__${numStr}"`;
-      }
-      return match;
-    }
-  );
-
-  return JSON.parse(processed, (_key, value) => {
-    if (typeof value === 'string' && value.startsWith('__bigint__')) {
-      return BigInt(value.slice(10));
-    }
-    return value;
-  });
-}
 
 export interface ChartDataPoint {
   date: string;

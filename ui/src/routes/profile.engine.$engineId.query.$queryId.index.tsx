@@ -5,8 +5,8 @@ import { QueryResourceTree } from '@/components/QueryResourceTree';
 import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
 import { queryClient } from '@/lib/queryClient';
 import { createFileRoute } from '@tanstack/react-router';
-import { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
+import { QueryBundle } from '@quent/utils';
+import type { EntityRef } from '@quent/utils';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/')({
   component: QueryIndex,
