@@ -17,9 +17,8 @@ import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import {
-  assignColors,
+  createCapacitiesColorFn,
   createFsmTypeColorFn,
-  getColorForKey,
   WHITE,
   withOpacity,
 } from '@/services/colors';
@@ -92,16 +91,11 @@ export function buildBinnedTimelineSeries(
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
     const capacityKeys = Object.keys(capacities_values).sort();
-    // Multiple capacities: sequential palette. Single: hash-based so each
-    // resource type gets a distinct color across timelines.
-    const colorMap =
-      capacityKeys.length > 1
-        ? assignColors(capacityKeys)
-        : Object.fromEntries(capacityKeys.map(k => [k, getColorForKey(k)]));
+    const colorCapacity = createCapacitiesColorFn(capacityKeys);
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatter(capacity);
       series[capacity] = {
-        color: colorMap[capacity],
+        color: colorCapacity(capacity),
         formatter,
         values: values ?? [],
         binDuration: bin_duration,

@@ -136,6 +136,22 @@ export function assignColors<T extends string>(keys: T[]): Record<T, ChartColor>
 }
 
 /**
+ * Create a capacity->color resolver for timeline capacity series.
+ * Multiple capacities use ordered palette assignment; a single capacity uses
+ * key-based deterministic coloring to stay stable across timelines.
+ */
+export function createCapacitiesColorFn(
+  capacityKeys: string[]
+): (capacityName: string) => ChartColor {
+  const colorMap =
+    capacityKeys.length > 1
+      ? assignColors(capacityKeys)
+      : Object.fromEntries(capacityKeys.map(capacity => [capacity, getColorForKey(capacity)]));
+
+  return (capacityName: string) => colorMap[capacityName] ?? getColorForKey(capacityName);
+}
+
+/**
  * Get a color by index from the active palette (wraps around).
  */
 export function getColorByIndex(index: number): ChartColor {
@@ -157,10 +173,7 @@ export function createFsmTypeColorFn(fsmTypes: { [key in string]?: FsmTypeDecl }
  * Build a deterministic state->index lookup from FSM declarations.
  * State index controls palette position so same state names stay consistent.
  */
-export function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<
-  string,
-  number
-> {
+function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<string, number> {
   const stateIndexMap = new Map<string, number>();
   if (!fsmTypes) return stateIndexMap;
 
