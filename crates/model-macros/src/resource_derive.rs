@@ -160,19 +160,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
     let resource_marker = format_ident!("{}Resource", name);
-    let resource_callback_name = format_ident!("__quent_resource_{}", name_snake);
-
-    let capacity_field_idents: Vec<&proc_macro2::Ident> = fields
-        .capacity_fields
-        .iter()
-        .filter_map(|f| f.ident.as_ref())
-        .collect();
-
-    let capacity_inner_types: Vec<syn::Type> = fields
-        .capacity_fields
-        .iter()
-        .filter_map(|f| extract_capacity_inner(&f.ty))
-        .collect();
 
     // Generate init state fields: standard metadata + user init fields
     let user_init_field_defs: Vec<TokenStream> = fields
@@ -691,31 +678,6 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             fn from(handle: &#handle_name<E>) -> Self {
                 quent_model::Ref::new(handle.uuid())
             }
-        }
-        #[doc(hidden)]
-        #[macro_export]
-        macro_rules! #resource_callback_name {
-            (usage_params $usage_field:ident) => {
-                quent_model::paste::paste! {
-                    #(
-                        [<$usage_field _ #capacity_field_idents>]: #capacity_inner_types,
-                    )*
-                }
-            };
-            (usage_construct $usage_field:ident) => {
-                quent_model::paste::paste! {
-                    #op_state {
-                        #(
-                            #capacity_field_idents: quent_model::Capacity::new(
-                                [<$usage_field _ #capacity_field_idents>]
-                            ),
-                        )*
-                    }
-                }
-            };
-            (usage_construct_unit $usage_field:ident) => {
-                #op_state {}
-            };
         }
     };
 

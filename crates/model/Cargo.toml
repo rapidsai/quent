@@ -12,7 +12,6 @@ serde = ["dep:serde", "quent-model-macros/serde"]
 uuid = { workspace = true, features = ["serde", "v7"] }
 serde = { workspace = true, optional = true }
 quent-attributes = { path = "../attributes" }
-paste = "1"
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }

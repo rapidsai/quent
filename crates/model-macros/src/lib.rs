@@ -171,7 +171,7 @@ pub fn define_model(input: TokenStream) -> TokenStream {
 /// ```ignore
 /// define_instrumentation!(App);
 /// ```
-/// Defines an FSM with flat-arg observer and handle methods.
+/// Defines an FSM with struct-arg observer and handle methods.
 ///
 /// ```ignore
 /// quent_model::fsm! {

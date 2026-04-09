@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Integration test for the `fsm!` proc macro with flat-arg methods.
+//! Integration test for the `fsm!` proc macro with struct-arg methods.
 
 use quent_model::{EventSender, FsmEvent, ModelBuilder, ModelComponent, State, StateMetadata};
 use uuid::Uuid;
@@ -93,7 +93,13 @@ fn observer_entry_method() {
     let tx: EventSender<TaskEvent> = EventSender::default();
     let observer = TaskObserver::new(&tx);
     let id = Uuid::nil();
-    let mut handle = observer.queued(id, "my_task", 5);
+    let mut handle = observer.queued(
+        id,
+        Queued {
+            name: "my_task".to_string(),
+            priority: 5,
+        },
+    );
     assert_eq!(handle.uuid(), id);
     handle.exit();
 }
@@ -103,7 +109,15 @@ fn handle_transition_method() {
     let tx: EventSender<TaskEvent> = EventSender::default();
     let observer = TaskObserver::new(&tx);
     let id = Uuid::nil();
-    let mut handle = observer.queued(id, "my_task", 5);
-    handle.running(Uuid::nil());
+    let mut handle = observer.queued(
+        id,
+        Queued {
+            name: "my_task".to_string(),
+            priority: 5,
+        },
+    );
+    handle.running(Running {
+        worker_id: Uuid::nil(),
+    });
     handle.exit();
 }
