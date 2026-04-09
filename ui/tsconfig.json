@@ -25,9 +25,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "~quent/types/*": ["../examples/simulator/server/ts-bindings/*"],
     },
   },
-  "include": ["src", "../examples/simulator/server/ts-bindings"],
+  "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }],
 }

@@ -10,7 +10,7 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
-import { withOpacity } from '@/services/colors';
+import { withOpacity } from '@quent/utils';
 import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,

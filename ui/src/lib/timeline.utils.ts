@@ -3,26 +3,26 @@
 
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
-import { formatQuantity } from '@/services/formatters';
+import { formatQuantity, getColorForKey, WHITE, withOpacity } from '@quent/utils';
+import type {
+  ResourceTimeline,
+  EntityRef,
+  QuantitySpec,
+  CapacityDecl,
+  BinnedSpanSec,
+  SingleTimelineResponse,
+  FiniteStateMachine,
+  TimelineRequest,
+  TaskFilter,
+  TimelineConfig,
+} from '@quent/utils';
+import { QueryEntities, ResourceTree } from '@quent/utils';
 import { entityRefToEntitiesKey } from '@/lib/queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from '@/lib/resource.utils';
-import type { ResourceTimeline } from '~quent/types/ResourceTimeline';
-import { QueryEntities } from '~quent/types/QueryEntities';
-import { ResourceTree } from '~quent/types/ResourceTree';
-import type { EntityRef } from '~quent/types/EntityRef';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@/types';
-import type { QuantitySpec } from '~quent/types/QuantitySpec';
-import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
-import { getColorForKey, WHITE, withOpacity } from '@/services/colors';
-import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
-import type { TimelineRequest } from '~quent/types/TimelineRequest';
-import type { TaskFilter } from '~quent/types/TaskFilter';
-import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
 const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;

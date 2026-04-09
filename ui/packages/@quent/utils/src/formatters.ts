@@ -1,13 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 /**
  * Centralized formatting utilities for charts and UI.
  */
 
-import type { PrefixSystem } from '~quent/types/PrefixSystem';
-import type { QuantitySpec } from '~quent/types/QuantitySpec';
-import type { CapacityKind } from '~quent/types/CapacityKind';
+import type { PrefixSystem, QuantitySpec, CapacityKind } from './types/index';
 
 const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60 * MS_PER_SECOND;

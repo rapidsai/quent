@@ -3,8 +3,7 @@
 
 import { DEFAULT_STALE_TIME, fetchQueryBundle } from '@/services/api';
 import { queryOptions, useQuery } from '@tanstack/react-query';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
+import type { QueryBundle, EntityRef } from '@quent/utils';
 
 interface QueryBundleParams {
   engineId: string;

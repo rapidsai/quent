@@ -5,7 +5,7 @@ import React from 'react';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@quent/utils';
 
 const treeVariants = cva('group px-2 rounded-sm transition-all duration-150 hover:bg-secondary/70');
 

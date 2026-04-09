@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
-import { BLACK, WHITE, withOpacity } from '@/services/colors';
+import { BLACK, WHITE, withOpacity } from '@quent/utils';
 
 // Timeline chart colors
 const TIMELINE_MARKUP_COLOR = '#808080';

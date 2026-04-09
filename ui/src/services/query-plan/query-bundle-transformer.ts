@@ -2,13 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
-import { Operator } from '~quent/types/Operator';
-import { Port } from '~quent/types/Port';
-import { Plan } from '~quent/types/Plan';
-import { PlanTree } from '~quent/types/PlanTree';
-import { parsePortStatistics } from '@/lib/queryBundle.utils';
+import type { QueryBundle, EntityRef } from '@quent/utils';
+import { Operator, Port, Plan, PlanTree } from '@quent/utils';
 
 interface PlanTreeNode extends PlanTree {
   query?: string | null;
@@ -117,18 +112,11 @@ export const getPlanDAG = (
         nodeMap.set(targetNode.id, targetNode);
       }
 
-      const sourcePort = bundle?.entities?.ports?.[edge.source];
-      const targetPort = bundle?.entities?.ports?.[edge.target];
-      // Prefer source (output) port stats; fall back to target (input) port stats
-      const sourcePortStats = parsePortStatistics(sourcePort);
-      const portStats =
-        sourcePortStats.length > 0 ? sourcePortStats : parsePortStatistics(targetPort);
       edges.push({
         id: `${edge.source}-${edge.target}`,
         source: sourceNode.id,
         target: targetNode.id,
         type: 'smoothstep',
-        portStats: portStats.length ? portStats : undefined,
       });
     }
   });
