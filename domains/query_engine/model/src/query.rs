@@ -7,7 +7,7 @@ use quent_model::{Fsm, Ref, State};
 
 // States
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Init {
     #[parent_group]
     pub query_group_id: Ref<super::query_group::QueryGroup>,
@@ -15,10 +15,10 @@ pub struct Init {
     pub instance_name: String,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Planning;
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Executing;
 
 // FSM

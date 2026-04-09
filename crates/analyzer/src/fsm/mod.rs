@@ -89,7 +89,7 @@ pub trait FsmUsages<'a>: Fsm {
 
 impl<U> Span for U
 where
-    U: Fsm + std::fmt::Debug,
+    U: Fsm,
 {
     fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
         if let Some(start) = self.first().map(|s| s.span().start())
@@ -98,7 +98,9 @@ where
             Ok(SpanUnixNanoSec::try_new(start, end)?)
         } else {
             Err(AnalyzerError::IncompleteEntity(format!(
-                "fsm is incomplete: {self:?}"
+                "fsm '{}' (id={}) is incomplete",
+                self.type_name(),
+                self.id()
             )))
         }
     }

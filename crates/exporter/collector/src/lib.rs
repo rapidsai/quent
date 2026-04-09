@@ -21,7 +21,7 @@ pub struct CollectorExporter<T> {
 
 impl<T> CollectorExporter<T>
 where
-    T: Serialize + Send + std::fmt::Debug + 'static,
+    T: Serialize + Send + 'static,
 {
     pub async fn try_new(
         application_id: Uuid,
@@ -35,7 +35,7 @@ where
 #[async_trait::async_trait]
 impl<T> Exporter<T> for CollectorExporter<T>
 where
-    T: Serialize + Send + std::fmt::Debug + 'static,
+    T: Serialize + Send + 'static,
 {
     async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         self.client

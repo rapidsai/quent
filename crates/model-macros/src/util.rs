@@ -9,7 +9,7 @@ use quote::quote;
 /// `serde` feature is enabled, or empty tokens otherwise.
 pub fn serde_derives() -> TokenStream {
     if cfg!(feature = "serde") {
-        quote! { , serde::Serialize, serde::Deserialize }
+        quote! { serde::Serialize, serde::Deserialize }
     } else {
         quote! {}
     }

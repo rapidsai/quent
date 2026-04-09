@@ -8,6 +8,7 @@ use quent_model::{
     Attributes, Capacity, EmitOnce, Entity, Event, Fsm, Ref, ResizableResource, Resource, State,
     Usage,
 };
+use serde::{Deserialize, Serialize};
 
 // A "unit" resource. Only one entity may use this at a time.
 #[derive(Resource)]
@@ -33,27 +34,26 @@ pub struct Queue {
 }
 
 // Structs with key-value attributes
-#[derive(Attributes)]
+#[derive(Attributes, Serialize, Deserialize)]
 pub struct AppDetails {
     pub version: String,          // key known at compile-time
     pub custom: CustomAttributes, // for keys known at run-time only
 }
 
-// A trivial entity.
-// Implicitly produces one event with the below fields as attributes.
-#[derive(Entity)]
+// A trivial single-event entity.
+#[derive(Entity, Event, Serialize, Deserialize)]
 pub struct Info {
     pub message: String,
     pub source: Option<String>,
 }
 
 // An arbitrary entity event
-#[derive(Event)]
+#[derive(Event, Serialize, Deserialize)]
 pub struct Launched {
     pub size: u64,
 }
 
-#[derive(Event)]
+#[derive(Event, Serialize, Deserialize)]
 pub struct Collected {
     pub acknowleded: bool,
 }
@@ -79,7 +79,7 @@ pub struct Worker {
 pub struct Cluster;
 
 // Attributes of an FSM state
-#[derive(State)]
+#[derive(State, Serialize, Deserialize)]
 pub struct Queued {
     // Marks this field to carry the instance name of the entity:
     #[instance_name]
@@ -88,7 +88,7 @@ pub struct Queued {
     pub queue: Usage<Queue>,    // usage of a resource
 }
 
-#[derive(State)]
+#[derive(State, Serialize, Deserialize)]
 pub struct Computing {
     pub thread: Usage<ThreadResource>,
     pub memory: Usage<MemoryPool>,
@@ -98,7 +98,7 @@ pub struct Computing {
 #[derive(Fsm)]
 pub struct Task {
     #[entry]
-    #[to(Running)]
+    #[to(Computing)]
     pub queued: Queued,
     #[to(exit)]
     pub computing: Computing,

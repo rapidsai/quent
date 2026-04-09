@@ -77,7 +77,7 @@ pub async fn create_exporter<T>(
     application_id: Uuid,
 ) -> ExporterResult<Arc<dyn Exporter<T>>>
 where
-    T: Serialize + Send + std::fmt::Debug + 'static,
+    T: Serialize + Send + 'static,
 {
     match kind {
         #[cfg(feature = "ndjson")]

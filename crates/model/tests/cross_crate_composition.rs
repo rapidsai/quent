@@ -27,14 +27,14 @@ type FsToMem = quent_stdlib::ChannelResource;
 
 // Application FSM using stdlib resource types
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Queueing {
     pub operator_id: Ref<Operator>,
     pub instance_name: String,
 }
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Computing {
     pub thread: Usage<Thread>,
@@ -42,7 +42,7 @@ pub struct Computing {
     pub rows_processed: Option<u64>,
 }
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sending {
     pub channel: Usage<FsToMem>,

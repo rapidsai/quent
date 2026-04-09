@@ -29,14 +29,23 @@ use crate::{
 ///
 /// The `Entity::type_name()` returns `resource_type_name` (the user-specified
 /// resource type, e.g. "filesystem") rather than the FSM type name (e.g. "memory").
-#[derive(Debug)]
-pub struct ResourceEvents<T: TransitionInfo + std::fmt::Debug> {
+pub struct ResourceEvents<T: TransitionInfo> {
     inner: FsmEvents<T>,
     parent_group_id: Uuid,
     resource_type_name: String,
 }
 
-impl<T: TransitionInfo + std::fmt::Debug> ResourceEvents<T> {
+impl<T: TransitionInfo> std::fmt::Debug for ResourceEvents<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResourceEvents")
+            .field("inner", &self.inner)
+            .field("parent_group_id", &self.parent_group_id)
+            .field("resource_type_name", &self.resource_type_name)
+            .finish()
+    }
+}
+
+impl<T: TransitionInfo> ResourceEvents<T> {
     /// Access the inner FSM.
     pub fn inner(&self) -> &FsmEvents<T> {
         &self.inner
@@ -45,7 +54,7 @@ impl<T: TransitionInfo + std::fmt::Debug> ResourceEvents<T> {
 
 // Entity
 
-impl<T: TransitionInfo + std::fmt::Debug> Entity for ResourceEvents<T> {
+impl<T: TransitionInfo> Entity for ResourceEvents<T> {
     fn id(&self) -> Uuid {
         self.inner.id()
     }
@@ -59,7 +68,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Entity for ResourceEvents<T> {
 
 // Resource
 
-impl<T: TransitionInfo + std::fmt::Debug> Resource for ResourceEvents<T> {
+impl<T: TransitionInfo> Resource for ResourceEvents<T> {
     fn parent_group_id(&self) -> Uuid {
         self.parent_group_id
     }
@@ -67,7 +76,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Resource for ResourceEvents<T> {
 
 // Fsm (delegate to inner)
 
-impl<T: TransitionInfo + std::fmt::Debug> Fsm for ResourceEvents<T> {
+impl<T: TransitionInfo> Fsm for ResourceEvents<T> {
     type TransitionType = TransitionEvent<T>;
     fn len(&self) -> usize {
         self.inner.len()
@@ -79,7 +88,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Fsm for ResourceEvents<T> {
 
 // FsmUsages (delegate to inner)
 
-impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for ResourceEvents<T> {
+impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for ResourceEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
         self.inner.usages_with_state_names()
     }
@@ -87,7 +96,7 @@ impl<'a, T: TransitionInfo + std::fmt::Debug + 'a> FsmUsages<'a> for ResourceEve
 
 // Using (delegate to inner)
 
-impl<T: TransitionInfo + std::fmt::Debug> Using for ResourceEvents<T> {
+impl<T: TransitionInfo> Using for ResourceEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         self.inner.usages()
     }
@@ -95,7 +104,7 @@ impl<T: TransitionInfo + std::fmt::Debug> Using for ResourceEvents<T> {
 
 // FsmTypeDeclaration (delegate to inner)
 
-impl<T: TransitionInfo + std::fmt::Debug> FsmTypeDeclaration for ResourceEvents<T> {
+impl<T: TransitionInfo> FsmTypeDeclaration for ResourceEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {
         FsmEvents::<T>::fsm_type_declaration()
     }
@@ -134,10 +143,7 @@ impl<T: TransitionInfo> ResourceEventsBuilder<T> {
         self.inner.push(event);
     }
 
-    pub fn try_build(self) -> AnalyzerResult<ResourceEvents<T>>
-    where
-        T: std::fmt::Debug,
-    {
+    pub fn try_build(self) -> AnalyzerResult<ResourceEvents<T>> {
         let id = self.inner.id();
         let inner = self.inner.try_build()?;
         let parent_group_id = self.parent_group_id.ok_or_else(|| {

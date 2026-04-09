@@ -32,8 +32,7 @@ impl<M: EntityData> std::fmt::Debug for EntityEvents<M> {
             .field("id", &self.id)
             .field("first_timestamp", &self.first_timestamp)
             .field("last_timestamp", &self.last_timestamp)
-            .field("data", &self.data)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

@@ -6,14 +6,14 @@
 use quent_model::{Fsm, State, Usage};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Queued {
     pub job_id: Uuid,
     #[instance_name]
     pub name: String,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Running {
     pub thread: Usage<quent_stdlib::ProcessorResource>,
 }

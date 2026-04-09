@@ -7,11 +7,11 @@ use quent_model::{EmitOnce, Entity, Event, Fsm, FsmEvent, State};
 
 // Minimal model components
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Idle;
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Active;
 

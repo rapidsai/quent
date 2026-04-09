@@ -42,14 +42,10 @@ where
     }
 }
 
-impl<T: Resource> std::fmt::Debug for Usage<T>
-where
-    T::CapacityValue: std::fmt::Debug,
-{
+impl<T: Resource> std::fmt::Debug for Usage<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Usage")
             .field("resource_id", &self.resource_id)
-            .field("capacity", &self.capacity)
-            .finish()
+            .finish_non_exhaustive()
     }
 }

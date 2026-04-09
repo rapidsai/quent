@@ -407,7 +407,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let output = quote! {
-        #[derive(Debug, Clone #serde_derives)]
+        #[derive(#serde_derives)]
         #vis enum #transition_enum {
             #(#transition_variants,)*
             Exit,
@@ -473,14 +473,14 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         #[derive(Clone)]
         #vis struct #observer_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             tx: quent_model::EventSender<E>,
         }
 
         impl<E> #observer_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             pub fn new(tx: &quent_model::EventSender<E>) -> Self {
                 Self { tx: tx.clone() }
@@ -501,7 +501,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         #vis struct #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             id: uuid::Uuid,
             seq: u64,
@@ -511,7 +511,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         impl<E> #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             /// Returns the raw UUID of this FSM instance.
             pub fn uuid(&self) -> uuid::Uuid {
@@ -551,7 +551,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         impl<E> Drop for #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             fn drop(&mut self) {
                 self.exit();

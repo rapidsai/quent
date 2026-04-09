@@ -23,12 +23,20 @@ use uuid::Uuid;
 /// Wrapper around an optional channel sender. When the inner sender is `None`
 /// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
 /// channel or event-forwarding overhead.
-#[derive(Debug)]
 pub struct EventSender<T> {
     tx: Option<UnboundedSender<Event<T>>>,
     /// Flag shared across clones to prevent potentially massive log spam from
     /// subseQUENT sender errors after the first.
     disable_error_log: Arc<AtomicBool>,
+}
+
+impl<T> std::fmt::Debug for EventSender<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventSender")
+            .field("tx", &self.tx.as_ref().map(|_| ".."))
+            .field("disable_error_log", &self.disable_error_log)
+            .finish()
+    }
 }
 
 impl<T> Clone for EventSender<T> {
@@ -68,7 +76,7 @@ impl<T> EventSender<T> {
 
 pub struct Context<T>
 where
-    T: Serialize + Send + std::fmt::Debug + 'static,
+    T: Serialize + Send + 'static,
 {
     handle: Option<Handle>,
     events_sender: EventSender<T>,
@@ -85,7 +93,7 @@ where
 
 impl<T> Context<T>
 where
-    T: Serialize + Send + std::fmt::Debug + 'static,
+    T: Serialize + Send + 'static,
 {
     pub fn try_new(
         exporter: Option<ExporterOptions>,
@@ -184,7 +192,7 @@ where
 
 impl<T> Drop for Context<T>
 where
-    T: Serialize + Send + std::fmt::Debug + 'static,
+    T: Serialize + Send + 'static,
 {
     fn drop(&mut self) {
         self.cancellation_token.cancel();

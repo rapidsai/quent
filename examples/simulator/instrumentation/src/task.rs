@@ -14,38 +14,38 @@ use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 
 // States
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Queueing {
     pub operator_id: Uuid,
     #[instance_name]
     pub instance_name: String,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Computing {
     pub use_thread: Usage<ProcessorResource>,
     pub use_memory: Usage<MemoryResource>,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Allocating {
     pub use_thread: Usage<ProcessorResource>,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Loading {
     pub use_thread: Usage<ProcessorResource>,
     pub use_fs_to_mem: Usage<ChannelResource>,
     pub use_memory: Usage<MemoryResource>,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Spilling {
     pub use_thread: Usage<ProcessorResource>,
     pub use_mem_to_fs: Usage<ChannelResource>,
 }
 
-#[derive(Debug, Clone, State, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
 pub struct Sending {
     pub use_thread: Usage<ProcessorResource>,
     pub use_link: Usage<ChannelResource>,

@@ -140,7 +140,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let output = quote! {
         pub type #model_type = quent_model::Model<#model_tuple>;
 
-        #[derive(Debug #serde_derives)]
+        #[derive(#serde_derives)]
         pub enum #event_type {
             #(#variants(#event_types),)*
         }

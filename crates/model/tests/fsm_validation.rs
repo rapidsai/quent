@@ -20,15 +20,15 @@ use quent_model::{
 
 // A valid linear FSM
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct A;
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct B;
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct C;
 
@@ -54,11 +54,11 @@ fn linear_fsm_valid() {
 
 // A cyclic FSM
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Idle;
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Working;
 
@@ -82,7 +82,7 @@ fn cyclic_fsm_valid() {
 
 // Unit state (no fields)
 
-#[derive(Debug, Clone, State)]
+#[derive(Debug, State)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EmptyState;
 

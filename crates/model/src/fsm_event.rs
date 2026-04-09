@@ -12,7 +12,6 @@
 /// ```
 ///
 /// `S` is the transition enum (one variant per state + exit).
-#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FsmEvent<S> {
     /// A transition into a new state.

@@ -218,7 +218,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { None },
         );
         quote! {
-            #[derive(Debug, Clone #serde_derives)]
+            #[derive(#serde_derives)]
             #vis struct #op_state;
             #impls
         }
@@ -231,7 +231,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { None },
         );
         quote! {
-            #[derive(Debug, Clone #serde_derives)]
+            #[derive(#serde_derives)]
             #vis struct #op_state {
                 #(#capacity_field_defs,)*
             }
@@ -330,7 +330,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { None },
         );
         let resize_code = quote! {
-            #[derive(Debug, Clone #serde_derives)]
+            #[derive(#serde_derives)]
             #vis struct #resize_state;
             #resize_impls
         };
@@ -439,7 +439,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     );
 
     let output = quote! {
-        #[derive(Debug, Clone #serde_derives)]
+        #[derive(#serde_derives)]
         #vis struct #init_state {
             pub instance_name: String,
             pub parent_group_id: uuid::Uuid,
@@ -451,13 +451,13 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #op_state_def
 
-        #[derive(Debug, Clone #serde_derives)]
+        #[derive(#serde_derives)]
         #vis struct #fin_state;
         #fin_state_impls
 
         #resizing_code
 
-        #[derive(Debug, Clone #serde_derives)]
+        #[derive(#serde_derives)]
         #vis enum #transition_enum {
             #transition_variants
         }
@@ -496,6 +496,11 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             const RESOURCE_NAME: &'static str = #name_snake;
         }
 
+        impl quent_model::Resource for #name {
+            type CapacityValue = #op_state;
+            const RESOURCE_NAME: &'static str = #name_snake;
+        }
+
         impl quent_model::ModelComponent for #name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
@@ -509,14 +514,14 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #[derive(Clone)]
         #vis struct #observer_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             tx: quent_model::EventSender<E>,
         }
 
         impl<E> #observer_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             pub fn new(tx: &quent_model::EventSender<E>) -> Self {
                 Self { tx: tx.clone() }
@@ -532,7 +537,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #vis struct #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             id: uuid::Uuid,
             seq: u64,
@@ -542,7 +547,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         impl<E> #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             pub fn uuid(&self) -> uuid::Uuid { self.id }
 
@@ -573,7 +578,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         impl<E> Drop for #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + std::fmt::Debug + 'static,
+            E: From<#event_type> #serde_bound + Send + 'static,
         {
             fn drop(&mut self) { self.exit(); }
         }
