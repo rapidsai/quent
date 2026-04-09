@@ -542,35 +542,27 @@ impl Worker {
         // Filesystem
         let filesystem = Uuid::now_v7();
         let mut fs_handle = mem_obs.initializing(filesystem, "Filesystem", id);
-        fs_handle.operating(quent_stdlib::MemoryOperating {
-            capacity_bytes: Capacity::new(Some(0)),
-        });
+        fs_handle.operating(Some(0));
         memory_handles.push(fs_handle);
 
         // Memory pool
         let memory = Uuid::now_v7();
         let mut mem_handle = mem_obs.initializing(memory, "Memory", id);
-        mem_handle.operating(quent_stdlib::MemoryOperating {
-            capacity_bytes: Capacity::new(Some(0)),
-        });
+        mem_handle.operating(Some(0));
         memory_handles.push(mem_handle);
 
         // Filesystem -> Memory channel
         let fs_to_mem = Uuid::now_v7();
         let mut fs_to_mem_handle =
             ch_obs.initializing(fs_to_mem, "Filesystem -> Memory", id, filesystem, memory);
-        fs_to_mem_handle.operating(quent_stdlib::ChannelOperating {
-            capacity_bytes: Capacity::new(None),
-        });
+        fs_to_mem_handle.operating(None);
         channel_handles.push(fs_to_mem_handle);
 
         // Memory -> Filesystem channel
         let mem_to_fs = Uuid::now_v7();
         let mut mem_to_fs_handle =
             ch_obs.initializing(mem_to_fs, "Memory -> Filesystem", id, memory, filesystem);
-        mem_to_fs_handle.operating(quent_stdlib::ChannelOperating {
-            capacity_bytes: Capacity::new(None),
-        });
+        mem_to_fs_handle.operating(None);
         channel_handles.push(mem_to_fs_handle);
 
         // Thread pool
@@ -584,7 +576,7 @@ impl Worker {
             let mut thread_handle =
                 proc_obs.initializing(thread_id, &format!("Thread {index}"), thread_pool);
             threads.push(thread_id);
-            thread_handle.operating(quent_stdlib::ProcessorOperating {});
+            thread_handle.operating();
             processor_handles.push(thread_handle);
         }
 
@@ -1162,9 +1154,7 @@ impl Engine {
                     self.workers.get(&worker_id).unwrap().memory,
                     self.workers.get(&other_worker_id).unwrap().memory,
                 );
-                up_handle.operating(quent_stdlib::ChannelOperating {
-                    capacity_bytes: Capacity::new(None),
-                });
+                up_handle.operating(None);
                 self.network_link_handles.push(up_handle);
 
                 let down_link_id = Uuid::now_v7();
@@ -1175,9 +1165,7 @@ impl Engine {
                     self.workers.get(&other_worker_id).unwrap().memory,
                     self.workers.get(&worker_id).unwrap().memory,
                 );
-                down_handle.operating(quent_stdlib::ChannelOperating {
-                    capacity_bytes: Capacity::new(None),
-                });
+                down_handle.operating(None);
                 self.network_link_handles.push(down_handle);
 
                 self.network_links

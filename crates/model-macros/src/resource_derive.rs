@@ -62,6 +62,24 @@ fn is_capacity_field(field: &Field) -> bool {
     crate::util::is_capacity_type(&field.ty)
 }
 
+/// Extract the inner value type V from `Capacity<V>` or `Capacity<V, K>`.
+fn extract_capacity_inner(ty: &syn::Type) -> Option<syn::Type> {
+    let syn::Type::Path(type_path) = ty else {
+        return None;
+    };
+    let seg = type_path.path.segments.last()?;
+    if seg.ident != "Capacity" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
+    let syn::GenericArgument::Type(inner) = args.args.first()? else {
+        return None;
+    };
+    Some(inner.clone())
+}
+
 /// Categorize fields into init fields (non-capacity) and capacity fields.
 struct ResourceFields<'a> {
     /// Fields that go on the Initializing state (non-capacity).
@@ -255,6 +273,27 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
     };
 
+    // Generate flat operating method parameters from capacity fields
+    let operating_params: Vec<TokenStream> = fields
+        .capacity_fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            let inner_ty =
+                extract_capacity_inner(&f.ty).expect("capacity field must be Capacity<V, K>");
+            quote! { #ident: #inner_ty }
+        })
+        .collect();
+
+    let operating_field_inits: Vec<TokenStream> = fields
+        .capacity_fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            quote! { #ident: quent_model::Capacity::new(#ident) }
+        })
+        .collect();
+
     // Transition variants and FSM structure
     let (
         transition_variants,
@@ -333,8 +372,10 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         };
 
         let methods = quote! {
-            pub fn operating(&mut self, state: #op_state) { self.transition(state); }
-            pub fn resizing(&mut self, state: #resize_state) { self.transition(state); }
+            pub fn operating(&mut self, #(#operating_params,)*) {
+                self.transition(#op_state { #(#operating_field_inits,)* });
+            }
+            pub fn resizing(&mut self) { self.transition(#resize_state); }
             pub fn finalizing(&mut self) { self.transition(#fin_state); }
         };
 
@@ -419,9 +460,18 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             impl From<#fin_state> for #transition_enum { fn from(s: #fin_state) -> Self { #transition_enum::#fin_state(s) } }
         };
 
-        let methods = quote! {
-            pub fn operating(&mut self, state: #op_state) { self.transition(state); }
-            pub fn finalizing(&mut self) { self.transition(#fin_state); }
+        let methods = if operating_params.is_empty() {
+            quote! {
+                pub fn operating(&mut self) { self.transition(#op_state); }
+                pub fn finalizing(&mut self) { self.transition(#fin_state); }
+            }
+        } else {
+            quote! {
+                pub fn operating(&mut self, #(#operating_params,)*) {
+                    self.transition(#op_state { #(#operating_field_inits,)* });
+                }
+                pub fn finalizing(&mut self) { self.transition(#fin_state); }
+            }
         };
 
         (
