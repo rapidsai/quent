@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::DeriveInput;
 
 use crate::util::{resolve_value_type, to_snake_case};
@@ -323,6 +323,64 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         quote! {}
     };
 
+    // Generate flat params and construction for the fsm! callback macro.
+    let callback_macro_name = format_ident!("__quent_state_{}", state_snake);
+    let state_method_ident = format_ident!("{}", state_snake);
+
+    let mut flat_params: Vec<TokenStream> = Vec::new();
+    let mut flat_construction: Vec<TokenStream> = Vec::new();
+
+    // Instance name field → &str param
+    if let Some(ref instance_name) = fields.instance_name_field {
+        flat_params.push(quote! { #instance_name: &str });
+        flat_construction.push(quote! { #instance_name: #instance_name.to_string() });
+    }
+
+    // Parent group field
+    if let Some(ref parent_group) = fields.parent_group_field {
+        flat_params.push(quote! { #parent_group: uuid::Uuid });
+        flat_construction.push(quote! { #parent_group: #parent_group.into() });
+    }
+
+    // Regular fields (non-instance_name, non-parent_group)
+    for rf in &fields.regular {
+        let rf_ident = format_ident!("{}", rf.name);
+        let rf_ty = &rf.ty;
+        if fields
+            .instance_name_field
+            .as_ref()
+            .is_some_and(|n| n == &rf_ident)
+        {
+            continue; // already handled
+        }
+        if fields
+            .parent_group_field
+            .as_ref()
+            .is_some_and(|n| n == &rf_ident)
+        {
+            continue; // already handled
+        }
+        flat_params.push(quote! { #rf_ident: #rf_ty });
+        flat_construction.push(quote! { #rf_ident });
+    }
+
+    // Usage fields → Ref<T> + capacity arg
+    for usage in &fields.usages {
+        let u_ident = &usage.ident;
+        let resource_ty = &usage.resource_ty;
+        let ref_param = format_ident!("{}", usage.name);
+        flat_params.push(quote! { #ref_param: quent_model::Ref<#resource_ty> });
+        let cap_param = format_ident!("{}_capacity", usage.name);
+        flat_params
+            .push(quote! { #cap_param: <#resource_ty as quent_model::Resource>::CapacityValue });
+        flat_construction.push(quote! {
+            #u_ident: quent_model::Usage {
+                resource_id: #ref_param,
+                capacity: #cap_param,
+            }
+        });
+    }
+
     let output = quote! {
         impl quent_model::StateMetadata for #state_name_ident {
             fn state_name() -> &'static str {
@@ -363,6 +421,28 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         }
 
         #has_parent_group_impl
+
+        // Hidden callback macro for fsm! — provides flat params and construction.
+        #[doc(hidden)]
+        #[macro_export]
+        macro_rules! #callback_macro_name {
+            // Entry method: generates a method on the observer that creates a handle
+            (entry_method $vis:vis $handle:ident $transition:ident) => {
+                $vis fn #state_method_ident(&self, id: uuid::Uuid, #(#flat_params,)*) -> $handle<E> {
+                    let state = #state_name_ident { #(#flat_construction,)* };
+                    let mut handle = $handle { id, seq: 0, exited: false, tx: self.tx.clone() };
+                    handle.emit_transition($transition::from(state));
+                    handle
+                }
+            };
+            // Transition method: generates a method on the handle
+            (transition_method $vis:vis $transition:ident) => {
+                $vis fn #state_method_ident(&mut self, #(#flat_params,)*) {
+                    let state = #state_name_ident { #(#flat_construction,)* };
+                    self.emit_transition($transition::from(state));
+                }
+            };
+        }
     };
 
     Ok(output)

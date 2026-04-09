@@ -36,6 +36,7 @@ mod define_model;
 mod entity;
 mod event;
 mod fsm;
+mod fsm_macro;
 mod resource_derive;
 mod state;
 mod util;
@@ -170,6 +171,25 @@ pub fn define_model(input: TokenStream) -> TokenStream {
 /// ```ignore
 /// define_instrumentation!(App);
 /// ```
+/// Defines an FSM with flat-arg observer and handle methods.
+///
+/// ```ignore
+/// quent_model::fsm! {
+///     Task {
+///         states: { queued: Queued, running: Running },
+///         entry: queued,
+///         exit_from: { running },
+///         transitions: { queued => running },
+///     }
+/// }
+/// ```
+#[proc_macro]
+pub fn fsm(input: TokenStream) -> TokenStream {
+    fsm_macro::expand(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
 #[proc_macro]
 pub fn define_instrumentation(input: TokenStream) -> TokenStream {
     define_model::expand_instrumentation(input.into())

@@ -38,6 +38,11 @@ pub fn is_capacity_type(ty: &syn::Type) -> bool {
     }
 }
 
+/// Converts a snake_case string to PascalCase.
+pub fn to_pascal_case(s: &str) -> String {
+    s.to_case(Case::Pascal)
+}
+
 /// Converts a PascalCase identifier to snake_case.
 pub fn to_snake_case(ident: &Ident) -> String {
     ident.to_string().to_case(Case::Snake)
