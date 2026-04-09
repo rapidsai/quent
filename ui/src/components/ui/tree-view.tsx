@@ -42,6 +42,8 @@ type TreeRenderItemParams<T extends TreeDataItem = TreeDataItem> = {
 type TreeProps<T extends TreeDataItem = TreeDataItem> = React.HTMLAttributes<HTMLDivElement> & {
   data: T[] | T;
   initialSelectedItemId?: string;
+  /** Controlled selected item id. When provided, overrides internal selection state. */
+  selectedItemId?: string;
   onSelectChange?: (item: T | undefined) => void;
   expandAll?: boolean;
   defaultNodeIcon?: React.ComponentType<{ className?: string }>;
@@ -53,6 +55,7 @@ type TreeProps<T extends TreeDataItem = TreeDataItem> = React.HTMLAttributes<HTM
 function TreeView<T extends TreeDataItem = TreeDataItem>({
   data,
   initialSelectedItemId,
+  selectedItemId: controlledSelectedItemId,
   onSelectChange,
   expandAll,
   defaultLeafIcon,
@@ -63,8 +66,14 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
   ...props
 }: TreeProps<T>) {
   const [selectedItemId, setSelectedItemId] = React.useState<string | undefined>(
-    initialSelectedItemId
+    controlledSelectedItemId ?? initialSelectedItemId
   );
+
+  React.useEffect(() => {
+    if (controlledSelectedItemId !== undefined) {
+      setSelectedItemId(controlledSelectedItemId);
+    }
+  }, [controlledSelectedItemId]);
 
   const [draggedItem, setDraggedItem] = React.useState<T | null>(null);
 
@@ -92,8 +101,10 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
     [draggedItem, onDocumentDrag]
   );
 
+  const activeSelectedItemId = controlledSelectedItemId ?? initialSelectedItemId;
+
   const expandedItemIds = React.useMemo(() => {
-    if (!initialSelectedItemId) {
+    if (!activeSelectedItemId) {
       return [] as string[];
     }
 
@@ -115,9 +126,9 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
       }
     }
 
-    walkTreeItems(data, initialSelectedItemId);
+    walkTreeItems(data, activeSelectedItemId);
     return ids;
-  }, [data, expandAll, initialSelectedItemId]);
+  }, [data, expandAll, activeSelectedItemId]);
 
   return (
     <div className={cn('overflow-hidden relative', className)}>

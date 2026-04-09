@@ -11,16 +11,14 @@ export {
   getOperationTypeColor,
   withOpacity,
   resetColorAssignments,
-  lightenColor,
   darkenColor,
   getActivePalette,
   setActivePalette,
   getPalette,
-  createStripePattern,
-  createDotPattern,
-  createCrosshatchPattern,
   BLACK,
   WHITE,
+  createCapacitiesColorFn,
+  createFsmTypeColorFn,
   CONTINUOUS_PALETTES,
   continuousColor,
   getLegendGradientStops,
@@ -35,3 +33,15 @@ export * from './types/index';
 
 // Timeline types
 export type { ZoomRange } from './types/ZoomRange';
+
+// Operator timeline row ID utilities
+export const OPERATOR_TIMELINE_ROW_TYPE = 'operator-timeline';
+const OPERATOR_TIMELINE_ROW_ID_PREFIX = '__operator_timeline__';
+export function operatorTimelineRowId(workerId: string): string {
+  return `${OPERATOR_TIMELINE_ROW_ID_PREFIX}${workerId}`;
+}
+export function workerIdFromOperatorTimelineRowId(id: string): string | null {
+  return id.startsWith(OPERATOR_TIMELINE_ROW_ID_PREFIX)
+    ? id.slice(OPERATOR_TIMELINE_ROW_ID_PREFIX.length)
+    : null;
+}

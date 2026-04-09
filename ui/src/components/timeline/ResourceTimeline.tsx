@@ -34,6 +34,7 @@ import type {
   TaskFilter,
   CapacityDecl,
   QuantitySpec,
+  FsmTypeDecl,
 } from '@quent/utils';
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
@@ -52,6 +53,7 @@ type ResourceTimelineProps = {
   preloadedData?: SingleTimelineResponse;
   capacities?: CapacityDecl[];
   quantitySpecs?: { [key in string]?: QuantitySpec };
+  fsmTypes?: { [key in string]?: FsmTypeDecl };
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -75,6 +77,7 @@ export function ResourceTimeline({
   showTooltip = true,
   capacities,
   quantitySpecs,
+  fsmTypes,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
   const zoomRange = useDebouncedZoomRange();
@@ -171,7 +174,8 @@ export function ResourceTimeline({
       data.config,
       startTime,
       capacities,
-      quantitySpecs
+      quantitySpecs,
+      fsmTypes
     );
     const longFsms = getLongFsms(data.data);
     const filterSet =
@@ -187,18 +191,26 @@ export function ResourceTimeline({
           overlayPreloadedData.config,
           startTime,
           capacities,
-          quantitySpecs
+          quantitySpecs,
+          fsmTypes
         );
         const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
         return {
           timestamps: base.timestamps,
           series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
-          marks: buildTimelineMarks(longFsms, startTime, filterSet, opLongFsmIds, operatorLabel),
+          marks: buildTimelineMarks(
+            longFsms,
+            startTime,
+            filterSet,
+            fsmTypes,
+            opLongFsmIds,
+            operatorLabel
+          ),
         };
       }
     }
 
-    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
+    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet, fsmTypes);
 
     return { ...base, marks: timelineMarks };
   }, [
@@ -209,6 +221,7 @@ export function ResourceTimeline({
     startTime,
     capacities,
     quantitySpecs,
+    fsmTypes,
     resourceType,
     resourceId,
     operatorLabel,

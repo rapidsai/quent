@@ -3,7 +3,14 @@
 
 import { TimelineSeries, TimelineMark } from '@/components/timeline/types';
 import { TreeTableItem } from '@/components/resource-tree/types';
-import { formatQuantity, getColorForKey, WHITE, withOpacity } from '@quent/utils';
+import {
+  formatQuantity,
+  getColorForKey,
+  WHITE,
+  withOpacity,
+  createCapacitiesColorFn,
+  createFsmTypeColorFn,
+} from '@quent/utils';
 import type {
   ResourceTimeline,
   EntityRef,
@@ -12,6 +19,7 @@ import type {
   BinnedSpanSec,
   SingleTimelineResponse,
   FiniteStateMachine,
+  FsmTypeDecl,
   TimelineRequest,
   TaskFilter,
   TimelineConfig,
@@ -51,7 +59,8 @@ export function buildBinnedTimelineSeries(
   config: BinnedSpanSec,
   startTime: bigint,
   capacities?: CapacityDecl[],
-  quantitySpecs?: { [key in string]?: QuantitySpec }
+  quantitySpecs?: { [key in string]?: QuantitySpec },
+  fsmTypes?: { [key in string]?: FsmTypeDecl }
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -83,10 +92,12 @@ export function buildBinnedTimelineSeries(
   if ('Binned' in data) {
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
+    const capacityKeys = Object.keys(capacities_values).sort();
+    const colorCapacity = createCapacitiesColorFn(capacityKeys);
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatter(capacity);
       series[capacity] = {
-        color: getColorForKey(capacity),
+        color: colorCapacity(capacity),
         formatter,
         values: values ?? [],
         binDuration: bin_duration,
@@ -94,13 +105,14 @@ export function buildBinnedTimelineSeries(
     }
   } else if ('BinnedByState' in data) {
     const { capacities_states_values } = data.BinnedByState;
+    const colorFsm = createFsmTypeColorFn(fsmTypes ?? {});
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
         const formatter = getFormatter(capacityType);
         if (values) {
           series[state] = {
-            color: getColorForKey(state),
+            color: colorFsm(state),
             binDuration: bin_duration,
             formatter,
             values,
@@ -145,6 +157,7 @@ export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
   startTime: bigint,
   resourceIdsForFilter?: Set<string> | null,
+  fsmTypes?: { [key in string]?: FsmTypeDecl },
   /** When provided, marks whose FSM is in this set are highlighted; others are dimmed. */
   overlayFsmIds?: Set<string>,
   overlayLabel?: string
@@ -152,6 +165,7 @@ export function buildTimelineMarks(
   if (longFsms.length === 0) return undefined;
 
   const startTimeMs = nanosToMs(startTime);
+  const colorFsm = createFsmTypeColorFn(fsmTypes ?? {});
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -168,10 +182,11 @@ export function buildTimelineMarks(
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
+        const color = colorFsm(transition.name);
         return {
           label,
           stateName: transition.name,
-          color: getColorForKey(transition.name),
+          color,
           xStart,
           xEnd,
           ...(inOverlay !== undefined && {
@@ -381,6 +396,7 @@ export const connectChart = (
 interface AxisPointerEntry {
   instance: EChartsInstance;
   xAxisIndex: number;
+  receiveShowTip: boolean;
   onMouseMove: (e: { offsetX: number }) => void;
   onGlobalOut: () => void;
 }
@@ -392,8 +408,8 @@ function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
-    axisPointerRegistry.forEach(({ instance, xAxisIndex }) => {
-      if (instance === source) return;
+    axisPointerRegistry.forEach(({ instance, xAxisIndex, receiveShowTip }) => {
+      if (instance === source || !receiveShowTip) return;
       try {
         const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
         if (pixel != null && isFinite(pixel)) {
@@ -429,13 +445,24 @@ function broadcastHidePointer(source: EChartsInstance) {
   }
 }
 
+export interface AxisPointerSyncOptions {
+  /** If false, this chart will not receive showTip when the pointer is synced from another chart (default true). */
+  receiveShowTip?: boolean;
+}
+
 /**
  * Register a chart instance for manual axis pointer sync.
  * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
  * regardless of tooltip/axisPointer configuration differences.
  * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
+ * @param options.receiveShowTip If false, tooltip is only shown when the user hovers this chart (default true).
  */
-export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 0) {
+export function registerAxisPointerSync(
+  instance: EChartsInstance,
+  xAxisIndex = 0,
+  options: AxisPointerSyncOptions = {}
+) {
+  const receiveShowTip = options.receiveShowTip !== false;
   const onMouseMove = (e: { offsetX: number }) => {
     try {
       const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
@@ -455,7 +482,7 @@ export function registerAxisPointerSync(instance: EChartsInstance, xAxisIndex = 
   zr.on('mousemove', onMouseMove);
   zr.on('globalout', onGlobalOut);
 
-  const entry = { instance, xAxisIndex, onMouseMove, onGlobalOut };
+  const entry = { instance, xAxisIndex, receiveShowTip, onMouseMove, onGlobalOut };
   axisPointerRegistry.add(entry);
 
   (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;
