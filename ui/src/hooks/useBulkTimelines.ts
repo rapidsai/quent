@@ -5,8 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAtomValue, useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
-import type { QueryEntities, TimelineRequest, TaskFilter } from '@quent/utils';
-import type { ZoomRange } from '@/components/timeline/TimelineController';
+import type { QueryEntities, TimelineRequest, TaskFilter, ZoomRange } from '@quent/utils';
 import { TreeTableItem } from '@/components/resource-tree/types';
 import {
   findItemById,

@@ -29,3 +29,6 @@ export { formatDuration, formatDurationForWindow, formatQuantity } from './forma
 
 // Rust-generated TypeScript types
 export * from './types/index';
+
+// Timeline types
+export type { ZoomRange } from './types/ZoomRange';

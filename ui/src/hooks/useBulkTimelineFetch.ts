@@ -5,8 +5,7 @@ import { useEffect, useMemo } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@/services/api';
-import type { ZoomRange } from '@/components/timeline/TimelineController';
-import type { TimelineRequest, TaskFilter, BulkTimelinesResponse } from '@quent/utils';
+import type { TimelineRequest, TaskFilter, BulkTimelinesResponse, ZoomRange } from '@quent/utils';
 import { getResourceTypeName, getFsmTypeName, setOperatorOnEntry } from '@/lib/timeline.utils';
 import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
 /**
