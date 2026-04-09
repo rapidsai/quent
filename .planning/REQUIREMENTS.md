@@ -24,11 +24,11 @@
 
 ### @quent/client
 
-- [ ] **CLIENT-01**: All fetch functions from `ui/src/services/api.ts` extracted to `@quent/client` with full TypeScript types; no React or Jotai dependency in this package
-- [ ] **CLIENT-02**: `queryOptions` factory exported alongside every fetch function (e.g. `queryBundleQueryOptions`, `enginesQueryOptions`) for route loader / TanStack Router prefetch compatibility
-- [ ] **CLIENT-03**: Named hook exports for every query: `useQueryBundle`, `useEngines`, `useQueryGroups`, `useQueries`, `useTimeline`, `useBulkTimelines`
-- [ ] **CLIENT-04**: Optional `staleTime` parameter on all `@quent/client` hooks; defaults to `DEFAULT_STALE_TIME` (5 minutes)
-- [ ] **CLIENT-05**: `DEFAULT_STALE_TIME` constant exported from `@quent/client`
+- [x] **CLIENT-01**: All fetch functions from `ui/src/services/api.ts` extracted to `@quent/client` with full TypeScript types; no React or Jotai dependency in this package
+- [x] **CLIENT-02**: `queryOptions` factory exported alongside every fetch function (e.g. `queryBundleQueryOptions`, `enginesQueryOptions`) for route loader / TanStack Router prefetch compatibility
+- [x] **CLIENT-03**: Named hook exports for every query: `useQueryBundle`, `useEngines`, `useQueryGroups`, `useQueries`, `useTimeline`, `useBulkTimelines`
+- [x] **CLIENT-04**: Optional `staleTime` parameter on all `@quent/client` hooks; defaults to `DEFAULT_STALE_TIME` (5 minutes)
+- [x] **CLIENT-05**: `DEFAULT_STALE_TIME` constant exported from `@quent/client`
 
 ### @quent/hooks
 
@@ -101,11 +101,11 @@
 | UTILS-03 | Phase 2 | Complete |
 | UTILS-04 | Phase 2 | Complete |
 | UTILS-05 | Phase 2 | Complete |
-| CLIENT-01 | Phase 3 | Pending |
-| CLIENT-02 | Phase 3 | Pending |
-| CLIENT-03 | Phase 3 | Pending |
-| CLIENT-04 | Phase 3 | Pending |
-| CLIENT-05 | Phase 3 | Pending |
+| CLIENT-01 | Phase 3 | Complete |
+| CLIENT-02 | Phase 3 | Complete |
+| CLIENT-03 | Phase 3 | Complete |
+| CLIENT-04 | Phase 3 | Complete |
+| CLIENT-05 | Phase 3 | Complete |
 | HOOKS-01 | Phase 3 | Pending |
 | HOOKS-02 | Phase 3 | Pending |
 | HOOKS-03 | Phase 3 | Pending |

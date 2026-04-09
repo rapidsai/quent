@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Completed 02-extract-quent-utils-02-PLAN.md
-last_updated: "2026-04-01T20:43:35.409Z"
+status: Ready to execute
+stopped_at: Completed 03-extract-quent-client-and-quent-hooks-03-01-PLAN.md
+last_updated: "2026-04-09T17:34:48.046Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Components, state, and API access are each independently importable with zero coupling to the app shell — an agent can read the package exports and assemble a functional UI without reading implementation details.
-**Current focus:** Phase 02 — extract-quent-utils
+**Current focus:** Phase 03 — extract-quent-client-and-quent-hooks
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
+Phase: 03 (extract-quent-client-and-quent-hooks) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: Not started
 | Phase 01-workspace-scaffold P02 | 15 | 2 tasks | 9 files |
 | Phase 02-extract-quent-utils P01 | 11 | 2 tasks | 10 files |
 | Phase 02-extract-quent-utils P02 | 11 | 2 tasks | 44 files |
+| Phase 03-extract-quent-client-and-quent-hooks P01 | 7 | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - [Phase 02-extract-quent-utils]: tsconfig include uses 4-level path for ts-bindings (from package root), not 6 levels (which is correct only from src/types/ subdir)
 - [Phase 02-extract-quent-utils]: getOperationTypeColor placed in colors.ts alongside other color utilities rather than a separate file
 - [Phase 02-extract-quent-utils]: Consolidated ~quent/types/* imports into single @quent/utils lines, preserving type vs value import distinctions
+- [Phase 03-extract-quent-client-and-quent-hooks]: vite-env.d.ts added to @quent/client/src/ for import.meta.env typecheck support without vite devDependency
+- [Phase 03-extract-quent-client-and-quent-hooks]: ZoomRange relocated to @quent/utils to break circular dep and enable import without React
+- [Phase 03-extract-quent-client-and-quent-hooks]: apiFetch kept internal (non-exported) per D-02; stub types excluded per D-03; useBulkTimelines omitted per D-01 (goes in @quent/hooks)
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T20:24:11.965Z
-Stopped at: Completed 02-extract-quent-utils-02-PLAN.md
+Last session: 2026-04-09T17:34:48.044Z
+Stopped at: Completed 03-extract-quent-client-and-quent-hooks-03-01-PLAN.md
 Resume file: None
