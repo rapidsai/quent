@@ -55,6 +55,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     // as declaration fields (for resource groups) or self-event trigger.
     let mut event_types: Vec<Ident> = Vec::new();
     let mut extra_decl_fields: Vec<&syn::Field> = Vec::new();
+    let mut is_self_event = false;
+    let mut self_event_fields: Vec<&syn::Field> = Vec::new();
 
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
@@ -79,6 +81,8 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                 } else if event_types.is_empty() && resource_group.is_none() {
                     // Non-EmitOnce fields on a non-resource-group entity:
                     // self-event entity (struct IS the event)
+                    is_self_event = true;
+                    self_event_fields = extra_decl_fields.clone();
                     extra_decl_fields.clear();
                     event_types.push(name.clone());
                 }
@@ -398,93 +402,138 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
         let observer_name = format_ident!("{}Observer", name);
 
-        let (handle_and_observer, observer_factory_method) = if event_types.len() == 1 {
-            // Single-event entity: observer has a direct emit method, no handle
-            let ty = &event_types[0];
-            let method_name = format_ident!("{}", to_snake_case(ty));
-            (
-                quote! {
-                    #[derive(Clone)]
-                    #vis struct #observer_name<E>
-                    where
-                        E: From<#event_enum> #serde_bound + Send + 'static,
-                    {
-                        tx: quent_model::EventSender<E>,
-                    }
+        let (handle_and_observer, observer_factory_method) =
+            if event_types.len() == 1 && is_self_event {
+                // Self-event entity: observer has a flat-arg emit method
+                let ty = &event_types[0];
+                let method_name = format_ident!("{}", to_snake_case(ty));
 
-                    impl<E> #observer_name<E>
-                    where
-                        E: From<#event_enum> #serde_bound + Send + 'static,
-                    {
-                        pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                            Self { tx: tx.clone() }
-                        }
+                let param_defs: Vec<TokenStream> = self_event_fields
+                    .iter()
+                    .map(|f| {
+                        let ident = &f.ident;
+                        let field_ty = &f.ty;
+                        quote! { #ident: #field_ty }
+                    })
+                    .collect();
 
-                        pub fn #method_name(&self, id: uuid::Uuid, event: #ty) {
-                            self.tx.emit(id, #event_enum::from(event));
-                        }
-                    }
-                },
-                format_ident!("{}_observer", entity_snake),
-            )
-        } else {
-            // Multi-event entity: observer creates a handle
-            let handle_name = format_ident!("{}Handle", name);
-            let handle_methods: Vec<TokenStream> = event_types
-                .iter()
-                .map(|ty| {
-                    let method_name = format_ident!("{}", to_snake_case(ty));
+                let field_names: Vec<&proc_macro2::Ident> = self_event_fields
+                    .iter()
+                    .filter_map(|f| f.ident.as_ref())
+                    .collect();
+
+                (
                     quote! {
-                        pub fn #method_name(&self, event: #ty) {
-                            self.tx.emit(self.id, #event_enum::from(event));
-                        }
-                    }
-                })
-                .collect();
-
-            (
-                quote! {
-                    #vis struct #handle_name<E>
-                    where
-                        E: From<#event_enum> #serde_bound + Send + 'static,
-                    {
-                        id: uuid::Uuid,
-                        tx: quent_model::EventSender<E>,
-                    }
-
-                    impl<E> #handle_name<E>
-                    where
-                        E: From<#event_enum> #serde_bound + Send + 'static,
-                    {
-                        pub fn uuid(&self) -> uuid::Uuid { self.id }
-
-                        #(#handle_methods)*
-                    }
-
-                    #[derive(Clone)]
-                    #vis struct #observer_name<E>
-                    where
-                        E: From<#event_enum> #serde_bound + Send + 'static,
-                    {
-                        tx: quent_model::EventSender<E>,
-                    }
-
-                    impl<E> #observer_name<E>
-                    where
-                        E: From<#event_enum> #serde_bound + Send + 'static,
-                    {
-                        pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                            Self { tx: tx.clone() }
+                        #[derive(Clone)]
+                        #vis struct #observer_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            tx: quent_model::EventSender<E>,
                         }
 
-                        pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
-                            #handle_name { id, tx: self.tx.clone() }
+                        impl<E> #observer_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                                Self { tx: tx.clone() }
+                            }
+
+                            pub fn #method_name(&self, id: uuid::Uuid, #(#param_defs,)*) {
+                                self.tx.emit(id, #event_enum::from(#ty { #(#field_names,)* }));
+                            }
                         }
-                    }
-                },
-                format_ident!("{}_observer", entity_snake),
-            )
-        };
+                    },
+                    format_ident!("{}_observer", entity_snake),
+                )
+            } else if event_types.len() == 1 {
+                // Single-event entity with EmitOnce<T>: observer has struct-arg method
+                let ty = &event_types[0];
+                let method_name = format_ident!("{}", to_snake_case(ty));
+                (
+                    quote! {
+                        #[derive(Clone)]
+                        #vis struct #observer_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            tx: quent_model::EventSender<E>,
+                        }
+
+                        impl<E> #observer_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                                Self { tx: tx.clone() }
+                            }
+
+                            pub fn #method_name(&self, id: uuid::Uuid, event: #ty) {
+                                self.tx.emit(id, #event_enum::from(event));
+                            }
+                        }
+                    },
+                    format_ident!("{}_observer", entity_snake),
+                )
+            } else {
+                // Multi-event entity: observer creates a handle
+                let handle_name = format_ident!("{}Handle", name);
+                let handle_methods: Vec<TokenStream> = event_types
+                    .iter()
+                    .map(|ty| {
+                        let method_name = format_ident!("{}", to_snake_case(ty));
+                        quote! {
+                            pub fn #method_name(&self, event: #ty) {
+                                self.tx.emit(self.id, #event_enum::from(event));
+                            }
+                        }
+                    })
+                    .collect();
+
+                (
+                    quote! {
+                        #vis struct #handle_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            id: uuid::Uuid,
+                            tx: quent_model::EventSender<E>,
+                        }
+
+                        impl<E> #handle_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            pub fn uuid(&self) -> uuid::Uuid { self.id }
+
+                            #(#handle_methods)*
+                        }
+
+                        #[derive(Clone)]
+                        #vis struct #observer_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            tx: quent_model::EventSender<E>,
+                        }
+
+                        impl<E> #observer_name<E>
+                        where
+                            E: From<#event_enum> #serde_bound + Send + 'static,
+                        {
+                            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                                Self { tx: tx.clone() }
+                            }
+
+                            pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
+                                #handle_name { id, tx: self.tx.clone() }
+                            }
+                        }
+                    },
+                    format_ident!("{}_observer", entity_snake),
+                )
+            };
         let _ = observer_factory_method; // used by define_model, not here
 
         let output = quote! {
