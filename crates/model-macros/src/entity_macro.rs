@@ -313,16 +313,204 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 }
 
 // ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/// Common identifiers derived from the entity name.
+struct EntityIdents {
+    serde_derives: TokenStream,
+    serde_bound: TokenStream,
+    entity_snake: String,
+    event_enum: Ident,
+    observer_name: Ident,
+    data_struct: Ident,
+}
+
+impl EntityIdents {
+    fn new(name: &Ident) -> Self {
+        let entity_snake = to_snake_case(name);
+        Self {
+            serde_derives: serde_derives(),
+            serde_bound: serde_bound(),
+            event_enum: format_ident!("{}Event", name),
+            observer_name: format_ident!("{}Observer", name),
+            data_struct: format_ident!("{}Data", name),
+            entity_snake,
+        }
+    }
+}
+
+/// Precomputed token streams for event enum variants, From impls, data
+/// fields, push arms, and event metadata defs.
+struct EventCodegen {
+    event_variants: Vec<TokenStream>,
+    from_impls: Vec<TokenStream>,
+    data_fields: Vec<TokenStream>,
+    data_push_arms: Vec<TokenStream>,
+    event_defs: Vec<TokenStream>,
+}
+
+fn codegen_events(events: &[EventEntry], event_enum: &Ident) -> EventCodegen {
+    let event_variants = events
+        .iter()
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let ty = &e.event_type;
+            quote! { #variant(#ty) }
+        })
+        .collect();
+
+    let mut seen_types = std::collections::HashSet::new();
+    let from_impls = events
+        .iter()
+        .filter(|e| seen_types.insert(e.event_type.to_string()))
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let ty = &e.event_type;
+            quote! {
+                impl From<#ty> for #event_enum {
+                    fn from(e: #ty) -> Self { #event_enum::#variant(e) }
+                }
+            }
+        })
+        .collect();
+
+    let data_fields = events
+        .iter()
+        .map(|e| {
+            let alias = &e.alias;
+            let ty = &e.event_type;
+            quote! { pub #alias: Option<#ty> }
+        })
+        .collect();
+
+    let data_push_arms = events
+        .iter()
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let alias = &e.alias;
+            quote! { #event_enum::#variant(e) => data.#alias = Some(e) }
+        })
+        .collect();
+
+    let event_defs = events
+        .iter()
+        .map(|e| {
+            let ty = &e.event_type;
+            quote! { <#ty as quent_model::EventMetadata>::event_def() }
+        })
+        .collect();
+
+    EventCodegen {
+        event_variants,
+        from_impls,
+        data_fields,
+        data_push_arms,
+        event_defs,
+    }
+}
+
+/// Generate observer (+ optional handle) for event-based entities.
+///
+/// Single event: observer with a direct method.
+/// Multiple events: handle with per-event methods + observer with `create()`.
+fn gen_observer_and_handle(
+    name: &Ident,
+    events: &[EventEntry],
+    ids: &EntityIdents,
+) -> TokenStream {
+    let event_enum = &ids.event_enum;
+    let observer_name = &ids.observer_name;
+    let serde_bound = &ids.serde_bound;
+
+    if events.len() == 1 {
+        let alias = &events[0].alias;
+        let ty = &events[0].event_type;
+        quote! {
+            #[derive(Clone)]
+            pub struct #observer_name<E>
+            where E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                tx: quent_model::EventSender<E>,
+            }
+
+            impl<E> #observer_name<E>
+            where E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                    Self { tx: tx.clone() }
+                }
+
+                pub fn #alias(&self, id: uuid::Uuid, event: #ty) {
+                    self.tx.emit(id, #event_enum::from(event));
+                }
+            }
+        }
+    } else {
+        let handle_name = format_ident!("{}Handle", name);
+
+        let handle_methods: Vec<TokenStream> = events
+            .iter()
+            .map(|e| {
+                let alias = &e.alias;
+                let ty = &e.event_type;
+                quote! {
+                    pub fn #alias(&self, event: #ty) {
+                        self.tx.emit(self.id, #event_enum::from(event));
+                    }
+                }
+            })
+            .collect();
+
+        quote! {
+            pub struct #handle_name<E>
+            where E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                id: uuid::Uuid,
+                tx: quent_model::EventSender<E>,
+            }
+
+            impl<E> #handle_name<E>
+            where E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                pub fn uuid(&self) -> uuid::Uuid { self.id }
+                #(#handle_methods)*
+            }
+
+            #[derive(Clone)]
+            pub struct #observer_name<E>
+            where E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                tx: quent_model::EventSender<E>,
+            }
+
+            impl<E> #observer_name<E>
+            where E: From<#event_enum> #serde_bound + Send + 'static,
+            {
+                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
+                    Self { tx: tx.clone() }
+                }
+
+                pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
+                    #handle_name { id, tx: self.tx.clone() }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Self-event entity
 // ---------------------------------------------------------------------------
 
 fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenStream> {
-    let serde_derives = serde_derives();
-    let serde_bound = serde_bound();
-    let entity_snake = to_snake_case(name);
-    let event_enum = format_ident!("{}Event", name);
-    let observer_name = format_ident!("{}Observer", name);
-    let data_struct = format_ident!("{}Data", name);
+    let ids = EntityIdents::new(name);
+    let serde_derives = &ids.serde_derives;
+    let serde_bound = &ids.serde_bound;
+    let entity_snake = &ids.entity_snake;
+    let event_enum = &ids.event_enum;
+    let observer_name = &ids.observer_name;
+    let data_struct = &ids.data_struct;
     let method_name = format_ident!("{}", entity_snake);
 
     let field_defs: Vec<TokenStream> = fields
@@ -439,138 +627,20 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
 // ---------------------------------------------------------------------------
 
 fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenStream> {
-    let serde_derives = serde_derives();
-    let serde_bound = serde_bound();
-    let entity_snake = to_snake_case(name);
-    let event_enum = format_ident!("{}Event", name);
-    let handle_name = format_ident!("{}Handle", name);
-    let observer_name = format_ident!("{}Observer", name);
-    let data_struct = format_ident!("{}Data", name);
+    let ids = EntityIdents::new(name);
+    let serde_derives = &ids.serde_derives;
+    let entity_snake = &ids.entity_snake;
+    let event_enum = &ids.event_enum;
+    let data_struct = &ids.data_struct;
 
-    let event_variants: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
-            let ty = &e.event_type;
-            quote! { #variant(#ty) }
-        })
-        .collect();
+    let ec = codegen_events(events, event_enum);
+    let observer_and_handle = gen_observer_and_handle(name, events, &ids);
 
-    // Deduplicate From impls by event type — if the same type is used for
-    // multiple aliases, only generate From for the first occurrence.
-    let mut seen_types = std::collections::HashSet::new();
-    let from_impls: Vec<TokenStream> = events
-        .iter()
-        .filter(|e| seen_types.insert(e.event_type.to_string()))
-        .map(|e| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
-            let ty = &e.event_type;
-            quote! {
-                impl From<#ty> for #event_enum {
-                    fn from(e: #ty) -> Self { #event_enum::#variant(e) }
-                }
-            }
-        })
-        .collect();
-
-    let event_defs: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let ty = &e.event_type;
-            quote! { <#ty as quent_model::EventMetadata>::event_def() }
-        })
-        .collect();
-
-    let data_fields: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let alias = &e.alias;
-            let ty = &e.event_type;
-            quote! { pub #alias: Option<#ty> }
-        })
-        .collect();
-
-    let data_push_arms: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
-            let alias = &e.alias;
-            quote! { #event_enum::#variant(e) => data.#alias = Some(e) }
-        })
-        .collect();
-
-    let observer_and_handle = if events.len() == 1 {
-        let alias = &events[0].alias;
-        let ty = &events[0].event_type;
-        quote! {
-            #[derive(Clone)]
-            pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                tx: quent_model::EventSender<E>,
-            }
-
-            impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                    Self { tx: tx.clone() }
-                }
-
-                pub fn #alias(&self, id: uuid::Uuid, event: #ty) {
-                    self.tx.emit(id, #event_enum::from(event));
-                }
-            }
-        }
-    } else {
-        let handle_methods: Vec<TokenStream> = events
-            .iter()
-            .map(|e| {
-                let alias = &e.alias;
-                let ty = &e.event_type;
-                quote! {
-                    pub fn #alias(&self, event: #ty) {
-                        self.tx.emit(self.id, #event_enum::from(event));
-                    }
-                }
-            })
-            .collect();
-
-        quote! {
-            pub struct #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                id: uuid::Uuid,
-                tx: quent_model::EventSender<E>,
-            }
-
-            impl<E> #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                pub fn uuid(&self) -> uuid::Uuid { self.id }
-                #(#handle_methods)*
-            }
-
-            #[derive(Clone)]
-            pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                tx: quent_model::EventSender<E>,
-            }
-
-            impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                    Self { tx: tx.clone() }
-                }
-
-                pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
-                    #handle_name { id, tx: self.tx.clone() }
-                }
-            }
-        }
-    };
+    let event_variants = &ec.event_variants;
+    let from_impls = &ec.from_impls;
+    let data_fields = &ec.data_fields;
+    let data_push_arms = &ec.data_push_arms;
+    let event_defs = &ec.event_defs;
 
     Ok(quote! {
         pub struct #name;
@@ -622,14 +692,15 @@ fn expand_rg_attrs(
     meta: &ResourceGroupMeta,
     fields: &[InlineField],
 ) -> syn::Result<TokenStream> {
-    let serde_derives = serde_derives();
-    let serde_bound = serde_bound();
-    let entity_snake = to_snake_case(name);
+    let ids = EntityIdents::new(name);
+    let serde_derives = &ids.serde_derives;
+    let serde_bound = &ids.serde_bound;
+    let entity_snake = &ids.entity_snake;
+    let event_enum = &ids.event_enum;
+    let observer_name = &ids.observer_name;
+    let data_struct = &ids.data_struct;
     let decl_struct = format_ident!("{}Declaration", name);
     let decl_snake = format!("{}_declaration", entity_snake);
-    let event_enum = format_ident!("{}Event", name);
-    let observer_name = format_ident!("{}Observer", name);
-    let data_struct = format_ident!("{}Data", name);
     let observer_method = format_ident!("{}", entity_snake);
     let is_root = meta.is_root;
 
@@ -790,139 +861,22 @@ fn expand_rg_events(
     declaration: Option<&Ident>,
     events: &[EventEntry],
 ) -> syn::Result<TokenStream> {
-    let serde_derives = serde_derives();
-    let serde_bound = serde_bound();
-    let entity_snake = to_snake_case(name);
-    let event_enum = format_ident!("{}Event", name);
-    let observer_name = format_ident!("{}Observer", name);
-    let data_struct = format_ident!("{}Data", name);
+    let ids = EntityIdents::new(name);
+    let serde_derives = &ids.serde_derives;
+    let entity_snake = &ids.entity_snake;
+    let event_enum = &ids.event_enum;
+    let data_struct = &ids.data_struct;
     let is_root = meta.is_root;
 
-    let event_variants: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
-            let ty = &e.event_type;
-            quote! { #variant(#ty) }
-        })
-        .collect();
+    let ec = codegen_events(events, event_enum);
+    let observer_and_handle = gen_observer_and_handle(name, events, &ids);
 
-    let mut seen_types = std::collections::HashSet::new();
-    let from_impls: Vec<TokenStream> = events
-        .iter()
-        .filter(|e| seen_types.insert(e.event_type.to_string()))
-        .map(|e| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
-            let ty = &e.event_type;
-            quote! {
-                impl From<#ty> for #event_enum {
-                    fn from(e: #ty) -> Self { #event_enum::#variant(e) }
-                }
-            }
-        })
-        .collect();
+    let event_variants = &ec.event_variants;
+    let from_impls = &ec.from_impls;
+    let data_fields = &ec.data_fields;
+    let data_push_arms = &ec.data_push_arms;
+    let event_defs = &ec.event_defs;
 
-    let data_fields: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let alias = &e.alias;
-            let ty = &e.event_type;
-            quote! { pub #alias: Option<#ty> }
-        })
-        .collect();
-
-    let data_push_arms: Vec<TokenStream> = events
-        .iter()
-        .map(|e| {
-            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
-            let alias = &e.alias;
-            quote! { #event_enum::#variant(e) => data.#alias = Some(e) }
-        })
-        .collect();
-
-    let event_defs: Vec<TokenStream> = events
-        .iter()
-        .map(|e| &e.event_type)
-        .map(|ty| quote! { <#ty as quent_model::EventMetadata>::event_def() })
-        .collect();
-
-    // Observer + handle
-    let observer_and_handle = if events.len() == 1 {
-        let alias = &events[0].alias;
-        let ty = &events[0].event_type;
-        quote! {
-            #[derive(Clone)]
-            pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                tx: quent_model::EventSender<E>,
-            }
-
-            impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                    Self { tx: tx.clone() }
-                }
-
-                pub fn #alias(&self, id: uuid::Uuid, event: #ty) {
-                    self.tx.emit(id, #event_enum::from(event));
-                }
-            }
-        }
-    } else {
-        let handle_name = format_ident!("{}Handle", name);
-
-        let handle_methods: Vec<TokenStream> = events
-            .iter()
-            .map(|e| {
-                let alias = &e.alias;
-                let ty = &e.event_type;
-                quote! {
-                    pub fn #alias(&self, event: #ty) {
-                        self.tx.emit(self.id, #event_enum::from(event));
-                    }
-                }
-            })
-            .collect();
-
-        quote! {
-            pub struct #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                id: uuid::Uuid,
-                tx: quent_model::EventSender<E>,
-            }
-
-            impl<E> #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                pub fn uuid(&self) -> uuid::Uuid { self.id }
-                #(#handle_methods)*
-            }
-
-            #[derive(Clone)]
-            pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                tx: quent_model::EventSender<E>,
-            }
-
-            impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
-            {
-                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                    Self { tx: tx.clone() }
-                }
-
-                pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
-                    #handle_name { id, tx: self.tx.clone() }
-                }
-            }
-        }
-    };
-
-    // Determine which event name serves as the declaration for model metadata
     let _declaration_event = declaration.map(|d| d.to_string());
 
     Ok(quote! {
