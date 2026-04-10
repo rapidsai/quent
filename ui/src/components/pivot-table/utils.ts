@@ -1,5 +1,6 @@
 import { formatWithPrefix } from '@/services/formatters';
 import type { StatValue } from '@/services/query-plan/types';
+import { continuousColor, type ContinuousPaletteName } from '@/services/colors';
 import type {
   StatGroupExpandedRow,
   GroupKeyEntry,
@@ -75,13 +76,16 @@ export function isNumericValue(v: StatValue): v is number {
 
 // --- color gradient ---
 
-const GRADIENT_COLOR: [number, number, number] = [239, 68, 68]; // red-500
-
-export function gradientBg(value: number, min: number, max: number): string | undefined {
+export function gradientBg(
+  value: number,
+  min: number,
+  max: number,
+  palette: ContinuousPaletteName = 'blue',
+  darkMode = false
+): string | undefined {
   if (min === max) return undefined;
   const t = (value - min) / (max - min);
-  const alpha = t * 0.45;
-  return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
+  return continuousColor(t, palette, darkMode);
 }
 
 export function rowGroupKey(row: StatGroupExpandedRow, indices: GroupIndexDef[]): string {

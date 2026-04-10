@@ -134,7 +134,7 @@ export function PivotTable<
       const style: React.CSSProperties = {
         position: 'sticky',
         left: stickyLeftOffsets[col] ?? 0,
-        zIndex: header ? 60 : 20,
+        zIndex: header ? 120 : 90,
         backgroundColor: 'hsl(var(--card))',
       };
       if (header) {
@@ -176,7 +176,7 @@ export function PivotTable<
         <div className="shrink-0 flex flex-col border-b border-border bg-card">{renderToolbar}</div>
       )}
       <div className="flex-1 min-h-0 overflow-auto" ref={scrollRef}>
-        <table className="text-sm border-collapse">
+        <table className="text-sm border-separate border-spacing-0 relative isolate">
           <thead className="sticky top-0 bg-card z-50">
             <tr className="border-b border-border">
               {groupColumnIds.map(columnId => (

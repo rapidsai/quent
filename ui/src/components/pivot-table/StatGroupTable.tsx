@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useAtomValue } from 'jotai';
 import { PivotTable } from './PivotTable';
 import { cn } from '@/lib/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, StatGroupTableSchema } from './types';
@@ -14,6 +15,9 @@ import {
   gradientBg,
 } from './utils';
 import type { PivotTableGroupRenderMode, PivotTableVirtualizationOptions } from './PivotTable';
+import { nodeColorPaletteAtom } from '@/atoms/dag';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
+import type { ContinuousPaletteName } from '@/services/colors';
 
 function DataHeader({
   stat,
@@ -97,7 +101,8 @@ function GroupCell({
               ...style,
               borderLeftWidth: 8,
               borderLeftColor: typeColor,
-              backgroundColor: `color-mix(in srgb, ${typeColor} 15%, transparent)`,
+              // Opaque tint so scrolled rows never bleed through sticky group cells.
+              backgroundColor: `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`,
             }
           : style
       }
@@ -115,6 +120,8 @@ function DataCell({
   isAggregating,
   aggMode,
   columnRanges,
+  colorPalette,
+  darkMode,
   hoveredStatName,
   onHoverStat,
   buildHoveredStatInfo,
@@ -124,13 +131,18 @@ function DataCell({
   isAggregating: boolean;
   aggMode: AggMode;
   columnRanges: Map<string, { min: number; max: number }>;
+  colorPalette: ContinuousPaletteName;
+  darkMode: boolean;
   hoveredStatName: string | undefined;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
   buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
 }) {
   const numVal = getSortValue(row, stat, isAggregating, aggMode);
   const range = columnRanges.get(stat);
-  const bg = numVal !== null && range ? gradientBg(numVal, range.min, range.max) : undefined;
+  const bg =
+    numVal !== null && range
+      ? gradientBg(numVal, range.min, range.max, colorPalette, darkMode)
+      : undefined;
   const isStatHovered = hoveredStatName === stat;
   const colHighlight = isStatHovered ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)' : undefined;
   const statCellProps = {
@@ -141,7 +153,7 @@ function DataCell({
     const val = row.values.get(stat) ?? null;
     return (
       <td
-        className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
+        className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
         style={{ backgroundColor: bg, boxShadow: colHighlight }}
         {...statCellProps}
       >
@@ -153,7 +165,7 @@ function DataCell({
   if (!agg || !agg.isNumeric) {
     return (
       <td
-        className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground"
+        className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground"
         style={{ boxShadow: colHighlight }}
         {...statCellProps}
       >
@@ -164,7 +176,7 @@ function DataCell({
   const displayVal = agg[aggMode as Exclude<AggMode, 'value'>] ?? null;
   return (
     <td
-      className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
+      className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
       style={{ backgroundColor: bg, boxShadow: colHighlight }}
       {...statCellProps}
     >
@@ -218,6 +230,9 @@ export function StatGroupTable<TRow>({
   getGroupCellHandlers,
   onReorderStat,
 }: StatGroupTableProps<TRow>) {
+  const nodePalette = useAtomValue(nodeColorPaletteAtom);
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const [draggedStat, setDraggedStat] = useState<string | null>(null);
   const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
@@ -321,6 +336,8 @@ export function StatGroupTable<TRow>({
       isAggregating,
       aggMode,
       columnRanges,
+      colorPalette: nodePalette,
+      darkMode: isDarkMode,
     }),
     [
       draggedStat,
@@ -333,6 +350,8 @@ export function StatGroupTable<TRow>({
       isAggregating,
       aggMode,
       columnRanges,
+      nodePalette,
+      isDarkMode,
     ]
   );
 
