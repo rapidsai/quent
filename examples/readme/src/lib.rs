@@ -4,20 +4,35 @@
 //! README example — verifies the code in the top-level README compiles.
 
 use quent_attributes::CustomAttributes;
-use quent_model::{Attributes, Event, Ref, entity, fsm, instrumentation, model, resource, state};
+use quent_model::{Attributes, Ref, entity, fsm, instrumentation, model, resource, state};
 use serde::{Deserialize, Serialize};
 
-// A "unit" resource. Only one entity may use this at a time.
+// A "unit" resource.
+//
+// Only one entity may use this at a time.
 resource! { Thread }
 
-// A resource with a single, bounded capacity.
+// A resource with a capacity.
+//
+// Multiple entities may use this at a time.
+//
+// A Resource has a pre-defined FSM:
+//
+// initializing -> operating -> finalizing -> exit
+//
+// The maximum capacity is set in the transition to operating.
 resource! {
     Cache {
         capacity: { slots: u64 },
     }
 }
 
-// A resource with a single, bounded capacity, which is resizable.
+// A resource with capacities that are resizable at run-time.
+//
+// To this end, it will have an additional state compared to fixed-capacity
+// resources, for when it's resizing:
+//
+// initializing -> operating <-> resizing -> finalizing -> exit
 resource! {
     MemoryPool {
         resizable: true,
@@ -25,7 +40,10 @@ resource! {
     }
 }
 
-// A resource with a potentially unbounded capacity (by setting the Option to none).
+// A resource with a potentially unbounded capacity.
+//
+// In the instrumentation API, in the operating state, these fields
+// can be set to None at run-time.
 resource! {
     Queue {
         capacity: { entries: Option<u64> },
@@ -33,6 +51,9 @@ resource! {
 }
 
 // A trivial single-event entity.
+//
+// Note that this is a demonstration of how Quent can even be used to sink
+// structured logs.
 entity! {
     Info {
         attributes: {
@@ -42,21 +63,26 @@ entity! {
     }
 }
 
-// Events for a multi-event entity
-#[derive(Event, Serialize, Deserialize)]
+// Attributes for a multi-event entity.
+#[derive(Attributes, Serialize, Deserialize)]
 pub struct Checksum {
     pub algorithm: String,
     pub value: String,
 }
 
-#[derive(Event, Serialize, Deserialize)]
+#[derive(Attributes, Serialize, Deserialize)]
 pub struct Decompressed {
     pub algorithm: String,
     pub ratio: f64,
 }
 
 // A multi-event entity.
-// Each event can arrive independently, in any order.
+//
+// Events are considered unordered. This is useful for grouping events where
+// their timestamps don't have a clear relation (like in FSM state transitions).
+// For example, when recording the outcome of two pieces of asynchronous work
+// without having to necessarily synchronize within the application (as far as
+// emitting these events is concerned).
 entity! {
     FileStats {
         events: {
@@ -66,6 +92,26 @@ entity! {
     }
 }
 
+// entity! only accepts either events for multi-event entities, or attributes
+// for a single-event entity. Uncommenting the below will result in an error:
+
+// entity! {
+//     BrokenFileStats {
+//         attributes: {
+//             nope: u64,
+//         },
+//         events: {
+//             checksum: Checksum,
+//             decompressed: Decompressed,
+//         },
+//     }
+// }
+
+// The above will cause the compiler complain:
+//
+// cannot combine `attributes` and `events` on a non-resource-group entity; use
+// either `attributes: { ... }` (self-event) or `events: { ... }` (multi-event)
+
 // Structs with key-value attributes
 #[derive(Attributes, Serialize, Deserialize)]
 pub struct Details {
@@ -74,6 +120,7 @@ pub struct Details {
 }
 
 // An entity can be marked as a Resource Group.
+//
 // If it can only have one type of parent T, this can be
 // set using Parent = T
 entity! {
@@ -89,10 +136,28 @@ entity! {
     Cluster: ResourceGroup<Root = true> {}
 }
 
-// FSM states separate attributes from resource usages.
+// A multi-event entity that is also a resource group
+// must carry the required resource group attributes
+// in one of the events marked with `declaration`:
+#[derive(Attributes, Serialize, Deserialize)]
+pub struct MyEvent {}
+entity! {
+    Example: ResourceGroup {
+        events: {
+            a: MyEvent,
+            b: MyEvent,
+        },
+        declaration: a,
+    }
+}
+
+// An FSM state.
+//
+// Can have attributes and resource usages.
 state! {
     Queued {
         attributes: {
+            index: u64,
             worker: Ref<Worker>,
         },
         usages: {
@@ -110,7 +175,10 @@ state! {
     }
 }
 
-// An FSM
+// An FSM.
+//
+// Must declare its states, its entry state, and the states from which it can
+// exit, and its possible transitions.
 fsm! {
     Task {
         states: {
@@ -127,6 +195,8 @@ fsm! {
 }
 
 // Generates all event-related types.
+//
+// There must always be exactly one root resource group.
 model! {
     App {
         root: Cluster,
@@ -181,6 +251,12 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
             .initializing(Uuid::now_v7(), "my_memory_pool", worker);
     // ... pool doing pool things goes here
     mem_pool.operating(1337);
+    // ... pool being used goes here
+    mem_pool.resizing();
+    // ... whoops it's not large enough, we have to resize (usages are allowed
+    // to continue during resize)
+    mem_pool.operating(2048);
+    // ... operating again at a larger capacity.
 
     // Spawn a thread.
     let mut thread = context
@@ -198,8 +274,9 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Multi-event entities can emit in any order from an entity handle.
     let file_stats_handle = context.file_stats_observer().create(Uuid::now_v7());
-    // ... checksum and decompress goes here, can be async as the order of
+    // ... checksum and decompress goes here, can be emitted async as the order of
     // events doesn't matter here
+    // TODO(johanpel): address the issue of sharing the handle across thread boundaries
     file_stats_handle.checksum(Checksum {
         algorithm: "sha256".to_string(),
         value: "abc123def456".to_string(),
@@ -214,16 +291,20 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     let mut task = context.task_observer().queued(
         Uuid::now_v7(),
         "my_task_31415",
+        1,
         Ref::new(worker),
         Some(usage((&queue, 1))),
     );
 
     // ... task sitting in the queue goes here
     task.computing(
-        /* thread unit resource usage: */ Some(usage(&thread)),
+        /* thread usage: */ Some(usage(&thread)),
         /* no memory pool usage: */ None,
     );
-    task.computing(Some(usage(&thread)), Some(usage((&mem_pool, 1024))));
+    task.computing(
+        /* thread usage: */ Some(usage(&thread)),
+        /* memory pool usage: */ Some(usage((&mem_pool, 1024))),
+    );
     // ... computing goes here
     task.exit();
 
