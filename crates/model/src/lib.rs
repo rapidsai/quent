@@ -84,8 +84,6 @@ pub trait ResourceGroup {
 }
 
 // Re-export instrumentation types needed by generated code.
-#[doc(hidden)]
-pub use paste;
 pub use quent_attributes as attributes;
 pub use quent_events::Event;
 pub use quent_exporter as exporter;
