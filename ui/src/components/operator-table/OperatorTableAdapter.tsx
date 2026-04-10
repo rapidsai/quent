@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { QueryToolbar } from '@/components/QueryToolbar';
 import {
@@ -12,16 +12,35 @@ import {
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { operatorTypeColor } from '@/services/colors';
-import type { AggMode, FlatRow, PivotedRow } from '../pivot-table/types';
+import type { StatValue } from '@/services/query-plan/types';
+import type { PivotedRow, StatGroupTableSchema } from '../pivot-table/types';
 import type { PivotTableGroupKeyEntry } from '../pivot-table/types';
 import { StatGroupTable } from '../pivot-table/StatGroupTable';
-import { type GroupIndexDef } from '../pivot-table/utils';
+import { getSchemaStatNames } from '../pivot-table/utils';
 import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
+import { useStatGroupTableControls } from '../pivot-table/useStatGroupTableControls';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryEntities } from '~quent/types/QueryEntities';
 
-function buildOperatorFlatRows(entities: QueryEntities, siblingPlanIds: Set<string>): FlatRow[] {
-  const rows: FlatRow[] = [];
+interface OperatorTableRow {
+  partitionId: string;
+  partitionLabel: string;
+  scopeId: string;
+  scopeLabel: string;
+  parentScopeLabel: string;
+  parentItemType: string;
+  parentItemName: string;
+  itemType: string;
+  itemName: string;
+  itemId: string;
+  stats: Record<string, StatValue>;
+}
+
+function buildOperatorRows(
+  entities: QueryEntities,
+  siblingPlanIds: Set<string>
+): OperatorTableRow[] {
+  const rows: OperatorTableRow[] = [];
   const plans = Object.values(entities.plans)
     .filter((p): p is NonNullable<typeof p> => p != null && siblingPlanIds.has(p.id))
     .sort((a, b) => {
@@ -71,7 +90,14 @@ function buildOperatorFlatRows(entities: QueryEntities, siblingPlanIds: Set<stri
           : '-';
       const parentItemName =
         parentOps.length > 0 ? parentOps.map(p => p.instance_name ?? p.id).join(', ') : '-';
-      const base = {
+      const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
+      const stats: Record<string, StatValue> = {
+        duration_s: duration !== null ? Number(duration.toFixed(6)) : null,
+      };
+      for (const stat of parseCustomStatistics(op)) {
+        stats[stat.key] = stat.value;
+      }
+      rows.push({
         partitionId,
         partitionLabel,
         scopeId: plan.id,
@@ -82,18 +108,8 @@ function buildOperatorFlatRows(entities: QueryEntities, siblingPlanIds: Set<stri
         itemType,
         itemName,
         itemId: op.id,
-      };
-
-      const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
-      rows.push({
-        ...base,
-        statisticName: 'duration_s',
-        value: duration !== null ? Number(duration.toFixed(6)) : null,
+        stats,
       });
-
-      for (const stat of parseCustomStatistics(op)) {
-        rows.push({ ...base, statisticName: stat.key, value: stat.value });
-      }
     }
   }
   return rows;
@@ -101,27 +117,30 @@ function buildOperatorFlatRows(entities: QueryEntities, siblingPlanIds: Set<stri
 
 type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
 
-const GROUP_INDEX_DEFS: Record<IndexKey, Omit<GroupIndexDef, 'key'>> = {
-  partition: {
-    getId: row => row.partitionId,
-    getLabel: row => row.partitionLabel,
+const OPERATOR_SCHEMA: StatGroupTableSchema<OperatorTableRow> = {
+  groups: {
+    partition: {
+      id: row => row.partitionId,
+      label: row => row.partitionLabel,
+    },
+    parent_item_type: {
+      id: row => row.parentItemType,
+    },
+    parent_item: {
+      id: row => row.parentItemName,
+    },
+    item_type: {
+      id: row => row.itemType,
+    },
+    item: {
+      id: row => row.itemId,
+      label: row => row.itemName,
+    },
   },
-  parent_item_type: {
-    getId: row => row.parentItemType,
-    getLabel: row => row.parentItemType,
-  },
-  parent_item: {
-    getId: row => row.parentItemName,
-    getLabel: row => row.parentItemName,
-  },
-  item_type: {
-    getId: row => row.itemType,
-    getLabel: row => row.itemType,
-  },
-  item: {
-    getId: row => row.itemId,
-    getLabel: row => row.itemName,
-  },
+  itemId: row => row.itemId,
+  scopeId: row => row.scopeId,
+  itemType: row => row.itemType,
+  stats: row => row.stats,
 };
 
 const INDEX_ORDER: IndexKey[] = [
@@ -153,14 +172,6 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
   const setHighlightedNodeIds = useSetAtom(highlightedNodeIdsAtom);
   const { entities } = queryBundle;
 
-  // --- config state (owned here, driven by toolbar) ---
-  const [indexOrder, setIndexOrder] = useState<IndexKey[]>(INDEX_ORDER);
-  const [enabledIndices, setEnabledIndices] = useState<Record<IndexKey, boolean>>(DEFAULT_ENABLED);
-  const [selectedStats, setSelectedStats] = useState<Set<string> | null>(null);
-  const [statOrder, setStatOrder] = useState<string[] | null>(null);
-  const [aggMode, setAggMode] = useState<AggMode>('sum');
-
-  // --- data ---
   const siblingPlanIds = useMemo(() => {
     const selected = selectedPlanId ? entities.plans[selectedPlanId] : undefined;
     if (!selected) return new Set<string>();
@@ -172,14 +183,14 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     return ids;
   }, [entities.plans, selectedPlanId]);
 
-  const flatRows = useMemo(
-    () => buildOperatorFlatRows(entities, siblingPlanIds),
+  const rows = useMemo(
+    () => buildOperatorRows(entities, siblingPlanIds),
     [entities, siblingPlanIds]
   );
 
   const itemsByParentType = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const row of flatRows) {
+    for (const row of rows) {
       if (row.parentItemType === '-') continue;
       let set = map.get(row.parentItemType);
       if (!set) {
@@ -189,11 +200,11 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
       set.add(row.itemId);
     }
     return map;
-  }, [flatRows]);
+  }, [rows]);
 
   const itemsByParentName = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const row of flatRows) {
+    for (const row of rows) {
       if (row.parentItemName === '-') continue;
       let set = map.get(row.parentItemName);
       if (!set) {
@@ -203,88 +214,56 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
       set.add(row.itemId);
     }
     return map;
-  }, [flatRows]);
+  }, [rows]);
 
-  // --- derived config ---
-  const allStatNames = useMemo(() => {
-    const seen = new Set<string>();
-    const names: string[] = [];
-    for (const row of flatRows) {
-      if (!seen.has(row.statisticName)) {
-        seen.add(row.statisticName);
-        names.push(row.statisticName);
-      }
-    }
-    return names;
-  }, [flatRows]);
-
-  useEffect(() => {
-    if (allStatNames.length === 0) return;
-    const duration = allStatNames.filter(s => s === 'duration_s');
-    const inputs = allStatNames.filter(s => s.startsWith('input_'));
-    const outputs = allStatNames.filter(s => s.startsWith('output_'));
-    const defaultNames = [...duration, ...inputs, ...outputs];
-    const defaults = new Set(defaultNames);
-    if (defaults.size > 0) {
-      setSelectedStats(defaults);
-      const rest = allStatNames.filter(s => !defaults.has(s));
-      setStatOrder([...defaultNames, ...rest]);
-    } else {
-      setSelectedStats(null);
-      setStatOrder(null);
-    }
-  }, [allStatNames]);
-
-  const orderedStatNames = useMemo(() => {
-    if (!statOrder) return allStatNames;
-    const allSet = new Set(allStatNames);
-    const result = statOrder.filter(s => allSet.has(s));
-    for (const s of allStatNames) {
-      if (!statOrder.includes(s)) result.push(s);
-    }
-    return result;
-  }, [allStatNames, statOrder]);
-
-  const visibleStats = useMemo(
-    () => (selectedStats ? orderedStatNames.filter(s => selectedStats.has(s)) : orderedStatNames),
-    [orderedStatNames, selectedStats]
+  const allStatNames = useMemo(() => getSchemaStatNames(rows, OPERATOR_SCHEMA), [rows]);
+  const hasParentItems = useMemo(() => rows.some(r => r.parentItemType !== '-'), [rows]);
+  const filterIndexOrder = useCallback(
+    (order: IndexKey[]) =>
+      hasParentItems ? order : order.filter(k => k !== 'parent_item_type' && k !== 'parent_item'),
+    [hasParentItems]
   );
-
-  const hasParentItems = useMemo(() => flatRows.some(r => r.parentItemType !== '-'), [flatRows]);
-
-  const visibleIndexOrder = useMemo(
-    () =>
-      hasParentItems
-        ? indexOrder
-        : indexOrder.filter(k => k !== 'parent_item_type' && k !== 'parent_item'),
-    [indexOrder, hasParentItems]
-  );
-
-  const activeIndexKeys = useMemo(
-    () => visibleIndexOrder.filter(k => enabledIndices[k]),
-    [visibleIndexOrder, enabledIndices]
-  );
-
-  const activeGroupDefs = useMemo(
-    () => activeIndexKeys.map(k => ({ key: k, ...GROUP_INDEX_DEFS[k] })),
-    [activeIndexKeys]
-  );
-
-  const isAggregating = activeIndexKeys.length < visibleIndexOrder.length;
+  const {
+    aggMode,
+    setAggMode,
+    selectedStats,
+    orderedStatNames,
+    visibleStats,
+    visibleIndexOrder,
+    activeIndexKeys,
+    isAggregating,
+    enabledIndices,
+    handleToggleIndex,
+    handleReorderIndex,
+    handleToggleStat,
+    handleSelectAllStats,
+    handleSelectNoStats,
+  } = useStatGroupTableControls<IndexKey>({
+    baseIndexOrder: INDEX_ORDER,
+    defaultEnabled: DEFAULT_ENABLED,
+    allStatNames,
+    defaultStatSelector: stats => {
+      const duration = stats.filter(stat => stat === 'duration_s');
+      const inputs = stats.filter(stat => stat.startsWith('input_'));
+      const outputs = stats.filter(stat => stat.startsWith('output_'));
+      return [...duration, ...inputs, ...outputs];
+    },
+    filterIndexOrder,
+  });
 
   const parentScopeLabelValue = useMemo(() => {
-    for (const row of flatRows) {
+    for (const row of rows) {
       if (row.parentScopeLabel !== '-') return row.parentScopeLabel;
     }
     return 'Parent';
-  }, [flatRows]);
+  }, [rows]);
 
   const scopeLabelValue = useMemo(() => {
-    for (const row of flatRows) {
+    for (const row of rows) {
       if (row.scopeLabel !== '-') return row.scopeLabel;
     }
     return 'Current';
-  }, [flatRows]);
+  }, [rows]);
 
   const indexLabels: Record<string, React.ReactNode> = useMemo(
     () => ({
@@ -325,55 +304,6 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
         enabled: enabledIndices[key],
       })),
     [visibleIndexOrder, enabledIndices, indexLabels]
-  );
-
-  // --- toolbar callbacks ---
-  const handleToggleIndex = useCallback((key: string) => {
-    setEnabledIndices(prev => ({ ...prev, [key]: !prev[key as IndexKey] }));
-  }, []);
-
-  const handleReorderIndex = useCallback((fromKey: string, toKey: string) => {
-    setIndexOrder(prev => {
-      const next = [...prev];
-      const fromIdx = next.indexOf(fromKey as IndexKey);
-      const toIdx = next.indexOf(toKey as IndexKey);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, fromKey as IndexKey);
-      return next;
-    });
-  }, []);
-
-  const handleToggleStat = useCallback(
-    (stat: string) => {
-      setSelectedStats(prev => {
-        const current = prev ?? new Set(allStatNames);
-        const next = new Set(current);
-        if (next.has(stat)) next.delete(stat);
-        else next.add(stat);
-        return next;
-      });
-    },
-    [allStatNames]
-  );
-
-  const handleSelectAllStats = useCallback(() => setSelectedStats(null), []);
-  const handleSelectNoStats = useCallback(() => setSelectedStats(new Set()), []);
-
-  const handleReorderStat = useCallback(
-    (from: string, to: string) => {
-      setStatOrder(prev => {
-        const current = prev ?? [...orderedStatNames];
-        const next = [...current];
-        const fromIdx = next.indexOf(from);
-        const toIdx = next.indexOf(to);
-        if (fromIdx === -1 || toIdx === -1) return current;
-        next.splice(fromIdx, 1);
-        next.splice(toIdx, 0, from);
-        return next;
-      });
-    },
-    [orderedStatNames]
   );
 
   const getGroupCellHandlers = useCallback(
@@ -433,7 +363,7 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
     );
   }
 
-  if (flatRows.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No operators in the selected plan
@@ -449,7 +379,6 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
           indexConfig={indexConfig}
           isAggregating={isAggregating}
           aggMode={aggMode}
-          allStats={allStatNames}
           orderedStats={orderedStatNames}
           selectedStats={selectedStats}
           onToggleIndex={handleToggleIndex}
@@ -462,8 +391,9 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
       </div>
       <div className="flex-1 min-h-0">
         <StatGroupTable
-          flatRows={flatRows}
-          activeIndices={activeGroupDefs}
+          rows={rows}
+          schema={OPERATOR_SCHEMA}
+          activeIndices={activeIndexKeys}
           visibleStats={visibleStats}
           isAggregating={isAggregating}
           aggMode={aggMode}
@@ -476,7 +406,6 @@ export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps)
             key === 'item_type' || key === 'parent_item_type' ? operatorTypeColor(id) : undefined
           }
           getGroupCellHandlers={getGroupCellHandlers}
-          onReorderStat={handleReorderStat}
         />
       </div>
     </div>

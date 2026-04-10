@@ -31,6 +31,8 @@ export interface GroupCellProps<TRow extends PivotTableRowBase> {
   groupKey: PivotTableGroupKeyEntry;
   rowSpan: number;
   columnIndex: number;
+  style?: React.CSSProperties;
+  className?: string;
 }
 
 export interface DataCellProps<TRow extends PivotTableRowBase> {
@@ -52,19 +54,42 @@ export type AggMode = 'value' | 'sum' | 'mean' | 'min' | 'max' | 'stdev';
 
 export type SortDir = 'asc' | 'desc';
 
-export interface FlatRow {
-  partitionId: string;
-  partitionLabel: string;
-  scopeId: string;
-  scopeLabel: string;
-  parentScopeLabel: string;
-  parentItemType: string;
-  parentItemName: string;
+export interface StatGroupInputGroupValue {
+  id: string;
+  label: string;
+}
+
+export interface StatGroupExpandedRow {
+  groups: Record<string, StatGroupInputGroupValue>;
   itemType: string;
-  itemName: string;
   itemId: string;
+  scopeId: string;
   statisticName: string;
   value: StatValue;
+}
+
+export interface StatGroupTableSchema<TRow> {
+  /**
+   * Group dimensions keyed by group id (e.g. partition, item_type, item).
+   * These keys are referenced by activeIndices and indexLabels.
+   */
+  groups: Record<
+    string,
+    {
+      id: (row: TRow) => string;
+      label?: (row: TRow) => string;
+    }
+  >;
+  /** Unique item identity used for hover/selection linkage. */
+  itemId: (row: TRow) => string;
+  /** Scope identity used for cross-view selection linkage. */
+  scopeId: (row: TRow) => string;
+  /**
+   * Optional item type fallback. If omitted, uses group "item_type" id, then "item" id.
+   */
+  itemType?: (row: TRow) => string;
+  /** Stat map for one logical row; keys become table stat columns. */
+  stats: (row: TRow) => Record<string, StatValue>;
 }
 
 export interface GroupKeyEntry {

@@ -57,6 +57,21 @@ function RootComponent() {
                         </Button>
                       </NavigationMenuLink>
                     </NavigationMenuItem>
+                    <NavigationMenuItem>
+                      <NavigationMenuLink asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          className={cn(
+                            isActive('/stat-group-table-car-poc') &&
+                              'bg-accent text-accent-foreground font-semibold'
+                          )}
+                        >
+                          <Link to="/stat-group-table-car-poc">Car Table POC</Link>
+                        </Button>
+                      </NavigationMenuLink>
+                    </NavigationMenuItem>
                   </NavigationMenuList>
                 </NavigationMenu>
                 <ThemeToggle />

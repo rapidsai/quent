@@ -1,15 +1,22 @@
 import { formatWithPrefix } from '@/services/formatters';
 import type { StatValue } from '@/services/query-plan/types';
-import type { FlatRow, GroupKeyEntry, PivotedRow, PivotedRowAgg, AggMode } from './types';
+import type {
+  StatGroupExpandedRow,
+  GroupKeyEntry,
+  PivotedRow,
+  PivotedRowAgg,
+  AggMode,
+  StatGroupTableSchema,
+} from './types';
 
 /**
- * Defines how a single grouping dimension maps a FlatRow to its key/label values.
- * Callers (e.g. OperatorTableAdapter) supply these; utils.ts never inspects key names.
+ * Defines how a single grouping dimension maps a StatGroupExpandedRow
+ * to its key/label values.
  */
 export interface GroupIndexDef {
   key: string;
-  getId: (row: FlatRow) => string;
-  getLabel: (row: FlatRow) => string;
+  getId: (row: StatGroupExpandedRow) => string;
+  getLabel: (row: StatGroupExpandedRow) => string;
 }
 
 export function formatNumber(n: number | null): string {
@@ -77,12 +84,73 @@ export function gradientBg(value: number, min: number, max: number): string | un
   return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
 }
 
-export function rowGroupKey(row: FlatRow, indices: GroupIndexDef[]): string {
+export function rowGroupKey(row: StatGroupExpandedRow, indices: GroupIndexDef[]): string {
   return indices.map(def => def.getId(row)).join('\0');
 }
 
-export function getGroupKeys(row: FlatRow, indices: GroupIndexDef[]): GroupKeyEntry[] {
+export function getGroupKeys(row: StatGroupExpandedRow, indices: GroupIndexDef[]): GroupKeyEntry[] {
   return indices.map(def => ({ key: def.key, id: def.getId(row), label: def.getLabel(row) }));
+}
+
+export function getUniqueStatNames(rows: StatGroupExpandedRow[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const row of rows) {
+    if (seen.has(row.statisticName)) continue;
+    seen.add(row.statisticName);
+    names.push(row.statisticName);
+  }
+  return names;
+}
+
+export function getSchemaStatNames<TRow>(
+  rows: TRow[],
+  schema: StatGroupTableSchema<TRow>
+): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const row of rows) {
+    const stats = schema.stats(row);
+    for (const statName of Object.keys(stats)) {
+      if (seen.has(statName)) continue;
+      seen.add(statName);
+      names.push(statName);
+    }
+  }
+  return names;
+}
+
+export function expandRowsFromSchema<TRow>(
+  rows: TRow[],
+  schema: StatGroupTableSchema<TRow>
+): StatGroupExpandedRow[] {
+  const expanded: StatGroupExpandedRow[] = [];
+  for (const row of rows) {
+    const groups: Record<string, { id: string; label: string }> = {};
+    for (const [groupKey, selector] of Object.entries(schema.groups)) {
+      const id = selector.id(row);
+      groups[groupKey] = { id, label: selector.label?.(row) ?? id };
+    }
+    const itemId = schema.itemId(row);
+    const scopeId = schema.scopeId(row);
+    const itemType =
+      schema.itemType?.(row) ??
+      groups.item_type?.id ??
+      groups.item?.id ??
+      groups.partition?.id ??
+      '-';
+    for (const [statisticName, value] of Object.entries(schema.stats(row))) {
+      expanded.push({
+        groups,
+        itemType,
+        itemId,
+        scopeId,
+        statisticName,
+        value,
+      });
+    }
+  }
+  return expanded;
 }
 
 /** Row type constraint for computeRowSpans: only groupKeys with id is used. */
@@ -154,7 +222,7 @@ type Accumulator = {
 
 /** Build pivoted (and optionally aggregated) rows from flat rows. */
 export function buildPivotedRows(
-  flatRows: FlatRow[],
+  flatRows: StatGroupExpandedRow[],
   activeIndices: GroupIndexDef[],
   isAggregating: boolean
 ): PivotedRow[] {

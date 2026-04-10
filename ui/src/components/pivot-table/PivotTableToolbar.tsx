@@ -14,7 +14,6 @@ export interface PivotTableToolbarProps {
   indexConfig: IndexConfigEntry[];
   isAggregating: boolean;
   aggMode: AggMode;
-  allStats: string[];
   orderedStats: string[];
   selectedStats: Set<string> | null;
   onToggleIndex: (key: string) => void;
@@ -53,17 +52,13 @@ export function PivotTableToolbar({
   );
   const handleDragEnd = useCallback(() => setDraggedIndex(null), []);
 
-  const sortedStats = [...orderedStats].sort((a, b) => {
-    const aChecked = selectedStats ? selectedStats.has(a) : true;
-    const bChecked = selectedStats ? selectedStats.has(b) : true;
-    if (aChecked !== bChecked) return aChecked ? -1 : 1;
-    return 0;
-  });
-
-  const selectedStatsList = sortedStats.filter(s => (selectedStats ? selectedStats.has(s) : true));
+  const selectedStatsList = orderedStats.filter(s => (selectedStats ? selectedStats.has(s) : true));
+  const maxVisibleBadges = 6;
+  const visibleSelectedStats = selectedStatsList.slice(0, maxVisibleBadges);
+  const hiddenSelectedCount = Math.max(0, selectedStatsList.length - visibleSelectedStats.length);
   const filteredStats = colSearch
     ? orderedStats.filter(s => s.toLowerCase().includes(colSearch.toLowerCase()))
-    : sortedStats;
+    : orderedStats;
 
   return (
     <>
@@ -119,32 +114,13 @@ export function PivotTableToolbar({
           }}
         >
           <PopoverTrigger asChild>
-            <button className="flex-1 min-w-0 flex items-center gap-1 flex-wrap cursor-pointer rounded border border-transparent hover:border-border/60 px-1.5 py-0.5 transition-colors text-left">
-              {selectedStatsList.length === 0 ? (
-                <span className="text-xs text-muted-foreground italic">None selected</span>
-              ) : (
-                selectedStatsList.map(stat => (
-                  <span
-                    key={stat}
-                    className="inline-flex items-center gap-0.5 text-xs font-mono px-1.5 py-0 rounded border bg-primary/10 border-primary/40 text-data whitespace-nowrap"
-                  >
-                    {stat}
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      onClick={e => {
-                        e.stopPropagation();
-                        onToggleStat(stat);
-                      }}
-                      className="ml-0.5 rounded-sm focus:outline-none"
-                      aria-label={`Remove ${stat}`}
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </span>
-                  </span>
-                ))
-              )}
-              <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
+            <button className="inline-flex h-7 min-w-36 items-center justify-between gap-2 rounded border border-input bg-background px-2 text-xs text-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
+              <span className="truncate">
+                {selectedStatsList.length > 0
+                  ? `Select Columns (${selectedStatsList.length})`
+                  : 'Select Columns'}
+              </span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-2" align="start" side="bottom">
@@ -195,6 +171,39 @@ export function PivotTableToolbar({
             </div>
           </PopoverContent>
         </Popover>
+        <div className="flex-1 min-w-0">
+          {selectedStatsList.length === 0 ? (
+            <span className="text-xs text-muted-foreground italic">None selected</span>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1">
+              {visibleSelectedStats.map(stat => (
+                <span
+                  key={stat}
+                  className="inline-flex items-center gap-0.5 text-xs font-mono px-1.5 py-0 rounded border bg-primary/10 border-primary/40 text-data whitespace-nowrap"
+                >
+                  {stat}
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onToggleStat(stat);
+                    }}
+                    className="ml-0.5 rounded-sm focus:outline-none"
+                    aria-label={`Remove ${stat}`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </span>
+                </span>
+              ))}
+              {hiddenSelectedCount > 0 && (
+                <span className="inline-flex items-center text-xs px-1.5 py-0 rounded border bg-muted/40 border-border text-muted-foreground whitespace-nowrap">
+                  +{hiddenSelectedCount} more
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

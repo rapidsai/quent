@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -6,6 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { computeRowSpans } from './utils';
 import type {
   PivotTableRowBase,
@@ -15,6 +16,14 @@ import type {
   GroupCellProps,
   DataCellProps,
 } from './types';
+
+export interface PivotTableVirtualizationOptions {
+  enabled: boolean;
+  estimateRowHeight?: number;
+  overscan?: number;
+}
+
+export type PivotTableGroupRenderMode = 'rowSpan' | 'compact';
 
 export interface PivotTableProps<
   TRow extends PivotTableRowBase,
@@ -35,6 +44,9 @@ export interface PivotTableProps<
   getRowRef?: (rowKey: string) => (el: HTMLTableRowElement | null) => void;
   getRowClassName?: (row: TRow) => string;
   getRowStyle?: (row: TRow) => React.CSSProperties;
+  groupRenderMode?: PivotTableGroupRenderMode;
+  virtualization?: PivotTableVirtualizationOptions;
+  stickyGroupColumns?: boolean;
 }
 
 export function PivotTable<
@@ -54,8 +66,14 @@ export function PivotTable<
   getRowRef,
   getRowClassName,
   getRowStyle,
+  groupRenderMode = 'rowSpan',
+  virtualization,
+  stickyGroupColumns = false,
 }: PivotTableProps<TRow, TShared>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [groupColumnWidths, setGroupColumnWidths] = useState<number[]>([]);
+  const groupHeaderRefs = useRef<Array<HTMLTableCellElement | null>>([]);
 
   const table = useReactTable({
     data,
@@ -67,11 +85,12 @@ export function PivotTable<
     getRowId: row => getRowId(row as TRow),
   });
 
-  const sortedRows = useMemo(
-    () => table.getRowModel().rows.map(r => r.original as TRow),
-    [table.getRowModel().rows]
+  const tableRows = table.getRowModel().rows;
+  const sortedRows = useMemo(() => tableRows.map(r => r.original as TRow), [tableRows]);
+  const rowSpans = useMemo(
+    () => (groupRenderMode === 'rowSpan' ? computeRowSpans(sortedRows) : []),
+    [sortedRows, groupRenderMode]
   );
-  const rowSpans = useMemo(() => computeRowSpans(sortedRows), [sortedRows]);
 
   const dataColumnIds = useMemo(
     () =>
@@ -80,7 +99,75 @@ export function PivotTable<
         .filter(id => !groupColumnIds.includes(id)),
     [columns, groupColumnIds]
   );
+  const stickyLeftOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let running = 0;
+    for (let i = 0; i < groupColumnIds.length; i++) {
+      offsets.push(running);
+      running += groupColumnWidths[i] ?? 0;
+    }
+    return offsets;
+  }, [groupColumnIds.length, groupColumnWidths]);
+  const lastGroupColIndex = groupColumnIds.length - 1;
 
+  useEffect(() => {
+    if (!stickyGroupColumns) return;
+    if (typeof ResizeObserver === 'undefined') return;
+    const elements = groupHeaderRefs.current.filter((el): el is HTMLTableCellElement => el != null);
+    if (elements.length === 0) return;
+    const updateWidths = () => {
+      setGroupColumnWidths(elements.map(el => el.getBoundingClientRect().width));
+    };
+    updateWidths();
+    const observer = new ResizeObserver(updateWidths);
+    for (const el of elements) observer.observe(el);
+    window.addEventListener('resize', updateWidths);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateWidths);
+    };
+  }, [groupColumnIds, stickyGroupColumns]);
+
+  const getStickyStyle = useCallback(
+    (col: number, header: boolean): React.CSSProperties | undefined => {
+      if (!stickyGroupColumns) return undefined;
+      const style: React.CSSProperties = {
+        position: 'sticky',
+        left: stickyLeftOffsets[col] ?? 0,
+        zIndex: header ? 60 : 20,
+        backgroundColor: 'hsl(var(--card))',
+      };
+      if (header) {
+        style.top = 0;
+      }
+      if (col === lastGroupColIndex) {
+        style.boxShadow = '2px 0 0 hsl(var(--border) / 0.6)';
+      }
+      return style;
+    },
+    [stickyGroupColumns, stickyLeftOffsets, lastGroupColIndex]
+  );
+
+  const virtualizationEnabled = Boolean(virtualization?.enabled);
+  const rowVirtualizer = useVirtualizer({
+    count: sortedRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => virtualization?.estimateRowHeight ?? 34,
+    overscan: virtualization?.overscan ?? 10,
+    enabled: virtualizationEnabled,
+  });
+  const virtualRows = virtualizationEnabled ? rowVirtualizer.getVirtualItems() : [];
+  const topPadding = virtualizationEnabled && virtualRows.length > 0 ? virtualRows[0]!.start : 0;
+  const bottomPadding =
+    virtualizationEnabled && virtualRows.length > 0
+      ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1]!.end
+      : 0;
+
+  const rowsToRender = virtualizationEnabled
+    ? virtualRows.map(vRow => ({ row: sortedRows[vRow.index]!, rowIndex: vRow.index }))
+    : sortedRows.map((row, rowIndex) => ({ row, rowIndex }));
+
+  const totalColumnCount = groupColumnIds.length + dataColumnIds.length;
   const shared = (sharedProps ?? {}) as TShared;
 
   return (
@@ -88,14 +175,19 @@ export function PivotTable<
       {renderToolbar != null && (
         <div className="shrink-0 flex flex-col border-b border-border bg-card">{renderToolbar}</div>
       )}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto" ref={scrollRef}>
         <table className="text-sm border-collapse">
-          <thead className="sticky top-0 bg-card z-10">
+          <thead className="sticky top-0 bg-card z-50">
             <tr className="border-b border-border">
               {groupColumnIds.map(columnId => (
                 <th
                   key={columnId}
+                  ref={el => {
+                    const idx = groupColumnIds.indexOf(columnId);
+                    if (idx >= 0) groupHeaderRefs.current[idx] = el;
+                  }}
                   className="text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap"
+                  style={getStickyStyle(groupColumnIds.indexOf(columnId), true)}
                 >
                   {renderGroupHeader?.(columnId) ?? columnId}
                 </th>
@@ -130,8 +222,17 @@ export function PivotTable<
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map((row, i) => {
-              const spans = rowSpans[i];
+            {virtualizationEnabled && topPadding > 0 && (
+              <tr>
+                <td
+                  colSpan={totalColumnCount}
+                  style={{ height: topPadding, padding: 0, border: 0 }}
+                />
+              </tr>
+            )}
+            {rowsToRender.map(({ row, rowIndex }) => {
+              const spans = rowSpans[rowIndex];
+              const prevRow = rowIndex > 0 ? sortedRows[rowIndex - 1] : null;
               return (
                 <tr
                   key={row.rowKey}
@@ -139,21 +240,49 @@ export function PivotTable<
                   className={getRowClassName?.(row)}
                   style={getRowStyle?.(row)}
                 >
-                  {groupColumnIds.map((_, col) =>
-                    spans != null && spans[col] != null && row.groupKeys[col] != null ? (
+                  {groupColumnIds.map((_, col) => {
+                    if (groupRenderMode === 'rowSpan') {
+                      if (spans == null || spans[col] == null || row.groupKeys[col] == null)
+                        return null;
+                      return (
+                        <React.Fragment key={col}>
+                          {GroupCell && (
+                            <GroupCell
+                              row={row as TRow}
+                              groupKey={row.groupKeys[col] as PivotTableGroupKeyEntry}
+                              rowSpan={spans[col]!}
+                              columnIndex={col}
+                              style={getStickyStyle(col, false)}
+                              {...shared}
+                            />
+                          )}
+                        </React.Fragment>
+                      );
+                    }
+
+                    const groupKey = row.groupKeys[col] as PivotTableGroupKeyEntry | undefined;
+                    if (!groupKey) return null;
+                    const isRepeated =
+                      prevRow != null &&
+                      row.groupKeys
+                        .slice(0, col + 1)
+                        .every((gk, gkIndex) => gk.id === prevRow.groupKeys[gkIndex]?.id);
+                    const displayGroupKey = isRepeated ? { ...groupKey, label: '' } : groupKey;
+                    return (
                       <React.Fragment key={col}>
                         {GroupCell && (
                           <GroupCell
                             row={row as TRow}
-                            groupKey={row.groupKeys[col] as PivotTableGroupKeyEntry}
-                            rowSpan={spans[col]!}
+                            groupKey={displayGroupKey}
+                            rowSpan={1}
                             columnIndex={col}
+                            style={getStickyStyle(col, false)}
                             {...shared}
                           />
                         )}
                       </React.Fragment>
-                    ) : null
-                  )}
+                    );
+                  })}
                   {dataColumnIds.map(columnId => (
                     <React.Fragment key={columnId}>
                       {DataCell && <DataCell row={row as TRow} stat={columnId} {...shared} />}
@@ -162,6 +291,14 @@ export function PivotTable<
                 </tr>
               );
             })}
+            {virtualizationEnabled && bottomPadding > 0 && (
+              <tr>
+                <td
+                  colSpan={totalColumnCount}
+                  style={{ height: bottomPadding, padding: 0, border: 0 }}
+                />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

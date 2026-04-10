@@ -2,16 +2,18 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PivotTable } from './PivotTable';
 import { cn } from '@/lib/utils';
-import type { AggMode, FlatRow, PivotedRow, HoveredStatInfo } from './types';
+import type { AggMode, PivotedRow, HoveredStatInfo, StatGroupTableSchema } from './types';
 import type { PivotTableGroupKeyEntry, PivotTableSortInfo } from './types';
 import {
   buildPivotedRows,
+  expandRowsFromSchema,
   formatStatValue,
   formatStatNumber,
+  getSchemaStatNames,
   getSortValue,
   gradientBg,
-  type GroupIndexDef,
 } from './utils';
+import type { PivotTableGroupRenderMode, PivotTableVirtualizationOptions } from './PivotTable';
 
 function DataHeader({
   stat,
@@ -65,6 +67,8 @@ function GroupCell({
   row,
   groupKey: gk,
   rowSpan,
+  style,
+  className,
   getGroupTypeColor,
   getGroupCellHandlers,
 }: {
@@ -72,6 +76,8 @@ function GroupCell({
   groupKey: PivotTableGroupKeyEntry;
   rowSpan: number;
   columnIndex: number;
+  style?: React.CSSProperties;
+  className?: string;
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
   getGroupCellHandlers?: (
     groupKey: PivotTableGroupKeyEntry,
@@ -83,16 +89,17 @@ function GroupCell({
 
   return (
     <td
-      className="px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30"
+      className={cn('px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30', className)}
       rowSpan={rowSpan}
       style={
         typeColor
           ? {
+              ...style,
               borderLeftWidth: 8,
               borderLeftColor: typeColor,
               backgroundColor: `color-mix(in srgb, ${typeColor} 15%, transparent)`,
             }
-          : undefined
+          : style
       }
       onMouseEnter={handlers?.onMouseEnter}
       onMouseLeave={handlers?.onMouseLeave}
@@ -166,18 +173,23 @@ function DataCell({
   );
 }
 
-interface StatGroupTableProps {
-  flatRows: FlatRow[];
-  activeIndices: GroupIndexDef[];
-  visibleStats: string[];
-  isAggregating: boolean;
-  aggMode: AggMode;
-  indexLabels: Record<string, React.ReactNode>;
+interface StatGroupTableProps<TRow> {
+  rows: TRow[];
+  schema: StatGroupTableSchema<TRow>;
+  activeIndices: string[];
+  visibleStats?: string[];
+  isAggregating?: boolean;
+  aggMode?: AggMode;
+  indexLabels?: Record<string, React.ReactNode>;
   // interaction state
   selectedItemIds?: Set<string>;
   hoveredItemId?: string | null;
   hoveredStat?: HoveredStatInfo | null;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
+  // rendering
+  virtualization?: PivotTableVirtualizationOptions;
+  groupRenderMode?: PivotTableGroupRenderMode;
+  stickyGroupColumns?: boolean;
   // display config
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
   getGroupCellHandlers?: (
@@ -187,27 +199,49 @@ interface StatGroupTableProps {
   onReorderStat?: (from: string, to: string) => void;
 }
 
-export function StatGroupTable({
-  flatRows,
+export function StatGroupTable<TRow>({
+  rows,
+  schema,
   activeIndices,
   visibleStats,
-  isAggregating,
-  aggMode,
+  isAggregating = false,
+  aggMode = 'sum',
   indexLabels,
   selectedItemIds,
   hoveredItemId,
   hoveredStat,
   onHoverStat,
+  virtualization,
+  groupRenderMode,
+  stickyGroupColumns = true,
   getGroupTypeColor,
   getGroupCellHandlers,
   onReorderStat,
-}: StatGroupTableProps) {
+}: StatGroupTableProps<TRow>) {
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const [draggedStat, setDraggedStat] = useState<string | null>(null);
+  const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
+    null
+  );
+  const effectiveHoveredStat = hoveredStat ?? uncontrolledHoveredStat;
+  const emitHoverStat = onHoverStat ?? setUncontrolledHoveredStat;
+  const expandedRows = useMemo(() => expandRowsFromSchema(rows, schema), [rows, schema]);
+  const resolvedVisibleStats = useMemo(
+    () => visibleStats ?? getSchemaStatNames(rows, schema),
+    [rows, schema, visibleStats]
+  );
+  const resolvedIndexLabels = useMemo(
+    () =>
+      indexLabels ??
+      (Object.fromEntries(activeIndices.map(key => [key, key])) as Record<string, React.ReactNode>),
+    [activeIndices, indexLabels]
+  );
+  const effectiveGroupRenderMode =
+    groupRenderMode ?? (virtualization?.enabled ? 'compact' : 'rowSpan');
 
   const statsByItem = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
-    for (const row of flatRows) {
+    for (const row of expandedRows) {
       const v = typeof row.value === 'number' ? row.value : null;
       if (v === null) continue;
       let itemMap = map.get(row.statisticName);
@@ -218,7 +252,7 @@ export function StatGroupTable({
       itemMap.set(row.itemId, v);
     }
     return map;
-  }, [flatRows]);
+  }, [expandedRows]);
 
   const buildHoveredStatInfo = useCallback(
     (statName: string): HoveredStatInfo | null => {
@@ -236,13 +270,22 @@ export function StatGroupTable({
   );
 
   const pivotedRows = useMemo(
-    () => buildPivotedRows(flatRows, activeIndices, isAggregating),
-    [flatRows, activeIndices, isAggregating]
+    () =>
+      buildPivotedRows(
+        expandedRows,
+        activeIndices.map(key => ({
+          key,
+          getId: row => row.groups[key]?.id ?? '-',
+          getLabel: row => row.groups[key]?.label ?? row.groups[key]?.id ?? '-',
+        })),
+        isAggregating
+      ),
+    [expandedRows, activeIndices, isAggregating]
   );
 
   const columnRanges = useMemo(() => {
     const ranges = new Map<string, { min: number; max: number }>();
-    for (const stat of visibleStats) {
+    for (const stat of resolvedVisibleStats) {
       let min = Infinity;
       let max = -Infinity;
       for (const row of pivotedRows) {
@@ -255,7 +298,7 @@ export function StatGroupTable({
       if (min !== Infinity) ranges.set(stat, { min, max });
     }
     return ranges;
-  }, [pivotedRows, visibleStats, isAggregating, aggMode]);
+  }, [pivotedRows, resolvedVisibleStats, isAggregating, aggMode]);
 
   useEffect(() => {
     if (!hoveredItemId) return;
@@ -265,27 +308,41 @@ export function StatGroupTable({
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [hoveredItemId, pivotedRows]);
 
-  const sharedProps = {
-    draggedStat,
-    setDraggedStat,
-    onReorderStat,
-    onHoverStat,
-    buildHoveredStatInfo,
-    hoveredStatName: hoveredStat?.name,
-    getGroupTypeColor,
-    getGroupCellHandlers,
-    isAggregating,
-    aggMode,
-    columnRanges,
-  };
+  const sharedProps = useMemo(
+    () => ({
+      draggedStat,
+      setDraggedStat,
+      onReorderStat,
+      onHoverStat: emitHoverStat,
+      buildHoveredStatInfo,
+      hoveredStatName: effectiveHoveredStat?.name,
+      getGroupTypeColor,
+      getGroupCellHandlers,
+      isAggregating,
+      aggMode,
+      columnRanges,
+    }),
+    [
+      draggedStat,
+      onReorderStat,
+      emitHoverStat,
+      buildHoveredStatInfo,
+      effectiveHoveredStat?.name,
+      getGroupTypeColor,
+      getGroupCellHandlers,
+      isAggregating,
+      aggMode,
+      columnRanges,
+    ]
+  );
 
   const columns = useMemo((): ColumnDef<PivotedRow>[] => {
     const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(def => ({
-      id: def.key,
-      header: String(indexLabels[def.key]),
+      id: def,
+      header: String(resolvedIndexLabels[def] ?? def),
       enableSorting: false,
     }));
-    const statCols: ColumnDef<PivotedRow>[] = visibleStats.map(stat => ({
+    const statCols: ColumnDef<PivotedRow>[] = resolvedVisibleStats.map(stat => ({
       id: stat,
       header: stat,
       enableSorting: true,
@@ -301,7 +358,7 @@ export function StatGroupTable({
       },
     }));
     return [...groupCols, ...statCols];
-  }, [activeIndices, visibleStats, indexLabels, isAggregating, aggMode]);
+  }, [activeIndices, resolvedVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
 
   const hasSelection = (selectedItemIds?.size ?? 0) > 0;
   const isSelected = (row: PivotedRow) => [...row.itemIds].some(id => selectedItemIds?.has(id));
@@ -311,12 +368,15 @@ export function StatGroupTable({
       data={pivotedRows}
       columns={columns}
       getRowId={row => row.rowKey}
-      groupColumnIds={activeIndices.map(def => def.key)}
-      renderGroupHeader={columnId => indexLabels[columnId]}
+      groupColumnIds={activeIndices}
+      renderGroupHeader={columnId => resolvedIndexLabels[columnId]}
       sharedProps={sharedProps}
       DataHeader={DataHeader}
       GroupCell={GroupCell}
       DataCell={DataCell}
+      virtualization={virtualization}
+      groupRenderMode={effectiveGroupRenderMode}
+      stickyGroupColumns={stickyGroupColumns}
       getRowRef={rowKey => el => {
         if (el) rowRefs.current.set(rowKey, el);
         else rowRefs.current.delete(rowKey);
