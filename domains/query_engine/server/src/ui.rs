@@ -263,13 +263,16 @@ async fn bulk_timelines<A>(
 ) -> ServerResult<Json<BulkTimelinesResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
-    let response =
-        tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request)).await??;
-    Ok(Json(response))
+    Ok(Json(
+        state
+            .timelines
+            .cached_bulk_timeline(&*analyzer, engine_id, request)
+            .await?,
+    ))
 }
 
 #[cfg(feature = "swagger")]
