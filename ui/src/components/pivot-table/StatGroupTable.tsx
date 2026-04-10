@@ -19,12 +19,15 @@ import { nodeColorPaletteAtom } from '@/atoms/dag';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { ContinuousPaletteName } from '@/services/colors';
 
+const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
+
 function DataHeader({
   stat,
   sortInfo,
   onSort,
   className,
   style,
+  rowHeaderHoverActive,
   draggedStat,
   setDraggedStat,
   onReorderStat,
@@ -37,6 +40,7 @@ function DataHeader({
   onSort: () => void;
   className?: string;
   style?: React.CSSProperties;
+  rowHeaderHoverActive?: boolean;
   draggedStat: string | null;
   setDraggedStat: (stat: string | null) => void;
   onReorderStat?: (from: string, to: string) => void;
@@ -59,16 +63,21 @@ function DataHeader({
       onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
       onMouseLeave={() => onHoverStat?.(null)}
       className={cn(
-        'text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
+        'table-header-overlay text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
         className,
-        draggedStat === stat && 'opacity-50',
-        sortInfo && 'text-foreground',
-        hoveredStatName === stat && 'bg-primary/10'
+        {
+          'font-semibold': Boolean(rowHeaderHoverActive),
+          'opacity-50': draggedStat === stat,
+          'text-foreground': Boolean(sortInfo),
+          'table-header-overlay-active': hoveredStatName === stat || Boolean(rowHeaderHoverActive),
+        }
       )}
       style={style}
     >
-      {stat}
-      {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
+      <span className="relative z-10">
+        {stat}
+        {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
+      </span>
     </th>
   );
 }
@@ -81,6 +90,9 @@ function GroupCell({
   className,
   getGroupTypeColor,
   getGroupCellHandlers,
+  hoveredHeaderItemIds,
+  setHoveredHeaderItemIds,
+  hoveredItemId,
 }: {
   row: PivotedRow;
   groupKey: PivotTableGroupKeyEntry;
@@ -89,6 +101,9 @@ function GroupCell({
   style?: React.CSSProperties;
   className?: string;
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
+  hoveredHeaderItemIds?: Set<string> | null;
+  setHoveredHeaderItemIds?: (itemIds: Set<string> | null) => void;
+  hoveredItemId?: string | null;
   getGroupCellHandlers?: (
     groupKey: PivotTableGroupKeyEntry,
     row: PivotedRow
@@ -96,26 +111,44 @@ function GroupCell({
 }) {
   const typeColor = getGroupTypeColor?.(gk.key, gk.id);
   const handlers = getGroupCellHandlers?.(gk, row);
+  const isRowHeaderHighlightedFromTable =
+    hoveredHeaderItemIds != null && [...row.itemIds].some(id => hoveredHeaderItemIds.has(id));
+  const isRowHighlightedFromDag =
+    hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
+  const isRowHeaderHighlighted = isRowHeaderHighlightedFromTable || isRowHighlightedFromDag;
+  const baseStyle = typeColor
+    ? {
+        ...style,
+        borderLeftWidth: 8,
+        borderLeftColor: typeColor,
+        // Opaque tint so scrolled rows never bleed through sticky group cells.
+        backgroundColor: `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`,
+      }
+    : style;
+  const mergedStyle = {
+    ...baseStyle,
+    boxShadow: baseStyle?.boxShadow,
+  };
 
   return (
     <td
-      className={cn('px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30', className)}
+      className={cn(
+        'table-header-overlay px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30',
+        isRowHeaderHighlighted && 'table-header-overlay-active',
+        className
+      )}
       rowSpan={rowSpan}
-      style={
-        typeColor
-          ? {
-              ...style,
-              borderLeftWidth: 8,
-              borderLeftColor: typeColor,
-              // Opaque tint so scrolled rows never bleed through sticky group cells.
-              backgroundColor: `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`,
-            }
-          : style
-      }
-      onMouseEnter={handlers?.onMouseEnter}
-      onMouseLeave={handlers?.onMouseLeave}
+      style={mergedStyle}
+      onMouseEnter={() => {
+        setHoveredHeaderItemIds?.(new Set(row.itemIds));
+        handlers?.onMouseEnter?.();
+      }}
+      onMouseLeave={() => {
+        setHoveredHeaderItemIds?.(null);
+        handlers?.onMouseLeave?.();
+      }}
     >
-      {gk.label}
+      <span className="relative z-10">{gk.label}</span>
     </td>
   );
 }
@@ -128,6 +161,8 @@ function DataCell({
   columnRanges,
   colorPalette,
   darkMode,
+  hoveredHeaderItemIds,
+  hoveredItemId,
   hoveredStatName,
   onHoverStat,
   buildHoveredStatInfo,
@@ -139,6 +174,8 @@ function DataCell({
   columnRanges: Map<string, { min: number; max: number }>;
   colorPalette: ContinuousPaletteName;
   darkMode: boolean;
+  hoveredHeaderItemIds?: Set<string> | null;
+  hoveredItemId?: string | null;
   hoveredStatName: string | undefined;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
   buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
@@ -150,7 +187,13 @@ function DataCell({
       ? gradientBg(numVal, range.min, range.max, colorPalette, darkMode)
       : undefined;
   const isStatHovered = hoveredStatName === stat;
-  const colHighlight = isStatHovered ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)' : undefined;
+  const colHighlight = isStatHovered ? HIGHLIGHT_WASH : undefined;
+  const isRowHighlightedFromTable =
+    hoveredHeaderItemIds != null && [...row.itemIds].some(id => hoveredHeaderItemIds.has(id));
+  const isRowHighlightedFromDag =
+    hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
+  const rowHighlight = isRowHighlightedFromTable || isRowHighlightedFromDag ? HIGHLIGHT_WASH : undefined;
+  const cellHighlight = rowHighlight ?? colHighlight;
   const statCellProps = {
     onMouseEnter: () => onHoverStat?.(buildHoveredStatInfo(stat)),
     onMouseLeave: () => onHoverStat?.(null),
@@ -160,7 +203,7 @@ function DataCell({
     return (
       <td
         className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
-        style={{ backgroundColor: bg, boxShadow: colHighlight }}
+        style={{ backgroundColor: bg, boxShadow: cellHighlight }}
         {...statCellProps}
       >
         {formatStatValue(val, stat)}
@@ -172,7 +215,7 @@ function DataCell({
     return (
       <td
         className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground"
-        style={{ boxShadow: colHighlight }}
+        style={{ boxShadow: cellHighlight }}
         {...statCellProps}
       >
         -
@@ -183,7 +226,7 @@ function DataCell({
   return (
     <td
       className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
-      style={{ backgroundColor: bg, boxShadow: colHighlight }}
+      style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
       {formatStatNumber(displayVal, stat)}
@@ -241,6 +284,8 @@ export function StatGroupTable<TRow>({
   const isDarkMode = theme === THEME_DARK;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const [draggedStat, setDraggedStat] = useState<string | null>(null);
+  const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
+  const [tableStatOrder, setTableStatOrder] = useState<string[]>([]);
   const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
     null
   );
@@ -251,6 +296,20 @@ export function StatGroupTable<TRow>({
     () => visibleStats ?? getSchemaStatNames(rows, schema),
     [rows, schema, visibleStats]
   );
+  const resolvedVisibleStatsKey = useMemo(
+    () => resolvedVisibleStats.join('\0'),
+    [resolvedVisibleStats]
+  );
+  useEffect(() => {
+    setTableStatOrder(prev => {
+      if (prev.length === 0) return resolvedVisibleStats;
+      const visibleSet = new Set(resolvedVisibleStats);
+      const kept = prev.filter(stat => visibleSet.has(stat));
+      const additions = resolvedVisibleStats.filter(stat => !kept.includes(stat));
+      return [...kept, ...additions];
+    });
+  }, [resolvedVisibleStats, resolvedVisibleStatsKey]);
+  const effectiveVisibleStats = tableStatOrder.length > 0 ? tableStatOrder : resolvedVisibleStats;
   const resolvedIndexLabels = useMemo(
     () =>
       indexLabels ??
@@ -259,6 +318,7 @@ export function StatGroupTable<TRow>({
   );
   const effectiveGroupRenderMode =
     groupRenderMode ?? (virtualization?.enabled ? 'compact' : 'rowSpan');
+  const rowHeaderHoverActive = hoveredHeaderItemIds !== null;
 
   const statsByItem = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
@@ -306,7 +366,7 @@ export function StatGroupTable<TRow>({
 
   const columnRanges = useMemo(() => {
     const ranges = new Map<string, { min: number; max: number }>();
-    for (const stat of resolvedVisibleStats) {
+    for (const stat of effectiveVisibleStats) {
       let min = Infinity;
       let max = -Infinity;
       for (const row of pivotedRows) {
@@ -319,21 +379,38 @@ export function StatGroupTable<TRow>({
       if (min !== Infinity) ranges.set(stat, { min, max });
     }
     return ranges;
-  }, [pivotedRows, resolvedVisibleStats, isAggregating, aggMode]);
+  }, [pivotedRows, effectiveVisibleStats, isAggregating, aggMode]);
+
+  const handleReorderStat = useCallback(
+    (from: string, to: string) => {
+      setTableStatOrder(prev => {
+        const next = prev.length > 0 ? [...prev] : [...resolvedVisibleStats];
+        const fromIndex = next.indexOf(from);
+        const toIndex = next.indexOf(to);
+        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return next;
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        return next;
+      });
+      // Keep optional callback for external listeners, without requiring global reordering.
+      onReorderStat?.(from, to);
+    },
+    [onReorderStat, resolvedVisibleStats]
+  );
 
   useEffect(() => {
     if (!hoveredItemId) return;
     const row = pivotedRows.find(r => r.itemIds.has(hoveredItemId));
     if (!row) return;
     const el = rowRefs.current.get(row.rowKey);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [hoveredItemId, pivotedRows]);
 
   const sharedProps = useMemo(
     () => ({
       draggedStat,
       setDraggedStat,
-      onReorderStat,
+      onReorderStat: handleReorderStat,
       onHoverStat: emitHoverStat,
       buildHoveredStatInfo,
       hoveredStatName: effectiveHoveredStat?.name,
@@ -344,10 +421,14 @@ export function StatGroupTable<TRow>({
       columnRanges,
       colorPalette: nodePalette,
       darkMode: isDarkMode,
+      hoveredHeaderItemIds,
+      hoveredItemId,
+      setHoveredHeaderItemIds,
+      rowHeaderHoverActive,
     }),
     [
       draggedStat,
-      onReorderStat,
+      handleReorderStat,
       emitHoverStat,
       buildHoveredStatInfo,
       effectiveHoveredStat?.name,
@@ -358,6 +439,9 @@ export function StatGroupTable<TRow>({
       columnRanges,
       nodePalette,
       isDarkMode,
+      hoveredHeaderItemIds,
+      hoveredItemId,
+      rowHeaderHoverActive,
     ]
   );
 
@@ -367,7 +451,7 @@ export function StatGroupTable<TRow>({
       header: String(resolvedIndexLabels[def] ?? def),
       enableSorting: false,
     }));
-    const statCols: ColumnDef<PivotedRow>[] = resolvedVisibleStats.map(stat => ({
+    const statCols: ColumnDef<PivotedRow>[] = effectiveVisibleStats.map(stat => ({
       id: stat,
       header: stat,
       enableSorting: true,
@@ -383,7 +467,7 @@ export function StatGroupTable<TRow>({
       },
     }));
     return [...groupCols, ...statCols];
-  }, [activeIndices, resolvedVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
+  }, [activeIndices, effectiveVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
 
   const hasSelection = (selectedItemIds?.size ?? 0) > 0;
   const isSelected = (row: PivotedRow) => [...row.itemIds].some(id => selectedItemIds?.has(id));
@@ -394,7 +478,11 @@ export function StatGroupTable<TRow>({
       columns={columns}
       getRowId={row => row.rowKey}
       groupColumnIds={activeIndices}
-      renderGroupHeader={columnId => resolvedIndexLabels[columnId]}
+      renderGroupHeader={columnId => (
+        <span className={cn('relative z-10', { 'font-semibold': rowHeaderHoverActive })}>
+          {resolvedIndexLabels[columnId]}
+        </span>
+      )}
       sharedProps={sharedProps}
       DataHeader={DataHeader}
       GroupCell={GroupCell}
@@ -409,15 +497,18 @@ export function StatGroupTable<TRow>({
       getRowClassName={row =>
         cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
           'bg-muted/70': isSelected(row),
-          'bg-primary/10':
-            hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId),
         })
       }
       getRowStyle={row => {
         const isHoveredFromDag =
           hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
         const isDimmed = hasSelection && !isSelected(row) && !isHoveredFromDag;
-        return { opacity: isDimmed ? 0.3 : 1 };
+        return isDimmed
+          ? {
+              // Use an opaque wash instead of row opacity so sticky/group cells do not visually bleed.
+              backgroundColor: 'color-mix(in srgb, hsl(var(--muted)) 55%, hsl(var(--card)))',
+            }
+          : {};
       }}
     />
   );

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
 import {
   useReactTable,
   getCoreRowModel,
@@ -192,7 +193,9 @@ export function PivotTable<
                     const idx = groupColumnIds.indexOf(columnId);
                     if (idx >= 0) groupHeaderRefs.current[idx] = el;
                   }}
-                  className="text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap"
+                  className={cn(
+                    'table-header-overlay text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap'
+                  )}
                   style={getStickyStyle(groupColumnIds.indexOf(columnId), true)}
                 >
                   {renderGroupHeader?.(columnId) ?? columnId}
