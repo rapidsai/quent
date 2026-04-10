@@ -58,19 +58,7 @@ pub fn derive_state(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Derive macro for entity event structs.
-///
-/// Generates `EventMetadata` impl so that `#[derive(Entity)]` can populate
-/// `EntityEventDef.attributes` with the event's field names and types.
-#[proc_macro_derive(Event)]
-pub fn derive_event(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    event::expand_derive(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-/// Derive macro for nested struct types used inside events or states.
+/// Derive macro for struct types used as event payloads or nested attributes.
 ///
 /// Generates `EventMetadata` impl so that the struct's field names and types
 /// are available to the model and codegen. Use this on helper types like
