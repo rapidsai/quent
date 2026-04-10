@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { QueryToolbar } from '@/components/QueryToolbar';
 import {
   selectedPlanIdAtom,
   selectedNodeIdsAtom,
-  hoveredOperatorIdAtom,
-  hoveredOperatorInfoAtom,
   hoveredStatAtom,
-  hoveredOperatorTypeAtom,
   highlightedNodeIdsAtom,
 } from '@/atoms/dag';
 import type { QueryBundle } from '~quent/types/QueryBundle';
@@ -170,13 +167,11 @@ interface OperatorTableProps {
 export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [selectedPlanId, setSelectedPlanId] = useAtom(selectedPlanIdAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const [hoveredOperatorId, setHoveredOperatorId] = useAtom(hoveredOperatorIdAtom);
-  const hoveredOperatorInfo = useAtomValue(hoveredOperatorInfoAtom);
-  const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
+  const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
   const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
-  const setHoveredOperatorType = useSetAtom(hoveredOperatorTypeAtom);
-  const setHighlightedNodeIds = useSetAtom(highlightedNodeIdsAtom);
   const { entities } = queryBundle;
+  const dagHoveredOperatorId =
+    highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
 
   const siblingPlanIds = useMemo(() => {
     const selected = selectedPlanId ? entities.plans[selectedPlanId] : undefined;
@@ -216,6 +211,18 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       if (!set) {
         set = new Set();
         map.set(row.parentItemName, set);
+      }
+      set.add(row.itemId);
+    }
+    return map;
+  }, [rows]);
+  const itemsByItemType = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of rows) {
+      let set = map.get(row.itemType);
+      if (!set) {
+        set = new Set();
+        map.set(row.itemType, set);
       }
       set.add(row.itemId);
     }
@@ -323,30 +330,59 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
             if (firstItemScopeId && firstItemScopeId !== selectedPlanId)
               setSelectedPlanId(firstItemScopeId);
             // Table-origin hover should not trigger table auto-scroll.
-            setHoveredOperatorInfo(null);
-            setHoveredOperatorId(firstItemId);
+            setHighlightState({
+              ...highlightState,
+              ids: new Set([firstItemId]),
+              source: 'table',
+              primaryOperatorId: firstItemId,
+            });
           },
           onMouseLeave: () => {
-            if (hoveredOperatorId === firstItemId) setHoveredOperatorId(null);
+            setHighlightState(prev =>
+              prev.source === 'table' && prev.ids?.size === 1 && prev.ids.has(firstItemId)
+                ? { ...prev, ids: null, source: null, primaryOperatorId: null }
+                : prev
+            );
           },
         };
       }
       if (gk.key === 'parent_item_type') {
         return {
-          onMouseEnter: () => setHighlightedNodeIds(itemsByParentType.get(gk.id) ?? null),
-          onMouseLeave: () => setHighlightedNodeIds(null),
+          onMouseEnter: () =>
+            setHighlightState(prev => ({
+              ...prev,
+              ids: itemsByParentType.get(gk.id) ?? null,
+              source: 'table',
+              primaryOperatorId: null,
+            })),
+          onMouseLeave: () =>
+            setHighlightState(prev => ({ ...prev, ids: null, source: null, primaryOperatorId: null })),
         };
       }
       if (gk.key === 'parent_item') {
         return {
-          onMouseEnter: () => setHighlightedNodeIds(itemsByParentName.get(gk.id) ?? null),
-          onMouseLeave: () => setHighlightedNodeIds(null),
+          onMouseEnter: () =>
+            setHighlightState(prev => ({
+              ...prev,
+              ids: itemsByParentName.get(gk.id) ?? null,
+              source: 'table',
+              primaryOperatorId: null,
+            })),
+          onMouseLeave: () =>
+            setHighlightState(prev => ({ ...prev, ids: null, source: null, primaryOperatorId: null })),
         };
       }
       if (gk.key === 'item_type') {
         return {
-          onMouseEnter: () => setHoveredOperatorType(gk.id),
-          onMouseLeave: () => setHoveredOperatorType(null),
+          onMouseEnter: () =>
+            setHighlightState(prev => ({
+              ...prev,
+              ids: itemsByItemType.get(gk.id) ?? null,
+              source: 'table',
+              primaryOperatorId: null,
+            })),
+          onMouseLeave: () =>
+            setHighlightState(prev => ({ ...prev, ids: null, source: null, primaryOperatorId: null })),
         };
       }
       return {};
@@ -354,13 +390,11 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     [
       selectedPlanId,
       setSelectedPlanId,
-      hoveredOperatorId,
-      setHoveredOperatorId,
-      setHoveredOperatorInfo,
-      setHoveredOperatorType,
-      setHighlightedNodeIds,
+      setHighlightState,
+      highlightState,
       itemsByParentType,
       itemsByParentName,
+      itemsByItemType,
     ]
   );
 
@@ -408,7 +442,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           aggMode={aggMode}
           indexLabels={indexLabels}
           selectedItemIds={selectedNodeIds}
-          hoveredItemId={hoveredOperatorInfo !== null ? hoveredOperatorId : null}
+          hoveredItemId={dagHoveredOperatorId}
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
           getGroupTypeColor={(key, id) =>

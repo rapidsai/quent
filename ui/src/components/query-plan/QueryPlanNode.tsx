@@ -5,14 +5,11 @@ import { memo, useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import {
   selectedNodeLabelFieldAtom,
   NODE_LABEL_FIELD,
-  hoveredOperatorIdAtom,
-  hoveredOperatorInfoAtom,
   hoveredStatAtom,
-  hoveredOperatorTypeAtom,
   highlightedNodeIdsAtom,
   nodeColorPaletteAtom,
 } from '@/atoms/dag';
@@ -60,50 +57,29 @@ const nodeVariants = cva(
 
 function nodeOpacityClass({
   hoveredStat,
-  hoveredOperatorId,
-  hoveredOpType,
   highlightedNodeIds,
   operatorId,
-  isHovered,
-  isTypeHovered,
-  isHighlighted,
   isDimmed,
 }: {
   hoveredStat: { values: Map<string, number> } | null | undefined;
-  hoveredOperatorId: string | null;
-  hoveredOpType: string | null;
   highlightedNodeIds: Set<string> | null;
   operatorId: string;
-  isHovered: boolean;
-  isTypeHovered: boolean;
-  isHighlighted: boolean;
   isDimmed: boolean;
 }): string {
   if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
-  if (highlightedNodeIds !== null && !isHighlighted) return 'opacity-25';
-  if (hoveredOpType !== null && !isTypeHovered) return 'opacity-25';
-  if (hoveredOperatorId !== null && !isHovered) return 'opacity-25';
+  if (highlightedNodeIds !== null && !highlightedNodeIds.has(operatorId)) return 'opacity-25';
   if (isDimmed) return 'opacity-30';
   return 'opacity-100';
 }
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
-  const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
-  const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
+  const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
   const hoveredStat = useAtomValue(hoveredStatAtom);
-  const hoveredOpType = useAtomValue(hoveredOperatorTypeAtom);
-  const highlightedNodeIds = useAtomValue(highlightedNodeIdsAtom);
   const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const { theme } = useTheme();
   const isDarkMode = theme === THEME_DARK;
   const operatorId = data.metadata?.rawNode?.id ?? '';
-  const operatorTypeName = data.metadata?.rawNode?.operator_type_name ?? data.operationType;
-  const isHoveredFromTable = hoveredOperatorId === operatorId && operatorId !== '';
-  const isTypeHovered =
-    hoveredOpType !== null &&
-    hoveredOpType.toLowerCase().split(', ').includes(operatorTypeName.toLowerCase());
-  const isHighlighted = highlightedNodeIds !== null && highlightedNodeIds.has(operatorId);
+  const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
   const nodeLabelField = useAtomValue(selectedNodeLabelFieldAtom);
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId);
@@ -141,44 +117,32 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const opacityClass = nodeOpacityClass({
     hoveredStat,
-    hoveredOperatorId,
-    hoveredOpType,
-    highlightedNodeIds,
+    highlightedNodeIds: highlightState.ids,
     operatorId,
-    isHovered: isHoveredFromTable,
-    isTypeHovered,
-    isHighlighted,
     isDimmed,
   });
 
-  const isActiveHighlight = (isHoveredFromTable || isTypeHovered || isHighlighted) && !isSelected;
+  const isActiveHighlight = isHighlighted && !isSelected;
 
   const onMouseEnter = useCallback(() => {
     setIsHoveredLocal(true);
     if (operatorId) {
-      setHoveredOperatorId(operatorId);
-      setHoveredOperatorInfo({
-        nodeId: data.nodeId,
-        label: data.label,
-        operationType: data.metadata?.rawNode?.operator_type_name ?? data.operationType,
-        stats: statistics,
+      setHighlightState({
+        ...highlightState,
+        ids: new Set([operatorId]),
+        source: 'dag',
+        primaryOperatorId: operatorId,
       });
     }
-  }, [
-    operatorId,
-    setHoveredOperatorId,
-    setHoveredOperatorInfo,
-    data.nodeId,
-    data.label,
-    data.metadata?.rawNode?.operator_type_name,
-    data.operationType,
-    statistics,
-  ]);
+  }, [operatorId, setHighlightState, highlightState]);
   const onMouseLeave = useCallback(() => {
     setIsHoveredLocal(false);
-    setHoveredOperatorId(prev => (prev === operatorId ? null : prev));
-    setHoveredOperatorInfo(prev => (prev?.nodeId === data.nodeId ? null : prev));
-  }, [operatorId, setHoveredOperatorId, setHoveredOperatorInfo, data.nodeId, setIsHoveredLocal]);
+    setHighlightState(prev =>
+      prev.source === 'dag' && prev.ids?.size === 1 && prev.ids.has(operatorId)
+        ? { ...prev, ids: null, source: null, primaryOperatorId: null }
+        : prev
+    );
+  }, [operatorId, setHighlightState, setIsHoveredLocal]);
 
   const nodeContent = (
     <div
