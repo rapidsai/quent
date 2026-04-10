@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use axum::http::response;
 use moka::future::Cache;
 use quent_analyzer::Span;
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
@@ -243,7 +242,7 @@ impl TimelineCache {
                 continue;
             }
 
-            let config = entries[&key].config();
+            let config = entries[key].config();
             let chunk_span = match SpanNanoSec::try_new(
                 epoch + to_nanosecs(config.start),
                 epoch + to_nanosecs(config.end),
