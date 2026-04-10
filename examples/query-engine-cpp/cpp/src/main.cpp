@@ -55,8 +55,8 @@ int main() {
 
     // Query FSM: create in Init state, transition through planning and executing.
     auto query = quent::query::create(quent::query::Init{
-        .query_group_id = qg_id,
         .instance_name = "select-1",
+        .query_group_id = qg_id,
     });
     query->planning();
     query->executing();
