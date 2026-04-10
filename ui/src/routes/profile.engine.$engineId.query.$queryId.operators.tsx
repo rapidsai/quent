@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { OperatorTableAdapter } from '@/components/operator-table/OperatorTableAdapter';
+import { OperatorTable } from '@/components/operator-table/OperatorTableAdapter';
 import { Route as QueryRoute } from './profile.engine.$engineId.query.$queryId';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/operators')({
@@ -8,5 +8,5 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/o
 
 function OperatorsTab() {
   const queryBundle = QueryRoute.useLoaderData();
-  return <OperatorTableAdapter queryBundle={queryBundle} />;
+  return <OperatorTable queryBundle={queryBundle} />;
 }

@@ -159,11 +159,11 @@ const DEFAULT_ENABLED: Record<IndexKey, boolean> = {
   item: true,
 };
 
-interface OperatorTableAdapterProps {
+interface OperatorTableProps {
   queryBundle: QueryBundle<EntityRef>;
 }
 
-export function OperatorTableAdapter({ queryBundle }: OperatorTableAdapterProps) {
+export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [selectedPlanId, setSelectedPlanId] = useAtom(selectedPlanIdAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const [hoveredOperatorId, setHoveredOperatorId] = useAtom(hoveredOperatorIdAtom);
