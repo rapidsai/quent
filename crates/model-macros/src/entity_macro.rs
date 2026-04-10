@@ -414,11 +414,7 @@ fn codegen_events(events: &[EventEntry], event_enum: &Ident) -> EventCodegen {
 ///
 /// Single event: observer with a direct method.
 /// Multiple events: handle with per-event methods + observer with `create()`.
-fn gen_observer_and_handle(
-    name: &Ident,
-    events: &[EventEntry],
-    ids: &EntityIdents,
-) -> TokenStream {
+fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIdents) -> TokenStream {
     let event_enum = &ids.event_enum;
     let observer_name = &ids.observer_name;
     let serde_bound = &ids.serde_bound;
