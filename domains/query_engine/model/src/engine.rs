@@ -29,6 +29,7 @@ pub struct Exit;
 // Engine is the root resource group.
 quent_model::entity! {
     Engine: ResourceGroup<Root = true> {
+        declaration: init,
         events: {
             init: Init,
             exit: Exit,

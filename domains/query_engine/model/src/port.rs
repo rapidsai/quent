@@ -21,6 +21,7 @@ pub struct Statistics {
 
 quent_model::entity! {
     Port: ResourceGroup {
+        declaration: declaration,
         events: {
             declaration: Declaration,
             statistics: Statistics,

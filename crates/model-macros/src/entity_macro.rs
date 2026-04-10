@@ -215,7 +215,23 @@ fn parse_body(
 
     match rg_meta {
         Some(meta) => {
-            if has_events {
+            if has_events && declaration.is_none() {
+                Err(syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "resource group with `events` requires `declaration: <alias>` to mark which event carries the resource group identity",
+                ))
+            } else if has_events {
+                if let Some(ref decl) = declaration
+                    && !events.iter().any(|e| e.alias == *decl)
+                {
+                    return Err(syn::Error::new_spanned(
+                        decl,
+                        format!(
+                            "declaration alias `{}` does not match any event",
+                            decl
+                        ),
+                    ));
+                }
                 Ok(EntityKind::ResourceGroupEvents {
                     meta,
                     declaration,
@@ -229,7 +245,17 @@ fn parse_body(
             }
         }
         None => {
-            if has_events {
+            if declaration.is_some() {
+                Err(syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "`declaration` is only valid on resource group entities (use `: ResourceGroup`)",
+                ))
+            } else if has_events && has_attributes {
+                Err(syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "cannot combine `attributes` and `events` on a non-resource-group entity; use either `attributes: { ... }` (self-event) or `events: { ... }` (multi-event)",
+                ))
+            } else if has_events {
                 Ok(EntityKind::MultiEvent(events))
             } else if has_attributes {
                 Ok(EntityKind::SelfEvent(attributes))
@@ -424,26 +450,38 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
     let observer_name = format_ident!("{}Observer", name);
     let data_struct = format_ident!("{}Data", name);
 
-    let event_types: Vec<&Ident> = events.iter().map(|e| &e.event_type).collect();
-    let event_aliases: Vec<&Ident> = events.iter().map(|e| &e.alias).collect();
-
-    let event_variants: Vec<TokenStream> =
-        event_types.iter().map(|ty| quote! { #ty(#ty) }).collect();
-
-    let from_impls: Vec<TokenStream> = event_types
+    let event_variants: Vec<TokenStream> = events
         .iter()
-        .map(|ty| {
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let ty = &e.event_type;
+            quote! { #variant(#ty) }
+        })
+        .collect();
+
+    // Deduplicate From impls by event type — if the same type is used for
+    // multiple aliases, only generate From for the first occurrence.
+    let mut seen_types = std::collections::HashSet::new();
+    let from_impls: Vec<TokenStream> = events
+        .iter()
+        .filter(|e| seen_types.insert(e.event_type.to_string()))
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let ty = &e.event_type;
             quote! {
                 impl From<#ty> for #event_enum {
-                    fn from(e: #ty) -> Self { #event_enum::#ty(e) }
+                    fn from(e: #ty) -> Self { #event_enum::#variant(e) }
                 }
             }
         })
         .collect();
 
-    let event_defs: Vec<TokenStream> = event_types
+    let event_defs: Vec<TokenStream> = events
         .iter()
-        .map(|ty| quote! { <#ty as quent_model::EventMetadata>::event_def() })
+        .map(|e| {
+            let ty = &e.event_type;
+            quote! { <#ty as quent_model::EventMetadata>::event_def() }
+        })
         .collect();
 
     let data_fields: Vec<TokenStream> = events
@@ -458,15 +496,15 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
     let data_push_arms: Vec<TokenStream> = events
         .iter()
         .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
             let alias = &e.alias;
-            let ty = &e.event_type;
-            quote! { #event_enum::#ty(e) => data.#alias = Some(e) }
+            quote! { #event_enum::#variant(e) => data.#alias = Some(e) }
         })
         .collect();
 
     let observer_and_handle = if events.len() == 1 {
-        let alias = &event_aliases[0];
-        let ty = &event_types[0];
+        let alias = &events[0].alias;
+        let ty = &events[0].event_type;
         quote! {
             #[derive(Clone)]
             pub struct #observer_name<E>
@@ -763,17 +801,25 @@ fn expand_rg_events(
     let data_struct = format_ident!("{}Data", name);
     let is_root = meta.is_root;
 
-    let event_types: Vec<&Ident> = events.iter().map(|e| &e.event_type).collect();
-
-    let event_variants: Vec<TokenStream> =
-        event_types.iter().map(|ty| quote! { #ty(#ty) }).collect();
-
-    let from_impls: Vec<TokenStream> = event_types
+    let event_variants: Vec<TokenStream> = events
         .iter()
-        .map(|ty| {
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let ty = &e.event_type;
+            quote! { #variant(#ty) }
+        })
+        .collect();
+
+    let mut seen_types = std::collections::HashSet::new();
+    let from_impls: Vec<TokenStream> = events
+        .iter()
+        .filter(|e| seen_types.insert(e.event_type.to_string()))
+        .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
+            let ty = &e.event_type;
             quote! {
                 impl From<#ty> for #event_enum {
-                    fn from(e: #ty) -> Self { #event_enum::#ty(e) }
+                    fn from(e: #ty) -> Self { #event_enum::#variant(e) }
                 }
             }
         })
@@ -791,14 +837,15 @@ fn expand_rg_events(
     let data_push_arms: Vec<TokenStream> = events
         .iter()
         .map(|e| {
+            let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
             let alias = &e.alias;
-            let ty = &e.event_type;
-            quote! { #event_enum::#ty(e) => data.#alias = Some(e) }
+            quote! { #event_enum::#variant(e) => data.#alias = Some(e) }
         })
         .collect();
 
-    let event_defs: Vec<TokenStream> = event_types
+    let event_defs: Vec<TokenStream> = events
         .iter()
+        .map(|e| &e.event_type)
         .map(|ty| quote! { <#ty as quent_model::EventMetadata>::event_def() })
         .collect();
 

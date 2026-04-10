@@ -22,6 +22,7 @@ pub struct Statistics {
 
 quent_model::entity! {
     Operator: ResourceGroup {
+        declaration: declaration,
         events: {
             declaration: Declaration,
             statistics: Statistics,

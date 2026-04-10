@@ -17,6 +17,7 @@ pub struct Declaration {
 
 quent_model::entity! {
     QueryGroup: ResourceGroup {
+        declaration: declaration,
         events: {
             declaration: Declaration,
         },

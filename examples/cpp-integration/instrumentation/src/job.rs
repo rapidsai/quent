@@ -18,6 +18,7 @@ pub struct Complete {
 
 entity! {
     Job: ResourceGroup<Root = true> {
+        declaration: submit,
         events: {
             submit: Submit,
             complete: Complete,
