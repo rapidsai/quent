@@ -3,7 +3,7 @@
 
 //! ThreadPool entity: resource group containing threads.
 
-use quent_model::{entity, Attributes};
+use quent_model::{Attributes, entity};
 
 #[derive(Debug, Attributes, serde::Serialize, serde::Deserialize)]
 pub struct ThreadPoolInit {

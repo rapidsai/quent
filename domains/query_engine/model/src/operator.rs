@@ -3,7 +3,7 @@
 
 //! Operator entity: sinks, sources, or transforms data within a plan.
 
-use quent_model::{entity, Attributes, Ref};
+use quent_model::{Attributes, Ref, entity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Attributes, Deserialize, Serialize)]

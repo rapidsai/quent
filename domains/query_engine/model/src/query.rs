@@ -3,7 +3,7 @@
 
 //! Query FSM: the top-level unit of work executed by an engine.
 
-use quent_model::{fsm, state, Ref};
+use quent_model::{Ref, fsm, state};
 
 // States
 

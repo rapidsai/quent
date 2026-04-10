@@ -3,7 +3,7 @@
 
 //! QueryGroup entity: encapsulates a set of queries.
 
-use quent_model::{entity, Attributes};
+use quent_model::{Attributes, entity};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

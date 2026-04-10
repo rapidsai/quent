@@ -3,7 +3,7 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
-use quent_model::{entity, Attributes, Ref};
+use quent_model::{Attributes, Ref, entity};
 use serde::{Deserialize, Serialize};
 
 /// A directed edge of a Plan DAG.

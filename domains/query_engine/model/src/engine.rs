@@ -3,7 +3,7 @@
 
 //! Engine entity: top-level entry point and root resource group.
 
-use quent_model::{entity, Attributes};
+use quent_model::{Attributes, entity};
 use serde::{Deserialize, Serialize};
 
 /// Attributes describing details about the implementation of this Engine
