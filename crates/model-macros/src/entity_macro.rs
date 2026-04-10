@@ -226,10 +226,7 @@ fn parse_body(
                 {
                     return Err(syn::Error::new_spanned(
                         decl,
-                        format!(
-                            "declaration alias `{}` does not match any event",
-                            decl
-                        ),
+                        format!("declaration alias `{}` does not match any event", decl),
                     ));
                 }
                 Ok(EntityKind::ResourceGroupEvents {

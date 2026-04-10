@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! README example — verifies the code in the top-level README compiles.
-
 use quent_attributes::CustomAttributes;
 use quent_model::{Attributes, Ref, entity, fsm, instrumentation, model, resource, state};
 use serde::{Deserialize, Serialize};
