@@ -20,8 +20,7 @@ pub struct Statistics {
 }
 
 quent_model::entity! {
-    Port {
-        resource_group: child,
+    Port: ResourceGroup {
         events: {
             declaration: Declaration,
             statistics: Statistics,

@@ -39,9 +39,7 @@ quent_model::entity! {
 }
 
 quent_model::entity! {
-    TestRoot {
-        resource_group: root,
-    }
+    TestRoot: ResourceGroup<Root = true> {}
 }
 
 quent_model::model! {

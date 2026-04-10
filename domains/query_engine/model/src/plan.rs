@@ -33,8 +33,7 @@ pub struct Declaration {
 }
 
 quent_model::entity! {
-    Plan {
-        resource_group: child,
+    Plan: ResourceGroup {
         events: {
             declaration: Declaration,
         },

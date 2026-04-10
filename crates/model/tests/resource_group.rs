@@ -6,15 +6,11 @@
 use quent_model::{EntityData, HasEventType, ModelBuilder, ModelComponent, ResourceGroup};
 
 quent_model::entity! {
-    Engine {
-        resource_group: root,
-    }
+    Engine: ResourceGroup<Root = true> {}
 }
 
 quent_model::entity! {
-    QueryGroup {
-        resource_group: child,
-    }
+    QueryGroup: ResourceGroup {}
 }
 
 #[test]
@@ -69,9 +65,11 @@ pub struct ServerDetails {
 }
 
 quent_model::entity! {
-    Server {
-        resource_group: root,
-        attributes: ServerDetails,
+    Server: ResourceGroup<Root = true> {
+        attributes: {
+            version: String,
+            port: u32,
+        },
     }
 }
 

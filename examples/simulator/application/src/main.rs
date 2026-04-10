@@ -497,8 +497,6 @@ fn lower_logical(
 
 struct Worker {
     id: Uuid,
-    name: String,
-    parent_engine_id: Uuid,
     memory: Uuid,
     filesystem: Uuid,
     fs_to_mem: Uuid,
@@ -522,7 +520,7 @@ impl Worker {
         let worker_obs = context.worker_observer();
 
         info!("Spawning worker {name}");
-        let worker_handle = worker_obs.worker(id, &name, parent_engine_id);
+        let worker_handle = worker_obs.create(id);
         worker_handle.init(worker::Init {
             parent_engine_id: Ref::new(parent_engine_id),
             instance_name: name.clone(),
@@ -579,8 +577,6 @@ impl Worker {
 
         Self {
             id,
-            name,
-            parent_engine_id,
             memory,
             filesystem,
             fs_to_mem,
@@ -1020,7 +1016,7 @@ impl Worker {
             handle.exit();
         }
         sleep_long();
-        let worker_handle = worker_obs.worker(self.id, &self.name, self.parent_engine_id);
+        let worker_handle = worker_obs.create(self.id);
         worker_handle.exit(worker::Exit);
     }
 }
@@ -1050,7 +1046,7 @@ impl Engine {
         let engine_obs = context.engine_observer();
 
         let instance_name = format!("holodeck-{:04x}", rng().random::<u32>());
-        let engine_handle = engine_obs.engine(self.id, &instance_name);
+        let engine_handle = engine_obs.create(self.id);
         engine_handle.init(engine::Init {
             instance_name: Some(instance_name),
             implementation: EngineImplementationAttributes {
@@ -1131,7 +1127,7 @@ impl Engine {
             worker.shut_down(context);
         }
 
-        let engine_handle = engine_obs.engine(self.id, "shutdown");
+        let engine_handle = engine_obs.create(self.id);
         engine_handle.exit(engine::Exit);
         info!("Simulated engine shut down.")
     }

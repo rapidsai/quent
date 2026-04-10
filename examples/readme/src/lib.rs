@@ -35,8 +35,10 @@ resource! {
 // A trivial single-event entity.
 entity! {
     Info {
-        message: String,
-        source: Option<String>,
+        attributes: {
+            message: String,
+            source: Option<String>,
+        },
     }
 }
 
@@ -72,27 +74,26 @@ pub struct Details {
 }
 
 // An entity can be marked as a Resource Group.
+// If it can only have one type of parent T, this can be
+// set using Parent = T
 entity! {
-    Worker {
-        resource_group: child,
-        parent_group: Cluster,
-        attributes: Details,
+    Worker: ResourceGroup<Parent = Cluster> {
+        attributes: {
+            details: Details,
+        },
     }
 }
 
 // There must be at least one root resource group.
 entity! {
-    Cluster {
-        resource_group: root,
-    }
+    Cluster: ResourceGroup<Root = true> {}
 }
 
 // FSM states separate attributes from resource usages.
-// `instance_name: String` is auto-added by the state! macro.
 state! {
     Queued {
         attributes: {
-            worker_id: Ref<Worker>,
+            worker: Ref<Worker>,
         },
         usages: {
             queue: Queue,

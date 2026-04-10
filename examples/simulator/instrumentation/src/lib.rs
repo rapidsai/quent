@@ -6,15 +6,11 @@
 pub mod task;
 
 quent_model::entity! {
-    ThreadPool {
-        resource_group: child,
-    }
+    ThreadPool: ResourceGroup {}
 }
 
 quent_model::entity! {
-    Network {
-        resource_group: child,
-    }
+    Network: ResourceGroup {}
 }
 
 pub use task::TaskEvent;

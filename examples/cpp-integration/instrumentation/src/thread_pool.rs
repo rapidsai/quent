@@ -11,8 +11,7 @@ pub struct ThreadPoolInit {
 }
 
 quent_model::entity! {
-    ThreadPool {
-        resource_group: child,
+    ThreadPool: ResourceGroup {
         events: {
             init: ThreadPoolInit,
         },

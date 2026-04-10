@@ -74,8 +74,10 @@ fn entity_event_attributes_populated() {
 // Self-event entity: struct IS the event
 quent_model::entity! {
     Alert {
-        severity: u32,
-        message: String,
+        attributes: {
+            severity: u32,
+            message: String,
+        },
     }
 }
 

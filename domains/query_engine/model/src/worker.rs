@@ -16,8 +16,7 @@ pub struct Init {
 pub struct Exit;
 
 quent_model::entity! {
-    Worker {
-        resource_group: child,
+    Worker: ResourceGroup {
         events: {
             init: Init,
             exit: Exit,
