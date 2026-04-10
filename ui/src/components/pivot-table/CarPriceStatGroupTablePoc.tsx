@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMemo } from 'react';
 import carPriceCsv from '@/assets/car_price_dataset.csv?raw';
 import { PivotTableToolbar } from './PivotTableToolbar';

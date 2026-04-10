@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { formatWithPrefix } from '@/services/formatters';
 import type { StatValue } from '@/services/query-plan/types';
 import { continuousColor, type ContinuousPaletteName } from '@/services/colors';

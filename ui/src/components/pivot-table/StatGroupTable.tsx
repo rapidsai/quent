@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAtomValue } from 'jotai';
