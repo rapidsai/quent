@@ -3,7 +3,7 @@
 
 //! Engine entity: top-level entry point and root resource group.
 
-use quent_model::Attributes;
+use quent_model::{entity, Attributes};
 use serde::{Deserialize, Serialize};
 
 /// Attributes describing details about the implementation of this Engine
@@ -27,7 +27,7 @@ pub struct Init {
 pub struct Exit;
 
 // Engine is the root resource group.
-quent_model::entity! {
+entity! {
     Engine: ResourceGroup<Root = true> {
         declaration: init,
         events: {

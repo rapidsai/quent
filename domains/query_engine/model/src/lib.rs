@@ -3,6 +3,8 @@
 
 //! Query engine domain model.
 
+use quent_model::model;
+
 pub mod engine;
 pub mod operator;
 pub mod plan;
@@ -11,7 +13,7 @@ pub mod query;
 pub mod query_group;
 pub mod worker;
 
-quent_model::model! {
+model! {
     QueryEngine {
         root: engine::Engine,
         query::Query,

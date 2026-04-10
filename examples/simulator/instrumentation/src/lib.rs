@@ -3,19 +3,21 @@
 
 //! Simulator instrumentation: model definitions, event types, and context.
 
+use quent_model::{entity, instrumentation, model};
+
 pub mod task;
 
-quent_model::entity! {
+entity! {
     ThreadPool: ResourceGroup {}
 }
 
-quent_model::entity! {
+entity! {
     Network: ResourceGroup {}
 }
 
 pub use task::TaskEvent;
 
-quent_model::model! {
+model! {
     Simulator {
         root: quent_query_engine_model::engine::Engine,
         quent_query_engine_model::worker::Worker,
@@ -33,4 +35,4 @@ quent_model::model! {
     }
 }
 
-quent_model::instrumentation!(Simulator);
+instrumentation!(Simulator);

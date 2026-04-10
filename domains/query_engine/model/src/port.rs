@@ -3,7 +3,7 @@
 
 //! Port entity: input or output of an operator.
 
-use quent_model::{Attributes, Ref};
+use quent_model::{entity, Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Attributes, Deserialize, Serialize)]
@@ -19,7 +19,7 @@ pub struct Statistics {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
-quent_model::entity! {
+entity! {
     Port: ResourceGroup {
         declaration: declaration,
         events: {

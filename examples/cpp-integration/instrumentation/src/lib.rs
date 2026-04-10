@@ -9,11 +9,13 @@
 //! - ThreadPool: resource group containing Thread resources
 //! - Thread: processor resource (from stdlib)
 
+use quent_model::{instrumentation, model};
+
 pub mod job;
 pub mod task;
 pub mod thread_pool;
 
-quent_model::model! {
+model! {
     Example {
         root: job::Job,
         thread_pool::ThreadPool,
@@ -21,4 +23,4 @@ quent_model::model! {
     }
 }
 
-quent_model::instrumentation!(Example);
+instrumentation!(Example);

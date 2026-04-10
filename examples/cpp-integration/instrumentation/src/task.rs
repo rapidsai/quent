@@ -3,7 +3,9 @@
 
 //! Task FSM: running on a thread.
 
-quent_model::state! {
+use quent_model::{fsm, state};
+
+state! {
     Queued {
         attributes: {
             job_id: uuid::Uuid,
@@ -11,7 +13,7 @@ quent_model::state! {
     }
 }
 
-quent_model::state! {
+state! {
     Running {
         usages: {
             thread: quent_stdlib::Processor,
@@ -19,7 +21,7 @@ quent_model::state! {
     }
 }
 
-quent_model::fsm! {
+fsm! {
     Task {
         states: {
             queued: Queued,

@@ -3,7 +3,7 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
-use quent_model::{Attributes, Ref};
+use quent_model::{entity, Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
 /// A directed edge of a Plan DAG.
@@ -32,7 +32,7 @@ pub struct Declaration {
     pub worker_id: Option<Ref<super::worker::Worker>>,
 }
 
-quent_model::entity! {
+entity! {
     Plan: ResourceGroup {
         declaration: declaration,
         events: {

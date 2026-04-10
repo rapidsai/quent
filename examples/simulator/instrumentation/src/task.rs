@@ -7,11 +7,12 @@
 //! It transitions through states like queueing, computing, allocating,
 //! loading, spilling, and sending.
 
+use quent_model::{fsm, state};
 use uuid::Uuid;
 
 // States
 
-quent_model::state! {
+state! {
     Queueing {
         attributes: {
             operator_id: Uuid,
@@ -19,7 +20,7 @@ quent_model::state! {
     }
 }
 
-quent_model::state! {
+state! {
     Computing {
         usages: {
             use_thread: quent_stdlib::Processor,
@@ -28,7 +29,7 @@ quent_model::state! {
     }
 }
 
-quent_model::state! {
+state! {
     Allocating {
         usages: {
             use_thread: quent_stdlib::Processor,
@@ -36,7 +37,7 @@ quent_model::state! {
     }
 }
 
-quent_model::state! {
+state! {
     Loading {
         usages: {
             use_thread: quent_stdlib::Processor,
@@ -46,7 +47,7 @@ quent_model::state! {
     }
 }
 
-quent_model::state! {
+state! {
     Spilling {
         usages: {
             use_thread: quent_stdlib::Processor,
@@ -55,7 +56,7 @@ quent_model::state! {
     }
 }
 
-quent_model::state! {
+state! {
     Sending {
         usages: {
             use_thread: quent_stdlib::Processor,
@@ -66,7 +67,7 @@ quent_model::state! {
 
 // FSM
 
-quent_model::fsm! {
+fsm! {
     Task {
         states: {
             queueing: Queueing,

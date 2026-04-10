@@ -3,11 +3,11 @@
 
 //! Query FSM: the top-level unit of work executed by an engine.
 
-use quent_model::Ref;
+use quent_model::{fsm, state, Ref};
 
 // States
 
-quent_model::state! {
+state! {
     Init {
         attributes: {
             query_group_id: Ref<super::query_group::QueryGroup>,
@@ -15,13 +15,13 @@ quent_model::state! {
     }
 }
 
-quent_model::state! { Planning {} }
+state! { Planning {} }
 
-quent_model::state! { Executing {} }
+state! { Executing {} }
 
 // FSM: entry -> Init -> Planning -> Executing -> exit
 
-quent_model::fsm! {
+fsm! {
     Query: ResourceGroup {
         states: {
             init: Init,

@@ -3,7 +3,7 @@
 
 //! QueryGroup entity: encapsulates a set of queries.
 
-use quent_model::Attributes;
+use quent_model::{entity, Attributes};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ pub struct Declaration {
     pub engine_id: Uuid,
 }
 
-quent_model::entity! {
+entity! {
     QueryGroup: ResourceGroup {
         declaration: declaration,
         events: {

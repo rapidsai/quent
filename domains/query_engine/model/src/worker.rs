@@ -3,7 +3,7 @@
 
 //! Worker entity: responsible for executing plans.
 
-use quent_model::{Attributes, Ref};
+use quent_model::{entity, Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Attributes, Deserialize, Serialize)]
@@ -15,7 +15,7 @@ pub struct Init {
 #[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Exit;
 
-quent_model::entity! {
+entity! {
     Worker: ResourceGroup {
         declaration: init,
         events: {
