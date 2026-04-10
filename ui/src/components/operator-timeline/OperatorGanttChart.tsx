@@ -19,6 +19,7 @@ import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom, selectedPlanIdAtom } from '@/atoms/dag';
 import { withOpacity } from '@/services/colors';
+import { OPERATION_TYPE_COLORS, DEFAULT_OPERATION_COLOR } from '@/services/query-plan/operationTypes';
 import type { OperatorActiveSpanEntry } from './types';
 import { clipRectByRect } from './utils';
 import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '@/components/timeline/types';
@@ -28,30 +29,9 @@ const MAX_VISIBLE_ROWS = 10;
 const BAR_FONT_SIZE = 10;
 const BAR_HEIGHT = 16;
 
-// TODO(joe): Temporary, use @cmatzenbach colors once in.
-const OPERATOR_COLORS: Record<string, string> = {
-  source: '#3b82f6',
-  scan: '#3b82f6',
-  filesystemscan: '#3b82f6',
-  join: '#a855f7',
-  joinlocal: '#a855f7',
-  joinpartition: '#a855f7',
-  aggregate: '#22c55e',
-  exchange: '#f97316',
-  output: '#ef4444',
-  stage: '#4f46e5',
-  local: '#f59e0b',
-  project: '#14b8a6',
-  filter: '#06b6d4',
-  sort: '#8b5cf6',
-  limit: '#ec4899',
-  union: '#10b981',
-  other: '#6b7280',
-};
-
 function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
   const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? 'other';
-  const stroke = OPERATOR_COLORS[key] ?? OPERATOR_COLORS.other;
+  const stroke = OPERATION_TYPE_COLORS[key] ?? DEFAULT_OPERATION_COLOR;
   return { stroke, fill: withOpacity(stroke, 0.15) };
 }
 
