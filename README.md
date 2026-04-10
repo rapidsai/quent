@@ -50,9 +50,10 @@ opinionated but replaceable implementation based on the modeling approach.
 
 ## Status
 
-This project is experimental and under heavy development. The modeling concepts,
-APIs, and tooling are heavily opinionated and subject to change. There are no
-official releases yet.
+This project is experimental, unstable, and under heavy development. The
+modeling concepts, APIs, and implementations are opinionated and subject to
+change. There are no official releases yet. Expect bugs. Thoughts, questions,
+suggestions, and feature requests are most welcome.
 
 ## Example
 
