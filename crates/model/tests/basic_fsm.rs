@@ -3,42 +3,53 @@
 
 //! Basic integration test for FSM and state macro code generation.
 
-use quent_model::{Fsm, FsmEvent, Model, ModelBuilder, ModelComponent, State, StateMetadata};
+use quent_model::{FsmEvent, Model, ModelBuilder, ModelComponent, StateMetadata};
 use uuid::Uuid;
 
 // Define states
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Queueing {
-    pub operator_id: Uuid,
-    pub instance_name: String,
+quent_model::state! {
+    Queueing {
+        attributes: {
+            operator_id: Uuid,
+        },
+    }
 }
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Computing {
-    pub value: u64,
-    pub rows_processed: Option<u64>,
+quent_model::state! {
+    Computing {
+        attributes: {
+            value: u64,
+            rows_processed: Option<u64>,
+        },
+    }
 }
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Sending {
-    pub channel_id: Uuid,
+quent_model::state! {
+    Sending {
+        attributes: {
+            channel_id: Uuid,
+        },
+    }
 }
 
 // Define FSM
 
-#[derive(Fsm)]
-pub struct Task {
-    #[entry]
-    #[to(Computing)]
-    pub queueing: Queueing,
-    #[to(Sending, exit)]
-    pub computing: Computing,
-    #[to(Queueing)]
-    pub sending: Sending,
+quent_model::fsm! {
+    Task {
+        states: {
+            queueing: Queueing,
+            computing: Computing,
+            sending: Sending,
+        },
+        entry: queueing,
+        exit_from: { computing },
+        transitions: {
+            queueing => computing,
+            computing => sending,
+            sending => queueing,
+        },
+    }
 }
 
 // Tests
@@ -46,14 +57,16 @@ pub struct Task {
 #[test]
 fn transition_enum_variants_exist() {
     let _q = TaskTransition::Queueing(Queueing {
-        operator_id: Uuid::nil(),
         instance_name: "test".to_string(),
+        operator_id: Uuid::nil(),
     });
     let _c = TaskTransition::Computing(Computing {
+        instance_name: "test".to_string(),
         value: 42,
         rows_processed: None,
     });
     let _s = TaskTransition::Sending(Sending {
+        instance_name: "test".to_string(),
         channel_id: Uuid::nil(),
     });
     let _e = TaskTransition::Exit;
@@ -62,8 +75,8 @@ fn transition_enum_variants_exist() {
 #[test]
 fn from_impl_works() {
     let q = Queueing {
-        operator_id: Uuid::nil(),
         instance_name: "test".to_string(),
+        operator_id: Uuid::nil(),
     };
     let _t: TaskTransition = q.into();
 }

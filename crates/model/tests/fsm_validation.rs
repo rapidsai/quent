@@ -14,33 +14,29 @@
 //! - `fsm_unreachable_state.rs` — FSM with a state not reachable from entry
 //! - `fsm_no_exit.rs` — FSM with no path to exit
 
-use quent_model::{
-    Fsm, Model, ModelBuilder, ModelComponent, State, StateMetadata, TransitionEndpoint,
-};
+use quent_model::{Model, ModelBuilder, ModelComponent, StateMetadata, TransitionEndpoint};
 
 // A valid linear FSM
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct A;
+quent_model::state! {
+    A {}
+}
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct B;
+quent_model::state! {
+    B {}
+}
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct C;
+quent_model::state! {
+    C {}
+}
 
-#[derive(Fsm)]
-pub struct LinearFsm {
-    #[entry]
-    #[to(B)]
-    pub a: A,
-    #[to(C)]
-    pub b: B,
-    #[to(exit)]
-    pub c: C,
+quent_model::fsm! {
+    LinearFsm {
+        states: { a: A, b: B, c: C },
+        entry: a,
+        exit_from: { c },
+        transitions: { a => b, b => c },
+    }
 }
 
 #[test]
@@ -54,21 +50,21 @@ fn linear_fsm_valid() {
 
 // A cyclic FSM
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Idle;
+quent_model::state! {
+    Idle {}
+}
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Working;
+quent_model::state! {
+    Working {}
+}
 
-#[derive(Fsm)]
-pub struct CyclicFsm {
-    #[entry]
-    #[to(Working)]
-    pub idle: Idle,
-    #[to(Idle, exit)]
-    pub working: Working,
+quent_model::fsm! {
+    CyclicFsm {
+        states: { idle: Idle, working: Working },
+        entry: idle,
+        exit_from: { working },
+        transitions: { idle => working, working => idle },
+    }
 }
 
 #[test]
@@ -82,9 +78,9 @@ fn cyclic_fsm_valid() {
 
 // Unit state (no fields)
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct EmptyState;
+quent_model::state! {
+    EmptyState {}
+}
 
 #[test]
 fn unit_state_metadata() {

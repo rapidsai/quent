@@ -3,11 +3,14 @@
 
 //! Tests for entity and event macros.
 
-use quent_model::{EmitOnce, Entity, Event, ModelBuilder, ModelComponent};
+use quent_model::{Event, ModelBuilder, ModelComponent};
 use uuid::Uuid;
 
-#[derive(Entity)]
-pub struct Operator;
+quent_model::entity! {
+    Operator {
+        events: {},
+    }
+}
 
 #[derive(Debug, Event)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -22,15 +25,18 @@ pub struct Stats {
     pub rows: u64,
 }
 
-#[derive(Entity)]
-pub struct Worker {
-    pub plan_created: EmitOnce<PlanCreated>,
-    pub stats: EmitOnce<Stats>,
+quent_model::entity! {
+    Worker {
+        events: {
+            plan_created: PlanCreated,
+            stats: Stats,
+        },
+    }
 }
 
 #[test]
 fn entity_trait_impl() {
-    fn assert_entity<T: Entity>() {}
+    fn assert_entity<T: quent_model::Entity>() {}
     assert_entity::<Operator>();
 }
 
@@ -65,12 +71,12 @@ fn entity_event_attributes_populated() {
     assert_eq!(stats_event.attributes[0].name, "rows");
 }
 
-// Self-event entity: #[derive(Entity, Event)] — struct IS the event
-#[derive(Debug, Entity, Event)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Alert {
-    pub severity: u32,
-    pub message: String,
+// Self-event entity: struct IS the event
+quent_model::entity! {
+    Alert {
+        severity: u32,
+        message: String,
+    }
 }
 
 #[test]

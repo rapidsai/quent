@@ -1,28 +1,27 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Tests for `define_model!` macro.
+//! Tests for `model!` macro.
 
-use quent_model::{EmitOnce, Entity, Event, Fsm, FsmEvent, State};
+use quent_model::{Event, FsmEvent};
 
 // Minimal model components
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Idle;
+quent_model::state! {
+    Idle {}
+}
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Active;
+quent_model::state! {
+    Active {}
+}
 
-#[allow(dead_code)]
-#[derive(Fsm)]
-pub struct SimpleFsm {
-    #[entry]
-    #[to(Active)]
-    pub idle: Idle,
-    #[to(exit)]
-    pub active: Active,
+quent_model::fsm! {
+    SimpleFsm {
+        states: { idle: Idle, active: Active },
+        entry: idle,
+        exit_from: { active },
+        transitions: { idle => active },
+    }
 }
 
 #[derive(Debug, Event)]
@@ -31,17 +30,21 @@ pub struct Ping {
     pub value: u64,
 }
 
-#[allow(dead_code)]
-#[derive(Entity)]
-pub struct SimpleEntity {
-    pub ping: EmitOnce<Ping>,
+quent_model::entity! {
+    SimpleEntity {
+        events: {
+            ping: Ping,
+        },
+    }
 }
 
-#[derive(Entity)]
-#[resource_group(root)]
-pub struct TestRoot;
+quent_model::entity! {
+    TestRoot {
+        resource_group: root,
+    }
+}
 
-quent_model::define_model! {
+quent_model::model! {
     Test {
         root: TestRoot,
         SimpleFsm,

@@ -3,15 +3,19 @@
 
 //! Tests for resource_group macro.
 
-use quent_model::{Entity, EntityData, HasEventType, ModelBuilder, ModelComponent, ResourceGroup};
+use quent_model::{EntityData, HasEventType, ModelBuilder, ModelComponent, ResourceGroup};
 
-#[derive(Entity)]
-#[resource_group(root)]
-pub struct Engine;
+quent_model::entity! {
+    Engine {
+        resource_group: root,
+    }
+}
 
-#[derive(Entity)]
-#[resource_group]
-pub struct QueryGroup;
+quent_model::entity! {
+    QueryGroup {
+        resource_group: child,
+    }
+}
 
 #[test]
 fn resource_group_trait_impl() {
@@ -56,12 +60,19 @@ fn resource_group_entity_data() {
     assert_entity_data::<QueryGroup>();
 }
 
-// Resource group with custom declaration fields
-#[derive(Entity)]
-#[resource_group(root)]
-pub struct Server {
+// Resource group with custom declaration fields via attributes
+#[derive(Debug, quent_model::Event)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ServerDetails {
     pub version: String,
     pub port: u32,
+}
+
+quent_model::entity! {
+    Server {
+        resource_group: root,
+        attributes: ServerDetails,
+    }
 }
 
 #[test]
@@ -74,7 +85,7 @@ fn resource_group_custom_declaration_fields() {
     assert_eq!(entity.events.len(), 1);
 
     let decl = &entity.events[0];
-    assert_eq!(decl.name, "declaration");
+    assert_eq!(decl.name, "server_declaration");
     // instance_name + version + port
     assert_eq!(decl.attributes.len(), 3);
     assert_eq!(decl.attributes[0].name, "instance_name");

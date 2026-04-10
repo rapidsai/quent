@@ -5,18 +5,24 @@
 //! Ref<T>, and full model collection.
 
 use quent_model::{
-    Capacity, Entity, Fsm, FsmEvent, Model, ModelBuilder, ModelComponent, Ref, State,
-    StateMetadata, TransitionEndpoint, Usage,
+    Capacity, FsmEvent, Model, ModelBuilder, ModelComponent, Ref, StateMetadata,
+    TransitionEndpoint, Usage,
 };
 use uuid::Uuid;
 
 // Simulate a domain model crate (inline)
 
-#[derive(Entity)]
-pub struct Engine;
+quent_model::entity! {
+    Engine {
+        events: {},
+    }
+}
 
-#[derive(Entity)]
-pub struct Operator;
+quent_model::entity! {
+    Operator {
+        events: {},
+    }
+}
 
 // Application-specific types using stdlib resources
 
@@ -27,36 +33,49 @@ type FsToMem = quent_stdlib::ChannelResource;
 
 // Application FSM using stdlib resource types
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Queueing {
-    pub operator_id: Ref<Operator>,
-    pub instance_name: String,
+quent_model::state! {
+    Queueing {
+        attributes: {
+            operator_id: Ref<Operator>,
+        },
+    }
 }
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Computing {
-    pub thread: Usage<Thread>,
-    pub memory: Usage<WorkerMemory>,
-    pub rows_processed: Option<u64>,
+quent_model::state! {
+    Computing {
+        attributes: {
+            rows_processed: Option<u64>,
+        },
+        usages: {
+            thread: Thread,
+            memory: WorkerMemory,
+        },
+    }
 }
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Sending {
-    pub channel: Usage<FsToMem>,
+quent_model::state! {
+    Sending {
+        usages: {
+            channel: FsToMem,
+        },
+    }
 }
 
-#[derive(Fsm)]
-pub struct Task {
-    #[entry]
-    #[to(Computing)]
-    pub queueing: Queueing,
-    #[to(Sending, exit)]
-    pub computing: Computing,
-    #[to(Queueing)]
-    pub sending: Sending,
+quent_model::fsm! {
+    Task {
+        states: {
+            queueing: Queueing,
+            computing: Computing,
+            sending: Sending,
+        },
+        entry: queueing,
+        exit_from: { computing },
+        transitions: {
+            queueing => computing,
+            computing => sending,
+            sending => queueing,
+        },
+    }
 }
 
 // Model composition
@@ -130,9 +149,10 @@ fn state_with_usage_fields() {
 fn state_with_ref_field() {
     let queueing_def = Queueing::state_def();
     assert_eq!(queueing_def.name, "queueing");
+    // instance_name + operator_id
     assert_eq!(queueing_def.attributes.len(), 2);
-    assert_eq!(queueing_def.attributes[0].name, "operator_id");
-    assert_eq!(queueing_def.attributes[1].name, "instance_name");
+    assert_eq!(queueing_def.attributes[0].name, "instance_name");
+    assert_eq!(queueing_def.attributes[1].name, "operator_id");
 }
 
 #[test]
@@ -186,8 +206,8 @@ fn fsm_event_sequence_numbers() {
     let transition: TaskEvent = FsmEvent::Transition {
         seq: 0,
         state: TaskTransition::Queueing(Queueing {
-            operator_id: Ref::new(Uuid::nil()),
             instance_name: "test".into(),
+            operator_id: Ref::new(Uuid::nil()),
         }),
     };
     assert_eq!(transition.seq(), 0);
@@ -208,12 +228,12 @@ fn fsm_event_serde_roundtrip() {
     let event: TaskEvent = FsmEvent::Transition {
         seq: 5,
         state: TaskTransition::Sending(Sending {
-            channel: Usage {
+            channel: Some(Usage {
                 resource_id: Ref::new(Uuid::nil()),
                 capacity: quent_stdlib::ChannelOperating {
                     capacity_bytes: Capacity::new(Some(1024)),
                 },
-            },
+            }),
         }),
     };
 
