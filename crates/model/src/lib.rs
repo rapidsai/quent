@@ -92,4 +92,3 @@ pub use quent_instrumentation::Context;
 pub use quent_instrumentation::EventSender;
 pub use quent_time::timestamp;
 pub use uuid;
-
