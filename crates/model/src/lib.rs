@@ -16,9 +16,9 @@ mod r#ref;
 mod resource;
 mod usage;
 
-// Re-export derive macros.
+// Re-export macros.
 pub use quent_model_macros::{
-    Attributes, ResizableResource, Resource, entity, fsm, resource, state,
+    Attributes, ResizableResource, Resource, entity, fsm, instrumentation, model, resource, state,
 };
 
 pub use capacity::{Capacity, Occupancy, Rate};
@@ -93,4 +93,3 @@ pub use quent_instrumentation::EventSender;
 pub use quent_time::timestamp;
 pub use uuid;
 
-pub use quent_model_macros::{define_instrumentation, define_model, instrumentation, model};

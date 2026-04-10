@@ -3,66 +3,34 @@
 
 //! Proc macros for defining Quent application models.
 //!
-//! Six derive macros replace the former `#[quent_model(...)]` attribute:
+//! Function-like macros for model definitions:
 //!
-//! ```ignore
-//! #[derive(State)]
-//! pub struct Planning;
+//! - `resource!` — resource with optional capacity and init attributes
+//! - `entity!` — single-event, multi-event, or resource group entity
+//! - `state!` — FSM state with attributes and resource usages
+//! - `fsm!` — FSM with states, transitions, entry and exit points
+//! - `model!` — model composition and event enum generation
+//! - `instrumentation!` — context struct with observer factory methods
 //!
-//! #[derive(Event)]
-//! pub struct Tick { pub cycle: u64 }
+//! Derive macro:
 //!
-//! #[derive(Fsm)]
-//! pub struct MyFsm {
-//!     #[entry] #[to(exit)]
-//!     init: Init,
-//! }
-//!
-//! #[derive(Entity)]
-//! pub struct Engine {
-//!     pub init: Init,
-//! }
-//!
-//! #[derive(Resource)]
-//! pub struct Memory;
-//!
-//! #[derive(ResizableResource)]
-//! pub struct Gpu;
-//! ```
+//! - `#[derive(Attributes)]` — metadata for event payload and attribute structs
 
 use proc_macro::TokenStream;
 
 mod define_model;
-mod entity;
 mod entity_macro;
 mod event;
-mod fsm;
 mod fsm_macro;
 mod resource_derive;
 mod resource_macro;
-mod state;
 mod state_macro;
 mod util;
-
-/// Derive macro for FSM state structs.
-///
-/// Field-level attributes:
-/// - `#[instance_name]` — marks the field carrying the instance name
-///
-/// Capacity fields are detected by type (`Capacity<V, K>`), not by annotation.
-#[proc_macro_derive(State, attributes(deferred, instance_name, parent_group))]
-pub fn derive_state(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    state::expand_derive(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
 
 /// Derive macro for struct types used as event payloads or nested attributes.
 ///
 /// Generates `EventMetadata` impl so that the struct's field names and types
-/// are available to the model and codegen. Use this on helper types like
-/// `Edge`, `PlanParent`, etc. that appear as fields in events or states.
+/// are available to the model and codegen.
 #[proc_macro_derive(Attributes)]
 pub fn derive_attributes(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
@@ -71,47 +39,9 @@ pub fn derive_attributes(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Derive macro for FSM definitions.
-///
-/// The struct must have named fields where each field's type is a state type.
-/// Field-level attributes:
-/// - `#[entry]` — marks this state as an entry point
-/// - `#[to(StateA, StateB, exit)]` — declares transitions from this state
-///
-/// Struct-level attributes (optional):
-/// - `#[resource_group]` / `#[resource_group(root)]` — resource group metadata
-#[proc_macro_derive(Fsm, attributes(entry, to, resource_group))]
-pub fn derive_fsm(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    fsm::expand_derive(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-/// Derive macro for entity definitions.
-///
-/// All named fields are event types (must derive `Event`).
-/// Unit structs produce entities with no events.
-///
-/// Struct-level attributes (optional):
-/// - `#[resource_group]` / `#[resource_group(root)]` — resource group metadata
-#[proc_macro_derive(Entity, attributes(resource_group, parent_group))]
-pub fn derive_entity(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    entity::expand_derive(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
 /// Derive macro for fixed-bounds resource definitions.
 ///
-/// Generates the full resource FSM (Initializing → Operating → Finalizing → exit),
-/// state structs, handle, event types, and Resource trait impl.
-///
-/// Fields with `Capacity<V, K>` type go on the generated Operating state.
-/// Other fields go on the generated Initializing state alongside standard
-/// metadata fields (instance_name, parent_group_id, resource_type_name).
-/// Unit structs produce a unit resource with no capacity.
+/// Used internally by `resource!` — prefer that macro for new code.
 #[proc_macro_derive(Resource)]
 pub fn derive_resource(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
@@ -122,7 +52,7 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
 
 /// Derive macro for resizable resource definitions.
 ///
-/// Same as `Resource` but adds a Resizing state and the operating ↔ resizing cycle.
+/// Used internally by `resource!` — prefer that macro for new code.
 #[proc_macro_derive(ResizableResource)]
 pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
@@ -131,28 +61,18 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Generates a model type alias and event enum from a list of components.
+/// Composes model components into a model type and event enum.
 ///
 /// ```ignore
-/// define_model! {
-///     Simulator {
-///         root: ResourceRoot,
-///         quent_query_engine_model::Engine,
-///         task::Task,
-///         quent_stdlib::Memory,
+/// model! {
+///     App {
+///         root: Cluster,
+///         Worker,
+///         Thread,
+///         Task,
 ///     }
 /// }
 /// ```
-///
-/// Generates `SimulatorModel` (type alias) and `SimulatorEvent` (event enum).
-/// Variant names are derived from the last path segment.
-#[proc_macro]
-pub fn define_model(input: TokenStream) -> TokenStream {
-    define_model::expand(input.into())
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
 #[proc_macro]
 pub fn model(input: TokenStream) -> TokenStream {
     define_model::expand(input.into())
@@ -162,22 +82,25 @@ pub fn model(input: TokenStream) -> TokenStream {
 
 /// Generates the instrumentation context with observer factory methods.
 ///
-/// Takes the model name as its single argument. Generates `{Name}Context`
-/// with a `try_new()` constructor and `{component}_observer()` methods
-/// for each model component.
-///
 /// ```ignore
-/// define_instrumentation!(App);
+/// instrumentation!(App);
 /// ```
-/// Defines an FSM with struct-arg observer and handle methods.
+#[proc_macro]
+pub fn instrumentation(input: TokenStream) -> TokenStream {
+    define_model::expand_instrumentation(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Defines an FSM with states, transitions, entry and exit points.
 ///
 /// ```ignore
-/// quent_model::fsm! {
+/// fsm! {
 ///     Task {
-///         states: { queued: Queued, running: Running },
+///         states: { queued: Queued, computing: Computing },
 ///         entry: queued,
-///         exit_from: { running },
-///         transitions: { queued => running },
+///         exit_from: { computing },
+///         transitions: { queued => computing },
 ///     }
 /// }
 /// ```
@@ -188,21 +111,16 @@ pub fn fsm(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Defines a state with separated attributes and resource usages.
+/// Defines a state with optional attributes and resource usages.
 ///
 /// ```ignore
-/// quent_model::state! {
+/// state! {
 ///     Queued {
-///         attributes: QueuedAttrs,
-///         usages: {
-///             queue: Queue,
-///         },
+///         attributes: { priority: u32 },
+///         usages: { queue: Queue },
 ///     }
 /// }
 /// ```
-///
-/// Generates a state struct, `StateMetadata`/`Extract*` impls, and a hidden
-/// callback macro `__quent_state_{name}` for use by `fsm!`.
 #[proc_macro]
 pub fn state(input: TokenStream) -> TokenStream {
     state_macro::expand(input.into())
@@ -210,20 +128,13 @@ pub fn state(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Defines a resource with optional attributes and capacity fields.
+/// Defines a resource with optional capacity and init attributes.
 ///
 /// ```ignore
-/// quent_model::resource! { Thread }
+/// resource! { Thread }
 ///
-/// quent_model::resource! {
+/// resource! {
 ///     Memory {
-///         capacity: { bytes: Option<u64> },
-///     }
-/// }
-///
-/// quent_model::resource! {
-///     Channel {
-///         attributes: { source_id: Uuid, target_id: Uuid },
 ///         capacity: { bytes: Option<u64> },
 ///     }
 /// }
@@ -235,45 +146,28 @@ pub fn resource(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Defines an entity with either inline fields (self-event) or an events block
-/// (multi-event).
+/// Defines an entity (single-event, multi-event, or resource group).
 ///
 /// ```ignore
-/// // Self-event entity: struct IS the event
-/// quent_model::entity! {
+/// entity! {
 ///     Info {
-///         message: String,
-///         source: Option<String>,
+///         attributes: { message: String },
 ///     }
 /// }
 ///
-/// // Multi-event entity: separate event types
-/// quent_model::entity! {
+/// entity! {
 ///     FileStats {
-///         events: {
-///             checksum: Checksum,
-///             decompressed: Decompressed,
-///         },
+///         events: { checksum: Checksum, decompressed: Decompressed },
 ///     }
+/// }
+///
+/// entity! {
+///     Cluster: ResourceGroup<Root = true> {}
 /// }
 /// ```
 #[proc_macro]
 pub fn entity(input: TokenStream) -> TokenStream {
     entity_macro::expand(input.into())
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-#[proc_macro]
-pub fn define_instrumentation(input: TokenStream) -> TokenStream {
-    define_model::expand_instrumentation(input.into())
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-#[proc_macro]
-pub fn instrumentation(input: TokenStream) -> TokenStream {
-    define_model::expand_instrumentation(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

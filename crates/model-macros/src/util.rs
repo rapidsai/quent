@@ -48,41 +48,6 @@ pub fn to_snake_case(ident: &Ident) -> String {
     ident.to_string().to_case(Case::Snake)
 }
 
-/// Check if a field has a specific attribute.
-pub fn field_has_attr(field: &syn::Field, attr_name: &str) -> bool {
-    field.attrs.iter().any(|a| {
-        a.path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == attr_name)
-    })
-}
-
-/// Check for `#[resource_group]` or `#[resource_group(root)]` outer attribute.
-///
-/// Returns `Some(true)` for `#[resource_group(root)]`, `Some(false)` for
-/// `#[resource_group]`, and `None` if the attribute is absent.
-pub fn parse_resource_group_attr(input: &syn::DeriveInput) -> Option<bool> {
-    for attr in &input.attrs {
-        if attr
-            .path()
-            .segments
-            .last()
-            .is_some_and(|seg| seg.ident == "resource_group")
-        {
-            // Check if it has (root) argument
-            if let syn::Meta::List(list) = &attr.meta
-                && let Ok(ident) = syn::parse2::<Ident>(list.tokens.clone())
-                && ident == "root"
-            {
-                return Some(true);
-            }
-            return Some(false);
-        }
-    }
-    None
-}
-
 /// If `ty` is `Option<T>`, returns `(T, true)`. Otherwise `(ty, false)`.
 pub fn strip_option(ty: &syn::Type) -> (syn::Type, bool) {
     if let syn::Type::Path(type_path) = ty
