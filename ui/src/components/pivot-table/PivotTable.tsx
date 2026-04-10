@@ -138,8 +138,10 @@ export function PivotTable<
       const style: React.CSSProperties = {
         position: 'sticky',
         left: stickyLeftOffsets[col] ?? 0,
-        zIndex: header ? 40 : 30,
+        // Keep sticky group headers/cells above scrollable data cells for both paint and hit-testing.
+        zIndex: header ? 90 : 70,
         backgroundColor: 'hsl(var(--card))',
+        pointerEvents: 'auto',
       };
       if (header) {
         style.top = 0;

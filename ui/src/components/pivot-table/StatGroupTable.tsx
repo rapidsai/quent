@@ -93,6 +93,7 @@ function GroupCell({
   className,
   getGroupTypeColor,
   getGroupCellHandlers,
+  onHoverStat,
   hoveredHeaderItemIds,
   setHoveredHeaderItemIds,
   hoveredItemId,
@@ -104,6 +105,7 @@ function GroupCell({
   style?: React.CSSProperties;
   className?: string;
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
+  onHoverStat?: (info: HoveredStatInfo | null) => void;
   hoveredHeaderItemIds?: Set<string> | null;
   setHoveredHeaderItemIds?: (itemIds: Set<string> | null) => void;
   hoveredItemId?: string | null;
@@ -143,6 +145,7 @@ function GroupCell({
       rowSpan={rowSpan}
       style={mergedStyle}
       onMouseEnter={() => {
+        onHoverStat?.(null);
         setHoveredHeaderItemIds?.(new Set(row.itemIds));
         handlers?.onMouseEnter?.();
       }}
@@ -475,9 +478,7 @@ export function StatGroupTable<TRow>({
       getRowId={row => row.rowKey}
       groupColumnIds={activeIndices}
       renderGroupHeader={columnId => (
-        <span className={cn('relative z-10', { 'font-semibold': rowHeaderHoverActive })}>
-          {resolvedIndexLabels[columnId]}
-        </span>
+        <span className={cn('relative z-10')}>{resolvedIndexLabels[columnId]}</span>
       )}
       sharedProps={sharedProps}
       DataHeader={DataHeader}
