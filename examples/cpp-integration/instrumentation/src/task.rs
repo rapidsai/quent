@@ -3,26 +3,33 @@
 
 //! Task FSM: running on a thread.
 
-use quent_model::{Fsm, State, Usage};
-use uuid::Uuid;
-
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Queued {
-    pub job_id: Uuid,
-    #[instance_name]
-    pub name: String,
+quent_model::state! {
+    Queued {
+        attributes: {
+            job_id: uuid::Uuid,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Running {
-    pub thread: Usage<quent_stdlib::ProcessorResource>,
+quent_model::state! {
+    Running {
+        usages: {
+            thread: quent_stdlib::Processor,
+        },
+    }
 }
 
-#[derive(Fsm)]
-pub struct Task {
-    #[entry]
-    #[to(Running)]
-    pub queued: Queued,
-    #[to(Queued, exit)]
-    pub running: Running,
+quent_model::fsm! {
+    Task {
+        states: {
+            queued: Queued,
+            running: Running,
+        },
+        entry: queued,
+        exit_from: { running },
+        transitions: {
+            queued => running,
+            running => queued,
+        },
+    }
 }

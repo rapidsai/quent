@@ -18,7 +18,8 @@ mod usage;
 
 // Re-export derive macros.
 pub use quent_model_macros::{
-    Attributes, Entity, Event, Fsm, ResizableResource, Resource, State, fsm,
+    Attributes, Entity, Event, Fsm, ResizableResource, Resource, State, entity, fsm, resource,
+    state,
 };
 
 pub use capacity::{Capacity, Occupancy, Rate};
@@ -29,7 +30,7 @@ pub use model::{
 };
 pub use r#ref::Ref;
 pub use resource::Resource;
-pub use usage::Usage;
+pub use usage::{IntoUsage, Usage, usage};
 
 /// Marker type for entity fields that emit an event at most once per instance.
 ///
@@ -104,6 +105,8 @@ pub trait ResourceGroup {
 pub trait HasParentGroup {}
 
 // Re-export instrumentation types needed by generated code.
+#[doc(hidden)]
+pub use paste;
 pub use quent_attributes as attributes;
 pub use quent_events::Event;
 pub use quent_exporter as exporter;
@@ -113,5 +116,4 @@ pub use quent_instrumentation::EventSender;
 pub use quent_time::timestamp;
 pub use uuid;
 
-// define_model! is a proc macro — see quent_model_macros::define_model
-pub use quent_model_macros::{define_instrumentation, define_model};
+pub use quent_model_macros::{define_instrumentation, define_model, instrumentation, model};

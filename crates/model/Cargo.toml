@@ -11,6 +11,7 @@ serde = ["dep:serde", "quent-model-macros/serde"]
 [dependencies]
 uuid = { workspace = true, features = ["serde", "v7"] }
 serde = { workspace = true, optional = true }
+paste = "1"
 quent-attributes = { path = "../attributes" }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }

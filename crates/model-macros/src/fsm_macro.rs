@@ -161,32 +161,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     // Entry state info
     let entry_alias = &input.entry;
-    let entry_state = input
+    let _entry_state = input
         .states
         .iter()
         .find(|s| s.alias == input.entry)
         .ok_or_else(|| {
             syn::Error::new_spanned(&input.entry, "entry state not found in states list")
         })?;
-    let entry_type = &entry_state.ty;
-
-    // Transition methods — one per state, taking the full state struct
-    let transition_methods: Vec<TokenStream> = input
-        .states
-        .iter()
-        .map(|s| {
-            let alias = &s.alias;
-            let ty = &s.ty;
-            quote! {
-                pub fn #alias(&mut self, state: #ty) {
-                    self.emit_transition(#transition_enum::from(state));
-                }
-            }
-        })
-        .collect();
-
-    // Exit method for exit_from states
-    // (exit is always available on the handle)
 
     // TransitionInfo impl arms
     let name_arms: Vec<TokenStream> = state_pascal_names
@@ -261,6 +242,27 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             }
         });
     }
+
+    // Generate observer and handle methods via state callback macros.
+    // Methods are always flat-arg: instance_name + attributes + optional usages.
+    let entry_callback = format_ident!("__quent_state_{}", entry_alias.to_string());
+    let observer_methods = quote! {
+        #entry_callback!(entry_method pub #handle_name #transition_enum tx);
+    };
+
+    let handle_methods = {
+        let transition_callback_invocations: Vec<TokenStream> = input
+            .states
+            .iter()
+            .map(|s| {
+                let callback = format_ident!("__quent_state_{}", s.alias.to_string());
+                quote! {
+                    #callback!(transition_method pub #transition_enum);
+                }
+            })
+            .collect();
+        quote! { #(#transition_callback_invocations)* }
+    };
 
     let output = quote! {
         pub struct #name;
@@ -359,8 +361,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 ));
             }
 
-            // Struct-arg transition methods
-            #(#transition_methods)*
+            #handle_methods
         }
 
         impl<E> Drop for #handle_name<E>
@@ -386,11 +387,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 Self { tx: tx.clone() }
             }
 
-            pub fn #entry_alias(&self, id: uuid::Uuid, state: #entry_type) -> #handle_name<E> {
-                let mut handle = #handle_name { id, seq: 0, exited: false, tx: self.tx.clone() };
-                handle.emit_transition(#transition_enum::from(state));
-                handle
-            }
+            #observer_methods
         }
 
         impl quent_model::HasEventType for #name {

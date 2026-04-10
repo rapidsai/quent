@@ -34,11 +34,14 @@ use proc_macro::TokenStream;
 
 mod define_model;
 mod entity;
+mod entity_macro;
 mod event;
 mod fsm;
 mod fsm_macro;
 mod resource_derive;
+mod resource_macro;
 mod state;
+mod state_macro;
 mod util;
 
 /// Derive macro for FSM state structs.
@@ -162,6 +165,13 @@ pub fn define_model(input: TokenStream) -> TokenStream {
         .into()
 }
 
+#[proc_macro]
+pub fn model(input: TokenStream) -> TokenStream {
+    define_model::expand(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
 /// Generates the instrumentation context with observer factory methods.
 ///
 /// Takes the model name as its single argument. Generates `{Name}Context`
@@ -190,8 +200,91 @@ pub fn fsm(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Defines a state with separated attributes and resource usages.
+///
+/// ```ignore
+/// quent_model::state! {
+///     Queued {
+///         attributes: QueuedAttrs,
+///         usages: {
+///             queue: Queue,
+///         },
+///     }
+/// }
+/// ```
+///
+/// Generates a state struct, `StateMetadata`/`Extract*` impls, and a hidden
+/// callback macro `__quent_state_{name}` for use by `fsm!`.
+#[proc_macro]
+pub fn state(input: TokenStream) -> TokenStream {
+    state_macro::expand(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Defines a resource with optional attributes and capacity fields.
+///
+/// ```ignore
+/// quent_model::resource! { Thread }
+///
+/// quent_model::resource! {
+///     Memory {
+///         capacity: { bytes: Option<u64> },
+///     }
+/// }
+///
+/// quent_model::resource! {
+///     Channel {
+///         attributes: { source_id: Uuid, target_id: Uuid },
+///         capacity: { bytes: Option<u64> },
+///     }
+/// }
+/// ```
+#[proc_macro]
+pub fn resource(input: TokenStream) -> TokenStream {
+    resource_macro::expand(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+/// Defines an entity with either inline fields (self-event) or an events block
+/// (multi-event).
+///
+/// ```ignore
+/// // Self-event entity: struct IS the event
+/// quent_model::entity! {
+///     Info {
+///         message: String,
+///         source: Option<String>,
+///     }
+/// }
+///
+/// // Multi-event entity: separate event types
+/// quent_model::entity! {
+///     FileStats {
+///         events: {
+///             checksum: Checksum,
+///             decompressed: Decompressed,
+///         },
+///     }
+/// }
+/// ```
+#[proc_macro]
+pub fn entity(input: TokenStream) -> TokenStream {
+    entity_macro::expand(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
 #[proc_macro]
 pub fn define_instrumentation(input: TokenStream) -> TokenStream {
+    define_model::expand_instrumentation(input.into())
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}
+
+#[proc_macro]
+pub fn instrumentation(input: TokenStream) -> TokenStream {
     define_model::expand_instrumentation(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()

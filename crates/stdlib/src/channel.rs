@@ -3,18 +3,17 @@
 
 //! Channel resource definition.
 
-use quent_model::{Capacity, Rate, Resource};
-use uuid::Uuid;
-
-/// A unidirectional data transfer resource.
-///
-/// FSM: `entry -> initializing -> operating -> finalizing -> exit`
-///
-/// The `source_id` and `target_id` identify the connected entities.
-/// The `capacity_bytes` is optional (`None` if unbounded).
-#[derive(Resource)]
-pub struct Channel {
-    pub source_id: Uuid,
-    pub target_id: Uuid,
-    pub capacity_bytes: Capacity<Option<u64>, Rate>,
+// A unidirectional data transfer resource.
+// FSM: entry -> initializing -> operating -> finalizing -> exit
+quent_model::resource! {
+    Channel {
+        attributes: {
+            source_id: uuid::Uuid,
+            target_id: uuid::Uuid,
+        },
+        capacity: {
+            rate,
+            bytes: Option<u64>,
+        },
+    }
 }

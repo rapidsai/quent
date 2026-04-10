@@ -3,7 +3,7 @@
 
 //! Worker entity: responsible for executing plans.
 
-use quent_model::{EmitOnce, Entity, Event, Ref};
+use quent_model::{Event, Ref};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Event, Deserialize, Serialize)]
@@ -15,9 +15,12 @@ pub struct Init {
 #[derive(Debug, Event, Deserialize, Serialize)]
 pub struct Exit;
 
-#[derive(Entity)]
-#[resource_group]
-pub struct Worker {
-    pub init: EmitOnce<Init>,
-    pub exit: EmitOnce<Exit>,
+quent_model::entity! {
+    Worker {
+        resource_group: child,
+        events: {
+            init: Init,
+            exit: Exit,
+        },
+    }
 }

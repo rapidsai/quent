@@ -1,25 +1,27 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Integration test for the `fsm!` proc macro with struct-arg methods.
+//! Integration test for the `fsm!` proc macro.
 
-use quent_model::{EventSender, FsmEvent, ModelBuilder, ModelComponent, State, StateMetadata};
+use quent_model::{EventSender, FsmEvent, ModelBuilder, ModelComponent, StateMetadata};
 use uuid::Uuid;
 
-// State structs
+// States via state! macro
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Queued {
-    #[instance_name]
-    pub name: String,
-    pub priority: u32,
+quent_model::state! {
+    Queued {
+        attributes: {
+            priority: u32,
+        },
+    }
 }
 
-#[derive(Debug, State)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Running {
-    pub worker_id: Uuid,
+quent_model::state! {
+    Running {
+        attributes: {
+            worker_id: Uuid,
+        },
+    }
 }
 
 // FSM via the fsm! macro
@@ -43,10 +45,11 @@ quent_model::fsm! {
 #[test]
 fn transition_enum_exists() {
     let _q = TaskTransition::Queued(Queued {
-        name: "test".to_string(),
+        instance_name: "test".to_string(),
         priority: 1,
     });
     let _r = TaskTransition::Running(Running {
+        instance_name: "test".to_string(),
         worker_id: Uuid::nil(),
     });
     let _e = TaskTransition::Exit;
@@ -55,7 +58,7 @@ fn transition_enum_exists() {
 #[test]
 fn from_impls() {
     let q = Queued {
-        name: "test".to_string(),
+        instance_name: "test".to_string(),
         priority: 1,
     };
     let _t: TaskTransition = q.into();
@@ -93,13 +96,7 @@ fn observer_entry_method() {
     let tx: EventSender<TaskEvent> = EventSender::default();
     let observer = TaskObserver::new(&tx);
     let id = Uuid::nil();
-    let mut handle = observer.queued(
-        id,
-        Queued {
-            name: "my_task".to_string(),
-            priority: 5,
-        },
-    );
+    let mut handle = observer.queued(id, "my_task", 5);
     assert_eq!(handle.uuid(), id);
     handle.exit();
 }
@@ -109,15 +106,7 @@ fn handle_transition_method() {
     let tx: EventSender<TaskEvent> = EventSender::default();
     let observer = TaskObserver::new(&tx);
     let id = Uuid::nil();
-    let mut handle = observer.queued(
-        id,
-        Queued {
-            name: "my_task".to_string(),
-            priority: 5,
-        },
-    );
-    handle.running(Running {
-        worker_id: Uuid::nil(),
-    });
+    let mut handle = observer.queued(id, "my_task", 5);
+    handle.running("my_task", Uuid::nil());
     handle.exit();
 }

@@ -5,4 +5,4 @@
 
 pub use quent_query_engine_model::*;
 
-quent_model::define_instrumentation!(QueryEngine);
+quent_model::instrumentation!(QueryEngine);

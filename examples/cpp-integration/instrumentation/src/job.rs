@@ -3,7 +3,7 @@
 
 //! Job entity: groups tasks, root resource group.
 
-use quent_model::{EmitOnce, Entity, Event};
+use quent_model::{Event, entity};
 
 #[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
 pub struct Submit {
@@ -16,9 +16,12 @@ pub struct Complete {
     pub metadata: quent_attributes::CustomAttributes,
 }
 
-#[derive(Entity)]
-#[resource_group(root)]
-pub struct Job {
-    pub submit: EmitOnce<Submit>,
-    pub complete: EmitOnce<Complete>,
+entity! {
+    Job {
+        resource_group: root,
+        events: {
+            submit: Submit,
+            complete: Complete,
+        },
+    }
 }

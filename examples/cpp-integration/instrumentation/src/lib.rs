@@ -13,7 +13,7 @@ pub mod job;
 pub mod task;
 pub mod thread_pool;
 
-quent_model::define_model! {
+quent_model::model! {
     Example {
         root: job::Job,
         thread_pool::ThreadPool,
@@ -21,4 +21,4 @@ quent_model::define_model! {
     }
 }
 
-quent_model::define_instrumentation!(Example);
+quent_model::instrumentation!(Example);

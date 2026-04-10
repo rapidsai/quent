@@ -3,22 +3,19 @@
 
 //! Memory resource definitions.
 
-use quent_model::{Capacity, Occupancy, ResizableResource, Resource};
-
-/// A fixed-bounds memory resource.
-///
-/// FSM: `entry -> initializing -> operating -> finalizing -> exit`
-///
-/// The transition into `operating` declares the capacity in bytes.
-#[derive(Resource)]
-pub struct Memory {
-    pub capacity_bytes: Capacity<Option<u64>, Occupancy>,
+// A fixed-bounds memory resource.
+// FSM: entry -> initializing -> operating -> finalizing -> exit
+quent_model::resource! {
+    Memory {
+        capacity: { bytes: Option<u64> }
+    }
 }
 
-/// A resizable memory resource.
-///
-/// FSM: `entry -> initializing -> operating <-> resizing -> finalizing -> exit`
-#[derive(ResizableResource)]
-pub struct ResizableMemory {
-    pub capacity_bytes: Capacity<Option<u64>, Occupancy>,
+// A resizable memory resource.
+// FSM: entry -> initializing -> operating <-> resizing -> finalizing -> exit
+quent_model::resource! {
+    ResizableMemory {
+        resizable: true,
+        capacity: { bytes: Option<u64> }
+    }
 }

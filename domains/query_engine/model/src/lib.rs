@@ -11,7 +11,7 @@ pub mod query;
 pub mod query_group;
 pub mod worker;
 
-quent_model::define_model! {
+quent_model::model! {
     QueryEngine {
         root: engine::Engine,
         query::Query,

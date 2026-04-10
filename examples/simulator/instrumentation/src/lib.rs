@@ -3,21 +3,23 @@
 
 //! Simulator instrumentation: model definitions, event types, and context.
 
-use quent_model::Entity;
-
 pub mod task;
 
-#[derive(Entity)]
-#[resource_group]
-pub struct ThreadPool;
+quent_model::entity! {
+    ThreadPool {
+        resource_group: child,
+    }
+}
 
-#[derive(Entity)]
-#[resource_group]
-pub struct Network;
+quent_model::entity! {
+    Network {
+        resource_group: child,
+    }
+}
 
 pub use task::TaskEvent;
 
-quent_model::define_model! {
+quent_model::model! {
     Simulator {
         root: quent_query_engine_model::engine::Engine,
         quent_query_engine_model::worker::Worker,
@@ -35,4 +37,4 @@ quent_model::define_model! {
     }
 }
 
-quent_model::define_instrumentation!(Simulator);
+quent_model::instrumentation!(Simulator);

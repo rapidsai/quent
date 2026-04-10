@@ -797,58 +797,92 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
 }
 
 /// Generate tokens for converting FFI struct fields to a model state struct.
-/// `component_mod` is the path prefix for model types (e.g., `icrate::query`).
-fn emit_state_conversion_tokens(
-    state: &StateDef,
-    component_mod: &syn::Path,
-    q: &syn::Path,
-) -> TokenStream {
-    let state_pascal = format_ident!("{}", to_pascal_case(&state.name));
+/// Emit flat argument expressions for a state's attributes and usages.
+///
+/// Returns (conversion_stmts, flat_args) where:
+/// - conversion_stmts: any needed let-bindings or type aliases
+/// - flat_args: the flat argument expressions matching the state callback signature
+///
+/// The state callback signature is: instance_name, attrs..., usages...
+/// where usages are `Option<Usage<T>>`.
+fn emit_state_flat_args(state: &StateDef, q: &syn::Path) -> (TokenStream, Vec<TokenStream>) {
+    let mut stmts = Vec::new();
+    let mut args = Vec::new();
 
-    let attr_fields: Vec<TokenStream> = state
-        .attributes
-        .iter()
-        .map(|a| emit_field_conversion_tokens(a, q, component_mod))
-        .collect();
-
-    // Generate type aliases for capacity types (associated type projection
-    // cannot be used directly in struct literal position on stable Rust).
-    let capacity_aliases: Vec<TokenStream> = state
-        .usages
-        .iter()
-        .map(|usage| {
-            let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
-            let resource_ty: syn::Type = syn::parse_str(&usage.resource_type_path).unwrap();
-            quote! {
-                type #alias = <#resource_ty as #q::Resource>::CapacityValue;
+    // Attributes become flat args — instance_name first (as &str), then others
+    for attr in &state.attributes {
+        let field_name = format_ident!("{}", attr.name);
+        match &attr.value_type {
+            ValueType::String if attr.name == "instance_name" => {
+                args.push(quote! { data.#field_name.as_str() });
             }
-        })
-        .collect();
-
-    let usage_fields: Vec<TokenStream> = state
-        .usages
-        .iter()
-        .map(|usage| {
-            let field_name = format_ident!("{}", usage.field_name);
-            let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
-            let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
-
-            quote! {
-                #field_name: #q::Usage {
-                    resource_id: #q::Ref::new(#q::uuid::Uuid::from(data.#resource_id_field)),
-                    capacity: #alias {},
-                },
+            ValueType::String if attr.optional => {
+                args.push(quote! {
+                    if data.#field_name.is_empty() { None } else { Some(data.#field_name.clone()) }
+                });
             }
-        })
-        .collect();
-
-    quote! {
-        #(#capacity_aliases)*
-        let state = #component_mod::#state_pascal {
-            #(#attr_fields)*
-            #(#usage_fields)*
-        };
+            ValueType::String => {
+                args.push(quote! { data.#field_name.clone() });
+            }
+            ValueType::Uuid if attr.optional => {
+                args.push(quote! {
+                    {
+                        let uuid = #q::uuid::Uuid::from(data.#field_name);
+                        if uuid.is_nil() { None } else { Some(uuid) }
+                    }
+                });
+            }
+            ValueType::Uuid => {
+                args.push(quote! { #q::uuid::Uuid::from(data.#field_name) });
+            }
+            ValueType::Ref(ref_type) => {
+                let ref_ident: syn::Type = syn::parse_str(ref_type)
+                    .unwrap_or_else(|_| syn::parse_str::<syn::Type>("()").unwrap());
+                if attr.optional {
+                    args.push(quote! {
+                        {
+                            let uuid = #q::uuid::Uuid::from(data.#field_name);
+                            if uuid.is_nil() { None } else { Some(#q::Ref::<#ref_ident>::new(uuid)) }
+                        }
+                    });
+                } else {
+                    args.push(quote! { #q::Ref::new(#q::uuid::Uuid::from(data.#field_name)) });
+                }
+            }
+            _ => {
+                // Numeric and other types: pass directly
+                args.push(quote! { data.#field_name });
+            }
+        }
     }
+
+    // Usages become Option<Usage<T>> args — always Some for bridge calls
+    // (C++ always provides a resource_id; nil UUID means no usage).
+    for usage in &state.usages {
+        let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
+        let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
+        let resource_ty: syn::Type = syn::parse_str(&usage.resource_type_path).unwrap();
+
+        stmts.push(quote! {
+            type #alias = <#resource_ty as #q::Resource>::CapacityValue;
+        });
+
+        args.push(quote! {
+            {
+                let uuid = #q::uuid::Uuid::from(data.#resource_id_field);
+                if uuid.is_nil() {
+                    None
+                } else {
+                    Some(#q::Usage {
+                        resource_id: #q::Ref::new(uuid),
+                        capacity: #alias::default(),
+                    })
+                }
+            }
+        });
+    }
+
+    (quote! { #(#stmts)* }, args)
 }
 
 /// Generate a CXX bridge for an FSM.
@@ -862,7 +896,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     let q = quent_path(options);
     let icrate: syn::Path = syn::parse_str(&options.instrumentation_crate).unwrap();
     let fsm_mod = format_ident!("{}", fsm_name);
-    let component_mod: syn::Path =
+    let _component_mod: syn::Path =
         syn::parse_str(&format!("{}::{}", options.instrumentation_crate, fsm_name)).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
@@ -941,7 +975,8 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         false,
     );
 
-    // Build impl code via quote! + prettyplease
+    // Build impl code via quote! + prettyplease.
+    // Calls flat-arg named methods (e.g., handle.running(Some(usage), None)).
     let impl_transition_methods: Vec<TokenStream> = fsm
         .states
         .iter()
@@ -951,16 +986,15 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             if state.attributes.is_empty() && state.usages.is_empty() {
                 quote! {
                     pub fn #method_name(&mut self) {
-                        let state = #icrate::#fsm_mod::#state_pascal_ident;
-                        self.inner.transition(state);
+                        self.inner.#method_name();
                     }
                 }
             } else {
-                let conversion = emit_state_conversion_tokens(state, &component_mod, &q);
+                let (stmts, args) = emit_state_flat_args(state, &q);
                 quote! {
                     pub fn #method_name(&mut self, data: ffi::#state_pascal_ident) {
-                        #conversion
-                        self.inner.transition(state);
+                        #stmts
+                        self.inner.#method_name(#(#args),*);
                     }
                 }
             }
@@ -969,25 +1003,24 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
 
     let observer_name = format_ident!("{}Observer", pascal_name);
     let factory_fn = if has_entry_data {
-        let conversion = emit_state_conversion_tokens(entry_state, &component_mod, &q);
+        let (stmts, args) = emit_state_flat_args(entry_state, &q);
         quote! {
             pub fn create(data: ffi::#entry_pascal) -> Box<#handle_name> {
-                #conversion
+                #stmts
                 let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
-                    inner: obs.#entry_name(id, state),
+                    inner: obs.#entry_name(id, #(#args),*),
                 })
             }
         }
     } else {
         quote! {
             pub fn create() -> Box<#handle_name> {
-                let state = #icrate::#fsm_mod::#entry_pascal;
                 let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
-                    inner: obs.#entry_name(id, state),
+                    inner: obs.#entry_name(id),
                 })
             }
         }

@@ -7,65 +7,86 @@
 //! It transitions through states like queueing, computing, allocating,
 //! loading, spilling, and sending.
 
-use quent_model::{Fsm, State, Usage};
 use uuid::Uuid;
-
-use quent_stdlib::{ChannelResource, MemoryResource, ProcessorResource};
 
 // States
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Queueing {
-    pub operator_id: Uuid,
-    #[instance_name]
-    pub instance_name: String,
+quent_model::state! {
+    Queueing {
+        attributes: {
+            operator_id: Uuid,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Computing {
-    pub use_thread: Usage<ProcessorResource>,
-    pub use_memory: Usage<MemoryResource>,
+quent_model::state! {
+    Computing {
+        usages: {
+            use_thread: quent_stdlib::Processor,
+            use_memory: quent_stdlib::Memory,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Allocating {
-    pub use_thread: Usage<ProcessorResource>,
+quent_model::state! {
+    Allocating {
+        usages: {
+            use_thread: quent_stdlib::Processor,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Loading {
-    pub use_thread: Usage<ProcessorResource>,
-    pub use_fs_to_mem: Usage<ChannelResource>,
-    pub use_memory: Usage<MemoryResource>,
+quent_model::state! {
+    Loading {
+        usages: {
+            use_thread: quent_stdlib::Processor,
+            use_fs_to_mem: quent_stdlib::Channel,
+            use_memory: quent_stdlib::Memory,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Spilling {
-    pub use_thread: Usage<ProcessorResource>,
-    pub use_mem_to_fs: Usage<ChannelResource>,
+quent_model::state! {
+    Spilling {
+        usages: {
+            use_thread: quent_stdlib::Processor,
+            use_mem_to_fs: quent_stdlib::Channel,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Sending {
-    pub use_thread: Usage<ProcessorResource>,
-    pub use_link: Usage<ChannelResource>,
+quent_model::state! {
+    Sending {
+        usages: {
+            use_thread: quent_stdlib::Processor,
+            use_link: quent_stdlib::Channel,
+        },
+    }
 }
 
 // FSM
 
-#[derive(Fsm)]
-pub struct Task {
-    #[entry]
-    #[to(Allocating)]
-    pub queueing: Queueing,
-    #[to(Computing, Loading)]
-    pub allocating: Allocating,
-    #[to(Computing)]
-    pub loading: Loading,
-    #[to(Sending, Spilling, exit)]
-    pub computing: Computing,
-    #[to(Allocating)]
-    pub spilling: Spilling,
-    #[to(Queueing)]
-    pub sending: Sending,
+quent_model::fsm! {
+    Task {
+        states: {
+            queueing: Queueing,
+            computing: Computing,
+            allocating: Allocating,
+            loading: Loading,
+            spilling: Spilling,
+            sending: Sending,
+        },
+        entry: queueing,
+        exit_from: { computing },
+        transitions: {
+            queueing => allocating,
+            allocating => computing,
+            allocating => loading,
+            loading => computing,
+            computing => sending,
+            computing => spilling,
+            spilling => allocating,
+            sending => queueing,
+        },
+    }
 }

@@ -3,35 +3,39 @@
 
 //! Query FSM: the top-level unit of work executed by an engine.
 
-use quent_model::{Fsm, Ref, State};
+use quent_model::Ref;
 
 // States
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Init {
-    #[parent_group]
-    pub query_group_id: Ref<super::query_group::QueryGroup>,
-    #[instance_name]
-    pub instance_name: String,
+quent_model::state! {
+    Init {
+        attributes: {
+            query_group_id: Ref<super::query_group::QueryGroup>,
+        },
+    }
 }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Planning;
+quent_model::state! { Planning {} }
 
-#[derive(Debug, State, serde::Serialize, serde::Deserialize)]
-pub struct Executing;
+quent_model::state! { Executing {} }
 
-// FSM
+// FSM: entry -> Init -> Planning -> Executing -> exit
 
-/// Query FSM: `entry -> Init -> Planning -> Executing -> exit`
-#[derive(Fsm)]
-#[resource_group]
-pub struct Query {
-    #[entry]
-    #[to(Planning)]
-    pub init: Init,
-    #[to(Executing)]
-    pub planning: Planning,
-    #[to(exit)]
-    pub executing: Executing,
+quent_model::fsm! {
+    Query {
+        states: {
+            init: Init,
+            planning: Planning,
+            executing: Executing,
+        },
+        entry: init,
+        exit_from: { executing },
+        transitions: {
+            init => planning,
+            planning => executing,
+        },
+    }
 }
+
+// Query is also a resource group.
+impl quent_model::ResourceGroup for Query {}

@@ -49,3 +49,64 @@ impl<T: Resource> std::fmt::Debug for Usage<T> {
             .finish_non_exhaustive()
     }
 }
+
+/// Ergonomic conversion into `Usage<T>`.
+///
+/// Allows passing resource references and capacity values directly instead
+/// of constructing `Usage<T>` structs manually:
+/// - Unit resources: pass any `R: Into<Ref<T>>` (e.g., a handle reference)
+/// - Capacity resources: pass `(R, cap_value1, cap_value2, ...)`
+pub trait IntoUsage<T: Resource> {
+    fn into_usage(self) -> Usage<T>;
+}
+
+// Unit resource: any R that converts to Ref<T>, when CapacityValue is Default.
+impl<T: Resource, R: Into<Ref<T>>> IntoUsage<T> for R
+where
+    T::CapacityValue: Default,
+{
+    fn into_usage(self) -> Usage<T> {
+        Usage {
+            resource_id: self.into(),
+            capacity: Default::default(),
+        }
+    }
+}
+
+// Single capacity field: (ref, value).
+impl<T: Resource, R: Into<Ref<T>>, V1> IntoUsage<T> for (R, V1)
+where
+    T::CapacityValue: From<(V1,)>,
+{
+    fn into_usage(self) -> Usage<T> {
+        Usage {
+            resource_id: self.0.into(),
+            capacity: (self.1,).into(),
+        }
+    }
+}
+
+// Two capacity fields: (ref, value1, value2).
+impl<T: Resource, R: Into<Ref<T>>, V1, V2> IntoUsage<T> for (R, V1, V2)
+where
+    T::CapacityValue: From<(V1, V2)>,
+{
+    fn into_usage(self) -> Usage<T> {
+        Usage {
+            resource_id: self.0.into(),
+            capacity: (self.1, self.2).into(),
+        }
+    }
+}
+
+/// Convenience function to convert an `IntoUsage<T>` value into `Usage<T>`.
+///
+/// Use inside `Some(...)` when calling state transition methods:
+/// ```ignore
+/// use quent_model::usage;
+/// task.computing(Some(usage(&thread)), None);
+/// task.computing(Some(usage((&mem_pool, 1024))), None);
+/// ```
+pub fn usage<T: Resource>(value: impl IntoUsage<T>) -> Usage<T> {
+    value.into_usage()
+}

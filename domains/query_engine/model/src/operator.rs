@@ -3,7 +3,7 @@
 
 //! Operator entity: sinks, sources, or transforms data within a plan.
 
-use quent_model::{EmitOnce, Entity, Event, Ref};
+use quent_model::{Event, Ref};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Event, Deserialize, Serialize)]
@@ -20,9 +20,12 @@ pub struct Statistics {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
-#[derive(Entity)]
-#[resource_group]
-pub struct Operator {
-    pub declaration: EmitOnce<Declaration>,
-    pub statistics: EmitOnce<Statistics>,
+quent_model::entity! {
+    Operator {
+        resource_group: child,
+        events: {
+            declaration: Declaration,
+            statistics: Statistics,
+        },
+    }
 }

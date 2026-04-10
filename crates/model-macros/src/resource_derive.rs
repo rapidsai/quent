@@ -97,13 +97,13 @@ fn categorize_fields<'a>(input: &'a DeriveInput) -> syn::Result<ResourceFields<'
             syn::Fields::Named(named) => {
                 for field in &named.named {
                     if is_capacity_field(field) {
-                        if let Some(ident) = &field.ident {
-                            if !ident.to_string().starts_with("capacity_") {
-                                return Err(syn::Error::new_spanned(
-                                    ident,
-                                    "Capacity fields must be prefixed with `capacity_` (e.g., `capacity_bytes`)",
-                                ));
-                            }
+                        if let Some(ident) = &field.ident
+                            && !ident.to_string().starts_with("capacity_")
+                        {
+                            return Err(syn::Error::new_spanned(
+                                ident,
+                                "Capacity fields must be prefixed with `capacity_` (e.g., `capacity_bytes`)",
+                            ));
                         }
                         capacity_fields.push(field);
                     } else {
@@ -139,6 +139,70 @@ pub fn expand_resource(input: DeriveInput) -> syn::Result<TokenStream> {
 
 pub fn expand_resizable_resource(input: DeriveInput) -> syn::Result<TokenStream> {
     expand_impl(input, true)
+}
+
+/// Generate `Default` or `From<tuple>` on the Operating state to enable
+/// `IntoUsage<T>` (which has blanket impls in quent_model).
+///
+/// Unit resources get `Default` on Operating → enables `IntoUsage<T> for R`.
+/// Capacity resources get `From<(V1, V2, ...)>` → enables tuple `IntoUsage`.
+///
+/// For the From tuple, `Option<T>` capacity types are stripped to `T` — usage
+/// always declares a concrete amount. The construction wraps in `Some(...)`.
+fn emit_operating_conversions(name: &proc_macro2::Ident, fields: &ResourceFields) -> TokenStream {
+    let op_state = format_ident!("{}Operating", name);
+
+    if fields.capacity_fields.is_empty() {
+        quote! {
+            impl Default for #op_state {
+                fn default() -> Self { Self {} }
+            }
+        }
+    } else {
+        // For each capacity field, strip Option<T> → T for the usage tuple.
+        let cap_full_types: Vec<syn::Type> = fields
+            .capacity_fields
+            .iter()
+            .map(|f| extract_capacity_inner(&f.ty).expect("capacity field must be Capacity<V, K>"))
+            .collect();
+
+        let stripped: Vec<(syn::Type, bool)> = cap_full_types
+            .iter()
+            .map(crate::util::strip_option)
+            .collect();
+
+        let usage_types: Vec<&syn::Type> = stripped.iter().map(|(ty, _)| ty).collect();
+
+        let field_idents: Vec<&proc_macro2::Ident> = fields
+            .capacity_fields
+            .iter()
+            .map(|f| f.ident.as_ref().unwrap())
+            .collect();
+
+        // Construction: wrap in Some() if the original type was Option<T>
+        let construct_fields: Vec<TokenStream> = field_idents
+            .iter()
+            .zip(stripped.iter())
+            .map(|(ident, (_, was_option))| {
+                if *was_option {
+                    quote! { #ident: quent_model::Capacity::new(Some(#ident)) }
+                } else {
+                    quote! { #ident: quent_model::Capacity::new(#ident) }
+                }
+            })
+            .collect();
+
+        let pattern: Vec<TokenStream> =
+            field_idents.iter().map(|ident| quote! { #ident }).collect();
+
+        quote! {
+            impl From<(#(#usage_types,)*)> for #op_state {
+                fn from((#(#pattern,)*): (#(#usage_types,)*)) -> Self {
+                    Self { #(#construct_fields,)* }
+                }
+            }
+        }
+    }
 }
 
 fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> {
@@ -681,5 +745,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
     };
 
-    Ok(output)
+    let operating_conv = emit_operating_conversions(name, &fields);
+
+    let combined = quote! {
+        #output
+        #operating_conv
+    };
+
+    Ok(combined)
 }

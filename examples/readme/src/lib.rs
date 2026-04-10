@@ -3,42 +3,41 @@
 
 //! README example — verifies the code in the top-level README compiles.
 
-use quent_attributes::{Attribute, CustomAttributes};
-use quent_model::{
-    Attributes, Capacity, EmitOnce, Entity, Event, Fsm, Ref, ResizableResource, Resource, State,
-    Usage,
-};
+use quent_attributes::CustomAttributes;
+use quent_model::{Attributes, Event, Ref, entity, fsm, instrumentation, model, resource, state};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 // A "unit" resource. Only one entity may use this at a time.
-#[derive(Resource)]
-pub struct Thread;
+resource! { Thread }
 
 // A resource with a single, bounded capacity.
-// Multiple entities may hold on to a certain amount of this resource simultaneously.
-#[derive(Resource)]
-pub struct Cache {
-    pub capacity_slots: Capacity<u64>,
+resource! {
+    Cache {
+        capacity: { slots: u64 },
+    }
 }
 
 // A resource with a single, bounded capacity, which is resizable.
-#[derive(ResizableResource)]
-pub struct MemoryPool {
-    pub capacity_bytes: Capacity<u64>,
+resource! {
+    MemoryPool {
+        resizable: true,
+        capacity: { bytes: u64 },
+    }
 }
 
 // A resource with a potentially unbounded capacity (by setting the Option to none).
-#[derive(Resource)]
-pub struct Queue {
-    pub capacity_depth: Capacity<Option<u64>>,
+resource! {
+    Queue {
+        capacity: { entries: Option<u64> },
+    }
 }
 
 // A trivial single-event entity.
-#[derive(Entity, Event, Serialize, Deserialize)]
-pub struct Info {
-    pub message: String,
-    pub source: Option<String>,
+entity! {
+    Info {
+        message: String,
+        source: Option<String>,
+    }
 }
 
 // Events for a multi-event entity
@@ -56,10 +55,13 @@ pub struct Decompressed {
 
 // A multi-event entity.
 // Each event can arrive independently, in any order.
-#[derive(Entity)]
-pub struct FileStats {
-    pub checksum: EmitOnce<Checksum>,
-    pub decompressed: EmitOnce<Decompressed>,
+entity! {
+    FileStats {
+        events: {
+            checksum: Checksum,
+            decompressed: Decompressed,
+        },
+    }
 }
 
 // Structs with key-value attributes
@@ -70,50 +72,61 @@ pub struct Details {
 }
 
 // An entity can be marked as a Resource Group.
-#[derive(Entity)]
-#[resource_group]
-pub struct Worker {
-    // A ref to another resource group can be marked as a parent-child relation.
-    // A resource or resource group can only have one parent.
-    #[parent_group]
-    pub cluster: Ref<Cluster>,
-    // Nested attributes
-    pub details: Details,
+entity! {
+    Worker {
+        resource_group: child,
+        parent_group: Cluster,
+        attributes: Details,
+    }
 }
 
-// There must be at least one root resource.
-#[derive(Entity)]
-#[resource_group(root)]
-pub struct Cluster;
-
-// Attributes of an FSM state
-#[derive(State, Serialize, Deserialize)]
-pub struct Queued {
-    // Marks this field to carry the instance name of the entity:
-    #[instance_name]
-    pub name: String,
-    pub worker_id: Ref<Worker>, // reference to another entity
-    pub queue: Usage<Queue>,    // usage of a resource
+// There must be at least one root resource group.
+entity! {
+    Cluster {
+        resource_group: root,
+    }
 }
 
-#[derive(State, Serialize, Deserialize)]
-pub struct Computing {
-    pub thread: Usage<ThreadResource>,
-    pub memory: Usage<MemoryPool>,
+// FSM states separate attributes from resource usages.
+// `instance_name: String` is auto-added by the state! macro.
+state! {
+    Queued {
+        attributes: {
+            worker_id: Ref<Worker>,
+        },
+        usages: {
+            queue: Queue,
+        },
+    }
+}
+
+state! {
+    Computing {
+        usages: {
+            thread: Thread,
+            memory: MemoryPool,
+        },
+    }
 }
 
 // An FSM
-#[derive(Fsm)]
-pub struct Task {
-    #[entry]
-    #[to(Computing)]
-    pub queued: Queued,
-    #[to(exit)]
-    pub computing: Computing,
+fsm! {
+    Task {
+        states: {
+            queued: Queued,
+            computing: Computing,
+        },
+        entry: queued,
+        exit_from: { computing },
+        transitions: {
+            queued => computing,
+            computing => computing,
+        },
+    }
 }
 
 // Generates all event-related types.
-quent_model::define_model! {
+model! {
     App {
         root: Cluster,
         Worker,
@@ -127,21 +140,26 @@ quent_model::define_model! {
     }
 }
 
-// Generates the isntrumentation API
-quent_model::define_instrumentation!(App);
+// Generates the instrumentation API
+instrumentation!(App);
 
+#[test]
 fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
+    use quent_attributes::Attribute;
+    use quent_model::usage;
+    use uuid::Uuid;
+
     let context = AppContext::try_new(None, Uuid::now_v7())?;
     // Spawn a cluster
-    let cluster_id = context
+    let cluster = context
         .cluster_observer()
         .cluster(Uuid::now_v7(), "example_cluster");
 
     // Spawn a worker.
-    let worker_id = context.worker_observer().worker(
+    let worker = context.worker_observer().worker(
         Uuid::now_v7(),
         "worker_0",
-        Ref::new(cluster_id),
+        Ref::new(cluster),
         Details {
             version: "42.1.2".to_string(),
             custom: vec![Attribute::u64("threads", 256)].into(),
@@ -149,28 +167,26 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Construct a queue.
-    let mut queue_handle =
-        context
-            .queue_observer()
-            .initializing(Uuid::now_v7(), "my_queue", worker_id);
+    let mut queue = context
+        .queue_observer()
+        .initializing(Uuid::now_v7(), "my_queue", worker);
     // ... queue getting spawned goes here
-    queue_handle.operating(None);
+    queue.operating(None);
 
     // Construct a memory pool.
-    let mut mem_pool_handle =
+    let mut mem_pool =
         context
             .memory_pool_observer()
-            .initializing(Uuid::now_v7(), "my_memory_pool", worker_id);
+            .initializing(Uuid::now_v7(), "my_memory_pool", worker);
     // ... pool doing pool things goes here
-    mem_pool_handle.operating(1337);
+    mem_pool.operating(1337);
 
     // Spawn a thread.
-    let mut thread_handle =
-        context
-            .thread_observer()
-            .initializing(Uuid::now_v7(), "my_thread", worker_id);
+    let mut thread = context
+        .thread_observer()
+        .initializing(Uuid::now_v7(), "my_thread", worker);
     // ... thread getting spawned and handle moved into it goes here
-    thread_handle.operating();
+    thread.operating();
 
     // Single event entity
     context.info_observer().info(
@@ -180,8 +196,9 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Multi-event entities can emit in any order from an entity handle.
-    let mut file_stats_handle = context.file_stats_observer().create(Uuid::now_v7());
-    // Pretend to calculate a checksum and decompress in parallel.
+    let file_stats_handle = context.file_stats_observer().create(Uuid::now_v7());
+    // ... checksum and decompress goes here, can be async as the order of
+    // events doesn't matter here
     file_stats_handle.checksum(Checksum {
         algorithm: "sha256".to_string(),
         value: "abc123def456".to_string(),
@@ -193,7 +210,21 @@ fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Queue a task. The entry transition returns an FSM handle.
-    let task = context.task_observer().queued(Uuid::now_v7(), "my_task_31415", worker_id, /*use_queue:*/ queue_handle.into(), /*use_queue_slots:*/ 1 });
+    let mut task = context.task_observer().queued(
+        Uuid::now_v7(),
+        "my_task_31415",
+        Ref::new(worker),
+        Some(usage((&queue, 1))),
+    );
+
+    // ... task sitting in the queue goes here
+    task.computing(
+        /* thread unit resource usage: */ Some(usage(&thread)),
+        /* no memory pool usage: */ None,
+    );
+    task.computing(Some(usage(&thread)), Some(usage((&mem_pool, 1024))));
+    // ... computing goes here
+    task.exit();
 
     Ok(())
 }

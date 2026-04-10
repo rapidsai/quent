@@ -15,14 +15,13 @@ use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
     PostcardExporterOptions,
 };
-use quent_model::{Capacity, Ref, Usage};
+use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
-    operator, plan, port, query, query_group, worker,
+    operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
 use quent_simulator_instrumentation::SimulatorEvent;
-use quent_simulator_instrumentation::task::*;
 use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -498,7 +497,8 @@ fn lower_logical(
 
 struct Worker {
     id: Uuid,
-    _name: String,
+    name: String,
+    parent_engine_id: Uuid,
     memory: Uuid,
     filesystem: Uuid,
     fs_to_mem: Uuid,
@@ -522,7 +522,7 @@ impl Worker {
         let worker_obs = context.worker_observer();
 
         info!("Spawning worker {name}");
-        let worker_handle = worker_obs.create(id);
+        let worker_handle = worker_obs.worker(id, &name, parent_engine_id);
         worker_handle.init(worker::Init {
             parent_engine_id: Ref::new(parent_engine_id),
             instance_name: name.clone(),
@@ -579,7 +579,8 @@ impl Worker {
 
         Self {
             id,
-            _name: name,
+            name,
+            parent_engine_id,
             memory,
             filesystem,
             fs_to_mem,
@@ -605,13 +606,7 @@ impl Worker {
 
         // Create task — emits entry -> Queueing
         let task_obs = context.task_observer();
-        let mut task = task_obs.queueing(
-            Uuid::now_v7(),
-            Queueing {
-                operator_id: operator.id,
-                instance_name: format!("task-{index}"),
-            },
-        );
+        let mut task = task_obs.queueing(Uuid::now_v7(), &format!("task-{index}"), operator.id);
 
         sleep_long();
         let (spill, load, send) = match operator.kind {
@@ -625,71 +620,32 @@ impl Worker {
 
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
-        task.transition(Allocating {
-            use_thread: Usage {
-                resource_id: thread_ref,
-                capacity: quent_stdlib::ProcessorOperating {},
-            },
-        });
+        task.allocating(Some(usage(thread_ref)));
         sleep_short();
 
         if spill {
-            task.transition(Spilling {
-                use_thread: Usage {
-                    resource_id: thread_ref,
-                    capacity: quent_stdlib::ProcessorOperating {},
-                },
-                use_mem_to_fs: Usage {
-                    resource_id: Ref::new(self.mem_to_fs),
-                    capacity: quent_stdlib::ChannelOperating {
-                        capacity_bytes: Capacity::new(Some(num_bytes)),
-                    },
-                },
-            });
+            task.spilling(
+                Some(usage(thread_ref)),
+                Some(usage((Ref::new(self.mem_to_fs), num_bytes))),
+            );
             sleep_sometimes_really_long();
-            task.transition(Allocating {
-                use_thread: Usage {
-                    resource_id: thread_ref,
-                    capacity: quent_stdlib::ProcessorOperating {},
-                },
-            });
+            task.allocating(Some(usage(thread_ref)));
             sleep_short();
         }
 
         if load {
-            task.transition(Loading {
-                use_thread: Usage {
-                    resource_id: thread_ref,
-                    capacity: quent_stdlib::ProcessorOperating {},
-                },
-                use_fs_to_mem: Usage {
-                    resource_id: Ref::new(self.fs_to_mem),
-                    capacity: quent_stdlib::ChannelOperating {
-                        capacity_bytes: Capacity::new(Some(num_bytes)),
-                    },
-                },
-                use_memory: Usage {
-                    resource_id: mem_ref,
-                    capacity: quent_stdlib::MemoryOperating {
-                        capacity_bytes: Capacity::new(Some(rng().random_range(0..4) * num_bytes)),
-                    },
-                },
-            });
+            task.loading(
+                Some(usage(thread_ref)),
+                Some(usage((Ref::new(self.fs_to_mem), num_bytes))),
+                Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
+            );
             sleep_sometimes_really_long();
         }
 
-        task.transition(Computing {
-            use_thread: Usage {
-                resource_id: thread_ref,
-                capacity: quent_stdlib::ProcessorOperating {},
-            },
-            use_memory: Usage {
-                resource_id: mem_ref,
-                capacity: quent_stdlib::MemoryOperating {
-                    capacity_bytes: Capacity::new(Some(rng().random_range(0..4) * num_bytes)),
-                },
-            },
-        });
+        task.computing(
+            Some(usage(thread_ref)),
+            Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
+        );
 
         if send {
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
@@ -697,18 +653,10 @@ impl Worker {
             for other in other_workers {
                 let link = *engine.network_links.get(&(self.id, *other)).unwrap();
 
-                task.transition(Sending {
-                    use_thread: Usage {
-                        resource_id: thread_ref,
-                        capacity: quent_stdlib::ProcessorOperating {},
-                    },
-                    use_link: Usage {
-                        resource_id: Ref::new(link),
-                        capacity: quent_stdlib::ChannelOperating {
-                            capacity_bytes: Capacity::new(Some(num_bytes)),
-                        },
-                    },
-                });
+                task.sending(
+                    Some(usage(thread_ref)),
+                    Some(usage((Ref::new(link), num_bytes))),
+                );
                 sleep_long();
             }
         }
@@ -1072,7 +1020,7 @@ impl Worker {
             handle.exit();
         }
         sleep_long();
-        let worker_handle = worker_obs.create(self.id);
+        let worker_handle = worker_obs.worker(self.id, &self.name, self.parent_engine_id);
         worker_handle.exit(worker::Exit);
     }
 }
@@ -1101,9 +1049,10 @@ impl Engine {
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
         let engine_obs = context.engine_observer();
 
-        let engine_handle = engine_obs.create(self.id);
+        let instance_name = format!("holodeck-{:04x}", rng().random::<u32>());
+        let engine_handle = engine_obs.engine(self.id, &instance_name);
         engine_handle.init(engine::Init {
-            instance_name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
+            instance_name: Some(instance_name),
             implementation: EngineImplementationAttributes {
                 name: Some("Simulator".into()),
                 version: Some("0.0.0-PoC".into()),
@@ -1182,7 +1131,7 @@ impl Engine {
             worker.shut_down(context);
         }
 
-        let engine_handle = engine_obs.create(self.id);
+        let engine_handle = engine_obs.engine(self.id, "shutdown");
         engine_handle.exit(engine::Exit);
         info!("Simulated engine shut down.")
     }
@@ -1249,20 +1198,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let query_id = Uuid::now_v7();
             let mut query_handle = query_obs.init(
                 query_id,
-                query::Init {
-                    query_group_id: Ref::new(query_group_id),
-                    instance_name: format!("Q{query_index}"),
-                },
+                &format!("Q{query_index}"),
+                Ref::new(query_group_id),
             );
             info!("Simulating Query:");
             info!(
                 "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
                 engine.id
             );
-            query_handle.transition(query::Planning);
+            query_handle.planning();
             let l_plan = make_logical_plan(query_id, "logical".into());
             l_plan.declare(&context, None);
-            query_handle.transition(query::Executing);
+            query_handle.executing();
 
             let workers: Vec<_> = engine.workers.values().collect();
             std::thread::scope(|s| {

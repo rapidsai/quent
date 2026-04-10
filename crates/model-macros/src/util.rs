@@ -83,6 +83,19 @@ pub fn parse_resource_group_attr(input: &syn::DeriveInput) -> Option<bool> {
     None
 }
 
+/// If `ty` is `Option<T>`, returns `(T, true)`. Otherwise `(ty, false)`.
+pub fn strip_option(ty: &syn::Type) -> (syn::Type, bool) {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(seg) = type_path.path.segments.last()
+        && seg.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        return (inner.clone(), true);
+    }
+    (ty.clone(), false)
+}
+
 /// Resolve a `syn::Type` to a `quent_model::ValueType` token stream.
 ///
 /// Returns a token stream that constructs the appropriate `ValueType` variant.
