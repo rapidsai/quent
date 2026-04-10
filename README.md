@@ -1,17 +1,47 @@
 # Quent
 
-Quent is a framework for building tools that help understand dynamic behavior
-and resource utilization of data and control flow structures in your
+Quent is a framework for building tools that help understand behavior and
+resource utilization of abstract data and control flow structures in your
 application. It provides a set of modeling concepts (especially Finite State
-Machines, Resources, and their relationships) from which a statically typed
-instrumentation API is generated. Applications instrumented with this API emit
-structured telemetry that can be stored, analyzed, and visualized. Quent
-provides building blocks for each of these layers, so you (or preferably your
-coding agent) can mix and match things to build a dedicated, semantically rich
+Machines, Resources, and how they can be related).
+
+From an application model, a statically typed instrumentation API is generated.
+Applications instrumented with this API emit structured telemetry that can be
+stored, analyzed, and visualized.
+
+Quent provides building blocks for each of these layers, so you (or preferably
+your coding agent) can mix and match to build a dedicated, semantically rich
 profiling / telemetry tool for your application.
 
 In this experimental stage, the first domain we target is that of query engines,
 but the basic concepts are domain-agnostic and may be applied to other domains.
+
+## Status
+
+This project is experimental and under heavy development. The modeling concepts,
+generated and non-generated APIs, and implementations are continunously subject
+to breaking changes for now. There are no releases. Consider this project
+pre-alpha. Expect bugs. At the same time, early experiments are welcome, as well
+as thoughts, questions, suggestions, and feature requests.
+
+## Show me the code
+
+An extensive example of using all modeling concepts to define a model and the
+resulting instrumentation API is found here:
+
+- [Example](examples/readme/src/lib.rs)
+
+A simulated application (a query engine), analysis back-end and front-end can be
+found here:
+
+- [Simulator](examples/simulator/)
+- [Analyzer](examples/simulator/analyzer/)
+- [Front-end](ui/)
+
+While Quent is a Rust-based project, it can generate a C++ instrumentation API.
+This is shown here:
+
+- [C++ Integration Example](examples/cpp-integration/)
 
 ## How
 
@@ -47,133 +77,6 @@ Capacities, and Usages, and the logic that connects them (resource utilization
 tracking, hierarchical aggregation, and model reconstruction from events).
 Everything else (storage, transport, instrumentation, and visualization) is an
 opinionated but replaceable implementation based on the modeling approach.
-
-## Status
-
-This project is experimental, unstable, and under heavy development. The
-modeling concepts, APIs, and implementations are opinionated and subject to
-change. There are no official releases yet. Expect bugs. Thoughts, questions,
-suggestions, and feature requests are most welcome.
-
-## Example
-
-### Model
-
-The model describes the structure of things you want to track in your
-application:
-
-```rust
-use quent_model::{Capacity, Entity, Fsm, Resource, State, Usage};
-
-// A "unit resource", only one entity can use this at a time.
-#[derive(Resource)]
-pub struct Thread;
-
-// A resource with a capacity, multiple entities can use this
-// at a time, claiming some of its capacity.
-#[derive(Resource)]
-pub struct Queue {
-    pub depth: Capacity<u64>,
-}
-
-// A state of the "Task" FSM
-#[derive(State)]
-pub struct Queued {
-    // At least one state must name the Task, for which
-    // the field is annotated by this attribute
-    #[instance_name]
-    pub name: String,
-    // This state uses a queue resource:
-    pub queue: Usage<QueueResource>,
-}
-
-// Another state of the "Task" FSM
-#[derive(State)]
-pub struct Running {
-    // This state uses a thread resource:
-    pub thread: Usage<ThreadResource>,
-}
-
-// The "Task" FSM
-#[derive(Fsm)]
-pub struct Task {
-    #[entry] #[to(Running)]
-    pub queued: Queued,
-    #[to(exit)]
-    pub running: Running,
-}
-
-// The root resource group
-#[derive(Entity)]
-#[resource_group(root)]
-pub struct Scheduler;
-
-// Defines an application model, generates all event types
-// for the components of the model defined above.
-quent_model::define_model! {
-    App {
-        root: Scheduler,
-        Task,
-        Thread,
-        Queue,
-    }
-}
-
-// Generates the instrumentation context from which event
-// emitting APIs are called.
-quent_model::define_instrumentation!(App);
-```
-
-### Rust instrumentation
-
-The derive macros generate a type-safe instrumentation API from the model.
-See [examples/simulator](examples/simulator/) for a complete example.
-
-```rust
-let ctx = AppContext::try_new(exporter, uuid::Uuid::now_v7())?;
-
-// Create a task — enters Queued, occupying a queue slot
-let mut task = ctx.task_observer().queued(Queued {
-    name: "query-42".into(),
-    queue: Usage {
-        resource_id: Ref::new(queue_id),
-        capacity: QueueOperating { depth: Capacity::new(1) },
-    },
-});
-
-// Task gets scheduled — releases queue slot, acquires thread
-task.running(Running {
-    thread: Usage {
-        resource_id: Ref::new(thread_id),
-        capacity: ThreadOperating {},
-    },
-});
-
-// Task completes
-task.exit();
-```
-
-### C++ instrumentation
-
-The same model can target C++ via CXX bridge code generation. Capacity wrappers
-and typed references are flattened into plain fields. See
-[examples/cpp-integration](examples/cpp-integration/) for a complete example.
-
-```cpp
-auto ctx = quent::create_context("ndjson", "data");
-
-auto task = quent::task::create(quent::task::Queued {
-    .name = "query-42",
-    .queue_resource_id = queue_id,
-    .queue_depth = 1,
-});
-
-task->running(quent::task::Running {
-    .thread_resource_id = thread_id,
-});
-
-task->exit();
-```
 
 ### Event output
 
