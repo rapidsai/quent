@@ -19,8 +19,14 @@ struct StateEntry {
     ty: Path,
 }
 
+struct ResourceGroupMeta {
+    is_root: bool,
+    _parent_type: Option<Ident>,
+}
+
 struct FsmInput {
     name: Ident,
+    resource_group: Option<ResourceGroupMeta>,
     states: Vec<StateEntry>,
     entry: Ident,
     exit_from: Vec<Ident>,
@@ -30,6 +36,49 @@ struct FsmInput {
 impl Parse for FsmInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name: Ident = input.parse()?;
+
+        // Optional `: ResourceGroup<...>`
+        let resource_group = if input.peek(Token![:]) {
+            input.parse::<Token![:]>()?;
+            let rg: Ident = input.parse()?;
+            if rg != "ResourceGroup" {
+                return Err(syn::Error::new_spanned(rg, "expected `ResourceGroup`"));
+            }
+            let mut is_root = false;
+            let mut _parent_type = None;
+            if input.peek(Token![<]) {
+                input.parse::<Token![<]>()?;
+                while !input.peek(Token![>]) {
+                    let key: Ident = input.parse()?;
+                    input.parse::<Token![=]>()?;
+                    match key.to_string().as_str() {
+                        "Root" => {
+                            let val: syn::LitBool = input.parse()?;
+                            is_root = val.value;
+                        }
+                        "Parent" => {
+                            _parent_type = Some(input.parse::<Ident>()?);
+                        }
+                        other => {
+                            return Err(syn::Error::new_spanned(
+                                key,
+                                format!("unexpected `{other}`, expected `Root` or `Parent`"),
+                            ));
+                        }
+                    }
+                    if input.peek(Token![,]) {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
+                input.parse::<Token![>]>()?;
+            }
+            Some(ResourceGroupMeta {
+                is_root,
+                _parent_type,
+            })
+        } else {
+            None
+        };
 
         let content;
         braced!(content in input);
@@ -110,6 +159,7 @@ impl Parse for FsmInput {
 
         Ok(FsmInput {
             name,
+            resource_group,
             states,
             entry,
             exit_from,
@@ -129,6 +179,27 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let event_type = format_ident!("{}Event", name);
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
+
+    // Resource group support
+    let (rg_trait_impl, rg_contribution) = if let Some(ref rg) = input.resource_group {
+        let is_root = rg.is_root;
+        (
+            quote! {
+                impl quent_model::ResourceGroup for #name {
+                    const IS_ROOT: bool = #is_root;
+                }
+            },
+            quote! {
+                builder.add_resource_group(quent_model::ResourceGroupDef {
+                    name: #fsm_snake.to_string(),
+                    fixed_parent: None,
+                    is_root: #is_root,
+                });
+            },
+        )
+    } else {
+        (quote! {}, quote! {})
+    };
 
     // State type paths and aliases
     let state_aliases: Vec<&Ident> = input.states.iter().map(|s| &s.alias).collect();
@@ -320,8 +391,11 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     states: vec![#(#state_def_calls,)*],
                     transitions: vec![#(#transition_def_tokens,)*],
                 });
+                #rg_contribution
             }
         }
+
+        #rg_trait_impl
 
         pub struct #handle_name<E>
         where

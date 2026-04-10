@@ -22,7 +22,7 @@ quent_model::state! { Executing {} }
 // FSM: entry -> Init -> Planning -> Executing -> exit
 
 quent_model::fsm! {
-    Query {
+    Query: ResourceGroup {
         states: {
             init: Init,
             planning: Planning,
@@ -36,6 +36,3 @@ quent_model::fsm! {
         },
     }
 }
-
-// Query is also a resource group.
-impl quent_model::ResourceGroup for Query {}
