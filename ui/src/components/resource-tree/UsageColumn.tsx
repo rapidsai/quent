@@ -68,6 +68,7 @@ export function UsageColumn({
         showTooltip={isHovered}
         capacities={capacities}
         quantitySpecs={queryBundle.quantity_specs}
+        fsmTypes={queryBundle.entities.fsm_types}
       />
     </div>
   );

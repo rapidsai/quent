@@ -21,10 +21,17 @@ const DATAZOOM_LABEL_BACKGROUND_OPACITY = 0.5;
 const OVERLAY_LIGHTEN = 0.6;
 const OVERLAY_LIGHTEN_DARK = 0.4;
 
+export const TIMELINE_MONO_FONT =
+  'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
+
 const MARK_AREA_FILL_OPACITY = 0.12;
 const MARK_AREA_BORDER_OPACITY = 0.75;
 const MARK_LABEL_TEXT_COLOR = WHITE;
 const MARK_LABEL_TEXT_COLOR_DARK = WHITE;
+
+/** Softer than pure black/white for chart text to reduce contrast. */
+const TEXT_COLOR_LIGHT = '#333333';
+const TEXT_COLOR_DARK = '#d4d4d4';
 
 /**
  * Theme-dependent colors for timeline ECharts (Timeline + TimelineController).
@@ -45,7 +52,10 @@ export function useTimelineChartColors() {
       DATAZOOM_LABEL_BACKGROUND_OPACITY
     );
 
+    const textColor = theme === THEME_DARK ? TEXT_COLOR_DARK : TEXT_COLOR_LIGHT;
+
     return {
+      textColor,
       timelineMarkupColor,
       gridBorderColor,
       gridBackgroundColor: withOpacity(timelineMarkupColor, GRID_BACKGROUND_OPACITY),

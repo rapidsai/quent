@@ -44,7 +44,7 @@ pub enum Value {
     U16(u16),
     U32(u32),
     U64(u64),
-    I8(u8),
+    I8(i8),
     I16(i16),
     I32(i32),
     I64(i64),
@@ -107,7 +107,7 @@ impl Attribute {
     pub fn i8(key: impl Into<String>, value: i8) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::I8(value as u8)),
+            value: Some(Value::I8(value)),
         }
     }
 

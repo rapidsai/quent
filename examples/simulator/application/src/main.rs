@@ -697,6 +697,8 @@ impl Worker {
                     id,
                     task::Sending {
                         use_thread: thread,
+                        use_memory: self.memory,
+                        use_memory_bytes: num_bytes,
                         use_link: link,
                         use_link_bytes: num_bytes,
                     },
@@ -1152,7 +1154,12 @@ impl Engine {
                         target_id: self.workers.get(&other_worker_id).unwrap().memory,
                     },
                 );
-                channel_obs.operating(up_link_id, channel::Operating {});
+                channel_obs.operating(
+                    up_link_id,
+                    channel::Operating {
+                        capacity_bytes: None,
+                    },
+                );
 
                 let down_link_id = Uuid::now_v7();
                 channel_obs.init(
@@ -1167,7 +1174,12 @@ impl Engine {
                         target_id: self.workers.get(&worker_id).unwrap().memory,
                     },
                 );
-                channel_obs.operating(down_link_id, channel::Operating {});
+                channel_obs.operating(
+                    down_link_id,
+                    channel::Operating {
+                        capacity_bytes: None,
+                    },
+                );
 
                 self.network_links
                     .insert((worker_id, other_worker_id), up_link_id);

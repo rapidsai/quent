@@ -13,8 +13,8 @@ import * as echarts from 'echarts/core';
 import type { ComposeOption, EChartsType } from 'echarts/core';
 
 // Charts - only import what you use
-import { LineChart } from 'echarts/charts';
-import type { LineSeriesOption } from 'echarts/charts';
+import { LineChart, CustomChart } from 'echarts/charts';
+import type { LineSeriesOption, CustomSeriesOption } from 'echarts/charts';
 
 // Components - only import what you use
 import {
@@ -26,6 +26,7 @@ import {
   DataZoomSliderComponent,
   ToolboxComponent,
   MarkAreaComponent,
+  VisualMapComponent,
 } from 'echarts/components';
 import type {
   TitleComponentOption,
@@ -34,6 +35,7 @@ import type {
   DataZoomComponentOption,
   ToolboxComponentOption,
   MarkAreaComponentOption,
+  VisualMapComponentOption,
 } from 'echarts/components';
 
 // Renderer - use Canvas for better performance (SVG available if needed)
@@ -43,6 +45,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 echarts.use([
   // Charts
   LineChart,
+  CustomChart,
   // Components
   TitleComponent,
   TooltipComponent,
@@ -52,6 +55,7 @@ echarts.use([
   DataZoomSliderComponent,
   ToolboxComponent,
   MarkAreaComponent,
+  VisualMapComponent,
   // Renderer
   CanvasRenderer,
 ]);
@@ -59,12 +63,14 @@ echarts.use([
 // Compose the option type from the components we use
 export type EChartsOption = ComposeOption<
   | LineSeriesOption
+  | CustomSeriesOption
   | TitleComponentOption
   | TooltipComponentOption
   | GridComponentOption
   | DataZoomComponentOption
   | ToolboxComponentOption
   | MarkAreaComponentOption
+  | VisualMapComponentOption
 >;
 
 // Re-export echarts instance and types

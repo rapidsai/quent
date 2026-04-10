@@ -8,6 +8,7 @@ import { Operator } from '~quent/types/Operator';
 import { Port } from '~quent/types/Port';
 import { Plan } from '~quent/types/Plan';
 import { PlanTree } from '~quent/types/PlanTree';
+import { parsePortStatistics } from '@/lib/queryBundle.utils';
 
 interface PlanTreeNode extends PlanTree {
   query?: string | null;
@@ -116,11 +117,18 @@ export const getPlanDAG = (
         nodeMap.set(targetNode.id, targetNode);
       }
 
+      const sourcePort = bundle?.entities?.ports?.[edge.source];
+      const targetPort = bundle?.entities?.ports?.[edge.target];
+      // Prefer source (output) port stats; fall back to target (input) port stats
+      const sourcePortStats = parsePortStatistics(sourcePort);
+      const portStats =
+        sourcePortStats.length > 0 ? sourcePortStats : parsePortStatistics(targetPort);
       edges.push({
         id: `${edge.source}-${edge.target}`,
         source: sourceNode.id,
         target: targetNode.id,
         type: 'smoothstep',
+        portStats: portStats.length ? portStats : undefined,
       });
     }
   });

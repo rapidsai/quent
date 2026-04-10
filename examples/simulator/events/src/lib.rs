@@ -47,6 +47,8 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Sending {
         pub use_thread: Uuid,
+        pub use_memory: Uuid,
+        pub use_memory_bytes: u64,
         pub use_link: Uuid,
         pub use_link_bytes: u64,
     }

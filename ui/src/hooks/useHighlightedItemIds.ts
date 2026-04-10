@@ -5,10 +5,12 @@ import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
 import { hoveredWorkerIdAtom } from '@/atoms/dag';
 import { TreeTableItem } from '@/components/resource-tree/types';
+import { operatorTimelineRowId } from '@/components/operator-timeline';
 
 /**
  * Returns the set of item IDs in the subtree rooted at the currently
- * hovered worker node, or undefined when nothing is hovered.
+ * hovered worker node (plus the synthetic Operator timeline row under that worker),
+ * or undefined when nothing is hovered.
  */
 export function useHighlightedItemIds(rootItem: TreeTableItem): Set<string> | undefined {
   const hoveredWorkerId = useAtomValue(hoveredWorkerIdAtom);
@@ -29,6 +31,7 @@ export function useHighlightedItemIds(rootItem: TreeTableItem): Set<string> | un
       for (const item of items) {
         if (item.id === hoveredWorkerId) {
           collectSubtree([item]);
+          ids.add(operatorTimelineRowId(hoveredWorkerId));
           return true;
         }
         if (item.children && find(item.children)) return true;
