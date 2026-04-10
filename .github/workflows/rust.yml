@@ -51,14 +51,18 @@ jobs:
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
       - run: pixi run cargo build --workspace --all-features --locked --release
-      - name: Build and run C++ examples
+      - name: Build C++ integration example
         run: |
           pixi run cmake -B examples/cpp-integration/cpp/build -S examples/cpp-integration/cpp
           pixi run cmake --build examples/cpp-integration/cpp/build
-          ./examples/cpp-integration/cpp/build/example
+      - name: Run C++ integration example
+        run: ./examples/cpp-integration/cpp/build/example
+      - name: Build C++ query engine example
+        run: |
           pixi run cmake -B examples/query-engine-cpp/cpp/build -S examples/query-engine-cpp/cpp
           pixi run cmake --build examples/query-engine-cpp/cpp/build
-          ./examples/query-engine-cpp/cpp/build/example
+      - name: Run C++ query engine example
+        run: ./examples/query-engine-cpp/cpp/build/example
 
   deny:
     name: cargo-deny
