@@ -24,6 +24,8 @@ export interface DataHeaderProps {
   stat: string;
   sortInfo: PivotTableSortInfo | null;
   onSort: () => void;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export interface GroupCellProps<TRow extends PivotTableRowBase> {

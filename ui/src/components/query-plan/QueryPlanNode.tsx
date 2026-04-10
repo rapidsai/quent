@@ -14,11 +14,12 @@ import {
   hoveredStatAtom,
   hoveredOperatorTypeAtom,
   highlightedNodeIdsAtom,
+  nodeColorPaletteAtom,
 } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
+import { continuousColor, isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import {
@@ -26,6 +27,7 @@ import {
   DEFAULT_OPERATION_COLOR,
 } from '@/services/query-plan/operationTypes';
 import { DataText } from '@/components/ui/data-text';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -55,13 +57,6 @@ const nodeVariants = cva(
     },
   }
 );
-
-/** Same red gradient as the table cells, but with higher alpha for node backgrounds. */
-const GRADIENT_COLOR: [number, number, number] = [239, 68, 68]; // red-500
-function heatmapBg(t: number): string {
-  const alpha = 0.1 + t * 0.55; // 0.1 at low → 0.65 at high
-  return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
-}
 
 function nodeOpacityClass({
   hoveredStat,
@@ -99,6 +94,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const hoveredStat = useAtomValue(hoveredStatAtom);
   const hoveredOpType = useAtomValue(hoveredOperatorTypeAtom);
   const highlightedNodeIds = useAtomValue(highlightedNodeIdsAtom);
+  const nodePalette = useAtomValue(nodeColorPaletteAtom);
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const operatorTypeName = data.metadata?.rawNode?.operator_type_name ?? data.operationType;
   const isHoveredFromTable = hoveredOperatorId === operatorId && operatorId !== '';
@@ -138,8 +136,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     if (v === undefined) return undefined;
     const range = hoveredStat.max - hoveredStat.min;
     const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
-    return heatmapBg(t);
-  }, [hoveredStat, operatorId]);
+    return continuousColor(t, nodePalette, isDarkMode);
+  }, [hoveredStat, operatorId, nodePalette, isDarkMode]);
 
   const opacityClass = nodeOpacityClass({
     hoveredStat,

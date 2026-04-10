@@ -134,7 +134,7 @@ export function PivotTable<
       const style: React.CSSProperties = {
         position: 'sticky',
         left: stickyLeftOffsets[col] ?? 0,
-        zIndex: header ? 120 : 90,
+        zIndex: header ? 40 : 30,
         backgroundColor: 'hsl(var(--card))',
       };
       if (header) {
@@ -169,6 +169,12 @@ export function PivotTable<
 
   const totalColumnCount = groupColumnIds.length + dataColumnIds.length;
   const shared = (sharedProps ?? {}) as TShared;
+  const normalHeaderStyle: React.CSSProperties = {
+    position: 'sticky',
+    top: 0,
+    zIndex: 20,
+    backgroundColor: 'hsl(var(--card))',
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -177,7 +183,7 @@ export function PivotTable<
       )}
       <div className="flex-1 min-h-0 overflow-auto" ref={scrollRef}>
         <table className="text-sm border-separate border-spacing-0 relative isolate">
-          <thead className="sticky top-0 bg-card z-50">
+          <thead className="bg-card">
             <tr className="border-b border-border">
               {groupColumnIds.map(columnId => (
                 <th
@@ -207,10 +213,18 @@ export function PivotTable<
                 return (
                   <React.Fragment key={columnId}>
                     {DataHeader ? (
-                      <DataHeader stat={columnId} sortInfo={sortInfo} onSort={onSort} {...shared} />
+                      <DataHeader
+                        stat={columnId}
+                        sortInfo={sortInfo}
+                        onSort={onSort}
+                        className="bg-card"
+                        style={normalHeaderStyle}
+                        {...shared}
+                      />
                     ) : (
                       <th
-                        className="text-right px-3 py-2 text-sm whitespace-nowrap"
+                        className="text-right px-3 py-2 text-sm whitespace-nowrap bg-card"
+                        style={normalHeaderStyle}
                         onClick={onSort}
                       >
                         {columnId}

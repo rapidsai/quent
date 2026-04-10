@@ -23,6 +23,8 @@ function DataHeader({
   stat,
   sortInfo,
   onSort,
+  className,
+  style,
   draggedStat,
   setDraggedStat,
   onReorderStat,
@@ -33,6 +35,8 @@ function DataHeader({
   stat: string;
   sortInfo: PivotTableSortInfo | null;
   onSort: () => void;
+  className?: string;
+  style?: React.CSSProperties;
   draggedStat: string | null;
   setDraggedStat: (stat: string | null) => void;
   onReorderStat?: (from: string, to: string) => void;
@@ -56,10 +60,12 @@ function DataHeader({
       onMouseLeave={() => onHoverStat?.(null)}
       className={cn(
         'text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
+        className,
         draggedStat === stat && 'opacity-50',
         sortInfo && 'text-foreground',
         hoveredStatName === stat && 'bg-primary/10'
       )}
+      style={style}
     >
       {stat}
       {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
