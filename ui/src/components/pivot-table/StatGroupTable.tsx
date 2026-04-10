@@ -192,7 +192,8 @@ function DataCell({
     hoveredHeaderItemIds != null && [...row.itemIds].some(id => hoveredHeaderItemIds.has(id));
   const isRowHighlightedFromDag =
     hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
-  const rowHighlight = isRowHighlightedFromTable || isRowHighlightedFromDag ? HIGHLIGHT_WASH : undefined;
+  const rowHighlight =
+    isRowHighlightedFromTable || isRowHighlightedFromDag ? HIGHLIGHT_WASH : undefined;
   const cellHighlight = rowHighlight ?? colHighlight;
   const statCellProps = {
     onMouseEnter: () => onHoverStat?.(buildHoveredStatInfo(stat)),
@@ -455,16 +456,8 @@ export function StatGroupTable<TRow>({
       id: stat,
       header: stat,
       enableSorting: true,
-      accessorFn: (row: PivotedRow) =>
-        getSortValue(row, stat, isAggregating, aggMode) ?? Number.NaN,
-      sortingFn: (rowA, rowB, columnId) => {
-        const a = getSortValue(rowA.original, columnId as string, isAggregating, aggMode);
-        const b = getSortValue(rowB.original, columnId as string, isAggregating, aggMode);
-        if (a === null && b === null) return 0;
-        if (a === null) return 1;
-        if (b === null) return -1;
-        return a - b;
-      },
+      sortUndefined: 'last',
+      accessorFn: (row: PivotedRow) => getSortValue(row, stat, isAggregating, aggMode) ?? undefined,
     }));
     return [...groupCols, ...statCols];
   }, [activeIndices, effectiveVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);

@@ -5,6 +5,7 @@ import {
   selectedPlanIdAtom,
   selectedNodeIdsAtom,
   hoveredOperatorIdAtom,
+  hoveredOperatorInfoAtom,
   hoveredStatAtom,
   hoveredOperatorTypeAtom,
   highlightedNodeIdsAtom,
@@ -167,6 +168,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [selectedPlanId, setSelectedPlanId] = useAtom(selectedPlanIdAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const [hoveredOperatorId, setHoveredOperatorId] = useAtom(hoveredOperatorIdAtom);
+  const hoveredOperatorInfo = useAtomValue(hoveredOperatorInfoAtom);
+  const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
   const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
   const setHoveredOperatorType = useSetAtom(hoveredOperatorTypeAtom);
   const setHighlightedNodeIds = useSetAtom(highlightedNodeIdsAtom);
@@ -316,6 +319,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           onMouseEnter: () => {
             if (firstItemScopeId && firstItemScopeId !== selectedPlanId)
               setSelectedPlanId(firstItemScopeId);
+            // Table-origin hover should not trigger table auto-scroll.
+            setHoveredOperatorInfo(null);
             setHoveredOperatorId(firstItemId);
           },
           onMouseLeave: () => {
@@ -348,6 +353,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       setSelectedPlanId,
       hoveredOperatorId,
       setHoveredOperatorId,
+      setHoveredOperatorInfo,
       setHoveredOperatorType,
       setHighlightedNodeIds,
       itemsByParentType,
@@ -399,7 +405,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           aggMode={aggMode}
           indexLabels={indexLabels}
           selectedItemIds={selectedNodeIds}
-          hoveredItemId={hoveredOperatorId}
+          hoveredItemId={hoveredOperatorInfo !== null ? hoveredOperatorId : null}
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
           getGroupTypeColor={(key, id) =>
