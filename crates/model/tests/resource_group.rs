@@ -57,7 +57,7 @@ fn resource_group_entity_data() {
 }
 
 // Resource group with custom declaration fields via attributes
-#[derive(Debug, quent_model::Event)]
+#[derive(Debug, quent_model::Attributes)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ServerDetails {
     pub version: String,

@@ -3,16 +3,16 @@
 
 //! Worker entity: responsible for executing plans.
 
-use quent_model::{Event, Ref};
+use quent_model::{Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Init {
     pub parent_engine_id: Ref<super::engine::Engine>,
     pub instance_name: String,
 }
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Exit;
 
 quent_model::entity! {

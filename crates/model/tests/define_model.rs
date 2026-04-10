@@ -3,7 +3,7 @@
 
 //! Tests for `model!` macro.
 
-use quent_model::{Event, FsmEvent};
+use quent_model::{Attributes, FsmEvent};
 
 // Minimal model components
 
@@ -24,7 +24,7 @@ quent_model::fsm! {
     }
 }
 
-#[derive(Debug, Event)]
+#[derive(Debug, Attributes)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ping {
     pub value: u64,

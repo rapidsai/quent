@@ -3,9 +3,9 @@
 
 //! ThreadPool entity: resource group containing threads.
 
-use quent_model::Event;
+use quent_model::Attributes;
 
-#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Attributes, serde::Serialize, serde::Deserialize)]
 pub struct ThreadPoolInit {
     pub num_threads: u32,
 }

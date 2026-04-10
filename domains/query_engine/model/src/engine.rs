@@ -3,7 +3,7 @@
 
 //! Engine entity: top-level entry point and root resource group.
 
-use quent_model::{Attributes, Event};
+use quent_model::Attributes;
 use serde::{Deserialize, Serialize};
 
 /// Attributes describing details about the implementation of this Engine
@@ -17,13 +17,13 @@ pub struct EngineImplementationAttributes {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
-#[derive(Debug, Default, Event, Deserialize, Serialize)]
+#[derive(Debug, Default, Attributes, Deserialize, Serialize)]
 pub struct Init {
     pub implementation: EngineImplementationAttributes,
     pub instance_name: Option<String>,
 }
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Exit;
 
 // Engine is the root resource group.

@@ -3,11 +3,11 @@
 
 //! QueryGroup entity: encapsulates a set of queries.
 
-use quent_model::Event;
+use quent_model::Attributes;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Event, Serialize, Deserialize)]
+#[derive(Debug, Attributes, Serialize, Deserialize)]
 pub struct Declaration {
     /// The name of this instance of a query group.
     pub instance_name: String,

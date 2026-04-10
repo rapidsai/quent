@@ -3,7 +3,7 @@
 
 //! Plan entity: a DAG of operators representing a query execution plan.
 
-use quent_model::{Attributes, Event, Ref};
+use quent_model::{Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
 /// A directed edge of a Plan DAG.
@@ -24,7 +24,7 @@ pub struct PlanParent {
     pub plan_id: Option<Ref<super::plan::Plan>>,
 }
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Declaration {
     pub parent: PlanParent,
     pub instance_name: String,

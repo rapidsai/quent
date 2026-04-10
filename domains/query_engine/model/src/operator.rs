@@ -3,10 +3,10 @@
 
 //! Operator entity: sinks, sources, or transforms data within a plan.
 
-use quent_model::{Event, Ref};
+use quent_model::{Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Declaration {
     pub plan_id: Ref<super::plan::Plan>,
     pub parent_operator_ids: Vec<Ref<super::operator::Operator>>,
@@ -15,7 +15,7 @@ pub struct Declaration {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Statistics {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }

@@ -3,15 +3,15 @@
 
 //! Job entity: groups tasks, root resource group.
 
-use quent_model::{Event, entity};
+use quent_model::{Attributes, entity};
 
-#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Attributes, serde::Serialize, serde::Deserialize)]
 pub struct Submit {
     pub name: String,
     pub num_tasks: u32,
 }
 
-#[derive(Debug, Event, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Attributes, serde::Serialize, serde::Deserialize)]
 pub struct Complete {
     pub metadata: quent_attributes::CustomAttributes,
 }

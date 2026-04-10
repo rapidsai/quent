@@ -3,7 +3,7 @@
 
 //! Tests for entity and event macros.
 
-use quent_model::{Event, ModelBuilder, ModelComponent};
+use quent_model::{Attributes, ModelBuilder, ModelComponent};
 use uuid::Uuid;
 
 quent_model::entity! {
@@ -12,14 +12,14 @@ quent_model::entity! {
     }
 }
 
-#[derive(Debug, Event)]
+#[derive(Debug, Attributes)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlanCreated {
     pub plan_id: Uuid,
     pub query_text: String,
 }
 
-#[derive(Debug, Event)]
+#[derive(Debug, Attributes)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Stats {
     pub rows: u64,

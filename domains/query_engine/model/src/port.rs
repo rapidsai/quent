@@ -3,10 +3,10 @@
 
 //! Port entity: input or output of an operator.
 
-use quent_model::{Event, Ref};
+use quent_model::{Attributes, Ref};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Declaration {
     /// The ID of the operator this port belongs to.
     pub operator_id: Ref<super::operator::Operator>,
@@ -14,7 +14,7 @@ pub struct Declaration {
     pub instance_name: String,
 }
 
-#[derive(Debug, Event, Deserialize, Serialize)]
+#[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Statistics {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }

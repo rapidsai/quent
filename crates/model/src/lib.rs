@@ -18,7 +18,7 @@ mod usage;
 
 // Re-export derive macros.
 pub use quent_model_macros::{
-    Attributes, Event, ResizableResource, Resource, entity, fsm, resource, state,
+    Attributes, ResizableResource, Resource, entity, fsm, resource, state,
 };
 
 pub use capacity::{Capacity, Occupancy, Rate};
