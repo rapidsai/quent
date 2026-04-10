@@ -42,7 +42,7 @@ int main() {
         // Create task — enters Queued state.
         auto task = quent::task::create(quent::task::Queued{
             .job_id = job_id,
-            .name = "task-" + std::to_string(i),
+            .instance_name = "task-" + std::to_string(i),
         });
 
         // Transition to Running — uses a thread resource.
