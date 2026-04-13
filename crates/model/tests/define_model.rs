@@ -61,7 +61,7 @@ fn define_model_generates_event_enum() {
 
 #[test]
 fn define_model_generates_model_type() {
-    let builder = TestModel::build();
+    let builder = TestModel::build("Test");
     assert_eq!(builder.fsms.len(), 1);
     assert_eq!(builder.entities.len(), 2); // TestRoot + SimpleEntity
 }

@@ -157,7 +157,7 @@ fn state_with_ref_field() {
 
 #[test]
 fn full_model_collection() {
-    let builder = AppModel::build();
+    let builder = AppModel::build("App");
 
     // Domain entities
     assert_eq!(builder.entities.len(), 2);

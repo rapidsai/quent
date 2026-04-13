@@ -41,7 +41,7 @@ quent_model::fsm! {
 
 #[test]
 fn linear_fsm_valid() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     LinearFsm::collect(&mut builder);
     let fsm = &builder.fsms[0];
     assert_eq!(fsm.states.len(), 3);
@@ -69,7 +69,7 @@ quent_model::fsm! {
 
 #[test]
 fn cyclic_fsm_valid() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     CyclicFsm::collect(&mut builder);
     let fsm = &builder.fsms[0];
     assert_eq!(fsm.states.len(), 2);
@@ -97,7 +97,7 @@ type OuterModel = Model<(InnerModel, CyclicFsm)>;
 
 #[test]
 fn nested_model_composition() {
-    let builder = OuterModel::build();
+    let builder = OuterModel::build("Outer");
     assert_eq!(builder.fsms.len(), 2);
     assert!(builder.fsms.iter().any(|f| f.name == "linear_fsm"));
     assert!(builder.fsms.iter().any(|f| f.name == "cyclic_fsm"));
@@ -107,7 +107,7 @@ fn nested_model_composition() {
 
 #[test]
 fn transition_endpoints() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     LinearFsm::collect(&mut builder);
     let fsm = &builder.fsms[0];
 

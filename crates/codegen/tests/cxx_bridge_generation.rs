@@ -7,12 +7,11 @@ use quent_codegen::{CxxOptions, emit_cxx};
 
 #[test]
 fn generate_query_engine_cxx_bridge() {
-    let builder = quent_query_engine_model::QueryEngineModel::build();
+    let builder = quent_query_engine_model::QueryEngineModel::build("QueryEngine");
 
     let options = CxxOptions {
         namespace: "quent::qe".into(),
         instrumentation_crate: "quent_query_engine_model".into(),
-        model_name: "QueryEngine".into(),
         ..Default::default()
     };
     let files = emit_cxx(&builder, &options);
@@ -88,11 +87,10 @@ fn generate_query_engine_cxx_bridge() {
 
 #[test]
 fn generate_simulator_cxx_bridge() {
-    let builder = quent_simulator_instrumentation::SimulatorModel::build();
+    let builder = quent_simulator_instrumentation::SimulatorModel::build("Simulator");
 
     let options = CxxOptions {
         instrumentation_crate: "quent_simulator_instrumentation".into(),
-        model_name: "Simulator".into(),
         ..Default::default()
     };
     let files = emit_cxx(&builder, &options);

@@ -47,7 +47,7 @@ fn channel_types_exist() {
 
 #[test]
 fn memory_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     quent_stdlib::Memory::collect(&mut builder);
     assert_eq!(builder.fsms.len(), 1);
     assert_eq!(builder.fsms[0].name, "memory");
@@ -55,7 +55,7 @@ fn memory_model_component() {
 
 #[test]
 fn processor_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     quent_stdlib::Processor::collect(&mut builder);
     assert_eq!(builder.fsms.len(), 1);
     assert_eq!(builder.fsms[0].name, "processor");
@@ -63,7 +63,7 @@ fn processor_model_component() {
 
 #[test]
 fn channel_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     quent_stdlib::Channel::collect(&mut builder);
     assert_eq!(builder.fsms.len(), 1);
     assert_eq!(builder.fsms[0].name, "channel");
@@ -71,7 +71,7 @@ fn channel_model_component() {
 
 #[test]
 fn resizable_memory_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     quent_stdlib::ResizableMemory::collect(&mut builder);
     assert_eq!(builder.fsms.len(), 1);
     let fsm = &builder.fsms[0];
