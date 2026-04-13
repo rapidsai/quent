@@ -28,8 +28,8 @@ impl Worker {
             id: self.0.id(),
             parent_engine_id: d.init.as_ref().map(|i| i.parent_engine_id.uuid()),
             instance_name: d.init.as_ref().map(|i| i.instance_name.clone()),
-            start_unix_ns: self.0.first_timestamp(),
-            end_unix_ns: self.0.last_timestamp(),
+            start_unix_ns: self.0.earliest_timestamp(),
+            end_unix_ns: self.0.latest_timestamp(),
         }
     }
 }
@@ -53,7 +53,7 @@ impl Entity for Worker {
 
 impl Span for Worker {
     fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
-        if let (Some(start), Some(end)) = (self.0.first_timestamp(), self.0.last_timestamp()) {
+        if let (Some(start), Some(end)) = (self.0.earliest_timestamp(), self.0.latest_timestamp()) {
             Ok(SpanUnixNanoSec::try_new(start, end)?)
         } else {
             Err(AnalyzerError::IncompleteEntity(

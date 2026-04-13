@@ -24,8 +24,8 @@ impl Engine {
 
     pub fn to_ui(&self) -> AnalyzerResult<ui::Engine> {
         let d = self.0.data();
-        let start = self.0.first_timestamp();
-        let end = self.0.last_timestamp();
+        let start = self.0.earliest_timestamp();
+        let end = self.0.latest_timestamp();
 
         let duration_s = if let (Some(s), Some(e)) = (start, end) {
             Some(try_to_secs_relative(e, s)?)
@@ -62,7 +62,7 @@ impl Entity for Engine {
 
 impl Span for Engine {
     fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
-        if let (Some(start), Some(end)) = (self.0.first_timestamp(), self.0.last_timestamp()) {
+        if let (Some(start), Some(end)) = (self.0.earliest_timestamp(), self.0.latest_timestamp()) {
             Ok(SpanUnixNanoSec::try_new(start, end)?)
         } else {
             Err(AnalyzerError::IncompleteEntity(
