@@ -10,10 +10,9 @@ crate-type = ["staticlib"]
 
 [dependencies]
 cxx = "1"
-quent-cpp-example-instrumentation = { path = "../instrumentation" }
-quent-stdlib = { path = "../../../crates/stdlib" }
+quent-readme-example = { path = "../../readme" }
 
 [build-dependencies]
 cxx-build = "1"
 quent-codegen = { path = "../../../crates/codegen" }
-quent-cpp-example-instrumentation = { path = "../instrumentation" }
+quent-readme-example = { path = "../../readme" }

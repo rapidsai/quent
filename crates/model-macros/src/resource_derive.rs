@@ -195,10 +195,21 @@ fn emit_operating_conversions(name: &proc_macro2::Ident, fields: &ResourceFields
         let pattern: Vec<TokenStream> =
             field_idents.iter().map(|ident| quote! { #ident }).collect();
 
+        let default_fields: Vec<TokenStream> = field_idents
+            .iter()
+            .map(|ident| quote! { #ident: quent_model::Capacity::new(Default::default()) })
+            .collect();
+
         quote! {
             impl From<(#(#usage_types,)*)> for #op_state {
                 fn from((#(#pattern,)*): (#(#usage_types,)*)) -> Self {
                     Self { #(#construct_fields,)* }
+                }
+            }
+
+            impl Default for #op_state {
+                fn default() -> Self {
+                    Self { #(#default_fields,)* }
                 }
             }
         }
@@ -329,19 +340,61 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             #impls
         }
     } else {
-        let impls = emit_unit_state_impls(
-            &op_state,
-            "operating",
-            extract_capacities_body,
-            quote! { None },
-            quote! { None },
-        );
+        // Build attribute defs for operating state capacity fields
+        let op_attr_defs: Vec<TokenStream> = fields
+            .capacity_fields
+            .iter()
+            .map(|f| {
+                let field_name = f.ident.as_ref().unwrap().to_string();
+                let inner_ty =
+                    extract_capacity_inner(&f.ty).expect("capacity field must be Capacity<V, K>");
+                let (vt, optional) = crate::util::resolve_value_type(&inner_ty);
+                quote! {
+                    quent_model::AttributeDef {
+                        name: #field_name.to_string(),
+                        value_type: #vt,
+                        optional: #optional,
+                    }
+                }
+            })
+            .collect();
+
+        let op_impls = quote! {
+            impl quent_model::StateMetadata for #op_state {
+                fn state_name() -> &'static str { "operating" }
+                fn state_def() -> quent_model::StateDef {
+                    quent_model::StateDef {
+                        name: "operating".to_string(),
+                        attributes: vec![#(#op_attr_defs,)*],
+                        usages: vec![],
+                    }
+                }
+            }
+
+            impl quent_model::analyze::ExtractCapacities for #op_state {
+                fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> {
+                    #extract_capacities_body
+                }
+            }
+
+            impl quent_model::analyze::ExtractUsages for #op_state {
+                fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
+            }
+
+            impl quent_model::analyze::ExtractInstanceName for #op_state {
+                fn extract_instance_name(&self) -> Option<&str> { None }
+            }
+
+            impl quent_model::analyze::ExtractParentGroupId for #op_state {
+                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
+            }
+        };
         quote! {
             #[derive(#serde_derives)]
             #vis struct #op_state {
                 #(#capacity_field_defs,)*
             }
-            #impls
+            #op_impls
         }
     };
 
@@ -560,13 +613,63 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         )
     };
 
-    let init_state_impls = emit_unit_state_impls(
-        &init_state,
-        "initializing",
-        quote! { vec![] },
-        quote! { Some(&self.instance_name) },
-        quote! { Some(self.parent_group_id) },
-    );
+    // Build attribute defs for the initializing state (for model metadata / codegen)
+    let mut init_attr_defs = vec![
+        quote! {
+            quent_model::AttributeDef {
+                name: "instance_name".to_string(),
+                value_type: quent_model::ValueType::String,
+                optional: false,
+            }
+        },
+        quote! {
+            quent_model::AttributeDef {
+                name: "parent_group_id".to_string(),
+                value_type: quent_model::ValueType::Uuid,
+                optional: false,
+            }
+        },
+    ];
+    for f in &fields.init_fields {
+        let field_name = f.ident.as_ref().unwrap().to_string();
+        let (vt, optional) = crate::util::resolve_value_type(&f.ty);
+        init_attr_defs.push(quote! {
+            quent_model::AttributeDef {
+                name: #field_name.to_string(),
+                value_type: #vt,
+                optional: #optional,
+            }
+        });
+    }
+
+    let init_state_impls = quote! {
+        impl quent_model::StateMetadata for #init_state {
+            fn state_name() -> &'static str { "initializing" }
+            fn state_def() -> quent_model::StateDef {
+                quent_model::StateDef {
+                    name: "initializing".to_string(),
+                    attributes: vec![#(#init_attr_defs,)*],
+                    usages: vec![],
+                }
+            }
+        }
+
+        impl quent_model::analyze::ExtractCapacities for #init_state {
+            fn extract_capacities(&self) -> Vec<quent_model::analyze::ExtractedCapacity> { vec![] }
+        }
+
+        impl quent_model::analyze::ExtractUsages for #init_state {
+            fn extract_usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> { vec![] }
+        }
+
+        impl quent_model::analyze::ExtractInstanceName for #init_state {
+            fn extract_instance_name(&self) -> Option<&str> { Some(&self.instance_name) }
+        }
+
+        impl quent_model::analyze::ExtractParentGroupId for #init_state {
+            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { Some(self.parent_group_id) }
+        }
+    };
 
     let fin_state_impls = emit_unit_state_impls(
         &fin_state,
@@ -643,6 +746,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
                     name: #name_snake.to_string(),
+                        module_path: module_path!().to_string(),
                     entry: "initializing".to_string(),
                     states: vec![#state_defs],
                     transitions: vec![#transition_defs],

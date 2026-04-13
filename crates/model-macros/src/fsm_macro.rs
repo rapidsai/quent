@@ -420,6 +420,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     let entry_str = stringify!(#entry_alias);
                     builder.add_fsm(quent_model::FsmDef {
                         name: #fsm_snake.to_string(),
+                        module_path: module_path!().to_string(),
                         entry: entry_str.to_string(),
                         states: vec![#(#state_def_calls,)*],
                         transitions: vec![#(#transition_def_tokens,)*],

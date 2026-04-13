@@ -625,6 +625,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_entity(quent_model::EntityDef {
                     name: #entity_snake.to_string(),
+                        module_path: module_path!().to_string(),
                     events: vec![<#name as quent_model::EventMetadata>::event_def()],
                 });
             }
@@ -686,6 +687,7 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_entity(quent_model::EntityDef {
                     name: #entity_snake.to_string(),
+                        module_path: module_path!().to_string(),
                     events: vec![#(#event_defs,)*],
                 });
             }
@@ -844,6 +846,7 @@ fn expand_rg_attrs(
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_entity(quent_model::EntityDef {
                     name: #entity_snake.to_string(),
+                        module_path: module_path!().to_string(),
                     events: vec![
                         quent_model::EntityEventDef {
                             name: #decl_snake.to_string(),
@@ -934,6 +937,7 @@ fn expand_rg_events(
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_entity(quent_model::EntityDef {
                     name: #entity_snake.to_string(),
+                        module_path: module_path!().to_string(),
                     events: vec![#(#event_defs,)*],
                 });
                 builder.add_resource_group(quent_model::ResourceGroupDef {

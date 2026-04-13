@@ -26,8 +26,7 @@ members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    # C++ integration example
-    "examples/cpp-integration/instrumentation",
+    # C++ integration example (uses readme model)
     "examples/cpp-integration/bridge",
     # Query engine C++ bridge test
     "domains/query_engine/tests/cpp/instrumentation",

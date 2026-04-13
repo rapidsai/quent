@@ -142,6 +142,23 @@ fn quent_path(options: &CxxOptions) -> syn::Path {
     syn::parse_str(&format!("{}::__quent", options.instrumentation_crate)).unwrap()
 }
 
+/// Remap a `module_path!()` value to be relative to the instrumentation crate.
+///
+/// `module_path!()` returns paths like `quent_query_engine_model::engine`.
+/// The bridge accesses types through `quent_qe_cpp_instrumentation::engine`
+/// (via re-exports). This strips the original crate prefix and prepends the
+/// instrumentation crate name.
+fn remap_module_path(module_path: &str, options: &CxxOptions) -> String {
+    // module_path is "crate_name" or "crate_name::sub::module"
+    // Strip the crate name (first segment) and prepend instrumentation_crate
+    if let Some(rest) = module_path.split_once("::").map(|(_, rest)| rest) {
+        format!("{}::{}", options.instrumentation_crate, rest)
+    } else {
+        // Flat model — module_path is just the crate name, no submodules
+        options.instrumentation_crate.clone()
+    }
+}
+
 /// Map a Quent `ValueType` to a CXX-compatible Rust type string.
 /// Returns None if the type is not representable in CXX.
 fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
@@ -173,10 +190,9 @@ fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
     // Option<String> → String (empty = None)
     // Other optional types are not supported
     if optional {
-        match ty {
-            ValueType::Ref(_) | ValueType::Uuid | ValueType::String => Some(base),
-            _ => None,
-        }
+        // CXX doesn't support Option<T> in shared structs. Use the base type
+        // with sentinels: nil UUID = None, empty string = None, 0 = None for numerics.
+        Some(base)
     } else {
         Some(base)
     }
@@ -583,7 +599,7 @@ fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (Str
 }
 
 /// Generate a field conversion expression for an attribute: `name: <conversion>(data.name)`.
-/// `component_mod` is the path prefix for model types (e.g., `icrate::engine`).
+/// `component_mod` is the path prefix for model types (e.g., the entity's module path).
 fn emit_field_conversion_tokens(
     attr: &AttributeDef,
     q: &syn::Path,
@@ -655,7 +671,7 @@ fn emit_field_conversion_tokens(
 
 /// Generate a conversion expression from CXX shared struct to a Rust model struct.
 /// `data` is assumed to be in scope as the CXX shared struct value.
-/// `component_mod` qualifies the struct type (e.g., `icrate::engine`).
+/// `component_mod` qualifies the struct type (e.g., the entity's module path).
 fn emit_struct_conversion(
     type_path: &str,
     attrs: &[AttributeDef],
@@ -683,13 +699,8 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
     let observer_name_str = format!("{pascal_name}Observer");
     let observer_name = format_ident!("{}", observer_name_str);
     let q = quent_path(options);
-    let icrate: syn::Path = syn::parse_str(&options.instrumentation_crate).unwrap();
-    let entity_mod = format_ident!("{}", entity_name);
-    let component_mod: syn::Path = syn::parse_str(&format!(
-        "{}::{}",
-        options.instrumentation_crate, entity_name
-    ))
-    .unwrap();
+    let remapped = remap_module_path(&entity.module_path, options);
+    let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
     let event_type: syn::Type = syn::parse_str(&options.event_type()).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
@@ -717,10 +728,10 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
             extern_rust_body.push_str(&format!("        fn {}(&self, id: UUID);\n", event.name,));
             observer_impl_methods.push(quote! {
                 pub fn #event_method(&self, id: ffi::UUID) {
-                    let model_event = #icrate::#entity_mod::#event_pascal;
+                    let model_event = #component_mod::#event_pascal;
                     self.tx.send(#q::Event::new_now(
                         #q::uuid::Uuid::from(id),
-                        #icrate::#entity_mod::#entity_event_enum::from(model_event).into(),
+                        #component_mod::#entity_event_enum::from(model_event).into(),
                     ));
                 }
             });
@@ -746,12 +757,12 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
 
             observer_impl_methods.push(quote! {
                 pub fn #event_method(&self, id: ffi::UUID, data: ffi::#event_pascal) {
-                    let model_event = #icrate::#entity_mod::#event_pascal {
+                    let model_event = #component_mod::#event_pascal {
                         #(#field_conversions)*
                     };
                     self.tx.send(#q::Event::new_now(
                         #q::uuid::Uuid::from(id),
-                        #icrate::#entity_mod::#entity_event_enum::from(model_event).into(),
+                        #component_mod::#entity_event_enum::from(model_event).into(),
                     ));
                 }
             });
@@ -803,7 +814,11 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
 ///
 /// The state callback signature is: instance_name, attrs..., usages...
 /// where usages are `Option<Usage<T>>`.
-fn emit_state_flat_args(state: &StateDef, q: &syn::Path) -> (TokenStream, Vec<TokenStream>) {
+fn emit_state_flat_args(
+    state: &StateDef,
+    q: &syn::Path,
+    component_mod_str: &str,
+) -> (TokenStream, Vec<TokenStream>) {
     let mut stmts = Vec::new();
     let mut args = Vec::new();
 
@@ -848,8 +863,14 @@ fn emit_state_flat_args(state: &StateDef, q: &syn::Path) -> (TokenStream, Vec<To
                 }
             }
             _ => {
-                // Numeric and other types: pass directly
-                args.push(quote! { data.#field_name });
+                if attr.optional {
+                    // Optional numeric: 0 sentinel → None, otherwise Some
+                    args.push(quote! {
+                        if data.#field_name == 0 { None } else { Some(data.#field_name) }
+                    });
+                } else {
+                    args.push(quote! { data.#field_name });
+                }
             }
         }
     }
@@ -859,7 +880,17 @@ fn emit_state_flat_args(state: &StateDef, q: &syn::Path) -> (TokenStream, Vec<To
     for usage in &state.usages {
         let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
         let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
-        let resource_ty: syn::Type = syn::parse_str(&usage.resource_type_path).unwrap();
+        // Resource type paths may be bare names (e.g., "Queue") for types in the
+        // same crate, or qualified (e.g., "quent_stdlib::Processor"). Bare names
+        // need to be resolved against the component's module path.
+        let resource_ty: syn::Type = {
+            let path = &usage.resource_type_path;
+            if path.contains("::") {
+                syn::parse_str(path).unwrap()
+            } else {
+                syn::parse_str(&format!("{}::{}", component_mod_str, path)).unwrap()
+            }
+        };
 
         stmts.push(quote! {
             type #alias = <#resource_ty as #q::Resource>::CapacityValue;
@@ -892,15 +923,14 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     let handle_name_str = format!("{pascal_name}Handle");
     let handle_name = format_ident!("{}", handle_name_str);
     let q = quent_path(options);
-    let icrate: syn::Path = syn::parse_str(&options.instrumentation_crate).unwrap();
-    let fsm_mod = format_ident!("{}", fsm_name);
+    let remapped = remap_module_path(&fsm.module_path, options);
+    let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
     let model_handle: syn::Type = {
         let s = format!(
-            "{}::{}::{}Handle<{}>",
-            options.instrumentation_crate,
-            fsm_name,
+            "{}::{}Handle<{}>",
+            remapped,
             pascal_name,
             options.event_type(),
         );
@@ -958,8 +988,11 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         extern_rust_body.push_str(&format!("        fn create() -> Box<{handle_name_str}>;\n"));
     }
 
-    // Transition methods
+    // Transition methods (skip entry state — handled by factory)
     for state in &fsm.states {
+        if state.name == fsm.entry {
+            continue;
+        }
         let state_pascal = to_pascal_case(&state.name);
         if state.attributes.is_empty() && state.usages.is_empty() {
             extern_rust_body.push_str(&format!("        fn {}(&mut self);\n", state.name));
@@ -986,9 +1019,12 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
 
     // Build impl code via quote! + prettyplease.
     // Calls flat-arg named methods (e.g., handle.running(Some(usage), None)).
+    // Skip the entry state — it's handled by the factory function, not as a
+    // handle transition method.
     let impl_transition_methods: Vec<TokenStream> = fsm
         .states
         .iter()
+        .filter(|state| state.name != fsm.entry)
         .map(|state| {
             let method_name = format_ident!("{}", state.name);
             let state_pascal_ident = format_ident!("{}", to_pascal_case(&state.name));
@@ -999,7 +1035,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
                     }
                 }
             } else {
-                let (stmts, args) = emit_state_flat_args(state, &q);
+                let (stmts, args) = emit_state_flat_args(state, &q, &remapped);
                 quote! {
                     pub fn #method_name(&mut self, data: ffi::#state_pascal_ident) {
                         #stmts
@@ -1012,11 +1048,11 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
 
     let observer_name = format_ident!("{}Observer", pascal_name);
     let factory_fn = if has_entry_data {
-        let (stmts, args) = emit_state_flat_args(entry_state, &q);
+        let (stmts, args) = emit_state_flat_args(entry_state, &q, &remapped);
         quote! {
             pub fn create(data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #stmts
-                let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
+                let obs = #component_mod::#observer_name::new(&super::context::global_sender());
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
                     inner: obs.#entry_name(id, #(#args),*),
@@ -1026,7 +1062,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     } else {
         quote! {
             pub fn create() -> Box<#handle_name> {
-                let obs = #icrate::#fsm_mod::#observer_name::new(&super::context::global_sender());
+                let obs = #component_mod::#observer_name::new(&super::context::global_sender());
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
                     inner: obs.#entry_name(id),

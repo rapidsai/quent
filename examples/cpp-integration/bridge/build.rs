@@ -4,12 +4,12 @@
 use quent_codegen::CxxOptions;
 
 fn main() {
-    let builder = quent_cpp_example_instrumentation::ExampleModel::build();
+    let builder = quent_readme_example::AppModel::build();
 
     let options = CxxOptions {
         crate_name: "quent-bridge".into(),
-        instrumentation_crate: "quent_cpp_example_instrumentation".into(),
-        model_name: "Example".into(),
+        instrumentation_crate: "quent_readme_example".into(),
+        model_name: "App".into(),
         ..Default::default()
     };
 

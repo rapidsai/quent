@@ -90,6 +90,8 @@ pub struct FsmDef {
     pub entry: String,
     pub states: Vec<StateDef>,
     pub transitions: Vec<TransitionDef>,
+    /// The Rust module path where this FSM is defined (from `module_path!()`).
+    pub module_path: String,
 }
 
 /// A state definition within an FSM.
@@ -146,6 +148,8 @@ pub struct ResourceGroupDef {
 pub struct EntityDef {
     pub name: String,
     pub events: Vec<EntityEventDef>,
+    /// The Rust module path where this entity is defined (from `module_path!()`).
+    pub module_path: String,
 }
 
 /// A one-shot event type associated with an entity.
