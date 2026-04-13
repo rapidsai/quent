@@ -1,24 +1,28 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Tests for `#[derive(Resource)]` and `#[derive(ResizableResource)]`.
+//! Tests for the `resource!` macro.
 
-use quent_model::{
-    Capacity, HasEventType, ModelBuilder, ModelComponent, ResizableResource, Resource,
-};
+use quent_model::{Capacity, HasEventType, ModelBuilder, ModelComponent, Resource};
 use uuid::Uuid;
 
 // Fixed-bounds resource with capacity
-
-#[derive(Resource)]
-pub struct TestMem {
-    pub capacity_bytes: Capacity<u64>,
+quent_model::resource! {
+    TestMem {
+        capacity: { bytes: u64 },
+    }
 }
 
 // Unit resource (no capacity)
+quent_model::resource! { TestProc }
 
-#[derive(Resource)]
-pub struct TestProc;
+// Resizable resource
+quent_model::resource! {
+    TestResizable {
+        resizable: true,
+        capacity: { slots: u64 },
+    }
+}
 
 #[test]
 fn resource_generates_operating_with_capacity() {
@@ -47,7 +51,6 @@ fn unit_resource_generates_types() {
         resource_type_name: "test_proc".into(),
     };
     assert_eq!(init.resource_type_name, "test_proc");
-    // Unit operating state exists as a unit struct
     let _op = TestProcOperating;
 }
 
@@ -71,13 +74,6 @@ fn resource_has_event_type() {
     fn assert_has_event<T: HasEventType>() {}
     assert_has_event::<TestMem>();
     assert_has_event::<TestProc>();
-}
-
-// Resizable resource
-
-#[derive(ResizableResource)]
-pub struct TestResizable {
-    pub capacity_slots: Capacity<u64>,
 }
 
 #[test]
