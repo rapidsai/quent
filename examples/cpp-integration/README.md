@@ -5,7 +5,7 @@ Uses the same model as the [README example](../readme/src/lib.rs).
 
 ## Structure
 
-```
+```text
 bridge/              CXX bridge crate with build.rs
   gen/               Generated Rust FFI modules
   include/           Generated C++ headers

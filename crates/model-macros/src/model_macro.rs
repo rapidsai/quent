@@ -156,7 +156,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
-    let name_str = name.to_string();
+    let _name_str = name.to_string();
     let output = quote! {
         pub type #model_type = quent_model::Model<#model_tuple>;
 
