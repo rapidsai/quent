@@ -115,6 +115,25 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let mut all_components = vec![input.root.clone()];
     all_components.extend(input.components.iter().cloned());
     let variants: Vec<Ident> = all_components.iter().map(last_segment).collect();
+
+    // Validate no duplicate component names (last path segment)
+    {
+        let mut seen = std::collections::HashMap::new();
+        for (i, variant) in variants.iter().enumerate() {
+            let name_str = variant.to_string();
+            if let Some(&first_idx) = seen.get(&name_str) {
+                let _ = first_idx;
+                return Err(syn::Error::new_spanned(
+                    &all_components[i],
+                    format!(
+                        "duplicate component name `{name_str}` — two components resolve to the same event enum variant"
+                    ),
+                ));
+            }
+            seen.insert(name_str, i);
+        }
+    }
+
     let event_types: Vec<Path> = all_components.iter().map(event_type_path).collect();
     let observer_types: Vec<Path> = all_components.iter().map(observer_type_path).collect();
     let model_tuple = nested_tuple(&all_components);

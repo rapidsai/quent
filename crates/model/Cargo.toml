@@ -6,10 +6,10 @@ publish.workspace = true
 
 [features]
 default = ["serde"]
-serde = ["dep:serde", "quent-model-macros/serde"]
+serde = ["dep:serde", "quent-model-macros/serde", "uuid/serde"]
 
 [dependencies]
-uuid = { workspace = true, features = ["serde", "v7"] }
+uuid = { workspace = true, features = ["v7"] }
 serde = { workspace = true, optional = true }
 quent-attributes = { path = "../attributes" }
 quent-model-macros = { path = "../model-macros" }

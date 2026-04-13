@@ -17,7 +17,6 @@ use quent_analyzer::{
     },
 };
 use quent_events::Event;
-use quent_model::FsmEvent;
 use quent_query_engine_analyzer::{
     QueryEngineModel,
     engine::Engine,
@@ -328,7 +327,7 @@ impl SimulatorModelBuilder {
         timestamp: quent_time::TimeUnixNanoSec,
         event: quent_stdlib::MemoryEvent,
     ) -> AnalyzerResult<()> {
-        let FsmEvent::Transition { state, .. } = event;
+        let state = event.state;
         use quent_stdlib::MemoryTransition;
         match state {
             MemoryTransition::MemoryInitializing(init) => {
@@ -368,7 +367,7 @@ impl SimulatorModelBuilder {
         timestamp: quent_time::TimeUnixNanoSec,
         event: quent_stdlib::ProcessorEvent,
     ) -> AnalyzerResult<()> {
-        let FsmEvent::Transition { state, .. } = event;
+        let state = event.state;
         use quent_stdlib::ProcessorTransition;
         match state {
             ProcessorTransition::ProcessorInitializing(init) => {
@@ -405,7 +404,7 @@ impl SimulatorModelBuilder {
         timestamp: quent_time::TimeUnixNanoSec,
         event: quent_stdlib::ChannelEvent,
     ) -> AnalyzerResult<()> {
-        let FsmEvent::Transition { state, .. } = event;
+        let state = event.state;
         use quent_stdlib::ChannelTransition;
         match state {
             ChannelTransition::ChannelInitializing(init) => {

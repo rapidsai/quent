@@ -110,7 +110,7 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
     }
 
     pub fn push(&mut self, event: Event<FsmEvent<T>>) {
-        let FsmEvent::Transition { state, .. } = event.data;
+        let state = event.data.state;
         let state_name = state.state_name();
         // Capture instance name from the first transition that provides one.
         if self.instance_name.is_empty()

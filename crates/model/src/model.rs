@@ -87,6 +87,7 @@ impl ModelBuilder {
 #[derive(Debug, Clone)]
 pub struct FsmDef {
     pub name: String,
+    pub entry: String,
     pub states: Vec<StateDef>,
     pub transitions: Vec<TransitionDef>,
 }
@@ -133,6 +134,11 @@ pub struct ResourceGroupDef {
     pub fixed_parent: Option<String>,
     /// Whether this is the root resource group.
     pub is_root: bool,
+    /// The event that carries the resource group identity (instance_name, etc.).
+    /// For resource groups with `attributes:`, this is the auto-generated declaration.
+    /// For resource groups with `events:`, this is the user-specified `declaration:` alias.
+    /// For FSM resource groups, this is the entry state name.
+    pub declaration_event: Option<String>,
 }
 
 /// A plain entity definition (not an FSM, not a resource).

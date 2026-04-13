@@ -19,10 +19,10 @@ pub struct Occupancy;
 pub struct Rate;
 
 /// Sealed trait restricting capacity value types to `u64` and `Option<u64>`.
-pub trait CapacityValue: private::Sealed {}
+pub trait CapacityBound: private::Sealed {}
 
-impl CapacityValue for u64 {}
-impl CapacityValue for Option<u64> {}
+impl CapacityBound for u64 {}
+impl CapacityBound for Option<u64> {}
 
 mod private {
     pub trait Sealed {}
@@ -35,16 +35,16 @@ mod private {
 ///
 /// The kind marker is erased at runtime (zero-cost phantom type).
 /// Serialization is transparent: `Capacity<u64>` serializes as a plain `u64`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct Capacity<V: CapacityValue, K = Occupancy> {
+pub struct Capacity<V: CapacityBound, K = Occupancy> {
     pub value: V,
     #[cfg_attr(feature = "serde", serde(skip))]
     _kind: std::marker::PhantomData<K>,
 }
 
-impl<V: CapacityValue, K> Capacity<V, K> {
+impl<V: CapacityBound, K> Capacity<V, K> {
     pub fn new(value: V) -> Self {
         Self {
             value,

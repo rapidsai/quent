@@ -66,7 +66,7 @@ fn from_impls() {
 
 #[test]
 fn event_type_alias() {
-    let _event: TaskEvent = FsmEvent::Transition {
+    let _event: TaskEvent = FsmEvent {
         seq: 0,
         state: TaskTransition::Exit,
     };

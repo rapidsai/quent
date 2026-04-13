@@ -454,7 +454,9 @@ fn emit_context_bridge(options: &CxxOptions) -> GeneratedFile {
             };
             let inner = #q::Context::try_new(opts, #q::uuid::Uuid::now_v7())
                 .map_err(|e| e.to_string())?;
-            let _ = SENDER.set(inner.events_sender());
+            SENDER.set(inner.events_sender()).map_err(|_| {
+                "context already created — only one context per process is supported".to_string()
+            })?;
             Ok(Box::new(Context { _inner: inner }))
         }
     };
@@ -640,7 +642,7 @@ fn emit_field_conversion_tokens(
             ValueType::Struct(type_path, inner_attrs) => {
                 let conversion = emit_struct_conversion(type_path, inner_attrs, q, component_mod);
                 quote! {
-                    #name: data.#name.iter().map(|data| {
+                    #name: data.#name.into_iter().map(|data| {
                         #conversion
                     }).collect(),
                 }
@@ -837,7 +839,7 @@ fn emit_state_flat_args(state: &StateDef, q: &syn::Path) -> (TokenStream, Vec<To
             }
             ValueType::Ref(ref_type) => {
                 let ref_ident: syn::Type = syn::parse_str(ref_type)
-                    .unwrap_or_else(|_| syn::parse_str::<syn::Type>("()").unwrap());
+                    .unwrap_or_else(|e| panic!("failed to parse Ref type `{ref_type}`: {e}"));
                 if attr.optional {
                     args.push(quote! {
                         {
@@ -911,8 +913,17 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         syn::parse_str(&s).unwrap()
     };
 
-    // Determine the entry state (first state in the list, which is the #[entry] state)
-    let entry_state = &fsm.states[0];
+    // Determine the entry state from the FsmDef's entry field
+    let entry_state = fsm
+        .states
+        .iter()
+        .find(|s| s.name == fsm.entry)
+        .unwrap_or_else(|| {
+            panic!(
+                "entry state `{}` not found in FSM `{}`",
+                fsm.entry, fsm.name
+            )
+        });
     let entry_pascal_str = to_pascal_case(&entry_state.name);
     let entry_pascal = format_ident!("{}", entry_pascal_str);
     let entry_name = format_ident!("{}", entry_state.name);
@@ -967,12 +978,16 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     }
     extern_rust_body.push_str("        fn exit(&mut self);\n");
 
+    let fsm_uses_custom_attrs = fsm
+        .states
+        .iter()
+        .any(|s| attrs_use_custom_attributes(&s.attributes));
     let ffi_module = build_ffi_module_string(
         &ns,
         &include_path,
         &shared_structs_str,
         &extern_rust_body,
-        false,
+        fsm_uses_custom_attrs,
     );
 
     // Build impl code via quote! + prettyplease.

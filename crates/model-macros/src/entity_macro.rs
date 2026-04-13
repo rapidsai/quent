@@ -360,10 +360,18 @@ fn codegen_events(events: &[EventEntry], event_enum: &Ident) -> EventCodegen {
         })
         .collect();
 
-    let mut seen_types = std::collections::HashSet::new();
-    let from_impls = events
+    // Only generate From<T> for event types that appear exactly once.
+    // Duplicate types are ambiguous — use the handle methods instead.
+    let type_counts: std::collections::HashMap<String, usize> = {
+        let mut counts = std::collections::HashMap::new();
+        for e in events {
+            *counts.entry(e.event_type.to_string()).or_insert(0) += 1;
+        }
+        counts
+    };
+    let from_impls: Vec<TokenStream> = events
         .iter()
-        .filter(|e| seen_types.insert(e.event_type.to_string()))
+        .filter(|e| type_counts[&e.event_type.to_string()] == 1)
         .map(|e| {
             let variant = format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
             let ty = &e.event_type;
@@ -421,6 +429,10 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
 
     if events.len() == 1 {
         let alias = &events[0].alias;
+        let variant = format_ident!(
+            "{}",
+            crate::util::to_pascal_case(&events[0].alias.to_string())
+        );
         let ty = &events[0].event_type;
         quote! {
             #[derive(Clone)]
@@ -438,7 +450,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                 }
 
                 pub fn #alias(&self, id: uuid::Uuid, event: #ty) {
-                    self.tx.emit(id, #event_enum::from(event));
+                    self.tx.emit(id, #event_enum::#variant(event));
                 }
             }
         }
@@ -449,10 +461,12 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             .iter()
             .map(|e| {
                 let alias = &e.alias;
+                let variant =
+                    format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
                 let ty = &e.event_type;
                 quote! {
                     pub fn #alias(&self, event: #ty) {
-                        self.tx.emit(self.id, #event_enum::from(event));
+                        self.tx.emit(self.id, #event_enum::#variant(event));
                     }
                 }
             })
@@ -841,6 +855,7 @@ fn expand_rg_attrs(
                     name: #entity_snake.to_string(),
                     fixed_parent: None,
                     is_root: #is_root,
+                    declaration_event: Some(#decl_snake.to_string()),
                 });
             }
         }
@@ -873,7 +888,13 @@ fn expand_rg_events(
     let data_push_arms = &ec.data_push_arms;
     let event_defs = &ec.event_defs;
 
-    let _declaration_event = declaration.map(|d| d.to_string());
+    let declaration_event_tokens = match declaration {
+        Some(d) => {
+            let s = d.to_string();
+            quote! { Some(#s.to_string()) }
+        }
+        None => quote! { None },
+    };
 
     Ok(quote! {
         pub struct #name;
@@ -919,6 +940,7 @@ fn expand_rg_events(
                     name: #entity_snake.to_string(),
                     fixed_parent: None,
                     is_root: #is_root,
+                    declaration_event: #declaration_event_tokens,
                 });
             }
         }

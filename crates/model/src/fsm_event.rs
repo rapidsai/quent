@@ -13,21 +13,9 @@
 ///
 /// `S` is the transition enum (one variant per state + exit).
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum FsmEvent<S> {
-    /// A transition into a new state.
-    Transition {
-        /// Per-instance sequence number, monotonically increasing.
-        seq: u64,
-        /// The state being entered and its attributes.
-        state: S,
-    },
-}
-
-impl<S> FsmEvent<S> {
-    /// Returns the sequence number of this event.
-    pub fn seq(&self) -> u64 {
-        match self {
-            FsmEvent::Transition { seq, .. } => *seq,
-        }
-    }
+pub struct FsmEvent<S> {
+    /// Per-instance sequence number, monotonically increasing.
+    pub seq: u64,
+    /// The state being entered and its attributes.
+    pub state: S,
 }

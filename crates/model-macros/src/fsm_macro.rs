@@ -189,12 +189,16 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     const IS_ROOT: bool = #is_root;
                 }
             },
-            quote! {
-                builder.add_resource_group(quent_model::ResourceGroupDef {
-                    name: #fsm_snake.to_string(),
-                    fixed_parent: None,
-                    is_root: #is_root,
-                });
+            {
+                let entry_str = input.entry.to_string();
+                quote! {
+                    builder.add_resource_group(quent_model::ResourceGroupDef {
+                        name: #fsm_snake.to_string(),
+                        fixed_parent: None,
+                        is_root: #is_root,
+                        declaration_event: Some(#entry_str.to_string()),
+                    });
+                }
             },
         )
     } else {
@@ -239,6 +243,32 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .ok_or_else(|| {
             syn::Error::new_spanned(&input.entry, "entry state not found in states list")
         })?;
+
+    // Validate exit_from aliases exist in states list
+    for exit_ident in &input.exit_from {
+        if !input.states.iter().any(|s| s.alias == *exit_ident) {
+            return Err(syn::Error::new_spanned(
+                exit_ident,
+                format!("exit_from state `{}` not found in states list", exit_ident),
+            ));
+        }
+    }
+
+    // Validate transition from/to aliases exist in states list
+    for (from, to) in &input.transitions {
+        if !input.states.iter().any(|s| s.alias == *from) {
+            return Err(syn::Error::new_spanned(
+                from,
+                format!("transition source `{}` not found in states list", from),
+            ));
+        }
+        if !input.states.iter().any(|s| s.alias == *to) {
+            return Err(syn::Error::new_spanned(
+                to,
+                format!("transition target `{}` not found in states list", to),
+            ));
+        }
+    }
 
     // TransitionInfo impl arms
     let name_arms: Vec<TokenStream> = state_pascal_names
@@ -386,11 +416,15 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
         impl quent_model::ModelComponent for #name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
-                builder.add_fsm(quent_model::FsmDef {
-                    name: #fsm_snake.to_string(),
-                    states: vec![#(#state_def_calls,)*],
-                    transitions: vec![#(#transition_def_tokens,)*],
-                });
+                {
+                    let entry_str = stringify!(#entry_alias);
+                    builder.add_fsm(quent_model::FsmDef {
+                        name: #fsm_snake.to_string(),
+                        entry: entry_str.to_string(),
+                        states: vec![#(#state_def_calls,)*],
+                        transitions: vec![#(#transition_def_tokens,)*],
+                    });
+                }
                 #rg_contribution
             }
         }
@@ -427,7 +461,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             fn emit_transition(&mut self, state: #transition_enum) {
                 let seq = self.seq;
                 self.seq += 1;
-                let event = quent_model::FsmEvent::Transition { seq, state };
+                let event = quent_model::FsmEvent { seq, state };
                 self.tx.send(quent_model::Event::new(
                     self.id,
                     quent_model::timestamp(),

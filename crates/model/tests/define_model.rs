@@ -53,7 +53,7 @@ quent_model::model! {
 #[test]
 fn define_model_generates_event_enum() {
     // The enum TestEvent should have variants for each component
-    let _fsm_event: TestEvent = TestEvent::SimpleFsm(FsmEvent::Transition {
+    let _fsm_event: TestEvent = TestEvent::SimpleFsm(FsmEvent {
         seq: 0,
         state: SimpleFsmTransition::Exit,
     });
@@ -69,7 +69,7 @@ fn define_model_generates_model_type() {
 #[test]
 fn define_model_from_impls() {
     // SimpleFsmEvent should convert into TestEvent
-    let fsm_event: SimpleFsmEvent = FsmEvent::Transition {
+    let fsm_event: SimpleFsmEvent = FsmEvent {
         seq: 0,
         state: SimpleFsmTransition::Exit,
     };

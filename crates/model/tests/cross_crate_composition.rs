@@ -203,14 +203,14 @@ fn task_fsm_structure() {
 
 #[test]
 fn fsm_event_sequence_numbers() {
-    let transition: TaskEvent = FsmEvent::Transition {
+    let transition: TaskEvent = FsmEvent {
         seq: 0,
         state: TaskTransition::Queueing(Queueing {
             instance_name: "test".into(),
             operator_id: Ref::new(Uuid::nil()),
         }),
     };
-    assert_eq!(transition.seq(), 0);
+    assert_eq!(transition.seq, 0);
 }
 
 #[cfg(feature = "serde")]
@@ -225,7 +225,7 @@ fn ref_serde_roundtrip() {
 #[cfg(feature = "serde")]
 #[test]
 fn fsm_event_serde_roundtrip() {
-    let event: TaskEvent = FsmEvent::Transition {
+    let event: TaskEvent = FsmEvent {
         seq: 5,
         state: TaskTransition::Sending(Sending {
             channel: Some(Usage {
@@ -239,5 +239,5 @@ fn fsm_event_serde_roundtrip() {
 
     let json = serde_json::to_string(&event).unwrap();
     let deserialized: TaskEvent = serde_json::from_str(&json).unwrap();
-    assert_eq!(deserialized.seq(), 5);
+    assert_eq!(deserialized.seq, 5);
 }

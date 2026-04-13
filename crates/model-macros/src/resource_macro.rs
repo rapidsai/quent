@@ -108,13 +108,12 @@ impl Parse for ResourceInput {
                     content.parse::<Token![:]>()?;
                     let fields_content;
                     braced!(fields_content in content);
-                    // Check for optional kind flag (rate/occupancy) as first token
+                    // Check for optional kind flag (rate/occupancy) as first token.
                     if !fields_content.is_empty() {
                         let fork = fields_content.fork();
                         if let Ok(ident) = fork.parse::<Ident>() {
                             let name = ident.to_string();
                             if name == "rate" || name == "occupancy" {
-                                // Consume the kind flag
                                 let kind_ident: Ident = fields_content.parse()?;
                                 capacity_kind = Some(kind_ident);
                                 if fields_content.peek(Token![,]) {
@@ -125,6 +124,15 @@ impl Parse for ResourceInput {
                     }
                     while !fields_content.is_empty() {
                         let field_name: Ident = fields_content.parse()?;
+                        let field_name_str = field_name.to_string();
+                        if field_name_str == "rate" || field_name_str == "occupancy" {
+                            return Err(syn::Error::new_spanned(
+                                field_name,
+                                format!(
+                                    "`{field_name_str}` is a reserved keyword in capacity blocks (used to set the capacity kind); choose a different field name"
+                                ),
+                            ));
+                        }
                         fields_content.parse::<Token![:]>()?;
                         let ty: Type = fields_content.parse()?;
                         capacities.push(CapacityField {

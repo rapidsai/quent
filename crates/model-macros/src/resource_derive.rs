@@ -643,6 +643,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 builder.add_fsm(quent_model::FsmDef {
                     name: #name_snake.to_string(),
+                    entry: "initializing".to_string(),
                     states: vec![#state_defs],
                     transitions: vec![#transition_defs],
                 });
@@ -710,7 +711,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             fn emit_transition(&mut self, state: #transition_enum) {
                 let seq = self.seq;
                 self.seq += 1;
-                let event = quent_model::FsmEvent::Transition { seq, state };
+                let event = quent_model::FsmEvent { seq, state };
                 self.tx.send(quent_model::Event::new(
                     self.id,
                     quent_model::timestamp(),
