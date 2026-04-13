@@ -21,7 +21,7 @@ pub struct Event<T> {
 
 impl<T> std::fmt::Debug for Event<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Event")
+        f.debug_struct(&format!("Event<{}>", std::any::type_name::<T>()))
             .field("id", &self.id)
             .field("timestamp", &self.timestamp)
             .finish_non_exhaustive()

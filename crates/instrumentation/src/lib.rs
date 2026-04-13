@@ -32,7 +32,7 @@ pub struct EventSender<T> {
 
 impl<T> std::fmt::Debug for EventSender<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EventSender")
+        f.debug_struct(&format!("EventSender<{}>", std::any::type_name::<T>()))
             .field("tx", &self.tx.as_ref().map(|_| ".."))
             .field("disable_error_log", &self.disable_error_log)
             .finish()
