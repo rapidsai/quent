@@ -12,9 +12,9 @@ use quent_analyzer::Span;
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan, to_nanosecs, to_secs_relative};
 use quent_ui::timeline::{
-    request::{self, BulkTimelineRequest, SingleTimelineRequest, TimelineConfig, TimelineRequest},
+    request::{BulkTimelineRequest, SingleTimelineRequest, TimelineConfig, TimelineRequest},
     response::{
-        self, BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
+        BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
         ResourceTimelineBinned, ResourceTimelineBinnedByState, SingleTimelineResponse,
     },
 };
@@ -102,6 +102,10 @@ impl TimelineCache {
         // Determine chunk geometry for this zoom level.
         let zoom_level = determine_zoom_level(view_duration, engine_duration);
         let chunk_duration = engine_duration / zoom_level;
+        debug!(
+            engine_duration,
+            view_duration, zoom_level, "bulk timeline zoom level determined"
+        );
 
         // Find which chunk indices overlap the current viewport.
         let first_chunk =
@@ -115,7 +119,16 @@ impl TimelineCache {
 
         for (key, entry) in &request.entries {
             let params_hash = {
-                let serialized = serde_json::to_string(&(&entry, &request.app_params))
+                // Strip the viewport config (start/end/num_bins) before hashing: start/end vary
+                // with every pan or zoom, and num_bins is already a separate field in ChunkCacheKey.
+                // Only the query-identity fields (resource, filters, app params) should determine
+                // whether two requests map to the same cached chunks.
+                let canonical = entry.clone().with_config(TimelineConfig {
+                    num_bins: 0,
+                    start: 0.0,
+                    end: 0.0,
+                });
+                let serialized = serde_json::to_string(&(&canonical, &request.app_params))
                     .map_err(|e| crate::error::ServerError::Cache(e.to_string()))?;
                 let mut hasher = DefaultHasher::new();
                 serialized.hash(&mut hasher);
@@ -130,6 +143,8 @@ impl TimelineCache {
         let mut entry_chunks: HashMap<String, Vec<SingleTimelineResponse>> = HashMap::new();
         let mut chunk_misses: HashMap<u64, Vec<String>> = HashMap::new();
         let mut any_cache_hit = false;
+        let mut hit_count = 0u64;
+        let mut miss_count = 0u64;
 
         for chunk_idx in first_chunk..=last_chunk {
             for (key, _entry) in &request.entries {
@@ -143,15 +158,29 @@ impl TimelineCache {
 
                 if let Some(cached) = self.chunks.get(&cache_key).await {
                     any_cache_hit = true;
+                    hit_count += 1;
                     entry_chunks.entry(key.clone()).or_default().push(cached);
                 } else {
+                    miss_count += 1;
                     chunk_misses.entry(chunk_idx).or_default().push(key.clone());
                 }
             }
         }
 
-        // Fast path: cold cache. Make one bulk call, split response into chunks, cache them.
+        debug!(
+            hit_count,
+            miss_count,
+            zoom_level,
+            n_entries = request.entries.len(),
+            "bulk timeline cache check"
+        );
+
+        // Fast path: cold cache — no chunks were cached, so fetch everything in one bulk call.
         if !any_cache_hit {
+            debug!(
+                n_entries = request.entries.len(),
+                zoom_level, "bulk timeline cold cache: full fetch"
+            );
             let response = analyzer.bulk_resource_timeline(request)?;
             for (key, entry_resp) in &response.entries {
                 if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
@@ -189,6 +218,15 @@ impl TimelineCache {
             entries,
             app_params,
         } = request;
+
+        // Partial cache hit: fetch only the missing (entry, chunk) pairs.
+        if !chunk_misses.is_empty() {
+            let n_miss_entries: usize = chunk_misses.values().map(|v| v.len()).sum();
+            debug!(
+                n_miss_chunks = chunk_misses.len(),
+                n_miss_entries, zoom_level, "bulk timeline partial cache: fetching missing chunks"
+            );
+        }
 
         for (chunk_idx, miss_keys) in &chunk_misses {
             let chunk_start = epoch + chunk_idx * chunk_duration;
@@ -310,8 +348,14 @@ impl TimelineCache {
         let chunk_duration = engine_duration / zoom_level;
 
         // Hash the entry + app_params for cache key construction.
+        // Strip the viewport config before hashing — same reasoning as in cached_bulk_timeline.
         let params_hash = {
-            let serialized = serde_json::to_string(&(&request.entry, &request.app_params))
+            let canonical = request.entry.clone().with_config(TimelineConfig {
+                num_bins: 0,
+                start: 0.0,
+                end: 0.0,
+            });
+            let serialized = serde_json::to_string(&(&canonical, &request.app_params))
                 .map_err(|e| crate::error::ServerError::Cache(e.to_string()))?;
             let mut hasher = DefaultHasher::new();
             serialized.hash(&mut hasher);
@@ -391,10 +435,6 @@ fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec)
 }
 
 /// Splits a full-viewport response into per-chunk responses for caching.
-///
-/// This is the reverse of `combine_chunks`: given a response spanning multiple
-/// chunks, it slices the bin arrays at chunk boundaries and returns one
-/// `SingleTimelineResponse` per chunk.
 fn split_response_into_chunks(
     response: &SingleTimelineResponse,
     first_chunk: u64,
@@ -406,74 +446,81 @@ fn split_response_into_chunks(
 ) -> ServerResult<Vec<(u64, SingleTimelineResponse)>> {
     let mut result = Vec::new();
 
-    // Loop over each chunk_idx from first_chunk..=last_chunk.
-    // For each chunk:
-    //
-    // ── S1: Compute chunk boundaries ──
-    //   chunk_start = epoch + chunk_idx * chunk_duration
-    //   chunk_end:
-    //     if chunk_idx == zoom_level - 1 → engine_end  (last chunk gets remainder)
-    //     else → epoch + (chunk_idx + 1) * chunk_duration
-    //   (Same pattern as cached_single_timeline lines ~287-292.)
-    //
-    // ── S2: Build chunk span ──
-    //   Use SpanNanoSec::try_new(chunk_start, chunk_end).
-    //   If it returns Err, skip this chunk with `continue`.
-    //
-    // ── S3: Find which bins belong to this chunk ──
-    //   Call overlap_indices(response, &chunk_span, epoch)
-    //   This returns (start_idx, end_idx) — the slice of bins for this chunk.
-    //   If start_idx >= end_idx, skip (no data overlaps this chunk).
-    //
-    // ── S4: Build config for this chunk ──
-    //   let chunk_num_bins = (end_idx - start_idx) as u64;
-    //   Build a BinnedSpan, then convert to BinnedSpanSec:
-    //     BinnedSpan::try_new(
-    //         chunk_span,
-    //         NonZero::try_from(chunk_num_bins).map_err(|e| ...)?
-    //     )?
-    //     .try_to_secs_relative(epoch)?
-    //   (Same pattern as combine_chunks lines ~318-324.)
-    //
-    //   Tip: NonZero is std::num::NonZero — you'll need to add it to the
-    //   imports at the top of the file.
-    //
-    // ── S5: Slice the data ──
-    //   Match on &response.data to handle both variants:
-    //
-    //     ResourceTimeline::Binned(data) →
-    //       Build a new HashMap<String, Vec<f64>> by iterating
-    //       data.capacities_values. For each (cap_name, values):
-    //         cap_name.clone() → values[start_idx..end_idx].to_vec()
-    //
-    //       For long_fsms: just clone the whole vec (data.long_fsms.clone()).
-    //       These aren't per-bin, so no slicing needed.
-    //
-    //       Build: ResourceTimeline::Binned(ResourceTimelineBinned {
-    //           config: chunk_config,
-    //           capacities_values: <your new map>,
-    //           long_fsms: <cloned>,
-    //       })
-    //
-    //     ResourceTimeline::BinnedByState(data) →
-    //       Same idea but one level deeper: data.capacities_states_values is
-    //       HashMap<String, HashMap<String, Vec<f64>>>.
-    //       For each (cap_name, states) → for each (state_name, values):
-    //         values[start_idx..end_idx].to_vec()
-    //
-    //       Build: ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
-    //           config: chunk_config,
-    //           capacities_states_values: <your new nested map>,
-    //           long_fsms: <cloned>,
-    //       })
-    //
-    //   Tip: look at combine_chunks for the iteration patterns over these
-    //   nested HashMaps — it does the reverse operation (combining slices).
-    //
-    // ── S6: Push result ──
-    //   Build SingleTimelineResponse { config: chunk_config, data: <your data> }
-    //   Push (chunk_idx, response) into `result`.
-    todo!("implement split_response_into_chunks");
+    for chunk_idx in first_chunk..=last_chunk {
+        let chunk_start = epoch + chunk_idx * chunk_duration;
+        let chunk_end = if chunk_idx == zoom_level - 1 {
+            engine_end
+        } else {
+            epoch + (chunk_idx + 1) * chunk_duration
+        };
+
+        let chunk_span = match SpanNanoSec::try_new(chunk_start, chunk_end) {
+            Ok(span) => span,
+            Err(_) => continue,
+        };
+
+        // Find the bin range within the full response that falls inside this chunk.
+        let (start_idx, end_idx) = overlap_indices(response, &chunk_span, epoch);
+        if start_idx >= end_idx {
+            continue;
+        }
+
+        let chunk_num_bins = (end_idx - start_idx) as u64;
+        let chunk_config = BinnedSpan::try_new(
+            chunk_span,
+            std::num::NonZero::try_from(chunk_num_bins).map_err(|e| {
+                quent_time::TimeError::InvalidArgument(format!("chunk bins must be > 0: {e}"))
+            })?,
+        )?
+        .try_to_secs_relative(epoch)?;
+
+        // Slice the data arrays at the chunk's bin boundaries.
+        let chunk_data = match &response.data {
+            ResourceTimeline::Binned(data) => {
+                let capacities_values = data
+                    .capacities_values
+                    .iter()
+                    .map(|(cap_name, values)| {
+                        (cap_name.clone(), values[start_idx..end_idx].to_vec())
+                    })
+                    .collect();
+                ResourceTimeline::Binned(ResourceTimelineBinned {
+                    config: chunk_config,
+                    capacities_values,
+                    long_fsms: data.long_fsms.clone(),
+                })
+            }
+            ResourceTimeline::BinnedByState(data) => {
+                let capacities_states_values = data
+                    .capacities_states_values
+                    .iter()
+                    .map(|(cap_name, states)| {
+                        let sliced_states = states
+                            .iter()
+                            .map(|(state_name, values)| {
+                                (state_name.clone(), values[start_idx..end_idx].to_vec())
+                            })
+                            .collect();
+                        (cap_name.clone(), sliced_states)
+                    })
+                    .collect();
+                ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
+                    config: chunk_config,
+                    capacities_states_values,
+                    long_fsms: data.long_fsms.clone(),
+                })
+            }
+        };
+
+        // Push this chunk into the result.
+        result.push((
+            chunk_idx,
+            SingleTimelineResponse {
+                config: chunk_config,
+                data: chunk_data,
+            },
+        ));
+    }
 
     Ok(result)
 }
