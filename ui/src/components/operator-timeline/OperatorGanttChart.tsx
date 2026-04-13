@@ -25,7 +25,10 @@ import {
   nodeColorPaletteAtom,
 } from '@/atoms/dag';
 import { continuousColor, withOpacity } from '@/services/colors';
-import { OPERATION_TYPE_COLORS, DEFAULT_OPERATION_COLOR } from '@/services/query-plan/operationTypes';
+import {
+  OPERATION_TYPE_COLORS,
+  DEFAULT_OPERATION_COLOR,
+} from '@/services/query-plan/operationTypes';
 import type { OperatorActiveSpanEntry } from './types';
 import { clipRectByRect } from './utils';
 import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '@/components/timeline/types';
