@@ -1452,8 +1452,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "quent-codegen",
- "quent-cpp-example-instrumentation",
- "quent-stdlib",
+ "quent-readme-example",
 ]
 
 [[package]]
@@ -1512,17 +1511,6 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
-]
-
-[[package]]
-name = "quent-cpp-example-instrumentation"
-version = "0.1.0"
-dependencies = [
- "quent-attributes",
- "quent-model",
- "quent-stdlib",
- "serde",
- "uuid",
 ]
 
 [[package]]
