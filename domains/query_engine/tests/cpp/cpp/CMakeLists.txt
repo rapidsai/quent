@@ -4,7 +4,7 @@ project(quent-qe-cpp-example LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# --- Corrosion: build Rust crates from CMake ---
+# Corrosion: build Rust crates from CMake
 include(FetchContent)
 FetchContent_Declare(
     Corrosion
@@ -13,13 +13,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Corrosion)
 
-# --- Import the Rust bridge crate (CXX bridges) ---
+# Import the Rust bridge crate (CXX bridges)
 corrosion_import_crate(
     MANIFEST_PATH ${CMAKE_SOURCE_DIR}/../bridge/Cargo.toml
     CRATES quent-qe-bridge
 )
 
-# --- The C++ application ---
+# The C++ application
 add_executable(example src/main.cpp)
 
 # Link against the Rust static library

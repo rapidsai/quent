@@ -18,10 +18,10 @@
 
 use proc_macro::TokenStream;
 
-mod define_model;
 mod entity_macro;
 mod event;
 mod fsm_macro;
+mod model_macro;
 mod resource_derive;
 mod resource_macro;
 mod state_macro;
@@ -75,7 +75,7 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn model(input: TokenStream) -> TokenStream {
-    define_model::expand(input.into())
+    model_macro::expand(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }
@@ -87,7 +87,7 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn instrumentation(input: TokenStream) -> TokenStream {
-    define_model::expand_instrumentation(input.into())
+    model_macro::expand_instrumentation(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

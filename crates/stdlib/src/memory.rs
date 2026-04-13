@@ -4,7 +4,6 @@
 //! Memory resource definitions.
 
 // A fixed-bounds memory resource.
-// FSM: entry -> initializing -> operating -> finalizing -> exit
 quent_model::resource! {
     Memory {
         capacity: { bytes: Option<u64> }
@@ -12,7 +11,6 @@ quent_model::resource! {
 }
 
 // A resizable memory resource.
-// FSM: entry -> initializing -> operating <-> resizing -> finalizing -> exit
 quent_model::resource! {
     ResizableMemory {
         resizable: true,

@@ -4,7 +4,6 @@
 //! Channel resource definition.
 
 // A unidirectional data transfer resource.
-// FSM: entry -> initializing -> operating -> finalizing -> exit
 quent_model::resource! {
     Channel {
         attributes: {

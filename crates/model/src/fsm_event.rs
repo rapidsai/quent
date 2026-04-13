@@ -15,6 +15,7 @@
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FsmEvent<S> {
     /// Per-instance sequence number, monotonically increasing.
+    /// Establishes total ordering of transitions within a single FSM instance.
     pub seq: u64,
     /// The state being entered and its attributes.
     pub state: S,

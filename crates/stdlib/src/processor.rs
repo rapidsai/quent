@@ -3,6 +3,5 @@
 
 //! Processor (unit resource) definition.
 
-// A unit resource representing a processor (e.g., a thread).
-// FSM: entry -> initializing -> operating -> finalizing -> exit
+// A unit resource representing a processing element (e.g., a thread) that can only have one usage at a time.
 quent_model::resource! { Processor }
