@@ -40,11 +40,11 @@
 ### @quent/components
 
 - [ ] **COMP-01**: All Radix UI + CVA UI primitives extracted from `ui/src/components/ui/`: Button, Accordion, Dropdown, Popover, Select, and all others present — with props interfaces and CVA variant objects exported alongside each component
-- [ ] **COMP-02**: `DAGChart` extracted with controlled-first API: accepts `selectedNodeIds?: string[]` and `onSelectionChange?: (nodeIds: string[]) => void` props; falls back to `@quent/hooks` atoms when controlled props are not provided
+- [x] **COMP-02**: `DAGChart` extracted with controlled-first API: accepts `selectedNodeIds?: string[]` and `onSelectionChange?: (nodeIds: string[]) => void` props; falls back to `@quent/hooks` atoms when controlled props are not provided
 - [ ] **COMP-03**: `TimelineController` and associated timeline components extracted from `ui/src/components/timeline/`
 - [ ] **COMP-04**: Every exported component has JSDoc comment with purpose, `@param` for non-obvious props, and `@returns` description
-- [ ] **COMP-05**: Every exported component's props interface is exported alongside the component (e.g. `DAGChartProps`)
-- [ ] **COMP-06**: `className?: string` accepted and applied via `cn()` at the root element of every visual component
+- [x] **COMP-05**: Every exported component's props interface is exported alongside the component (e.g. `DAGChartProps`)
+- [x] **COMP-06**: `className?: string` accepted and applied via `cn()` at the root element of every visual component
 - [ ] **COMP-07**: `index.ts` barrel export lists all public exports by name (no `export *`); this is the complete API surface for the package
 
 ### App Migration
@@ -111,11 +111,11 @@
 | HOOKS-03 | Phase 3 | Complete |
 | HOOKS-04 | Phase 3 | Complete |
 | COMP-01 | Phase 4 | Pending |
-| COMP-02 | Phase 4 | Pending |
+| COMP-02 | Phase 4 | Complete |
 | COMP-03 | Phase 4 | Pending |
 | COMP-04 | Phase 4 | Pending |
-| COMP-05 | Phase 4 | Pending |
-| COMP-06 | Phase 4 | Pending |
+| COMP-05 | Phase 4 | Complete |
+| COMP-06 | Phase 4 | Complete |
 | COMP-07 | Phase 4 | Pending |
 | MIG-01 | Phase 4 | Pending |
 | MIG-02 | Phase 4 | Pending |

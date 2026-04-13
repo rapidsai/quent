@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-04-09T20:42:22.335Z"
+status: Ready to execute
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-04-13T20:29:53.416Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Components, state, and API access are each independently importable with zero coupling to the app shell — an agent can read the package exports and assemble a functional UI without reading implementation details.
-**Current focus:** Phase 03 — extract-quent-client-and-quent-hooks
+**Current focus:** Phase 04 — extract-quent-components-and-migrate-app-shell
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 04 (extract-quent-components-and-migrate-app-shell) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: Not started
 | Phase 03-extract-quent-client-and-quent-hooks P01 | 7 | 2 tasks | 19 files |
 | Phase 03-extract-quent-client-and-quent-hooks P02 | 5 | 2 tasks | 13 files |
 | Phase 03 P03 | 180 | 2 tasks | 26 files |
+| Phase 04-extract-quent-components-and-migrate-app-shell P01 | 8 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Created ui/src/atoms/dagControls.ts for visual-only atoms (edgeWidthConfigAtom, edgeColoringAtom, etc.) not migrated to @quent/hooks
 - [Phase 03]: Added useHydrateTimelineAtoms to @quent/hooks to encapsulate atom initialization, keeping atoms private to the package
 - [Phase 03]: Added @quent/hooks/testing subpath export for test-only access to timelineDataMapAtom
+- [Phase 04-extract-quent-components-and-migrate-app-shell]: DAGNode/DAGEdge/StatValue moved to @quent/utils (dagTypes.ts) to avoid circular dep between @quent/hooks and @quent/components
+- [Phase 04-extract-quent-components-and-migrate-app-shell]: useDagNodeColoring/useDagEdgeWidthConfig/useDagEdgeColoring use dependency injection for compute functions — avoids @quent/hooks → @quent/components circular dep
+- [Phase 04-extract-quent-components-and-migrate-app-shell]: useNodeColoring accepts isDark: boolean instead of useTheme() — decouples hook from app ThemeContext
 
 ### Pending Todos
 
@@ -97,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-09T20:35:26.863Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-04-13T20:29:53.413Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

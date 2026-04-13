@@ -80,7 +80,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Pre-conditions: move types to @quent/utils, dagControls atoms/hooks to @quent/hooks, configure @quent/components package.json
+- [x] 04-01-PLAN.md — Pre-conditions: move types to @quent/utils, dagControls atoms/hooks to @quent/hooks, configure @quent/components package.json
 - [ ] 04-02-PLAN.md — Extract all components into @quent/components (primitives, DAG, timeline, resource-tree, query-plan, operator-timeline) with ThemeContext decoupling and barrel export
 - [ ] 04-03-PLAN.md — Migrate app shell imports to @quent/*, delete old source files, build + test verification
 
