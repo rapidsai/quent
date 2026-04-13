@@ -194,8 +194,9 @@ fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
     // Option<String> → String (empty = None)
     // Other optional types are not supported
     if optional {
-        // CXX doesn't support Option<T> in shared structs. Use the base type
-        // with sentinels: nil UUID = None, empty string = None, 0 = None for numerics.
+        // CXX doesn't support Option<T> in shared structs.
+        // Sentinels: nil UUID = None, empty String = None.
+        // Optional numerics: use base type, conversion wraps in Some().
         Some(base)
     } else {
         Some(base)
@@ -868,10 +869,8 @@ fn emit_state_flat_args(
             }
             _ => {
                 if attr.optional {
-                    // Optional numeric: 0 sentinel → None, otherwise Some
-                    args.push(quote! {
-                        if data.#field_name == 0 { None } else { Some(data.#field_name) }
-                    });
+                    // Optional numeric: always wrap in Some — C++ provides concrete values.
+                    args.push(quote! { Some(data.#field_name) });
                 } else {
                     args.push(quote! { data.#field_name });
                 }
