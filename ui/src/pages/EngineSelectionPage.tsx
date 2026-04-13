@@ -11,7 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@quent/components';
 import { cn } from '@quent/utils';
 
 export function EngineSelectionPage() {

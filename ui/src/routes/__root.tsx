@@ -6,13 +6,13 @@ import { TanStackRouterDevtools } from '@tanstack/router-devtools';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NavBarNavigator } from '@/components/NavBarNavigator';
-import { Button } from '@/components/ui/button';
+import { Button } from '@quent/components';
 import {
   NavigationMenu,
   NavigationMenuList,
   NavigationMenuItem,
   NavigationMenuLink,
-} from '@/components/ui/navigation-menu';
+} from '@quent/components';
 import { cn } from '@quent/utils';
 
 function RootComponent() {

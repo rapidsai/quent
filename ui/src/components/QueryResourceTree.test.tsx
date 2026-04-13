@@ -29,24 +29,25 @@ vi.mock('@/hooks/useExpandedIds', () => ({
 
 // Capture the timelineData prop passed to TimelineController on every render
 let capturedTimelineData: SingleTimelineResponse | null | undefined = undefined;
-vi.mock('./timeline/TimelineController', () => ({
-  TimelineController: (props: { timelineData?: SingleTimelineResponse | null }) => {
-    capturedTimelineData = props.timelineData;
-    return null;
-  },
-}));
 
-// Render subHeaderContent so TimelineController is actually mounted
-vi.mock('@/components/ui/tree-table', () => ({
-  TreeTable: ({ columns }: { columns: Array<{ subHeaderContent?: React.ReactNode }> }) => {
-    const col = columns.find(c => c.subHeaderContent != null);
-    return <>{col?.subHeaderContent}</>;
-  },
-}));
-
-vi.mock('./resource-tree/ResourceColumn', () => ({ ResourceColumn: () => null }));
-vi.mock('./resource-tree/UsageColumn', () => ({ UsageColumn: () => null }));
-vi.mock('./timeline/TimelineToolbar', () => ({ TimelineToolbar: () => null }));
+// Mock @quent/components: keep all actual exports but override heavy/visual ones
+vi.mock('@quent/components', async importOriginal => {
+  const actual = await importOriginal<typeof import('@quent/components')>();
+  return {
+    ...actual,
+    TimelineController: (props: { timelineData?: SingleTimelineResponse | null }) => {
+      capturedTimelineData = props.timelineData;
+      return null;
+    },
+    TreeTable: ({ columns }: { columns: Array<{ subHeaderContent?: React.ReactNode }> }) => {
+      const col = columns.find(c => c.subHeaderContent != null);
+      return <>{col?.subHeaderContent}</>;
+    },
+    ResourceColumn: () => null,
+    UsageColumn: () => null,
+    TimelineToolbar: () => null,
+  };
+});
 
 import * as clientApi from '@quent/client';
 vi.mock('@quent/client', async importOriginal => {

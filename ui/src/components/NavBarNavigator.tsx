@@ -9,10 +9,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@quent/components';
 import { cn } from '@quent/utils';
 import { queryBundleQueryOptions, fetchListEngines, fetchListCoordinators, fetchListQueries } from '@quent/client';
-import { DataText } from '@/components/ui/data-text';
+import { DataText } from '@quent/components';
 
 function BreadcrumbDropdown({
   label,

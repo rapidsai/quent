@@ -1,19 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Column, TreeTable } from '@/components/ui/tree-table';
+import { Column, TreeTable } from '@quent/components';
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
 import { ResourceTree, QueryBundle } from '@quent/utils';
 import type { EntityRef, SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
-import { TimelineController } from './timeline/TimelineController';
-import { collectResourceTypesFromTree } from '@/lib/resource.utils';
-import { EntityRefKey } from '@/types';
-import { TreeTableItem } from './resource-tree/types';
-import { ResourceColumn } from './resource-tree/ResourceColumn';
-import { UsageColumn } from './resource-tree/UsageColumn';
-import { DEFAULT_TIMELINE_HEIGHT } from './timeline/types';
+import { TimelineController } from '@quent/components';
+import { collectResourceTypesFromTree } from '@quent/components';
+import { EntityRefKey } from '@quent/utils';
+import { TreeTableItem } from '@quent/components';
+import { ResourceColumn } from '@quent/components';
+import { UsageColumn } from '@quent/components';
+import { DEFAULT_TIMELINE_HEIGHT } from '@quent/components';
 import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@quent/client';
 import {
   transformResourceTree,
@@ -22,9 +22,10 @@ import {
   collectVisibleEntries,
   buildBulkParamsForItem,
   findItemById,
-} from '@/lib/timeline.utils';
+} from '@quent/components';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
-import { TimelineToolbar } from './timeline/TimelineToolbar';
+import { TimelineToolbar } from '@quent/components';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import {
   OperatorGanttChart,
   OPERATOR_TIMELINE_ROW_TYPE,
@@ -32,7 +33,7 @@ import {
   operatorTimelineRowId,
   operatorsWithActiveSpansForWorker,
   workerIdFromOperatorTimelineRowId,
-} from './operator-timeline';
+} from '@quent/components';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -78,6 +79,8 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 }
 
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
+  const { theme } = useTheme();
+  const isDark = theme === THEME_DARK;
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
   const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
@@ -232,6 +235,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
               durationSeconds={durationSeconds}
               timelineData={fetchedRootTimeline}
               onZoomChange={handleZoomChange}
+              isDark={isDark}
             />
           </div>
         ),
@@ -247,6 +251,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   startTime={startTime}
                   durationSeconds={durationSeconds}
                   height={DEFAULT_TIMELINE_HEIGHT * 1.2}
+                  isDark={isDark}
                 />
               );
             }
@@ -260,6 +265,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   selectedFsmTypes={selectedFsmTypes}
                   startTime={startTime}
                   durationSeconds={durationSeconds}
+                  isDark={isDark}
                 />
               );
             }
@@ -271,6 +277,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     startTime,
     durationSeconds,
     fetchedRootTimeline,
+    isDark,
     selectedTypes,
     selectedFsmTypes,
     entities,

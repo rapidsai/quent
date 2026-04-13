@@ -7,11 +7,49 @@ export type { ButtonProps } from './ui/button';
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from './ui/card';
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 export { DataText } from './ui/data-text';
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuGroup,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from './ui/dropdown-menu';
 export { HoverCard, HoverCardTrigger, HoverCardContent } from './ui/hover-card';
 export { Input } from './ui/input';
+export {
+  navigationMenuTriggerStyle,
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuItem,
+  NavigationMenuContent,
+  NavigationMenuTrigger,
+  NavigationMenuLink,
+  NavigationMenuIndicator,
+  NavigationMenuViewport,
+} from './ui/navigation-menu';
 export { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 export { ScrollArea, ScrollBar } from './ui/scroll-area';
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+  SelectScrollUpButton,
+  SelectScrollDownButton,
+} from './ui/select';
 export { SelectField } from './ui/select-field';
 export type { SelectFieldProps, SelectFieldOption } from './ui/select-field';
 export { Skeleton } from './ui/skeleton';
