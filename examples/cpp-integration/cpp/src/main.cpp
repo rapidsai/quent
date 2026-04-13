@@ -88,6 +88,8 @@ int main() {
     });
 
     // FSM: queue a task.
+    // TODO: resource handles should expose their UUID to C++ so task
+    // transitions can reference actual resources (nil = no usage).
     auto task = quent::task::create(quent::task::Queued{
         .instance_name = "my-task",
         .index = 1,
