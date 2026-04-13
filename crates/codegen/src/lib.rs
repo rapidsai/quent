@@ -80,9 +80,6 @@ pub fn write_bridge_files(files: &[GeneratedFile], options: &CxxOptions) -> Vec<
     let mut mod_lines = Vec::new();
 
     for file in files {
-        if file.name == "lib.rs" {
-            continue;
-        }
         let path = gen_dir.join(&file.name);
         fs::write(&path, &file.content).unwrap();
         bridge_files.push(format!("{}/{}", options.bridge_path, file.name));

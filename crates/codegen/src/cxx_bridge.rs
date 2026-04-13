@@ -143,7 +143,6 @@ fn quent_path(options: &CxxOptions) -> syn::Path {
 }
 
 /// Map a Quent `ValueType` to a CXX-compatible Rust type string.
-/// Map a Quent `ValueType` to a CXX-compatible Rust type string.
 /// Returns None if the type is not representable in CXX.
 fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
     let base = match ty {
@@ -228,9 +227,6 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     for fsm in &model.fsms {
         files.push(emit_fsm_bridge(fsm, options));
     }
-
-    // Generate lib.rs that includes all modules
-    files.push(emit_lib_rs(model, options));
 
     files
 }
@@ -898,8 +894,6 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     let q = quent_path(options);
     let icrate: syn::Path = syn::parse_str(&options.instrumentation_crate).unwrap();
     let fsm_mod = format_ident!("{}", fsm_name);
-    let _component_mod: syn::Path =
-        syn::parse_str(&format!("{}::{}", options.instrumentation_crate, fsm_name)).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
     let model_handle: syn::Type = {
@@ -1061,29 +1055,5 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
     GeneratedFile {
         name: format!("{fsm_name}.rs"),
         content: format!("{ffi_module}\n{impl_code}"),
-    }
-}
-
-/// Generate the lib.rs that includes all modules.
-fn emit_lib_rs(model: &ModelBuilder, _options: &CxxOptions) -> GeneratedFile {
-    let mut mod_items: Vec<TokenStream> = Vec::new();
-    mod_items.push(quote! { pub mod uuid; });
-    mod_items.push(quote! { pub mod context; });
-    for entity in &model.entities {
-        let name = format_ident!("{}", entity.name);
-        mod_items.push(quote! { pub mod #name; });
-    }
-    for fsm in &model.fsms {
-        let name = format_ident!("{}", fsm.name);
-        mod_items.push(quote! { pub mod #name; });
-    }
-
-    let tokens = quote! {
-        #(#mod_items)*
-    };
-
-    GeneratedFile {
-        name: "lib.rs".to_string(),
-        content: pretty_print(tokens),
     }
 }
