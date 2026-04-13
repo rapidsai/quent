@@ -24,7 +24,7 @@ use crate::{
 pub struct TransitionEvent<T> {
     timestamp: TimeUnixNanoSec,
     state_name: &'static str,
-    pub usages: SmallVec<[AnalyzedUsage; 3]>,
+    pub usages: SmallVec<[AnalyzedUsage; 1]>,
     /// The original model transition data.
     pub data: T,
 }
@@ -119,7 +119,7 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
             self.instance_name = name.to_owned();
         }
         let extracted = state.usages();
-        let usages: SmallVec<[AnalyzedUsage; 3]> = extracted
+        let usages: SmallVec<[AnalyzedUsage; 1]> = extracted
             .into_iter()
             .map(|u| AnalyzedUsage {
                 resource_id: u.resource_id,
