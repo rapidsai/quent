@@ -55,9 +55,9 @@ jobs:
           pixi run cmake --build examples/cpp-integration/cpp/build
       - name: Run C++ integration example
         run: ./examples/cpp-integration/cpp/build/example
-      - name: Build C++ query engine example
+      - name: Build C++ query engine bridge test
         run: |
-          pixi run cmake -B examples/query-engine-cpp/cpp/build -S examples/query-engine-cpp/cpp
-          pixi run cmake --build examples/query-engine-cpp/cpp/build
-      - name: Run C++ query engine example
-        run: ./examples/query-engine-cpp/cpp/build/example
+          pixi run cmake -B domains/query_engine/tests/cpp/cpp/build -S domains/query_engine/tests/cpp/cpp
+          pixi run cmake --build domains/query_engine/tests/cpp/cpp/build
+      - name: Run C++ query engine bridge test
+        run: ./domains/query_engine/tests/cpp/cpp/build/example

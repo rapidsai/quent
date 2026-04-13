@@ -29,9 +29,9 @@ members = [
     # C++ integration example
     "examples/cpp-integration/instrumentation",
     "examples/cpp-integration/bridge",
-    # Query engine C++ integration example
-    "examples/query-engine-cpp/instrumentation",
-    "examples/query-engine-cpp/bridge",
+    # Query engine C++ bridge test
+    "domains/query_engine/tests/cpp/instrumentation",
+    "domains/query_engine/tests/cpp/bridge",
     # README example
     "examples/readme",
     # Simulator crates

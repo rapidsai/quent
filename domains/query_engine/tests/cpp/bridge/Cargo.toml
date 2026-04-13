@@ -11,9 +11,9 @@ crate-type = ["staticlib"]
 [dependencies]
 cxx = "1"
 quent-qe-cpp-instrumentation = { path = "../instrumentation" }
-quent-stdlib = { path = "../../../crates/stdlib" }
+quent-stdlib = { path = "../../../../../crates/stdlib" }
 
 [build-dependencies]
 cxx-build = "1"
-quent-codegen = { path = "../../../crates/codegen" }
+quent-codegen = { path = "../../../../../crates/codegen" }
 quent-qe-cpp-instrumentation = { path = "../instrumentation" }
