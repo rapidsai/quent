@@ -23,21 +23,21 @@ int main() {
     // Create instrumentation context — events exported to ndjson.
     auto ctx = quent::create_context("ndjson", "data");
 
-    // Declare the cluster (root resource group).
+    // Spawn a cluster.
     auto cluster_obs = quent::cluster::create_observer();
     auto cluster_id = uuid::now_v7();
     cluster_obs->cluster_declaration(cluster_id, quent::cluster::ClusterDeclaration{
-        .instance_name = "example-cluster",
+        .instance_name = "example_cluster",
     });
 
-    // Declare a worker (resource group with typed parent).
+    // Spawn a worker.
     auto worker_obs = quent::worker::create_observer();
     auto worker_id = uuid::now_v7();
     quent::CustomAttributes custom;
     custom.string_attrs.push_back({"version", "42.1.2"});
     custom.i64_attrs.push_back({"threads", 256});
     worker_obs->worker_declaration(worker_id, quent::worker::WorkerDeclaration{
-        .instance_name = "worker-0",
+        .instance_name = "worker_0",
         .cluster = cluster_id,
         .details = quent::worker::Details{
             .version = "42.1.2",
@@ -45,30 +45,33 @@ int main() {
         },
     });
 
-    // Create a thread resource (unit — no capacity).
-    auto thread = quent::thread::create(quent::thread::Initializing{
-        .instance_name = "my-thread",
-        .parent_group_id = worker_id,
-    });
-    thread->operating();
-
-    // Create a queue resource (optional capacity — 0 sentinel = unbounded).
+    // Construct a queue.
     auto queue = quent::queue::create(quent::queue::Initializing{
-        .instance_name = "my-queue",
+        .instance_name = "my_queue",
         .parent_group_id = worker_id,
     });
+    // Operating with unbounded capacity (Option<u64> = None in Rust).
+    // In C++, the bridge wraps the value in Some(), so 0 here means Some(0).
+    // True unbounded (None) is not representable in CXX without sentinel support.
     queue->operating(quent::queue::Operating{.capacity_entries = 0});
 
-    // Create a memory pool resource (resizable).
+    // Construct a memory pool (resizable).
     auto mem_pool = quent::memory_pool::create(quent::memory_pool::Initializing{
-        .instance_name = "my-pool",
+        .instance_name = "my_memory_pool",
         .parent_group_id = worker_id,
     });
     mem_pool->operating(quent::memory_pool::Operating{.capacity_bytes = 1337});
     mem_pool->resizing();
     mem_pool->operating(quent::memory_pool::Operating{.capacity_bytes = 2048});
 
-    // Single-event entity: structured log.
+    // Spawn a thread.
+    auto thread = quent::thread::create(quent::thread::Initializing{
+        .instance_name = "my_thread",
+        .parent_group_id = worker_id,
+    });
+    thread->operating();
+
+    // Single event entity.
     auto info_obs = quent::info::create_observer();
     info_obs->info(uuid::now_v7(), quent::info::Info{
         .message = "ready to operate",
@@ -87,20 +90,24 @@ int main() {
         .ratio = 0.4,
     });
 
-    // FSM: queue a task.
-    // TODO: resource handles should expose their UUID to C++ so task
-    // transitions can reference actual resources (nil = no usage).
+    // Queue a task. The entry transition returns an FSM handle.
     auto task = quent::task::create(quent::task::Queued{
-        .instance_name = "my-task",
+        .instance_name = "my_task_31415",
         .index = 1,
         .worker = worker_id,
-        .queue_resource_id = uuid::new_nil(),
+        .queue_resource_id = queue->uuid(),
     });
 
-    // Transition to computing with resource usages.
+    // First computing transition — thread usage only, no memory pool.
     task->computing(quent::task::Computing{
-        .thread_resource_id = uuid::new_nil(),
+        .thread_resource_id = thread->uuid(),
         .memory_resource_id = uuid::new_nil(),
+    });
+
+    // Second computing transition — both thread and memory pool.
+    task->computing(quent::task::Computing{
+        .thread_resource_id = thread->uuid(),
+        .memory_resource_id = mem_pool->uuid(),
     });
 
     // Task exits.

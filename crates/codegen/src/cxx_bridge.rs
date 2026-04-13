@@ -1007,6 +1007,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
         }
     }
     extern_rust_body.push_str("        fn exit(&mut self);\n");
+    extern_rust_body.push_str("        fn uuid(&self) -> UUID;\n");
 
     let fsm_uses_custom_attrs = fsm
         .states
@@ -1084,6 +1085,10 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
 
             pub fn exit(&mut self) {
                 self.inner.exit();
+            }
+
+            pub fn uuid(&self) -> ffi::UUID {
+                self.inner.uuid().into()
             }
         }
 
