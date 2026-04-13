@@ -182,7 +182,6 @@ impl<T: TransitionInfo> FsmEvents<T> {
     }
 }
 
-// Entity
 
 impl<T: TransitionInfo> Entity for FsmEvents<T> {
     fn id(&self) -> Uuid {
@@ -196,7 +195,6 @@ impl<T: TransitionInfo> Entity for FsmEvents<T> {
     }
 }
 
-// Fsm
 
 impl<T: TransitionInfo> Fsm for FsmEvents<T> {
     type TransitionType = TransitionEvent<T>;
@@ -208,7 +206,6 @@ impl<T: TransitionInfo> Fsm for FsmEvents<T> {
     }
 }
 
-// FsmUsages
 
 impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for FsmEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
@@ -231,7 +228,6 @@ impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for FsmEvents<T> {
     }
 }
 
-// Using
 
 impl<T: TransitionInfo> Using for FsmEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
@@ -248,7 +244,6 @@ impl<T: TransitionInfo> Using for FsmEvents<T> {
     }
 }
 
-// FsmTypeDeclaration
 
 impl<T: TransitionInfo> FsmTypeDeclaration for FsmEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {

@@ -88,9 +88,7 @@ impl ModelBuilder {
     }
 }
 
-//------------------------------------------------------------------------
 // Model definition types (the in-memory representation)
-//------------------------------------------------------------------------
 
 /// An FSM definition.
 #[derive(Debug, Clone)]

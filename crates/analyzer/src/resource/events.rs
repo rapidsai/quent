@@ -52,7 +52,6 @@ impl<T: TransitionInfo> ResourceEvents<T> {
     }
 }
 
-// Entity
 
 impl<T: TransitionInfo> Entity for ResourceEvents<T> {
     fn id(&self) -> Uuid {
@@ -66,7 +65,6 @@ impl<T: TransitionInfo> Entity for ResourceEvents<T> {
     }
 }
 
-// Resource
 
 impl<T: TransitionInfo> Resource for ResourceEvents<T> {
     fn parent_group_id(&self) -> Uuid {
@@ -74,7 +72,6 @@ impl<T: TransitionInfo> Resource for ResourceEvents<T> {
     }
 }
 
-// Fsm (delegate to inner)
 
 impl<T: TransitionInfo> Fsm for ResourceEvents<T> {
     type TransitionType = TransitionEvent<T>;
@@ -86,7 +83,6 @@ impl<T: TransitionInfo> Fsm for ResourceEvents<T> {
     }
 }
 
-// FsmUsages (delegate to inner)
 
 impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for ResourceEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
@@ -94,7 +90,6 @@ impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for ResourceEvents<T> {
     }
 }
 
-// Using (delegate to inner)
 
 impl<T: TransitionInfo> Using for ResourceEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
@@ -102,7 +97,6 @@ impl<T: TransitionInfo> Using for ResourceEvents<T> {
     }
 }
 
-// FsmTypeDeclaration (delegate to inner)
 
 impl<T: TransitionInfo> FsmTypeDeclaration for ResourceEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {
