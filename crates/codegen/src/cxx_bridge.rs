@@ -128,9 +128,13 @@ const CXX_RESERVED_KEYWORDS: &[&str] = &[
     "xor_eq",
 ];
 
-/// Sanitize a name to avoid C++ reserved keywords by appending an underscore.
+/// If a name is a C++ reserved keyword, append an underscore and warn.
 fn cxx_safe_name(name: &str) -> String {
     if CXX_RESERVED_KEYWORDS.contains(&name) {
+        println!(
+            "cargo:warning=model component `{name}` is a C++ reserved keyword — \
+             C++ namespace will be `{name}_`"
+        );
         format!("{name}_")
     } else {
         name.to_string()
