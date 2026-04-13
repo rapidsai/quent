@@ -63,9 +63,7 @@ const FLOW_MAX_ZOOM = 2;
 const MINIMAP_SIZE = 125;
 const MINIMAP_NODE_STROKE_WIDTH = 3;
 
-interface VariableWidthEdgeProps extends EdgeProps {
-  isDark: boolean;
-}
+type VariableWidthEdgeProps = EdgeProps;
 
 const VariableWidthEdge = ({
   id,

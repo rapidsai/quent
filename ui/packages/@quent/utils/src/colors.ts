@@ -257,46 +257,6 @@ export function getOperationTypeColor(operationType: string): string {
   return OPERATION_TYPE_COLORS[operationType.toLowerCase()] ?? OPERATION_TYPE_COLORS.other;
 }
 
-/**
- * Create a capacity->color resolver for timeline capacity series.
- * Multiple capacities use ordered palette assignment; a single capacity uses
- * key-based deterministic coloring to stay stable across timelines.
- */
-export function createCapacitiesColorFn(
-  capacityKeys: string[]
-): (capacityName: string) => ChartColor {
-  const colorMap =
-    capacityKeys.length > 1
-      ? assignColors(capacityKeys)
-      : Object.fromEntries(capacityKeys.map(capacity => [capacity, getColorForKey(capacity)]));
-
-  return (capacityName: string) => colorMap[capacityName] ?? getColorForKey(capacityName);
-}
-
-export function createFsmTypeColorFn(fsmTypes: { [key in string]?: FsmTypeDecl }): (
-  stateName: string
-) => ChartColor {
-  const stateIndexMap = buildFsmStateIndexMap(fsmTypes);
-  return (stateName: string) => {
-    const stateIndex = stateIndexMap.get(stateName);
-    return stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(stateName);
-  };
-}
-
-function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<string, number> {
-  const stateIndexMap = new Map<string, number>();
-  if (!fsmTypes) return stateIndexMap;
-
-  for (const decl of Object.values(fsmTypes)) {
-    if (!decl) continue;
-    for (let i = 0; i < decl.states.length; i++) {
-      stateIndexMap.set(decl.states[i]!.name, i);
-    }
-  }
-
-  return stateIndexMap;
-}
-
 // ---------------------------------------------------------------------------
 // Continuous color palettes (heatmap-style)
 // ---------------------------------------------------------------------------

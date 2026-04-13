@@ -27,6 +27,12 @@ vi.mock('@/hooks/useExpandedIds', () => ({
   useExpandedIds: () => ({ expandedIds: new Set<string>(), handleExpandChange: vi.fn() }),
 }));
 
+vi.mock('@/contexts/ThemeContext', () => ({
+  useTheme: () => ({ theme: 'light', setTheme: vi.fn() }),
+  THEME_DARK: 'dark',
+  THEME_LIGHT: 'light',
+}));
+
 // Capture the timelineData prop passed to TimelineController on every render
 let capturedTimelineData: SingleTimelineResponse | null | undefined = undefined;
 
