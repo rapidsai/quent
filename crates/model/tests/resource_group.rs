@@ -28,7 +28,7 @@ fn root_resource_group() {
 
 #[test]
 fn resource_group_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Engine::collect(&mut builder);
     QueryGroup::collect(&mut builder);
 
@@ -75,7 +75,7 @@ quent_model::entity! {
 
 #[test]
 fn resource_group_custom_declaration_fields() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Server::collect(&mut builder);
 
     assert_eq!(builder.entities.len(), 1);

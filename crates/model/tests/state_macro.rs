@@ -97,7 +97,7 @@ fn state_metadata() {
 
 #[test]
 fn fsm_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Task::collect(&mut builder);
 
     assert_eq!(builder.fsms.len(), 1);

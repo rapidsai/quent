@@ -74,7 +74,7 @@ fn event_type_alias() {
 
 #[test]
 fn model_component_collects() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Task::collect(&mut builder);
 
     assert_eq!(builder.fsms.len(), 1);

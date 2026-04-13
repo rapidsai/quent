@@ -47,8 +47,8 @@ impl<T: ModelComponent> ModelComponent for Model<T> {
 
 impl<T: ModelComponent> Model<T> {
     /// Collects metadata from all components in this model.
-    pub fn build() -> ModelBuilder {
-        let mut builder = ModelBuilder::new();
+    pub fn build(name: &str) -> ModelBuilder {
+        let mut builder = ModelBuilder::new(name);
         T::collect(&mut builder);
         builder
     }
@@ -61,14 +61,18 @@ impl<T: ModelComponent> Model<T> {
 /// produce the final resolved model representation.
 #[derive(Debug, Default)]
 pub struct ModelBuilder {
+    pub name: String,
     pub fsms: Vec<FsmDef>,
     pub entities: Vec<EntityDef>,
     pub resource_groups: Vec<ResourceGroupDef>,
 }
 
 impl ModelBuilder {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            ..Default::default()
+        }
     }
 
     pub fn add_fsm(&mut self, fsm: FsmDef) {

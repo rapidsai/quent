@@ -42,7 +42,7 @@ fn entity_trait_impl() {
 
 #[test]
 fn unit_entity_has_no_events() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Operator::collect(&mut builder);
 
     assert_eq!(builder.entities.len(), 1);
@@ -52,7 +52,7 @@ fn unit_entity_has_no_events() {
 
 #[test]
 fn entity_event_attributes_populated() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Worker::collect(&mut builder);
 
     assert_eq!(builder.entities.len(), 1);
@@ -83,7 +83,7 @@ quent_model::entity! {
 
 #[test]
 fn self_event_entity() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Alert::collect(&mut builder);
 
     assert_eq!(builder.entities.len(), 1);

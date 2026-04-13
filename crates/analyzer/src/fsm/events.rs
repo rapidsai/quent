@@ -254,7 +254,7 @@ impl<T: TransitionInfo> FsmTypeDeclaration for FsmEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {
         use crate::fsm::{FsmStateTypeDecl, FsmTransitionDecl};
 
-        let mut builder = ModelBuilder::new();
+        let mut builder = ModelBuilder::new("");
         T::collect_model(&mut builder);
         let fsm_def = builder.fsms.into_iter().next().unwrap();
 

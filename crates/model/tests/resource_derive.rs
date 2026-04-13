@@ -53,7 +53,7 @@ fn unit_resource_generates_types() {
 
 #[test]
 fn resource_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     TestMem::collect(&mut builder);
     assert_eq!(builder.fsms.len(), 1);
     assert_eq!(builder.fsms[0].name, "test_mem");
@@ -82,7 +82,7 @@ pub struct TestResizable {
 
 #[test]
 fn resizable_resource_model_component() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     TestResizable::collect(&mut builder);
     assert_eq!(builder.fsms.len(), 1);
     let fsm = &builder.fsms[0];

@@ -174,7 +174,7 @@ fn full_model_collection() {
 
 #[test]
 fn task_fsm_structure() {
-    let mut builder = ModelBuilder::new();
+    let mut builder = ModelBuilder::new("test");
     Task::collect(&mut builder);
 
     let fsm = &builder.fsms[0];

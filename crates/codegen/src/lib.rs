@@ -18,10 +18,10 @@ pub struct CxxOptions {
     pub crate_name: String,
     /// Directory for generated bridge files, relative to CARGO_MANIFEST_DIR.
     pub bridge_path: String,
-    /// Rust path to the instrumentation crate (e.g., "quent_cpp_example_instrumentation").
+    /// Rust path to the instrumentation crate (e.g., "quent_readme_example").
     pub instrumentation_crate: String,
-    /// Model name as passed to `define_model!` (e.g., "Example").
-    /// Used to derive the event type: `{instrumentation_crate}::{model_name}Event`.
+    /// Model name — set automatically from `ModelBuilder::name` by `emit_cxx`.
+    #[doc(hidden)]
     pub model_name: String,
 }
 
@@ -39,7 +39,7 @@ impl Default for CxxOptions {
             crate_name: "quent-bridge".to_string(),
             bridge_path: "gen".to_string(),
             instrumentation_crate: "instrumentation".to_string(),
-            model_name: "App".to_string(),
+            model_name: String::new(),
         }
     }
 }
@@ -47,7 +47,8 @@ impl Default for CxxOptions {
 /// Generate CXX bridge Rust source code from a model.
 ///
 /// Returns a map of filename → source code content.
-pub fn emit_cxx(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
+pub fn emit_cxx(model: &ModelBuilder, options: &mut CxxOptions) -> Vec<GeneratedFile> {
+    options.model_name = model.name.clone();
     cxx_bridge::emit(model, options)
 }
 
