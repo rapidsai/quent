@@ -237,16 +237,16 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     }
 
     // Generate context bridge
-    files.push(emit_context_bridge(options));
+    files.push(emit_context_bridge(&model.name, options));
 
     // Generate entity bridges
     for entity in &model.entities {
-        files.push(emit_entity_bridge(entity, options));
+        files.push(emit_entity_bridge(entity, &model.name, options));
     }
 
     // Generate FSM bridges
     for fsm in &model.fsms {
-        files.push(emit_fsm_bridge(fsm, options));
+        files.push(emit_fsm_bridge(fsm, &model.name, options));
     }
 
     files
@@ -425,10 +425,10 @@ fn emit_uuid_bridge(model: &ModelBuilder, options: &CxxOptions) -> GeneratedFile
 ///
 /// The context is created once and stores the event sender in a global static.
 /// This avoids the need to share opaque Rust types across CXX bridge modules.
-fn emit_context_bridge(options: &CxxOptions) -> GeneratedFile {
+fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
     let ns = &options.namespace;
     let q = quent_path(options);
-    let event_type: syn::Type = syn::parse_str(&options.event_type()).unwrap();
+    let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
 
     let tokens = quote! {
         use std::sync::OnceLock;
@@ -696,7 +696,7 @@ fn emit_struct_conversion(
 }
 
 /// Generate a CXX bridge for an entity with events.
-fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> GeneratedFile {
+fn emit_entity_bridge(entity: &quent_model::EntityDef, model_name: &str, options: &CxxOptions) -> GeneratedFile {
     let entity_name = &entity.name;
     let safe_name = cxx_safe_name(entity_name);
     let ns = format!("{}::{}", options.namespace, safe_name);
@@ -706,7 +706,7 @@ fn emit_entity_bridge(entity: &quent_model::EntityDef, options: &CxxOptions) -> 
     let q = quent_path(options);
     let remapped = remap_module_path(&entity.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
-    let event_type: syn::Type = syn::parse_str(&options.event_type()).unwrap();
+    let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
     // Derive the entity event enum name: e.g., "Job" -> "JobEvent"
@@ -918,7 +918,7 @@ fn emit_state_flat_args(
 }
 
 /// Generate a CXX bridge for an FSM.
-fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
+fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> GeneratedFile {
     let fsm_name = &fsm.name;
     let safe_name = cxx_safe_name(fsm_name);
     let ns = format!("{}::{}", options.namespace, safe_name);
@@ -935,7 +935,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, options: &CxxOptions) -> GeneratedFile {
             "{}::{}Handle<{}>",
             remapped,
             pascal_name,
-            options.event_type(),
+            options.event_type(model_name),
         );
         syn::parse_str(&s).unwrap()
     };

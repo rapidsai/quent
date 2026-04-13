@@ -6,13 +6,13 @@ use quent_codegen::CxxOptions;
 fn main() {
     let builder = quent_qe_cpp_instrumentation::QueryEngineModel::build("QueryEngine");
 
-    let mut options = CxxOptions {
+    let options = CxxOptions {
         crate_name: "quent-qe-bridge".into(),
         instrumentation_crate: "quent_qe_cpp_instrumentation".into(),
         ..Default::default()
     };
 
-    let files = quent_codegen::emit_cxx(&builder, &mut options);
+    let files = quent_codegen::emit_cxx(&builder, &options);
     let bridge_files = quent_codegen::write_bridge_files(&files, &options);
 
     cxx_build::bridges(bridge_files)
