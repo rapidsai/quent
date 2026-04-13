@@ -1,14 +1,17 @@
 # C++ Integration Example
 
+Demonstrates using a Quent model from C++ via the CXX bridge.
+Uses the same model as the [README example](../readme/src/lib.rs).
+
 ## Structure
 
-| Directory | Description | Generated |
-|---|---|---|
-| `instrumentation/` | Rust model definitions and event types | No |
-| `bridge/` | CXX bridge crate with `build.rs` | No |
-| `bridge/gen/` | Rust FFI modules | Yes |
-| `bridge/include/` | C++ headers for `main.cpp` | Yes |
-| `cpp/` | C++ application | No |
+```
+bridge/              CXX bridge crate with build.rs
+  gen/               Generated Rust FFI modules
+  include/           Generated C++ headers
+cpp/
+  src/main.cpp       C++ application exercising the model
+```
 
 ## Build
 
@@ -27,11 +30,5 @@ cmake --build build
 ./build/example
 ```
 
-This produces an ndjson file in `cpp/data/`. Verify it contains events:
-
-```bash
-cat data/*.ndjson | head -5
-```
-
-Each line is a JSON object with an `id`, `timestamp`, and `data` field
-representing an FSM transition or entity event.
+This produces an ndjson file in `cpp/data/`.
+Each line is a JSON object with `id`, `timestamp`, and `data` fields.
