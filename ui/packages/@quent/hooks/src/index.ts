@@ -44,3 +44,32 @@ export type { BulkTimelineIdMeta, MergedBulkEntries } from './timeline/useBulkTi
 
 // Highlighted items hook
 export { useHighlightedItemIds } from './timeline/useHighlightedItemIds';
+
+// DAG controls hooks (computation functions injected to avoid circular dep with @quent/components)
+export {
+  useDagNodeColoring,
+  useDagEdgeWidthConfig,
+  useDagEdgeColoring,
+  useOperatorStatFields,
+  usePortStatFields,
+} from './dag/useDagControls';
+
+// DAG node coloring hook (accepts isDark instead of useTheme for decoupling)
+export { useNodeColoring } from './dag/useNodeColoring';
+
+// DAG control selector hooks (wrapping private atoms per HOOKS-02)
+export {
+  useSelectedColorField,
+  useNodeColoringValue,
+  useSetNodeColoring,
+  useNodeColorPalette,
+  useSelectedEdgeWidthField,
+  useEdgeWidthConfig,
+  useSelectedEdgeColorField,
+  useEdgeColoring,
+  useEdgeColorPalette,
+  useSelectedNodeLabelField,
+} from './dag/dagControlSelectors';
+
+// Utility hooks
+export { useDeferredReady } from './dag/useDeferredReady';

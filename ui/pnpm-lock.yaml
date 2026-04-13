@@ -208,6 +208,30 @@ importers:
 
   packages/@quent/components:
     dependencies:
+      '@quent/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@quent/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@tanstack/react-query':
+        specifier: ^5.0.0
+        version: 5.90.21(react@19.2.4)
+      '@xyflow/react':
+        specifier: ^12.10.1
+        version: 12.10.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      echarts:
+        specifier: ^5.6.0
+        version: 5.6.0
+      echarts-for-react:
+        specifier: ^3.0.6
+        version: 3.0.6(echarts@5.6.0)(react@19.2.4)
+      elkjs:
+        specifier: ^0.11.1
+        version: 0.11.1
+      jotai:
+        specifier: ^2.0.0
+        version: 2.18.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4)
       react:
         specifier: ^19.0.0
         version: 19.2.4
