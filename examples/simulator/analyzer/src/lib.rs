@@ -126,7 +126,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         debug!("converting query engine model entities");
         let engine = view.engine()?.to_ui()?;
-        let query_group = view.query_group(query.query_group_id().unwrap())?.to_ui();
+        let query_group_id = query.query_group_id().ok_or_else(|| {
+            quent_analyzer::AnalyzerError::IncompleteEntity(format!(
+                "query {} has no query_group_id",
+                query_id
+            ))
+        })?;
+        let query_group = view.query_group(query_group_id)?.to_ui();
         let query = query.to_ui()?;
         let workers = view.workers().map(|w| (w.id(), w.to_ui(epoch))).collect();
         let plans = view.plans().map(|p| (p.id(), p.to_ui())).collect();
