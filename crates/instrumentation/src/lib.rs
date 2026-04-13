@@ -49,16 +49,20 @@ impl<T> Clone for EventSender<T> {
 }
 
 impl<T> Default for EventSender<T> {
-    /// Returns a noop sender that silently drops all events.
     fn default() -> Self {
+        Self::noop()
+    }
+}
+
+impl<T> EventSender<T> {
+    /// Returns a noop sender that silently drops all events.
+    pub fn noop() -> Self {
         Self {
             tx: None,
             disable_error_log: Arc::new(AtomicBool::new(false)),
         }
     }
-}
 
-impl<T> EventSender<T> {
     pub fn send(&self, event: Event<T>) {
         if let Some(tx) = &self.tx
             && tx.send(event).is_err()
