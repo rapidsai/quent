@@ -312,9 +312,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 /// Common identifiers derived from the entity name.
 struct EntityIdents {
@@ -509,9 +507,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
     }
 }
 
-// ---------------------------------------------------------------------------
 // Self-event entity
-// ---------------------------------------------------------------------------
 
 fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
@@ -633,9 +629,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
     })
 }
 
-// ---------------------------------------------------------------------------
 // Multi-event entity
-// ---------------------------------------------------------------------------
 
 fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
@@ -695,9 +689,7 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
     })
 }
 
-// ---------------------------------------------------------------------------
 // Resource group with inline declaration attributes (no events)
-// ---------------------------------------------------------------------------
 
 fn expand_rg_attrs(
     name: &Ident,
@@ -865,9 +857,7 @@ fn expand_rg_attrs(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Resource group with events (+ optional declaration marker)
-// ---------------------------------------------------------------------------
 
 fn expand_rg_events(
     name: &Ident,
