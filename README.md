@@ -64,9 +64,11 @@ structured modeling approach that the framework provides.
   - **Instrumentation**: a domain-agnostic library for emitting
     type-safe telemetry from a model.
   - **Exporters**: pluggable telemetry transports.
-  - **Analyzers**: domain-agnostic and domain-specific libraries that
-    reconstruct in-memory models from collected events, with traits for
-    querying FSM states, resource usage, and entity relationships.
+  - **Analyzers**: components to build application-specific services that
+    reconstruct in-memory models from collected events, with traits for querying
+    FSM states, resource usage, and entity relationships, besides
+    application-custom logic.
+- Query engine domain-specific building blocks for the above, and examples:
   - **Web UI**: a React-based frontend for interactive visualization of query
     plans (DAGs), resource timelines, and operator statistics.
   - **Simulator**: an example application that emits telemetry for a simulated
@@ -77,29 +79,6 @@ Capacities, and Usages, and the logic that connects them (resource utilization
 tracking, hierarchical aggregation, and model reconstruction from events).
 Everything else (storage, transport, instrumentation, and visualization) is an
 opinionated but replaceable implementation based on the modeling approach.
-
-### Event output
-
-The `ndjson` exporter in the above example writes one JSON object per line,
-which is typically only useful for debugging and manual inspection. Production
-deployments can use the MessagePack or Postcard exporters for lower overhead, or
-stream to a centralized collector for distributed deployments, but to illustrate
-the events stored, an example of the output is shown below:
-
-```json
-{"id":"019d...","timestamp":1712345678000000000,"data":{"Task":{"Transition":{"seq":0,"state":{"Queued":{"name":"query-42","queue":{"resource_id":"01a2...","capacity":{"depth":1}}}}}}}}
-{"id":"019d...","timestamp":1712345678000100000,"data":{"Task":{"Transition":{"seq":1,"state":{"Running":{"thread":{"resource_id":"01b3...","capacity":{}}}}}}}}
-{"id":"019d...","timestamp":1712345678000200000,"data":{"Task":{"Transition":{"seq":2,"state":"Exit"}}}}
-```
-
-### Analysis and visualization
-
-The analyzer reconstructs entity relationships from the exported events in order
-to produce timelines of resource utilization, FSM activity, and more. UI
-building blocks render these as e.g. interactive timeline views, DAG
-visualizations, resource heatmaps, etc.
-
-> TODO: simple examples on how to combine analyzer and UI components
 
 ## Development
 

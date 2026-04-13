@@ -182,7 +182,6 @@ impl<T: TransitionInfo> FsmEvents<T> {
     }
 }
 
-
 impl<T: TransitionInfo> Entity for FsmEvents<T> {
     fn id(&self) -> Uuid {
         self.id
@@ -195,7 +194,6 @@ impl<T: TransitionInfo> Entity for FsmEvents<T> {
     }
 }
 
-
 impl<T: TransitionInfo> Fsm for FsmEvents<T> {
     type TransitionType = TransitionEvent<T>;
     fn len(&self) -> usize {
@@ -205,7 +203,6 @@ impl<T: TransitionInfo> Fsm for FsmEvents<T> {
         self.transitions.get(index)
     }
 }
-
 
 impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for FsmEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
@@ -228,7 +225,6 @@ impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for FsmEvents<T> {
     }
 }
 
-
 impl<T: TransitionInfo> Using for FsmEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         self.transitions.windows(2).flat_map(move |window| {
@@ -243,7 +239,6 @@ impl<T: TransitionInfo> Using for FsmEvents<T> {
         })
     }
 }
-
 
 impl<T: TransitionInfo> FsmTypeDeclaration for FsmEvents<T> {
     fn fsm_type_declaration() -> FsmTypeDecl {

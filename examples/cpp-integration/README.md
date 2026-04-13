@@ -32,3 +32,17 @@ cmake --build build
 
 This produces an ndjson file in `cpp/data/`.
 Each line is a JSON object with `id`, `timestamp`, and `data` fields.
+
+## Event output
+
+The `ndjson` exporter in the above example writes one JSON object per line,
+which is typically only useful for debugging and manual inspection. Production
+deployments can use the MessagePack or Postcard exporters for lower overhead, or
+stream to a centralized collector for distributed deployments, but to illustrate
+the events stored, an example of the output is shown below:
+
+```json
+{"id":"019d...","timestamp":1712345678000000000,"data":{"Task":{"Transition":{"seq":0,"state":{"Queued":{"name":"query-42","queue":{"resource_id":"01a2...","capacity":{"depth":1}}}}}}}}
+{"id":"019d...","timestamp":1712345678000100000,"data":{"Task":{"Transition":{"seq":1,"state":{"Running":{"thread":{"resource_id":"01b3...","capacity":{}}}}}}}}
+{"id":"019d...","timestamp":1712345678000200000,"data":{"Task":{"Transition":{"seq":2,"state":"Exit"}}}}
+```
