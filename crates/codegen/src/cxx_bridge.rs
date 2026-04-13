@@ -696,7 +696,11 @@ fn emit_struct_conversion(
 }
 
 /// Generate a CXX bridge for an entity with events.
-fn emit_entity_bridge(entity: &quent_model::EntityDef, model_name: &str, options: &CxxOptions) -> GeneratedFile {
+fn emit_entity_bridge(
+    entity: &quent_model::EntityDef,
+    model_name: &str,
+    options: &CxxOptions,
+) -> GeneratedFile {
     let entity_name = &entity.name;
     let safe_name = cxx_safe_name(entity_name);
     let ns = format!("{}::{}", options.namespace, safe_name);
