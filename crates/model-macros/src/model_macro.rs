@@ -144,6 +144,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let observer_types: Vec<Path> = all_components.iter().map(observer_type_path).collect();
     let model_tuple = nested_tuple(&all_components);
     let context_type = format_ident!("{}Context", name);
+    let quent_reexport = format_ident!("__quent_{}", crate::util::to_snake_case(name));
     let impl_macro_name = format_ident!(
         "__define_{}_instrumentation",
         crate::util::to_snake_case(name)
@@ -208,7 +209,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         };
 
         #[doc(hidden)]
-        pub use quent_model as __quent;
+        pub use quent_model as #quent_reexport;
 
         #[doc(hidden)]
         #[macro_export]

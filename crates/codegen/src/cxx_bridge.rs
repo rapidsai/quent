@@ -141,9 +141,10 @@ fn cxx_safe_name(name: &str) -> String {
     }
 }
 
-/// Parse the `__quent` re-export path from options: `{instrumentation_crate}::__quent`.
-fn quent_path(options: &CxxOptions) -> syn::Path {
-    syn::parse_str(&format!("{}::__quent", options.instrumentation_crate)).unwrap()
+/// Parse the `__quent_{model}` re-export path.
+fn quent_path(model_name: &str, options: &CxxOptions) -> syn::Path {
+    let snake = convert_case::Casing::to_case(&model_name, convert_case::Case::Snake);
+    syn::parse_str(&format!("{}::__quent_{}", options.instrumentation_crate, snake)).unwrap()
 }
 
 /// Remap a `module_path!()` value to be relative to the instrumentation crate.
@@ -220,7 +221,7 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     let mut files = Vec::new();
 
     // Generate UUID bridge (shared type used by all bridges)
-    files.push(emit_uuid_bridge(model, options));
+    files.push(emit_uuid_bridge(model, &model.name, options));
 
     // Generate custom attributes bridge if any component uses CustomAttributes
     let uses_custom_attrs = model.entities.iter().any(|e| {
@@ -233,7 +234,7 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
             .any(|s| attrs_use_custom_attributes(&s.attributes))
     });
     if uses_custom_attrs {
-        files.push(emit_custom_attributes_bridge(options));
+        files.push(emit_custom_attributes_bridge(&model.name, options));
     }
 
     // Generate context bridge
@@ -257,8 +258,8 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
 /// Uses CXX shared structs (one per value type) that C++ can construct
 /// natively. A Rust conversion function assembles them into
 /// `quent_attributes::CustomAttributes`.
-fn emit_custom_attributes_bridge(options: &CxxOptions) -> GeneratedFile {
-    let q = quent_path(options);
+fn emit_custom_attributes_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
+    let q = quent_path(model_name, options);
 
     let tokens = quote! {
         #[cxx::bridge(namespace = "quent")]
@@ -317,8 +318,8 @@ fn emit_custom_attributes_bridge(options: &CxxOptions) -> GeneratedFile {
 }
 
 /// Generate the UUID shared type bridge.
-fn emit_uuid_bridge(model: &ModelBuilder, options: &CxxOptions) -> GeneratedFile {
-    let q = quent_path(options);
+fn emit_uuid_bridge(model: &ModelBuilder, model_name: &str, options: &CxxOptions) -> GeneratedFile {
+    let q = quent_path(model_name, options);
     // Check if any model component uses Vec<UUID> (Vec<Ref<_>> or Vec<Uuid>)
     let needs_vec_uuid = model.entities.iter().any(|e| {
         e.events.iter().any(|ev| {
@@ -427,7 +428,7 @@ fn emit_uuid_bridge(model: &ModelBuilder, options: &CxxOptions) -> GeneratedFile
 /// This avoids the need to share opaque Rust types across CXX bridge modules.
 fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
     let ns = &options.namespace;
-    let q = quent_path(options);
+    let q = quent_path(model_name, options);
     let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
 
     let tokens = quote! {
@@ -707,7 +708,7 @@ fn emit_entity_bridge(
     let pascal_name = to_pascal_case(entity_name);
     let observer_name_str = format!("{pascal_name}Observer");
     let observer_name = format_ident!("{}", observer_name_str);
-    let q = quent_path(options);
+    let q = quent_path(model_name, options);
     let remapped = remap_module_path(&entity.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
     let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
@@ -929,7 +930,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
     let pascal_name = to_pascal_case(fsm_name);
     let handle_name_str = format!("{pascal_name}Handle");
     let handle_name = format_ident!("{}", handle_name_str);
-    let q = quent_path(options);
+    let q = quent_path(model_name, options);
     let remapped = remap_module_path(&fsm.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
