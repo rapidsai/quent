@@ -466,7 +466,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                 }
 
                 #[doc = #doc_method]
-                pub fn #alias(&self, id: uuid::Uuid, event: #ty) {
+                pub fn #alias(&self, id: quent_model::uuid::Uuid, event: #ty) {
                     self.tx.emit(id, #event_enum::#variant(event));
                 }
             }
@@ -500,7 +500,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             pub struct #handle_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
             {
-                id: uuid::Uuid,
+                id: quent_model::uuid::Uuid,
                 tx: quent_model::EventSender<E>,
             }
 
@@ -508,7 +508,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             where E: From<#event_enum> #serde_bound + Send + 'static,
             {
                 #[doc = #doc_handle_uuid]
-                pub fn uuid(&self) -> uuid::Uuid { self.id }
+                pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
                 #(#handle_methods)*
             }
 
@@ -529,7 +529,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                 }
 
                 #[doc = #doc_create]
-                pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
+                pub fn create(&self, id: quent_model::uuid::Uuid) -> #handle_name<E> {
                     #handle_name { id, tx: self.tx.clone() }
                 }
             }
@@ -645,7 +645,7 @@ fn expand_self_event(
 
             #[doc = #doc_observer_method]
             #[doc(alias = "observer")]
-            pub fn #method_name(&self, id: uuid::Uuid, #(#param_defs,)*) {
+            pub fn #method_name(&self, id: quent_model::uuid::Uuid, #(#param_defs,)*) {
                 self.tx.emit(id, #event_enum::from(#name { #(#field_names,)* }));
             }
         }
@@ -807,7 +807,7 @@ fn expand_rg_attrs(
         observer_params.push(quote! { #field_name: quent_model::Ref<#parent_ty> });
         decl_field_inits.push(quote! { #field_name, });
     } else if !is_root {
-        decl_fields.push(quote! { pub parent_group_id: uuid::Uuid });
+        decl_fields.push(quote! { pub parent_group_id: quent_model::uuid::Uuid });
         decl_attr_defs.push(quote! {
             quent_model::AttributeDef {
                 name: "parent_group_id".to_string(),
@@ -815,7 +815,7 @@ fn expand_rg_attrs(
                 optional: false,
             }
         });
-        observer_params.push(quote! { parent_group_id: uuid::Uuid });
+        observer_params.push(quote! { parent_group_id: quent_model::uuid::Uuid });
         decl_field_inits.push(quote! { parent_group_id, });
     }
 
@@ -893,10 +893,10 @@ fn expand_rg_attrs(
             #[doc(alias = "observer")]
             pub fn #observer_method(
                 &self,
-                id: uuid::Uuid,
+                id: quent_model::uuid::Uuid,
                 instance_name: &str,
                 #(#observer_params,)*
-            ) -> uuid::Uuid {
+            ) -> quent_model::uuid::Uuid {
                 let event = #decl_struct {
                     instance_name: instance_name.to_string(),
                     #(#decl_field_inits)*

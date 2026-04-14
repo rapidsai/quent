@@ -52,7 +52,7 @@ fn emit_unit_state_impls(
         }
 
         impl quent_model::analyze::ExtractParentGroupId for #state_ident {
-            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { #extract_parent_group_id }
+            fn extract_parent_group_id(&self) -> Option<quent_model::uuid::Uuid> { #extract_parent_group_id }
         }
     }
 }
@@ -388,7 +388,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
 
             impl quent_model::analyze::ExtractParentGroupId for #op_state {
-                fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { None }
+                fn extract_parent_group_id(&self) -> Option<quent_model::uuid::Uuid> { None }
             }
         };
         quote! {
@@ -682,7 +682,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
 
         impl quent_model::analyze::ExtractParentGroupId for #init_state {
-            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> { Some(self.parent_group_id) }
+            fn extract_parent_group_id(&self) -> Option<quent_model::uuid::Uuid> { Some(self.parent_group_id) }
         }
     };
 
@@ -715,7 +715,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #[derive(#serde_derives)]
         #vis struct #init_state {
             pub instance_name: String,
-            pub parent_group_id: uuid::Uuid,
+            pub parent_group_id: quent_model::uuid::Uuid,
             pub resource_type_name: String,
             #(#user_init_field_defs,)*
         }
@@ -750,7 +750,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             fn instance_name(&self) -> Option<&str> {
                 match self { #transition_instance_name_arms }
             }
-            fn parent_group_id(&self) -> Option<uuid::Uuid> {
+            fn parent_group_id(&self) -> Option<quent_model::uuid::Uuid> {
                 match self { #transition_parent_group_id_arms }
             }
             fn fsm_type_name() -> &'static str { #name_snake }
@@ -810,7 +810,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
 
             #[doc = #doc_observer_init]
-            pub fn initializing(&self, id: uuid::Uuid, instance_name: &str, parent_group_id: uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name<E> {
+            pub fn initializing(&self, id: quent_model::uuid::Uuid, instance_name: &str, parent_group_id: quent_model::uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name<E> {
                 let state = #init_state {
                     instance_name: instance_name.to_string(),
                     parent_group_id,
@@ -829,7 +829,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         where
             E: From<#event_type> #serde_bound + Send + 'static,
         {
-            id: uuid::Uuid,
+            id: quent_model::uuid::Uuid,
             seq: u64,
             exited: bool,
             tx: quent_model::EventSender<E>,
@@ -840,7 +840,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             E: From<#event_type> #serde_bound + Send + 'static,
         {
             #[doc = #doc_handle_uuid]
-            pub fn uuid(&self) -> uuid::Uuid { self.id }
+            pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
 
             #handle_transition_methods
 

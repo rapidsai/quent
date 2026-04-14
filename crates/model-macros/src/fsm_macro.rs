@@ -421,7 +421,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
             }
 
-            fn parent_group_id(&self) -> Option<uuid::Uuid> {
+            fn parent_group_id(&self) -> Option<quent_model::uuid::Uuid> {
                 match self {
                     #(#parent_group_id_arms,)*
                     #transition_enum::Exit => None,
@@ -462,7 +462,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         where
             E: From<#event_type> #serde_bound + Send + 'static,
         {
-            id: uuid::Uuid,
+            id: quent_model::uuid::Uuid,
             seq: u64,
             exited: bool,
             tx: quent_model::EventSender<E>,
@@ -473,7 +473,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             E: From<#event_type> #serde_bound + Send + 'static,
         {
             #[doc = #doc_handle_uuid]
-            pub fn uuid(&self) -> uuid::Uuid { self.id }
+            pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
 
             fn transition(&mut self, state: impl Into<#transition_enum>) {
                 self.emit_transition(state.into());

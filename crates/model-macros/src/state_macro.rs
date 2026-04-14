@@ -269,7 +269,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         }
 
         impl quent_model::analyze::ExtractParentGroupId for #name {
-            fn extract_parent_group_id(&self) -> Option<uuid::Uuid> {
+            fn extract_parent_group_id(&self) -> Option<quent_model::uuid::Uuid> {
                 #extract_parent_group_id_body
             }
         }
@@ -325,7 +325,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             (entry_method $vis:vis $handle:ident $transition:ident $observer_tx:ident) => {
                 $vis fn #entry_alias(
                     &self,
-                    id: uuid::Uuid,
+                    id: quent_model::uuid::Uuid,
                     #(#attrs_params)*
                     #(#usage_params)*
                 ) -> $handle<E> {
