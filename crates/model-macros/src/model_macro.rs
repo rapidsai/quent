@@ -36,6 +36,12 @@ impl Parse for DefineModelInput {
         syn::braced!(content in input);
 
         // First entry must be `root: Path`
+        if content.is_empty() {
+            return Err(syn::Error::new_spanned(
+                name,
+                "model! requires at least a root resource group: `root: MyRoot`",
+            ));
+        }
         let root_kw: Ident = content.parse()?;
         if root_kw != "root" {
             return Err(syn::Error::new_spanned(
