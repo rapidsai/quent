@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import ReactECharts from 'echarts-for-react/lib/core';
+import ReactEChartsComponent from 'echarts-for-react';
 
 import type { EChartsOption } from '../lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
@@ -375,7 +375,7 @@ export function OperatorGanttChart({
   }
 
   return (
-    <ReactECharts
+    <ReactEChartsComponent
       echarts={echarts}
       option={option}
       style={{ height }}

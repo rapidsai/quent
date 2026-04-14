@@ -74,7 +74,16 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@quent/components', '@quent/hooks', '@quent/client', '@quent/utils'],
+    include: [
+      '@quent/components',
+      '@quent/hooks',
+      '@quent/client',
+      '@quent/utils',
+      // echarts-for-react is a CJS peer dep of @quent/components; must be pre-bundled
+      // here so Vite converts it to ESM with a proper default export rather than
+      // serving the raw module.exports object to the browser.
+      'echarts-for-react',
+    ],
   },
   server: {
     watch: {

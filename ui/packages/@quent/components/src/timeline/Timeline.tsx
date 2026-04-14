@@ -3,7 +3,7 @@
 
 import { useCallback, useMemo, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import ReactECharts from 'echarts-for-react/lib/core';
+import ReactEChartsComponent from 'echarts-for-react';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
@@ -24,7 +24,6 @@ import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartCo
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
-
 /** Stacked-area timeline chart backed by ECharts, with zoom sync and optional tooltip. */
 export function Timeline({
   startTime,
@@ -367,7 +366,7 @@ export function Timeline({
   }, []);
 
   return (
-    <ReactECharts
+    <ReactEChartsComponent
       echarts={echarts}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
