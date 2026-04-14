@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 pub mod tree;
 
-/// A Directed-Acyclic-Graph of [`Operator`]s and [`Edge`]s.
+/// A Directed-Acyclic-Graph of `Operator`s and [`Edge`]s.
 ///
 /// Represents the dataflow starting at data sources, through operators
 /// performing transformations, to an output.

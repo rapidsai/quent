@@ -9,11 +9,11 @@ use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Default, Clone)]
 /// Options for the collector exporter.
 ///
 /// Streams events over gRPC to a remote collector service. Use this for
 /// distributed deployments where events are centralized for analysis.
+#[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
     pub address: String,
 }

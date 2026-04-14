@@ -9,7 +9,7 @@ use quent_query_engine_ui as ui;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
-/// A [`Worker`] is an [`Entity`] that executes [`Query`] [`Plans`].
+/// A [`Worker`] is an [`Entity`] that executes `Query` `Plan`s.
 #[derive(Debug)]
 pub struct Worker(EntityEvents<worker::Worker>);
 

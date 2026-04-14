@@ -19,12 +19,12 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
 /// Options for the ndjson exporter.
 ///
 /// Writes events as newline-delimited JSON (one JSON object per line per file).
 /// Human-readable, useful for debugging and manual inspection. Produces one
 /// file per instrumentation context in `output_dir`.
+#[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
     pub output_dir: PathBuf,
 }

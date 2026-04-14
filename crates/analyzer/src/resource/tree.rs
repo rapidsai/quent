@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Functions to construct the [`ResourceTree`] of an application model
+//! Functions to construct the `ResourceTree` of an application model
 
 use std::collections::VecDeque;
 
@@ -79,7 +79,7 @@ impl ResourceTreeNode {
     }
 }
 
-/// Iterator over the leaf resources of a [`ResourceTree`].
+/// Iterator over the leaf resources of a `ResourceTree`.
 pub struct ResourceTreeLeafIter<'a> {
     stack: Vec<&'a ResourceTreeNode>,
 }
@@ -102,7 +102,7 @@ impl<'a> Iterator for ResourceTreeLeafIter<'a> {
     }
 }
 
-/// Iterator over all resource groups in a [`ResourceTree`].
+/// Iterator over all resource groups in a `ResourceTree`.
 pub struct ResourceTreeGroupIter<'a> {
     stack: Vec<&'a ResourceTreeNode>,
 }

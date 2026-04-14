@@ -11,23 +11,23 @@ use crate::plan::Plan;
 
 /// A tree of [`Plan`]s.
 ///
-/// [`Plan`]s under a [`Query`] may form a tree, typically with a trunk and
+/// [`Plan`]s under a `Query` may form a tree, typically with a trunk and
 /// potentially a single branching point when they are fanned out over workers
-/// for distributed [`Engine`]s.
+/// for distributed `Engine`s.
 ///
-/// Under the [`Query`] there must be always one top-level [`Plan`] (the root of
-/// the tree). For example, this could be what in some [`Engine`]s is called a
+/// Under the `Query` there must be always one top-level [`Plan`] (the root of
+/// the tree). For example, this could be what in some `Engine`s is called a
 /// "logical" [`Plan`].
 ///
-/// An [`Engine`] may "lower" a [`Plan`] to produce a derived [`Plan`], any
-/// arbitrary number of times. At some point, at least one [`Worker`] will
-/// execute a [`Plan`], but the model is flexible enough to allow a [`Worker`]
+/// An `Engine` may "lower" a [`Plan`] to produce a derived [`Plan`], any
+/// arbitrary number of times. At some point, at least one `Worker` will
+/// execute a [`Plan`], but the model is flexible enough to allow a `Worker`
 /// to locally "lower" the [`Plan`] further.
 #[derive(Clone, Debug)]
 pub struct PlanTree {
     /// The [`Plan`] ID.
     pub id: Uuid,
-    /// The ID of the [`Worker`] this [`Plan`] is local to.
+    /// The ID of the `Worker` this [`Plan`] is local to.
     pub worker: Option<Uuid>,
     /// The child [`Plan`]. If this is an empty list, this is a leaf [`Plan`].
     pub children: Vec<PlanTree>,

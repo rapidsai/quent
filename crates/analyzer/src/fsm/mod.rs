@@ -16,7 +16,7 @@ pub mod collection;
 pub mod events;
 pub mod runtime;
 
-/// Trait for types that represent an [`Fsm`] [`State`] transition.
+/// Trait for types that represent an [`Fsm`] `State` transition.
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;

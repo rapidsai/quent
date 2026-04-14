@@ -44,7 +44,7 @@ struct Args {
     #[arg(long, default_value = "info")]
     log_level: String,
 
-    /// Socket address for the collector gRPC server (e.g. "[::]:7836").
+    /// Socket address for the collector gRPC server (e.g. `[::]:7836`).
     /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
     #[arg(long, default_value = defaults::QUENT_COLLECTOR_ADDRESS, env = env::QUENT_COLLECTOR_ADDRESS)]
     collector_address: String,
@@ -59,7 +59,7 @@ struct Args {
     #[arg(long, default_value = "data", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
     output_dir: PathBuf,
 
-    /// Socket address for the analyzer HTTP server (e.g. "[::]:8080").
+    /// Socket address for the analyzer HTTP server (e.g. `[::]:8080`).
     /// Overridden by the QUENT_ANALYZER_ADDRESS environment variable if set.
     #[arg(long, default_value = defaults::QUENT_ANALYZER_ADDRESS, env = env::QUENT_ANALYZER_ADDRESS)]
     analyzer_address: String,

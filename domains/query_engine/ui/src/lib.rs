@@ -84,7 +84,7 @@ pub struct QueryGroup {
 pub struct Query {
     /// The ID of this [`Query`].
     pub id: Uuid,
-    /// The ID of the [`super::query_group::QueryGroup`] this query is part of.
+    /// The ID of the `QueryGroup` this query is part of.
     pub query_group_id: Uuid,
     /// A name for this [`Query`].
     pub instance_name: Option<String>,
@@ -139,7 +139,7 @@ pub struct Plan {
     pub instance_name: Option<String>,
     /// The ID of the parent [`Plan`], if any.
     pub parent: Option<Uuid>,
-    /// The ID of the [`super::worker::Worker`] that executed this [`Plan`].
+    /// The ID of the `Worker` that executed this [`Plan`].
     ///
     /// If this level of [`Plan`] was not directly executed by a [`Worker`],
     /// then this is set to None.

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A gRPC-based server that collects [`Event`]s from multiple sources and exports them.
+//! A gRPC-based server that collects `Event`s from multiple sources and exports them.
 
 use std::{str::FromStr, sync::Arc};
 

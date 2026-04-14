@@ -9,7 +9,7 @@ export type Query = {
  */
 id: string, 
 /**
- * The ID of the [`super::query_group::QueryGroup`] this query is part of.
+ * The ID of the `QueryGroup` this query is part of.
  */
 query_group_id: string, 
 /**

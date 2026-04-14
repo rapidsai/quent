@@ -20,10 +20,10 @@ use crate::{
 
 /// Trait for types holding a collection of [`Resource`]s and/or [`ResourceGroup`]s.
 pub trait ResourceCollection {
-    /// Return an iterator over all [`Resources`] in this collection.
+    /// Return an iterator over all `Resource`s in this collection.
     fn resources(&self) -> impl Iterator<Item = &dyn Resource>;
 
-    /// Return an iterator over all [`ResourceGroups`] in this collection.
+    /// Return an iterator over all `ResourceGroup`s in this collection.
     fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup>;
 
     /// Return a reference to the [`Resource`] with the provided ID.
@@ -116,7 +116,7 @@ fn populate_group_types_from_tree(
     Ok(())
 }
 
-/// A builder for [`InMemoryResourceCollection`].
+/// A builder for `InMemoryResourceCollection`.
 #[derive(Default)]
 pub struct InMemoryResourcesBuilder {
     resource_types: HashMap<String, ResourceTypeDecl>,
