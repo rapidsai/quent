@@ -148,7 +148,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .zip(observer_types.iter())
         .map(|(variant, obs_type)| {
             let method_name = format_ident!("{}_observer", crate::util::to_snake_case(variant));
+            let doc_factory = format!("Create an observer for [{variant}] entities.");
             quote! {
+                #[doc = #doc_factory]
                 pub fn #method_name(&self) -> #obs_type<#event_type> {
                     #obs_type::new(&self.tx)
                 }
@@ -156,10 +158,16 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
-    let _name_str = name.to_string();
+    let doc_model = format!("Model type alias for [{name}].");
+    let doc_event = format!("Events emitted by the [{name}] model.");
+    let doc_context = format!("Instrumentation context for the [{name}] model.");
+    let doc_try_new = format!("Create a new [{name}] instrumentation context.");
+
     let output = quote! {
+        #[doc = #doc_model]
         pub type #model_type = quent_model::Model<#model_tuple>;
 
+        #[doc = #doc_event]
         #[derive(#serde_derives)]
         pub enum #event_type {
             #(#variants(#event_types),)*
@@ -187,12 +195,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[macro_export]
         macro_rules! #impl_macro_name {
             () => {
+                #[doc = #doc_context]
                 pub struct #context_type {
                     _inner: quent_model::Context<#event_type>,
                     tx: quent_model::EventSender<#event_type>,
                 }
 
                 impl #context_type {
+                    #[doc = #doc_try_new]
                     pub fn try_new(
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                         id: uuid::Uuid,

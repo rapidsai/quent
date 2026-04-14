@@ -425,6 +425,8 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
     let observer_name = &ids.observer_name;
     let serde_bound = &ids.serde_bound;
 
+    let doc_observer = format!("Observer for creating [{name}] entities.");
+
     if events.len() == 1 {
         let alias = &events[0].alias;
         let variant = format_ident!(
@@ -432,7 +434,9 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             crate::util::to_pascal_case(&events[0].alias.to_string())
         );
         let ty = &events[0].event_type;
+        let doc_method = format!("Emit a [{name}] event.");
         quote! {
+            #[doc = #doc_observer]
             #[derive(Clone)]
             pub struct #observer_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -447,6 +451,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                     Self { tx: tx.clone() }
                 }
 
+                #[doc = #doc_method]
                 pub fn #alias(&self, id: uuid::Uuid, event: #ty) {
                     self.tx.emit(id, #event_enum::#variant(event));
                 }
@@ -454,6 +459,9 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
         }
     } else {
         let handle_name = format_ident!("{}Handle", name);
+        let doc_handle = format!("Handle for an active [{name}] entity instance.");
+        let doc_handle_uuid = format!("Returns the UUID of this [{name}] entity.");
+        let doc_create = format!("Create a new [{name}] handle for the given entity UUID.");
 
         let handle_methods: Vec<TokenStream> = events
             .iter()
@@ -462,7 +470,9 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                 let variant =
                     format_ident!("{}", crate::util::to_pascal_case(&e.alias.to_string()));
                 let ty = &e.event_type;
+                let doc_method = format!("Emit the `{}` event.", alias);
                 quote! {
+                    #[doc = #doc_method]
                     pub fn #alias(&self, event: #ty) {
                         self.tx.emit(self.id, #event_enum::#variant(event));
                     }
@@ -471,6 +481,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             .collect();
 
         quote! {
+            #[doc = #doc_handle]
             pub struct #handle_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
             {
@@ -481,10 +492,12 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             impl<E> #handle_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
             {
+                #[doc = #doc_handle_uuid]
                 pub fn uuid(&self) -> uuid::Uuid { self.id }
                 #(#handle_methods)*
             }
 
+            #[doc = #doc_observer]
             #[derive(Clone)]
             pub struct #observer_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -499,6 +512,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                     Self { tx: tx.clone() }
                 }
 
+                #[doc = #doc_create]
                 pub fn create(&self, id: uuid::Uuid) -> #handle_name<E> {
                     #handle_name { id, tx: self.tx.clone() }
                 }
@@ -554,7 +568,14 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
         })
         .collect();
 
+    let doc_struct = format!("[{name}] self-event entity.");
+    let doc_event = format!("Events emitted by [{name}].");
+    let doc_observer = format!("Observer for creating [{name}] entities.");
+    let doc_observer_method = format!("Emit a [{name}] event.");
+    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+
     Ok(quote! {
+        #[doc = #doc_struct]
         #[derive(#serde_derives)]
         pub struct #name {
             #(#field_defs,)*
@@ -569,6 +590,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
             }
         }
 
+        #[doc = #doc_event]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             #name(#name),
@@ -578,6 +600,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
             fn from(e: #name) -> Self { #event_enum::#name(e) }
         }
 
+        #[doc = #doc_observer]
         #[derive(Clone)]
         pub struct #observer_name<E>
         where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -592,11 +615,13 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
                 Self { tx: tx.clone() }
             }
 
+            #[doc = #doc_observer_method]
             pub fn #method_name(&self, id: uuid::Uuid, #(#param_defs,)*) {
                 self.tx.emit(id, #event_enum::from(#name { #(#field_names,)* }));
             }
         }
 
+        #[doc = #doc_data]
         #[derive(Default)]
         pub struct #data_struct {
             pub #method_name: Option<#name>,
@@ -647,9 +672,15 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
     let data_push_arms = &ec.data_push_arms;
     let event_defs = &ec.event_defs;
 
+    let doc_marker = format!("Marker type for the [{name}] multi-event entity.");
+    let doc_event = format!("Events emitted by [{name}].");
+    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+
     Ok(quote! {
+        #[doc = #doc_marker]
         pub struct #name;
 
+        #[doc = #doc_event]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             #(#event_variants,)*
@@ -659,6 +690,7 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
 
         #observer_and_handle
 
+        #[doc = #doc_data]
         #[derive(Default)]
         pub struct #data_struct {
             #(#data_fields,)*
@@ -764,14 +796,24 @@ fn expand_rg_attrs(
         decl_field_inits.push(quote! { #fname, });
     }
 
+    let doc_marker = format!("Marker type for the [{name}] resource group.");
+    let doc_decl = format!("Declaration attributes for the [{name}] resource group.");
+    let doc_event = format!("Events emitted by [{name}].");
+    let doc_observer = format!("Observer for creating [{name}] entities.");
+    let doc_observer_method = format!("Declare a new [{name}] resource group instance.");
+    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+
     Ok(quote! {
+        #[doc = #doc_marker]
         pub struct #name;
 
+        #[doc = #doc_decl]
         #[derive(#serde_derives)]
         pub struct #decl_struct {
             #(#decl_fields,)*
         }
 
+        #[doc = #doc_event]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             Declaration(#decl_struct),
@@ -781,6 +823,7 @@ fn expand_rg_attrs(
             fn from(e: #decl_struct) -> Self { #event_enum::Declaration(e) }
         }
 
+        #[doc = #doc_observer]
         #[derive(Clone)]
         pub struct #observer_name<E>
         where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -795,6 +838,7 @@ fn expand_rg_attrs(
                 Self { tx: tx.clone() }
             }
 
+            #[doc = #doc_observer_method]
             pub fn #observer_method(
                 &self,
                 id: uuid::Uuid,
@@ -810,6 +854,7 @@ fn expand_rg_attrs(
             }
         }
 
+        #[doc = #doc_data]
         #[derive(Default)]
         pub struct #data_struct {
             pub declaration: Option<#decl_struct>,
@@ -889,9 +934,15 @@ fn expand_rg_events(
         None => quote! { None },
     };
 
+    let doc_marker = format!("Marker type for the [{name}] resource group.");
+    let doc_event = format!("Events emitted by [{name}].");
+    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+
     Ok(quote! {
+        #[doc = #doc_marker]
         pub struct #name;
 
+        #[doc = #doc_event]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             #(#event_variants,)*
@@ -901,6 +952,7 @@ fn expand_rg_events(
 
         #observer_and_handle
 
+        #[doc = #doc_data]
         #[derive(Default)]
         pub struct #data_struct {
             #(#data_fields,)*

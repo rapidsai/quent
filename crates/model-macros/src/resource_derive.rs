@@ -325,6 +325,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     };
 
     // Operating state definition
+    let doc_op = format!("Operating state for the [{name}] resource.");
     let op_state_def = if capacity_field_defs.is_empty() {
         // Unit resource — empty operating state
         let impls = emit_unit_state_impls(
@@ -335,6 +336,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { None },
         );
         quote! {
+            #[doc = #doc_op]
             #[derive(#serde_derives)]
             #vis struct #op_state;
             #impls
@@ -390,6 +392,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         };
         quote! {
+            #[doc = #doc_op]
             #[derive(#serde_derives)]
             #vis struct #op_state {
                 #(#capacity_field_defs,)*
@@ -418,6 +421,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { #ident: quent_model::Capacity::new(#ident) }
         })
         .collect();
+
+    let doc_handle_operating = "Transition to the operating state.".to_string();
+    let doc_handle_finalizing = "Transition to the finalizing state.".to_string();
 
     // Transition variants and FSM structure
     let (
@@ -497,10 +503,13 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         };
 
         let methods = quote! {
+            #[doc = #doc_handle_operating]
             pub fn operating(&mut self, #(#operating_params,)*) {
                 self.transition(#op_state { #(#operating_field_inits,)* });
             }
+            /// Transition to the resizing state.
             pub fn resizing(&mut self) { self.transition(#resize_state); }
+            #[doc = #doc_handle_finalizing]
             pub fn finalizing(&mut self) { self.transition(#fin_state); }
         };
 
@@ -511,7 +520,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { None },
             quote! { None },
         );
+        let doc_resize = format!("Resizing state for the [{name}] resource.");
         let resize_code = quote! {
+            #[doc = #doc_resize]
             #[derive(#serde_derives)]
             #vis struct #resize_state;
             #resize_impls
@@ -587,14 +598,18 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         let methods = if operating_params.is_empty() {
             quote! {
+                #[doc = #doc_handle_operating]
                 pub fn operating(&mut self) { self.transition(#op_state); }
+                #[doc = #doc_handle_finalizing]
                 pub fn finalizing(&mut self) { self.transition(#fin_state); }
             }
         } else {
             quote! {
+                #[doc = #doc_handle_operating]
                 pub fn operating(&mut self, #(#operating_params,)*) {
                     self.transition(#op_state { #(#operating_field_inits,)* });
                 }
+                #[doc = #doc_handle_finalizing]
                 pub fn finalizing(&mut self) { self.transition(#fin_state); }
             }
         };
@@ -679,7 +694,19 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         quote! { None },
     );
 
+    let doc_init = format!("Initializing state for the [{name}] resource.");
+    let doc_fin = format!("Finalizing state for the [{name}] resource.");
+    let doc_transition = format!("State transitions for the [{name}] resource FSM.");
+    let doc_event = format!("Event type alias for [{name}] resource FSM transitions.");
+    let doc_handle = format!("Handle for an active [{name}] resource FSM instance.");
+    let doc_handle_uuid = format!("Returns the UUID of this [{name}] resource instance.");
+    let doc_handle_exit = format!("Transition the [{name}] resource FSM to the exit state.");
+    let doc_observer = format!("Observer for creating [{name}] resource instances.");
+    let doc_observer_init = format!("Create a new [{name}] resource in the initializing state.");
+    let doc_resource_marker = format!("Resource marker type for [{name}].");
+
     let output = quote! {
+        #[doc = #doc_init]
         #[derive(#serde_derives)]
         #vis struct #init_state {
             pub instance_name: String,
@@ -692,12 +719,14 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #op_state_def
 
+        #[doc = #doc_fin]
         #[derive(#serde_derives)]
         #vis struct #fin_state;
         #fin_state_impls
 
         #resizing_code
 
+        #[doc = #doc_transition]
         #[derive(#serde_derives)]
         #vis enum #transition_enum {
             #transition_variants
@@ -724,12 +753,14 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         }
 
+        #[doc = #doc_event]
         #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
 
         impl quent_model::HasEventType for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
 
+        #[doc = #doc_resource_marker]
         #vis struct #resource_marker;
 
         impl quent_model::Resource for #resource_marker {
@@ -754,6 +785,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         }
 
+        #[doc = #doc_observer]
         #[derive(Clone)]
         #vis struct #observer_name<E>
         where
@@ -770,6 +802,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
                 Self { tx: tx.clone() }
             }
 
+            #[doc = #doc_observer_init]
             pub fn initializing(&self, id: uuid::Uuid, instance_name: &str, parent_group_id: uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name<E> {
                 let state = #init_state {
                     instance_name: instance_name.to_string(),
@@ -783,6 +816,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             }
         }
 
+        #[doc = #doc_handle]
         #vis struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + 'static,
@@ -797,10 +831,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         where
             E: From<#event_type> #serde_bound + Send + 'static,
         {
+            #[doc = #doc_handle_uuid]
             pub fn uuid(&self) -> uuid::Uuid { self.id }
 
             #handle_transition_methods
 
+            #[doc = #doc_handle_exit]
             pub fn exit(&mut self) {
                 if !self.exited {
                     self.emit_transition(#transition_enum::Exit);

@@ -365,9 +365,19 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         quote! { #(#transition_callback_invocations)* }
     };
 
+    let doc_marker = format!("Marker type for the [{name}] FSM.");
+    let doc_transition = format!("State transitions for the [{name}] FSM.");
+    let doc_event = format!("Event type alias for [{name}] FSM transitions.");
+    let doc_handle = format!("Handle for an active [{name}] FSM instance.");
+    let doc_handle_uuid = format!("Returns the UUID of this [{name}] FSM instance.");
+    let doc_handle_exit = format!("Transition the [{name}] FSM to the exit state.");
+    let doc_observer = format!("Observer for creating [{name}] FSM instances.");
+
     let output = quote! {
+        #[doc = #doc_marker]
         pub struct #name;
 
+        #[doc = #doc_transition]
         #[derive(#serde_derives)]
         pub enum #transition_enum {
             #(#transition_variants,)*
@@ -412,6 +422,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             }
         }
 
+        #[doc = #doc_event]
         pub type #event_type = quent_model::FsmEvent<#transition_enum>;
 
         impl quent_model::ModelComponent for #name {
@@ -432,6 +443,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
         #rg_trait_impl
 
+        #[doc = #doc_handle]
         pub struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + 'static,
@@ -446,12 +458,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         where
             E: From<#event_type> #serde_bound + Send + 'static,
         {
+            #[doc = #doc_handle_uuid]
             pub fn uuid(&self) -> uuid::Uuid { self.id }
 
             fn transition(&mut self, state: impl Into<#transition_enum>) {
                 self.emit_transition(state.into());
             }
 
+            #[doc = #doc_handle_exit]
             pub fn exit(&mut self) {
                 if !self.exited {
                     self.emit_transition(#transition_enum::Exit);
@@ -480,6 +494,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             fn drop(&mut self) { self.exit(); }
         }
 
+        #[doc = #doc_observer]
         #[derive(Clone)]
         pub struct #observer_name<E>
         where

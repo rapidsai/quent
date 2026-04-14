@@ -381,7 +381,9 @@ fn expand_inline_attrs(
         })
         .collect();
 
+    let doc_state = format!("FSM state [{name}] with inline attributes.");
     let struct_def = quote! {
+        #[doc = #doc_state]
         #[derive(#serde_derives)]
         pub struct #name {
             pub instance_name: String,
@@ -435,7 +437,9 @@ fn expand_external_attrs(
         quote! {}
     };
 
+    let doc_state = format!("FSM state [{name}] with external attributes.");
     let struct_def = quote! {
+        #[doc = #doc_state]
         #[derive(#serde_derives)]
         pub struct #name {
             #serde_flatten
@@ -468,7 +472,9 @@ fn expand_no_attrs(
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
+    let doc_state = format!("FSM state [{name}].");
     let struct_def = quote! {
+        #[doc = #doc_state]
         #[derive(#serde_derives)]
         pub struct #name {
             #(#usage_field_defs,)*
