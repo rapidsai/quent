@@ -365,13 +365,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         quote! { #(#transition_callback_invocations)* }
     };
 
-    let doc_marker = format!("Marker type for the [{name}] FSM.");
-    let doc_transition = format!("State transitions for the [{name}] FSM.");
-    let doc_event = format!("Event type alias for [{name}] FSM transitions.");
-    let doc_handle = format!("Handle for an active [{name}] FSM instance.");
-    let doc_handle_uuid = format!("Returns the UUID of this [{name}] FSM instance.");
-    let doc_handle_exit = format!("Transition the [{name}] FSM to the exit state.");
-    let doc_observer = format!("Observer for creating [{name}] FSM instances.");
+    let doc_marker = format!("Marker type for the {name} FSM.");
+    let doc_transition = format!("State transitions for the {name} FSM.");
+    let doc_event = format!("Event type alias for {name} FSM transitions.");
+    let doc_handle = format!("Handle for an active {name} FSM instance.");
+    let doc_handle_uuid = format!("Returns the UUID of this {name} FSM instance.");
+    let doc_handle_exit = format!("Transition the {name} FSM to the exit state.");
+    let doc_observer = format!("Observer for creating {name} FSM instances.");
 
     let output = quote! {
         #[doc = #doc_marker]

@@ -148,7 +148,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .zip(observer_types.iter())
         .map(|(variant, obs_type)| {
             let method_name = format_ident!("{}_observer", crate::util::to_snake_case(variant));
-            let doc_factory = format!("Create an observer for [{variant}] entities.");
+            let doc_factory = format!("Create an observer for {variant} entities.");
             quote! {
                 #[doc = #doc_factory]
                 pub fn #method_name(&self) -> #obs_type<#event_type> {
@@ -158,10 +158,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
-    let doc_model = format!("Model type alias for [{name}].");
-    let doc_event = format!("Events emitted by the [{name}] model.");
-    let doc_context = format!("Instrumentation context for the [{name}] model.");
-    let doc_try_new = format!("Create a new [{name}] instrumentation context.");
+    let doc_model = format!("Model type alias for {name}.");
+    let doc_event = format!("Events emitted by the {name} model.");
+    let doc_context = format!("Instrumentation context for the {name} model.");
+    let doc_try_new = format!("Create a new {name} instrumentation context.");
 
     let output = quote! {
         #[doc = #doc_model]

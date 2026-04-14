@@ -425,7 +425,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
     let observer_name = &ids.observer_name;
     let serde_bound = &ids.serde_bound;
 
-    let doc_observer = format!("Observer for creating [{name}] entities.");
+    let doc_observer = format!("Observer for creating {name} entities.");
 
     if events.len() == 1 {
         let alias = &events[0].alias;
@@ -434,7 +434,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             crate::util::to_pascal_case(&events[0].alias.to_string())
         );
         let ty = &events[0].event_type;
-        let doc_method = format!("Emit a [{name}] event.");
+        let doc_method = format!("Emit a {name} event.");
         quote! {
             #[doc = #doc_observer]
             #[derive(Clone)]
@@ -459,9 +459,9 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
         }
     } else {
         let handle_name = format_ident!("{}Handle", name);
-        let doc_handle = format!("Handle for an active [{name}] entity instance.");
-        let doc_handle_uuid = format!("Returns the UUID of this [{name}] entity.");
-        let doc_create = format!("Create a new [{name}] handle for the given entity UUID.");
+        let doc_handle = format!("Handle for an active {name} entity instance.");
+        let doc_handle_uuid = format!("Returns the UUID of this {name} entity.");
+        let doc_create = format!("Create a new {name} handle for the given entity UUID.");
 
         let handle_methods: Vec<TokenStream> = events
             .iter()
@@ -568,11 +568,11 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
         })
         .collect();
 
-    let doc_struct = format!("[{name}] self-event entity.");
-    let doc_event = format!("Events emitted by [{name}].");
-    let doc_observer = format!("Observer for creating [{name}] entities.");
-    let doc_observer_method = format!("Emit a [{name}] event.");
-    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+    let doc_struct = format!("{name} self-event entity.");
+    let doc_event = format!("Events emitted by {name}.");
+    let doc_observer = format!("Observer for creating {name} entities.");
+    let doc_observer_method = format!("Emit a {name} event.");
+    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #[doc = #doc_struct]
@@ -672,9 +672,9 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
     let data_push_arms = &ec.data_push_arms;
     let event_defs = &ec.event_defs;
 
-    let doc_marker = format!("Marker type for the [{name}] multi-event entity.");
-    let doc_event = format!("Events emitted by [{name}].");
-    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+    let doc_marker = format!("Marker type for the {name} multi-event entity.");
+    let doc_event = format!("Events emitted by {name}.");
+    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #[doc = #doc_marker]
@@ -796,12 +796,12 @@ fn expand_rg_attrs(
         decl_field_inits.push(quote! { #fname, });
     }
 
-    let doc_marker = format!("Marker type for the [{name}] resource group.");
-    let doc_decl = format!("Declaration attributes for the [{name}] resource group.");
-    let doc_event = format!("Events emitted by [{name}].");
-    let doc_observer = format!("Observer for creating [{name}] entities.");
-    let doc_observer_method = format!("Declare a new [{name}] resource group instance.");
-    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+    let doc_marker = format!("Marker type for the {name} resource group.");
+    let doc_decl = format!("Declaration attributes for the {name} resource group.");
+    let doc_event = format!("Events emitted by {name}.");
+    let doc_observer = format!("Observer for creating {name} entities.");
+    let doc_observer_method = format!("Declare a new {name} resource group instance.");
+    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #[doc = #doc_marker]
@@ -934,9 +934,9 @@ fn expand_rg_events(
         None => quote! { None },
     };
 
-    let doc_marker = format!("Marker type for the [{name}] resource group.");
-    let doc_event = format!("Events emitted by [{name}].");
-    let doc_data = format!("Analyzer data for [{name}] \u{2014} stores one `Option<T>` per event type.");
+    let doc_marker = format!("Marker type for the {name} resource group.");
+    let doc_event = format!("Events emitted by {name}.");
+    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #[doc = #doc_marker]

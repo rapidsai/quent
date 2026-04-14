@@ -325,7 +325,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     };
 
     // Operating state definition
-    let doc_op = format!("Operating state for the [{name}] resource.");
+    let doc_op = format!("Operating state for the {name} resource.");
     let op_state_def = if capacity_field_defs.is_empty() {
         // Unit resource — empty operating state
         let impls = emit_unit_state_impls(
@@ -520,7 +520,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             quote! { None },
             quote! { None },
         );
-        let doc_resize = format!("Resizing state for the [{name}] resource.");
+        let doc_resize = format!("Resizing state for the {name} resource.");
         let resize_code = quote! {
             #[doc = #doc_resize]
             #[derive(#serde_derives)]
@@ -694,16 +694,16 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         quote! { None },
     );
 
-    let doc_init = format!("Initializing state for the [{name}] resource.");
-    let doc_fin = format!("Finalizing state for the [{name}] resource.");
-    let doc_transition = format!("State transitions for the [{name}] resource FSM.");
-    let doc_event = format!("Event type alias for [{name}] resource FSM transitions.");
-    let doc_handle = format!("Handle for an active [{name}] resource FSM instance.");
-    let doc_handle_uuid = format!("Returns the UUID of this [{name}] resource instance.");
-    let doc_handle_exit = format!("Transition the [{name}] resource FSM to the exit state.");
-    let doc_observer = format!("Observer for creating [{name}] resource instances.");
-    let doc_observer_init = format!("Create a new [{name}] resource in the initializing state.");
-    let doc_resource_marker = format!("Resource marker type for [{name}].");
+    let doc_init = format!("Initializing state for the {name} resource.");
+    let doc_fin = format!("Finalizing state for the {name} resource.");
+    let doc_transition = format!("State transitions for the {name} resource FSM.");
+    let doc_event = format!("Event type alias for {name} resource FSM transitions.");
+    let doc_handle = format!("Handle for an active {name} resource FSM instance.");
+    let doc_handle_uuid = format!("Returns the UUID of this {name} resource instance.");
+    let doc_handle_exit = format!("Transition the {name} resource FSM to the exit state.");
+    let doc_observer = format!("Observer for creating {name} resource instances.");
+    let doc_observer_init = format!("Create a new {name} resource in the initializing state.");
+    let doc_resource_marker = format!("Resource marker type for {name}.");
 
     let output = quote! {
         #[doc = #doc_init]
