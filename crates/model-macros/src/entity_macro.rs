@@ -92,6 +92,7 @@ enum EntityKind {
 }
 
 struct EntityInput {
+    user_attrs: Vec<syn::Attribute>,
     name: Ident,
     kind: EntityKind,
 }
@@ -268,6 +269,7 @@ fn parse_body(
 
 impl Parse for EntityInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let user_attrs = input.call(syn::Attribute::parse_outer)?;
         let name: Ident = input.parse()?;
         let rg_meta = parse_resource_group_meta(input)?;
 
@@ -278,6 +280,7 @@ impl Parse for EntityInput {
         if content.is_empty() {
             return match rg_meta {
                 Some(meta) => Ok(EntityInput {
+                    user_attrs,
                     name,
                     kind: EntityKind::ResourceGroupAttrs {
                         meta,
@@ -292,23 +295,24 @@ impl Parse for EntityInput {
         }
 
         let kind = parse_body(content, rg_meta)?;
-        Ok(EntityInput { name, kind })
+        Ok(EntityInput { user_attrs, name, kind })
     }
 }
 
 pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: EntityInput = syn::parse2(input)?;
+    let ua = &input.user_attrs;
     match input.kind {
-        EntityKind::SelfEvent(fields) => expand_self_event(&input.name, &fields),
-        EntityKind::MultiEvent(events) => expand_multi_event(&input.name, &events),
+        EntityKind::SelfEvent(fields) => expand_self_event(&input.name, &fields, ua),
+        EntityKind::MultiEvent(events) => expand_multi_event(&input.name, &events, ua),
         EntityKind::ResourceGroupAttrs { meta, fields } => {
-            expand_rg_attrs(&input.name, &meta, &fields)
+            expand_rg_attrs(&input.name, &meta, &fields, ua)
         }
         EntityKind::ResourceGroupEvents {
             meta,
             declaration,
             events,
-        } => expand_rg_events(&input.name, &meta, declaration.as_ref(), &events),
+        } => expand_rg_events(&input.name, &meta, declaration.as_ref(), &events, ua),
     }
 }
 
@@ -523,7 +527,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
 
 // Self-event entity
 
-fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenStream> {
+fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::Attribute]) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
     let serde_bound = &ids.serde_bound;
@@ -575,6 +579,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
     let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
+        #(#user_attrs)*
         #[doc = #doc_struct]
         #[derive(#serde_derives)]
         pub struct #name {
@@ -656,7 +661,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField]) -> syn::Result<TokenS
 
 // Multi-event entity
 
-fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenStream> {
+fn expand_multi_event(name: &Ident, events: &[EventEntry], user_attrs: &[syn::Attribute]) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
     let entity_snake = &ids.entity_snake;
@@ -677,6 +682,7 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry]) -> syn::Result<TokenS
     let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
+        #(#user_attrs)*
         #[doc = #doc_marker]
         pub struct #name;
 
@@ -727,6 +733,7 @@ fn expand_rg_attrs(
     name: &Ident,
     meta: &ResourceGroupMeta,
     fields: &[InlineField],
+    user_attrs: &[syn::Attribute],
 ) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
@@ -804,6 +811,7 @@ fn expand_rg_attrs(
     let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
+        #(#user_attrs)*
         #[doc = #doc_marker]
         pub struct #name;
 
@@ -909,6 +917,7 @@ fn expand_rg_events(
     meta: &ResourceGroupMeta,
     declaration: Option<&Ident>,
     events: &[EventEntry],
+    user_attrs: &[syn::Attribute],
 ) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
@@ -939,6 +948,7 @@ fn expand_rg_events(
     let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
+        #(#user_attrs)*
         #[doc = #doc_marker]
         pub struct #name;
 

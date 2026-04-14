@@ -160,8 +160,20 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let doc_model = format!("Model type alias for {name}.");
     let doc_event = format!("Events emitted by the {name} model.");
-    let doc_context = format!("Instrumentation context for the {name} model.");
-    let doc_try_new = format!("Create a new {name} instrumentation context.");
+    let doc_context = format!(
+        "Instrumentation context for the {name} model.\n\
+         \n\
+         Holds the event pipeline and provides observer factory methods \
+         for each model component. Create with [`Self::try_new()`]."
+    );
+    let doc_try_new = format!(
+        "Create a new {name} instrumentation context.\n\
+         \n\
+         # Arguments\n\
+         * `exporter` — optional exporter configuration (e.g., ndjson, msgpack). \
+         Pass `None` for a no-op context that discards events.\n\
+         * `id` — unique identifier for this context instance (typically `Uuid::now_v7()`)."
+    );
 
     let output = quote! {
         #[doc = #doc_model]

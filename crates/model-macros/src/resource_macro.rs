@@ -47,6 +47,7 @@ struct AttributeField {
 }
 
 struct ResourceInput {
+    user_attrs: Vec<syn::Attribute>,
     name: Ident,
     resizable: bool,
     attributes: Vec<AttributeField>,
@@ -57,11 +58,13 @@ struct ResourceInput {
 
 impl Parse for ResourceInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let user_attrs = input.call(syn::Attribute::parse_outer)?;
         let name: Ident = input.parse()?;
 
         // Unit resource: just a name, no body
         if input.is_empty() {
             return Ok(ResourceInput {
+                user_attrs,
                 name,
                 resizable: false,
                 attributes: Vec::new(),
@@ -160,6 +163,7 @@ impl Parse for ResourceInput {
         }
 
         Ok(ResourceInput {
+            user_attrs,
             name,
             resizable,
             attributes,
@@ -172,6 +176,7 @@ impl Parse for ResourceInput {
 pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: ResourceInput = syn::parse2(input)?;
     let name = &input.name;
+    let user_attrs = &input.user_attrs;
 
     let derive = if input.resizable {
         quote! { quent_model::ResizableResource }
@@ -212,11 +217,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     if attr_fields.is_empty() && cap_fields.is_empty() {
         // Unit resource
         Ok(quote! {
+            #(#user_attrs)*
             #[derive(#derive)]
             pub struct #name;
         })
     } else {
         Ok(quote! {
+            #(#user_attrs)*
             #[derive(#derive)]
             pub struct #name {
                 #(#attr_fields,)*

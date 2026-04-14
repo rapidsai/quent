@@ -25,6 +25,7 @@ struct ResourceGroupMeta {
 }
 
 struct FsmInput {
+    user_attrs: Vec<syn::Attribute>,
     name: Ident,
     resource_group: Option<ResourceGroupMeta>,
     states: Vec<StateEntry>,
@@ -35,6 +36,7 @@ struct FsmInput {
 
 impl Parse for FsmInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let user_attrs = input.call(syn::Attribute::parse_outer)?;
         let name: Ident = input.parse()?;
 
         // Optional `: ResourceGroup<...>`
@@ -158,6 +160,7 @@ impl Parse for FsmInput {
         }
 
         Ok(FsmInput {
+            user_attrs,
             name,
             resource_group,
             states,
@@ -365,6 +368,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         quote! { #(#transition_callback_invocations)* }
     };
 
+    let user_attrs = &input.user_attrs;
     let doc_marker = format!("Marker type for the {name} FSM.");
     let doc_transition = format!("State transitions for the {name} FSM.");
     let doc_event = format!("Event type alias for {name} FSM transitions.");
@@ -374,6 +378,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let doc_observer = format!("Observer for creating {name} FSM instances.");
 
     let output = quote! {
+        #(#user_attrs)*
         #[doc = #doc_marker]
         pub struct #name;
 

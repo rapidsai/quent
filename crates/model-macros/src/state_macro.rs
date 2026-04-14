@@ -40,6 +40,7 @@ enum AttributesDef {
 }
 
 struct StateInput {
+    user_attrs: Vec<syn::Attribute>,
     name: Ident,
     attributes: Option<AttributesDef>,
     usages: Vec<UsageEntry>,
@@ -47,6 +48,7 @@ struct StateInput {
 
 impl Parse for StateInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let user_attrs = input.call(syn::Attribute::parse_outer)?;
         let name: Ident = input.parse()?;
 
         let content;
@@ -115,6 +117,7 @@ impl Parse for StateInput {
         }
 
         Ok(StateInput {
+            user_attrs,
             name,
             attributes,
             usages,
@@ -141,15 +144,16 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .collect();
 
     // Generate struct, metadata, extract impls, and callback based on attribute mode.
+    let user_attrs = &input.user_attrs;
     let (struct_def, attr_defs_tokens, extract_instance_name_body, extract_parent_group_id_body) =
         match &input.attributes {
             Some(AttributesDef::Inline(fields)) => {
-                expand_inline_attrs(name, fields, &usage_field_defs, &serde_derives)
+                expand_inline_attrs(name, fields, &usage_field_defs, &serde_derives, user_attrs)
             }
             Some(AttributesDef::ExternalStruct(path)) => {
-                expand_external_attrs(name, path, &usage_field_defs, &serde_derives)
+                expand_external_attrs(name, path, &usage_field_defs, &serde_derives, user_attrs)
             }
-            None => expand_no_attrs(name, &usage_field_defs, &serde_derives),
+            None => expand_no_attrs(name, &usage_field_defs, &serde_derives, user_attrs),
         };
 
     // Usage defs for StateMetadata
@@ -371,6 +375,7 @@ fn expand_inline_attrs(
     fields: &[InlineField],
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
+    user_attrs: &[syn::Attribute],
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
     let inline_field_defs: Vec<TokenStream> = fields
         .iter()
@@ -383,6 +388,7 @@ fn expand_inline_attrs(
 
     let doc_state = format!("FSM state {name} with inline attributes.");
     let struct_def = quote! {
+        #(#user_attrs)*
         #[doc = #doc_state]
         #[derive(#serde_derives)]
         pub struct #name {
@@ -430,6 +436,7 @@ fn expand_external_attrs(
     attrs_ty: &Path,
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
+    user_attrs: &[syn::Attribute],
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
     let serde_flatten = if cfg!(feature = "serde") {
         quote! { #[serde(flatten)] }
@@ -439,6 +446,7 @@ fn expand_external_attrs(
 
     let doc_state = format!("FSM state {name} with external attributes.");
     let struct_def = quote! {
+        #(#user_attrs)*
         #[doc = #doc_state]
         #[derive(#serde_derives)]
         pub struct #name {
@@ -471,9 +479,11 @@ fn expand_no_attrs(
     name: &Ident,
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
+    user_attrs: &[syn::Attribute],
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
     let doc_state = format!("FSM state {name}.");
     let struct_def = quote! {
+        #(#user_attrs)*
         #[doc = #doc_state]
         #[derive(#serde_derives)]
         pub struct #name {
