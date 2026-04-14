@@ -205,7 +205,15 @@ fsm! {
 
 // Generates all event-related types.
 //
-// There must always be exactly one root resource group.
+// There must always be exactly one root resource group. This requirement exists
+// in order to provide an entry-point for a top-down analysis flow, which starts
+// at the UUID of this root resource group.
+//
+// If we do not supply a root, we would get the following error:
+//
+// ```
+// model! requires at least a root resource group
+// ```
 model! {
     App {
         root: Cluster,

@@ -144,7 +144,11 @@ fn cxx_safe_name(name: &str) -> String {
 /// Parse the `__quent_{model}` re-export path.
 fn quent_path(model_name: &str, options: &CxxOptions) -> syn::Path {
     let snake = convert_case::Casing::to_case(&model_name, convert_case::Case::Snake);
-    syn::parse_str(&format!("{}::__quent_{}", options.instrumentation_crate, snake)).unwrap()
+    syn::parse_str(&format!(
+        "{}::__quent_{}",
+        options.instrumentation_crate, snake
+    ))
+    .unwrap()
 }
 
 /// Remap a `module_path!()` value to be relative to the instrumentation crate.
