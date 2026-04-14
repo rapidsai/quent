@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Workspace Scaffold** - Wire the pnpm workspace, tsconfig, Vite config, and per-package skeletons; no code extracted yet (completed 2026-04-01)
 - [ ] **Phase 2: Extract @quent/utils** - Extract the zero-dependency foundation package; unblocks all other packages
 - [x] **Phase 3: Extract @quent/client and @quent/hooks** - Extract the two sibling pure-TypeScript layers (API client and Jotai state hooks) (completed 2026-04-09)
-- [ ] **Phase 4: Extract @quent/components and Migrate App Shell** - Extract all UI components and migrate the app to consume only `@quent/*` imports
+- [x] **Phase 4: Extract @quent/components and Migrate App Shell** - Extract all UI components and migrate the app to consume only `@quent/*` imports (completed 2026-04-13)
 
 ## Phase Details
 
@@ -77,12 +77,12 @@ Plans:
   3. `vite build` completes without errors and bundle size is within 10% of the pre-refactor baseline
   4. `vite preview` shows correct Tailwind styles in production mode (no purged classes)
   5. All pre-existing `vitest` tests pass (`pnpm test` green from `ui/`)
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — Pre-conditions: move types to @quent/utils, dagControls atoms/hooks to @quent/hooks, configure @quent/components package.json
-- [ ] 04-02-PLAN.md — Extract all components into @quent/components (primitives, DAG, timeline, resource-tree, query-plan, operator-timeline) with ThemeContext decoupling and barrel export
-- [ ] 04-03-PLAN.md — Migrate app shell imports to @quent/*, delete old source files, build + test verification
+- [x] 04-02-PLAN.md — Extract all components into @quent/components (primitives, DAG, timeline, resource-tree, query-plan, operator-timeline) with ThemeContext decoupling and barrel export
+- [x] 04-03-PLAN.md — Migrate app shell imports to @quent/*, delete old source files, build + test verification
 
 ## Progress
 
@@ -94,4 +94,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Workspace Scaffold | 2/2 | Complete   | 2026-04-01 |
 | 2. Extract @quent/utils | 0/2 | Planning complete | - |
 | 3. Extract @quent/client and @quent/hooks | 3/3 | Complete   | 2026-04-09 |
-| 4. Extract @quent/components and Migrate App Shell | 0/3 | Planning complete | - |
+| 4. Extract @quent/components and Migrate App Shell | 3/3 | Complete   | 2026-04-13 |

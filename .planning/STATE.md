@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-04-13T20:29:53.416Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-04-13T22:48:09.386Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 10
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 ## Current Position
 
 Phase: 04 (extract-quent-components-and-migrate-app-shell) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -54,6 +54,8 @@ Plan: 2 of 3
 | Phase 03-extract-quent-client-and-quent-hooks P02 | 5 | 2 tasks | 13 files |
 | Phase 03 P03 | 180 | 2 tasks | 26 files |
 | Phase 04-extract-quent-components-and-migrate-app-shell P01 | 8 | 2 tasks | 12 files |
+| Phase 04 P02 | 120 | 3 tasks | 48 files |
+| Phase 04 P03 | 42 | 2 tasks | 65 files |
 
 ## Accumulated Context
 
@@ -88,6 +90,11 @@ Recent decisions affecting current work:
 - [Phase 04-extract-quent-components-and-migrate-app-shell]: DAGNode/DAGEdge/StatValue moved to @quent/utils (dagTypes.ts) to avoid circular dep between @quent/hooks and @quent/components
 - [Phase 04-extract-quent-components-and-migrate-app-shell]: useDagNodeColoring/useDagEdgeWidthConfig/useDagEdgeColoring use dependency injection for compute functions — avoids @quent/hooks → @quent/components circular dep
 - [Phase 04-extract-quent-components-and-migrate-app-shell]: useNodeColoring accepts isDark: boolean instead of useTheme() — decouples hook from app ThemeContext
+- [Phase 04]: isDark boolean prop pattern chosen over ThemeContext re-export to maintain zero coupling to app shell
+- [Phase 04]: DAGChart gains controlled selectedNodeIds/onSelectionChange API for external consumers
+- [Phase 04]: isDark boolean passed from useTheme() in app shell to package components — ThemeContext stays in app shell only
+- [Phase 04]: DropdownMenu, NavigationMenu, Select added to @quent/components barrel — were in package but missing from index.ts
+- [Phase 04]: Test mocks consolidated into single vi.mock('@quent/components') with spread-then-override pattern
 
 ### Pending Todos
 
@@ -101,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-13T20:29:53.413Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-04-13T22:48:09.383Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None

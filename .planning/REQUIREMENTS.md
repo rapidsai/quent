@@ -49,9 +49,9 @@
 
 ### App Migration
 
-- [ ] **MIG-01**: All `@/components/*`, `@/atoms/*`, `@/lib/*`, `@/services/*` imports in `ui/src/` updated to import from the appropriate `@quent/*` package
-- [ ] **MIG-02**: `vite build` completes without errors; bundle output is comparable to pre-refactor baseline
-- [ ] **MIG-03**: All existing `vitest` tests pass after migration; no test regressions
+- [x] **MIG-01**: All `@/components/*`, `@/atoms/*`, `@/lib/*`, `@/services/*` imports in `ui/src/` updated to import from the appropriate `@quent/*` package
+- [x] **MIG-02**: `vite build` completes without errors; bundle output is comparable to pre-refactor baseline
+- [x] **MIG-03**: All existing `vitest` tests pass after migration; no test regressions
 
 ## v2 Requirements
 
@@ -117,9 +117,9 @@
 | COMP-05 | Phase 4 | Complete |
 | COMP-06 | Phase 4 | Complete |
 | COMP-07 | Phase 4 | Pending |
-| MIG-01 | Phase 4 | Pending |
-| MIG-02 | Phase 4 | Pending |
-| MIG-03 | Phase 4 | Pending |
+| MIG-01 | Phase 4 | Complete |
+| MIG-02 | Phase 4 | Complete |
+| MIG-03 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total
