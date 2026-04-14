@@ -18,7 +18,6 @@ use quent_ui::timeline::{
         ResourceTimelineBinned, ResourceTimelineBinnedByState, SingleTimelineResponse,
     },
 };
-use serde::Serialize;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -26,6 +25,67 @@ use crate::error::ServerResult;
 
 /// Target number of chunks visible in the current view range.
 const TARGET_CHUNKS_PER_VIEW: u64 = 2;
+
+/// Newtype wrapper for `f64` that provides `Hash` and `Eq` via bit representation.
+/// Two floats are considered equal when their bits are identical (NaN == NaN).
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct HashableF64(u64);
+
+impl From<f64> for HashableF64 {
+    fn from(v: f64) -> Self {
+        Self(v.to_bits())
+    }
+}
+
+/// View of a timeline entry's identity fields, excluding viewport config.
+///
+/// The viewport config (`start`, `end`, `num_bins`) is intentionally omitted:
+/// `start`/`end` vary with every pan or zoom, and `num_bins` is already a
+/// separate field in `ChunkCacheKey`. Only the query-identity fields determine
+/// whether two requests map to the same cached chunks.
+#[derive(Hash, PartialEq, Eq)]
+enum EntryParamsKey<'a, EntryParams> {
+    Resource {
+        resource_id: Uuid,
+        long_entities_threshold_s: Option<HashableF64>,
+        entity_type_name: Option<&'a str>,
+        application: &'a EntryParams,
+    },
+    ResourceGroup {
+        resource_group_id: Uuid,
+        resource_type_name: &'a str,
+        long_entities_threshold_s: Option<HashableF64>,
+        entity_type_name: Option<&'a str>,
+        app_params: &'a EntryParams,
+    },
+}
+
+impl<'a, EntryParams> EntryParamsKey<'a, EntryParams> {
+    fn from_request(entry: &'a TimelineRequest<EntryParams>) -> Self {
+        match entry {
+            TimelineRequest::Resource(r) => Self::Resource {
+                resource_id: r.resource_id,
+                long_entities_threshold_s: r.long_entities_threshold_s.map(HashableF64::from),
+                entity_type_name: r.entity_filter.entity_type_name.as_deref(),
+                application: &r.application,
+            },
+            TimelineRequest::ResourceGroup(rg) => Self::ResourceGroup {
+                resource_group_id: rg.resource_group_id,
+                resource_type_name: &rg.resource_type_name,
+                long_entities_threshold_s: rg.long_entities_threshold_s.map(HashableF64::from),
+                entity_type_name: rg.entity_filter.entity_type_name.as_deref(),
+                app_params: &rg.app_params,
+            },
+        }
+    }
+}
+
+/// Pairs an entry key with global app params for stable cache key hashing.
+#[derive(Hash, PartialEq, Eq)]
+struct CacheParamsKey<'a, AppParams, EntryParams> {
+    entry: EntryParamsKey<'a, EntryParams>,
+    app_params: &'a AppParams,
+}
 
 /// Key identifying a cached timeline chunk.
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -69,8 +129,8 @@ impl TimelineCache {
     ) -> ServerResult<BulkTimelinesResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Serialize + Clone,
-        <A as UiAnalyzer>::TimelineParams: Serialize + Clone,
+        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone,
+        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone,
     {
         // Fetch engine metadata needed for chunk math.
         let engine_span = analyzer.query_engine_model().engine()?.span()?;
@@ -83,6 +143,7 @@ impl TimelineCache {
         }
 
         // All entries share the same viewport config — grab it from the first.
+        // Safety: unwrap never panics as empty requests returns early above
         let timeline_config = request.entries.values().next().unwrap().config();
 
         let req_start = epoch + to_nanosecs(timeline_config.start);
@@ -119,19 +180,12 @@ impl TimelineCache {
 
         for (key, entry) in &request.entries {
             let params_hash = {
-                // Strip the viewport config (start/end/num_bins) before hashing: start/end vary
-                // with every pan or zoom, and num_bins is already a separate field in ChunkCacheKey.
-                // Only the query-identity fields (resource, filters, app params) should determine
-                // whether two requests map to the same cached chunks.
-                let canonical = entry.clone().with_config(TimelineConfig {
-                    num_bins: 0,
-                    start: 0.0,
-                    end: 0.0,
-                });
-                let serialized = serde_json::to_string(&(&canonical, &request.app_params))
-                    .map_err(|e| crate::error::ServerError::Cache(e.to_string()))?;
+                let cache_key = CacheParamsKey {
+                    entry: EntryParamsKey::from_request(entry),
+                    app_params: &request.app_params,
+                };
                 let mut hasher = DefaultHasher::new();
-                serialized.hash(&mut hasher);
+                cache_key.hash(&mut hasher);
                 hasher.finish()
             };
 
@@ -315,8 +369,8 @@ impl TimelineCache {
     ) -> ServerResult<SingleTimelineResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Serialize + Clone,
-        <A as UiAnalyzer>::TimelineParams: Serialize + Clone,
+        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone,
+        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone,
     {
         let engine_span = analyzer.query_engine_model().engine()?.span()?;
         let engine_duration = engine_span.duration();
@@ -350,15 +404,12 @@ impl TimelineCache {
         // Hash the entry + app_params for cache key construction.
         // Strip the viewport config before hashing — same reasoning as in cached_bulk_timeline.
         let params_hash = {
-            let canonical = request.entry.clone().with_config(TimelineConfig {
-                num_bins: 0,
-                start: 0.0,
-                end: 0.0,
-            });
-            let serialized = serde_json::to_string(&(&canonical, &request.app_params))
-                .map_err(|e| crate::error::ServerError::Cache(e.to_string()))?;
+            let cache_key = CacheParamsKey {
+                entry: EntryParamsKey::from_request(&request.entry),
+                app_params: &request.app_params,
+            };
             let mut hasher = DefaultHasher::new();
-            serialized.hash(&mut hasher);
+            cache_key.hash(&mut hasher);
             hasher.finish()
         };
 

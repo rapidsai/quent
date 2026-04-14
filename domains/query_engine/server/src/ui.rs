@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::hash::Hash;
+
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -225,8 +227,8 @@ async fn single_timeline<A>(
 ) -> ServerResult<Json<SingleTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Clone,
-    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Clone,
+    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Hash + Eq + Clone,
+    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Hash + Eq + Clone,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(
@@ -263,8 +265,9 @@ async fn bulk_timelines<A>(
 ) -> ServerResult<Json<BulkTimelinesResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams:
+        Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(
@@ -298,8 +301,9 @@ pub fn routes<A>(state: ServiceState<A>) -> Router<()>
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams:
+        Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
