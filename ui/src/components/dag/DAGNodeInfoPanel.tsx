@@ -18,7 +18,11 @@ export const DAGNodeInfoPanel = () => {
   if (!displayData) return null;
 
   return (
-    <Panel position="bottom-left" className="nodrag nopan mb-2 ml-2">
+    <Panel
+      position="bottom-left"
+      className="nodrag nopan mb-2 ml-2"
+      style={isPinned ? undefined : { pointerEvents: 'none' }}
+    >
       <div className="w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md">
         <div className="flex items-center justify-between gap-2">
           <DataText className="font-semibold text-sm truncate">{displayData.label}</DataText>
