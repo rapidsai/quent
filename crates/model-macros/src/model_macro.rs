@@ -209,6 +209,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         macro_rules! #impl_macro_name {
             () => {
                 #[doc = #doc_context]
+                #[doc(alias = "context")]
                 pub struct #context_type {
                     _inner: quent_model::Context<#event_type>,
                     tx: quent_model::EventSender<#event_type>,

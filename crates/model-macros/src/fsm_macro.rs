@@ -388,6 +388,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         pub struct #name;
 
         #[doc = #doc_transition]
+        #[doc(alias = "transition")]
         #[derive(#serde_derives)]
         pub enum #transition_enum {
             #(#transition_variants,)*
@@ -454,6 +455,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #rg_trait_impl
 
         #[doc = #doc_handle]
+        #[doc(alias = "handle")]
         pub struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + 'static,
@@ -505,6 +507,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         }
 
         #[doc = #doc_observer]
+        #[doc(alias = "observer")]
         #[derive(Clone)]
         pub struct #observer_name<E>
         where

@@ -732,6 +732,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #resizing_code
 
         #[doc = #doc_transition]
+        #[doc(alias = "transition")]
         #[derive(#serde_derives)]
         #vis enum #transition_enum {
             #transition_variants
@@ -791,6 +792,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
 
         #[doc = #doc_observer]
+        #[doc(alias = "observer")]
         #[derive(Clone)]
         #vis struct #observer_name<E>
         where
@@ -822,6 +824,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         }
 
         #[doc = #doc_handle]
+        #[doc(alias = "handle")]
         #vis struct #handle_name<E>
         where
             E: From<#event_type> #serde_bound + Send + 'static,

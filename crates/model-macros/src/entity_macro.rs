@@ -446,6 +446,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
         let doc_method = format!("Emit a {name} event.");
         quote! {
             #[doc = #doc_observer]
+            #[doc(alias = "observer")]
             #[derive(Clone)]
             pub struct #observer_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -491,6 +492,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
 
         quote! {
             #[doc = #doc_handle]
+            #[doc(alias = "handle")]
             pub struct #handle_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
             {
@@ -507,6 +509,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             }
 
             #[doc = #doc_observer]
+            #[doc(alias = "observer")]
             #[derive(Clone)]
             pub struct #observer_name<E>
             where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -605,6 +608,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::At
         }
 
         #[doc = #doc_event]
+        #[doc(alias = "event")]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             #name(#name),
@@ -615,6 +619,7 @@ fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::At
         }
 
         #[doc = #doc_observer]
+            #[doc(alias = "observer")]
         #[derive(Clone)]
         pub struct #observer_name<E>
         where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -630,12 +635,14 @@ fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::At
             }
 
             #[doc = #doc_observer_method]
+            #[doc(alias = "observer")]
             pub fn #method_name(&self, id: uuid::Uuid, #(#param_defs,)*) {
                 self.tx.emit(id, #event_enum::from(#name { #(#field_names,)* }));
             }
         }
 
         #[doc = #doc_data]
+        #[doc(alias = "data")]
         #[derive(Default)]
         pub struct #data_struct {
             pub #method_name: Option<#name>,
@@ -696,6 +703,7 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry], user_attrs: &[syn::At
         pub struct #name;
 
         #[doc = #doc_event]
+        #[doc(alias = "event")]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             #(#event_variants,)*
@@ -706,6 +714,7 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry], user_attrs: &[syn::At
         #observer_and_handle
 
         #[doc = #doc_data]
+        #[doc(alias = "data")]
         #[derive(Default)]
         pub struct #data_struct {
             #(#data_fields,)*
@@ -835,6 +844,7 @@ fn expand_rg_attrs(
         }
 
         #[doc = #doc_event]
+        #[doc(alias = "event")]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             Declaration(#decl_struct),
@@ -845,6 +855,7 @@ fn expand_rg_attrs(
         }
 
         #[doc = #doc_observer]
+            #[doc(alias = "observer")]
         #[derive(Clone)]
         pub struct #observer_name<E>
         where E: From<#event_enum> #serde_bound + Send + 'static,
@@ -860,6 +871,7 @@ fn expand_rg_attrs(
             }
 
             #[doc = #doc_observer_method]
+            #[doc(alias = "observer")]
             pub fn #observer_method(
                 &self,
                 id: uuid::Uuid,
@@ -876,6 +888,7 @@ fn expand_rg_attrs(
         }
 
         #[doc = #doc_data]
+        #[doc(alias = "data")]
         #[derive(Default)]
         pub struct #data_struct {
             pub declaration: Option<#decl_struct>,
@@ -966,6 +979,7 @@ fn expand_rg_events(
         pub struct #name;
 
         #[doc = #doc_event]
+        #[doc(alias = "event")]
         #[derive(#serde_derives)]
         pub enum #event_enum {
             #(#event_variants,)*
@@ -976,6 +990,7 @@ fn expand_rg_events(
         #observer_and_handle
 
         #[doc = #doc_data]
+        #[doc(alias = "data")]
         #[derive(Default)]
         pub struct #data_struct {
             #(#data_fields,)*
