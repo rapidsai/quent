@@ -87,6 +87,28 @@ struct CacheParamsKey<'a, AppParams, EntryParams> {
     app_params: &'a AppParams,
 }
 
+/// Chunk geometry computed from engine metadata and the current viewport.
+struct ChunkGeometry {
+    epoch: TimeNanoSec,
+    engine_end: TimeNanoSec,
+    zoom_level: u64,
+    chunk_duration: u64,
+    first_chunk: u64,
+    last_chunk: u64,
+    num_bins: u16,
+}
+
+/// Result of a bulk cache check: which chunks were hits and which were misses.
+struct CacheCheckResult {
+    /// Cached chunk responses accumulated per entry key.
+    entry_chunks: HashMap<String, Vec<SingleTimelineResponse>>,
+    /// Entry keys that missed, grouped by chunk index.
+    chunk_misses: HashMap<u64, Vec<String>>,
+    any_cache_hit: bool,
+    hit_count: u64,
+    miss_count: u64,
+}
+
 /// Key identifying a cached timeline chunk.
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 struct ChunkCacheKey {
@@ -118,6 +140,7 @@ impl TimelineCache {
         }
     }
 
+    /// Fetch bulk timelines, serving as many chunks from cache as possible.
     pub(crate) async fn cached_bulk_timeline<A>(
         &self,
         analyzer: &A,
@@ -132,82 +155,71 @@ impl TimelineCache {
         <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone,
         <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone,
     {
-        // Fetch engine metadata needed for chunk math.
-        let engine_span = analyzer.query_engine_model().engine()?.span()?;
-        let engine_duration = engine_span.duration();
-        let epoch = engine_span.start();
-
-        // Bypass caching for degenerate cases.
-        if engine_duration == 0 || request.entries.is_empty() {
+        let Some(geometry) = compute_chunk_geometry(analyzer, &request)? else {
             return Ok(analyzer.bulk_resource_timeline(request)?);
-        }
-
-        // All entries share the same viewport config — grab it from the first.
-        // Safety: unwrap never panics as empty requests returns early above
-        let timeline_config = request.entries.values().next().unwrap().config();
-
-        let req_start = epoch + to_nanosecs(timeline_config.start);
-        let req_end = epoch + to_nanosecs(timeline_config.end);
-        let req_span = match SpanNanoSec::try_new(req_start, req_end) {
-            Ok(span) => span,
-            Err(_) => return Ok(analyzer.bulk_resource_timeline(request)?),
         };
 
-        let num_bins = timeline_config.num_bins;
-        let view_duration = req_span.duration();
+        let entry_hashes = compute_entry_hashes(&request.entries, &request.app_params);
+        let cache_result = self.check_cache(engine_id, &entry_hashes, &geometry).await;
 
-        if view_duration == 0 {
-            return Ok(analyzer.bulk_resource_timeline(request)?);
-        }
-
-        // Determine chunk geometry for this zoom level.
-        let zoom_level = determine_zoom_level(view_duration, engine_duration);
-        let chunk_duration = engine_duration / zoom_level;
         debug!(
-            engine_duration,
-            view_duration, zoom_level, "bulk timeline zoom level determined"
+            hit_count = cache_result.hit_count,
+            miss_count = cache_result.miss_count,
+            zoom_level = geometry.zoom_level,
+            n_entries = request.entries.len(),
+            "bulk timeline cache check"
         );
 
-        // Find which chunk indices overlap the current viewport.
-        let first_chunk =
-            ((req_span.start().saturating_sub(epoch)) / chunk_duration).min(zoom_level - 1);
-        let last_chunk = ((req_span.end().saturating_sub(1).saturating_sub(epoch))
-            / chunk_duration)
-            .min(zoom_level - 1);
-
-        // Hash each entry's params to build stable cache keys.
-        let mut entry_hashes: HashMap<String, u64> = HashMap::new();
-
-        for (key, entry) in &request.entries {
-            let params_hash = {
-                let cache_key = CacheParamsKey {
-                    entry: EntryParamsKey::from_request(entry),
-                    app_params: &request.app_params,
-                };
-                let mut hasher = DefaultHasher::new();
-                cache_key.hash(&mut hasher);
-                hasher.finish()
-            };
-
-            entry_hashes.insert(key.clone(), params_hash);
+        if !cache_result.any_cache_hit {
+            return self
+                .cold_fetch_and_cache(analyzer, engine_id, request, &entry_hashes, &geometry)
+                .await;
         }
 
-        // Check the cache for each (entry, chunk) pair.
-        // Hits go into entry_chunks; misses are recorded in chunk_misses.
+        let CacheCheckResult {
+            mut entry_chunks,
+            chunk_misses,
+            ..
+        } = cache_result;
+
+        if !chunk_misses.is_empty() {
+            self.partial_fetch_and_cache(
+                analyzer,
+                engine_id,
+                &request.entries,
+                &request.app_params,
+                &entry_hashes,
+                &chunk_misses,
+                &geometry,
+                &mut entry_chunks,
+            )
+            .await?;
+        }
+
+        assemble_bulk_response(entry_chunks, &request.entries, &geometry)
+    }
+
+    /// Check the cache for each (entry, chunk) pair in the current viewport.
+    async fn check_cache(
+        &self,
+        engine_id: Uuid,
+        entry_hashes: &HashMap<String, u64>,
+        geometry: &ChunkGeometry,
+    ) -> CacheCheckResult {
         let mut entry_chunks: HashMap<String, Vec<SingleTimelineResponse>> = HashMap::new();
         let mut chunk_misses: HashMap<u64, Vec<String>> = HashMap::new();
         let mut any_cache_hit = false;
         let mut hit_count = 0u64;
         let mut miss_count = 0u64;
 
-        for chunk_idx in first_chunk..=last_chunk {
-            for key in request.entries.keys() {
+        for chunk_idx in geometry.first_chunk..=geometry.last_chunk {
+            for (key, &params_hash) in entry_hashes {
                 let cache_key = ChunkCacheKey {
                     engine_id,
-                    params_hash: entry_hashes[key],
-                    zoom_level,
+                    params_hash,
+                    zoom_level: geometry.zoom_level,
                     chunk_idx,
-                    num_bins,
+                    num_bins: geometry.num_bins,
                 };
 
                 if let Some(cached) = self.chunks.get(&cache_key).await {
@@ -221,89 +233,118 @@ impl TimelineCache {
             }
         }
 
-        debug!(
+        CacheCheckResult {
+            entry_chunks,
+            chunk_misses,
+            any_cache_hit,
             hit_count,
             miss_count,
-            zoom_level,
+        }
+    }
+
+    /// Cold-cache path: fetch all entries in one bulk call, then split and cache each chunk.
+    async fn cold_fetch_and_cache<A>(
+        &self,
+        analyzer: &A,
+        engine_id: Uuid,
+        request: BulkTimelineRequest<
+            <A as UiAnalyzer>::TimelineGlobalParams,
+            <A as UiAnalyzer>::TimelineParams,
+        >,
+        entry_hashes: &HashMap<String, u64>,
+        geometry: &ChunkGeometry,
+    ) -> ServerResult<BulkTimelinesResponse>
+    where
+        A: UiAnalyzer + Send + Sync + 'static,
+    {
+        debug!(
             n_entries = request.entries.len(),
-            "bulk timeline cache check"
+            zoom_level = geometry.zoom_level,
+            "bulk timeline cold cache: full fetch"
         );
 
-        // Fast path: cold cache — no chunks were cached, so fetch everything in one bulk call.
-        if !any_cache_hit {
-            debug!(
-                n_entries = request.entries.len(),
-                zoom_level, "bulk timeline cold cache: full fetch"
-            );
-            let response = analyzer.bulk_resource_timeline(request)?;
-            for (key, entry_resp) in &response.entries {
-                if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
-                    let chunk_resp = SingleTimelineResponse {
-                        config: *config,
-                        data: data.clone(),
-                    };
-                    let chunks = split_response_into_chunks(
-                        &chunk_resp,
-                        first_chunk,
-                        last_chunk,
-                        chunk_duration,
-                        zoom_level,
-                        epoch,
-                        engine_span.end(),
-                    )?;
+        let response = analyzer.bulk_resource_timeline(request)?;
 
-                    // Cache each chunk individually.
-                    for (chunk_idx, chunk) in chunks {
-                        let cache_key = ChunkCacheKey {
-                            engine_id,
-                            params_hash: entry_hashes[key],
-                            zoom_level,
-                            chunk_idx,
-                            num_bins,
-                        };
-                        self.chunks.insert(cache_key, chunk).await;
-                    }
+        for (key, entry_resp) in &response.entries {
+            if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
+                let chunk_resp = SingleTimelineResponse {
+                    config: *config,
+                    data: data.clone(),
+                };
+                let chunks = split_response_into_chunks(
+                    &chunk_resp,
+                    geometry.first_chunk,
+                    geometry.last_chunk,
+                    geometry.chunk_duration,
+                    geometry.zoom_level,
+                    geometry.epoch,
+                    geometry.engine_end,
+                )?;
+
+                for (chunk_idx, chunk) in chunks {
+                    let cache_key = ChunkCacheKey {
+                        engine_id,
+                        params_hash: entry_hashes[key],
+                        zoom_level: geometry.zoom_level,
+                        chunk_idx,
+                        num_bins: geometry.num_bins,
+                    };
+                    self.chunks.insert(cache_key, chunk).await;
                 }
             }
-            return Ok(response);
         }
 
-        let BulkTimelineRequest {
-            entries,
-            app_params,
-        } = request;
+        Ok(response)
+    }
 
-        // Partial cache hit: fetch only the missing (entry, chunk) pairs.
-        if !chunk_misses.is_empty() {
-            let n_miss_entries: usize = chunk_misses.values().map(|v| v.len()).sum();
-            debug!(
-                n_miss_chunks = chunk_misses.len(),
-                n_miss_entries, zoom_level, "bulk timeline partial cache: fetching missing chunks"
-            );
-        }
+    /// Partial-hit path: fetch only the (entry, chunk) pairs that missed the cache.
+    async fn partial_fetch_and_cache<A>(
+        &self,
+        analyzer: &A,
+        engine_id: Uuid,
+        entries: &HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>>,
+        app_params: &<A as UiAnalyzer>::TimelineGlobalParams,
+        entry_hashes: &HashMap<String, u64>,
+        chunk_misses: &HashMap<u64, Vec<String>>,
+        geometry: &ChunkGeometry,
+        entry_chunks: &mut HashMap<String, Vec<SingleTimelineResponse>>,
+    ) -> ServerResult<()>
+    where
+        A: UiAnalyzer + Send + Sync + 'static,
+        <A as UiAnalyzer>::TimelineGlobalParams: Clone,
+        <A as UiAnalyzer>::TimelineParams: Clone,
+    {
+        let n_miss_entries: usize = chunk_misses.values().map(|v| v.len()).sum();
+        debug!(
+            n_miss_chunks = chunk_misses.len(),
+            n_miss_entries,
+            zoom_level = geometry.zoom_level,
+            "bulk timeline partial cache: fetching missing chunks"
+        );
 
-        for (chunk_idx, miss_keys) in &chunk_misses {
-            let chunk_start = epoch + chunk_idx * chunk_duration;
-            let chunk_end = if *chunk_idx == zoom_level - 1 {
-                engine_span.end()
+        for (chunk_idx, miss_keys) in chunk_misses {
+            let chunk_start = geometry.epoch + chunk_idx * geometry.chunk_duration;
+            let chunk_end = if *chunk_idx == geometry.zoom_level - 1 {
+                geometry.engine_end
             } else {
-                epoch + (chunk_idx + 1) * chunk_duration
+                geometry.epoch + (chunk_idx + 1) * geometry.chunk_duration
             };
             let timeline_config = TimelineConfig {
-                num_bins,
-                start: to_secs_relative(chunk_start, epoch),
-                end: to_secs_relative(chunk_end, epoch),
+                num_bins: geometry.num_bins,
+                start: to_secs_relative(chunk_start, geometry.epoch),
+                end: to_secs_relative(chunk_end, geometry.epoch),
             };
 
-            let mut chunk_entries: HashMap<
-                String,
-                TimelineRequest<<A as UiAnalyzer>::TimelineParams>,
-            > = HashMap::new();
-
-            for key in miss_keys {
-                let entry = entries[key].clone().with_config(timeline_config.clone());
-                chunk_entries.insert(key.clone(), entry);
-            }
+            let chunk_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
+                miss_keys
+                    .iter()
+                    .map(|key| {
+                        (
+                            key.clone(),
+                            entries[key].clone().with_config(timeline_config.clone()),
+                        )
+                    })
+                    .collect();
 
             let response = analyzer.bulk_resource_timeline(BulkTimelineRequest {
                 entries: chunk_entries,
@@ -316,9 +357,9 @@ impl TimelineCache {
                     let cache_key = ChunkCacheKey {
                         engine_id,
                         params_hash: entry_hashes[&key],
-                        zoom_level,
+                        zoom_level: geometry.zoom_level,
                         chunk_idx: *chunk_idx,
-                        num_bins,
+                        num_bins: geometry.num_bins,
                     };
                     self.chunks.insert(cache_key, single.clone()).await;
                     entry_chunks.entry(key).or_default().push(single);
@@ -326,36 +367,7 @@ impl TimelineCache {
             }
         }
 
-        let mut result_entries: HashMap<String, BulkTimelinesResponseEntry> = HashMap::new();
-
-        // now we have collected all chunks (both cached and fetched) in entry_chunks
-        for (key, chunk) in &entry_chunks {
-            if chunk.is_empty() {
-                continue;
-            }
-
-            let config = entries[key].config();
-            let chunk_span = match SpanNanoSec::try_new(
-                epoch + to_nanosecs(config.start),
-                epoch + to_nanosecs(config.end),
-            ) {
-                Ok(span) => span,
-                Err(_) => continue,
-            };
-
-            let combined = combine_chunks(chunk, chunk_span, epoch)?;
-            let result_entry = BulkTimelinesResponseEntry::Ok {
-                message: String::new(),
-                config: combined.config,
-                data: combined.data,
-            };
-
-            result_entries.insert(key.clone(), result_entry);
-        }
-
-        Ok(BulkTimelinesResponse {
-            entries: result_entries,
-        })
+        Ok(())
     }
 
     pub(crate) async fn cached_single_timeline<A>(
@@ -483,6 +495,125 @@ fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec)
         return 1;
     }
     ((total_duration * TARGET_CHUNKS_PER_VIEW) / view_duration).max(1)
+}
+
+/// Compute chunk geometry from engine metadata and the current viewport.
+///
+/// Returns `None` for degenerate requests (empty, zero-duration, invalid span)
+/// that should fall through to an uncached bulk fetch.
+fn compute_chunk_geometry<A>(
+    analyzer: &A,
+    request: &BulkTimelineRequest<
+        <A as UiAnalyzer>::TimelineGlobalParams,
+        <A as UiAnalyzer>::TimelineParams,
+    >,
+) -> ServerResult<Option<ChunkGeometry>>
+where
+    A: UiAnalyzer,
+{
+    let engine_span = analyzer.query_engine_model().engine()?.span()?;
+    let engine_duration = engine_span.duration();
+    let epoch = engine_span.start();
+
+    if engine_duration == 0 || request.entries.is_empty() {
+        return Ok(None);
+    }
+
+    // Safety: unwrap OK — empty entries returns None above.
+    let timeline_config = request.entries.values().next().unwrap().config();
+
+    let req_start = epoch + to_nanosecs(timeline_config.start);
+    let req_end = epoch + to_nanosecs(timeline_config.end);
+    let req_span = match SpanNanoSec::try_new(req_start, req_end) {
+        Ok(span) => span,
+        Err(_) => return Ok(None),
+    };
+
+    let view_duration = req_span.duration();
+    if view_duration == 0 {
+        return Ok(None);
+    }
+
+    let zoom_level = determine_zoom_level(view_duration, engine_duration);
+    let chunk_duration = engine_duration / zoom_level;
+
+    debug!(engine_duration, view_duration, zoom_level, "bulk timeline zoom level determined");
+
+    let first_chunk =
+        ((req_span.start().saturating_sub(epoch)) / chunk_duration).min(zoom_level - 1);
+    let last_chunk = ((req_span.end().saturating_sub(1).saturating_sub(epoch)) / chunk_duration)
+        .min(zoom_level - 1);
+
+    Ok(Some(ChunkGeometry {
+        epoch,
+        engine_end: engine_span.end(),
+        zoom_level,
+        chunk_duration,
+        first_chunk,
+        last_chunk,
+        num_bins: timeline_config.num_bins,
+    }))
+}
+
+/// Hash each entry's identity fields (excluding viewport config) into a stable `u64`.
+fn compute_entry_hashes<GP, EP>(
+    entries: &HashMap<String, TimelineRequest<EP>>,
+    app_params: &GP,
+) -> HashMap<String, u64>
+where
+    GP: Hash,
+    EP: Hash,
+{
+    entries
+        .iter()
+        .map(|(key, entry)| {
+            let cache_key = CacheParamsKey {
+                entry: EntryParamsKey::from_request(entry),
+                app_params,
+            };
+            let mut hasher = DefaultHasher::new();
+            cache_key.hash(&mut hasher);
+            (key.clone(), hasher.finish())
+        })
+        .collect()
+}
+
+/// Assemble the final bulk response from the accumulated per-entry chunk slices.
+fn assemble_bulk_response<EP>(
+    entry_chunks: HashMap<String, Vec<SingleTimelineResponse>>,
+    entries: &HashMap<String, TimelineRequest<EP>>,
+    geometry: &ChunkGeometry,
+) -> ServerResult<BulkTimelinesResponse> {
+    let mut result_entries: HashMap<String, BulkTimelinesResponseEntry> = HashMap::new();
+
+    for (key, chunks) in &entry_chunks {
+        if chunks.is_empty() {
+            continue;
+        }
+
+        let config = entries[key].config();
+        let chunk_span = match SpanNanoSec::try_new(
+            geometry.epoch + to_nanosecs(config.start),
+            geometry.epoch + to_nanosecs(config.end),
+        ) {
+            Ok(span) => span,
+            Err(_) => continue,
+        };
+
+        let combined = combine_chunks(chunks, chunk_span, geometry.epoch)?;
+        result_entries.insert(
+            key.clone(),
+            BulkTimelinesResponseEntry::Ok {
+                message: String::new(),
+                config: combined.config,
+                data: combined.data,
+            },
+        );
+    }
+
+    Ok(BulkTimelinesResponse {
+        entries: result_entries,
+    })
 }
 
 /// Splits a full-viewport response into per-chunk responses for caching.
