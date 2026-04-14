@@ -19,6 +19,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
+/// Options for the MessagePack exporter. Writes binary-encoded events to files in `output_dir`.
 pub struct MsgpackExporterOptions {
     pub output_dir: PathBuf,
 }
@@ -77,6 +78,7 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Options for the MessagePack importer. Reads events from the file at `path`.
 pub struct MsgpackImporterOptions {
     pub path: PathBuf,
 }

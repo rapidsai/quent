@@ -10,6 +10,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Default, Clone)]
+/// Options for the collector exporter. Streams events to a remote collector at `address`.
 pub struct CollectorExporterOptions {
     pub address: String,
 }

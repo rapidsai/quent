@@ -20,7 +20,9 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
+/// Options for the ndjson exporter. Writes one JSON object per line to files in `output_dir`.
 pub struct NdjsonExporterOptions {
+    /// Directory where ndjson files are written, one per application context.
     pub output_dir: PathBuf,
 }
 
@@ -79,6 +81,7 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Options for the ndjson importer. Reads events from the file at `path`.
 pub struct NdjsonImporterOptions {
     pub path: PathBuf,
 }

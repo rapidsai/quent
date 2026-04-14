@@ -19,6 +19,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
+/// Options for the Postcard exporter. Writes compact binary events to files in `output_dir`.
 pub struct PostcardExporterOptions {
     pub output_dir: PathBuf,
 }
@@ -77,6 +78,7 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Options for the Postcard importer. Reads events from the file at `path`.
 pub struct PostcardImporterOptions {
     pub path: PathBuf,
 }
