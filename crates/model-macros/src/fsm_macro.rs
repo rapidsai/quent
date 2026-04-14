@@ -369,7 +369,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     };
 
     let user_attrs = &input.user_attrs;
-    let doc_marker = format!("The `{name}` finite state machine.\n\nThis is a compile-time marker representing the FSM you declared. Use\n[`{name}Observer`] to create instances, not this type directly.");
+    let doc_marker = format!(
+        "The `{name}` finite state machine.\n\nThis is a compile-time marker representing the FSM you declared. Use\n[`{name}Observer`] to create instances, not this type directly."
+    );
     let doc_transition = format!("State transitions for the {name} FSM.");
     let doc_event = format!("Event type alias for {name} FSM transitions.");
     let doc_handle = format!("Handle for an active {name} FSM instance.");

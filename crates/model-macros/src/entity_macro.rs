@@ -295,7 +295,11 @@ impl Parse for EntityInput {
         }
 
         let kind = parse_body(content, rg_meta)?;
-        Ok(EntityInput { user_attrs, name, kind })
+        Ok(EntityInput {
+            user_attrs,
+            name,
+            kind,
+        })
     }
 }
 
@@ -535,7 +539,11 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
 
 // Self-event entity
 
-fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::Attribute]) -> syn::Result<TokenStream> {
+fn expand_self_event(
+    name: &Ident,
+    fields: &[InlineField],
+    user_attrs: &[syn::Attribute],
+) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
     let serde_bound = &ids.serde_bound;
@@ -588,7 +596,8 @@ fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::At
          instrumentation context via `{entity_snake}_observer()`."
     );
     let doc_observer_method = format!("Emit a `{name}` event.");
-    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
+    let doc_data =
+        format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #(#user_attrs)*
@@ -677,7 +686,11 @@ fn expand_self_event(name: &Ident, fields: &[InlineField], user_attrs: &[syn::At
 
 // Multi-event entity
 
-fn expand_multi_event(name: &Ident, events: &[EventEntry], user_attrs: &[syn::Attribute]) -> syn::Result<TokenStream> {
+fn expand_multi_event(
+    name: &Ident,
+    events: &[EventEntry],
+    user_attrs: &[syn::Attribute],
+) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
     let entity_snake = &ids.entity_snake;
@@ -693,9 +706,12 @@ fn expand_multi_event(name: &Ident, events: &[EventEntry], user_attrs: &[syn::At
     let data_push_arms = &ec.data_push_arms;
     let event_defs = &ec.event_defs;
 
-    let doc_marker = format!("The `{name}` multi-event entity.\n\nThis is a compile-time marker representing the entity you declared. Use\n[`{name}Observer`] to emit events, not this type directly.");
+    let doc_marker = format!(
+        "The `{name}` multi-event entity.\n\nThis is a compile-time marker representing the entity you declared. Use\n[`{name}Observer`] to emit events, not this type directly."
+    );
     let doc_event = format!("Events emitted by {name}.");
-    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
+    let doc_data =
+        format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #(#user_attrs)*
@@ -821,7 +837,9 @@ fn expand_rg_attrs(
         decl_field_inits.push(quote! { #fname, });
     }
 
-    let doc_marker = format!("The `{name}` resource group entity.\n\nThis is a compile-time marker representing the resource group you declared. Use\n[`{name}Observer`] to emit events, not this type directly.");
+    let doc_marker = format!(
+        "The `{name}` resource group entity.\n\nThis is a compile-time marker representing the resource group you declared. Use\n[`{name}Observer`] to emit events, not this type directly."
+    );
     let doc_decl = format!("Declaration attributes for the {name} resource group.");
     let doc_event = format!("Events emitted by {name}.");
     let doc_observer = format!(
@@ -830,7 +848,8 @@ fn expand_rg_attrs(
          instrumentation context via `{entity_snake}_observer()`."
     );
     let doc_observer_method = format!("Declare a new `{name}` resource group instance.");
-    let doc_data = format!("Analyzer data for `{name}` \u{2014} stores one `Option<T>` per event type.");
+    let doc_data =
+        format!("Analyzer data for `{name}` \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #(#user_attrs)*
@@ -969,9 +988,12 @@ fn expand_rg_events(
         None => quote! { None },
     };
 
-    let doc_marker = format!("The `{name}` resource group entity.\n\nThis is a compile-time marker representing the resource group you declared. Use\n[`{name}Observer`] to emit events, not this type directly.");
+    let doc_marker = format!(
+        "The `{name}` resource group entity.\n\nThis is a compile-time marker representing the resource group you declared. Use\n[`{name}Observer`] to emit events, not this type directly."
+    );
     let doc_event = format!("Events emitted by {name}.");
-    let doc_data = format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
+    let doc_data =
+        format!("Analyzer data for {name} \u{2014} stores one `Option<T>` per event type.");
 
     Ok(quote! {
         #(#user_attrs)*

@@ -8,7 +8,12 @@ use serde::{Deserialize, Serialize};
 // A "unit" resource.
 //
 // Only one entity may use this at a time.
-resource! { Thread }
+//
+// Inline doc strings are kept.
+resource! {
+    /// A thread running tasks.
+    Thread
+}
 
 // A resource with a capacity.
 //
@@ -20,6 +25,7 @@ resource! { Thread }
 //
 // The maximum capacity is set in the transition to operating.
 resource! {
+    /// A cache holding on to recent things.
     Cache {
         capacity: { slots: u64 },
     }
@@ -32,6 +38,7 @@ resource! {
 //
 // initializing -> operating <-> resizing -> finalizing -> exit
 resource! {
+    /// A memory pool providing space to do things.
     MemoryPool {
         resizable: true,
         capacity: { bytes: u64 },
@@ -43,6 +50,7 @@ resource! {
 // In the instrumentation API, in the operating state, these fields
 // can be set to None at run-time.
 resource! {
+    /// A queue to enqueue stuff.
     Queue {
         capacity: { entries: Option<u64> },
     }
@@ -53,6 +61,7 @@ resource! {
 // Note that this is a demonstration of how Quent can even be used to sink
 // structured logs.
 entity! {
+    /// An info message.
     Info {
         attributes: {
             message: String,
@@ -62,12 +71,14 @@ entity! {
 }
 
 // Attributes for a multi-event entity.
+/// Details of the applied checksum.
 #[derive(Attributes, Serialize, Deserialize)]
 pub struct Checksum {
     pub algorithm: String,
     pub value: String,
 }
 
+/// Details of the decompression stage.
 #[derive(Attributes, Serialize, Deserialize)]
 pub struct Decompressed {
     pub algorithm: String,
