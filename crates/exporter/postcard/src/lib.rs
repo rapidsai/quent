@@ -19,7 +19,10 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
-/// Options for the Postcard exporter. Writes compact binary events to files in `output_dir`.
+/// Options for the Postcard exporter.
+///
+/// Writes events in Postcard format (a compact, no_std-friendly binary
+/// encoding). Produces one file per instrumentation context in `output_dir`.
 pub struct PostcardExporterOptions {
     pub output_dir: PathBuf,
 }

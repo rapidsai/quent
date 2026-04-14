@@ -19,7 +19,11 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
-/// Options for the MessagePack exporter. Writes binary-encoded events to files in `output_dir`.
+/// Options for the MessagePack exporter.
+///
+/// Writes events in MessagePack binary format. Compact and fast to
+/// serialize/deserialize. Produces one file per instrumentation context
+/// in `output_dir`.
 pub struct MsgpackExporterOptions {
     pub output_dir: PathBuf,
 }

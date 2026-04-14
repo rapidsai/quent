@@ -10,7 +10,10 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Default, Clone)]
-/// Options for the collector exporter. Streams events to a remote collector at `address`.
+/// Options for the collector exporter.
+///
+/// Streams events over gRPC to a remote collector service. Use this for
+/// distributed deployments where events are centralized for analysis.
 pub struct CollectorExporterOptions {
     pub address: String,
 }
