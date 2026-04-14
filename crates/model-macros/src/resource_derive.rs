@@ -701,8 +701,13 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let doc_handle = format!("Handle for an active {name} resource FSM instance.");
     let doc_handle_uuid = format!("Returns the UUID of this {name} resource instance.");
     let doc_handle_exit = format!("Transition the {name} resource FSM to the exit state.");
-    let doc_observer = format!("Observer for creating {name} resource instances.");
-    let doc_observer_init = format!("Create a new {name} resource in the initializing state.");
+    let doc_observer = format!(
+        "Observer for `{name}` resource lifecycle events.\n\n\
+         An observer emits events for a model component. Obtain one from the \
+         instrumentation context via the corresponding observer method. \
+         Call `initializing()` to create a resource handle."
+    );
+    let doc_observer_init = format!("Create a new `{name}` resource in the initializing state.");
     let doc_resource_marker = format!("Resource marker type for {name}.");
 
     let output = quote! {

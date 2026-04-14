@@ -375,7 +375,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let doc_handle = format!("Handle for an active {name} FSM instance.");
     let doc_handle_uuid = format!("Returns the UUID of this {name} FSM instance.");
     let doc_handle_exit = format!("Transition the {name} FSM to the exit state.");
-    let doc_observer = format!("Observer for creating {name} FSM instances.");
+    let doc_observer = format!(
+        "Observer for `{name}` FSM instances.\n\n\
+         An observer emits events for a model component. Obtain one from the \
+         instrumentation context via the corresponding observer method. \
+         Call the entry state method to create an FSM handle."
+    );
 
     let output = quote! {
         #(#user_attrs)*
