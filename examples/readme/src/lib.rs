@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_attributes::CustomAttributes;
-use quent_model::{Attributes, Ref, entity, fsm, instrumentation, model, resource, state};
+use quent_model::{
+    Attributes, Ref, attributes::CustomAttributes, entity, fsm, instrumentation, model, resource,
+    state,
+};
 use serde::{Deserialize, Serialize};
 
 // A "unit" resource.
@@ -233,9 +235,7 @@ instrumentation!(App);
 
 #[test]
 fn use_instrumentation_example() -> Result<(), Box<dyn std::error::Error>> {
-    use quent_attributes::Attribute;
-    use quent_model::usage;
-    use uuid::Uuid;
+    use quent_model::{attributes::Attribute, usage, uuid::Uuid};
 
     let context = AppContext::try_new(None, Uuid::now_v7())?;
     // Spawn a cluster
