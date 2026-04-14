@@ -85,6 +85,17 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// ```ignore
 /// instrumentation!(App);
 /// ```
+///
+/// This generates `AppContext`, the entry point for instrumenting your
+/// application. To start emitting events:
+///
+/// 1. Create a context: `let ctx = AppContext::try_new(Some(exporter_options), Uuid::now_v7())?;`
+/// 2. Get an observer: `let obs = ctx.cluster_observer();`
+/// 3. Emit events: `obs.cluster(id, "my-cluster");`
+///
+/// For FSMs: the observer's entry method returns a handle for state transitions.
+/// For resources: the observer's `initializing()` method returns a handle for
+/// lifecycle transitions (`operating()`, `finalizing()`, `exit()`).
 #[proc_macro]
 pub fn instrumentation(input: TokenStream) -> TokenStream {
     model_macro::expand_instrumentation(input.into())
