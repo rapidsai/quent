@@ -109,6 +109,7 @@ fn nested_tuple(paths: &[Path]) -> TokenStream {
 
 pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let serde_derives = crate::util::serde_derives();
+    let serde_crate_attr = crate::util::serde_crate_attr();
     let input: DefineModelInput = syn::parse2(input)?;
     let name = &input.name;
 
@@ -189,6 +190,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
         #[doc = #doc_event]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub enum #event_type {
             #(#variants(#event_types),)*
         }
@@ -226,7 +228,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     #[doc = #doc_try_new]
                     pub fn try_new(
                         exporter: Option<quent_model::exporter::ExporterOptions>,
-                        id: uuid::Uuid,
+                        id: quent_model::uuid::Uuid,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
                         let inner = quent_model::Context::try_new(exporter, id)?;
                         let tx = inner.events_sender();

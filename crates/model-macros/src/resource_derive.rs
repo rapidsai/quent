@@ -218,6 +218,7 @@ fn emit_operating_conversions(name: &proc_macro2::Ident, fields: &ResourceFields
 
 fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> {
     let serde_derives = crate::util::serde_derives();
+    let serde_crate_attr = crate::util::serde_crate_attr();
     let serde_bound = crate::util::serde_bound();
     let vis = &input.vis;
     let name = &input.ident;
@@ -338,6 +339,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         quote! {
             #[doc = #doc_op]
             #[derive(#serde_derives)]
+            #serde_crate_attr
             #vis struct #op_state;
             #impls
         }
@@ -394,6 +396,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         quote! {
             #[doc = #doc_op]
             #[derive(#serde_derives)]
+            #serde_crate_attr
             #vis struct #op_state {
                 #(#capacity_field_defs,)*
             }
@@ -524,6 +527,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         let resize_code = quote! {
             #[doc = #doc_resize]
             #[derive(#serde_derives)]
+            #serde_crate_attr
             #vis struct #resize_state;
             #resize_impls
         };
@@ -713,6 +717,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let output = quote! {
         #[doc = #doc_init]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         #vis struct #init_state {
             pub instance_name: String,
             pub parent_group_id: quent_model::uuid::Uuid,
@@ -726,6 +731,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #[doc = #doc_fin]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         #vis struct #fin_state;
         #fin_state_impls
 
@@ -734,6 +740,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #[doc = #doc_transition]
         #[doc(alias = "transition")]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         #vis enum #transition_enum {
             #transition_variants
         }

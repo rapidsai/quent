@@ -5,21 +5,32 @@ use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
-/// Returns `serde::Serialize, serde::Deserialize` derive tokens when the
-/// `serde` feature is enabled, or empty tokens otherwise.
+/// Returns serde derive tokens when the `serde` feature is enabled, or empty
+/// tokens otherwise. Uses the `quent_model::serde` re-export so callers don't
+/// need `serde` as a direct dependency.
 pub fn serde_derives() -> TokenStream {
     if cfg!(feature = "serde") {
-        quote! { serde::Serialize, serde::Deserialize }
+        quote! { quent_model::serde::Serialize, quent_model::serde::Deserialize }
     } else {
         quote! {}
     }
 }
 
-/// Returns `+ serde::Serialize` trait bound when the `serde` feature is
-/// enabled, or empty tokens otherwise.
+/// Returns `+ quent_model::serde::Serialize` trait bound when the `serde`
+/// feature is enabled, or empty tokens otherwise.
 pub fn serde_bound() -> TokenStream {
     if cfg!(feature = "serde") {
-        quote! { + serde::Serialize }
+        quote! { + quent_model::serde::Serialize }
+    } else {
+        quote! {}
+    }
+}
+
+/// Returns `#[serde(crate = "quent_model::serde")]` when the `serde` feature
+/// is enabled. Tells the serde derive macros where to find the serde runtime.
+pub fn serde_crate_attr() -> TokenStream {
+    if cfg!(feature = "serde") {
+        quote! { #[serde(crate = "quent_model::serde")] }
     } else {
         quote! {}
     }

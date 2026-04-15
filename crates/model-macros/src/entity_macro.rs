@@ -55,7 +55,9 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{Token, Type, braced};
 
-use crate::util::{resolve_value_type, serde_bound, serde_derives, to_snake_case};
+use crate::util::{
+    resolve_value_type, serde_bound, serde_crate_attr, serde_derives, to_snake_case,
+};
 
 struct InlineField {
     name: Ident,
@@ -325,6 +327,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 /// Common identifiers derived from the entity name.
 struct EntityIdents {
     serde_derives: TokenStream,
+    serde_crate_attr: TokenStream,
     serde_bound: TokenStream,
     entity_snake: String,
     event_enum: Ident,
@@ -337,6 +340,7 @@ impl EntityIdents {
         let entity_snake = to_snake_case(name);
         Self {
             serde_derives: serde_derives(),
+            serde_crate_attr: serde_crate_attr(),
             serde_bound: serde_bound(),
             event_enum: format_ident!("{}Event", name),
             observer_name: format_ident!("{}Observer", name),
@@ -546,6 +550,7 @@ fn expand_self_event(
 ) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
+    let serde_crate_attr = &ids.serde_crate_attr;
     let serde_bound = &ids.serde_bound;
     let entity_snake = &ids.entity_snake;
     let event_enum = &ids.event_enum;
@@ -603,6 +608,7 @@ fn expand_self_event(
         #(#user_attrs)*
         #[doc = #doc_struct]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub struct #name {
             #(#field_defs,)*
         }
@@ -619,6 +625,7 @@ fn expand_self_event(
         #[doc = #doc_event]
         #[doc(alias = "event")]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub enum #event_enum {
             #name(#name),
         }
@@ -693,6 +700,7 @@ fn expand_multi_event(
 ) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
+    let serde_crate_attr = &ids.serde_crate_attr;
     let entity_snake = &ids.entity_snake;
     let event_enum = &ids.event_enum;
     let data_struct = &ids.data_struct;
@@ -721,6 +729,7 @@ fn expand_multi_event(
         #[doc = #doc_event]
         #[doc(alias = "event")]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub enum #event_enum {
             #(#event_variants,)*
         }
@@ -771,6 +780,7 @@ fn expand_rg_attrs(
 ) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
+    let serde_crate_attr = &ids.serde_crate_attr;
     let serde_bound = &ids.serde_bound;
     let entity_snake = &ids.entity_snake;
     let event_enum = &ids.event_enum;
@@ -858,6 +868,7 @@ fn expand_rg_attrs(
 
         #[doc = #doc_decl]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub struct #decl_struct {
             #(#decl_fields,)*
         }
@@ -865,6 +876,7 @@ fn expand_rg_attrs(
         #[doc = #doc_event]
         #[doc(alias = "event")]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub enum #event_enum {
             Declaration(#decl_struct),
         }
@@ -966,6 +978,7 @@ fn expand_rg_events(
 ) -> syn::Result<TokenStream> {
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
+    let serde_crate_attr = &ids.serde_crate_attr;
     let entity_snake = &ids.entity_snake;
     let event_enum = &ids.event_enum;
     let data_struct = &ids.data_struct;
@@ -1003,6 +1016,7 @@ fn expand_rg_events(
         #[doc = #doc_event]
         #[doc(alias = "event")]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub enum #event_enum {
             #(#event_variants,)*
         }

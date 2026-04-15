@@ -90,4 +90,6 @@ pub use quent_instrumentation::Context;
 #[doc(hidden)]
 pub use quent_instrumentation::EventSender;
 pub use quent_time::timestamp;
+#[cfg(feature = "serde")]
+pub use serde;
 pub use uuid;

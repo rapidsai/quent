@@ -130,6 +130,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let name = &input.name;
     let name_snake = to_snake_case(name);
     let serde_derives = crate::util::serde_derives();
+    let serde_crate_attr = crate::util::serde_crate_attr();
     let callback_name = format_ident!("__quent_state_{}", name_snake);
 
     // All usages are optional — the state may or may not use a given resource.
@@ -147,13 +148,29 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let user_attrs = &input.user_attrs;
     let (struct_def, attr_defs_tokens, extract_instance_name_body, extract_parent_group_id_body) =
         match &input.attributes {
-            Some(AttributesDef::Inline(fields)) => {
-                expand_inline_attrs(name, fields, &usage_field_defs, &serde_derives, user_attrs)
-            }
-            Some(AttributesDef::ExternalStruct(path)) => {
-                expand_external_attrs(name, path, &usage_field_defs, &serde_derives, user_attrs)
-            }
-            None => expand_no_attrs(name, &usage_field_defs, &serde_derives, user_attrs),
+            Some(AttributesDef::Inline(fields)) => expand_inline_attrs(
+                name,
+                fields,
+                &usage_field_defs,
+                &serde_derives,
+                &serde_crate_attr,
+                user_attrs,
+            ),
+            Some(AttributesDef::ExternalStruct(path)) => expand_external_attrs(
+                name,
+                path,
+                &usage_field_defs,
+                &serde_derives,
+                &serde_crate_attr,
+                user_attrs,
+            ),
+            None => expand_no_attrs(
+                name,
+                &usage_field_defs,
+                &serde_derives,
+                &serde_crate_attr,
+                user_attrs,
+            ),
         };
 
     // Usage defs for StateMetadata
@@ -375,6 +392,7 @@ fn expand_inline_attrs(
     fields: &[InlineField],
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
+    serde_crate_attr: &TokenStream,
     user_attrs: &[syn::Attribute],
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
     let inline_field_defs: Vec<TokenStream> = fields
@@ -391,6 +409,7 @@ fn expand_inline_attrs(
         #(#user_attrs)*
         #[doc = #doc_state]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub struct #name {
             pub instance_name: String,
             #(#inline_field_defs,)*
@@ -436,6 +455,7 @@ fn expand_external_attrs(
     attrs_ty: &Path,
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
+    serde_crate_attr: &TokenStream,
     user_attrs: &[syn::Attribute],
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
     let serde_flatten = if cfg!(feature = "serde") {
@@ -449,6 +469,7 @@ fn expand_external_attrs(
         #(#user_attrs)*
         #[doc = #doc_state]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub struct #name {
             #serde_flatten
             pub attrs: #attrs_ty,
@@ -479,6 +500,7 @@ fn expand_no_attrs(
     name: &Ident,
     usage_field_defs: &[TokenStream],
     serde_derives: &TokenStream,
+    serde_crate_attr: &TokenStream,
     user_attrs: &[syn::Attribute],
 ) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
     let doc_state = format!("FSM state {name}.");
@@ -486,6 +508,7 @@ fn expand_no_attrs(
         #(#user_attrs)*
         #[doc = #doc_state]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub struct #name {
             #(#usage_field_defs,)*
         }

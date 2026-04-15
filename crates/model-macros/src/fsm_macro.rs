@@ -176,6 +176,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let name = &input.name;
     let fsm_snake = to_snake_case(name);
     let serde_derives = crate::util::serde_derives();
+    let serde_crate_attr = crate::util::serde_crate_attr();
     let serde_bound = crate::util::serde_bound();
 
     let transition_enum = format_ident!("{}Transition", name);
@@ -392,6 +393,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[doc = #doc_transition]
         #[doc(alias = "transition")]
         #[derive(#serde_derives)]
+        #serde_crate_attr
         pub enum #transition_enum {
             #(#transition_variants,)*
             Exit,
