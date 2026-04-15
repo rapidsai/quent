@@ -10,7 +10,7 @@ use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 pub mod analyzer_cache;
 pub mod error;
@@ -81,8 +81,21 @@ where
     }
 
     if let Some(cors) = cors {
+        let origins: Vec<axum::http::HeaderValue> = cors
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.parse::<axum::http::HeaderValue>().unwrap())
+            .collect();
+
+        let allow_origin = if origins.len() == 1 {
+            AllowOrigin::exact(origins[0].clone())
+        } else {
+            AllowOrigin::list(origins)
+        };
+
         let cors = CorsLayer::new()
-            .allow_origin(cors.parse::<axum::http::HeaderValue>().unwrap())
+            .allow_origin(allow_origin)
             .allow_methods([
                 axum::http::Method::GET,
                 axum::http::Method::POST,

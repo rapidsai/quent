@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseJsonWithBigInt } from '@quent/utils';
+import { getApiBaseUrl } from './config';
 import type {
   QueryBundle,
   QueryGroup,
@@ -15,10 +16,6 @@ import type {
   EntityRef,
   Engine,
 } from '@quent/utils';
-
-// Use relative URL by default to leverage Vite's proxy (both dev and preview)
-// Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 interface ApiFetchOptions {
   params?: Record<string, string | number | boolean>;
@@ -35,7 +32,7 @@ async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise
   const searchParams = params
     ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`
     : '';
-  const url = `${API_BASE_URL}${endpoint}${searchParams}`;
+  const url = `${getApiBaseUrl()}${endpoint}${searchParams}`;
 
   const defaultOptions: RequestInit = {
     headers: {},

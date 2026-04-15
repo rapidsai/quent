@@ -3,6 +3,7 @@
 
 // Constants
 export { DEFAULT_STALE_TIME } from './constants';
+export { getApiBaseUrl, setApiBaseUrl } from './config';
 
 // Fetch functions
 export {
