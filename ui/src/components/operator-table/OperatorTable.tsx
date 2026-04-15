@@ -14,9 +14,9 @@ import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { operatorTypeColor } from '@/services/colors';
 import type { StatValue } from '@/services/query-plan/types';
-import type { PivotedRow, StatGroupTableSchema } from '../pivot-table/types';
-import type { PivotTableGroupKeyEntry } from '../pivot-table/types';
-import { StatGroupTable } from '../pivot-table/StatGroupTable';
+import type { PivotedRow, PivotedStatTableSchema } from '../pivot-table/types';
+import type { GroupedDataTableGroupKeyEntry } from '../pivot-table/types';
+import { PivotedStatTable } from '../pivot-table/PivotedStatTable';
 import { getSchemaStatNames } from '../pivot-table/utils';
 import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
 import { useStatGroupTableControls } from '../pivot-table/useStatGroupTableControls';
@@ -118,7 +118,7 @@ function buildOperatorRows(
 
 type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
 
-const OPERATOR_SCHEMA: StatGroupTableSchema<OperatorTableRow> = {
+const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   groups: {
     partition: {
       id: row => row.partitionId,
@@ -320,7 +320,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   );
 
   const getGroupCellHandlers = useCallback(
-    (gk: PivotTableGroupKeyEntry, row: PivotedRow) => {
+    (gk: GroupedDataTableGroupKeyEntry, row: PivotedRow) => {
       const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
       const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
 
@@ -356,7 +356,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               primaryOperatorId: null,
             })),
           onMouseLeave: () =>
-            setHighlightState(prev => ({ ...prev, ids: null, source: null, primaryOperatorId: null })),
+            setHighlightState(prev => ({
+              ...prev,
+              ids: null,
+              source: null,
+              primaryOperatorId: null,
+            })),
         };
       }
       if (gk.key === 'parent_item') {
@@ -369,7 +374,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               primaryOperatorId: null,
             })),
           onMouseLeave: () =>
-            setHighlightState(prev => ({ ...prev, ids: null, source: null, primaryOperatorId: null })),
+            setHighlightState(prev => ({
+              ...prev,
+              ids: null,
+              source: null,
+              primaryOperatorId: null,
+            })),
         };
       }
       if (gk.key === 'item_type') {
@@ -382,7 +392,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               primaryOperatorId: null,
             })),
           onMouseLeave: () =>
-            setHighlightState(prev => ({ ...prev, ids: null, source: null, primaryOperatorId: null })),
+            setHighlightState(prev => ({
+              ...prev,
+              ids: null,
+              source: null,
+              primaryOperatorId: null,
+            })),
         };
       }
       return {};
@@ -433,7 +448,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
         />
       </div>
       <div className="flex-1 min-h-0">
-        <StatGroupTable
+        <PivotedStatTable
           rows={rows}
           schema={OPERATOR_SCHEMA}
           activeIndices={activeIndexKeys}

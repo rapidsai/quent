@@ -10,7 +10,7 @@ import type {
   PivotedRow,
   PivotedRowAgg,
   AggMode,
-  StatGroupTableSchema,
+  PivotedStatTableSchema,
 } from './types';
 
 /**
@@ -112,7 +112,7 @@ export function getUniqueStatNames(rows: StatGroupExpandedRow[]): string[] {
 
 export function getSchemaStatNames<TRow>(
   rows: TRow[],
-  schema: StatGroupTableSchema<TRow>
+  schema: PivotedStatTableSchema<TRow>
 ): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
@@ -129,7 +129,7 @@ export function getSchemaStatNames<TRow>(
 
 export function expandRowsFromSchema<TRow>(
   rows: TRow[],
-  schema: StatGroupTableSchema<TRow>
+  schema: PivotedStatTableSchema<TRow>
 ): StatGroupExpandedRow[] {
   const expanded: StatGroupExpandedRow[] = [];
   for (const row of rows) {

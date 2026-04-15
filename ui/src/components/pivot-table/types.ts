@@ -4,48 +4,48 @@
 import type { StatValue } from '@/services/query-plan/types';
 
 /**
- * Minimal row contract for PivotTable: group columns (with rowSpan) + rowKey for identity.
+ * Minimal row contract for GroupedDataTable: group columns (with rowSpan) + rowKey for identity.
  */
-export interface PivotTableRowBase {
+export interface GroupedDataTableRowBase {
   groupKeys: Array<{ key: string; id: string; label: string }>;
   rowKey: string;
 }
 
-export interface PivotTableSortInfo {
+export interface GroupedDataTableSortInfo {
   desc: boolean;
 }
 
-export interface PivotTableGroupKeyEntry {
+export interface GroupedDataTableGroupKeyEntry {
   key: string;
   id: string;
   label: string;
 }
 
-// --- PivotTable renderer component prop types ---
+// --- GroupedDataTable renderer component prop types ---
 
 export interface DataHeaderProps {
   stat: string;
-  sortInfo: PivotTableSortInfo | null;
+  sortInfo: GroupedDataTableSortInfo | null;
   onSort: () => void;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export interface GroupCellProps<TRow extends PivotTableRowBase> {
+export interface GroupCellProps<TRow extends GroupedDataTableRowBase> {
   row: TRow;
-  groupKey: PivotTableGroupKeyEntry;
+  groupKey: GroupedDataTableGroupKeyEntry;
   rowSpan: number;
   columnIndex: number;
   style?: React.CSSProperties;
   className?: string;
 }
 
-export interface DataCellProps<TRow extends PivotTableRowBase> {
+export interface DataCellProps<TRow extends GroupedDataTableRowBase> {
   row: TRow;
   stat: string;
 }
 
-// --- StatGroupTable types ---
+// --- PivotedStatTable types ---
 
 export interface HoveredStatInfo {
   name: string;
@@ -73,7 +73,7 @@ export interface StatGroupExpandedRow {
   value: StatValue;
 }
 
-export interface StatGroupTableSchema<TRow> {
+export interface PivotedStatTableSchema<TRow> {
   /**
    * Group dimensions keyed by group id (e.g. partition, item_type, item).
    * These keys are referenced by activeIndices and indexLabels.
