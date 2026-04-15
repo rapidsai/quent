@@ -4,16 +4,15 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@/services/api';
+import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@quent/client';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { cn } from '@/lib/utils';
-import { DataText } from '@/components/ui/data-text';
+} from '@quent/components';
+import { cn } from '@quent/utils';
 
 export function EngineSelectionPage() {
   const navigate = useNavigate();
@@ -84,7 +83,7 @@ export function EngineSelectionPage() {
               ) : (
                 enginesList.data?.map(engine => (
                   <SelectItem key={engine.id} value={engine.id}>
-                    <DataText>{engine.instance_name ?? engine.id}</DataText>
+                    {engine.instance_name ?? engine.id}
                   </SelectItem>
                 ))
               )}
@@ -113,7 +112,7 @@ export function EngineSelectionPage() {
               ) : (
                 coordinatorsList.data?.map(coordinator => (
                   <SelectItem key={coordinator.id} value={coordinator.id}>
-                    <DataText>{coordinator.instance_name ?? coordinator.id}</DataText>
+                    {coordinator.instance_name ?? coordinator.id}
                   </SelectItem>
                 ))
               )}
@@ -142,7 +141,7 @@ export function EngineSelectionPage() {
               ) : (
                 queryList.data?.map(query => (
                   <SelectItem key={query.id} value={query.id}>
-                    <DataText>{query.instance_name ?? query.id}</DataText>
+                    {query.instance_name ?? query.id}
                   </SelectItem>
                 ))
               )}

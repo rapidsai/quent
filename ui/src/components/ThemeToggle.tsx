@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Moon, Sun } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@quent/components';
 import { THEME_DARK, THEME_LIGHT, useTheme } from '@/contexts/ThemeContext';
 
 export function ThemeToggle() {

@@ -31,6 +31,10 @@
     "stats": "vite build && open stats.html"
   },
   "dependencies": {
+    "@quent/components": "workspace:*",
+    "@quent/client": "workspace:*",
+    "@quent/hooks": "workspace:*",
+    "@quent/utils": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -51,7 +55,6 @@
     "echarts-for-react": "^3.0.6",
     "elkjs": "^0.11.1",
     "jotai": "^2.18.0",
-    "jotai-family": "^1.0.1",
     "lucide-react": "^0.564.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -83,6 +86,7 @@
     "rollup-plugin-visualizer": "^6.0.11",
     "tailwindcss": "^4.2.1",
     "tailwindcss-animate": "^1.0.7",
+    "tsup": "^8.0.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.2",
