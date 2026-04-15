@@ -4,6 +4,7 @@
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
+    sync::Arc,
     time::Duration,
 };
 
@@ -143,7 +144,7 @@ impl TimelineCache {
     /// Fetch bulk timelines, serving as many chunks from cache as possible.
     pub(crate) async fn cached_bulk_timeline<A>(
         &self,
-        analyzer: &A,
+        analyzer: Arc<A>,
         engine_id: Uuid,
         request: BulkTimelineRequest<
             <A as UiAnalyzer>::TimelineGlobalParams,
@@ -152,11 +153,14 @@ impl TimelineCache {
     ) -> ServerResult<BulkTimelinesResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone,
-        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone,
+        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone + Send + 'static,
+        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
-        let Some(geometry) = compute_chunk_geometry(analyzer, &request)? else {
-            return Ok(tokio::task::block_in_place(|| analyzer.bulk_resource_timeline(request))?);
+        let Some(geometry) = compute_chunk_geometry(&*analyzer, &request)? else {
+            return Ok(
+                tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request))
+                    .await??,
+            );
         };
 
         let entry_hashes = compute_entry_hashes(&request.entries, &request.app_params);
@@ -172,7 +176,13 @@ impl TimelineCache {
 
         if !cache_result.any_cache_hit {
             return self
-                .cold_fetch_and_cache(analyzer, engine_id, request, &entry_hashes, &geometry)
+                .cold_fetch_and_cache(
+                    Arc::clone(&analyzer),
+                    engine_id,
+                    request,
+                    &entry_hashes,
+                    &geometry,
+                )
                 .await;
         }
 
@@ -184,7 +194,7 @@ impl TimelineCache {
 
         if !chunk_misses.is_empty() {
             self.partial_fetch_and_cache(
-                analyzer,
+                Arc::clone(&analyzer),
                 engine_id,
                 &request.entries,
                 &request.app_params,
@@ -245,7 +255,7 @@ impl TimelineCache {
     /// Cold-cache path: fetch all entries in one bulk call, then split and cache each chunk.
     async fn cold_fetch_and_cache<A>(
         &self,
-        analyzer: &A,
+        analyzer: Arc<A>,
         engine_id: Uuid,
         request: BulkTimelineRequest<
             <A as UiAnalyzer>::TimelineGlobalParams,
@@ -256,6 +266,8 @@ impl TimelineCache {
     ) -> ServerResult<BulkTimelinesResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
+        <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
+        <A as UiAnalyzer>::TimelineParams: Send + 'static,
     {
         debug!(
             n_entries = request.entries.len(),
@@ -264,7 +276,8 @@ impl TimelineCache {
         );
 
         let response =
-            tokio::task::block_in_place(|| analyzer.bulk_resource_timeline(request))?;
+            tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request))
+                .await??;
 
         for (key, entry_resp) in &response.entries {
             if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
@@ -301,7 +314,7 @@ impl TimelineCache {
     /// Partial-hit path: fetch only the (entry, chunk) pairs that missed the cache.
     async fn partial_fetch_and_cache<A>(
         &self,
-        analyzer: &A,
+        analyzer: Arc<A>,
         engine_id: Uuid,
         entries: &HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>>,
         app_params: &<A as UiAnalyzer>::TimelineGlobalParams,
@@ -312,8 +325,8 @@ impl TimelineCache {
     ) -> ServerResult<()>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Clone,
-        <A as UiAnalyzer>::TimelineParams: Clone,
+        <A as UiAnalyzer>::TimelineGlobalParams: Clone + Send + 'static,
+        <A as UiAnalyzer>::TimelineParams: Clone + Send + 'static,
     {
         let n_miss_entries: usize = chunk_misses.values().map(|v| v.len()).sum();
         debug!(
@@ -347,12 +360,15 @@ impl TimelineCache {
                     })
                     .collect();
 
-            let response = tokio::task::block_in_place(|| {
-                analyzer.bulk_resource_timeline(BulkTimelineRequest {
+            let a = Arc::clone(&analyzer);
+            let app_params_clone = app_params.clone();
+            let response = tokio::task::spawn_blocking(move || {
+                a.bulk_resource_timeline(BulkTimelineRequest {
                     entries: chunk_entries,
-                    app_params: app_params.clone(),
+                    app_params: app_params_clone,
                 })
-            })?;
+            })
+            .await??;
 
             for (key, entry_resp) in response.entries {
                 if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
@@ -375,7 +391,7 @@ impl TimelineCache {
 
     pub(crate) async fn cached_single_timeline<A>(
         &self,
-        analyzer: &A,
+        analyzer: Arc<A>,
         engine_id: Uuid,
         request: SingleTimelineRequest<
             <A as UiAnalyzer>::TimelineGlobalParams,
@@ -384,8 +400,8 @@ impl TimelineCache {
     ) -> ServerResult<SingleTimelineResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone,
-        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone,
+        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone + Send + 'static,
+        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
         let engine_span = analyzer.query_engine_model().engine()?.span()?;
         let engine_duration = engine_span.duration();
@@ -470,8 +486,10 @@ impl TimelineCache {
                 app_params: request.app_params.clone(),
             };
 
+            let a = Arc::clone(&analyzer);
             let response =
-                tokio::task::block_in_place(|| analyzer.single_resource_timeline(chunk_request))?;
+                tokio::task::spawn_blocking(move || a.single_resource_timeline(chunk_request))
+                    .await??;
             self.chunks.insert(cache_key, response.clone()).await;
             chunk_responses.push(response);
         }

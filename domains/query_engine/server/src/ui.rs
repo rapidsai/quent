@@ -227,14 +227,14 @@ async fn single_timeline<A>(
 ) -> ServerResult<Json<SingleTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Hash + Eq + Clone,
-    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Hash + Eq + Clone,
+    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Hash + Eq + Clone + Send + 'static,
+    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Hash + Eq + Clone + Send + 'static,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(
         state
             .timelines
-            .cached_single_timeline(&*analyzer, engine_id, request)
+            .cached_single_timeline(analyzer, engine_id, request)
             .await?,
     ))
 }
@@ -273,7 +273,7 @@ where
     Ok(Json(
         state
             .timelines
-            .cached_bulk_timeline(&*analyzer, engine_id, request)
+            .cached_bulk_timeline(analyzer, engine_id, request)
             .await?,
     ))
 }
