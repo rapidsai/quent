@@ -22,6 +22,10 @@ members = [
     "domains/query_engine/events",
     "domains/query_engine/server",
     "domains/query_engine/ui",
+    # Integration crates
+    "integrations/nvtx/injection",
+    "integrations/nvtx/events",
+    "integrations/nvtx/instrumentation",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",

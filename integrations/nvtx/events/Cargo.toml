@@ -1,0 +1,8 @@
+[package]
+name = "quent-nvtx-events"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
