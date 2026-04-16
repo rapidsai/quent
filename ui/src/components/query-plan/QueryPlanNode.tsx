@@ -1,16 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtomValue } from 'jotai';
-import { selectedNodeLabelFieldAtom, NODE_LABEL_FIELD } from '@/atoms/dag';
+import { useAtom, useAtomValue } from 'jotai';
+import {
+  selectedNodeLabelFieldAtom,
+  NODE_LABEL_FIELD,
+  hoveredStatAtom,
+  highlightedNodeIdsAtom,
+  nodeColorPaletteAtom,
+} from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
-import { isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
+import { continuousColor, isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 import {
@@ -18,6 +24,7 @@ import {
   DEFAULT_OPERATION_COLOR,
 } from '@/services/query-plan/operationTypes';
 import { DataText } from '@/components/ui/data-text';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -48,12 +55,35 @@ const nodeVariants = cva(
   }
 );
 
+function nodeOpacityClass({
+  hoveredStat,
+  highlightedNodeIds,
+  operatorId,
+  isDimmed,
+}: {
+  hoveredStat: { values: Map<string, number> } | null | undefined;
+  highlightedNodeIds: Set<string> | null;
+  operatorId: string;
+  isDimmed: boolean;
+}): string {
+  if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
+  if (highlightedNodeIds !== null && !highlightedNodeIds.has(operatorId)) return 'opacity-25';
+  if (isDimmed) return 'opacity-30';
+  return 'opacity-100';
+}
+
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
+  const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
+  const hoveredStat = useAtomValue(hoveredStatAtom);
+  const nodePalette = useAtomValue(nodeColorPaletteAtom);
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
   const operatorId = data.metadata?.rawNode?.id ?? '';
+  const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
   const nodeLabelField = useAtomValue(selectedNodeLabelFieldAtom);
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId);
-  const [isHovered, setIsHovered] = useState(false);
+  const [isHoveredLocal, setIsHoveredLocal] = useState(false);
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
@@ -73,17 +103,56 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const baseColor = OPERATION_TYPE_COLORS[data.operationType] ?? DEFAULT_OPERATION_COLOR;
   const activeColor = fieldColor ?? baseColor;
-  const bgColor = fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHovered ? 0.22 : 0.15);
+  const bgColor =
+    fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
+
+  const heatmapColor = useMemo(() => {
+    if (!hoveredStat) return undefined;
+    const v = hoveredStat.values.get(operatorId);
+    if (v === undefined) return undefined;
+    const range = hoveredStat.max - hoveredStat.min;
+    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    return continuousColor(t, nodePalette, isDarkMode);
+  }, [hoveredStat, operatorId, nodePalette, isDarkMode]);
+
+  const opacityClass = nodeOpacityClass({
+    hoveredStat,
+    highlightedNodeIds: highlightState.ids,
+    operatorId,
+    isDimmed,
+  });
+
+  const isActiveHighlight = isHighlighted && !isSelected;
+
+  const onMouseEnter = useCallback(() => {
+    setIsHoveredLocal(true);
+    if (operatorId) {
+      setHighlightState({
+        ...highlightState,
+        ids: new Set([operatorId]),
+        source: 'dag',
+        primaryOperatorId: operatorId,
+      });
+    }
+  }, [operatorId, setHighlightState, highlightState]);
+  const onMouseLeave = useCallback(() => {
+    setIsHoveredLocal(false);
+    setHighlightState(prev =>
+      prev.source === 'dag' && prev.ids?.size === 1 && prev.ids.has(operatorId)
+        ? { ...prev, ids: null, source: null, primaryOperatorId: null }
+        : prev
+    );
+  }, [operatorId, setHighlightState, setIsHoveredLocal]);
 
   const nodeContent = (
     <div
       className={nodeVariants({ selected: isSelected, dimmed: isDimmed })}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={
         {
-          borderColor: activeColor,
-          backgroundColor: bgColor,
+          borderColor: heatmapColor ?? activeColor,
+          backgroundColor: heatmapColor ?? bgColor,
           '--glow-color': activeColor,
           ...(fieldColor && isLightColor(fieldColor) ? { color: '#111827' } : {}),
         } as React.CSSProperties
@@ -129,7 +198,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       operatorLabel={data.label}
       operationType={data.operationType}
     >
-      {nodeContent}
+      <div
+        className={cn(opacityClass, 'z-10', {
+          'ring-2 ring-primary/50 rounded-md': isActiveHighlight,
+        })}
+      >
+        {nodeContent}
+      </div>
     </OperatorStatisticsPopup>
   );
 });

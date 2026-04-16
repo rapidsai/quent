@@ -2,8 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
+import { HoveredStatInfo } from '@/components/pivot-table/types';
+export type { HoveredStatInfo } from '@/components/pivot-table/types';
 import type { NodeColoring, EdgeWidthConfig, EdgeColoring } from '@/services/query-plan/types';
 import type { ContinuousPaletteName } from '@/services/colors';
+
+export interface HighlightedNodeIdsState {
+  hoveredStat: HoveredStatInfo | null;
+  ids: Set<string> | null;
+  source: 'dag' | 'table' | null;
+  primaryOperatorId: string | null;
+}
 
 /** The set of currently selected node IDs in the DAG chart */
 export const selectedNodeIdsAtom = atom(new Set<string>());
@@ -16,6 +25,22 @@ export const selectedPlanIdAtom = atom<string>('');
 
 /** Worker ID of the query plan tree item currently being hovered */
 export const hoveredWorkerIdAtom = atom<string | null>(null);
+
+/** Consolidated hover/highlight state shared between table and DAG. */
+export const highlightedNodeIdsAtom = atom<HighlightedNodeIdsState>({
+  hoveredStat: null,
+  ids: null,
+  source: null,
+  primaryOperatorId: null,
+});
+
+/** Stat column being hovered in the table — drives DAG heatmap coloring */
+export const hoveredStatAtom = atom(
+  get => get(highlightedNodeIdsAtom).hoveredStat,
+  (get, set, value: HoveredStatInfo | null) => {
+    set(highlightedNodeIdsAtom, { ...get(highlightedNodeIdsAtom), hoveredStat: value });
+  }
+);
 
 /** Field to color each DAG node by */
 export const selectedColorField = atom<string | null>(null);

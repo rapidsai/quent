@@ -113,7 +113,7 @@ const IEC: readonly [number, string][] = [
   [1, ''],
 ];
 
-function formatWithPrefix(
+export function formatWithPrefix(
   value: number,
   symbol: string,
   prefixSystem: PrefixSystem,
