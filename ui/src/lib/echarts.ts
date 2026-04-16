@@ -78,4 +78,4 @@ export { echarts };
 export type { EChartsType as ECharts };
 
 // Re-export connect and getInstanceByDom for chart synchronization
-export const { connect, getInstanceByDom } = echarts;
+export const { connect, disconnect, getInstanceByDom } = echarts;

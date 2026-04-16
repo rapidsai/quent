@@ -36,6 +36,13 @@ type TreeTableRenderItemParams = {
   hasChildren: boolean;
 };
 
+type FlatTreeRow = {
+  item: TreeTableDataItem;
+  level: number;
+  hasChildren: boolean;
+  isOpen: boolean;
+};
+
 const rowSurfaceClasses =
   'relative cursor-pointer transition-colors hover:bg-secondary/10 data-[selected=true]:bg-secondary/70';
 
@@ -397,7 +404,68 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   highlightedItemIds?: Set<string>;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 };
+
+// Timeline rows render at ~75px; keep virtualization estimate aligned with actual row height.
+const TREE_ROW_HEIGHT = 75;
+const TREE_OVERSCAN_ROWS = 6;
+
+function normalizeTreeData(data: TreeTableDataItem[] | TreeTableDataItem): TreeTableDataItem[] {
+  return data instanceof Array ? data : [data];
+}
+
+function collectInitialExpandedIds(
+  items: TreeTableDataItem[],
+  targetId: string | undefined,
+  expandAll: boolean | undefined
+): Set<string> {
+  const ids = new Set<string>();
+  if (expandAll) {
+    const walkAll = (nodes: TreeTableDataItem[]) => {
+      for (const node of nodes) {
+        if (node.children?.length) {
+          ids.add(node.id);
+          walkAll(node.children);
+        }
+      }
+    };
+    walkAll(items);
+    return ids;
+  }
+
+  if (!targetId) return ids;
+
+  const walkPath = (nodes: TreeTableDataItem[]): boolean => {
+    for (const node of nodes) {
+      if (node.id === targetId) return true;
+      if (node.children?.length && walkPath(node.children)) {
+        ids.add(node.id);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  walkPath(items);
+  return ids;
+}
+
+function flattenVisibleRows(items: TreeTableDataItem[], expandedIds: Set<string>): FlatTreeRow[] {
+  const rows: FlatTreeRow[] = [];
+  const walk = (nodes: TreeTableDataItem[], level: number) => {
+    for (const node of nodes) {
+      const hasChildren = !!node.children?.length;
+      const isOpen = hasChildren && expandedIds.has(node.id);
+      rows.push({ item: node, level, hasChildren, isOpen });
+      if (isOpen) {
+        walk(node.children!, level + 1);
+      }
+    }
+  };
+  walk(items, 0);
+  return rows;
+}
 
 const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
   (
@@ -407,16 +475,23 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       onSelectChange,
       onExpandChange,
       expandAll,
-      defaultLeafIcon,
-      defaultNodeIcon,
+      defaultLeafIcon: _defaultLeafIcon,
+      defaultNodeIcon: _defaultNodeIcon,
       className,
       renderItem,
       highlightedItemIds,
+      scrollContainerRef,
       ...props
     },
     ref
   ) => {
+    const normalizedData = useMemo(() => normalizeTreeData(data), [data]);
     const [selectedItemId, setSelectedItemId] = useState<string | undefined>(initialSelectedItemId);
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
+      collectInitialExpandedIds(normalizedData, initialSelectedItemId, expandAll)
+    );
+    const [scrollTop, setScrollTop] = useState(0);
+    const [viewportHeight, setViewportHeight] = useState(0);
 
     const handleSelectChange = useCallback(
       (item: TreeTableDataItem | undefined) => {
@@ -428,49 +503,121 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       [onSelectChange]
     );
 
-    const expandedItemIds = useMemo(() => {
-      if (!initialSelectedItemId) {
-        return [] as string[];
-      }
+    const initialExpandedIds = useMemo(
+      () => collectInitialExpandedIds(normalizedData, initialSelectedItemId, expandAll),
+      [normalizedData, initialSelectedItemId, expandAll]
+    );
 
-      const ids: string[] = [];
+    useEffect(() => {
+      setExpandedIds(initialExpandedIds);
+    }, [initialExpandedIds]);
 
-      function walkTreeItems(items: TreeTableDataItem[] | TreeTableDataItem, targetId: string) {
-        if (items instanceof Array) {
-          for (let i = 0; i < items.length; i++) {
-            ids.push(items[i]!.id);
-            if (walkTreeItems(items[i]!, targetId) && !expandAll) {
-              return true;
-            }
-            if (!expandAll) ids.pop();
-          }
-        } else if (!expandAll && items.id === targetId) {
-          return true;
-        } else if (items.children) {
-          return walkTreeItems(items.children, targetId);
-        }
-      }
+    const visibleRows = useMemo(
+      () => flattenVisibleRows(normalizedData, expandedIds),
+      [normalizedData, expandedIds]
+    );
 
-      walkTreeItems(data, initialSelectedItemId);
-      return ids;
-    }, [data, expandAll, initialSelectedItemId]);
+    useEffect(() => {
+      const scroller = scrollContainerRef?.current;
+      if (!scroller) return;
+
+      const sync = () => {
+        setScrollTop(scroller.scrollTop);
+        setViewportHeight(scroller.clientHeight);
+      };
+
+      sync();
+      scroller.addEventListener('scroll', sync, { passive: true });
+      window.addEventListener('resize', sync, { passive: true });
+      return () => {
+        scroller.removeEventListener('scroll', sync);
+        window.removeEventListener('resize', sync);
+      };
+    }, [scrollContainerRef]);
+
+    const { startIndex, endIndex, offsetTop, offsetBottom } = useMemo(() => {
+      const totalRows = visibleRows.length;
+      const start = Math.max(Math.floor(scrollTop / TREE_ROW_HEIGHT) - TREE_OVERSCAN_ROWS, 0);
+      const maxVisible = Math.ceil(
+        (viewportHeight || totalRows * TREE_ROW_HEIGHT) / TREE_ROW_HEIGHT
+      );
+      const end = Math.min(totalRows, start + maxVisible + TREE_OVERSCAN_ROWS * 2);
+      return {
+        startIndex: start,
+        endIndex: end,
+        offsetTop: start * TREE_ROW_HEIGHT,
+        offsetBottom: Math.max(0, (totalRows - end) * TREE_ROW_HEIGHT),
+      };
+    }, [visibleRows.length, scrollTop, viewportHeight]);
 
     return (
       <div className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}>
-        <TreeItem
-          data={data}
-          ref={ref}
-          selectedItemId={selectedItemId}
-          handleSelectChange={handleSelectChange}
-          expandedItemIds={expandedItemIds}
-          defaultLeafIcon={defaultLeafIcon}
-          defaultNodeIcon={defaultNodeIcon}
-          renderItem={renderItem}
-          onExpandChange={onExpandChange}
-          highlightedItemIds={highlightedItemIds}
-          level={0}
-          {...props}
-        />
+        <div ref={ref} role="tree" {...props}>
+          <div style={{ height: `${offsetTop}px` }} />
+          {visibleRows.slice(startIndex, endIndex).map(({ item, level, hasChildren, isOpen }) => {
+            const isSelected = selectedItemId === item.id;
+            const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
+            const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
+            const chevronLeft = 10 + level * 20;
+
+            return (
+              <div
+                key={item.id}
+                className={cn(
+                  `relative flex text-left items-center text-foreground w-full min-w-0 px-0 outline-none ${rowSurfaceClasses}`,
+                  treeVariants(),
+                  isSelected && selectedTreeVariants(),
+                  isHighlighted && 'bg-primary/10',
+                  item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
+                )}
+                style={{ minHeight: `${TREE_ROW_HEIGHT}px` }}
+                onClick={() => {
+                  if (item.disabled) return;
+                  handleSelectChange(item);
+                  if (hasChildren) {
+                    const nextIsOpen = !isOpen;
+                    setExpandedIds(prev => {
+                      const next = new Set(prev);
+                      if (nextIsOpen) next.add(item.id);
+                      else next.delete(item.id);
+                      return next;
+                    });
+                    onExpandChange?.(item.id, nextIsOpen);
+                  }
+                  item.onClick?.();
+                }}
+              >
+                <div className="w-2.5 shrink-0" />
+                {hasChildren ? (
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
+                    data-open={isOpen ? 'true' : 'false'}
+                    style={{
+                      left: `${chevronLeft}px`,
+                      transform: chevronTransform,
+                    }}
+                  />
+                ) : (
+                  // Match pre-virtualized leaf spacing: fixed placeholder width, no extra level shift.
+                  <div className="w-6 shrink-0" />
+                )}
+                <div className={cn(hasChildren ? 'ml-6' : '', 'flex-1 min-w-0 overflow-hidden')}>
+                  {renderItem
+                    ? renderItem({
+                        item,
+                        level,
+                        isLeaf: !hasChildren,
+                        isSelected,
+                        isOpen,
+                        hasChildren,
+                      })
+                    : null}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ height: `${offsetBottom}px` }} />
+        </div>
       </div>
     );
   }
@@ -520,6 +667,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   }, [data]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const [hasUserResized, setHasUserResized] = useState(false);
@@ -722,6 +870,7 @@ export function TreeTable<I extends TreeTableDataItem>({
         )}
       >
         <div
+          ref={scrollContainerRef}
           className={cn(
             'w-full overflow-y-auto max-h-full',
             isLayoutReady ? 'overflow-x-auto' : 'overflow-x-hidden'
@@ -800,7 +949,12 @@ export function TreeTable<I extends TreeTableDataItem>({
               )}
             </div>
             <div style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
-              <TreeView data={treeData} renderItem={renderItem} {...treeViewProps} />
+              <TreeView
+                data={treeData}
+                renderItem={renderItem}
+                scrollContainerRef={scrollContainerRef}
+                {...treeViewProps}
+              />
             </div>
           </div>
         </div>

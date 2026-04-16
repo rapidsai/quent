@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
@@ -19,7 +19,7 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart, nanosToMs } from '@/lib/timeline.utils';
+import { connectChart, disconnectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
@@ -361,6 +361,15 @@ export function Timeline({
       },
       { capture: true, passive: true }
     );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (instanceRef.current) {
+        disconnectChart(instanceRef.current, CHART_GROUP);
+        instanceRef.current = null;
+      }
+    };
   }, []);
 
   return (
