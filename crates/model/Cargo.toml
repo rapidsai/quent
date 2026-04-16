@@ -21,3 +21,4 @@ quent-time = { path = "../time" }
 [dev-dependencies]
 quent-stdlib = { path = "../stdlib" }
 serde_json.workspace = true
+trybuild = "1"

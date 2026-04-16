@@ -1,0 +1,5 @@
+error: model! requires at least a root resource group: `root: MyRoot`
+ --> tests/compile_fail/model_empty.rs:3:5
+  |
+3 |     App {}
+  |     ^^^
