@@ -1,5 +1,5 @@
 error: transition source `ghost` not found in states list
-  --> tests/compile_fail/fsm_transition_bad_source.rs:11:24
+  --> tests/compile_fail/fsm_transition_bad_source.rs:14:24
    |
-11 |         transitions: { ghost => idle },
+14 |         transitions: { ghost => idle },
    |                        ^^^^^

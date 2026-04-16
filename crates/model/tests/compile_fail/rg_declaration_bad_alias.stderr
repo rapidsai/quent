@@ -1,5 +1,5 @@
 error: declaration alias `nonexistent` does not match any event
-  --> tests/compile_fail/rg_declaration_bad_alias.rs:10:22
+  --> tests/compile_fail/rg_declaration_bad_alias.rs:13:22
    |
-10 |         declaration: nonexistent,
+13 |         declaration: nonexistent,
    |                      ^^^^^^^^^^^

@@ -1,5 +1,5 @@
 error: entity! requires `attributes: { ... }` or `events: { ... }`
- --> tests/compile_fail/entity_empty_body.rs:3:5
+ --> tests/compile_fail/entity_empty_body.rs:6:5
   |
-3 |     Other {}
+6 |     Other {}
   |     ^^^^^
