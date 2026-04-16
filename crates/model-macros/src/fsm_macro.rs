@@ -382,7 +382,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         "Observer for `{name}` FSM instances.\n\n\
          An observer emits events for a model component. Obtain one from the \
          instrumentation context via the corresponding observer method. \
-         Call the entry state method to create an FSM handle."
+         Call the entry state method to create an FSM handle.\n\n\
+         The type parameter `E` is the model's top-level event enum, allowing \
+         the same component to be reused across different models."
     );
 
     let output = quote! {

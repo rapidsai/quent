@@ -709,7 +709,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         "Observer for `{name}` resource lifecycle events.\n\n\
          An observer emits events for a model component. Obtain one from the \
          instrumentation context via the corresponding observer method. \
-         Call `initializing()` to create a resource handle."
+         Call `initializing()` to create a resource handle.\n\n\
+         The type parameter `E` is the model's top-level event enum, allowing \
+         the same component to be reused across different models."
     );
     let doc_observer_init = format!("Create a new `{name}` resource in the initializing state.");
     let doc_resource_marker = format!("Resource marker type for {name}.");
