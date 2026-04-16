@@ -19,7 +19,7 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart, nanosToMs } from '@/lib/timeline.utils';
+import { connectChart, MIN_ZOOM_WINDOW_S, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
@@ -248,6 +248,11 @@ export function Timeline({
     [gridBorderColor, gridBackgroundColor]
   );
 
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
+
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       animation: false,
@@ -307,11 +312,18 @@ export function Timeline({
       yAxis: yAxisOptions,
       series: seriesOptions,
       dataZoom: [
-        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'slider',
+          show: false,
+          realtime: true,
+          filterMode: 'none',
+          minSpan: minZoomSpanPct,
+        },
         {
           type: 'inside',
           zoomLock: true,
           zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
         },
@@ -322,12 +334,14 @@ export function Timeline({
           moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
         },
       ],
     } as EChartsOption;
   }, [
     showTooltip,
     gridOptions,
+    minZoomSpanPct,
     xAxisOptions,
     yAxisOptions,
     seriesOptions,
@@ -354,12 +368,29 @@ export function Timeline({
 
     // Let non-shift wheel events pass through to the page for normal scrolling.
     // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    // Also block shift+wheel-in when at the zoom limit so ECharts can't convert the
+    // blocked zoom into a pan (zoomLock:true converts excess zoom delta into pan).
     dom.addEventListener(
       'wheel',
       e => {
-        if (!e.shiftKey) e.stopPropagation();
+        if (!e.shiftKey) {
+          e.stopPropagation();
+        } else if (e.deltaY < 0) {
+          const minWindowMs = MIN_ZOOM_WINDOW_S * 1_000;
+          if (windowMsRef.current <= minWindowMs * 1.01) e.stopPropagation();
+        }
       },
       { capture: true, passive: true }
+    );
+
+    // Bubble-phase (fires after ECharts' canvas listener). Prevents the browser from handling
+    // shift+wheel zoom-in when ECharts can't act (e.g. zoom limit reached, pan disabled).
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
+      },
+      { passive: false }
     );
   }, []);
 
