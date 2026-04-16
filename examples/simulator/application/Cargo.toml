@@ -12,7 +12,7 @@ quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-simulator-instrumentation = { path = "../instrumentation" }
 quent-model = { path = "../../../crates/model" }
 quent-stdlib = { path = "../../../crates/stdlib" }
-rand = "0.9.2"
+rand = "0.9.3"
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 tracing.workspace = true
 uuid.workspace = true

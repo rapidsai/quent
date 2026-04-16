@@ -17,41 +17,31 @@ import {
 import { echarts } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom, selectedPlanIdAtom } from '@/atoms/dag';
-import { withOpacity } from '@/services/colors';
+import {
+  selectedNodeIdsAtom,
+  selectedOperatorLabelAtom,
+  selectedPlanIdAtom,
+  nodeColoringAtom,
+  nodeColorPaletteAtom,
+} from '@/atoms/dag';
+import { continuousColor, withOpacity } from '@/services/colors';
+import {
+  OPERATION_TYPE_COLORS,
+  DEFAULT_OPERATION_COLOR,
+} from '@/services/query-plan/operationTypes';
 import type { OperatorActiveSpanEntry } from './types';
 import { clipRectByRect } from './utils';
 import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '@/components/timeline/types';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 10;
 const BAR_FONT_SIZE = 10;
 const BAR_HEIGHT = 16;
 
-// TODO(joe): Temporary, use @cmatzenbach colors once in.
-const OPERATOR_COLORS: Record<string, string> = {
-  source: '#3b82f6',
-  scan: '#3b82f6',
-  filesystemscan: '#3b82f6',
-  join: '#a855f7',
-  joinlocal: '#a855f7',
-  joinpartition: '#a855f7',
-  aggregate: '#22c55e',
-  exchange: '#f97316',
-  output: '#ef4444',
-  stage: '#4f46e5',
-  local: '#f59e0b',
-  project: '#14b8a6',
-  filter: '#06b6d4',
-  sort: '#8b5cf6',
-  limit: '#ec4899',
-  union: '#10b981',
-  other: '#6b7280',
-};
-
 function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
   const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? 'other';
-  const stroke = OPERATOR_COLORS[key] ?? OPERATOR_COLORS.other;
+  const stroke = OPERATION_TYPE_COLORS[key] ?? DEFAULT_OPERATION_COLOR;
   return { stroke, fill: withOpacity(stroke, 0.15) };
 }
 
@@ -73,6 +63,10 @@ export function OperatorGanttChart({
   const setSelectedPlanId = useSetAtom(selectedPlanIdAtom);
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
     useTimelineChartColors();
+  const nodeColoring = useAtomValue(nodeColoringAtom);
+  const nodePalette = useAtomValue(nodeColorPaletteAtom);
+  const { theme } = useTheme();
+  const isDarkMode = theme === THEME_DARK;
   const barLabelTextColor = textColor;
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
@@ -98,6 +92,32 @@ export function OperatorGanttChart({
       })),
     [operators]
   );
+  const operatorFieldStyles = useMemo(() => {
+    const styles = new Map<string, { stroke?: string; fieldDimmed: boolean }>();
+    if (!nodeColoring) return styles;
+    for (const op of operators) {
+      if (styles.has(op.operatorId)) continue;
+      if (nodeColoring.type === 'continuous') {
+        const v = nodeColoring.values.get(op.operatorId);
+        if (v === undefined) {
+          styles.set(op.operatorId, { stroke: undefined, fieldDimmed: true });
+          continue;
+        }
+        const t =
+          nodeColoring.max > nodeColoring.min
+            ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
+            : 0.5;
+        styles.set(op.operatorId, {
+          stroke: continuousColor(t, nodePalette, isDarkMode),
+          fieldDimmed: false,
+        });
+      } else {
+        const stroke = nodeColoring.colorMap.get(op.operatorId);
+        styles.set(op.operatorId, { stroke, fieldDimmed: !stroke });
+      }
+    }
+    return styles;
+  }, [operators, nodeColoring, nodePalette, isDarkMode]);
   const showYScroll = rowCount > MAX_VISIBLE_ROWS;
   const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
   type RenderItem = NonNullable<CustomSeriesOption['renderItem']>;
@@ -141,10 +161,14 @@ export function OperatorGanttChart({
         op?.typeName && op.typeName !== op.label
           ? `${op.typeName}: ${op.label}`
           : (op?.label ?? '');
-      const { fill, stroke } = getOperatorBarColors(op?.typeName);
+      const { fill: fallbackFill, stroke: fallbackStroke } = getOperatorBarColors(op?.typeName);
+      const fieldStyle = op ? operatorFieldStyles.get(op.operatorId) : undefined;
+      const stroke = fieldStyle?.stroke ?? fallbackStroke;
+      const fill = fieldStyle?.stroke ? withOpacity(stroke, 0.15) : fallbackFill;
       const hasSelection = selectedNodeIds.size > 0;
       const isSelected = op != null && selectedNodeIds.has(op.operatorId);
-      const opacity = hasSelection && !isSelected ? 0.35 : 1;
+      const fieldDimmed = fieldStyle?.fieldDimmed ?? false;
+      const opacity = fieldDimmed || (hasSelection && !isSelected) ? 0.35 : 1;
 
       const rect = {
         type: 'rect' as const,
@@ -180,7 +204,7 @@ export function OperatorGanttChart({
         children: [rect, text],
       };
     },
-    [operators, barLabelTextColor, selectedNodeIds]
+    [operators, operatorFieldStyles, barLabelTextColor, selectedNodeIds]
   );
 
   const gridOptions = useMemo(
