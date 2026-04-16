@@ -8,3 +8,4 @@ target/
 .playwright-mcp/
 tarpaulin-report.html
 docs/agents/
+events/

@@ -1164,7 +1164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .into());
         }
     };
-    let context = SimulatorContext::try_new(exporter, engine.id)?;
+    let context = SimulatorContext::try_new(engine.id, exporter)?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 

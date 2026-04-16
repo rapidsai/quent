@@ -100,8 +100,8 @@ where
     T: Serialize + Send + 'static,
 {
     pub fn try_new(
-        exporter: Option<ExporterOptions>,
         id: Uuid,
+        exporter: Option<ExporterOptions>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let kind = match exporter {
             None => {
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn noop_exporter() {
-        let ctx = Context::<TestEvent>::try_new(None, Uuid::now_v7()).unwrap();
+        let ctx = Context::<TestEvent>::try_new(Uuid::now_v7(), None).unwrap();
         assert!(ctx.handle.is_none());
         assert!(ctx.exporter.is_none());
         assert!(ctx.forwarder_handle.is_none());

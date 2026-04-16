@@ -179,9 +179,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         "Create a new {name} instrumentation context.\n\
          \n\
          # Arguments\n\
+         * `id` — unique identifier for this context instance (typically `Uuid::now_v7()`). \
+         Use the same ID for the root resource group.\n\
          * `exporter` — optional exporter configuration (e.g., ndjson, msgpack). \
-         Pass `None` for a no-op context that discards events.\n\
-         * `id` — unique identifier for this context instance (typically `Uuid::now_v7()`)."
+         Pass `None` for a no-op context that discards events."
     );
 
     let output = quote! {
@@ -227,10 +228,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 impl #context_type {
                     #[doc = #doc_try_new]
                     pub fn try_new(
-                        exporter: Option<quent_model::exporter::ExporterOptions>,
                         id: quent_model::uuid::Uuid,
+                        exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_new(exporter, id)?;
+                        let inner = quent_model::Context::try_new(id, exporter)?;
                         let tx = inner.events_sender();
                         Ok(Self { _inner: inner, tx })
                     }

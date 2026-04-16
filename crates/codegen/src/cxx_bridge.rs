@@ -381,11 +381,18 @@ fn emit_uuid_bridge(model: &ModelBuilder, model_name: &str, options: &CxxOptions
                 #[cxx_name = "new_nil"]
                 fn uuid_new_nil() -> UUID;
 
+                #[cxx_name = "to_string"]
+                fn uuid_to_string(id: &UUID) -> String;
+
                 #vec_uuid_ffi
             }
         }
 
         #vec_uuid_impl
+
+        fn uuid_to_string(id: &ffi::UUID) -> String {
+            #q::uuid::Uuid::from(*id).to_string()
+        }
 
         fn uuid_now_v7() -> ffi::UUID {
             let id = #q::uuid::Uuid::now_v7();
@@ -434,22 +441,10 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
     let ns = &options.namespace;
     let q = quent_path(model_name, options);
     let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
+    let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
-    let tokens = quote! {
-        use std::sync::OnceLock;
-
-        #[cxx::bridge(namespace = #ns)]
-        pub mod ffi {
-            unsafe extern "C++" {
-                include!("rust/cxx.h");
-            }
-
-            extern "Rust" {
-                type Context;
-                fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>>;
-            }
-        }
-
+    // Rust impl part — formatted via prettyplease.
+    let impl_tokens = quote! {
         /// Global event sender, initialized by `create_context`.
         /// Returns a noop sender if context has not been created yet.
         static SENDER: OnceLock<#q::EventSender<#event_type>> = OnceLock::new();
@@ -465,7 +460,7 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
                 .unwrap_or_default()
         }
 
-        pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
+        pub fn create_context(id: ffi::UUID, exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
                 "ndjson" => Some(#q::exporter::ExporterOptions::Ndjson(
                     #q::exporter::NdjsonExporterOptions {
@@ -474,7 +469,7 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
                 )),
                 _ => None,
             };
-            let inner = #q::Context::try_new(opts, #q::uuid::Uuid::now_v7())
+            let inner = #q::Context::try_new(#q::uuid::Uuid::from(id), opts)
                 .map_err(|e| e.to_string())?;
             SENDER.set(inner.events_sender()).map_err(|_| {
                 "context already created — only one context per process is supported".to_string()
@@ -483,9 +478,38 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
         }
     };
 
+    // CXX bridge block uses string formatting (type aliases aren't standard Rust).
+    let ffi_block = format!(
+        r#"#[cxx::bridge(namespace = "{ns}")]
+pub mod ffi {{
+    unsafe extern "C++" {{
+        include!("rust/cxx.h");
+    }}
+
+    #[namespace = "uuid"]
+    unsafe extern "C++" {{
+        include!("{uuid_include}");
+        type UUID = crate::bridge::uuid::ffi::UUID;
+    }}
+
+    extern "Rust" {{
+        type Context;
+        fn create_context(id: UUID, exporter: String, output_dir: String) -> Result<Box<Context>>;
+    }}
+}}
+"#
+    );
+
+    // Combine: the ffi block is raw string, impl part is pretty-printed.
+    let content = format!(
+        "use std::sync::OnceLock;\n{}\n{}",
+        ffi_block,
+        pretty_print(impl_tokens)
+    );
+
     GeneratedFile {
         name: "context.rs".to_string(),
-        content: pretty_print(tokens),
+        content,
     }
 }
 

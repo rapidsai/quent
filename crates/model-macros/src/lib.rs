@@ -89,7 +89,7 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// This generates `AppContext`, the entry point for instrumenting your
 /// application. To start emitting events:
 ///
-/// 1. Create a context: `let ctx = AppContext::try_new(Some(exporter_options), Uuid::now_v7())?;`
+/// 1. Create a context: `let ctx = AppContext::try_new(Uuid::now_v7(), Some(exporter_options))?;`
 /// 2. Get an observer: `let obs = ctx.cluster_observer();`
 /// 3. Emit events: `obs.cluster(id, "my-cluster");`
 ///
