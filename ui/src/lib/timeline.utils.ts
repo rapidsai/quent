@@ -30,18 +30,25 @@ import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { TaskFilter } from '~quent/types/TaskFilter';
 import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
-const MAX_TIMELINE_BINS = 400;
+export const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
+
+/** Minimum bin duration in nanoseconds — prevents ECharts from stacking bins when zoomed too far. */
+export const MIN_BIN_DURATION_NS = 10;
+
+/**
+ * Minimum visible zoom window in seconds.
+ * Below this, each bin would cover less than MIN_BIN_DURATION_NS nanoseconds.
+ * 10 ns/bin × 400 bins = 4 μs
+ * TODO: lower back to (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000 after verification
+ */
+export const MIN_ZOOM_WINDOW_S = 0.020; // 20ms — temporary high value for testing
 
 /** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
 export function nanosToMs(ns: bigint): number {
   return Number(ns / 1_000_000n) + Number(ns % 1_000_000n) / 1_000_000;
 }
 
-/**
- * Currently static but may be used in the future to prevent sub
- * nanosecond bin sizes
- */
 export function getAdaptiveNumBins(): number {
   return MAX_TIMELINE_BINS;
 }

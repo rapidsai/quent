@@ -19,7 +19,7 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart, nanosToMs } from '@/lib/timeline.utils';
+import { connectChart, MIN_ZOOM_WINDOW_S, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
@@ -248,6 +248,17 @@ export function Timeline({
     [gridBorderColor, gridBackgroundColor]
   );
 
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
+
+  // Kept in sync via the ECharts datazoom event (no React render-cycle lag) so the
+  // capture listener can reliably block shift+wheel-in the moment the limit is reached.
+  const minZoomSpanPctRef = useRef(minZoomSpanPct);
+  minZoomSpanPctRef.current = minZoomSpanPct;
+  const atZoomLimitRef = useRef(false);
+
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       animation: false,
@@ -307,11 +318,18 @@ export function Timeline({
       yAxis: yAxisOptions,
       series: seriesOptions,
       dataZoom: [
-        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'slider',
+          show: false,
+          realtime: true,
+          filterMode: 'none',
+          minSpan: minZoomSpanPct,
+        },
         {
           type: 'inside',
           zoomLock: true,
           zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
         },
@@ -322,12 +340,14 @@ export function Timeline({
           moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
         },
       ],
     } as EChartsOption;
   }, [
     showTooltip,
     gridOptions,
+    minZoomSpanPct,
     xAxisOptions,
     yAxisOptions,
     seriesOptions,
@@ -343,6 +363,18 @@ export function Timeline({
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
 
+    // Update atZoomLimitRef synchronously from the ECharts datazoom event, which fires
+    // within the same event-dispatch tick as the wheel handler — before any React render.
+    // This avoids the one-tick stale-state window that windowMsRef.current has.
+    instance.on('datazoom', () => {
+      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
+      const dz = opt.dataZoom?.[0];
+      if (dz != null) {
+        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
+        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
+      }
+    });
+
     const dom = instance.getDom();
     dom.addEventListener('pointerdown', () => {
       isDraggingRef.current = true;
@@ -354,12 +386,30 @@ export function Timeline({
 
     // Let non-shift wheel events pass through to the page for normal scrolling.
     // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    // Also block shift+wheel-in when at the zoom limit so ECharts can't convert the
+    // blocked zoom into a pan (zoomLock:true converts excess zoom delta into pan).
+    // atZoomLimitRef is kept current by the datazoom event listener above, which fires
+    // in the same synchronous tick as the ECharts canvas handler — no render-cycle lag.
     dom.addEventListener(
       'wheel',
       e => {
-        if (!e.shiftKey) e.stopPropagation();
+        if (!e.shiftKey) {
+          e.stopPropagation();
+        } else if (e.deltaY < 0 && atZoomLimitRef.current) {
+          e.stopPropagation();
+        }
       },
       { capture: true, passive: true }
+    );
+
+    // Bubble-phase (fires after ECharts' canvas listener). Prevents the browser from handling
+    // shift+wheel zoom-in when ECharts can't act (e.g. zoom limit reached, pan disabled).
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
+      },
+      { passive: false }
     );
   }, []);
 
