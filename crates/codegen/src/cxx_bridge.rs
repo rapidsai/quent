@@ -917,7 +917,7 @@ fn emit_state_flat_args(
         let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
         let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
         // Resource type paths may be bare names (e.g., "Queue") for types in the
-        // same crate, or qualified (e.g., "quent_stdlib::Processor"). Bare names
+        // same crate, or qualified (e.g., "quent_stdlib::processor::Processor"). Bare names
         // need to be resolved against the component's module path.
         let resource_ty: syn::Type = {
             let path = &usage.resource_type_path;

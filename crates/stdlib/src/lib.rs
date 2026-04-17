@@ -8,10 +8,6 @@
 //! - [`Processor`]: unit resource for computation
 //! - [`Channel`]: unidirectional data transfer resource with `bytes` capacity
 
-mod channel;
-mod memory;
-mod processor;
-
-pub use channel::*;
-pub use memory::*;
-pub use processor::*;
+pub mod channel;
+pub mod memory;
+pub mod processor;

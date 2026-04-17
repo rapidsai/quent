@@ -23,8 +23,8 @@ state! {
 state! {
     Computing {
         usages: {
-            use_thread: quent_stdlib::Processor,
-            use_memory: quent_stdlib::Memory,
+            use_thread: quent_stdlib::processor::Processor,
+            use_memory: quent_stdlib::memory::Memory,
         },
     }
 }
@@ -32,7 +32,7 @@ state! {
 state! {
     Allocating {
         usages: {
-            use_thread: quent_stdlib::Processor,
+            use_thread: quent_stdlib::processor::Processor,
         },
     }
 }
@@ -40,9 +40,9 @@ state! {
 state! {
     Loading {
         usages: {
-            use_thread: quent_stdlib::Processor,
-            use_fs_to_mem: quent_stdlib::Channel,
-            use_memory: quent_stdlib::Memory,
+            use_thread: quent_stdlib::processor::Processor,
+            use_fs_to_mem: quent_stdlib::channel::Channel,
+            use_memory: quent_stdlib::memory::Memory,
         },
     }
 }
@@ -50,8 +50,8 @@ state! {
 state! {
     Spilling {
         usages: {
-            use_thread: quent_stdlib::Processor,
-            use_mem_to_fs: quent_stdlib::Channel,
+            use_thread: quent_stdlib::processor::Processor,
+            use_mem_to_fs: quent_stdlib::channel::Channel,
         },
     }
 }
@@ -59,8 +59,8 @@ state! {
 state! {
     Sending {
         usages: {
-            use_thread: quent_stdlib::Processor,
-            use_link: quent_stdlib::Channel,
+            use_thread: quent_stdlib::processor::Processor,
+            use_link: quent_stdlib::channel::Channel,
         },
     }
 }
