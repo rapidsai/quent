@@ -29,9 +29,9 @@ model! {
         task::Task,
         ThreadPool,
         Network,
-        quent_stdlib::Memory,
-        quent_stdlib::Processor,
-        quent_stdlib::Channel,
+        quent_stdlib::memory::Memory,
+        quent_stdlib::processor::Processor,
+        quent_stdlib::channel::Channel,
     }
 }
 

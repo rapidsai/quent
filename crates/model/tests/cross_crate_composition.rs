@@ -27,9 +27,9 @@ quent_model::entity! {
 // Application-specific types using stdlib resources
 
 // Use the resource marker types for Usage<T>
-type WorkerMemory = quent_stdlib::MemoryResource;
-type Thread = quent_stdlib::ProcessorResource;
-type FsToMem = quent_stdlib::ChannelResource;
+type WorkerMemory = quent_stdlib::memory::MemoryResource;
+type Thread = quent_stdlib::processor::ProcessorResource;
+type FsToMem = quent_stdlib::channel::ChannelResource;
 
 // Application FSM using stdlib resource types
 
@@ -85,9 +85,9 @@ type DomainModel = Model<(Engine, Operator)>;
 type AppModel = Model<(
     DomainModel,
     Task,
-    quent_stdlib::Memory,
-    quent_stdlib::Processor,
-    quent_stdlib::Channel,
+    quent_stdlib::memory::Memory,
+    quent_stdlib::processor::Processor,
+    quent_stdlib::channel::Channel,
 )>;
 
 // Tests
@@ -110,7 +110,7 @@ fn ref_type_safety() {
 fn usage_with_stdlib_memory() {
     let usage: Usage<WorkerMemory> = Usage {
         resource_id: Ref::new(Uuid::nil()),
-        capacity: quent_stdlib::MemoryOperating {
+        capacity: quent_stdlib::memory::MemoryOperating {
             capacity_bytes: Capacity::new(Some(1024 * 1024)),
         },
     };
@@ -122,7 +122,7 @@ fn usage_with_stdlib_processor() {
     let _usage: Usage<Thread> = Usage {
         resource_id: Ref::new(Uuid::nil()),
         // ProcessorOperating is a unit struct (no capacity fields)
-        capacity: quent_stdlib::ProcessorOperating {},
+        capacity: quent_stdlib::processor::ProcessorOperating {},
     };
 }
 
@@ -130,7 +130,7 @@ fn usage_with_stdlib_processor() {
 fn usage_with_stdlib_channel() {
     let _usage: Usage<FsToMem> = Usage {
         resource_id: Ref::new(Uuid::nil()),
-        capacity: quent_stdlib::ChannelOperating {
+        capacity: quent_stdlib::channel::ChannelOperating {
             capacity_bytes: Capacity::new(Some(4096)),
         },
     };
@@ -230,7 +230,7 @@ fn fsm_event_serde_roundtrip() {
         state: TaskTransition::Sending(Sending {
             channel: Some(Usage {
                 resource_id: Ref::new(Uuid::nil()),
-                capacity: quent_stdlib::ChannelOperating {
+                capacity: quent_stdlib::channel::ChannelOperating {
                     capacity_bytes: Capacity::new(Some(1024)),
                 },
             }),

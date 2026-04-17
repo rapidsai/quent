@@ -504,9 +504,9 @@ struct Worker {
     thread_pool: Uuid,
     threads: Vec<Uuid>,
     // Resource handles — kept alive until shut_down().
-    memory_handles: Vec<quent_stdlib::MemoryHandle<SimulatorEvent>>,
-    channel_handles: Vec<quent_stdlib::ChannelHandle<SimulatorEvent>>,
-    processor_handles: Vec<quent_stdlib::ProcessorHandle<SimulatorEvent>>,
+    memory_handles: Vec<quent_stdlib::memory::MemoryHandle<SimulatorEvent>>,
+    channel_handles: Vec<quent_stdlib::channel::ChannelHandle<SimulatorEvent>>,
+    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle<SimulatorEvent>>,
 }
 
 impl Worker {
@@ -1026,7 +1026,7 @@ struct Engine {
     workers: HashMap<Uuid, Worker>,
     network: Uuid,
     network_links: HashMap<(Uuid, Uuid), Uuid>,
-    network_link_handles: Vec<quent_stdlib::ChannelHandle<SimulatorEvent>>,
+    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle<SimulatorEvent>>,
 }
 
 impl Engine {

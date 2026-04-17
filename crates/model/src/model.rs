@@ -129,7 +129,7 @@ pub enum TransitionEndpoint {
 pub struct UsageDef {
     pub field_name: String,
     pub resource_name: String,
-    /// Rust path to the resource marker type (e.g., "quent_stdlib::ProcessorResource").
+    /// Rust path to the resource marker type (e.g., "quent_stdlib::processor::ProcessorResource").
     /// The codegen uses `<T as Resource>::CapacityValue` to get the operating state type.
     pub resource_type_path: String,
 }

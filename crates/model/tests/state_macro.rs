@@ -20,8 +20,8 @@ quent_model::state! {
 quent_model::state! {
     Computing {
         usages: {
-            thread: quent_stdlib::Processor,
-            memory: quent_stdlib::Memory,
+            thread: quent_stdlib::processor::Processor,
+            memory: quent_stdlib::memory::Memory,
         },
     }
 }
@@ -59,11 +59,11 @@ fn state_macro_generates_usage_struct() {
     let c = Computing {
         thread: Some(quent_model::Usage {
             resource_id: Ref::new(Uuid::nil()),
-            capacity: quent_stdlib::ProcessorOperating {},
+            capacity: quent_stdlib::processor::ProcessorOperating {},
         }),
         memory: Some(quent_model::Usage {
             resource_id: Ref::new(Uuid::nil()),
-            capacity: quent_stdlib::MemoryOperating {
+            capacity: quent_stdlib::memory::MemoryOperating {
                 capacity_bytes: quent_model::Capacity::new(Some(1024)),
             },
         }),
@@ -128,11 +128,11 @@ fn flat_args_handle_transition() {
     let mut handle = observer.queued(id, "my_task", 5);
 
     handle.computing(
-        Some(quent_model::usage(Ref::<quent_stdlib::Processor>::new(
-            Uuid::nil(),
-        ))),
+        Some(quent_model::usage(
+            Ref::<quent_stdlib::processor::Processor>::new(Uuid::nil()),
+        )),
         Some(quent_model::usage((
-            Ref::<quent_stdlib::Memory>::new(Uuid::nil()),
+            Ref::<quent_stdlib::memory::Memory>::new(Uuid::nil()),
             2048,
         ))),
     );
@@ -155,11 +155,11 @@ fn extract_usages() {
     let c = Computing {
         thread: Some(quent_model::Usage {
             resource_id: Ref::new(Uuid::from_u128(1)),
-            capacity: quent_stdlib::ProcessorOperating {},
+            capacity: quent_stdlib::processor::ProcessorOperating {},
         }),
         memory: Some(quent_model::Usage {
             resource_id: Ref::new(Uuid::from_u128(2)),
-            capacity: quent_stdlib::MemoryOperating {
+            capacity: quent_stdlib::memory::MemoryOperating {
                 capacity_bytes: quent_model::Capacity::new(Some(4096)),
             },
         }),
@@ -177,7 +177,7 @@ fn extract_usages_skips_none() {
         thread: None,
         memory: Some(quent_model::Usage {
             resource_id: Ref::new(Uuid::from_u128(2)),
-            capacity: quent_stdlib::MemoryOperating {
+            capacity: quent_stdlib::memory::MemoryOperating {
                 capacity_bytes: quent_model::Capacity::new(Some(4096)),
             },
         }),

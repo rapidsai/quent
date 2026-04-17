@@ -325,10 +325,10 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: quent_stdlib::MemoryEvent,
+        event: quent_stdlib::memory::MemoryEvent,
     ) -> AnalyzerResult<()> {
         let state = event.state;
-        use quent_stdlib::MemoryTransition;
+        use quent_stdlib::memory::MemoryTransition;
         match state {
             MemoryTransition::MemoryInitializing(init) => {
                 self.arbitrary_resources
@@ -365,10 +365,10 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: quent_stdlib::ProcessorEvent,
+        event: quent_stdlib::processor::ProcessorEvent,
     ) -> AnalyzerResult<()> {
         let state = event.state;
-        use quent_stdlib::ProcessorTransition;
+        use quent_stdlib::processor::ProcessorTransition;
         match state {
             ProcessorTransition::ProcessorInitializing(init) => {
                 self.arbitrary_resources
@@ -402,10 +402,10 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: quent_stdlib::ChannelEvent,
+        event: quent_stdlib::channel::ChannelEvent,
     ) -> AnalyzerResult<()> {
         let state = event.state;
-        use quent_stdlib::ChannelTransition;
+        use quent_stdlib::channel::ChannelTransition;
         match state {
             ChannelTransition::ChannelInitializing(init) => {
                 self.arbitrary_resources
