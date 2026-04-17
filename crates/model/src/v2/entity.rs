@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
+use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
-// user facing model declaration types:
+// user facing types used for modeling
 
 // An event that can only be emitted <= 1 time per entity
 struct Once<T> {
@@ -14,185 +15,193 @@ struct Multi<T> {
     _phantom: PhantomData<T>,
 }
 
-struct OnceRg<T> {
-    _phantom: PhantomData<T>,
-}
+mod one_shot_empty {
+    use super::*;
 
-// user example:
+    mod model {
+        use super::*;
+        // Most trivial entity. Just emits one event without attributes.
+        // Thus its only properties are a UUID and a timestamp.
+        #[derive(Entity)]
+        struct OneShotEmpty;
+    }
 
-struct MyEventAttributesA {
-    q: u64,
-    r: String,
-}
+    mod events {
+        use super::*;
+        // Do we really need this? Could just be ()
+        struct OneShotEmptyEvent;
+    }
 
-struct MyEventAttributesB {
-    s: f64,
-    t: Vec<String>,
-}
+    mod instrumentation {
+        use super::*;
+        struct OneShotEmptyObserver {
+            // holds sender
+        }
+        impl OneShotEmptyObserver {
+            fn OneShotEmpty(&self) {
+                todo!()
+            }
+        }
+    }
 
-#[derive(Entity)]
-struct Foo {
-    #[instance_name]    // optional, mark this event to carry the instance name
-    a: Once<MyEventAttributesA>,
-    b: Once<MyEventAttributesB>,
-    c: Once<MyEventAttributesB>, // same attributes, semantically different event
-    d: Multi<MyEventAttributesA>,
-}
-
-// An entity can be a resource group, which means that at least one of its
-// events needs to carry certain attributes.
-//
-// 0. How to make this a resource group?
-//
-// a. #[derive(ResourceGroup)] ?
-// b. #[quent(resource_group)] ? may be useful because see below
-// c. ...?
-//
-// 1. How do we mark that event?
-//
-// a. Make the field use some OnceWithResourceGroupAttributes<T> ?
-// b. With a field annotation? #[quent(resource_group)] ?
-// c. With a struct annotation? #[quent(resource_group(a))] ?
-// d. ... ?
-//
-// 2. if an entity is the root resource group, it does not require a parent.
-// How to convey that?
-//
-// a. OnceWithRootResourceGroupAttributes<T> ?  -> ugly and potential state explosion
-// b. Event field annotation #[quent(resource_group(root))] ?
-// c. #[quent(resource_group(a, root))] ?
-// d. ... ?
-//
-// Should multi events be able to carry the resource group attributes?
-#[derive(Entity, ResourceGroup)]
-struct FooResourceGroup {
-    #[quent(rg)]
-    a: Once<MyEventAttributesA>,
-}
-
-#[derive(Entity, ResourceGroup)]
-#[quent(root)]
-struct FooRootResourceGroup {
-    #[quent(rg)]
-    a: Once<MyEventAttributesA>,
-}
-
-
-// user facing result (rust):
-
-struct FooHandle {
-    id: Uuid,
-    a_emitted: bool,
-    b_emitted: bool,
-    c_emitted: bool,
-}
-
-impl FooHandle {
-    fn a(instance_name: String, attributes: MyEventAttributesA) {}
-    fn b(attributes: MyEventAttributesA) {}
-    fn c(attributes: MyEventAttributesA) {}
-    fn d(attributes: MyEventAttributesA) {}
-}
-
-struct FooObserver {}
-
-impl FooObserver {
-    fn handle() -> FooHandle;
-}
-
-struct FooResourceGroupHandle {
-    id: Uuid,
-    a_emitted: bool,
-    b_emitted: bool,
-    c_emitted: bool,
-}
-
-impl FooResourceGroupHandle {
-    fn a(instance_name: String, parent_group_id: Uuid, attributes: MyEventAttributesA) {}
-}
-
-struct FooRootResourceGroupHandle {}
-
-impl FooObserver {
-    fn a(instance_name: String, attributes: MyEventAttributesA) {}
-}
-
-// in macros/codegen, not required, just a brainstorm, may need to look completely different:
-
-enum RgAttributes {
-    Root,
-    Regular,
-}
-
-struct EventDecl {
-    // to know the fn names on the handle
-    name: String,
-    // type of the event
-    attributes: syn::Type,
-    // to know whether to prevent multiple events from being emitted per handle
-    multi: bool,
-    // to know whether to append rg attributes and which ones
-    rg_attributes: Option<RgAttributes>,
-}
-
-trait EntityDecl {
-    fn events() -> impl Iterator<Item = EventDecl;
-}
-
-impl EntityDecl for Foo {
-    fn events() -> impl Iterator<Item = EventDecl> {
-        [
-            EventDecl {
-                name: "a",
-                attributes: MyEventAttributesA,
-                multi: false,
-                rg_attributes: None,
-            },
-            EventDecl {
-                name: "b",
-                attributes: MyEventAttributesB,
-                multi: false,
-                rg_attributes: None,
-            },
-            EventDecl {
-                name: "c",
-                attributes: MyEventAttributesB,
-                multi: false,
-                rg_attributes: None,
-            },
-            EventDecl {
-                name: "d",
-                attributes: MyEventAttributesA,
-                multi: true,
-                rg_attributes: None,
-            },
-        ]
+    mod analyzer {
+        use super::*;
+        // Single-event entity, so if the event ever arrived, we know its
+        // timestamp. No attributes.
+        trait OneShotEmptyModel: quent_analyzer::Entity {
+            fn one_shot_empty() -> TimeUnixNanoSec;
+        }
     }
 }
 
-impl EntityDecl for FooResourceGroup {
-    fn events() -> impl Iterator<Item = EventDecl> {
-        [
-            EventDecl {
-                name: "a",
-                attributes: MyEventAttributesA,
-                multi: false,
-                rg_attributes: Some(RgAttributes::Regular),
-            },
-        ]
+mod one_shot_with_attribs {
+    use super::*;
+
+    mod model {
+        use super::*;
+        // Single-event entity. Just emits one event with attributes of this
+        // struct.
+        #[derive(Entity)]
+        struct OneShotWithAttribs {
+            // is it fine that this implicitly becomes the entire event vs.
+            // multi event syntax below? alternative is to require Entity to
+            // always have at least one Once<Attributes> or Multi<Attributes>
+            // field, but for single-event entities, either the entity name or
+            // field name needs to be chosen for the observer api call to
+            // produce this event.
+            foo: u64,
+            bar: String
+        }
+    }
+
+    mod events {
+        use super::*;
+        // Do we really need this? Could just be OneShotWithAttribs
+        struct OneShotWithAttribs?Event? {
+            foo: u64,
+            bar: String
+        }
+    }
+
+    mod instrumentation {
+        use super::*;
+        struct OneShotWithAttribsObserver {
+            // holds sender
+        }
+        impl OneShotWithAttribsObserver {
+            fn one_shot_with_attribs(&self, attributes: OneShotWithAttribs) {
+                // emits event
+                todo!()
+            }
+        }
+    }
+
+    mod analyzer {
+        use super::*;
+        // Still single event entity. If it ever arrived, we know it in its
+        // entirety.
+        trait SewaModel: quent_analyzer::Entity {
+            fn sewa() -> Sewa;
+        }
     }
 }
 
+mod multi_one_shot {
+    use super::*;
 
-impl EntityDecl for FooRootResourceGroup {
-    fn events() -> impl Iterator<Item = EventDecl> {
-        [
-            EventDecl {
-                name: "a",
-                attributes: MyEventAttributesA,
-                multi: false,
-                rg_attributes: Some(RgAttributes::Regular),
-            },
-        ]
+    mod model {
+        use super::*;
+
+        struct X {
+            foo: u64,
+        }
+
+        struct Y {
+            bar: String
+        }
+
+        #[derive(Entity)]
+        struct MultiOneShot {
+            a: Once<X>,
+            b: Once<Y>,
+            c: Once<Y>, // same attributes type, but semantically different event
+            d: Once<()>
+        }
+    }
+
+    mod events {
+        use super::*;
+    }
+
+    mod instrumentation {
+        use super::*;
+    }
+
+    mod analyzer {
+        use super::*;
+    }
+}
+
+mod one_multi_shot {
+    use super::*;
+
+    mod model {
+        use super::*;
+
+        struct X {
+            foo: u64,
+        }
+
+        #[derive(Entity)]
+        struct OneMultiShot {
+            a: Multi<X>,
+        }
+    }
+
+    mod events {
+        use super::*;
+    }
+
+    mod instrumentation {
+        use super::*;
+    }
+
+    mod analyzer {
+        use super::*;
+    }
+}
+
+mod multi_multi_shot {
+    use super::*;
+
+    mod model {
+        use super::*;
+
+        struct X {
+            foo: u64,
+        }
+
+        struct Y {
+            bar: String
+        }
+
+        #[derive(Entity)]
+        struct MultiMulti {
+            a: Multi<X>,
+            b: Multi<X>,
+            c: Multi<Y>
+        }
+    }
+
+    mod events {
+        use super::*;
+    }
+
+    mod instrumentation {
+        use super::*;
+    }
+
+    mod analyzer {
+        use super::*;
     }
 }

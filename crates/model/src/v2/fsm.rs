@@ -2,6 +2,8 @@
 
 use uuid::Uuid;
 
+// WIP would be nice to define FSMs in terms of entities with once/multi events.
+
 // special marker type for exit states
 struct Exit;
 
