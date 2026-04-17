@@ -20,7 +20,6 @@ quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
 serde.workspace = true
-serde_json.workspace = true
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tonic.workspace = true
