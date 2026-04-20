@@ -113,15 +113,6 @@ const IEC: readonly [number, string][] = [
   [1, ''],
 ];
 
-/** Bytes (IEC) for occupancy and rate — used with {@link formatQuantity} for B/s throughput. */
-const BYTES_PER_SECOND_SPEC: QuantitySpec = {
-  symbol: 'B',
-  singular: 'byte',
-  plural: 'bytes',
-  occupancy_prefix: 'Iec',
-  rate_prefix: 'Iec',
-};
-
 export function formatWithPrefix(
   value: number,
   symbol: string,

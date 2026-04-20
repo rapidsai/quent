@@ -5,6 +5,13 @@ import { useState, useCallback } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { AggMode } from './types';
 
 export interface IndexConfigEntry {
@@ -86,29 +93,24 @@ export function PivotTableToolbar({
             {label}
           </button>
         ))}
-      </div>
-
-      {isAggregating && (
-        <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border/50">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground shrink-0">Show:</span>
-            {(['sum', 'mean', 'min', 'max', 'stdev'] as AggMode[]).map(mode => (
-              <button
-                key={mode}
-                onClick={() => onSetAggMode(mode)}
-                className={cn(
-                  'text-xs px-2 py-0.5 rounded border transition-colors',
-                  aggMode === mode
-                    ? 'bg-primary/10 border-primary/40 text-primary'
-                    : 'bg-muted/50 border-border text-muted-foreground'
-                )}
-              >
-                {mode}
-              </button>
-            ))}
+        {isAggregating && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">Aggregate:</span>
+            <Select value={aggMode} onValueChange={value => onSetAggMode(value as AggMode)}>
+              <SelectTrigger className="h-7 w-[110px] rounded border border-input px-2 py-0 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start">
+                {(['sum', 'mean', 'min', 'max', 'stdev'] as AggMode[]).map(mode => (
+                  <SelectItem key={mode} value={mode} className="text-xs">
+                    {mode}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border/50">
         <span className="text-xs text-muted-foreground shrink-0 mr-1">Columns:</span>
         <Popover

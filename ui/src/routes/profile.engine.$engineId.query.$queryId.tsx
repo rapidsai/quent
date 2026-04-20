@@ -18,18 +18,18 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')
 
 const tabClass = cn(
   'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1',
-  'text-sm font-medium text-muted-foreground transition-all',
+  'text-sm font-normal text-muted-foreground transition-all',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
 );
 
-const activeTabClass = cn(tabClass, 'bg-background text-foreground shadow');
+const activeTabClass = cn(tabClass, 'text-foreground font-semibold bg-muted shadow');
 
 function QueryLayout() {
   const { engineId, queryId } = Route.useParams();
   return (
     <div className="flex flex-col h-full w-full">
       <div className="shrink-0 border-b">
-        <div className="inline-flex h-9 w-full items-center justify-center bg-muted p-1 text-muted-foreground gap-0">
+        <div className="inline-flex h-9 w-full items-center justify-center p-1 text-muted-foreground gap-0">
           <Link
             to="/profile/engine/$engineId/query/$queryId/timeline"
             params={{ engineId, queryId }}
