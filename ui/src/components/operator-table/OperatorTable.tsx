@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { QueryToolbar } from '@/components/QueryToolbar';
 import {
@@ -170,8 +170,37 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
   const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
   const { entities } = queryBundle;
+  const tableHoverSwitchedPlanRef = useRef<string | null>(null);
+  const preHoverPlanRef = useRef<string | null>(null);
+  const pendingPlanRestoreTimerRef = useRef<number | null>(null);
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
+
+  const cancelPendingPlanRestore = useCallback(() => {
+    if (pendingPlanRestoreTimerRef.current !== null) {
+      window.clearTimeout(pendingPlanRestoreTimerRef.current);
+      pendingPlanRestoreTimerRef.current = null;
+    }
+  }, []);
+
+  const schedulePlanRestore = useCallback(() => {
+    cancelPendingPlanRestore();
+    const switchedToPlanId = tableHoverSwitchedPlanRef.current;
+    const restorePlanId = preHoverPlanRef.current;
+    if (!switchedToPlanId || !restorePlanId || selectedNodeIds.size === 0) return;
+
+    // Defer restore so row-to-row hover transitions can cancel this before it runs.
+    pendingPlanRestoreTimerRef.current = window.setTimeout(() => {
+      setSelectedPlanId(current =>
+        current === switchedToPlanId && selectedNodeIds.size > 0 ? restorePlanId : current
+      );
+      pendingPlanRestoreTimerRef.current = null;
+      tableHoverSwitchedPlanRef.current = null;
+      preHoverPlanRef.current = null;
+    }, 0);
+  }, [cancelPendingPlanRestore, selectedNodeIds, setSelectedPlanId]);
+
+  useEffect(() => cancelPendingPlanRestore, [cancelPendingPlanRestore]);
 
   const siblingPlanIds = useMemo(() => {
     const selected = selectedPlanId ? entities.plans[selectedPlanId] : undefined;
@@ -327,8 +356,14 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       if (gk.key === 'item' && firstItemId) {
         return {
           onMouseEnter: () => {
-            if (firstItemScopeId && firstItemScopeId !== selectedPlanId)
+            cancelPendingPlanRestore();
+            if (firstItemScopeId && firstItemScopeId !== selectedPlanId) {
+              if (tableHoverSwitchedPlanRef.current === null) {
+                preHoverPlanRef.current = selectedPlanId;
+              }
+              tableHoverSwitchedPlanRef.current = firstItemScopeId;
               setSelectedPlanId(firstItemScopeId);
+            }
             // Table-origin hover should not trigger table auto-scroll.
             setHighlightState({
               ...highlightState,
@@ -343,6 +378,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                 ? { ...prev, ids: null, source: null, primaryOperatorId: null }
                 : prev
             );
+            schedulePlanRestore();
           },
         };
       }
@@ -407,6 +443,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       setSelectedPlanId,
       setHighlightState,
       highlightState,
+      cancelPendingPlanRestore,
+      schedulePlanRestore,
       itemsByParentType,
       itemsByParentName,
       itemsByItemType,
