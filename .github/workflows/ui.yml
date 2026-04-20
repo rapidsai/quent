@@ -12,7 +12,7 @@ on:
       - ".github/workflows/ui.yml"
 
 env:
-  PNPM_VERSION: "9.15.0"
+  PNPM_VERSION: "11.0.0-rc.2"
   NODE_VERSION: "24.11.0"
 
 jobs:
@@ -118,8 +118,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # Switch back to `pnpm audit` once 11.0.0 is released: https://github.com/pnpm/pnpm/issues/11265
-      - run: pnpm dlx --config.minimumReleaseAge=0 pnpm@11.0.0-rc.1 --config.manage-package-manager-versions=false audit
+      - run: pnpm audit
 
   build:
     name: Build
