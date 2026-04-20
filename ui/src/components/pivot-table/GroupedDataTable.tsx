@@ -188,7 +188,7 @@ export function GroupedDataTable<
         <div className="shrink-0 flex flex-col border-b border-border bg-card">{renderToolbar}</div>
       )}
       <div className="flex-1 min-h-0 overflow-auto" ref={scrollRef}>
-        <table className="text-sm border-separate border-spacing-0 relative isolate">
+        <table className="text-xs border-separate border-spacing-0 relative isolate">
           <thead className="bg-card">
             <tr className="border-b border-border">
               {groupColumnIds.map(columnId => (
@@ -199,7 +199,7 @@ export function GroupedDataTable<
                     if (idx >= 0) groupHeaderRefs.current[idx] = el;
                   }}
                   className={cn(
-                    'table-header-overlay text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap'
+                    'table-header-overlay text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap font-normal'
                   )}
                   style={getStickyStyle(groupColumnIds.indexOf(columnId), true)}
                 >
@@ -319,7 +319,8 @@ export function GroupedDataTable<
               <tr>
                 <td
                   colSpan={totalColumnCount}
-                  style={{ height: bottomPadding, padding: 0, border: 0 }}
+                  className="border-0 p-0"
+                  style={{ height: bottomPadding }}
                 />
               </tr>
             )}

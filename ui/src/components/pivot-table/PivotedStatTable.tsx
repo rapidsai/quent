@@ -69,7 +69,7 @@ function DataHeader({
       onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
       onMouseLeave={() => onHoverStat?.(null)}
       className={cn(
-        'table-header-overlay text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
+        'table-header-overlay text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground font-normal',
         className,
         {
           'font-semibold': Boolean(rowHeaderHoverActive),
