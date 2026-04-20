@@ -12,7 +12,7 @@ import {
   buildPivotedRows,
   expandRowsFromSchema,
   formatStatValue,
-  formatStatNumber,
+  formatNumericStat,
   getSchemaStatNames,
   getSortValue,
   gradientBg,
@@ -239,7 +239,7 @@ function DataCell({
       style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
-      {formatStatNumber(displayVal, stat)}
+      {formatNumericStat(displayVal, stat)}
     </td>
   );
 }

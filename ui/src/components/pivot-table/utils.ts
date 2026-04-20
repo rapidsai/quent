@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatWithPrefix } from '@/services/formatters';
+import { inferFieldFormatter } from '@/services/formatters';
 import type { StatValue } from '@/services/query-plan/types';
 import { continuousColor, type ContinuousPaletteName } from '@/services/colors';
 import type {
@@ -23,42 +23,9 @@ export interface GroupIndexDef {
   getLabel: (row: StatGroupExpandedRow) => string;
 }
 
-export function formatNumber(n: number | null): string {
-  if (n === null) return '-';
-  if (Number.isInteger(n)) return n.toLocaleString();
-  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
-}
-
-export function formatBytes(n: number | null): string {
-  if (n === null) return '-';
-  return formatWithPrefix(n, 'B', 'Iec', 2);
-}
-
-export function isBytesStat(name: string): boolean {
-  return name.includes('_bytes') || name.endsWith('_byte') || name.startsWith('bytes_');
-}
-
-export function isCountStat(name: string): boolean {
-  return (
-    name.includes('_rows') ||
-    name.endsWith('_row') ||
-    name.startsWith('rows_') ||
-    name.includes('_batches') ||
-    name.endsWith('_batch') ||
-    name.startsWith('batches_')
-  );
-}
-
-export function formatRows(n: number | null): string {
-  if (n === null) return '-';
-  return formatWithPrefix(n, '', 'Si', 2);
-}
-
 export function formatNumericStat(n: number | null, statName: string): string {
   if (n === null) return '-';
-  if (isBytesStat(statName)) return formatBytes(n);
-  if (isCountStat(statName)) return formatRows(n);
-  return formatNumber(n);
+  return inferFieldFormatter(statName)(n);
 }
 
 export function formatStatValue(value: StatValue, statName: string): string {
@@ -67,10 +34,6 @@ export function formatStatValue(value: StatValue, statName: string): string {
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (Array.isArray(value)) return value.join(', ');
   return String(value);
-}
-
-export function formatStatNumber(n: number | null, statName: string): string {
-  return formatNumericStat(n, statName);
 }
 
 export function isNumericValue(v: StatValue): v is number {

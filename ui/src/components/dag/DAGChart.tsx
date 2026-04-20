@@ -35,7 +35,7 @@ import {
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
-import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@/services/formatters';
 
 const elk = new ELK();
 

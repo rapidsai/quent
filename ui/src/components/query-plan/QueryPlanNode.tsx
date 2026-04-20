@@ -18,7 +18,7 @@ import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 import { continuousColor, isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
-import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@/services/formatters';
 import { getOperatorColor } from '@/services/query-plan/operationTypes';
 import { DataText } from '@/components/ui/data-text';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
