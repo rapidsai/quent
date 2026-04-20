@@ -21,10 +21,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
-import {
-  OPERATION_TYPE_COLORS,
-  DEFAULT_OPERATION_COLOR,
-} from '@/services/query-plan/operationTypes';
+import { getOperatorColor } from '@/services/query-plan/operationTypes';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import {
@@ -407,8 +404,7 @@ const FlowLayout = ({
         style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE, background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
         nodeColor={(node: Node<QueryPlanNodeData>) =>
-          OPERATION_TYPE_COLORS[(node.data as QueryPlanNodeData).operationType] ??
-          DEFAULT_OPERATION_COLOR
+          getOperatorColor((node.data as QueryPlanNodeData).operationType)
         }
       />
     </ReactFlow>

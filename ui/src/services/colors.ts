@@ -33,29 +33,17 @@ export const PALETTES = {
     '#9a60b4', // Purple
     '#ea7ccc', // Pink
   ],
-  /** Muted qualitative palette — light mode */
+  /** Tol qualitative colorblind-friendly palette */
   extended: [
-    '#3D9485', // Teal
-    '#B85858', // Coral Red
-    '#4A68AA', // Steel Blue
-    '#B8A85E', // Sand
-    '#9466BB', // Violet
-    '#6BA8C8', // Cyan
-    '#B87A44', // Amber
-    '#6E8C44', // Muted Lime
-    '#808080', // Grey
-  ],
-  /** Qualitative palette — dark mode (muted, lower contrast) */
-  extendedDark: [
-    '#3D9485', // Teal
-    '#B85858', // Coral Red
-    '#4A68AA', // Steel Blue
-    '#B8A85E', // Sand
-    '#9466BB', // Violet
-    '#6BA8C8', // Cyan
-    '#B87A44', // Amber
-    '#6E8C44', // Muted Lime
-    '#808080', // Grey
+    '#44AA99', // Teal
+    '#CC6677', // Rose
+    '#332288', // Indigo
+    '#DDCC77', // Sand
+    '#AA4499', // Purple
+    '#88CCEE', // Cyan
+    '#882255', // Wine
+    '#88AA55', // Muted Lime
+    '#666666', // Grey
   ],
 } as const;
 
@@ -65,19 +53,10 @@ export type ChartColor = string;
 // Current active palette
 let activePalette: PaletteName = 'extended';
 
-function isDarkMode(): boolean {
-  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-}
-
 /**
- * Get the currently active palette, respecting light/dark mode.
- * When the active palette is 'extended', automatically switches to
- * 'extendedDark' in dark mode.
+ * Get the currently active palette.
  */
 export function getActivePalette(): readonly string[] {
-  if (activePalette === 'extended' && isDarkMode()) {
-    return PALETTES.extendedDark;
-  }
   return PALETTES[activePalette];
 }
 
@@ -227,6 +206,7 @@ export function withOpacity(hex: string, opacity: number): string {
  */
 export function resetColorAssignments(): void {
   colorAssignments.clear();
+  usedIndices.clear();
 }
 
 /**
@@ -247,31 +227,6 @@ export function darkenColor(hex: string, amount: number): string {
 
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';
-
-// --- Operator type colors (canonical mapping matching DAG node CVA variants) ---
-
-const OPERATOR_TYPE_COLORS: Record<string, string> = {
-  source: 'var(--color-blue-500)',
-  scan: 'var(--color-blue-500)',
-  filesystemscan: 'var(--color-blue-500)',
-  join: 'var(--color-purple-500)',
-  joinlocal: 'var(--color-purple-500)',
-  joinpartition: 'var(--color-purple-500)',
-  aggregate: 'var(--color-green-500)',
-  exchange: 'var(--color-orange-500)',
-  output: 'var(--color-red-500)',
-  stage: 'var(--color-indigo-600)',
-  local: 'var(--color-amber-500)',
-  project: 'var(--color-teal-500)',
-  filter: 'var(--color-cyan-500)',
-  sort: 'var(--color-violet-500)',
-  limit: 'var(--color-pink-500)',
-  union: 'var(--color-emerald-500)',
-};
-
-export function operatorTypeColor(type: string): string {
-  return OPERATOR_TYPE_COLORS[type.toLowerCase()] ?? 'var(--color-gray-500)';
-}
 
 /**
  * Available continuous color palettes for heatmap-style coloring.

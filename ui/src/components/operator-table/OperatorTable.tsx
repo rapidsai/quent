@@ -12,7 +12,6 @@ import {
 } from '@/atoms/dag';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
-import { operatorTypeColor } from '@/services/colors';
 import type { StatValue } from '@/services/query-plan/types';
 import type { PivotedRow, PivotedStatTableSchema } from '../pivot-table/types';
 import type { GroupedDataTableGroupKeyEntry } from '../pivot-table/types';
@@ -22,6 +21,7 @@ import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
 import { useStatGroupTableControls } from '../pivot-table/useStatGroupTableControls';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryEntities } from '~quent/types/QueryEntities';
+import { getOperatorColor } from '@/services/query-plan/operationTypes';
 
 interface OperatorTableRow {
   partitionId: string;
@@ -461,7 +461,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
           getGroupTypeColor={(key, id) =>
-            key === 'item_type' || key === 'parent_item_type' ? operatorTypeColor(id) : undefined
+            key === 'item_type' || key === 'parent_item_type'
+              ? getOperatorColor(id?.toLowerCase() ?? '')
+              : undefined
           }
           getGroupCellHandlers={getGroupCellHandlers}
         />

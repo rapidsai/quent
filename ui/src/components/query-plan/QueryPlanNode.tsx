@@ -19,10 +19,7 @@ import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 import { continuousColor, isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
 import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
-import {
-  OPERATION_TYPE_COLORS,
-  DEFAULT_OPERATION_COLOR,
-} from '@/services/query-plan/operationTypes';
+import { getOperatorColor } from '@/services/query-plan/operationTypes';
 import { DataText } from '@/components/ui/data-text';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
@@ -101,7 +98,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         ? inferFieldFormatter(colorField!)(colorFieldValue)
         : String(colorFieldValue);
 
-  const baseColor = OPERATION_TYPE_COLORS[data.operationType] ?? DEFAULT_OPERATION_COLOR;
+  const baseColor = getOperatorColor(data.operationType);
   const activeColor = fieldColor ?? baseColor;
   const bgColor =
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
