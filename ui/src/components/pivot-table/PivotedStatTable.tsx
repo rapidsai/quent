@@ -35,8 +35,12 @@ function DataHeader({
   style,
   rowHeaderHoverActive,
   draggedStat,
-  setDraggedStat,
-  onReorderStat,
+  getDropTargetPosition,
+  onStatDragStart,
+  onStatDragOver,
+  onStatDragLeave,
+  onStatDrop,
+  onStatDragEnd,
   onHoverStat,
   buildHoveredStatInfo,
   hoveredStatName,
@@ -48,24 +52,45 @@ function DataHeader({
   style?: React.CSSProperties;
   rowHeaderHoverActive?: boolean;
   draggedStat: string | null;
-  setDraggedStat: (stat: string | null) => void;
-  onReorderStat?: (from: string, to: string) => void;
+  getDropTargetPosition?: (statName: string) => 'before' | 'after' | undefined;
+  onStatDragStart: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDragOver: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDragLeave: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDrop: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDragEnd: () => void;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
   buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
   hoveredStatName: string | undefined;
 }) {
+  const dropTargetPosition = getDropTargetPosition?.(stat);
+  const dropTargetShadow =
+    dropTargetPosition === 'before'
+      ? 'inset 3px 0 0 hsl(var(--primary))'
+      : dropTargetPosition === 'after'
+        ? 'inset -3px 0 0 hsl(var(--primary))'
+        : undefined;
+  const mergedStyle =
+    dropTargetShadow != null
+      ? {
+          ...style,
+          boxShadow: style?.boxShadow
+            ? `${style.boxShadow}, ${dropTargetShadow}`
+            : dropTargetShadow,
+        }
+      : style;
+
   return (
     <th
       draggable
-      onDragStart={() => setDraggedStat(stat)}
-      onDragOver={e => {
-        e.preventDefault();
-        if (!draggedStat || draggedStat === stat) return;
-        onReorderStat?.(draggedStat, stat);
-        setDraggedStat(stat);
+      onDragStart={e => onStatDragStart(e, stat)}
+      onDragOver={e => onStatDragOver(e, stat)}
+      onDragLeave={e => onStatDragLeave(e, stat)}
+      onDrop={e => onStatDrop(e, stat)}
+      onDragEnd={onStatDragEnd}
+      onClick={() => {
+        if (draggedStat !== null) return;
+        onSort();
       }}
-      onDragEnd={() => setDraggedStat(null)}
-      onClick={onSort}
       onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
       onMouseLeave={() => onHoverStat?.(null)}
       className={cn(
@@ -78,7 +103,7 @@ function DataHeader({
           'table-header-overlay-active': hoveredStatName === stat || Boolean(rowHeaderHoverActive),
         }
       )}
-      style={style}
+      style={mergedStyle}
     >
       <span className="relative z-10">
         {stat}
@@ -308,6 +333,11 @@ export function PivotedStatTable<TRow>({
   const isDarkMode = theme === THEME_DARK;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const [draggedStat, setDraggedStat] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    stat: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
   const [tableStatOrder, setTableStatOrder] = useState<string[]>([]);
   const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
@@ -405,15 +435,29 @@ export function PivotedStatTable<TRow>({
     return ranges;
   }, [pivotedRows, effectiveVisibleStats, isAggregating, aggMode]);
 
-  const handleReorderStat = useCallback(
-    (from: string, to: string) => {
+  const removeDragGhost = useCallback(() => {
+    if (dragGhostRef.current == null) return;
+    dragGhostRef.current.remove();
+    dragGhostRef.current = null;
+  }, []);
+
+  const resetDragState = useCallback(() => {
+    setDraggedStat(null);
+    setDropIndicator(null);
+    removeDragGhost();
+  }, [removeDragGhost]);
+
+  const commitStatDrop = useCallback(
+    (from: string, to: string, position: 'before' | 'after') => {
       setTableStatOrder(prev => {
         const next = prev.length > 0 ? [...prev] : [...resolvedVisibleStats];
         const fromIndex = next.indexOf(from);
-        const toIndex = next.indexOf(to);
-        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return next;
+        if (fromIndex < 0 || from === to) return next;
         const [moved] = next.splice(fromIndex, 1);
-        next.splice(toIndex, 0, moved);
+        const targetIndex = next.indexOf(to);
+        if (targetIndex < 0) return next;
+        const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+        next.splice(insertIndex, 0, moved);
         return next;
       });
       // Keep optional callback for external listeners, without requiring global reordering.
@@ -421,6 +465,92 @@ export function PivotedStatTable<TRow>({
     },
     [onReorderStat, resolvedVisibleStats]
   );
+
+  const getDropPosition = useCallback((e: React.DragEvent<HTMLTableCellElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return e.clientX - rect.left < rect.width / 2 ? 'before' : 'after';
+  }, []);
+
+  const handleStatDragStart = useCallback(
+    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
+      removeDragGhost();
+      setDraggedStat(statName);
+      setDropIndicator(null);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', statName);
+
+      const header = e.currentTarget;
+      const rect = header.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+
+      const dragGhost = header.cloneNode(true) as HTMLElement;
+      dragGhost.style.position = 'fixed';
+      dragGhost.style.top = '-1000px';
+      dragGhost.style.left = '-1000px';
+      dragGhost.style.width = `${rect.width}px`;
+      dragGhost.style.pointerEvents = 'none';
+      dragGhost.style.opacity = '0.95';
+      dragGhost.style.border = '1px solid hsl(var(--primary) / 0.55)';
+      dragGhost.style.borderRadius = '6px';
+      dragGhost.style.backgroundColor = 'hsl(var(--card))';
+      dragGhost.style.boxShadow = '0 8px 18px hsl(var(--foreground) / 0.22)';
+      document.body.appendChild(dragGhost);
+      dragGhostRef.current = dragGhost;
+      e.dataTransfer.setDragImage(dragGhost, offsetX, offsetY);
+    },
+    [removeDragGhost]
+  );
+
+  const handleStatDragOver = useCallback(
+    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
+      e.preventDefault();
+      if (draggedStat == null || draggedStat === statName) return;
+      const position = getDropPosition(e);
+      setDropIndicator(prev =>
+        prev?.stat === statName && prev.position === position ? prev : { stat: statName, position }
+      );
+      e.dataTransfer.dropEffect = 'move';
+    },
+    [draggedStat, getDropPosition]
+  );
+
+  const handleStatDragLeave = useCallback(
+    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
+      const related = e.relatedTarget as Node | null;
+      if (related && e.currentTarget.contains(related)) return;
+      setDropIndicator(prev => (prev?.stat === statName ? null : prev));
+    },
+    []
+  );
+
+  const handleStatDrop = useCallback(
+    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
+      e.preventDefault();
+      if (draggedStat == null || draggedStat === statName) {
+        resetDragState();
+        return;
+      }
+      const position =
+        dropIndicator?.stat === statName ? dropIndicator.position : getDropPosition(e);
+      commitStatDrop(draggedStat, statName, position);
+      resetDragState();
+    },
+    [commitStatDrop, draggedStat, dropIndicator, getDropPosition, resetDragState]
+  );
+
+  useEffect(() => {
+    if (draggedStat == null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      resetDragState();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [draggedStat, resetDragState]);
+
+  useEffect(() => removeDragGhost, [removeDragGhost]);
 
   useEffect(() => {
     if (!hoveredItemId) return;
@@ -433,8 +563,13 @@ export function PivotedStatTable<TRow>({
   const sharedProps = useMemo(
     () => ({
       draggedStat,
-      setDraggedStat,
-      onReorderStat: handleReorderStat,
+      getDropTargetPosition: (stat: string) =>
+        dropIndicator?.stat === stat ? dropIndicator.position : undefined,
+      onStatDragStart: handleStatDragStart,
+      onStatDragOver: handleStatDragOver,
+      onStatDragLeave: handleStatDragLeave,
+      onStatDrop: handleStatDrop,
+      onStatDragEnd: resetDragState,
       onHoverStat: emitHoverStat,
       buildHoveredStatInfo,
       hoveredStatName: effectiveHoveredStat?.name,
@@ -453,7 +588,12 @@ export function PivotedStatTable<TRow>({
     }),
     [
       draggedStat,
-      handleReorderStat,
+      dropIndicator,
+      handleStatDragStart,
+      handleStatDragOver,
+      handleStatDragLeave,
+      handleStatDrop,
+      resetDragState,
       emitHoverStat,
       buildHoveredStatInfo,
       effectiveHoveredStat?.name,
