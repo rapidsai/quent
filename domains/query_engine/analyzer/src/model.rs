@@ -6,7 +6,7 @@ use quent_analyzer::{
     resource::{Resource, ResourceGroup, ResourceTypeDecl, collection::ResourceCollection},
 };
 use quent_events::Event;
-use quent_query_engine_events::QueryEngineEvent;
+use quent_query_engine_model::QueryEngineEvent;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
@@ -71,7 +71,7 @@ impl Model for InMemoryQueryEngineModel {
     type EntityIdType = QueryEngineEntityId;
 
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        if self.engine.id == entity_id {
+        if Entity::id(&self.engine) == entity_id {
             Ok(QueryEngineEntityId::Engine(entity_id))
         } else if self.workers.contains_key(&entity_id) {
             Ok(QueryEngineEntityId::Worker(entity_id))
@@ -262,7 +262,7 @@ impl InMemoryQueryEngineModelBuilder {
             ))?
         } else {
             Ok(Self {
-                engine: Engine::new(engine_id),
+                engine: Engine::new(engine_id)?,
                 workers: Default::default(),
                 query_groups: Default::default(),
                 queries: Default::default(),
@@ -357,7 +357,7 @@ impl InMemoryQueryEngineModelBuilder {
             queries: self
                 .queries
                 .into_iter()
-                .map(|(k, v)| v.try_build().map(|v| (k, v)))
+                .map(|(k, v)| Query::from_builder(v).map(|v| (k, v)))
                 .collect::<AnalyzerResult<_>>()?,
             plans: self.plans,
             operators: self.operators,

@@ -43,7 +43,7 @@ pub trait UiAnalyzer {
     where
         Self: Sized;
 
-    /// Deliver a UI-friendly [`QueryBundle`] with all high-level yet
+    /// Deliver a UI-friendly `QueryBundle` with all high-level yet
     /// non-volumous information related to this query.
     fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle<Self::EntityRef>>;
 

@@ -9,6 +9,7 @@ use uuid::Uuid;
 pub use crate::error::AnalyzerError;
 use crate::resource::{ResourceGroup, collection::ResourceCollection, tree::ResourceTreeNode};
 
+pub mod entity;
 pub mod error;
 pub mod fsm;
 pub mod resource;

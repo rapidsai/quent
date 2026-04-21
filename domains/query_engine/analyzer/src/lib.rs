@@ -18,7 +18,7 @@
 
 use std::collections::HashSet;
 
-use quent_analyzer::{AnalyzerError, AnalyzerResult, Model};
+use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Model, fsm::Fsm};
 use quent_time::{TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
@@ -84,18 +84,15 @@ pub trait QueryEngineModel: Model {
     fn query_workers(&self, query_id: Uuid) -> AnalyzerResult<impl Iterator<Item = &Worker>> {
         Ok(self
             .query_plans(query_id)?
-            .filter_map(|p| p.worker_id.and_then(|w| self.worker(w).ok())))
+            .filter_map(|p| p.worker_id().and_then(|w| self.worker(w).ok())))
     }
 
     /// Return the time at which a query started.
     fn query_epoch(&self, query_id: Uuid) -> AnalyzerResult<TimeUnixNanoSec> {
         self.query(query_id).and_then(|q| {
-            q.transitions
-                .first()
-                .map(|init| init.timestamp())
-                .ok_or_else(|| {
-                    AnalyzerError::Validation("query does not have any transitions".to_string())
-                })
+            q.transition(0).map(|init| init.timestamp()).ok_or_else(|| {
+                AnalyzerError::Validation("query does not have any transitions".to_string())
+            })
         })
     }
 
@@ -109,9 +106,9 @@ pub trait QueryEngineModel: Model {
         &'a self,
         plans: impl Iterator<Item = &'a Plan>,
     ) -> AnalyzerResult<impl Iterator<Item = &'a Operator>> {
-        let plan_ids = plans.map(|plan| plan.id).collect::<HashSet<_>>();
+        let plan_ids = plans.map(|plan| plan.id()).collect::<HashSet<_>>();
         Ok(self.operators().filter(move |op| {
-            op.plan_id
+            op.plan_id()
                 .is_some_and(|plan_id| plan_ids.contains(&plan_id))
         }))
     }
@@ -123,9 +120,9 @@ pub trait QueryEngineModel: Model {
         &'a self,
         operators: impl Iterator<Item = &'a Operator>,
     ) -> AnalyzerResult<impl Iterator<Item = &'a Port>> {
-        let operator_ids = operators.map(|op| op.id).collect::<HashSet<_>>();
+        let operator_ids = operators.map(|op| op.id()).collect::<HashSet<_>>();
         Ok(self.ports().filter(move |port| {
-            port.operator_id
+            port.operator_id()
                 .is_some_and(|op_id| operator_ids.contains(&op_id))
         }))
     }

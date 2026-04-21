@@ -1,82 +1,48 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use rustc_hash::FxHashMap as HashMap;
-
-use quent_analyzer::{Entity, resource::ResourceGroup};
-use quent_attributes::{Attribute, Value};
+use quent_analyzer::entity::EntityEvents;
+use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
+use quent_attributes::Attribute;
 use quent_events::Event;
-use quent_query_engine_events::port::PortEvent;
+use quent_query_engine_model::port;
 use quent_query_engine_ui as ui;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
-#[derive(Debug)]
-pub struct PortStatistics {
-    /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
-}
-
 /// A Port of an Operator in a Plan DAG.
 #[derive(Debug)]
-pub struct Port {
-    /// The ID of this [`Port`]
-    pub id: Uuid,
-    /// The [`Operator`] to which this [`Port`] belongs.
-    pub operator_id: Option<Uuid>,
-    /// The name of this [`Port`].
-    pub instance_name: Option<String>,
-    /// The statistics of this [`Port`].
-    ///
-    /// These are attributes that are typically gathered after the work
-    /// described by its associated [`Operator`] has completed.
-    pub statistics: Option<PortStatistics>,
-}
+pub struct Port(EntityEvents<port::Port>);
 
 impl Port {
-    pub fn try_new(id: Uuid) -> quent_analyzer::AnalyzerResult<Self> {
-        if id.is_nil() {
-            Err(quent_analyzer::AnalyzerError::Validation(
-                "port id cannot be nil".to_string(),
-            ))
-        } else {
-            Ok(Self {
-                id,
-                operator_id: None,
-                instance_name: None,
-                statistics: None,
-            })
-        }
+    pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
+        Ok(Self(EntityEvents::new(id)?))
     }
 
-    pub fn push(&mut self, event: Event<PortEvent>) {
-        match event.data {
-            PortEvent::Declaration(declaration) => {
-                self.operator_id = Some(declaration.operator_id);
-                self.instance_name = Some(declaration.instance_name);
-            }
-            PortEvent::Statistics(statistics) => {
-                self.statistics = Some(PortStatistics {
-                    custom_statistics: statistics
-                        .custom_attributes
-                        .into_iter()
-                        .map(|Attribute { key, value }| (key, value))
-                        .collect(),
-                });
-            }
-        }
+    pub fn push(&mut self, event: Event<port::PortEvent>) {
+        self.0.push(event);
+    }
+
+    /// The ID of the operator to which this port belongs.
+    pub fn operator_id(&self) -> Option<Uuid> {
+        self.0
+            .data()
+            .declaration
+            .as_ref()
+            .map(|d| d.operator_id.uuid())
     }
 
     pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Port {
+        let d = self.0.data();
         ui::Port {
-            id: self.id,
-            operator_id: self.operator_id,
-            instance_name: self.instance_name.clone(),
-            statistics: self.statistics.as_ref().map(|s| ui::PortStatistics {
+            id: self.0.id(),
+            operator_id: self.operator_id(),
+            instance_name: d.declaration.as_ref().map(|d| d.instance_name.clone()),
+            statistics: d.statistics.as_ref().map(|s| ui::PortStatistics {
                 custom_statistics: s
-                    .custom_statistics
+                    .custom_attributes
                     .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .map(|Attribute { key, value }| (key.clone(), value.clone()))
                     .collect(),
             }),
         }
@@ -85,18 +51,23 @@ impl Port {
 
 impl Entity for Port {
     fn id(&self) -> Uuid {
-        self.id
+        self.0.id()
     }
     fn type_name(&self) -> &str {
         "port"
     }
     fn instance_name(&self) -> &str {
-        self.instance_name.as_deref().unwrap_or_default()
+        self.0
+            .data()
+            .declaration
+            .as_ref()
+            .map(|d| d.instance_name.as_str())
+            .unwrap_or_default()
     }
 }
 
 impl ResourceGroup for Port {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.operator_id
+        self.operator_id()
     }
 }

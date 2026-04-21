@@ -7,7 +7,8 @@ publish.workspace = true
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-attributes = { path = "../../../crates/attributes" }
 quent-events = { path = "../../../crates/events" }
-quent-query-engine-events = { path = "../events" }
+quent-model = { path = "../../../crates/model" }
+quent-query-engine-model = { path = "../model" }
 quent-query-engine-ui = { path = "../ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui"}

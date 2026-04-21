@@ -1,0 +1,19 @@
+[package]
+name = "quent-qe-bridge"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "quent_qe_bridge"
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1"
+quent-qe-cpp-instrumentation = { path = "../instrumentation" }
+quent-stdlib = { path = "../../../../../crates/stdlib" }
+
+[build-dependencies]
+cxx-build = "1"
+quent-codegen = { path = "../../../../../crates/codegen" }
+quent-qe-cpp-instrumentation = { path = "../instrumentation" }

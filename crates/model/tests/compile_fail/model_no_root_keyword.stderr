@@ -1,0 +1,5 @@
+error: first entry must be `root: <RootResourceGroup>`
+  --> tests/compile_fail/model_no_root_keyword.rs:11:9
+   |
+11 |         Cluster,
+   |         ^^^^^^^

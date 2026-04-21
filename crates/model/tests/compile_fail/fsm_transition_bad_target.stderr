@@ -1,0 +1,5 @@
+error: transition target `ghost` not found in states list
+  --> tests/compile_fail/fsm_transition_bad_target.rs:14:32
+   |
+14 |         transitions: { idle => ghost },
+   |                                ^^^^^

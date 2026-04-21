@@ -21,7 +21,7 @@ use crate::{
     resource::{CapacityValue, Usage, Using, collection::ResourceCollection},
 };
 
-/// A run-time defined [`Usage`] of a [`Resource`] in an [`Fsm`] [`State`].
+/// A run-time defined [`Usage`] of a `Resource` in an [`Fsm`] `State`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtFsmStateUsage {
     pub resource: Uuid,
@@ -44,7 +44,7 @@ impl RtFsmStateUsage {
     }
 }
 
-/// A run-time defined [`StateTransition`] of an [`Fsm`].
+/// A run-time defined `StateTransition` of an [`Fsm`].
 pub struct RtFsmTransition {
     pub name: String,
     pub usages: Vec<RtFsmStateUsage>,
@@ -67,7 +67,7 @@ impl Transition for RtFsmTransition {
     }
 }
 
-/// Builder for run-time defined [`Fsm`]s with [`State`]s of type T.
+/// Builder for run-time defined [`Fsm`]s with `State`s of type T.
 pub struct RtFsmBuilder<T> {
     id: Uuid,
     type_name: Option<String>,

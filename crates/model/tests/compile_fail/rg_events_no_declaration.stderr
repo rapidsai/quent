@@ -1,0 +1,12 @@
+error: resource group with `events` requires `declaration: <alias>` to mark which event carries the resource group identity
+  --> tests/compile_fail/rg_events_no_declaration.rs:8:1
+   |
+ 8 | / quent_model::entity! {
+ 9 | |     Bad: ResourceGroup {
+10 | |         events: {
+11 | |             a: MyEvent,
+...  |
+14 | | }
+   | |_^
+   |
+   = note: this error originates in the macro `quent_model::entity` (in Nightly builds, run with -Z macro-backtrace for more info)

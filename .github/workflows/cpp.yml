@@ -1,0 +1,63 @@
+name: C++
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "pixi.toml"
+      - ".github/workflows/cpp.yml"
+  pull_request:
+    paths:
+      - "**/*.rs"
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "pixi.toml"
+      - ".github/workflows/cpp.yml"
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  cpp:
+    name: C++ Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - run: curl -fsSL https://pixi.sh/install.sh | bash && echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pixi/
+          key: ${{ runner.os }}-pixi-${{ hashFiles('pixi.lock') }}
+          restore-keys: ${{ runner.os }}-pixi-
+      - run: pixi install
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Build C++ integration example
+        run: |
+          pixi run cmake -B examples/cpp-integration/cpp/build -S examples/cpp-integration/cpp
+          pixi run cmake --build examples/cpp-integration/cpp/build
+      - name: Run C++ integration example
+        run: ./examples/cpp-integration/cpp/build/example
+      - name: Build C++ query engine bridge test
+        run: |
+          pixi run cmake -B domains/query_engine/tests/cpp/cpp/build -S domains/query_engine/tests/cpp/cpp
+          pixi run cmake --build domains/query_engine/tests/cpp/cpp/build
+      - name: Run C++ query engine bridge test
+        run: ./domains/query_engine/tests/cpp/cpp/build/example

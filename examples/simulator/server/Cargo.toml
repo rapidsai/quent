@@ -14,7 +14,7 @@ quent-exporter = { path = "../../../crates/exporter" }
 quent-collector = { path = "../../../crates/collector/server" }
 quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
-quent-simulator-events = { path = "../events" }
+quent-simulator-instrumentation = { path = "../instrumentation" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true

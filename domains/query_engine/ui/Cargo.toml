@@ -6,7 +6,7 @@ publish.workspace = true
 [dependencies]
 quent-analyzer = { path = "../../../crates/analyzer", features = ["ts"] }
 quent-attributes = { path = "../../../crates/attributes" }
-quent-query-engine-events = { path = "../events" }
+quent-query-engine-model = { path = "../model" }
 quent-time = { path = "../../../crates/time", features = ["ts"] }
 quent-ui = { path = "../../../crates/ui" }
 serde.workspace = true

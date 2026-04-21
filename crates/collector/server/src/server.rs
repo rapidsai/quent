@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A gRPC-based server that collects [`Event`]s from multiple sources and exports them.
+//! A gRPC-based server that collects `Event`s from multiple sources and exports them.
 
 use std::{str::FromStr, sync::Arc};
 
@@ -24,10 +24,17 @@ pub struct CollectorServiceOptions {
 // Simple service to centralize telemetry from distributed clients
 //
 // TODO(johanpel): clean up exporter after timeout or application end.
-#[derive(Debug)]
 pub struct CollectorService<T> {
     exporters: Arc<DashMap<Uuid, Arc<dyn Exporter<T>>>>,
     exporter: ExporterOptions,
+}
+
+impl<T> std::fmt::Debug for CollectorService<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CollectorService")
+            .field("exporter", &self.exporter)
+            .finish()
+    }
 }
 
 impl<T> CollectorService<T> {
@@ -42,7 +49,7 @@ impl<T> CollectorService<T> {
 #[tonic::async_trait]
 impl<T> proto::collector_server::Collector for CollectorService<T>
 where
-    for<'de> T: Serialize + Deserialize<'de> + Send + std::fmt::Debug + 'static,
+    for<'de> T: Serialize + Deserialize<'de> + Send + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(

@@ -29,7 +29,7 @@ pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
 pub type ImporterResult<T> = std::result::Result<T, ImporterError>;
 
 #[async_trait::async_trait]
-pub trait Exporter<T>: Send + Sync + std::fmt::Debug
+pub trait Exporter<T>: Send + Sync
 where
     T: Serialize + Send,
 {

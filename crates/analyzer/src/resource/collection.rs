@@ -7,31 +7,23 @@ use std::collections::{HashSet, hash_map::Entry};
 
 use rustc_hash::FxHashMap as HashMap;
 
-use quent_events::{
-    Event,
-    resource::{
-        ResourceEvent, channel::ChannelEvent, memory::MemoryEvent, processor::ProcessorEvent,
-    },
-};
-
 use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult,
     resource::{
-        CapacityDecl, CapacityValue, Resource, ResourceCapacities, ResourceGroup,
-        ResourceGroupTypeDecl, ResourceTypeDecl,
-        runtime::{RtResource, RtResourceBuilder, RtResourceGroup, RtResourceTransition},
+        CapacityDecl, Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl,
+        runtime::{RtResource, RtResourceBuilder, RtResourceGroup},
         tree::ResourceTreeNode,
     },
 };
 
 /// Trait for types holding a collection of [`Resource`]s and/or [`ResourceGroup`]s.
 pub trait ResourceCollection {
-    /// Return an iterator over all [`Resources`] in this collection.
+    /// Return an iterator over all `Resource`s in this collection.
     fn resources(&self) -> impl Iterator<Item = &dyn Resource>;
 
-    /// Return an iterator over all [`ResourceGroups`] in this collection.
+    /// Return an iterator over all `ResourceGroup`s in this collection.
     fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup>;
 
     /// Return a reference to the [`Resource`] with the provided ID.
@@ -124,7 +116,7 @@ fn populate_group_types_from_tree(
     Ok(())
 }
 
-/// A builder for [`InMemoryResourceCollection`].
+/// A builder for `InMemoryResourceCollection`.
 #[derive(Default)]
 pub struct InMemoryResourcesBuilder {
     resource_types: HashMap<String, ResourceTypeDecl>,
@@ -140,147 +132,57 @@ pub struct InMemoryResources {
 }
 
 impl InMemoryResourcesBuilder {
-    fn try_builder(&mut self, id: Uuid) -> AnalyzerResult<&mut RtResourceBuilder> {
+    /// Get or create a resource builder for the given ID.
+    pub fn try_builder(&mut self, id: Uuid) -> AnalyzerResult<&mut RtResourceBuilder> {
         if let Entry::Vacant(e) = self.resources.entry(id) {
             e.insert(RtResourceBuilder::try_new(id)?);
         }
         Ok(self.resources.get_mut(&id).unwrap())
     }
 
-    fn insert_memory_resource(&mut self, type_name: &str) {
+    /// Register a memory resource type declaration (bytes occupancy capacity).
+    pub fn insert_memory_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
-            let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_occupancy("bytes")]);
+            let decl =
+                ResourceTypeDecl::new(type_name, [CapacityDecl::new_occupancy("capacity_bytes")]);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
     }
-    fn insert_processor_resource(&mut self, type_name: &str) {
+
+    /// Register a processor (unit) resource type declaration.
+    pub fn insert_processor_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
             let decl = ResourceTypeDecl::unit(type_name);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
     }
+
+    /// Register a channel resource type declaration (bytes rate capacity).
     // TODO(johanpel): see CapacityType and consider blocking/non-blocking channels
-    fn insert_channel_resource(&mut self, type_name: &str) {
+    pub fn insert_channel_resource(&mut self, type_name: &str) {
         if !self.resource_types.contains_key(type_name) {
-            let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_rate("bytes")]);
+            let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_rate("capacity_bytes")]);
             self.resource_types.insert(type_name.to_owned(), decl);
         }
     }
 
-    pub fn try_push(&mut self, event: Event<ResourceEvent>) -> AnalyzerResult<()> {
-        let Event {
-            id,
-            timestamp,
-            data,
-        } = event;
-
-        match data {
-            ResourceEvent::Memory(memory_event) => match memory_event {
-                MemoryEvent::Init(init) => {
-                    self.insert_memory_resource(&init.resource.type_name);
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Init(timestamp));
-                    bld.set_type_name(init.resource.type_name);
-                    bld.set_instance_name(Some(init.resource.instance_name));
-                    bld.set_parent_group_id(init.resource.parent_group_id);
-                }
-                MemoryEvent::Operating(operating) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Operating(
-                        timestamp,
-                        ResourceCapacities(vec![CapacityValue::new(
-                            "bytes",
-                            operating.capacity_bytes,
-                        )]),
-                    ));
-                }
-                MemoryEvent::Resizing(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Resizing(timestamp));
-                }
-                MemoryEvent::Finalizing(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Finalizing(timestamp));
-                }
-                MemoryEvent::Exit(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Exit(timestamp));
-                }
-            },
-            ResourceEvent::Processor(processor_resource_event) => match processor_resource_event {
-                ProcessorEvent::Init(init) => {
-                    self.insert_processor_resource(&init.resource.type_name);
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Init(timestamp));
-                    bld.set_type_name(init.resource.type_name);
-                    bld.set_instance_name(Some(init.resource.instance_name));
-                    bld.set_parent_group_id(init.resource.parent_group_id);
-                }
-                ProcessorEvent::Operating(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Operating(
-                        timestamp,
-                        ResourceCapacities(vec![]),
-                    ));
-                }
-                ProcessorEvent::Finalizing(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Finalizing(timestamp));
-                }
-                ProcessorEvent::Exit(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Exit(timestamp));
-                }
-            },
-            ResourceEvent::Channel(channel_resource_event) => match channel_resource_event {
-                ChannelEvent::Init(init) => {
-                    self.insert_channel_resource(&init.resource.type_name);
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Init(timestamp));
-                    bld.set_type_name(init.resource.type_name);
-                    bld.set_instance_name(Some(init.resource.instance_name));
-                    bld.set_parent_group_id(init.resource.parent_group_id);
-                }
-                ChannelEvent::Operating(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Operating(
-                        timestamp,
-                        ResourceCapacities(vec![]),
-                    ));
-                }
-                ChannelEvent::Finalizing(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Finalizing(timestamp));
-                }
-                ChannelEvent::Exit(_) => {
-                    let bld = self.try_builder(id)?;
-                    bld.push(RtResourceTransition::Exit(timestamp));
-                }
-            },
-            ResourceEvent::Group(group_event) => {
-                self.resource_groups.insert(
-                    id,
-                    RtResourceGroup::try_new(
-                        id,
-                        group_event.type_name,
-                        group_event.instance_name,
-                        group_event.parent_group_id,
-                    )?,
-                );
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn try_extend(
+    /// Insert a resource group directly from individual fields.
+    pub fn push_group_raw(
         &mut self,
-        iterator: impl Iterator<Item = Event<ResourceEvent>>,
-    ) -> AnalyzerResult<()> {
-        for event in iterator {
-            self.try_push(event)?;
-        }
-        Ok(())
+        id: Uuid,
+        type_name: &str,
+        instance_name: &str,
+        parent_group_id: Option<Uuid>,
+    ) {
+        let _ = self.resource_groups.insert(
+            id,
+            RtResourceGroup {
+                id,
+                type_name: type_name.to_owned(),
+                instance_name: instance_name.to_owned(),
+                parent_group_id,
+            },
+        );
     }
 
     pub fn try_build(self) -> AnalyzerResult<InMemoryResources> {

@@ -1,0 +1,5 @@
+error: duplicate component name `Thing` — two components resolve to the same event enum variant
+  --> tests/compile_fail/model_duplicate_components.rs:19:9
+   |
+19 |         Thing,
+   |         ^^^^^

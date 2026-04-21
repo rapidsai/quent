@@ -7,3 +7,5 @@ target/
 .claude
 .playwright-mcp/
 tarpaulin-report.html
+docs/agents/
+events/
