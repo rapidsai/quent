@@ -18,6 +18,7 @@ interface UseColumnDragDropOptions {
 export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumnDragDropOptions) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
+  const draggedIdRef = useRef<string | null>(null);
   const cleanupDragPreviewRef = useRef<(() => void) | null>(null);
 
   const clearDragPreview = useCallback(() => {
@@ -26,6 +27,7 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
   }, []);
 
   const resetDragState = useCallback(() => {
+    draggedIdRef.current = null;
     setDraggedId(null);
     setDropIndicator(null);
     clearDragPreview();
@@ -39,7 +41,7 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>, itemId: string) => {
       clearDragPreview();
-      setDraggedId(itemId);
+      draggedIdRef.current = itemId;
       setDropIndicator(null);
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', itemId);
@@ -53,14 +55,17 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
   const handleDragOver = useCallback(
     (e: React.DragEvent<HTMLElement>, targetId: string) => {
       e.preventDefault();
-      if (draggedId == null || draggedId === targetId) return;
+      const activeDraggedId = draggedIdRef.current;
+      if (activeDraggedId == null || activeDraggedId === targetId) return;
+      // Avoid re-rendering in dragstart, which can cancel native DnD in some browsers.
+      setDraggedId(prev => (prev === activeDraggedId ? prev : activeDraggedId));
       const position = getDropPosition(e);
       setDropIndicator(prev =>
         prev?.id === targetId && prev.position === position ? prev : { id: targetId, position }
       );
       e.dataTransfer.dropEffect = 'move';
     },
-    [draggedId, getDropPosition]
+    [getDropPosition]
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLElement>, targetId: string) => {
@@ -72,15 +77,16 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLElement>, targetId: string) => {
       e.preventDefault();
-      if (draggedId == null || draggedId === targetId) {
+      const activeDraggedId = draggedIdRef.current;
+      if (activeDraggedId == null || activeDraggedId === targetId) {
         resetDragState();
         return;
       }
       const position = dropIndicator?.id === targetId ? dropIndicator.position : getDropPosition(e);
-      onDropCommit(draggedId, targetId, position);
+      onDropCommit(activeDraggedId, targetId, position);
       resetDragState();
     },
-    [draggedId, dropIndicator, getDropPosition, onDropCommit, resetDragState]
+    [dropIndicator, getDropPosition, onDropCommit, resetDragState]
   );
 
   useEffect(() => {
@@ -91,7 +97,9 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
       resetDragState();
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [draggedId, resetDragState]);
 
   useEffect(() => clearDragPreview, [clearDragPreview]);
@@ -99,6 +107,7 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
   return {
     draggedId,
     isDragging: draggedId != null,
+    isDragSessionActive: () => draggedIdRef.current != null,
     getDropTargetPosition: (itemId: string): DropPosition | undefined =>
       dropIndicator?.id === itemId ? dropIndicator.position : undefined,
     handleDragStart,
