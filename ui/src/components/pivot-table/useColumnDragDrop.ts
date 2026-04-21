@@ -106,7 +106,6 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
 
   return {
     draggedId,
-    isDragging: draggedId != null,
     isDragSessionActive: () => draggedIdRef.current != null,
     getDropTargetPosition: (itemId: string): DropPosition | undefined =>
       dropIndicator?.id === itemId ? dropIndicator.position : undefined,
@@ -115,6 +114,5 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
     handleDragLeave,
     handleDrop,
     handleDragEnd: resetDragState,
-    cancelDrag: resetDragState,
   };
 }
