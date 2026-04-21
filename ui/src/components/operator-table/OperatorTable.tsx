@@ -365,12 +365,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               setSelectedPlanId(firstItemScopeId);
             }
             // Table-origin hover should not trigger table auto-scroll.
-            setHighlightState({
-              ...highlightState,
+            setHighlightState(prev => ({
+              ...prev,
               ids: new Set([firstItemId]),
               source: 'table',
               primaryOperatorId: firstItemId,
-            });
+            }));
           },
           onMouseLeave: () => {
             setHighlightState(prev =>
@@ -442,7 +442,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       selectedPlanId,
       setSelectedPlanId,
       setHighlightState,
-      highlightState,
       cancelPendingPlanRestore,
       schedulePlanRestore,
       itemsByParentType,
@@ -450,6 +449,14 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       itemsByItemType,
     ]
   );
+
+  const handleTableMouseLeave = useCallback(() => {
+    setHoveredStat(null);
+    setHighlightState(prev =>
+      prev.source === 'table' ? { ...prev, ids: null, source: null, primaryOperatorId: null } : prev
+    );
+    schedulePlanRestore();
+  }, [setHoveredStat, setHighlightState, schedulePlanRestore]);
 
   if (!selectedPlanId) {
     return (
@@ -498,6 +505,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           hoveredItemId={dagHoveredOperatorId}
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
+          onTableMouseLeave={handleTableMouseLeave}
           getGroupTypeColor={(key, id) =>
             key === 'item_type' || key === 'parent_item_type'
               ? getOperatorColor(id?.toLowerCase() ?? '')

@@ -303,6 +303,7 @@ interface PivotedStatTableProps<TRow> {
   hoveredItemId?: string | null;
   hoveredStat?: HoveredStatInfo | null;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
+  onTableMouseLeave?: () => void;
   // rendering
   virtualization?: GroupedDataTableVirtualizationOptions;
   groupRenderMode?: GroupedDataTableGroupRenderMode;
@@ -328,6 +329,7 @@ export function PivotedStatTable<TRow>({
   hoveredItemId,
   hoveredStat,
   onHoverStat,
+  onTableMouseLeave,
   virtualization,
   groupRenderMode,
   stickyGroupColumns = true,
@@ -498,6 +500,12 @@ export function PivotedStatTable<TRow>({
     createDragPreview: createHeaderDragPreview,
   });
 
+  const handleTableMouseLeave = useCallback(() => {
+    setHoveredHeaderItemIds(null);
+    emitHoverStat(null);
+    onTableMouseLeave?.();
+  }, [emitHoverStat, onTableMouseLeave]);
+
   useEffect(() => {
     if (!hoveredItemId) return;
     const row = pivotedRows.find(r => r.itemIds.has(hoveredItemId));
@@ -611,40 +619,46 @@ export function PivotedStatTable<TRow>({
   const isSelected = (row: PivotedRow) => [...row.itemIds].some(id => selectedItemIds?.has(id));
 
   return (
-    <GroupedDataTable
-      data={pivotedRows}
-      columns={columns}
-      getRowId={row => row.rowKey}
-      groupColumnIds={activeIndices}
-      renderGroupHeader={columnId => (
-        <span className={cn('relative z-10')}>{resolvedIndexLabels[columnId]}</span>
-      )}
-      DataHeader={DataHeaderRenderer}
-      GroupCell={GroupCellRenderer}
-      DataCell={DataCellRenderer}
-      virtualization={virtualization}
-      groupRenderMode={effectiveGroupRenderMode}
-      stickyGroupColumns={stickyGroupColumns}
-      getRowRef={rowKey => el => {
-        if (el) rowRefs.current.set(rowKey, el);
-        else rowRefs.current.delete(rowKey);
-      }}
-      getRowClassName={row =>
-        cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
-          'bg-muted/70': isSelected(row),
-        })
-      }
-      getRowStyle={row => {
-        const isHoveredFromDag =
-          hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
-        const isDimmed = hasSelection && !isSelected(row) && !isHoveredFromDag;
-        return isDimmed
-          ? {
-              // Use an opaque wash instead of row opacity so sticky/group cells do not visually bleed.
-              backgroundColor: 'color-mix(in srgb, hsl(var(--muted)) 55%, hsl(var(--card)))',
-            }
-          : {};
-      }}
-    />
+    <div
+      className="h-full"
+      onMouseLeave={handleTableMouseLeave}
+      onPointerLeave={handleTableMouseLeave}
+    >
+      <GroupedDataTable
+        data={pivotedRows}
+        columns={columns}
+        getRowId={row => row.rowKey}
+        groupColumnIds={activeIndices}
+        renderGroupHeader={columnId => (
+          <span className={cn('relative z-10')}>{resolvedIndexLabels[columnId]}</span>
+        )}
+        DataHeader={DataHeaderRenderer}
+        GroupCell={GroupCellRenderer}
+        DataCell={DataCellRenderer}
+        virtualization={virtualization}
+        groupRenderMode={effectiveGroupRenderMode}
+        stickyGroupColumns={stickyGroupColumns}
+        getRowRef={rowKey => el => {
+          if (el) rowRefs.current.set(rowKey, el);
+          else rowRefs.current.delete(rowKey);
+        }}
+        getRowClassName={row =>
+          cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
+            'bg-muted/70': isSelected(row),
+          })
+        }
+        getRowStyle={row => {
+          const isHoveredFromDag =
+            hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
+          const isDimmed = hasSelection && !isSelected(row) && !isHoveredFromDag;
+          return isDimmed
+            ? {
+                // Use an opaque wash instead of row opacity so sticky/group cells do not visually bleed.
+                backgroundColor: 'color-mix(in srgb, hsl(var(--muted)) 55%, hsl(var(--card)))',
+              }
+            : {};
+        }}
+      />
+    </div>
   );
 }
