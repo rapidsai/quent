@@ -48,7 +48,6 @@ function DataHeader({
   onStatDragLeave,
   onStatDrop,
   onStatDragEnd,
-  isDragSessionActive,
   onHoverStat,
   buildHoveredStatInfo,
   hoveredStatName,
@@ -66,7 +65,6 @@ function DataHeader({
   onStatDragLeave: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
   onStatDrop: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
   onStatDragEnd: () => void;
-  isDragSessionActive?: () => boolean;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
   buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
   hoveredStatName: string | undefined;
@@ -97,7 +95,7 @@ function DataHeader({
       onDrop={e => onStatDrop(e, stat)}
       onDragEnd={onStatDragEnd}
       onClick={() => {
-        if (draggedStat !== null || isDragSessionActive?.()) return;
+        if (draggedStat !== null) return;
         onSort();
       }}
       onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
@@ -520,7 +518,6 @@ export function PivotedStatTable<TRow>({
         onStatDragLeave={statDragDrop.handleDragLeave}
         onStatDrop={statDragDrop.handleDrop}
         onStatDragEnd={statDragDrop.handleDragEnd}
-        isDragSessionActive={statDragDrop.isDragSessionActive}
         onHoverStat={emitHoverStat}
         buildHoveredStatInfo={buildHoveredStatInfo}
         hoveredStatName={effectiveHoveredStat?.name}
@@ -535,7 +532,6 @@ export function PivotedStatTable<TRow>({
       statDragDrop.handleDragLeave,
       statDragDrop.handleDrop,
       statDragDrop.handleDragEnd,
-      statDragDrop.isDragSessionActive,
       emitHoverStat,
       buildHoveredStatInfo,
       effectiveHoveredStat?.name,
