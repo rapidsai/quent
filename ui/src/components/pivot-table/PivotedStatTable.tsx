@@ -100,6 +100,7 @@ function GroupCell({
   hoveredHeaderItemIds,
   setHoveredHeaderItemIds,
   hoveredItemId,
+  selectedItemIds,
 }: {
   row: PivotedRow;
   groupKey: GroupedDataTableGroupKeyEntry;
@@ -112,6 +113,7 @@ function GroupCell({
   hoveredHeaderItemIds?: Set<string> | null;
   setHoveredHeaderItemIds?: (itemIds: Set<string> | null) => void;
   hoveredItemId?: string | null;
+  selectedItemIds?: Set<string>;
   getGroupCellHandlers?: (
     groupKey: GroupedDataTableGroupKeyEntry,
     row: PivotedRow
@@ -124,13 +126,25 @@ function GroupCell({
   const isRowHighlightedFromDag =
     hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
   const isRowHeaderHighlighted = isRowHeaderHighlightedFromTable || isRowHighlightedFromDag;
+  const hasDagSelection = (selectedItemIds?.size ?? 0) > 0;
+  const isRowSelectedFromDag =
+    hasDagSelection && [...row.itemIds].some(id => selectedItemIds?.has(id) === true);
+  const backgroundColor = typeColor
+    ? `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`
+    : undefined;
+  const accentColor = typeColor ? (isRowSelectedFromDag ? typeColor : backgroundColor) : undefined;
+  const leftAccentShadow = accentColor ? `inset 8px 0 0 0 ${accentColor}` : undefined;
+  const existingBoxShadow = style?.boxShadow;
+  const combinedBoxShadow =
+    leftAccentShadow && existingBoxShadow
+      ? `${leftAccentShadow}, ${existingBoxShadow}`
+      : (leftAccentShadow ?? existingBoxShadow);
   const baseStyle = typeColor
     ? {
         ...style,
-        borderLeftWidth: 8,
-        borderLeftColor: typeColor,
         // Opaque tint so scrolled rows never bleed through sticky group cells.
-        backgroundColor: `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`,
+        backgroundColor,
+        boxShadow: combinedBoxShadow,
       }
     : style;
   const mergedStyle = {
@@ -433,6 +447,7 @@ export function PivotedStatTable<TRow>({
       darkMode: isDarkMode,
       hoveredHeaderItemIds,
       hoveredItemId,
+      selectedItemIds,
       setHoveredHeaderItemIds,
       rowHeaderHoverActive,
     }),
@@ -451,6 +466,7 @@ export function PivotedStatTable<TRow>({
       isDarkMode,
       hoveredHeaderItemIds,
       hoveredItemId,
+      selectedItemIds,
       rowHeaderHoverActive,
     ]
   );

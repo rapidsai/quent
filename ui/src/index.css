@@ -126,7 +126,7 @@
     background-color: hsl(var(--primary));
     opacity: 0;
     pointer-events: none;
-    z-index: 0;
+    z-index: 1;
     transition: opacity 120ms ease-out;
   }
 
