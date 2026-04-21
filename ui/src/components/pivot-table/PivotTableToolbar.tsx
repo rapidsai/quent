@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { AggMode } from './types';
+import { useColumnDragDrop } from './useColumnDragDrop';
 
 export interface IndexConfigEntry {
   key: string;
@@ -47,17 +48,7 @@ export function PivotTableToolbar({
   onSelectAllStats,
   onSelectNoStats,
 }: PivotTableToolbarProps) {
-  const [draggedIndex, setDraggedIndex] = useState<string | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<{
-    key: string;
-    position: 'before' | 'after';
-  } | null>(null);
   const [colSearch, setColSearch] = useState('');
-
-  const resetDragState = useCallback(() => {
-    setDraggedIndex(null);
-    setDropIndicator(null);
-  }, []);
 
   const commitDrop = useCallback(
     (fromKey: string, toKey: string, position: 'before' | 'after') => {
@@ -79,65 +70,7 @@ export function PivotTableToolbar({
     [indexConfig, onReorderIndex]
   );
 
-  const getDropPosition = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return e.clientX - rect.left < rect.width / 2 ? 'before' : 'after';
-  }, []);
-
-  const handleDragStart = useCallback((e: React.DragEvent<HTMLButtonElement>, key: string) => {
-    setDraggedIndex(key);
-    setDropIndicator(null);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', key);
-  }, []);
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent<HTMLButtonElement>, targetKey: string) => {
-      e.preventDefault();
-      if (draggedIndex == null || draggedIndex === targetKey) return;
-      const position = getDropPosition(e);
-      setDropIndicator(prev =>
-        prev?.key === targetKey && prev.position === position ? prev : { key: targetKey, position }
-      );
-      e.dataTransfer.dropEffect = 'move';
-    },
-    [draggedIndex, getDropPosition]
-  );
-
-  const handleDragLeave = useCallback(
-    (e: React.DragEvent<HTMLButtonElement>, targetKey: string) => {
-      const related = e.relatedTarget as Node | null;
-      if (related && e.currentTarget.contains(related)) return;
-      setDropIndicator(prev => (prev?.key === targetKey ? null : prev));
-    },
-    []
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLButtonElement>, targetKey: string) => {
-      e.preventDefault();
-      if (draggedIndex == null || draggedIndex === targetKey) {
-        resetDragState();
-        return;
-      }
-      const position =
-        dropIndicator?.key === targetKey ? dropIndicator.position : getDropPosition(e);
-      commitDrop(draggedIndex, targetKey, position);
-      resetDragState();
-    },
-    [commitDrop, draggedIndex, dropIndicator, getDropPosition, resetDragState]
-  );
-
-  useEffect(() => {
-    if (draggedIndex == null) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      resetDragState();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [draggedIndex, resetDragState]);
+  const dragDrop = useColumnDragDrop({ onDropCommit: commitDrop });
 
   const selectedStatsList = orderedStats.filter(s => (selectedStats ? selectedStats.has(s) : true));
   const maxVisibleBadges = 6;
@@ -151,37 +84,40 @@ export function PivotTableToolbar({
     <>
       <div className="flex items-center gap-2 px-3 py-1.5">
         <span className="text-xs text-muted-foreground shrink-0">Group by:</span>
-        {indexConfig.map(({ key, label, enabled }) => (
-          <button
-            key={key}
-            draggable
-            onDragStart={e => handleDragStart(e, key)}
-            onDragOver={e => handleDragOver(e, key)}
-            onDragLeave={e => handleDragLeave(e, key)}
-            onDrop={e => handleDrop(e, key)}
-            onDragEnd={resetDragState}
-            onClick={() => onToggleIndex(key)}
-            className={cn(
-              'text-xs px-2 py-0.5 rounded border transition-colors cursor-grab active:cursor-grabbing select-none whitespace-nowrap',
-              enabled
-                ? 'bg-primary/10 border-primary/40 text-primary'
-                : 'bg-muted/50 border-border text-muted-foreground',
-              draggedIndex === key && 'opacity-45'
-            )}
-            style={
-              dropIndicator?.key === key
-                ? {
-                    boxShadow:
-                      dropIndicator.position === 'before'
-                        ? 'inset 3px 0 0 hsl(var(--primary))'
-                        : 'inset -3px 0 0 hsl(var(--primary))',
-                  }
-                : undefined
-            }
-          >
-            {label}
-          </button>
-        ))}
+        {indexConfig.map(({ key, label, enabled }) => {
+          const dropPosition = dragDrop.getDropTargetPosition(key);
+          const dropIndicatorStyle = dropPosition
+            ? {
+                boxShadow:
+                  dropPosition === 'before'
+                    ? 'inset 3px 0 0 hsl(var(--primary))'
+                    : 'inset -3px 0 0 hsl(var(--primary))',
+              }
+            : undefined;
+          return (
+            <button
+              key={key}
+              draggable
+              onDragStart={e => dragDrop.handleDragStart(e, key)}
+              onDragOver={e => dragDrop.handleDragOver(e, key)}
+              onDragLeave={e => dragDrop.handleDragLeave(e, key)}
+              onDrop={e => dragDrop.handleDrop(e, key)}
+              onDragEnd={dragDrop.handleDragEnd}
+              onClick={() => onToggleIndex(key)}
+              className={cn(
+                'text-xs px-2 py-0.5 rounded border transition-colors cursor-grab active:cursor-grabbing select-none whitespace-nowrap',
+                {
+                  'bg-primary/10 border-primary/40 text-primary': enabled,
+                  'bg-muted/50 border-border text-muted-foreground': !enabled,
+                  'opacity-45': dragDrop.draggedId === key,
+                }
+              )}
+              style={dropIndicatorStyle}
+            >
+              {label}
+            </button>
+          );
+        })}
         {isAggregating && (
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-muted-foreground shrink-0">Aggregate:</span>

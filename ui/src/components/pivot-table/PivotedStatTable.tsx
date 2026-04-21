@@ -7,7 +7,13 @@ import { useAtomValue } from 'jotai';
 import { GroupedDataTable } from './GroupedDataTable';
 import { cn } from '@/lib/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
-import type { GroupedDataTableGroupKeyEntry, GroupedDataTableSortInfo } from './types';
+import type {
+  GroupedDataTableGroupKeyEntry,
+  GroupedDataTableSortInfo,
+  DataHeaderProps,
+  GroupCellProps,
+  DataCellProps,
+} from './types';
 import {
   buildPivotedRows,
   expandRowsFromSchema,
@@ -24,6 +30,7 @@ import type {
 import { nodeColorPaletteAtom } from '@/atoms/dag';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { ContinuousPaletteName } from '@/services/colors';
+import { useColumnDragDrop } from './useColumnDragDrop';
 
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
 
@@ -332,11 +339,6 @@ export function PivotedStatTable<TRow>({
   const { theme } = useTheme();
   const isDarkMode = theme === THEME_DARK;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
-  const [draggedStat, setDraggedStat] = useState<string | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<{
-    stat: string;
-    position: 'before' | 'after';
-  } | null>(null);
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
   const [tableStatOrder, setTableStatOrder] = useState<string[]>([]);
@@ -441,11 +443,36 @@ export function PivotedStatTable<TRow>({
     dragGhostRef.current = null;
   }, []);
 
-  const resetDragState = useCallback(() => {
-    setDraggedStat(null);
-    setDropIndicator(null);
-    removeDragGhost();
-  }, [removeDragGhost]);
+  const createHeaderDragPreview = useCallback(
+    (e: React.DragEvent<HTMLElement>) => {
+      removeDragGhost();
+      const header = e.currentTarget as HTMLTableCellElement;
+      const rect = header.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+
+      const dragGhost = header.cloneNode(true) as HTMLElement;
+      dragGhost.style.position = 'fixed';
+      dragGhost.style.top = '-1000px';
+      dragGhost.style.left = '-1000px';
+      dragGhost.style.width = `${rect.width}px`;
+      dragGhost.style.pointerEvents = 'none';
+      dragGhost.style.opacity = '0.95';
+      dragGhost.style.border = '1px solid hsl(var(--primary) / 0.55)';
+      dragGhost.style.borderRadius = '6px';
+      dragGhost.style.backgroundColor = 'hsl(var(--card))';
+      dragGhost.style.boxShadow = '0 8px 18px hsl(var(--foreground) / 0.22)';
+      document.body.appendChild(dragGhost);
+      dragGhostRef.current = dragGhost;
+      e.dataTransfer.setDragImage(dragGhost, offsetX, offsetY);
+
+      return () => {
+        if (dragGhostRef.current === dragGhost) dragGhostRef.current = null;
+        dragGhost.remove();
+      };
+    },
+    [removeDragGhost]
+  );
 
   const commitStatDrop = useCallback(
     (from: string, to: string, position: 'before' | 'after') => {
@@ -466,91 +493,10 @@ export function PivotedStatTable<TRow>({
     [onReorderStat, resolvedVisibleStats]
   );
 
-  const getDropPosition = useCallback((e: React.DragEvent<HTMLTableCellElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return e.clientX - rect.left < rect.width / 2 ? 'before' : 'after';
-  }, []);
-
-  const handleStatDragStart = useCallback(
-    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
-      removeDragGhost();
-      setDraggedStat(statName);
-      setDropIndicator(null);
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', statName);
-
-      const header = e.currentTarget;
-      const rect = header.getBoundingClientRect();
-      const offsetX = e.clientX - rect.left;
-      const offsetY = e.clientY - rect.top;
-
-      const dragGhost = header.cloneNode(true) as HTMLElement;
-      dragGhost.style.position = 'fixed';
-      dragGhost.style.top = '-1000px';
-      dragGhost.style.left = '-1000px';
-      dragGhost.style.width = `${rect.width}px`;
-      dragGhost.style.pointerEvents = 'none';
-      dragGhost.style.opacity = '0.95';
-      dragGhost.style.border = '1px solid hsl(var(--primary) / 0.55)';
-      dragGhost.style.borderRadius = '6px';
-      dragGhost.style.backgroundColor = 'hsl(var(--card))';
-      dragGhost.style.boxShadow = '0 8px 18px hsl(var(--foreground) / 0.22)';
-      document.body.appendChild(dragGhost);
-      dragGhostRef.current = dragGhost;
-      e.dataTransfer.setDragImage(dragGhost, offsetX, offsetY);
-    },
-    [removeDragGhost]
-  );
-
-  const handleStatDragOver = useCallback(
-    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
-      e.preventDefault();
-      if (draggedStat == null || draggedStat === statName) return;
-      const position = getDropPosition(e);
-      setDropIndicator(prev =>
-        prev?.stat === statName && prev.position === position ? prev : { stat: statName, position }
-      );
-      e.dataTransfer.dropEffect = 'move';
-    },
-    [draggedStat, getDropPosition]
-  );
-
-  const handleStatDragLeave = useCallback(
-    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
-      const related = e.relatedTarget as Node | null;
-      if (related && e.currentTarget.contains(related)) return;
-      setDropIndicator(prev => (prev?.stat === statName ? null : prev));
-    },
-    []
-  );
-
-  const handleStatDrop = useCallback(
-    (e: React.DragEvent<HTMLTableCellElement>, statName: string) => {
-      e.preventDefault();
-      if (draggedStat == null || draggedStat === statName) {
-        resetDragState();
-        return;
-      }
-      const position =
-        dropIndicator?.stat === statName ? dropIndicator.position : getDropPosition(e);
-      commitStatDrop(draggedStat, statName, position);
-      resetDragState();
-    },
-    [commitStatDrop, draggedStat, dropIndicator, getDropPosition, resetDragState]
-  );
-
-  useEffect(() => {
-    if (draggedStat == null) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      resetDragState();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [draggedStat, resetDragState]);
-
-  useEffect(() => removeDragGhost, [removeDragGhost]);
+  const statDragDrop = useColumnDragDrop({
+    onDropCommit: commitStatDrop,
+    createDragPreview: createHeaderDragPreview,
+  });
 
   useEffect(() => {
     if (!hoveredItemId) return;
@@ -560,45 +506,78 @@ export function PivotedStatTable<TRow>({
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [hoveredItemId, pivotedRows]);
 
-  const sharedProps = useMemo(
-    () => ({
-      draggedStat,
-      getDropTargetPosition: (stat: string) =>
-        dropIndicator?.stat === stat ? dropIndicator.position : undefined,
-      onStatDragStart: handleStatDragStart,
-      onStatDragOver: handleStatDragOver,
-      onStatDragLeave: handleStatDragLeave,
-      onStatDrop: handleStatDrop,
-      onStatDragEnd: resetDragState,
-      onHoverStat: emitHoverStat,
-      buildHoveredStatInfo,
-      hoveredStatName: effectiveHoveredStat?.name,
-      getGroupTypeColor,
-      getGroupCellHandlers,
-      isAggregating,
-      aggMode,
-      columnRanges,
-      colorPalette: nodePalette,
-      darkMode: isDarkMode,
-      hoveredHeaderItemIds,
-      hoveredItemId,
-      selectedItemIds,
-      setHoveredHeaderItemIds,
-      rowHeaderHoverActive,
-    }),
+  const DataHeaderRenderer = useCallback(
+    (props: DataHeaderProps) => (
+      <DataHeader
+        {...props}
+        rowHeaderHoverActive={rowHeaderHoverActive}
+        draggedStat={statDragDrop.draggedId}
+        getDropTargetPosition={statDragDrop.getDropTargetPosition}
+        onStatDragStart={statDragDrop.handleDragStart}
+        onStatDragOver={statDragDrop.handleDragOver}
+        onStatDragLeave={statDragDrop.handleDragLeave}
+        onStatDrop={statDragDrop.handleDrop}
+        onStatDragEnd={statDragDrop.handleDragEnd}
+        onHoverStat={emitHoverStat}
+        buildHoveredStatInfo={buildHoveredStatInfo}
+        hoveredStatName={effectiveHoveredStat?.name}
+      />
+    ),
     [
-      draggedStat,
-      dropIndicator,
-      handleStatDragStart,
-      handleStatDragOver,
-      handleStatDragLeave,
-      handleStatDrop,
-      resetDragState,
+      rowHeaderHoverActive,
+      statDragDrop.draggedId,
+      statDragDrop.getDropTargetPosition,
+      statDragDrop.handleDragStart,
+      statDragDrop.handleDragOver,
+      statDragDrop.handleDragLeave,
+      statDragDrop.handleDrop,
+      statDragDrop.handleDragEnd,
       emitHoverStat,
       buildHoveredStatInfo,
       effectiveHoveredStat?.name,
+    ]
+  );
+
+  const GroupCellRenderer = useCallback(
+    (props: GroupCellProps<PivotedRow>) => (
+      <GroupCell
+        {...props}
+        getGroupTypeColor={getGroupTypeColor}
+        getGroupCellHandlers={getGroupCellHandlers}
+        onHoverStat={emitHoverStat}
+        hoveredHeaderItemIds={hoveredHeaderItemIds}
+        setHoveredHeaderItemIds={setHoveredHeaderItemIds}
+        hoveredItemId={hoveredItemId}
+        selectedItemIds={selectedItemIds}
+      />
+    ),
+    [
       getGroupTypeColor,
       getGroupCellHandlers,
+      emitHoverStat,
+      hoveredHeaderItemIds,
+      hoveredItemId,
+      selectedItemIds,
+    ]
+  );
+
+  const DataCellRenderer = useCallback(
+    (props: DataCellProps<PivotedRow>) => (
+      <DataCell
+        {...props}
+        isAggregating={isAggregating}
+        aggMode={aggMode}
+        columnRanges={columnRanges}
+        colorPalette={nodePalette}
+        darkMode={isDarkMode}
+        hoveredHeaderItemIds={hoveredHeaderItemIds}
+        hoveredItemId={hoveredItemId}
+        hoveredStatName={effectiveHoveredStat?.name}
+        onHoverStat={emitHoverStat}
+        buildHoveredStatInfo={buildHoveredStatInfo}
+      />
+    ),
+    [
       isAggregating,
       aggMode,
       columnRanges,
@@ -606,8 +585,9 @@ export function PivotedStatTable<TRow>({
       isDarkMode,
       hoveredHeaderItemIds,
       hoveredItemId,
-      selectedItemIds,
-      rowHeaderHoverActive,
+      effectiveHoveredStat?.name,
+      emitHoverStat,
+      buildHoveredStatInfo,
     ]
   );
 
@@ -639,10 +619,9 @@ export function PivotedStatTable<TRow>({
       renderGroupHeader={columnId => (
         <span className={cn('relative z-10')}>{resolvedIndexLabels[columnId]}</span>
       )}
-      sharedProps={sharedProps}
-      DataHeader={DataHeader}
-      GroupCell={GroupCell}
-      DataCell={DataCell}
+      DataHeader={DataHeaderRenderer}
+      GroupCell={GroupCellRenderer}
+      DataCell={DataCellRenderer}
       virtualization={virtualization}
       groupRenderMode={effectiveGroupRenderMode}
       stickyGroupColumns={stickyGroupColumns}

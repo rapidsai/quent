@@ -29,10 +29,7 @@ export interface GroupedDataTableVirtualizationOptions {
 
 export type GroupedDataTableGroupRenderMode = 'rowSpan' | 'compact';
 
-export interface GroupedDataTableProps<
-  TRow extends GroupedDataTableRowBase,
-  TShared extends object = Record<never, never>,
-> {
+export interface GroupedDataTableProps<TRow extends GroupedDataTableRowBase> {
   data: TRow[];
   columns: ColumnDef<TRow>[];
   getRowId: (row: TRow) => string;
@@ -40,11 +37,9 @@ export interface GroupedDataTableProps<
   groupColumnIds: string[];
   renderToolbar?: React.ReactNode;
   renderGroupHeader?: (columnId: string) => React.ReactNode;
-  /** Extra props forwarded verbatim to every DataHeader, GroupCell and DataCell instance. */
-  sharedProps?: TShared;
-  DataHeader?: React.ComponentType<DataHeaderProps & TShared>;
-  GroupCell?: React.ComponentType<GroupCellProps<TRow> & TShared>;
-  DataCell?: React.ComponentType<DataCellProps<TRow> & TShared>;
+  DataHeader?: React.ComponentType<DataHeaderProps>;
+  GroupCell?: React.ComponentType<GroupCellProps<TRow>>;
+  DataCell?: React.ComponentType<DataCellProps<TRow>>;
   getRowRef?: (rowKey: string) => (el: HTMLTableRowElement | null) => void;
   getRowClassName?: (row: TRow) => string;
   getRowStyle?: (row: TRow) => React.CSSProperties;
@@ -53,17 +48,13 @@ export interface GroupedDataTableProps<
   stickyGroupColumns?: boolean;
 }
 
-export function GroupedDataTable<
-  TRow extends GroupedDataTableRowBase,
-  TShared extends object = Record<never, never>,
->({
+export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
   data,
   columns,
   getRowId,
   groupColumnIds,
   renderToolbar,
   renderGroupHeader,
-  sharedProps,
   DataHeader,
   GroupCell,
   DataCell,
@@ -73,7 +64,7 @@ export function GroupedDataTable<
   groupRenderMode = 'rowSpan',
   virtualization,
   stickyGroupColumns = false,
-}: GroupedDataTableProps<TRow, TShared>) {
+}: GroupedDataTableProps<TRow>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [groupColumnWidths, setGroupColumnWidths] = useState<number[]>([]);
@@ -174,7 +165,6 @@ export function GroupedDataTable<
     : sortedRows.map((row, rowIndex) => ({ row, rowIndex }));
 
   const totalColumnCount = groupColumnIds.length + dataColumnIds.length;
-  const shared = (sharedProps ?? {}) as TShared;
   const normalHeaderStyle: React.CSSProperties = {
     position: 'sticky',
     top: 0,
@@ -227,7 +217,6 @@ export function GroupedDataTable<
                         onSort={onSort}
                         className="bg-card"
                         style={normalHeaderStyle}
-                        {...shared}
                       />
                     ) : (
                       <th
@@ -275,7 +264,6 @@ export function GroupedDataTable<
                               rowSpan={spans[col]!}
                               columnIndex={col}
                               style={getStickyStyle(col, false)}
-                              {...shared}
                             />
                           )}
                         </React.Fragment>
@@ -301,7 +289,6 @@ export function GroupedDataTable<
                             rowSpan={1}
                             columnIndex={col}
                             style={getStickyStyle(col, false)}
-                            {...shared}
                           />
                         )}
                       </React.Fragment>
@@ -309,7 +296,7 @@ export function GroupedDataTable<
                   })}
                   {dataColumnIds.map(columnId => (
                     <React.Fragment key={columnId}>
-                      {DataCell && <DataCell row={row as TRow} stat={columnId} {...shared} />}
+                      {DataCell && <DataCell row={row as TRow} stat={columnId} />}
                     </React.Fragment>
                   ))}
                 </tr>
