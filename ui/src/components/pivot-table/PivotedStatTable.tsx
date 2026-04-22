@@ -40,7 +40,6 @@ function DataHeader({
   onSort,
   className,
   style,
-  rowHeaderHoverActive,
   draggedStat,
   getDropTargetPosition,
   onStatDragStart,
@@ -57,7 +56,6 @@ function DataHeader({
   onSort: () => void;
   className?: string;
   style?: React.CSSProperties;
-  rowHeaderHoverActive?: boolean;
   draggedStat: string | null;
   getDropTargetPosition?: (statName: string) => 'before' | 'after' | undefined;
   onStatDragStart: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
@@ -381,7 +379,6 @@ export function PivotedStatTable<TRow>({
   );
   const effectiveGroupRenderMode =
     groupRenderMode ?? (virtualization?.enabled ? 'compact' : 'rowSpan');
-  const rowHeaderHoverActive = hoveredHeaderItemIds !== null;
 
   const statsByItem = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
@@ -523,7 +520,6 @@ export function PivotedStatTable<TRow>({
     (props: DataHeaderProps) => (
       <DataHeader
         {...props}
-        rowHeaderHoverActive={rowHeaderHoverActive}
         draggedStat={statDragDrop.draggedId}
         getDropTargetPosition={statDragDrop.getDropTargetPosition}
         onStatDragStart={statDragDrop.handleDragStart}
@@ -537,7 +533,6 @@ export function PivotedStatTable<TRow>({
       />
     ),
     [
-      rowHeaderHoverActive,
       statDragDrop.draggedId,
       statDragDrop.getDropTargetPosition,
       statDragDrop.handleDragStart,
