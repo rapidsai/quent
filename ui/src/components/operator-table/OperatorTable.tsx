@@ -280,6 +280,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     handleToggleStat,
     handleSelectAllStats,
     handleSelectNoStats,
+    sorting,
+    setSorting,
   } = useStatGroupTableControls<IndexKey>({
     baseIndexOrder: INDEX_ORDER,
     defaultEnabled: DEFAULT_ENABLED,
@@ -291,6 +293,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       return [...duration, ...inputs, ...outputs];
     },
     filterIndexOrder,
+    persistKey: 'operatorTable',
   });
 
   const parentScopeLabelValue = useMemo(() => {
@@ -512,6 +515,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               : undefined
           }
           getGroupCellHandlers={getGroupCellHandlers}
+          sorting={sorting}
+          onSortingChange={setSorting}
         />
       </div>
     </div>

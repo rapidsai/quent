@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { useAtomValue } from 'jotai';
 import { GroupedDataTable } from './GroupedDataTable';
 import { cn } from '@/lib/utils';
@@ -315,6 +315,9 @@ interface PivotedStatTableProps<TRow> {
     row: PivotedRow
   ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
   onReorderStat?: (from: string, to: string) => void;
+  /** Optional controlled sort state, forwarded to the underlying GroupedDataTable. */
+  sorting?: SortingState;
+  onSortingChange?: OnChangeFn<SortingState>;
 }
 
 export function PivotedStatTable<TRow>({
@@ -336,6 +339,8 @@ export function PivotedStatTable<TRow>({
   getGroupTypeColor,
   getGroupCellHandlers,
   onReorderStat,
+  sorting,
+  onSortingChange,
 }: PivotedStatTableProps<TRow>) {
   const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const { theme } = useTheme();
@@ -638,6 +643,8 @@ export function PivotedStatTable<TRow>({
         virtualization={virtualization}
         groupRenderMode={effectiveGroupRenderMode}
         stickyGroupColumns={stickyGroupColumns}
+        sorting={sorting}
+        onSortingChange={onSortingChange}
         getRowRef={rowKey => el => {
           if (el) rowRefs.current.set(rowKey, el);
           else rowRefs.current.delete(rowKey);

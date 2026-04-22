@@ -1,8 +1,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { useAtom } from 'jotai';
+import type { OnChangeFn, SortingState } from '@tanstack/react-table';
+import {
+  indexOrderAtomFamily,
+  enabledIndicesAtomFamily,
+  selectedStatsAtomFamily,
+  statOrderAtomFamily,
+  aggModeAtomFamily,
+  appliedDefaultKeyAtomFamily,
+  sortingAtomFamily,
+} from '@/atoms/statGroupTable';
 import type { AggMode } from './types';
+
+const EMPTY_SORTING: SortingState = [];
 
 interface UseStatGroupTableControlsOptions<TIndexKey extends string> {
   baseIndexOrder: TIndexKey[];
@@ -11,6 +24,13 @@ interface UseStatGroupTableControlsOptions<TIndexKey extends string> {
   defaultAggMode?: AggMode;
   defaultStatSelector?: (allStats: string[]) => string[] | null;
   filterIndexOrder?: (indexOrder: TIndexKey[]) => TIndexKey[];
+  /**
+   * Stable string identifier for this table. When provided, controls state
+   * persists in Jotai atoms scoped to the surrounding provider so it
+   * survives unmount (e.g. tab switches). When omitted, a per-instance
+   * fallback key is generated and the state is effectively ephemeral.
+   */
+  persistKey?: string;
 }
 
 export function useStatGroupTableControls<TIndexKey extends string>({
@@ -20,14 +40,37 @@ export function useStatGroupTableControls<TIndexKey extends string>({
   defaultAggMode = 'sum',
   defaultStatSelector,
   filterIndexOrder,
+  persistKey,
 }: UseStatGroupTableControlsOptions<TIndexKey>) {
-  const [indexOrder, setIndexOrder] = useState<TIndexKey[]>(baseIndexOrder);
-  const [enabledIndices, setEnabledIndices] = useState<Record<TIndexKey, boolean>>(defaultEnabled);
-  const [selectedStats, setSelectedStats] = useState<Set<string> | null>(null);
-  const [statOrder, setStatOrder] = useState<string[] | null>(null);
-  const [aggMode, setAggMode] = useState<AggMode>(defaultAggMode);
+  const fallbackKey = useId();
+  const key = persistKey ?? fallbackKey;
+
+  const [indexOrderRaw, setIndexOrderRaw] = useAtom(indexOrderAtomFamily(key));
+  const [enabledIndicesRaw, setEnabledIndicesRaw] = useAtom(enabledIndicesAtomFamily(key));
+  const [selectedStats, setSelectedStats] = useAtom(selectedStatsAtomFamily(key));
+  const [statOrder, setStatOrder] = useAtom(statOrderAtomFamily(key));
+  const [aggModeRaw, setAggMode] = useAtom(aggModeAtomFamily(key));
+  const [appliedDefaultKey, setAppliedDefaultKey] = useAtom(appliedDefaultKeyAtomFamily(key));
+  const [sortingRaw, setSortingRaw] = useAtom(sortingAtomFamily(key));
+
+  const indexOrder = (indexOrderRaw as TIndexKey[] | null) ?? baseIndexOrder;
+  const enabledIndices = (enabledIndicesRaw as Record<TIndexKey, boolean> | null) ?? defaultEnabled;
+  const aggMode = aggModeRaw ?? defaultAggMode;
+  const sorting = sortingRaw ?? EMPTY_SORTING;
+
+  const setSorting = useCallback<OnChangeFn<SortingState>>(
+    updater => {
+      setSortingRaw(prev => {
+        const current = prev ?? EMPTY_SORTING;
+        return typeof updater === 'function'
+          ? (updater as (old: SortingState) => SortingState)(current)
+          : updater;
+      });
+    },
+    [setSortingRaw]
+  );
+
   const defaultStatSelectorRef = useRef(defaultStatSelector);
-  const appliedDefaultKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     defaultStatSelectorRef.current = defaultStatSelector;
@@ -36,8 +79,8 @@ export function useStatGroupTableControls<TIndexKey extends string>({
   useEffect(() => {
     if (allStatNames.length === 0) return;
     const allStatsKey = allStatNames.join('\0');
-    if (appliedDefaultKeyRef.current === allStatsKey) return;
-    appliedDefaultKeyRef.current = allStatsKey;
+    if (appliedDefaultKey === allStatsKey) return;
+    setAppliedDefaultKey(allStatsKey);
 
     const selectedByDefault = defaultStatSelectorRef.current?.(allStatNames);
     if (!selectedByDefault || selectedByDefault.length === 0) {
@@ -55,7 +98,7 @@ export function useStatGroupTableControls<TIndexKey extends string>({
     const orderedDefaults = allStatNames.filter(stat => defaults.has(stat));
     const rest = allStatNames.filter(stat => !defaults.has(stat));
     setStatOrder([...orderedDefaults, ...rest]);
-  }, [allStatNames]);
+  }, [allStatNames, appliedDefaultKey, setAppliedDefaultKey, setSelectedStats, setStatOrder]);
 
   const orderedStatNames = useMemo(() => {
     if (!statOrder) return allStatNames;
@@ -85,21 +128,31 @@ export function useStatGroupTableControls<TIndexKey extends string>({
 
   const isAggregating = activeIndexKeys.length < visibleIndexOrder.length;
 
-  const handleToggleIndex = useCallback((key: string) => {
-    setEnabledIndices(prev => ({ ...prev, [key]: !prev[key as TIndexKey] }));
-  }, []);
+  const handleToggleIndex = useCallback(
+    (toggleKey: string) => {
+      setEnabledIndicesRaw(prev => {
+        const current = (prev as Record<TIndexKey, boolean> | null) ?? defaultEnabled;
+        return { ...current, [toggleKey]: !current[toggleKey as TIndexKey] };
+      });
+    },
+    [setEnabledIndicesRaw, defaultEnabled]
+  );
 
-  const handleReorderIndex = useCallback((fromKey: string, toKey: string) => {
-    setIndexOrder(prev => {
-      const next = [...prev];
-      const fromIdx = next.indexOf(fromKey as TIndexKey);
-      const toIdx = next.indexOf(toKey as TIndexKey);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, fromKey as TIndexKey);
-      return next;
-    });
-  }, []);
+  const handleReorderIndex = useCallback(
+    (fromKey: string, toKey: string) => {
+      setIndexOrderRaw(prev => {
+        const current = (prev as TIndexKey[] | null) ?? baseIndexOrder;
+        const next = [...current];
+        const fromIdx = next.indexOf(fromKey as TIndexKey);
+        const toIdx = next.indexOf(toKey as TIndexKey);
+        if (fromIdx === -1 || toIdx === -1) return current;
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, fromKey as TIndexKey);
+        return next;
+      });
+    },
+    [setIndexOrderRaw, baseIndexOrder]
+  );
 
   const handleToggleStat = useCallback(
     (stat: string) => {
@@ -111,11 +164,11 @@ export function useStatGroupTableControls<TIndexKey extends string>({
         return next;
       });
     },
-    [allStatNames]
+    [allStatNames, setSelectedStats]
   );
 
-  const handleSelectAllStats = useCallback(() => setSelectedStats(null), []);
-  const handleSelectNoStats = useCallback(() => setSelectedStats(new Set()), []);
+  const handleSelectAllStats = useCallback(() => setSelectedStats(null), [setSelectedStats]);
+  const handleSelectNoStats = useCallback(() => setSelectedStats(new Set()), [setSelectedStats]);
 
   return {
     aggMode,
@@ -132,5 +185,7 @@ export function useStatGroupTableControls<TIndexKey extends string>({
     handleToggleStat,
     handleSelectAllStats,
     handleSelectNoStats,
+    sorting,
+    setSorting,
   };
 }

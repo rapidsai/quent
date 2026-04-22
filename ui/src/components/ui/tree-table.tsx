@@ -141,6 +141,7 @@ const TreeNode = ({
   item,
   handleSelectChange,
   expandedItemIds,
+  controlledExpandedIds,
   selectedItemId,
   defaultNodeIcon,
   defaultLeafIcon,
@@ -152,6 +153,12 @@ const TreeNode = ({
   item: TreeTableDataItem;
   handleSelectChange: (item: TreeTableDataItem | undefined) => void;
   expandedItemIds: string[];
+  /**
+   * When provided, the node's expanded state is fully controlled by this set
+   * (the parent is the source of truth). Without it, the node manages its own
+   * expansion via local state, seeded from `expandedItemIds` once at mount.
+   */
+  controlledExpandedIds?: Set<string>;
   selectedItemId?: string;
   defaultNodeIcon?: IconComponent;
   defaultLeafIcon?: IconComponent;
@@ -162,7 +169,19 @@ const TreeNode = ({
 }) => {
   const itemExpanded = (item as { expanded?: boolean }).expanded;
   const shouldExpandByDefault = expandedItemIds.includes(item.id) || itemExpanded === true;
-  const [value, setValue] = useState(shouldExpandByDefault ? [item.id] : []);
+  const [uncontrolledValue, setUncontrolledValue] = useState(
+    shouldExpandByDefault ? [item.id] : []
+  );
+  const isControlled = controlledExpandedIds !== undefined;
+  const value = useMemo(
+    () =>
+      isControlled
+        ? controlledExpandedIds.has(item.id) || itemExpanded === true
+          ? [item.id]
+          : []
+        : uncontrolledValue,
+    [isControlled, controlledExpandedIds, item.id, itemExpanded, uncontrolledValue]
+  );
   const hasChildren = !!item.children?.length;
   const isSelected = selectedItemId === item.id;
   const isOpen = value.includes(item.id);
@@ -171,12 +190,12 @@ const TreeNode = ({
     (newValue: string[]) => {
       const wasExpanded = value.includes(item.id);
       const isNowExpanded = newValue.includes(item.id);
-      setValue(newValue);
+      if (!isControlled) setUncontrolledValue(newValue);
       if (wasExpanded !== isNowExpanded) {
         onExpandChange?.(item.id, isNowExpanded);
       }
     },
-    [value, item.id, onExpandChange]
+    [value, item.id, onExpandChange, isControlled]
   );
 
   return (
@@ -224,6 +243,7 @@ const TreeNode = ({
             selectedItemId={selectedItemId}
             handleSelectChange={handleSelectChange}
             expandedItemIds={expandedItemIds}
+            controlledExpandedIds={controlledExpandedIds}
             defaultLeafIcon={defaultLeafIcon}
             defaultNodeIcon={defaultNodeIcon}
             renderItem={renderItem}
@@ -318,6 +338,7 @@ type TreeItemProps = {
   selectedItemId?: string;
   handleSelectChange: (item: TreeTableDataItem | undefined) => void;
   expandedItemIds: string[];
+  controlledExpandedIds?: Set<string>;
   defaultNodeIcon?: IconComponent;
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
@@ -335,6 +356,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
       selectedItemId,
       handleSelectChange,
       expandedItemIds,
+      controlledExpandedIds,
       defaultNodeIcon,
       defaultLeafIcon,
       renderItem,
@@ -359,6 +381,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
                   level={level ?? 0}
                   selectedItemId={selectedItemId}
                   expandedItemIds={expandedItemIds}
+                  controlledExpandedIds={controlledExpandedIds}
                   handleSelectChange={handleSelectChange}
                   defaultNodeIcon={defaultNodeIcon}
                   defaultLeafIcon={defaultLeafIcon}
@@ -397,6 +420,11 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   highlightedItemIds?: Set<string>;
+  /**
+   * When provided, takes over expansion state for the whole tree. Pair with
+   * `onExpandChange` to keep this set in sync with user interactions.
+   */
+  controlledExpandedIds?: Set<string>;
 };
 
 const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
@@ -412,6 +440,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       className,
       renderItem,
       highlightedItemIds,
+      controlledExpandedIds,
       ...props
     },
     ref
@@ -463,6 +492,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
           selectedItemId={selectedItemId}
           handleSelectChange={handleSelectChange}
           expandedItemIds={expandedItemIds}
+          controlledExpandedIds={controlledExpandedIds}
           defaultLeafIcon={defaultLeafIcon}
           defaultNodeIcon={defaultNodeIcon}
           renderItem={renderItem}

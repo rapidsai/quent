@@ -8,6 +8,7 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   type ColumnDef,
+  type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -46,6 +47,13 @@ export interface GroupedDataTableProps<TRow extends GroupedDataTableRowBase> {
   groupRenderMode?: GroupedDataTableGroupRenderMode;
   virtualization?: GroupedDataTableVirtualizationOptions;
   stickyGroupColumns?: boolean;
+  /**
+   * Optional controlled sort state. When both `sorting` and `onSortingChange`
+   * are provided, the table becomes a controlled component for sort, allowing
+   * callers to persist sort across remounts.
+   */
+  sorting?: SortingState;
+  onSortingChange?: OnChangeFn<SortingState>;
 }
 
 export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
@@ -64,8 +72,16 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
   groupRenderMode = 'rowSpan',
   virtualization,
   stickyGroupColumns = false,
+  sorting: controlledSorting,
+  onSortingChange: controlledOnSortingChange,
 }: GroupedDataTableProps<TRow>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [uncontrolledSorting, setUncontrolledSorting] = useState<SortingState>([]);
+  const isSortingControlled =
+    controlledSorting !== undefined && controlledOnSortingChange !== undefined;
+  const sorting = isSortingControlled ? controlledSorting : uncontrolledSorting;
+  const setSorting: OnChangeFn<SortingState> = isSortingControlled
+    ? controlledOnSortingChange
+    : setUncontrolledSorting;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [groupColumnWidths, setGroupColumnWidths] = useState<number[]>([]);
   const groupHeaderRefs = useRef<Array<HTMLTableCellElement | null>>([]);
