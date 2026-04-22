@@ -509,6 +509,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
           onTableMouseLeave={handleTableMouseLeave}
+          virtualization={{ enabled: true, overscan: 12 }}
           getGroupTypeColor={(key, id) =>
             key === 'item_type' || key === 'parent_item_type'
               ? getOperatorColor(id?.toLowerCase() ?? '')

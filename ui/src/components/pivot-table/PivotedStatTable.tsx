@@ -104,10 +104,10 @@ function DataHeader({
         'table-header-overlay text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground font-normal',
         className,
         {
-          'font-semibold': Boolean(rowHeaderHoverActive),
+          'font-semibold': Boolean(sortInfo),
           'opacity-50': draggedStat === stat,
           'text-foreground': Boolean(sortInfo),
-          'table-header-overlay-active': hoveredStatName === stat || Boolean(rowHeaderHoverActive),
+          'table-header-overlay-active': hoveredStatName === stat,
         }
       )}
       style={mergedStyle}
