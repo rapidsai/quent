@@ -67,22 +67,25 @@ function DataHeader({
   buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
   hoveredStatName: string | undefined;
 }) {
+  // While a column is being dragged, show a 3px primary-colored bar on the
+  // leading or trailing edge of the column under the cursor to indicate where
+  // a drop would insert.
   const dropTargetPosition = getDropTargetPosition?.(stat);
-  const dropTargetShadow =
-    dropTargetPosition === 'before'
-      ? 'inset 3px 0 0 hsl(var(--primary))'
-      : dropTargetPosition === 'after'
-        ? 'inset -3px 0 0 hsl(var(--primary))'
-        : undefined;
-  const mergedStyle =
-    dropTargetShadow != null
-      ? {
-          ...style,
-          boxShadow: style?.boxShadow
-            ? `${style.boxShadow}, ${dropTargetShadow}`
-            : dropTargetShadow,
-        }
-      : style;
+  let dropTargetShadow: string | undefined;
+  if (dropTargetPosition === 'before') {
+    dropTargetShadow = 'inset 3px 0 0 hsl(var(--primary))';
+  } else if (dropTargetPosition === 'after') {
+    dropTargetShadow = 'inset -3px 0 0 hsl(var(--primary))';
+  }
+
+  // The drop indicator must layer on top of any existing box-shadow (e.g. the
+  // sticky/group-cell accent), not replace it.
+  const mergedStyle: React.CSSProperties | undefined = dropTargetShadow
+    ? {
+        ...style,
+        boxShadow: [style?.boxShadow, dropTargetShadow].filter(Boolean).join(', '),
+      }
+    : style;
 
   return (
     <th
@@ -474,17 +477,21 @@ export function PivotedStatTable<TRow>({
       const offsetX = e.clientX - rect.left;
       const offsetY = e.clientY - rect.top;
 
+      // The native HTML5 drag API requires a real DOM node already in the
+      // document for `setDragImage`. Cloning the source header gives us a
+      // pixel-perfect preview without re-rendering it via React.
       const dragGhost = header.cloneNode(true) as HTMLElement;
-      dragGhost.style.position = 'fixed';
-      dragGhost.style.top = '-1000px';
-      dragGhost.style.left = '-1000px';
-      dragGhost.style.width = `${rect.width}px`;
-      dragGhost.style.pointerEvents = 'none';
-      dragGhost.style.opacity = '0.95';
-      dragGhost.style.border = '1px solid hsl(var(--primary) / 0.55)';
-      dragGhost.style.borderRadius = '6px';
-      dragGhost.style.backgroundColor = 'hsl(var(--card))';
-      dragGhost.style.boxShadow = '0 8px 18px hsl(var(--foreground) / 0.22)';
+      Object.assign(dragGhost.style, {
+        position: 'fixed',
+        top: '-1000px',
+        left: '-1000px',
+        width: `${rect.width}px`,
+        pointerEvents: 'none',
+        opacity: '0.95',
+        border: '1px solid hsl(var(--primary) / 0.55)',
+        borderRadius: '4px',
+        backgroundColor: 'hsl(var(--card))',
+      } satisfies Partial<CSSStyleDeclaration>);
       document.body.appendChild(dragGhost);
       dragGhostRef.current = dragGhost;
       e.dataTransfer.setDragImage(dragGhost, offsetX, offsetY);
