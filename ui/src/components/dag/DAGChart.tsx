@@ -32,6 +32,7 @@ import {
   edgeColorPaletteAtom,
   selectedEdgeWidthFieldAtom,
   selectedEdgeColorFieldAtom,
+  highlightedNodeIdsAtom,
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -76,6 +77,7 @@ const VariableWidthEdge = ({
   const edgeColoring = useAtomValue(edgeColoringAtom);
   const edgePalette = useAtomValue(edgeColorPaletteAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const highlightedNodeIds = useAtomValue(highlightedNodeIdsAtom).ids;
   const edgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
   const edgeColorField = useAtomValue(selectedEdgeColorFieldAtom);
   const { theme } = useTheme();
@@ -115,8 +117,16 @@ const VariableWidthEdge = ({
   }
 
   const hasSelection = selectedNodeIds.size > 0;
-  const isEdgeDimmed =
-    edgeDimmed || (hasSelection && !selectedNodeIds.has(source) && !selectedNodeIds.has(target));
+  const hasActiveHighlight = highlightedNodeIds !== null;
+  // An edge "belongs to" a set when at least one endpoint is in the set.
+  const isInSelection = selectedNodeIds.has(source) || selectedNodeIds.has(target);
+  const isInHighlight =
+    hasActiveHighlight && (highlightedNodeIds.has(source) || highlightedNodeIds.has(target));
+  // While a hover-driven highlight set is active, it overrides the
+  // selection-based dim (matching `QueryPlanNode`).
+  const dimFromHighlight = hasActiveHighlight && !isInHighlight;
+  const dimFromSelection = !hasActiveHighlight && hasSelection && !isInSelection;
+  const isEdgeDimmed = edgeDimmed || dimFromHighlight || dimFromSelection;
 
   let edgeLabelValue: string | undefined;
   if (edgeColoring) {

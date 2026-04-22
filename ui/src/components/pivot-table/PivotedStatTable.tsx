@@ -127,8 +127,8 @@ function GroupCell({
   getGroupTypeColor,
   getGroupCellHandlers,
   onHoverStat,
-  hoveredHeaderItemIds,
-  setHoveredHeaderItemIds,
+  hoveredGroupCellKey,
+  setHoveredGroupCellKey,
   hoveredItemId,
   selectedItemIds,
 }: {
@@ -140,8 +140,13 @@ function GroupCell({
   className?: string;
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
-  hoveredHeaderItemIds?: Set<string> | null;
-  setHoveredHeaderItemIds?: (itemIds: Set<string> | null) => void;
+  /**
+   * Identity (`${gk.key}:${gk.id}`) of the group cell currently under the
+   * pointer. Shared across every cell in the same group so that, in compact
+   * mode, hovering an empty "filler" cell still bolds the labeled top cell.
+   */
+  hoveredGroupCellKey?: string | null;
+  setHoveredGroupCellKey?: (key: string | null) => void;
   hoveredItemId?: string | null;
   selectedItemIds?: Set<string>;
   getGroupCellHandlers?: (
@@ -149,13 +154,12 @@ function GroupCell({
     row: PivotedRow
   ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
 }) {
+  const cellKey = `${gk.key}:${gk.id}`;
+  const isGroupHovered = hoveredGroupCellKey === cellKey;
   const typeColor = getGroupTypeColor?.(gk.key, gk.id);
   const handlers = getGroupCellHandlers?.(gk, row);
-  const isRowHeaderHighlightedFromTable =
-    hoveredHeaderItemIds != null && [...row.itemIds].some(id => hoveredHeaderItemIds.has(id));
   const isRowHighlightedFromDag =
     hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
-  const isRowHeaderHighlighted = isRowHeaderHighlightedFromTable || isRowHighlightedFromDag;
   const hasDagSelection = (selectedItemIds?.size ?? 0) > 0;
   const isRowSelectedFromDag =
     hasDagSelection && [...row.itemIds].some(id => selectedItemIds?.has(id) === true);
@@ -186,22 +190,33 @@ function GroupCell({
     <td
       className={cn(
         'table-header-overlay px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30',
-        isRowHeaderHighlighted && 'table-header-overlay-active',
+        isRowHighlightedFromDag && 'table-header-overlay-active',
         className
       )}
       rowSpan={rowSpan}
       style={mergedStyle}
       onMouseEnter={() => {
         onHoverStat?.(null);
-        setHoveredHeaderItemIds?.(new Set(row.itemIds));
+        setHoveredGroupCellKey?.(cellKey);
         handlers?.onMouseEnter?.();
       }}
       onMouseLeave={() => {
-        setHoveredHeaderItemIds?.(null);
+        setHoveredGroupCellKey?.(null);
+        handlers?.onMouseLeave?.();
+      }}
+      onPointerLeave={() => {
+        setHoveredGroupCellKey?.(null);
         handlers?.onMouseLeave?.();
       }}
     >
-      <span className="relative z-10">{gk.label}</span>
+      <span
+        className="relative z-10 inline-block before:invisible before:font-semibold before:content-[attr(data-text)]"
+        data-text={gk.label}
+      >
+        <span className={cn('absolute inset-0', isGroupHovered && 'font-semibold')}>
+          {gk.label}
+        </span>
+      </span>
     </td>
   );
 }
@@ -346,6 +361,10 @@ export function PivotedStatTable<TRow>({
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
+  // Tracks the currently hovered group-cell identity (`${gk.key}:${gk.id}`) so
+  // that in compact mode, hovering a "filler" cell with an empty label still
+  // bolds the labeled top cell of the same group.
+  const [hoveredGroupCellKey, setHoveredGroupCellKey] = useState<string | null>(null);
   const [tableStatOrder, setTableStatOrder] = useState<string[]>([]);
   const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
     null
@@ -553,8 +572,8 @@ export function PivotedStatTable<TRow>({
         getGroupTypeColor={getGroupTypeColor}
         getGroupCellHandlers={getGroupCellHandlers}
         onHoverStat={emitHoverStat}
-        hoveredHeaderItemIds={hoveredHeaderItemIds}
-        setHoveredHeaderItemIds={setHoveredHeaderItemIds}
+        hoveredGroupCellKey={hoveredGroupCellKey}
+        setHoveredGroupCellKey={setHoveredGroupCellKey}
         hoveredItemId={hoveredItemId}
         selectedItemIds={selectedItemIds}
       />
@@ -563,7 +582,7 @@ export function PivotedStatTable<TRow>({
       getGroupTypeColor,
       getGroupCellHandlers,
       emitHoverStat,
-      hoveredHeaderItemIds,
+      hoveredGroupCellKey,
       hoveredItemId,
       selectedItemIds,
     ]

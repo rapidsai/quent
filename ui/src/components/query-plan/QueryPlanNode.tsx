@@ -64,7 +64,12 @@ function nodeOpacityClass({
   isDimmed: boolean;
 }): string {
   if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
-  if (highlightedNodeIds !== null && !highlightedNodeIds.has(operatorId)) return 'opacity-25';
+  // An active highlight set fully overrides the selection-based dim so that
+  // hovered (highlighted) operators are always visible, even when a DAG
+  // selection would otherwise dim them.
+  if (highlightedNodeIds !== null) {
+    return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-25';
+  }
   if (isDimmed) return 'opacity-30';
   return 'opacity-100';
 }
@@ -112,11 +117,17 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return continuousColor(t, nodePalette, isDarkMode);
   }, [hoveredStat, operatorId, nodePalette, isDarkMode]);
 
+  // While a hover-driven highlight set is active, treat membership in that set
+  // as the authoritative dim signal so the inner card's `dimmed` overlay does
+  // not stack on top of the outer opacity for highlighted nodes.
+  const hasActiveHighlight = highlightState.ids !== null;
+  const effectiveDimmed = hasActiveHighlight ? !isHighlighted : isDimmed;
+
   const opacityClass = nodeOpacityClass({
     hoveredStat,
     highlightedNodeIds: highlightState.ids,
     operatorId,
-    isDimmed,
+    isDimmed: effectiveDimmed,
   });
 
   const isActiveHighlight = isHighlighted && !isSelected;
@@ -143,7 +154,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={nodeVariants({ selected: isSelected, dimmed: isDimmed })}
+      className={nodeVariants({ selected: isSelected, dimmed: effectiveDimmed })}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={
