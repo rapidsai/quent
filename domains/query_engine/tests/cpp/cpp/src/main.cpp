@@ -22,7 +22,7 @@ int main() {
   auto ctx = quent::create_context(engine_id, "ndjson", "./events");
 
   // Engine: init with implementation attributes and custom attributes.
-  auto engine_obs = quent::engine::create_observer();
+  auto engine_obs = quent::engine::create_observer(*ctx);
 
   quent::CustomAttributes engine_custom;
   engine_custom.string_attrs.push_back({"deployment", "test"});
@@ -40,7 +40,7 @@ int main() {
                    });
 
   // Worker: init with parent engine reference.
-  auto worker_obs = quent::worker::create_observer();
+  auto worker_obs = quent::worker::create_observer(*ctx);
   auto worker_id = uuid::now_v7();
   worker_obs->init(worker_id, quent::worker::Init{
                                   .parent_engine_id = engine_id,
@@ -48,7 +48,7 @@ int main() {
                               });
 
   // QueryGroup: declaration with instance name and engine id.
-  auto qg_obs = quent::query_group::create_observer();
+  auto qg_obs = quent::query_group::create_observer(*ctx);
   auto qg_id = uuid::now_v7();
   qg_obs->declaration(qg_id, quent::query_group::Declaration{
                                  .instance_name = "qg-0",
@@ -56,16 +56,16 @@ int main() {
                              });
 
   // Query FSM: create in Init state, transition through planning and executing.
-  auto query = quent::query::create(quent::query::Init{
-      .instance_name = "select-1",
-      .query_group_id = qg_id,
-  });
+  auto query = quent::query::create(*ctx, quent::query::Init{
+                                              .instance_name = "select-1",
+                                              .query_group_id = qg_id,
+                                          });
   query->planning();
   query->executing();
   query->exit();
 
   // Plan: declaration with parent, edges, and optional worker.
-  auto plan_obs = quent::plan::create_observer();
+  auto plan_obs = quent::plan::create_observer(*ctx);
   auto plan_id = uuid::now_v7();
   auto port_src = uuid::now_v7();
   auto port_tgt = uuid::now_v7();
@@ -88,7 +88,7 @@ int main() {
 
   // Operator: declaration with plan reference, parent operators, and custom
   // attrs.
-  auto op_obs = quent::operator_::create_observer();
+  auto op_obs = quent::operator_::create_observer(*ctx);
   auto op_id = uuid::now_v7();
 
   quent::CustomAttributes op_custom;
@@ -113,7 +113,7 @@ int main() {
                             });
 
   // Port: declaration with operator reference.
-  auto port_obs = quent::port::create_observer();
+  auto port_obs = quent::port::create_observer(*ctx);
   auto port_id = uuid::now_v7();
   port_obs->declaration(port_id, quent::port::Declaration{
                                      .operator_id = op_id,
