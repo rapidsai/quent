@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface OptionMultiSelectProps {
@@ -36,14 +39,19 @@ export function OptionMultiSelect({
   showSelectedBadges = true,
 }: OptionMultiSelectProps) {
   const [search, setSearch] = useState('');
-  const selectedOptions = options.filter(option =>
-    selectedOptionIds ? selectedOptionIds.has(option) : true
-  );
+
+  const isSelected = (option: string): boolean =>
+    selectedOptionIds ? selectedOptionIds.has(option) : true;
+
+  const selectedOptions = useMemo(() => options.filter(isSelected), [options, selectedOptionIds]);
   const visibleSelectedOptions = selectedOptions.slice(0, maxVisibleBadges);
   const hiddenSelectedCount = Math.max(0, selectedOptions.length - visibleSelectedOptions.length);
-  const filteredOptions = search
-    ? options.filter(option => option.toLowerCase().includes(search.toLowerCase()))
-    : options;
+
+  const filteredOptions = useMemo(() => {
+    if (!search) return options;
+    const needle = search.toLowerCase();
+    return options.filter(option => option.toLowerCase().includes(needle));
+  }, [options, search]);
 
   return (
     <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border/50">
@@ -54,52 +62,81 @@ export function OptionMultiSelect({
         }}
       >
         <PopoverTrigger asChild>
-          <button className="inline-flex h-7 min-w-36 items-center justify-between gap-2 rounded border border-input bg-background px-2 text-xs text-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
+          <Button
+            variant="outline"
+            size="sm"
+            role="combobox"
+            className="h-7 min-w-36 justify-between gap-2 px-2 text-xs font-normal"
+          >
             <span className="truncate">
               {selectedOptions.length > 0
                 ? `${triggerText} (${selectedOptions.length})`
                 : triggerText}
             </span>
-            <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-          </button>
+            <ChevronDown className="text-muted-foreground shrink-0 opacity-70" />
+          </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-2" align="start" side="bottom">
           <div className="relative mb-2">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
-            <input
-              className="w-full pl-6 pr-2 py-1 text-xs border border-input rounded bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none" />
+            <Input
+              type="search"
+              className="h-7 pl-7 pr-2 text-xs md:text-xs"
               placeholder={searchPlaceholder}
               value={search}
               onChange={e => setSearch(e.target.value)}
               autoFocus
             />
           </div>
-          <div className="flex gap-2 mb-2 border-b border-border pb-2">
-            <button onClick={onSelectAllOptions} className="text-xs text-primary hover:underline">
+          <div className="flex gap-1 mb-2 border-b border-border pb-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onSelectAllOptions}
+              className="h-6 px-2 text-xs text-primary hover:text-primary"
+            >
               All
-            </button>
-            <button onClick={onSelectNoOptions} className="text-xs text-primary hover:underline">
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onSelectNoOptions}
+              className="h-6 px-2 text-xs text-primary hover:text-primary"
+            >
               None
-            </button>
+            </Button>
           </div>
-          <div className="max-h-52 overflow-y-auto space-y-0.5">
+          <div role="listbox" aria-multiselectable className="max-h-52 overflow-y-auto space-y-0.5">
             {filteredOptions.map(option => {
-              const checked = selectedOptionIds ? selectedOptionIds.has(option) : true;
+              const checked = isSelected(option);
               return (
                 <button
                   key={option}
+                  type="button"
+                  role="option"
+                  aria-selected={checked}
+                  data-state={checked ? 'checked' : 'unchecked'}
                   onClick={() => onToggleOption(option)}
-                  className="w-full flex items-center gap-2 px-2 py-1 rounded text-xs font-mono text-left hover:bg-accent hover:text-accent-foreground transition-colors"
+                  className={cn(
+                    'relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1 text-xs font-mono outline-none',
+                    'transition-colors hover:bg-accent hover:text-accent-foreground',
+                    'focus-visible:bg-accent focus-visible:text-accent-foreground'
+                  )}
                 >
                   <span
+                    aria-hidden
                     className={cn(
-                      'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border',
-                      checked ? 'bg-primary border-primary text-primary-foreground' : 'border-input'
+                      'flex size-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors',
+                      checked
+                        ? 'bg-primary border-primary text-primary-foreground'
+                        : 'border-input bg-background'
                     )}
                   >
-                    {checked && <Check className="h-2.5 w-2.5" />}
+                    {checked && <Check className="size-2.5" strokeWidth={3} />}
                   </span>
-                  {option}
+                  <span className="truncate">{option}</span>
                 </button>
               );
             })}
@@ -116,29 +153,29 @@ export function OptionMultiSelect({
           ) : (
             <div className="flex flex-wrap items-center gap-1">
               {visibleSelectedOptions.map(option => (
-                <span
+                <Badge
                   key={option}
-                  className="inline-flex items-center gap-0.5 text-xs font-mono px-1.5 py-0 rounded border bg-primary/10 border-primary/40 text-data whitespace-nowrap"
+                  variant="outline"
+                  className="px-1.5 py-0 font-mono text-data bg-primary/10 border-primary/40 hover:bg-primary/15"
                 >
-                  {option}
-                  <span
-                    role="button"
-                    tabIndex={-1}
+                  <span className="truncate">{option}</span>
+                  <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation();
                       onToggleOption(option);
                     }}
-                    className="ml-0.5 rounded-sm focus:outline-none"
                     aria-label={`Remove ${option}`}
+                    className="ml-0.5 rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <X className="h-2.5 w-2.5" />
-                  </span>
-                </span>
+                    <X className="size-2.5" />
+                  </button>
+                </Badge>
               ))}
               {hiddenSelectedCount > 0 && (
-                <span className="inline-flex items-center text-xs px-1.5 py-0 rounded border bg-muted/40 border-border text-muted-foreground whitespace-nowrap">
+                <Badge variant="outline" className="px-1.5 py-0 bg-muted/40 text-muted-foreground">
                   +{hiddenSelectedCount} more
-                </span>
+                </Badge>
               )}
             </div>
           )}
