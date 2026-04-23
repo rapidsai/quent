@@ -1,7 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { useAtomValue } from 'jotai';
 import { GroupedDataTable } from './GroupedDataTable';
@@ -149,7 +157,7 @@ function GroupCell({
    * mode, hovering an empty "filler" cell still bolds the labeled top cell.
    */
   hoveredGroupCellKey?: string | null;
-  setHoveredGroupCellKey?: (key: string | null) => void;
+  setHoveredGroupCellKey?: Dispatch<SetStateAction<string | null>>;
   hoveredItemId?: string | null;
   selectedItemIds?: Set<string>;
   getGroupCellHandlers?: (
@@ -159,6 +167,17 @@ function GroupCell({
 }) {
   const cellKey = `${gk.key}:${gk.id}`;
   const isGroupHovered = hoveredGroupCellKey === cellKey;
+
+  // If this cell unmounts (sort/reorder/virtualization) while still considered
+  // "hovered", the corresponding onMouseLeave never fires. Clear the shared
+  // key on unmount only if it still points at us, so we don't clobber a later
+  // cell's hover.
+  useEffect(() => {
+    if (!setHoveredGroupCellKey) return;
+    return () => {
+      setHoveredGroupCellKey(prev => (prev === cellKey ? null : prev));
+    };
+  }, [cellKey, setHoveredGroupCellKey]);
   const typeColor = getGroupTypeColor?.(gk.key, gk.id);
   const handlers = getGroupCellHandlers?.(gk, row);
   const isRowHighlightedFromDag =
@@ -530,9 +549,31 @@ export function PivotedStatTable<TRow>({
 
   const handleTableMouseLeave = useCallback(() => {
     setHoveredHeaderItemIds(null);
+    setHoveredGroupCellKey(null);
     emitHoverStat(null);
     onTableMouseLeave?.();
   }, [emitHoverStat, onTableMouseLeave]);
+
+  // Safety net: fast mouse movements, drag captures, and pointer-events: none
+  // overlays can all swallow the per-element onMouseLeave. Clear stale hover
+  // state whenever the pointer exits the document or the window loses focus.
+  useEffect(() => {
+    const onDocPointerOut = (e: PointerEvent) => {
+      if (e.relatedTarget == null) handleTableMouseLeave();
+    };
+    const onWindowBlur = () => handleTableMouseLeave();
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') handleTableMouseLeave();
+    };
+    document.addEventListener('pointerout', onDocPointerOut);
+    window.addEventListener('blur', onWindowBlur);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('pointerout', onDocPointerOut);
+      window.removeEventListener('blur', onWindowBlur);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [handleTableMouseLeave]);
 
   useEffect(() => {
     if (!hoveredItemId) return;
