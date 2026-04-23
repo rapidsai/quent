@@ -293,6 +293,13 @@ interface PivotedStatTableProps<TRow> {
   isAggregating?: boolean;
   aggMode?: AggMode;
   indexLabels?: Record<string, React.ReactNode>;
+  /**
+   * If true, rows with no value for any visible stat (e.g. an operator/plan
+   * that doesn't produce any of the currently selected statistics) are
+   * filtered out before rendering. Defaults to true. Flip to false to expose
+   * a future "show null rows" toggle.
+   */
+  hideEmptyRows?: boolean;
   // interaction state
   selectedItemIds?: Set<string>;
   hoveredItemId?: string | null;
@@ -323,6 +330,7 @@ export function PivotedStatTable<TRow>({
   isAggregating = false,
   aggMode = 'sum',
   indexLabels,
+  hideEmptyRows = true,
   selectedItemIds,
   hoveredItemId,
   hoveredStat,
@@ -421,12 +429,32 @@ export function PivotedStatTable<TRow>({
     [expandedRows, activeIndices, isAggregating]
   );
 
+  // A pivoted row is "empty" when none of the currently visible stats have a
+  // renderable value for it. In non-aggregating mode that means every
+  // `values.get(stat)` is null/undefined; in aggregating mode it means every
+  // `aggs.get(stat)` is missing or non-numeric (i.e. the cell would render '-').
+  const visiblePivotedRows = useMemo(() => {
+    if (!hideEmptyRows) return pivotedRows;
+    return pivotedRows.filter(row => {
+      for (const stat of effectiveVisibleStats) {
+        if (isAggregating) {
+          const agg = row.aggs.get(stat);
+          if (agg && agg.isNumeric) return true;
+        } else {
+          const v = row.values.get(stat);
+          if (v !== null && v !== undefined) return true;
+        }
+      }
+      return false;
+    });
+  }, [pivotedRows, hideEmptyRows, effectiveVisibleStats, isAggregating]);
+
   const columnRanges = useMemo(() => {
     const ranges = new Map<string, { min: number; max: number }>();
     for (const stat of effectiveVisibleStats) {
       let min = Infinity;
       let max = -Infinity;
-      for (const row of pivotedRows) {
+      for (const row of visiblePivotedRows) {
         const v = getSortValue(row, stat, isAggregating, aggMode);
         if (v !== null) {
           if (v < min) min = v;
@@ -436,7 +464,7 @@ export function PivotedStatTable<TRow>({
       if (min !== Infinity) ranges.set(stat, { min, max });
     }
     return ranges;
-  }, [pivotedRows, effectiveVisibleStats, isAggregating, aggMode]);
+  }, [visiblePivotedRows, effectiveVisibleStats, isAggregating, aggMode]);
 
   const removeDragGhost = useCallback(() => {
     if (dragGhostRef.current == null) return;
@@ -532,11 +560,11 @@ export function PivotedStatTable<TRow>({
 
   useEffect(() => {
     if (!hoveredItemId) return;
-    const row = pivotedRows.find(r => r.itemIds.has(hoveredItemId));
+    const row = visiblePivotedRows.find(r => r.itemIds.has(hoveredItemId));
     if (!row) return;
     const el = rowRefs.current.get(row.rowKey);
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [hoveredItemId, pivotedRows]);
+  }, [hoveredItemId, visiblePivotedRows]);
 
   const DataHeaderRenderer = useCallback(
     (props: DataHeaderProps) => (
@@ -638,7 +666,7 @@ export function PivotedStatTable<TRow>({
       onPointerLeave={handleTableMouseLeave}
     >
       <GroupedDataTable
-        data={pivotedRows}
+        data={visiblePivotedRows}
         columns={columns}
         getRowId={row => row.rowKey}
         groupColumnIds={activeIndices}
