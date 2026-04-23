@@ -1,45 +1,45 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { StatValue } from '@/services/query-plan/types';
+import { Panel } from '@xyflow/react';
+import { useAtomValue } from 'jotai';
+import { Pin } from 'lucide-react';
+import { selectedNodeIdsAtom, hoveredNodeDataAtom, selectedNodeDataAtom } from '@/atoms/dag';
 import { DataText } from '@/components/ui/data-text';
 
-export interface OperatorStatisticsPopupProps {
-  children: React.ReactNode;
-  data: Array<{ key: string; value: StatValue }>;
-  nodeId: string;
-  operatorLabel: string;
-  operationType: string;
-}
+export const DAGNodeInfoPanel = () => {
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const hoveredNodeData = useAtomValue(hoveredNodeDataAtom);
+  const selectedNodeData = useAtomValue(selectedNodeDataAtom);
 
-export const OperatorStatisticsPopup = ({
-  children,
-  data,
-  nodeId,
-  operatorLabel,
-  operationType,
-}: OperatorStatisticsPopupProps) => {
+  const isPinned = selectedNodeIds.size > 0;
+  const displayData = isPinned ? selectedNodeData : hoveredNodeData;
+
+  if (!displayData) return null;
+
   return (
-    <HoverCard openDelay={300} closeDelay={100}>
-      {/* nodrag/nopan prevents ReactFlow from intercepting mouse events on the trigger */}
-      <HoverCardTrigger asChild className="nodrag nopan">
-        {children}
-      </HoverCardTrigger>
-      <HoverCardContent className="flex w-72 flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <DataText className="font-semibold text-sm">{operatorLabel}</DataText>
-          <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded">
-            {operationType}
-          </DataText>
+    <Panel
+      position="bottom-left"
+      className="nodrag nopan mb-2 ml-2"
+      style={isPinned ? undefined : { pointerEvents: 'none' }}
+    >
+      <div className="w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md">
+        <div className="flex items-center justify-between gap-2">
+          <DataText className="font-semibold text-sm truncate">{displayData.label}</DataText>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {isPinned && <Pin className="h-3 w-3 text-muted-foreground" />}
+            <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded">
+              {displayData.operationType}
+            </DataText>
+          </div>
         </div>
-        <DataText as="div" className="text-xs text-muted-foreground truncate">
-          {nodeId}
+        <DataText as="div" className="text-xs text-muted-foreground truncate mt-0.5">
+          {displayData.nodeId}
         </DataText>
-        {data.length > 0 && (
+        {displayData.statistics.length > 0 && (
           <div className="mt-1 border-t pt-1.5 max-h-56 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
             <div className="flex flex-col gap-1 pr-3">
-              {data.map(({ key, value }) => (
+              {displayData.statistics.map(({ key, value }) => (
                 <div key={key} className="text-xs mt-1">
                   {Array.isArray(value) ? (
                     <div className="flex items-center justify-between gap-0.5">
@@ -63,7 +63,7 @@ export const OperatorStatisticsPopup = ({
             </div>
           </div>
         )}
-      </HoverCardContent>
-    </HoverCard>
+      </div>
+    </Panel>
   );
 };

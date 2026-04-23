@@ -5,10 +5,9 @@ import { memo, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtomValue } from 'jotai';
-import { selectedNodeLabelFieldAtom, NODE_LABEL_FIELD } from '@/atoms/dag';
+import { useAtomValue, useSetAtom } from 'jotai';
+import { selectedNodeLabelFieldAtom, NODE_LABEL_FIELD, hoveredNodeDataAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
-import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 import { isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
@@ -29,7 +28,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10',
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10 nodrag nopan',
   {
     variants: {
       selected: {
@@ -54,6 +53,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const nodeLabelField = useAtomValue(selectedNodeLabelFieldAtom);
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId);
   const [isHovered, setIsHovered] = useState(false);
+  const setHoveredNodeData = useSetAtom(hoveredNodeDataAtom);
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
@@ -78,8 +78,19 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const nodeContent = (
     <div
       className={nodeVariants({ selected: isSelected, dimmed: isDimmed })}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        setHoveredNodeData({
+          nodeId: data.nodeId,
+          label: data.label,
+          operationType: data.operationType,
+          statistics,
+        });
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setHoveredNodeData(null);
+      }}
       style={
         {
           borderColor: activeColor,
@@ -122,16 +133,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     </div>
   );
 
-  return (
-    <OperatorStatisticsPopup
-      data={statistics}
-      nodeId={data.nodeId}
-      operatorLabel={data.label}
-      operationType={data.operationType}
-    >
-      {nodeContent}
-    </OperatorStatisticsPopup>
-  );
+  return nodeContent;
 });
 
 QueryPlanNode.displayName = 'QueryPlanNode';
