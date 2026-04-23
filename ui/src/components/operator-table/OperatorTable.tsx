@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { QueryToolbar } from '@/components/QueryToolbar';
 import {
@@ -39,11 +39,11 @@ interface OperatorTableRow {
 
 function buildOperatorRows(
   entities: QueryEntities,
-  siblingPlanIds: Set<string>
+  includedPlanIds: Set<string>
 ): OperatorTableRow[] {
   const rows: OperatorTableRow[] = [];
   const plans = Object.values(entities.plans)
-    .filter((p): p is NonNullable<typeof p> => p != null && siblingPlanIds.has(p.id))
+    .filter((p): p is NonNullable<typeof p> => p != null && includedPlanIds.has(p.id))
     .sort((a, b) => {
       const wA = a.worker_id ?? '';
       const wB = b.worker_id ?? '';
@@ -165,57 +165,40 @@ interface OperatorTableProps {
 }
 
 export function OperatorTable({ queryBundle }: OperatorTableProps) {
-  const [selectedPlanId, setSelectedPlanId] = useAtom(selectedPlanIdAtom);
+  const selectedPlanId = useAtomValue(selectedPlanIdAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
   const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
   const { entities } = queryBundle;
-  const tableHoverSwitchedPlanRef = useRef<string | null>(null);
-  const preHoverPlanRef = useRef<string | null>(null);
-  const pendingPlanRestoreTimerRef = useRef<number | null>(null);
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
 
-  const cancelPendingPlanRestore = useCallback(() => {
-    if (pendingPlanRestoreTimerRef.current !== null) {
-      window.clearTimeout(pendingPlanRestoreTimerRef.current);
-      pendingPlanRestoreTimerRef.current = null;
-    }
-  }, []);
-
-  const schedulePlanRestore = useCallback(() => {
-    cancelPendingPlanRestore();
-    const switchedToPlanId = tableHoverSwitchedPlanRef.current;
-    const restorePlanId = preHoverPlanRef.current;
-    if (!switchedToPlanId || !restorePlanId || selectedNodeIds.size === 0) return;
-
-    // Defer restore so row-to-row hover transitions can cancel this before it runs.
-    pendingPlanRestoreTimerRef.current = window.setTimeout(() => {
-      setSelectedPlanId(current =>
-        current === switchedToPlanId && selectedNodeIds.size > 0 ? restorePlanId : current
-      );
-      pendingPlanRestoreTimerRef.current = null;
-      tableHoverSwitchedPlanRef.current = null;
-      preHoverPlanRef.current = null;
-    }, 0);
-  }, [cancelPendingPlanRestore, selectedNodeIds, setSelectedPlanId]);
-
-  useEffect(() => cancelPendingPlanRestore, [cancelPendingPlanRestore]);
-
-  const siblingPlanIds = useMemo(() => {
-    const selected = selectedPlanId ? entities.plans[selectedPlanId] : undefined;
-    if (!selected) return new Set<string>();
-    const parentId = selected.parent;
-    const ids = new Set<string>();
+  // Plans included in the table: the selected plan plus every descendant plan
+  // (children, grandchildren, ...). Selecting a leaf plan yields a singleton.
+  const includedPlanIds = useMemo(() => {
+    if (!selectedPlanId || !entities.plans[selectedPlanId]) return new Set<string>();
+    const childrenByParent = new Map<string | null, string[]>();
     for (const p of Object.values(entities.plans)) {
-      if (p && p.parent === parentId) ids.add(p.id);
+      if (!p) continue;
+      const list = childrenByParent.get(p.parent);
+      if (list) list.push(p.id);
+      else childrenByParent.set(p.parent, [p.id]);
     }
-    return ids;
+    const result = new Set<string>();
+    const stack: string[] = [selectedPlanId];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (result.has(id)) continue;
+      result.add(id);
+      const children = childrenByParent.get(id);
+      if (children) stack.push(...children);
+    }
+    return result;
   }, [entities.plans, selectedPlanId]);
 
   const allRows = useMemo(
-    () => buildOperatorRows(entities, siblingPlanIds),
-    [entities, siblingPlanIds]
+    () => buildOperatorRows(entities, includedPlanIds),
+    [entities, includedPlanIds]
   );
 
   // When the DAG has a selection, narrow the table to just the matching
@@ -364,19 +347,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const getGroupCellHandlers = useCallback(
     (gk: GroupedDataTableGroupKeyEntry, row: PivotedRow) => {
       const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
-      const firstItemScopeId = firstItemId ? row.itemScopeIds.get(firstItemId) : undefined;
 
       if (gk.key === 'item' && firstItemId) {
         return {
           onMouseEnter: () => {
-            cancelPendingPlanRestore();
-            if (firstItemScopeId && firstItemScopeId !== selectedPlanId) {
-              if (tableHoverSwitchedPlanRef.current === null) {
-                preHoverPlanRef.current = selectedPlanId;
-              }
-              tableHoverSwitchedPlanRef.current = firstItemScopeId;
-              setSelectedPlanId(firstItemScopeId);
-            }
             // Table-origin hover should not trigger table auto-scroll.
             setHighlightState(prev => ({
               ...prev,
@@ -391,7 +365,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                 ? { ...prev, ids: null, source: null, primaryOperatorId: null }
                 : prev
             );
-            schedulePlanRestore();
           },
         };
       }
@@ -451,16 +424,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       }
       return {};
     },
-    [
-      selectedPlanId,
-      setSelectedPlanId,
-      setHighlightState,
-      cancelPendingPlanRestore,
-      schedulePlanRestore,
-      itemsByParentType,
-      itemsByParentName,
-      itemsByItemType,
-    ]
+    [setHighlightState, itemsByParentType, itemsByParentName, itemsByItemType]
   );
 
   const handleTableMouseLeave = useCallback(() => {
@@ -468,8 +432,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     setHighlightState(prev =>
       prev.source === 'table' ? { ...prev, ids: null, source: null, primaryOperatorId: null } : prev
     );
-    schedulePlanRestore();
-  }, [setHoveredStat, setHighlightState, schedulePlanRestore]);
+  }, [setHoveredStat, setHighlightState]);
 
   if (!selectedPlanId) {
     return (

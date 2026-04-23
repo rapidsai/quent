@@ -1,15 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  useMemo,
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { useAtomValue } from 'jotai';
 import { GroupedDataTable } from './GroupedDataTable';
@@ -138,8 +130,6 @@ function GroupCell({
   getGroupTypeColor,
   getGroupCellHandlers,
   onHoverStat,
-  hoveredGroupCellKey,
-  setHoveredGroupCellKey,
   hoveredItemId,
   selectedItemIds,
 }: {
@@ -151,13 +141,6 @@ function GroupCell({
   className?: string;
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
   onHoverStat?: (info: HoveredStatInfo | null) => void;
-  /**
-   * Identity (`${gk.key}:${gk.id}`) of the group cell currently under the
-   * pointer. Shared across every cell in the same group so that, in compact
-   * mode, hovering an empty "filler" cell still bolds the labeled top cell.
-   */
-  hoveredGroupCellKey?: string | null;
-  setHoveredGroupCellKey?: Dispatch<SetStateAction<string | null>>;
   hoveredItemId?: string | null;
   selectedItemIds?: Set<string>;
   getGroupCellHandlers?: (
@@ -165,19 +148,6 @@ function GroupCell({
     row: PivotedRow
   ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
 }) {
-  const cellKey = `${gk.key}:${gk.id}`;
-  const isGroupHovered = hoveredGroupCellKey === cellKey;
-
-  // If this cell unmounts (sort/reorder/virtualization) while still considered
-  // "hovered", the corresponding onMouseLeave never fires. Clear the shared
-  // key on unmount only if it still points at us, so we don't clobber a later
-  // cell's hover.
-  useEffect(() => {
-    if (!setHoveredGroupCellKey) return;
-    return () => {
-      setHoveredGroupCellKey(prev => (prev === cellKey ? null : prev));
-    };
-  }, [cellKey, setHoveredGroupCellKey]);
   const typeColor = getGroupTypeColor?.(gk.key, gk.id);
   const handlers = getGroupCellHandlers?.(gk, row);
   const isRowHighlightedFromDag =
@@ -219,26 +189,16 @@ function GroupCell({
       style={mergedStyle}
       onMouseEnter={() => {
         onHoverStat?.(null);
-        setHoveredGroupCellKey?.(cellKey);
         handlers?.onMouseEnter?.();
       }}
       onMouseLeave={() => {
-        setHoveredGroupCellKey?.(null);
         handlers?.onMouseLeave?.();
       }}
       onPointerLeave={() => {
-        setHoveredGroupCellKey?.(null);
         handlers?.onMouseLeave?.();
       }}
     >
-      <span
-        className="relative z-10 inline-block before:invisible before:font-semibold before:content-[attr(data-text)]"
-        data-text={gk.label}
-      >
-        <span className={cn('absolute inset-0', isGroupHovered && 'font-semibold')}>
-          {gk.label}
-        </span>
-      </span>
+      <span className="relative z-10">{gk.label}</span>
     </td>
   );
 }
@@ -383,10 +343,6 @@ export function PivotedStatTable<TRow>({
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
-  // Tracks the currently hovered group-cell identity (`${gk.key}:${gk.id}`) so
-  // that in compact mode, hovering a "filler" cell with an empty label still
-  // bolds the labeled top cell of the same group.
-  const [hoveredGroupCellKey, setHoveredGroupCellKey] = useState<string | null>(null);
   const [tableStatOrder, setTableStatOrder] = useState<string[]>([]);
   const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
     null
@@ -549,7 +505,6 @@ export function PivotedStatTable<TRow>({
 
   const handleTableMouseLeave = useCallback(() => {
     setHoveredHeaderItemIds(null);
-    setHoveredGroupCellKey(null);
     emitHoverStat(null);
     onTableMouseLeave?.();
   }, [emitHoverStat, onTableMouseLeave]);
@@ -620,20 +575,11 @@ export function PivotedStatTable<TRow>({
         getGroupTypeColor={getGroupTypeColor}
         getGroupCellHandlers={getGroupCellHandlers}
         onHoverStat={emitHoverStat}
-        hoveredGroupCellKey={hoveredGroupCellKey}
-        setHoveredGroupCellKey={setHoveredGroupCellKey}
         hoveredItemId={hoveredItemId}
         selectedItemIds={selectedItemIds}
       />
     ),
-    [
-      getGroupTypeColor,
-      getGroupCellHandlers,
-      emitHoverStat,
-      hoveredGroupCellKey,
-      hoveredItemId,
-      selectedItemIds,
-    ]
+    [getGroupTypeColor, getGroupCellHandlers, emitHoverStat, hoveredItemId, selectedItemIds]
   );
 
   const DataCellRenderer = useCallback(
