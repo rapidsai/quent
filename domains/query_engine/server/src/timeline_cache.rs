@@ -157,10 +157,10 @@ impl TimelineCache {
         <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
         let Some(geometry) = compute_chunk_geometry(&*analyzer, &request)? else {
-            return Ok(
-                tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request))
-                    .await??,
-            );
+            return Ok(tokio::task::spawn_blocking(move || {
+                analyzer.bulk_resource_timeline(request)
+            })
+            .await??);
         };
 
         let entry_hashes = compute_entry_hashes(&request.entries, &request.app_params);
@@ -276,8 +276,7 @@ impl TimelineCache {
         );
 
         let response =
-            tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request))
-                .await??;
+            tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request)).await??;
 
         for (key, entry_resp) in &response.entries {
             if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
@@ -559,7 +558,10 @@ where
     let zoom_level = determine_zoom_level(view_duration, engine_duration);
     let chunk_duration = engine_duration / zoom_level;
 
-    debug!(engine_duration, view_duration, zoom_level, "bulk timeline zoom level determined");
+    debug!(
+        engine_duration,
+        view_duration, zoom_level, "bulk timeline zoom level determined"
+    );
 
     let first_chunk =
         ((req_span.start().saturating_sub(epoch)) / chunk_duration).min(zoom_level - 1);
