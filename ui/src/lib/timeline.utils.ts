@@ -40,9 +40,8 @@ export const MIN_BIN_DURATION_NS = 10;
  * Minimum visible zoom window in seconds.
  * Below this, each bin would cover less than MIN_BIN_DURATION_NS nanoseconds.
  * 10 ns/bin × 400 bins = 4 μs
- * TODO: lower back to (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000 after verification
  */
-export const MIN_ZOOM_WINDOW_S = 0.020; // 20ms — temporary high value for testing
+export const MIN_ZOOM_WINDOW_S = (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000;
 
 /** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
 export function nanosToMs(ns: bigint): number {

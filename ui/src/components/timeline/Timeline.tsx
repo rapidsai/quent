@@ -253,8 +253,6 @@ export function Timeline({
     return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
   }, [durationSeconds]);
 
-  // Kept in sync via the ECharts datazoom event (no React render-cycle lag) so the
-  // capture listener can reliably block shift+wheel-in the moment the limit is reached.
   const minZoomSpanPctRef = useRef(minZoomSpanPct);
   minZoomSpanPctRef.current = minZoomSpanPct;
   const atZoomLimitRef = useRef(false);
@@ -363,18 +361,6 @@ export function Timeline({
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
 
-    // Update atZoomLimitRef synchronously from the ECharts datazoom event, which fires
-    // within the same event-dispatch tick as the wheel handler — before any React render.
-    // This avoids the one-tick stale-state window that windowMsRef.current has.
-    instance.on('datazoom', () => {
-      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
-      const dz = opt.dataZoom?.[0];
-      if (dz != null) {
-        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
-        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
-      }
-    });
-
     const dom = instance.getDom();
     dom.addEventListener('pointerdown', () => {
       isDraggingRef.current = true;
@@ -384,12 +370,21 @@ export function Timeline({
       isDraggingRef.current = false;
     });
 
-    // Let non-shift wheel events pass through to the page for normal scrolling.
-    // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
-    // Also block shift+wheel-in when at the zoom limit so ECharts can't convert the
-    // blocked zoom into a pan (zoomLock:true converts excess zoom delta into pan).
-    // atZoomLimitRef is kept current by the datazoom event listener above, which fires
-    // in the same synchronous tick as the ECharts canvas handler — no render-cycle lag.
+    // Update atZoomLimitRef from ECharts' datazoom event, which fires synchronously
+    // within the same dispatch tick as the wheel handler — no React render-cycle lag.
+    instance.on('datazoom', () => {
+      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
+      const dz = opt.dataZoom?.[0];
+      if (dz != null) {
+        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
+        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
+      }
+    });
+
+    // Pass non-shift wheel events through to the page for normal scrolling.
+    // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
+    // When at the zoom limit, also block shift+wheel-in before ECharts sees it —
+    // ECharts converts a blocked zoom into a pan, so we must stop it at the source.
     dom.addEventListener(
       'wheel',
       e => {
@@ -402,8 +397,7 @@ export function Timeline({
       { capture: true, passive: true }
     );
 
-    // Bubble-phase (fires after ECharts' canvas listener). Prevents the browser from handling
-    // shift+wheel zoom-in when ECharts can't act (e.g. zoom limit reached, pan disabled).
+    // Prevent the browser from handling shift+wheel-in when ECharts can't zoom further
     dom.addEventListener(
       'wheel',
       e => {
