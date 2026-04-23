@@ -213,6 +213,7 @@ export function buildPivotedRows(
       };
       groups.set(rk, group);
     }
+    // Used to highlight the table when the DAG is hovered
     group.itemIds.add(row.itemId);
     group.itemScopeIds.set(row.itemId, row.scopeId);
 

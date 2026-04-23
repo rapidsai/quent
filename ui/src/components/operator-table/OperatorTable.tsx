@@ -213,10 +213,20 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     return ids;
   }, [entities.plans, selectedPlanId]);
 
-  const rows = useMemo(
+  const allRows = useMemo(
     () => buildOperatorRows(entities, siblingPlanIds),
     [entities, siblingPlanIds]
   );
+
+  // When the DAG has a selection, narrow the table to just the matching
+  // operator rows. If the selection is non-empty but matches nothing in the
+  // current sibling-plan scope (e.g. a stage node was selected), fall back to
+  // the unfiltered rows so the table doesn't appear inexplicably empty.
+  const rows = useMemo(() => {
+    if (selectedNodeIds.size === 0) return allRows;
+    const filtered = allRows.filter(r => selectedNodeIds.has(r.itemId));
+    return filtered.length > 0 ? filtered : allRows;
+  }, [allRows, selectedNodeIds]);
 
   const itemsByParentType = useMemo(() => {
     const map = new Map<string, Set<string>>();
