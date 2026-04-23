@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { OptionMultiSelect } from '@/components/ui/OptionMultiSelect';
+import { OptionMultiSelect } from '@/components/ui/option-multi-select';
 import type { AggMode } from './types';
 import { useColumnDragDrop } from './useColumnDragDrop';
 
