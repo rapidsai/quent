@@ -8,6 +8,8 @@ use axum::Router as AxumRouter;
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
+use std::hash::Hash;
+
 use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
@@ -59,8 +61,9 @@ pub fn analyzer_service_router<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
+    <A as UiAnalyzer>::TimelineGlobalParams:
+        Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
+    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
     for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
     for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {

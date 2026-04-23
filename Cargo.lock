@@ -1714,7 +1714,6 @@ dependencies = [
  "quent-ui",
  "rust-embed",
  "serde",
- "serde_json",
  "thiserror",
  "tokio",
  "tonic",
