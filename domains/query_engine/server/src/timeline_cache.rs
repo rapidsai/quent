@@ -110,6 +110,14 @@ struct CacheCheckResult {
     miss_count: u64,
 }
 
+/// Identity of a cache lookup: engine, per-entry param hashes, and chunk geometry.
+/// Together these uniquely determine the `ChunkCacheKey` for every (entry, chunk) pair.
+struct CacheRequestContext<'a> {
+    engine_id: Uuid,
+    entry_hashes: &'a HashMap<String, u64>,
+    geometry: &'a ChunkGeometry,
+}
+
 /// Key identifying a cached timeline chunk.
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 struct ChunkCacheKey {
@@ -164,7 +172,12 @@ impl TimelineCache {
         };
 
         let entry_hashes = compute_entry_hashes(&request.entries, &request.app_params);
-        let cache_result = self.check_cache(engine_id, &entry_hashes, &geometry).await;
+        let ctx = CacheRequestContext {
+            engine_id,
+            entry_hashes: &entry_hashes,
+            geometry: &geometry,
+        };
+        let cache_result = self.check_cache(&ctx).await;
 
         debug!(
             hit_count = cache_result.hit_count,
@@ -176,13 +189,7 @@ impl TimelineCache {
 
         if !cache_result.any_cache_hit {
             return self
-                .cold_fetch_and_cache(
-                    Arc::clone(&analyzer),
-                    engine_id,
-                    request,
-                    &entry_hashes,
-                    &geometry,
-                )
+                .cold_fetch_and_cache(Arc::clone(&analyzer), request, &ctx)
                 .await;
         }
 
@@ -195,12 +202,10 @@ impl TimelineCache {
         if !chunk_misses.is_empty() {
             self.partial_fetch_and_cache(
                 Arc::clone(&analyzer),
-                engine_id,
                 &request.entries,
                 &request.app_params,
-                &entry_hashes,
                 &chunk_misses,
-                &geometry,
+                &ctx,
                 &mut entry_chunks,
             )
             .await?;
@@ -210,26 +215,21 @@ impl TimelineCache {
     }
 
     /// Check the cache for each (entry, chunk) pair in the current viewport.
-    async fn check_cache(
-        &self,
-        engine_id: Uuid,
-        entry_hashes: &HashMap<String, u64>,
-        geometry: &ChunkGeometry,
-    ) -> CacheCheckResult {
+    async fn check_cache(&self, ctx: &CacheRequestContext<'_>) -> CacheCheckResult {
         let mut entry_chunks: HashMap<String, Vec<SingleTimelineResponse>> = HashMap::new();
         let mut chunk_misses: HashMap<u64, Vec<String>> = HashMap::new();
         let mut any_cache_hit = false;
         let mut hit_count = 0u64;
         let mut miss_count = 0u64;
 
-        for chunk_idx in geometry.first_chunk..=geometry.last_chunk {
-            for (key, &params_hash) in entry_hashes {
+        for chunk_idx in ctx.geometry.first_chunk..=ctx.geometry.last_chunk {
+            for (key, &params_hash) in ctx.entry_hashes {
                 let cache_key = ChunkCacheKey {
-                    engine_id,
+                    engine_id: ctx.engine_id,
                     params_hash,
-                    zoom_level: geometry.zoom_level,
+                    zoom_level: ctx.geometry.zoom_level,
                     chunk_idx,
-                    num_bins: geometry.num_bins,
+                    num_bins: ctx.geometry.num_bins,
                 };
 
                 if let Some(cached) = self.chunks.get(&cache_key).await {
@@ -256,13 +256,11 @@ impl TimelineCache {
     async fn cold_fetch_and_cache<A>(
         &self,
         analyzer: Arc<A>,
-        engine_id: Uuid,
         request: BulkTimelineRequest<
             <A as UiAnalyzer>::TimelineGlobalParams,
             <A as UiAnalyzer>::TimelineParams,
         >,
-        entry_hashes: &HashMap<String, u64>,
-        geometry: &ChunkGeometry,
+        ctx: &CacheRequestContext<'_>,
     ) -> ServerResult<BulkTimelinesResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
@@ -271,7 +269,7 @@ impl TimelineCache {
     {
         debug!(
             n_entries = request.entries.len(),
-            zoom_level = geometry.zoom_level,
+            zoom_level = ctx.geometry.zoom_level,
             "bulk timeline cold cache: full fetch"
         );
 
@@ -286,21 +284,21 @@ impl TimelineCache {
                 };
                 let chunks = split_response_into_chunks(
                     &chunk_resp,
-                    geometry.first_chunk,
-                    geometry.last_chunk,
-                    geometry.chunk_duration,
-                    geometry.zoom_level,
-                    geometry.epoch,
-                    geometry.engine_end,
+                    ctx.geometry.first_chunk,
+                    ctx.geometry.last_chunk,
+                    ctx.geometry.chunk_duration,
+                    ctx.geometry.zoom_level,
+                    ctx.geometry.epoch,
+                    ctx.geometry.engine_end,
                 )?;
 
                 for (chunk_idx, chunk) in chunks {
                     let cache_key = ChunkCacheKey {
-                        engine_id,
-                        params_hash: entry_hashes[key],
-                        zoom_level: geometry.zoom_level,
+                        engine_id: ctx.engine_id,
+                        params_hash: ctx.entry_hashes[key],
+                        zoom_level: ctx.geometry.zoom_level,
                         chunk_idx,
-                        num_bins: geometry.num_bins,
+                        num_bins: ctx.geometry.num_bins,
                     };
                     self.chunks.insert(cache_key, chunk).await;
                 }
@@ -314,12 +312,10 @@ impl TimelineCache {
     async fn partial_fetch_and_cache<A>(
         &self,
         analyzer: Arc<A>,
-        engine_id: Uuid,
         entries: &HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>>,
         app_params: &<A as UiAnalyzer>::TimelineGlobalParams,
-        entry_hashes: &HashMap<String, u64>,
         chunk_misses: &HashMap<u64, Vec<String>>,
-        geometry: &ChunkGeometry,
+        ctx: &CacheRequestContext<'_>,
         entry_chunks: &mut HashMap<String, Vec<SingleTimelineResponse>>,
     ) -> ServerResult<()>
     where
@@ -331,21 +327,21 @@ impl TimelineCache {
         debug!(
             n_miss_chunks = chunk_misses.len(),
             n_miss_entries,
-            zoom_level = geometry.zoom_level,
+            zoom_level = ctx.geometry.zoom_level,
             "bulk timeline partial cache: fetching missing chunks"
         );
 
         for (chunk_idx, miss_keys) in chunk_misses {
-            let chunk_start = geometry.epoch + chunk_idx * geometry.chunk_duration;
-            let chunk_end = if *chunk_idx == geometry.zoom_level - 1 {
-                geometry.engine_end
+            let chunk_start = ctx.geometry.epoch + chunk_idx * ctx.geometry.chunk_duration;
+            let chunk_end = if *chunk_idx == ctx.geometry.zoom_level - 1 {
+                ctx.geometry.engine_end
             } else {
-                geometry.epoch + (chunk_idx + 1) * geometry.chunk_duration
+                ctx.geometry.epoch + (chunk_idx + 1) * ctx.geometry.chunk_duration
             };
             let timeline_config = TimelineConfig {
-                num_bins: geometry.num_bins,
-                start: to_secs_relative(chunk_start, geometry.epoch),
-                end: to_secs_relative(chunk_end, geometry.epoch),
+                num_bins: ctx.geometry.num_bins,
+                start: to_secs_relative(chunk_start, ctx.geometry.epoch),
+                end: to_secs_relative(chunk_end, ctx.geometry.epoch),
             };
 
             let chunk_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
@@ -373,11 +369,11 @@ impl TimelineCache {
                 if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
                     let single = SingleTimelineResponse { config, data };
                     let cache_key = ChunkCacheKey {
-                        engine_id,
-                        params_hash: entry_hashes[&key],
-                        zoom_level: geometry.zoom_level,
+                        engine_id: ctx.engine_id,
+                        params_hash: ctx.entry_hashes[&key],
+                        zoom_level: ctx.geometry.zoom_level,
                         chunk_idx: *chunk_idx,
-                        num_bins: geometry.num_bins,
+                        num_bins: ctx.geometry.num_bins,
                     };
                     self.chunks.insert(cache_key, single.clone()).await;
                     entry_chunks.entry(key).or_default().push(single);
