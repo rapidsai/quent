@@ -14,7 +14,7 @@ import {
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
 import { TimelineSkeleton } from './TimelineSkeleton';
-import { useMemo, lazy, Suspense } from 'react';
+import { useMemo, useRef, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
   buildTimelineMarks,
@@ -102,7 +102,18 @@ export function ResourceTimeline({
     operatorId,
   });
   const operatorTimelineData = useAtomValue(timelineDataAtom(operatorCacheKey));
-  const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
+  // Preserve the last non-undefined overlay data while an operator is selected.
+  // Without this, switching operators causes a one-render undimmed flash because
+  // the new operator's atom is empty until the seed effect fires.
+  const lastOverlayRef = useRef<typeof operatorTimelineData>(undefined);
+  if (operatorTimelineData !== undefined) {
+    lastOverlayRef.current = operatorTimelineData;
+  } else if (!operatorId) {
+    lastOverlayRef.current = undefined;
+  }
+  const overlayPreloadedData = operatorId
+    ? (operatorTimelineData ?? lastOverlayRef.current)
+    : undefined;
 
   const {
     data: fetchedData,
@@ -164,8 +175,7 @@ export function ResourceTimeline({
     marks?: TimelineMark[];
   }>(() => {
     const data = preloadedData ?? fetchedData;
-    if (!data || (operatorId != null && !overlayPreloadedData))
-      return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
+    if (!data) return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
     const base = buildBinnedTimelineSeries(
       data.data,
