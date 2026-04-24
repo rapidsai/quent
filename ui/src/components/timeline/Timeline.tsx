@@ -52,6 +52,7 @@ export function Timeline({
     markAreaFillOpacity,
     markAreaBorderOpacity,
     markLabelTextColor,
+    rollupTimelineColor,
   } = useTimelineChartColors();
 
   const zoomRange = useAtomValue(zoomRangeAtom);
@@ -64,9 +65,12 @@ export function Timeline({
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
 
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
-      const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
       const isDimmed = seriesData.isDimmed ?? false;
+      // When an operator is selected, collapse all non-overlay states to a
+      // single neutral gray so the operator overlay reads as the figure and
+      // everything else recedes as a monotone background.
+      const renderColor = isDimmed ? rollupTimelineColor : seriesData.color;
 
       return {
         name,
@@ -81,9 +85,9 @@ export function Timeline({
         cursor: 'default',
         data: seriesData.values.map((value, index) => [timestamps[index], value]),
         lineStyle: { width: 0 },
-        itemStyle: { color },
+        itemStyle: { color: renderColor },
         areaStyle: {
-          color,
+          color: renderColor,
           opacity: isDimmed ? DIMMED_OPACITY : 1,
         },
         z: isOverlay ? 5 : 2,
@@ -161,7 +165,15 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
+  }, [
+    series,
+    timestamps,
+    marks,
+    markAreaFillOpacity,
+    markAreaBorderOpacity,
+    markLabelTextColor,
+    rollupTimelineColor,
+  ]);
 
   const yAxisFormatter = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
