@@ -200,6 +200,20 @@ export function buildTimelineMarks(
 }
 
 /**
+ * Mark every entry in a TimelineSeries as dimmed. Used both as the background
+ * layer when an operator overlay is rendered and as a placeholder while the
+ * overlay data for a freshly selected operator is still in flight (so the
+ * chart doesn't flash to full color in the gap).
+ */
+export function dimSeries(series: TimelineSeries): TimelineSeries {
+  const dimmed: TimelineSeries = {};
+  for (const [state, entry] of Object.entries(series)) {
+    dimmed[state] = { ...entry, isDimmed: true };
+  }
+  return dimmed;
+}
+
+/**
  * Merge overlay series into base series for overlay rendering.
  * Base series are dimmed; overlay series keep original colors so the
  * selected operator stands out clearly against the background.
@@ -210,10 +224,7 @@ export function mergeOverlaySeries(
   overlayLabel: string
 ): TimelineSeries {
   // Dim all base series to push them into the background.
-  const merged: TimelineSeries = {};
-  for (const [state, baseEntry] of Object.entries(baseSeries)) {
-    merged[state] = { ...baseEntry, isDimmed: true };
-  }
+  const merged: TimelineSeries = dimSeries(baseSeries);
   // Add overlay series at full intensity with original colors.
   for (const [state, overlayEntry] of Object.entries(overlaySeries)) {
     const baseEntry = baseSeries[state];

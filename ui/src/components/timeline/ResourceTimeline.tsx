@@ -18,6 +18,7 @@ import { useMemo, useRef, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
   buildTimelineMarks,
+  dimSeries,
   getLongFsms,
   mergeOverlaySeries,
   getAdaptiveNumBins,
@@ -189,36 +190,47 @@ export function ResourceTimeline({
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
 
-    if (overlayPreloadedData && operatorLabel) {
-      const baseSpan = getTimelineConfig(data).span;
-      const opSpan = getTimelineConfig(overlayPreloadedData).span;
-      const baseEqualsOpsSpan = baseSpan.start === opSpan.start && baseSpan.end === opSpan.end;
-      if (baseEqualsOpsSpan) {
-        const opResult = buildBinnedTimelineSeries(
-          overlayPreloadedData.data,
-          overlayPreloadedData.config,
-          startTime,
-          capacities,
-          quantitySpecs,
-          fsmTypes
-        );
-        const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
-        return {
-          timestamps: base.timestamps,
-          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
-          marks: buildTimelineMarks(
-            longFsms,
-            startTime,
-            filterSet,
-            fsmTypes,
-            opLongFsmIds,
-            operatorLabel
-          ),
-        };
-      }
-    }
-
     const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet, fsmTypes);
+
+    if (operatorId && operatorLabel) {
+      if (overlayPreloadedData) {
+        const baseSpan = getTimelineConfig(data).span;
+        const opSpan = getTimelineConfig(overlayPreloadedData).span;
+        const baseEqualsOpsSpan = baseSpan.start === opSpan.start && baseSpan.end === opSpan.end;
+        if (baseEqualsOpsSpan) {
+          const opResult = buildBinnedTimelineSeries(
+            overlayPreloadedData.data,
+            overlayPreloadedData.config,
+            startTime,
+            capacities,
+            quantitySpecs,
+            fsmTypes
+          );
+          const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
+          return {
+            timestamps: base.timestamps,
+            series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
+            marks: buildTimelineMarks(
+              longFsms,
+              startTime,
+              filterSet,
+              fsmTypes,
+              opLongFsmIds,
+              operatorLabel
+            ),
+          };
+        }
+      }
+      // Operator is selected but the overlay can't render this frame
+      // (data not yet populated for the new operator, or zoom span mismatch).
+      // Dim the base anyway so the chart never flashes back to full color
+      // between the click and the new overlay arriving.
+      return {
+        timestamps: base.timestamps,
+        series: dimSeries(base.series),
+        marks: timelineMarks,
+      };
+    }
 
     return { ...base, marks: timelineMarks };
   }, [
