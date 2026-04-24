@@ -4,26 +4,6 @@
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import { getActivePalette } from '@/services/colors';
-import { formatDuration, formatBytes, formatNumber } from '@/services/formatters';
-
-/**
- * Infer a display formatter for a DAG stat field based on its name.
- * Falls back to formatNumber for unrecognized fields.
- */
-export function inferFieldFormatter(fieldName: string): (value: number) => string {
-  if (fieldName.endsWith('_ns')) return v => formatDuration(v / 1e6);
-  if (fieldName.endsWith('_bytes') || fieldName === 'bytes') return formatBytes;
-  if (fieldName.endsWith('_mbs')) return v => `${v.toFixed(1)} MB/s`;
-  if (
-    fieldName.endsWith('_ratio') ||
-    fieldName.endsWith('_fraction') ||
-    fieldName.endsWith('_fpr') ||
-    fieldName.endsWith('_selectivity') ||
-    fieldName.endsWith('_rate')
-  )
-    return v => `${(v * 100).toFixed(1)}%`;
-  return formatNumber;
-}
 
 export function computeNodeColoring(nodes: DAGNode[], field: string | null): NodeColoring {
   if (!field || !nodes.length) return null;
