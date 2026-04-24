@@ -32,7 +32,8 @@ import {
   edgeColorPaletteAtom,
   selectedEdgeWidthFieldAtom,
   selectedEdgeColorFieldAtom,
-  highlightedNodeIdsAtom,
+  effectiveHighlightedNodeIdsAtom,
+  dagDisplayedNodeIdsAtom,
 } from '@/atoms/dag';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -77,7 +78,7 @@ const VariableWidthEdge = ({
   const edgeColoring = useAtomValue(edgeColoringAtom);
   const edgePalette = useAtomValue(edgeColorPaletteAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const highlightedNodeIds = useAtomValue(highlightedNodeIdsAtom).ids;
+  const highlightedNodeIds = useAtomValue(effectiveHighlightedNodeIdsAtom).ids;
   const edgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
   const edgeColorField = useAtomValue(selectedEdgeColorFieldAtom);
   const { theme } = useTheme();
@@ -295,8 +296,19 @@ const FlowLayout = ({
   const { fitView } = useReactFlow();
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
+  const setDagDisplayedNodeIds = useSetAtom(dagDisplayedNodeIdsAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hasUserInteracted = useRef(false);
+
+  // Publish the set of operator IDs visible in this DAG so other consumers
+  // (effective highlight/heatmap atoms) can decide whether a hover-driven
+  // dim is meaningful for what's currently on screen.
+  useEffect(() => {
+    setDagDisplayedNodeIds(new Set(data.nodes.map(n => n.id)));
+    return () => {
+      setDagDisplayedNodeIds(new Set());
+    };
+  }, [data.nodes, setDagDisplayedNodeIds]);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {

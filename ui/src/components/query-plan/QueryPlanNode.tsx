@@ -5,12 +5,13 @@ import { memo, useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import {
   selectedNodeLabelFieldAtom,
   NODE_LABEL_FIELD,
-  hoveredStatAtom,
   highlightedNodeIdsAtom,
+  effectiveHighlightedNodeIdsAtom,
+  effectiveHoveredStatAtom,
   nodeColorPaletteAtom,
 } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
@@ -66,8 +67,11 @@ function nodeOpacityClass({
   if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
   // An active highlight set fully overrides the selection-based dim so that
   // hovered (highlighted) operators are always visible, even when a DAG
-  // selection would otherwise dim them.
-  if (highlightedNodeIds !== null) {
+  // selection would otherwise dim them. The atom is fed through
+  // `effectiveHighlightedNodeIdsAtom`, which clears `ids` when nothing in
+  // the highlight set is actually shown — so an empty/null set here means
+  // "no meaningful highlight" and we leave everything at full opacity.
+  if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
     return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-25';
   }
   if (isDimmed) return 'opacity-30';
@@ -75,8 +79,12 @@ function nodeOpacityClass({
 }
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
-  const hoveredStat = useAtomValue(hoveredStatAtom);
+  // Writes go to the source atom so the table (which reads from it directly)
+  // still sees DAG hovers; reads come from the effective atom so the chart
+  // doesn't dim when nothing visible would be highlighted.
+  const setHighlightState = useSetAtom(highlightedNodeIdsAtom);
+  const highlightState = useAtomValue(effectiveHighlightedNodeIdsAtom);
+  const hoveredStat = useAtomValue(effectiveHoveredStatAtom);
   const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const { theme } = useTheme();
   const isDarkMode = theme === THEME_DARK;
@@ -135,14 +143,14 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const onMouseEnter = useCallback(() => {
     setIsHoveredLocal(true);
     if (operatorId) {
-      setHighlightState({
-        ...highlightState,
+      setHighlightState(prev => ({
+        ...prev,
         ids: new Set([operatorId]),
         source: 'dag',
         primaryOperatorId: operatorId,
-      });
+      }));
     }
-  }, [operatorId, setHighlightState, highlightState]);
+  }, [operatorId, setHighlightState]);
   const onMouseLeave = useCallback(() => {
     setIsHoveredLocal(false);
     setHighlightState(prev =>
