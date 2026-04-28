@@ -184,7 +184,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [rows, parentScopeLabelValue]);
 
   /* This should in the future be extended with all categorical/boolean type stats */
-  const indexLabels: Record<string, React.ReactNode> = useMemo(
+  const indexLabels: Record<IndexKey, React.ReactNode> = useMemo(
     () => ({
       partition: 'Worker / Plan',
       parent_item_type: (
