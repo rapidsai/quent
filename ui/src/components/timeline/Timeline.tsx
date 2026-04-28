@@ -19,7 +19,7 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart, nanosToMs } from '@/lib/timeline.utils';
+import { connectChart, MIN_ZOOM_WINDOW_S, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
 import { zoomRangeAtom } from '@/atoms/timeline';
 
@@ -248,6 +248,15 @@ export function Timeline({
     [gridBorderColor, gridBackgroundColor]
   );
 
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
+
+  const minZoomSpanPctRef = useRef(minZoomSpanPct);
+  minZoomSpanPctRef.current = minZoomSpanPct;
+  const atZoomLimitRef = useRef(false);
+
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       animation: false,
@@ -307,11 +316,18 @@ export function Timeline({
       yAxis: yAxisOptions,
       series: seriesOptions,
       dataZoom: [
-        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'slider',
+          show: false,
+          realtime: true,
+          filterMode: 'none',
+          minSpan: minZoomSpanPct,
+        },
         {
           type: 'inside',
           zoomLock: true,
           zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
         },
@@ -322,12 +338,14 @@ export function Timeline({
           moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
         },
       ],
     } as EChartsOption;
   }, [
     showTooltip,
     gridOptions,
+    minZoomSpanPct,
     xAxisOptions,
     yAxisOptions,
     seriesOptions,
@@ -352,14 +370,40 @@ export function Timeline({
       isDraggingRef.current = false;
     });
 
-    // Let non-shift wheel events pass through to the page for normal scrolling.
-    // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    // Update atZoomLimitRef from ECharts' datazoom event, which fires synchronously
+    // within the same dispatch tick as the wheel handler — no React render-cycle lag.
+    instance.on('datazoom', () => {
+      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
+      const dz = opt.dataZoom?.[0];
+      if (dz != null) {
+        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
+        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
+      }
+    });
+
+    // Pass non-shift wheel events through to the page for normal scrolling.
+    // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
+    // When at the zoom limit, also block shift+wheel-in before ECharts sees it —
+    // ECharts converts a blocked zoom into a pan, so we must stop it at the source.
     dom.addEventListener(
       'wheel',
       e => {
-        if (!e.shiftKey) e.stopPropagation();
+        if (!e.shiftKey) {
+          e.stopPropagation();
+        } else if (e.deltaY < 0 && atZoomLimitRef.current) {
+          e.stopPropagation();
+        }
       },
       { capture: true, passive: true }
+    );
+
+    // Prevent the browser from handling shift+wheel-in when ECharts can't zoom further
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
+      },
+      { passive: false }
     );
   }, []);
 

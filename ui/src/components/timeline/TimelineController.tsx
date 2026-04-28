@@ -14,6 +14,7 @@ import {
   connectChart,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
+  MIN_ZOOM_WINDOW_S,
   nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
@@ -212,6 +213,11 @@ export function TimelineController({
     [colors.gridBorderColor, colors.controllerGridBackgroundColor]
   );
 
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
+
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       tooltip: { show: true, showContent: false, trigger: 'axis' },
@@ -227,6 +233,7 @@ export function TimelineController({
           xAxisIndex: [1],
           realtime: true,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
           top: 0,
           height: height - 24,
           brushSelect: true,
@@ -285,6 +292,7 @@ export function TimelineController({
           zoomOnMouseWheel: true,
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
+          minSpan: minZoomSpanPct,
         },
       ],
       xAxis: [staticXAxisOptions, zoomXAxisOptions],
@@ -295,6 +303,7 @@ export function TimelineController({
     colors,
     gridOptions,
     height,
+    minZoomSpanPct,
     staticXAxisOptions,
     zoomXAxisOptions,
     yAxisOptions,
