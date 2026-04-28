@@ -24,9 +24,11 @@ import type { DAGData } from '@/services/query-plan/types';
 import { getOperatorColor } from '@/services/query-plan/operationTypes';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
+import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 import {
   selectedNodeIdsAtom,
   selectedOperatorLabelAtom,
+  selectedNodeDataAtom,
   edgeWidthConfigAtom,
   edgeColoringAtom,
   edgeColorPaletteAtom,
@@ -35,6 +37,7 @@ import {
   effectiveHighlightedNodeIdsAtom,
   dagDisplayedNodeIdsAtom,
 } from '@/atoms/dag';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { inferFieldFormatter } from '@/services/formatters';
@@ -297,6 +300,7 @@ const FlowLayout = ({
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const setDagDisplayedNodeIds = useSetAtom(dagDisplayedNodeIdsAtom);
+  const setSelectedNodeData = useSetAtom(selectedNodeDataAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hasUserInteracted = useRef(false);
 
@@ -361,13 +365,26 @@ const FlowLayout = ({
       if (selectedNodeIds.has(node.id)) {
         setSelectedNodeIds(new Set());
         setSelectedOperatorLabel(null);
+        setSelectedNodeData(null);
       } else {
         setSelectedNodeIds(new Set([node.id]));
         setSelectedOperatorLabel(node.data.label);
+        setSelectedNodeData({
+          nodeId: node.id,
+          label: node.data.label,
+          operationType: node.data.operationType,
+          statistics: parseCustomStatistics(node.data.metadata?.rawNode),
+        });
       }
     },
-    [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
+    [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel, setSelectedNodeData]
   );
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeIds(new Set());
+    setSelectedOperatorLabel(null);
+    setSelectedNodeData(null);
+  }, [setSelectedNodeIds, setSelectedOperatorLabel, setSelectedNodeData]);
 
   // Re-fit view when the react-flow container is resized, but only if the user
   // hasn't interacted with the chart (to maintain any focus states applied)
@@ -408,6 +425,7 @@ const FlowLayout = ({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
+      onPaneClick={handlePaneClick}
       onMoveStart={handleMoveStart}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
@@ -419,6 +437,7 @@ const FlowLayout = ({
     >
       <Background />
       <DAGLegend />
+      <DAGNodeInfoPanel />
       <MiniMap
         pannable
         zoomable

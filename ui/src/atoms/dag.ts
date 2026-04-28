@@ -4,7 +4,12 @@
 import { atom } from 'jotai';
 import { HoveredStatInfo } from '@/components/pivot-table/types';
 export type { HoveredStatInfo } from '@/components/pivot-table/types';
-import type { NodeColoring, EdgeWidthConfig, EdgeColoring } from '@/services/query-plan/types';
+import type {
+  NodeColoring,
+  EdgeWidthConfig,
+  EdgeColoring,
+  StatValue,
+} from '@/services/query-plan/types';
 import type { ContinuousPaletteName } from '@/services/colors';
 
 export interface HighlightedNodeIdsState {
@@ -13,6 +18,19 @@ export interface HighlightedNodeIdsState {
   source: 'dag' | 'table' | null;
   primaryOperatorId: string | null;
 }
+
+export interface InspectedNodeData {
+  nodeId: string;
+  label: string;
+  operationType: string;
+  statistics: Array<{ key: string; value: StatValue }>;
+}
+
+/** Data for the node currently being hovered (drives the preview panel) */
+export const hoveredNodeDataAtom = atom<InspectedNodeData | null>(null);
+
+/** Data for the currently selected/pinned node (persists in the panel after click) */
+export const selectedNodeDataAtom = atom<InspectedNodeData | null>(null);
 
 /** The set of currently selected node IDs in the DAG chart */
 export const selectedNodeIdsAtom = atom(new Set<string>());

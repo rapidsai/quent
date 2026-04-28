@@ -13,9 +13,9 @@ import {
   effectiveHighlightedNodeIdsAtom,
   effectiveHoveredStatAtom,
   nodeColorPaletteAtom,
+  hoveredNodeDataAtom,
 } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
-import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 import { continuousColor, isLightColor, withOpacity, WHITE, BLACK } from '@/services/colors';
 import { useNodeColoring } from '@/hooks/useNodeColoring';
@@ -34,7 +34,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10',
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10 nodrag nopan',
   {
     variants: {
       selected: {
@@ -94,6 +94,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const nodeLabelField = useAtomValue(selectedNodeLabelFieldAtom);
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId);
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
+  const setHoveredNodeData = useSetAtom(hoveredNodeDataAtom);
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
@@ -142,6 +143,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const onMouseEnter = useCallback(() => {
     setIsHoveredLocal(true);
+    setHoveredNodeData({
+      nodeId: data.nodeId,
+      label: data.label,
+      operationType: data.operationType,
+      statistics,
+    });
     if (operatorId) {
       setHighlightState(prev => ({
         ...prev,
@@ -150,15 +157,24 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         primaryOperatorId: operatorId,
       }));
     }
-  }, [operatorId, setHighlightState]);
+  }, [
+    data.nodeId,
+    data.label,
+    data.operationType,
+    statistics,
+    operatorId,
+    setHighlightState,
+    setHoveredNodeData,
+  ]);
   const onMouseLeave = useCallback(() => {
     setIsHoveredLocal(false);
+    setHoveredNodeData(null);
     setHighlightState(prev =>
       prev.source === 'dag' && prev.ids?.size === 1 && prev.ids.has(operatorId)
         ? { ...prev, ids: null, source: null, primaryOperatorId: null }
         : prev
     );
-  }, [operatorId, setHighlightState, setIsHoveredLocal]);
+  }, [operatorId, setHighlightState, setHoveredNodeData]);
 
   const nodeContent = (
     <div
@@ -208,20 +224,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   );
 
   return (
-    <OperatorStatisticsPopup
-      data={statistics}
-      nodeId={data.nodeId}
-      operatorLabel={data.label}
-      operationType={data.operationType}
+    <div
+      className={cn(opacityClass, 'z-10', {
+        'ring-2 ring-primary/50 rounded-md': isActiveHighlight,
+      })}
     >
-      <div
-        className={cn(opacityClass, 'z-10', {
-          'ring-2 ring-primary/50 rounded-md': isActiveHighlight,
-        })}
-      >
-        {nodeContent}
-      </div>
-    </OperatorStatisticsPopup>
+      {nodeContent}
+    </div>
   );
 });
 
