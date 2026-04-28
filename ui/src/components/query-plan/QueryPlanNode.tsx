@@ -41,14 +41,9 @@ const nodeVariants = cva(
         true: 'shadow-glow border-2 scale-110',
         false: 'shadow-md',
       },
-      dimmed: {
-        true: 'opacity-30',
-        false: 'opacity-100',
-      },
     },
     defaultVariants: {
       selected: false,
-      dimmed: false,
     },
   }
 );
@@ -72,9 +67,9 @@ function nodeOpacityClass({
   // the highlight set is actually shown — so an empty/null set here means
   // "no meaningful highlight" and we leave everything at full opacity.
   if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
-    return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-25';
+    return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-35';
   }
-  if (isDimmed) return 'opacity-30';
+  if (isDimmed) return 'opacity-35';
   return 'opacity-100';
 }
 
@@ -126,17 +121,11 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return continuousColor(t, nodePalette, isDarkMode);
   }, [hoveredStat, operatorId, nodePalette, isDarkMode]);
 
-  // While a hover-driven highlight set is active, treat membership in that set
-  // as the authoritative dim signal so the inner card's `dimmed` overlay does
-  // not stack on top of the outer opacity for highlighted nodes.
-  const hasActiveHighlight = highlightState.ids !== null;
-  const effectiveDimmed = hasActiveHighlight ? !isHighlighted : isDimmed;
-
   const opacityClass = nodeOpacityClass({
     hoveredStat,
     highlightedNodeIds: highlightState.ids,
     operatorId,
-    isDimmed: effectiveDimmed,
+    isDimmed,
   });
 
   const isActiveHighlight = isHighlighted && !isSelected;
@@ -178,7 +167,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={nodeVariants({ selected: isSelected, dimmed: effectiveDimmed })}
+      className={nodeVariants({ selected: isSelected })}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={

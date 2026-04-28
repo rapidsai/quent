@@ -48,7 +48,7 @@ const elk = new ELK();
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
 const EDGE_STROKE_WIDTH_MIN = 2;
 const EDGE_STROKE_WIDTH_RANGE = 10; // stroke = MIN + t * RANGE → [2, 12] px
-const EDGE_DIMMED_OPACITY = 0.15;
+const EDGE_DIMMED_OPACITY = 0.25;
 const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
