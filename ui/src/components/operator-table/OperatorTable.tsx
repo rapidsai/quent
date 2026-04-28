@@ -66,6 +66,20 @@ const DEFAULT_ENABLED: Record<IndexKey, boolean> = {
   item: true,
 };
 
+// Module-scoped so the reference is stable across renders. An inline arrow
+// here would be a fresh function on every render of OperatorTable, which
+// cascades into PivotedStatTable's renderer dep arrays and ultimately causes
+// every cell to unmount/remount on every hover atom update — see the
+// `useStableRenderer` doc comment in PivotedStatTable.
+const getOperatorGroupTypeColor = (key: string, id: string): string | undefined =>
+  key === 'item_type' || key === 'parent_item_type'
+    ? getOperatorColor(id?.toLowerCase() ?? '')
+    : undefined;
+
+// Same reasoning: an inline `{ enabled: true, overscan: 12 }` would be a
+// fresh object reference per render and re-trigger virtualizer effects.
+const VIRTUALIZATION_CONFIG = { enabled: true, overscan: 12 } as const;
+
 interface OperatorTableProps {
   queryBundle: QueryBundle<EntityRef>;
 }
@@ -310,12 +324,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           hoveredStat={hoveredStat}
           onHoverStat={setHoveredStat}
           onTableMouseLeave={handleTableMouseLeave}
-          virtualization={{ enabled: true, overscan: 12 }}
-          getGroupTypeColor={(key, id) =>
-            key === 'item_type' || key === 'parent_item_type'
-              ? getOperatorColor(id?.toLowerCase() ?? '')
-              : undefined
-          }
+          virtualization={VIRTUALIZATION_CONFIG}
+          getGroupTypeColor={getOperatorGroupTypeColor}
           getGroupCellHandlers={getGroupCellHandlers}
           sorting={sorting}
           onSortingChange={setSorting}

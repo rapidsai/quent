@@ -35,6 +35,27 @@ import { useColumnDragDrop } from './useColumnDragDrop';
 
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
 
+/**
+ * Stable wrapper for renderer components passed into `<GroupedDataTable>`.
+ *
+ * The naive pattern — `const X = useCallback((props) => <Inner {...props} foo={foo} />, [foo])` —
+ * returns a new function reference whenever `foo` changes, so React sees a
+ * different component *type* at the same JSX position and unmounts/remounts
+ * the underlying DOM. For our hover handlers that's fatal: the `<td>`'s
+ * `mouseleave` handler is removed before the user can leave the cell, so the
+ * highlight set by `mouseenter` is never paired with a `mouseleave` and the
+ * DAG ends up with orphan-highlighted nodes (and stale stat heatmap colors).
+ *
+ * This hook holds the latest impl in a ref and exposes a single memoised
+ * invocation function, so the wrapper reference is permanently stable while
+ * each call still picks up the latest closure values.
+ */
+function useStableRenderer<P>(impl: (props: P) => React.ReactNode): (props: P) => React.ReactNode {
+  const implRef = useRef(impl);
+  implRef.current = impl;
+  return useMemo(() => (props: P) => implRef.current(props), []);
+}
+
 function DataHeader({
   stat,
   sortInfo,
@@ -561,79 +582,52 @@ export function PivotedStatTable<TRow>({
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [hoveredItemId, visiblePivotedRows]);
 
-  const DataHeaderRenderer = useCallback(
-    (props: DataHeaderProps) => (
-      <DataHeader
-        {...props}
-        draggedStat={statDragDrop.draggedId}
-        getDropTargetPosition={statDragDrop.getDropTargetPosition}
-        onStatDragStart={statDragDrop.handleDragStart}
-        onStatDragOver={statDragDrop.handleDragOver}
-        onStatDragLeave={statDragDrop.handleDragLeave}
-        onStatDrop={statDragDrop.handleDrop}
-        onStatDragEnd={statDragDrop.handleDragEnd}
-        onHoverStat={emitHoverStat}
-        buildHoveredStatInfo={buildHoveredStatInfo}
-        hoveredStatName={effectiveHoveredStat?.name}
-      />
-    ),
-    [
-      statDragDrop.draggedId,
-      statDragDrop.getDropTargetPosition,
-      statDragDrop.handleDragStart,
-      statDragDrop.handleDragOver,
-      statDragDrop.handleDragLeave,
-      statDragDrop.handleDrop,
-      statDragDrop.handleDragEnd,
-      emitHoverStat,
-      buildHoveredStatInfo,
-      effectiveHoveredStat?.name,
-    ]
-  );
+  // The renderers below are intentionally NOT wrapped in `useCallback`. A
+  // changing useCallback dep list would re-create the function reference and
+  // force <GroupedDataTable> to remount every cell on every atom update,
+  // dropping the in-flight mouseleave handlers — see `useStableRenderer`.
+  const DataHeaderRenderer = useStableRenderer<DataHeaderProps>(props => (
+    <DataHeader
+      {...props}
+      draggedStat={statDragDrop.draggedId}
+      getDropTargetPosition={statDragDrop.getDropTargetPosition}
+      onStatDragStart={statDragDrop.handleDragStart}
+      onStatDragOver={statDragDrop.handleDragOver}
+      onStatDragLeave={statDragDrop.handleDragLeave}
+      onStatDrop={statDragDrop.handleDrop}
+      onStatDragEnd={statDragDrop.handleDragEnd}
+      onHoverStat={emitHoverStat}
+      buildHoveredStatInfo={buildHoveredStatInfo}
+      hoveredStatName={effectiveHoveredStat?.name}
+    />
+  ));
 
-  const GroupCellRenderer = useCallback(
-    (props: GroupCellProps<PivotedRow>) => (
-      <GroupCell
-        {...props}
-        getGroupTypeColor={getGroupTypeColor}
-        getGroupCellHandlers={getGroupCellHandlers}
-        onHoverStat={emitHoverStat}
-        hoveredItemId={hoveredItemId}
-        selectedItemIds={selectedItemIds}
-      />
-    ),
-    [getGroupTypeColor, getGroupCellHandlers, emitHoverStat, hoveredItemId, selectedItemIds]
-  );
+  const GroupCellRenderer = useStableRenderer<GroupCellProps<PivotedRow>>(props => (
+    <GroupCell
+      {...props}
+      getGroupTypeColor={getGroupTypeColor}
+      getGroupCellHandlers={getGroupCellHandlers}
+      onHoverStat={emitHoverStat}
+      hoveredItemId={hoveredItemId}
+      selectedItemIds={selectedItemIds}
+    />
+  ));
 
-  const DataCellRenderer = useCallback(
-    (props: DataCellProps<PivotedRow>) => (
-      <DataCell
-        {...props}
-        isAggregating={isAggregating}
-        aggMode={aggMode}
-        columnRanges={columnRanges}
-        colorPalette={nodePalette}
-        darkMode={isDarkMode}
-        hoveredHeaderItemIds={hoveredHeaderItemIds}
-        hoveredItemId={hoveredItemId}
-        hoveredStatName={effectiveHoveredStat?.name}
-        onHoverStat={emitHoverStat}
-        buildHoveredStatInfo={buildHoveredStatInfo}
-      />
-    ),
-    [
-      isAggregating,
-      aggMode,
-      columnRanges,
-      nodePalette,
-      isDarkMode,
-      hoveredHeaderItemIds,
-      hoveredItemId,
-      effectiveHoveredStat?.name,
-      emitHoverStat,
-      buildHoveredStatInfo,
-    ]
-  );
+  const DataCellRenderer = useStableRenderer<DataCellProps<PivotedRow>>(props => (
+    <DataCell
+      {...props}
+      isAggregating={isAggregating}
+      aggMode={aggMode}
+      columnRanges={columnRanges}
+      colorPalette={nodePalette}
+      darkMode={isDarkMode}
+      hoveredHeaderItemIds={hoveredHeaderItemIds}
+      hoveredItemId={hoveredItemId}
+      hoveredStatName={effectiveHoveredStat?.name}
+      onHoverStat={emitHoverStat}
+      buildHoveredStatInfo={buildHoveredStatInfo}
+    />
+  ));
 
   const columns = useMemo((): ColumnDef<PivotedRow>[] => {
     const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(def => ({
