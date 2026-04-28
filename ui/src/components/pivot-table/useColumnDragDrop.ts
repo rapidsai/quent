@@ -104,10 +104,15 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
 
   useEffect(() => clearDragPreview, [clearDragPreview]);
 
+  const getDropTargetPosition = useCallback(
+    (itemId: string): DropPosition | undefined =>
+      dropIndicator?.id === itemId ? dropIndicator.position : undefined,
+    [dropIndicator]
+  );
+
   return {
     draggedId,
-    getDropTargetPosition: (itemId: string): DropPosition | undefined =>
-      dropIndicator?.id === itemId ? dropIndicator.position : undefined,
+    getDropTargetPosition,
     handleDragStart,
     handleDragOver,
     handleDragLeave,

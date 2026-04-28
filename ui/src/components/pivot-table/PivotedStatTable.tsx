@@ -173,10 +173,6 @@ function GroupCell({
         boxShadow: combinedBoxShadow,
       }
     : style;
-  const mergedStyle = {
-    ...baseStyle,
-    boxShadow: baseStyle?.boxShadow,
-  };
 
   return (
     <td
@@ -186,7 +182,7 @@ function GroupCell({
         className
       )}
       rowSpan={rowSpan}
-      style={mergedStyle}
+      style={baseStyle}
       onMouseEnter={() => {
         onHoverStat?.(null);
         handlers?.onMouseEnter?.();

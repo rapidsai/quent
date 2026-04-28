@@ -93,7 +93,7 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getRowId: row => getRowId(row as TRow),
+    getRowId,
   });
 
   const tableRows = table.getRowModel().rows;
@@ -197,11 +197,10 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
         <table className="text-xs border-separate border-spacing-0 relative isolate">
           <thead className="bg-card">
             <tr className="border-b border-border">
-              {groupColumnIds.map(columnId => (
+              {groupColumnIds.map((columnId, idx) => (
                 <th
                   key={columnId}
                   ref={el => {
-                    const idx = groupColumnIds.indexOf(columnId);
                     if (idx >= 0) groupHeaderRefs.current[idx] = el;
                   }}
                   className={cn(
