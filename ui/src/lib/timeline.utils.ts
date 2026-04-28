@@ -34,7 +34,7 @@ export const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
 /** Minimum bin duration in nanoseconds — prevents ECharts from stacking bins when zoomed too far. */
-export const MIN_BIN_DURATION_NS = 10;
+export const MIN_BIN_DURATION_NS = 250;
 
 /**
  * Minimum visible zoom window in seconds.
