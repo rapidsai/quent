@@ -22,6 +22,7 @@ import {
   getSchemaStatNames,
   getSortValue,
   gradientBg,
+  itemHasId,
 } from './utils';
 import type {
   GroupedDataTableGroupRenderMode,
@@ -154,7 +155,7 @@ function GroupCell({
     hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
   const hasDagSelection = (selectedItemIds?.size ?? 0) > 0;
   const isRowSelectedFromDag =
-    hasDagSelection && [...row.itemIds].some(id => selectedItemIds?.has(id) === true);
+    hasDagSelection && selectedItemIds != null && itemHasId(row.itemIds, selectedItemIds);
   const backgroundColor = typeColor
     ? `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`
     : undefined;
@@ -235,7 +236,7 @@ function DataCell({
   const isStatHovered = hoveredStatName === stat;
   const colHighlight = isStatHovered ? HIGHLIGHT_WASH : undefined;
   const isRowHighlightedFromTable =
-    hoveredHeaderItemIds != null && [...row.itemIds].some(id => hoveredHeaderItemIds.has(id));
+    hoveredHeaderItemIds != null && itemHasId(row.itemIds, hoveredHeaderItemIds);
   const isRowHighlightedFromDag =
     hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
   const rowHighlight =
@@ -651,7 +652,8 @@ export function PivotedStatTable<TRow>({
   }, [activeIndices, effectiveVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
 
   const hasSelection = (selectedItemIds?.size ?? 0) > 0;
-  const isSelected = (row: PivotedRow) => [...row.itemIds].some(id => selectedItemIds?.has(id));
+  const isSelected = (row: PivotedRow) =>
+    selectedItemIds != null && itemHasId(row.itemIds, selectedItemIds);
 
   return (
     <div

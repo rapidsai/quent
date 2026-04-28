@@ -28,6 +28,19 @@ export function formatNumericStat(n: number | null, statName: string): string {
   return inferFieldFormatter(statName)(n);
 }
 
+/**
+ * Returns true when any id in `items` is present in `target`. Equivalent to
+ * `[...items].some(id => target.has(id))` but without allocating an
+ * intermediate array — important for hot render paths that compare per-row
+ * item-id sets against highlight/selection sets.
+ */
+export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>): boolean {
+  for (const id of items) {
+    if (target.has(id)) return true;
+  }
+  return false;
+}
+
 export function formatStatValue(value: StatValue, statName: string): string {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'number') return formatNumericStat(value, statName);
