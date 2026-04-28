@@ -107,23 +107,30 @@ export function PivotTableToolbar({
             </button>
           );
         })}
-        {isAggregating && (
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-muted-foreground shrink-0">Aggregate:</span>
-            <Select value={aggMode} onValueChange={value => onSetAggMode(value as AggMode)}>
-              <SelectTrigger className="h-7 w-[110px] rounded border border-input px-2 py-0 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start">
-                {(['sum', 'mean', 'min', 'max', 'stdev'] as AggMode[]).map(mode => (
-                  <SelectItem key={mode} value={mode} className="text-xs">
-                    {mode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground shrink-0">Aggregate:</span>
+          <Select
+            value={isAggregating ? aggMode : '--'}
+            onValueChange={value => onSetAggMode(value as AggMode)}
+            disabled={!isAggregating}
+          >
+            <SelectTrigger className="h-7 w-[110px] rounded border border-input px-2 py-0 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start">
+              {!isAggregating && (
+                <SelectItem value="--" className="text-xs" disabled>
+                  --
+                </SelectItem>
+              )}
+              {(['sum', 'mean', 'min', 'max', 'stdev'] as AggMode[]).map(mode => (
+                <SelectItem key={mode} value={mode} className="text-xs">
+                  {mode}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <OptionMultiSelect
         label="Columns"

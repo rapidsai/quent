@@ -275,7 +275,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     handleSelectNoStats,
     sorting,
     setSorting,
-  } = useStatGroupTableControls<IndexKey>({
+  } = useStatGroupTableControls<IndexKey, OperatorTableRow>({
     baseIndexOrder: INDEX_ORDER,
     defaultEnabled: DEFAULT_ENABLED,
     allStatNames,
@@ -287,6 +287,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     },
     filterIndexOrder,
     persistKey: 'operatorTable',
+    rows,
+    getRowIndexId: (row, key) => OPERATOR_SCHEMA.groups[key].id(row),
   });
 
   const parentScopeLabelValue = useMemo(() => {
@@ -298,11 +300,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
 
   const scopeLabelValue = useMemo(() => {
     for (const row of rows) {
-      if (row.scopeLabel !== '-') return row.scopeLabel;
+      if (row.scopeLabel !== '-' && row.scopeLabel !== parentScopeLabelValue) return row.scopeLabel;
     }
     return 'Current';
-  }, [rows]);
+  }, [rows, parentScopeLabelValue]);
 
+  /* This should in the future be extended with all categorical/boolean type stats */
   const indexLabels: Record<string, React.ReactNode> = useMemo(
     () => ({
       partition: 'Worker / Plan',

@@ -17,7 +17,7 @@ import type { AggMode } from './types';
 
 const EMPTY_SORTING: SortingState = [];
 
-interface UseStatGroupTableControlsOptions<TIndexKey extends string> {
+interface UseStatGroupTableControlsOptions<TIndexKey extends string, TRow = unknown> {
   baseIndexOrder: TIndexKey[];
   defaultEnabled: Record<TIndexKey, boolean>;
   allStatNames: string[];
@@ -31,9 +31,20 @@ interface UseStatGroupTableControlsOptions<TIndexKey extends string> {
    * fallback key is generated and the state is effectively ephemeral.
    */
   persistKey?: string;
+  /**
+   * Source rows used to detect whether the active grouping actually
+   * collapses multiple rows together. When provided alongside
+   * `getRowIndexId`, `isAggregating` is computed by checking whether any
+   * two rows share the same combination of active index ids — not just by
+   * comparing the number of selected vs. visible index keys. This catches
+   * the case where some index keys are deselected but the remaining ones
+   * still uniquely identify every source row (so aggregation is a no-op).
+   */
+  rows?: TRow[];
+  getRowIndexId?: (row: TRow, indexKey: TIndexKey) => string;
 }
 
-export function useStatGroupTableControls<TIndexKey extends string>({
+export function useStatGroupTableControls<TIndexKey extends string, TRow = unknown>({
   baseIndexOrder,
   defaultEnabled,
   allStatNames,
@@ -41,7 +52,9 @@ export function useStatGroupTableControls<TIndexKey extends string>({
   defaultStatSelector,
   filterIndexOrder,
   persistKey,
-}: UseStatGroupTableControlsOptions<TIndexKey>) {
+  rows,
+  getRowIndexId,
+}: UseStatGroupTableControlsOptions<TIndexKey, TRow>) {
   const fallbackKey = useId();
   const key = persistKey ?? fallbackKey;
 
@@ -126,7 +139,22 @@ export function useStatGroupTableControls<TIndexKey extends string>({
     [visibleIndexOrder, enabledIndices]
   );
 
-  const isAggregating = activeIndexKeys.length < visibleIndexOrder.length;
+  const isAggregating = useMemo(() => {
+    // Fallback for callers that don't supply rows: cheap shape-based check.
+    if (!rows || !getRowIndexId) {
+      return activeIndexKeys.length < visibleIndexOrder.length;
+    }
+    if (rows.length <= 1) return false;
+    // No active keys means every row collapses into a single bucket.
+    if (activeIndexKeys.length === 0) return true;
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const bucketKey = activeIndexKeys.map(k => getRowIndexId(row, k)).join('\0');
+      if (seen.has(bucketKey)) return true;
+      seen.add(bucketKey);
+    }
+    return false;
+  }, [rows, getRowIndexId, activeIndexKeys, visibleIndexOrder]);
 
   const handleToggleIndex = useCallback(
     (toggleKey: string) => {
