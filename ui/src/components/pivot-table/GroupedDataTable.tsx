@@ -259,6 +259,11 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
             {rowsToRender.map(({ row, rowIndex }) => {
               const spans = rowSpans[rowIndex];
               const prevRow = rowIndex > 0 ? sortedRows[rowIndex - 1] : null;
+              // Walk group columns left-to-right with a single boolean: once
+              // this row's prefix diverges from the previous row, every later
+              // column is automatically not-repeated. Avoids an O(G²) per-row
+              // slice+every and the associated allocations.
+              let stillRepeating = prevRow != null;
               return (
                 <tr
                   key={row.rowKey}
@@ -289,12 +294,10 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
                       | GroupedDataTableGroupKeyEntry
                       | undefined;
                     if (!groupKey) return null;
-                    const isRepeated =
-                      prevRow != null &&
-                      row.groupKeys
-                        .slice(0, col + 1)
-                        .every((gk, gkIndex) => gk.id === prevRow.groupKeys[gkIndex]?.id);
-                    const displayGroupKey = isRepeated ? { ...groupKey, label: '' } : groupKey;
+                    if (stillRepeating && groupKey.id !== prevRow!.groupKeys[col]?.id) {
+                      stillRepeating = false;
+                    }
+                    const displayGroupKey = stillRepeating ? { ...groupKey, label: '' } : groupKey;
                     return (
                       <React.Fragment key={col}>
                         {GroupCell && (
