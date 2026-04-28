@@ -358,10 +358,7 @@ export function PivotedStatTable<TRow>({
     () => visibleStats ?? getSchemaStatNames(rows, schema),
     [rows, schema, visibleStats]
   );
-  const resolvedVisibleStatsKey = useMemo(
-    () => resolvedVisibleStats.join('\0'),
-    [resolvedVisibleStats]
-  );
+
   useEffect(() => {
     setTableStatOrder(prev => {
       if (prev.length === 0) return resolvedVisibleStats;
@@ -370,7 +367,8 @@ export function PivotedStatTable<TRow>({
       const additions = resolvedVisibleStats.filter(stat => !kept.includes(stat));
       return [...kept, ...additions];
     });
-  }, [resolvedVisibleStats, resolvedVisibleStatsKey]);
+  }, [resolvedVisibleStats]);
+
   const effectiveVisibleStats = tableStatOrder.length > 0 ? tableStatOrder : resolvedVisibleStats;
   const resolvedIndexLabels = useMemo(
     () =>
