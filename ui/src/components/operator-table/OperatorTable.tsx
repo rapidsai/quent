@@ -12,109 +12,15 @@ import {
 } from '@/atoms/dag';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
-import type { StatValue } from '@/services/query-plan/types';
 import type { PivotedRow, PivotedStatTableSchema } from '../pivot-table/types';
 import type { GroupedDataTableGroupKeyEntry } from '../pivot-table/types';
 import { PivotedStatTable } from '../pivot-table/PivotedStatTable';
 import { getSchemaStatNames } from '../pivot-table/utils';
 import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
 import { useStatGroupTableControls } from '../pivot-table/useStatGroupTableControls';
-import { parseCustomStatistics } from '@/lib/queryBundle.utils';
-import type { QueryEntities } from '~quent/types/QueryEntities';
 import { getOperatorColor } from '@/services/query-plan/operationTypes';
-
-interface OperatorTableRow {
-  partitionId: string;
-  partitionLabel: string;
-  scopeId: string;
-  scopeLabel: string;
-  parentScopeLabel: string;
-  parentItemType: string;
-  parentItemName: string;
-  itemType: string;
-  itemName: string;
-  itemId: string;
-  stats: Record<string, StatValue>;
-}
-
-function buildOperatorRows(
-  entities: QueryEntities,
-  includedPlanIds: Set<string>
-): OperatorTableRow[] {
-  const rows: OperatorTableRow[] = [];
-  const plans = Object.values(entities.plans)
-    .filter((p): p is NonNullable<typeof p> => p != null && includedPlanIds.has(p.id))
-    .sort((a, b) => {
-      const wA = a.worker_id ?? '';
-      const wB = b.worker_id ?? '';
-      if (wA !== wB) return wA.localeCompare(wB);
-      return a.id.localeCompare(b.id);
-    });
-
-  for (const plan of plans) {
-    const worker = plan.worker_id ? entities.workers[plan.worker_id] : undefined;
-    const workerPart = worker?.instance_name ?? plan.worker_id ?? '-';
-    const planPart = plan.instance_name ?? plan.id;
-    const partitionLabel = `${workerPart} / ${planPart}`;
-    const partitionId = `${plan.worker_id ?? '-'}:${plan.id}`;
-
-    const ops = Object.values(entities.operators)
-      .filter((op): op is NonNullable<typeof op> => op != null && op.plan_id === plan.id)
-      .sort((a, b) => {
-        const typeA = a.operator_type_name ?? '';
-        const typeB = b.operator_type_name ?? '';
-        if (typeA !== typeB) return typeA.localeCompare(typeB);
-        const nameA = a.instance_name ?? a.id;
-        const nameB = b.instance_name ?? b.id;
-        return nameA.localeCompare(nameB);
-      });
-
-    for (const op of ops) {
-      const itemName = op.instance_name ?? op.id;
-      const itemType = op.operator_type_name ?? '-';
-      const parentOps = (op.parent_operator_ids ?? [])
-        .map(id => entities.operators[id])
-        .filter((p): p is NonNullable<typeof p> => p != null);
-      const parentScopeLabel =
-        parentOps.length > 0
-          ? [
-              ...new Set(
-                parentOps.map(p =>
-                  p.plan_id ? (entities.plans[p.plan_id]?.instance_name ?? '-') : '-'
-                )
-              ),
-            ].join(', ')
-          : '-';
-      const parentItemType =
-        parentOps.length > 0
-          ? [...new Set(parentOps.map(p => p.operator_type_name ?? '-'))].join(', ')
-          : '-';
-      const parentItemName =
-        parentOps.length > 0 ? parentOps.map(p => p.instance_name ?? p.id).join(', ') : '-';
-      const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
-      const stats: Record<string, StatValue> = {
-        duration_s: duration !== null ? Number(duration.toFixed(6)) : null,
-      };
-      for (const stat of parseCustomStatistics(op)) {
-        stats[stat.key] = stat.value;
-      }
-      rows.push({
-        partitionId,
-        partitionLabel,
-        scopeId: plan.id,
-        scopeLabel: planPart,
-        parentScopeLabel,
-        parentItemType,
-        parentItemName,
-        itemType,
-        itemName,
-        itemId: op.id,
-        stats,
-      });
-    }
-  }
-  return rows;
-}
+import type { OperatorTableRow } from './types';
+import { buildOperatorRows, buildItemIdIndex } from './utils';
 
 type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
 
@@ -211,43 +117,15 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     return filtered.length > 0 ? filtered : allRows;
   }, [allRows, selectedNodeIds]);
 
-  const itemsByParentType = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const row of rows) {
-      if (row.parentItemType === '-') continue;
-      let set = map.get(row.parentItemType);
-      if (!set) {
-        set = new Set();
-        map.set(row.parentItemType, set);
-      }
-      set.add(row.itemId);
-    }
-    return map;
-  }, [rows]);
-
-  const itemsByParentName = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const row of rows) {
-      if (row.parentItemName === '-') continue;
-      let set = map.get(row.parentItemName);
-      if (!set) {
-        set = new Set();
-        map.set(row.parentItemName, set);
-      }
-      set.add(row.itemId);
-    }
-    return map;
-  }, [rows]);
-  const itemsByItemType = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const row of rows) {
-      let set = map.get(row.itemType);
-      if (!set) {
-        set = new Set();
-        map.set(row.itemType, set);
-      }
-      set.add(row.itemId);
-    }
+  // Per-group-key lookup of `gk.id -> Set<itemId>`. Used by the group-cell
+  // hover handlers to highlight every operator that belongs to the group.
+  // The 'item' group is omitted: its highlight derives directly from
+  // `row.itemIds` (single-item rows) and is handled separately.
+  const itemIdsByGroupKey = useMemo(() => {
+    const map = new Map<string, Map<string, Set<string>>>();
+    map.set('parent_item_type', buildItemIdIndex(rows, 'parentItemType'));
+    map.set('parent_item', buildItemIdIndex(rows, 'parentItemName'));
+    map.set('item_type', buildItemIdIndex(rows, 'itemType', false));
     return map;
   }, [rows]);
 
@@ -351,83 +229,30 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     (gk: GroupedDataTableGroupKeyEntry, row: PivotedRow) => {
       const firstItemId = row.itemIds.size === 1 ? [...row.itemIds][0] : null;
 
+      const makeGroupHoverHandlers = (
+        ids: Set<string> | null,
+        primaryOperatorId: string | null = null
+      ) => ({
+        onMouseEnter: () =>
+          setHighlightState(prev => ({ ...prev, ids, source: 'table', primaryOperatorId })),
+        onMouseLeave: () =>
+          setHighlightState(prev =>
+            prev.source === 'table' && prev.primaryOperatorId === primaryOperatorId
+              ? { ...prev, ids: null, source: null, primaryOperatorId: null }
+              : prev
+          ),
+      });
+
       if (gk.key === 'item' && firstItemId) {
-        return {
-          onMouseEnter: () => {
-            // Table-origin hover should not trigger table auto-scroll.
-            setHighlightState(prev => ({
-              ...prev,
-              ids: new Set([firstItemId]),
-              source: 'table',
-              primaryOperatorId: firstItemId,
-            }));
-          },
-          onMouseLeave: () => {
-            setHighlightState(prev =>
-              prev.source === 'table' && prev.ids?.size === 1 && prev.ids.has(firstItemId)
-                ? { ...prev, ids: null, source: null, primaryOperatorId: null }
-                : prev
-            );
-          },
-        };
+        return makeGroupHoverHandlers(new Set([firstItemId]), firstItemId);
       }
-      if (gk.key === 'parent_item_type') {
-        return {
-          onMouseEnter: () =>
-            setHighlightState(prev => ({
-              ...prev,
-              ids: itemsByParentType.get(gk.id) ?? null,
-              source: 'table',
-              primaryOperatorId: null,
-            })),
-          onMouseLeave: () =>
-            setHighlightState(prev => ({
-              ...prev,
-              ids: null,
-              source: null,
-              primaryOperatorId: null,
-            })),
-        };
-      }
-      if (gk.key === 'parent_item') {
-        return {
-          onMouseEnter: () =>
-            setHighlightState(prev => ({
-              ...prev,
-              ids: itemsByParentName.get(gk.id) ?? null,
-              source: 'table',
-              primaryOperatorId: null,
-            })),
-          onMouseLeave: () =>
-            setHighlightState(prev => ({
-              ...prev,
-              ids: null,
-              source: null,
-              primaryOperatorId: null,
-            })),
-        };
-      }
-      if (gk.key === 'item_type') {
-        return {
-          onMouseEnter: () =>
-            setHighlightState(prev => ({
-              ...prev,
-              ids: itemsByItemType.get(gk.id) ?? null,
-              source: 'table',
-              primaryOperatorId: null,
-            })),
-          onMouseLeave: () =>
-            setHighlightState(prev => ({
-              ...prev,
-              ids: null,
-              source: null,
-              primaryOperatorId: null,
-            })),
-        };
+      const groupItems = itemIdsByGroupKey.get(gk.key);
+      if (groupItems) {
+        return makeGroupHoverHandlers(groupItems.get(gk.id) ?? null);
       }
       return {};
     },
-    [setHighlightState, itemsByParentType, itemsByParentName, itemsByItemType]
+    [setHighlightState, itemIdsByGroupKey]
   );
 
   const handleTableMouseLeave = useCallback(() => {
