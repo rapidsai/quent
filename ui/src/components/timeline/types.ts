@@ -38,7 +38,7 @@ export const TIMELINE_SPACING = {
   bottom: 5,
 };
 
-// Timeline color constants live in useTimelineChartColors (canvas-based, theme mirrored in JS).
+// Timeline color constants live in timelineEchartsTheme (canvas-based, theme mirrored in JS).
 
 // Shared axis animation settings for timeline charts.
 export const TIMELINE_X_AXIS_ANIMATION = {

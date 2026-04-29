@@ -19,9 +19,17 @@ import {
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
-import { connectChart, nanosToMs } from '@/lib/timeline.utils';
-import { useTimelineChartColors, TIMELINE_MONO_FONT } from './useTimelineChartColors';
+import {
+  MARK_AREA_BORDER_OPACITY,
+  MARK_AREA_FILL_OPACITY,
+  MARK_LABEL_TEXT_COLOR,
+  ROLLUP_TIMELINE_COLOR_DARK,
+  ROLLUP_TIMELINE_COLOR_LIGHT,
+  useTimelineEchartsTheme,
+} from './timelineEchartsTheme';
+import { connectChart, MIN_ZOOM_WINDOW_S, nanosToMs } from '@/lib/timeline.utils';
 import { zoomRangeAtom } from '@/atoms/timeline';
+import { THEME_LIGHT, useTheme } from '@/contexts/ThemeContext';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
@@ -45,15 +53,8 @@ export function Timeline({
   /** Annotation marks rendered as mark areas on the first series */
   marks?: TimelineMark[];
 }) {
-  const {
-    timelineMarkupColor,
-    gridBorderColor,
-    gridBackgroundColor,
-    markAreaFillOpacity,
-    markAreaBorderOpacity,
-    markLabelTextColor,
-    rollupTimelineColor,
-  } = useTimelineChartColors();
+  const { themeName } = useTimelineEchartsTheme();
+  const { theme } = useTheme();
 
   const zoomRange = useAtomValue(zoomRangeAtom);
   const windowMsRef = useRef(0);
@@ -63,6 +64,8 @@ export function Timeline({
 
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
+    const rollupTimelineColor =
+      theme === THEME_LIGHT ? ROLLUP_TIMELINE_COLOR_LIGHT : ROLLUP_TIMELINE_COLOR_DARK;
 
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
       const isOverlay = seriesData.isOverlay ?? false;
@@ -122,7 +125,7 @@ export function Timeline({
                 position: [0, -5],
                 fontSize: 9,
                 fontWeight: 500,
-                color: markLabelTextColor,
+                color: MARK_LABEL_TEXT_COLOR,
                 backgroundColor: withOpacity(stateColor, 0.85),
                 borderRadius: 1,
                 padding: [1, 2],
@@ -136,10 +139,10 @@ export function Timeline({
           symbolSize: 0,
           lineStyle: {
             width: 1,
-            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaBorderOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : MARK_AREA_BORDER_OPACITY),
           },
           areaStyle: {
-            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : markAreaFillOpacity),
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : MARK_AREA_FILL_OPACITY),
             opacity: 1,
           },
           tooltip: { show: false },
@@ -165,15 +168,7 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [
-    series,
-    timestamps,
-    marks,
-    markAreaFillOpacity,
-    markAreaBorderOpacity,
-    markLabelTextColor,
-    rollupTimelineColor,
-  ]);
+  }, [series, timestamps, marks]);
 
   const yAxisFormatter = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
@@ -189,20 +184,7 @@ export function Timeline({
         max: (value: { max: number }) => value.max * 1.1 || 1,
         splitNumber: 1,
         show: true,
-        axisLine: {
-          show: true,
-          lineStyle: { color: gridBorderColor },
-        },
-        axisTick: { show: false },
-        splitLine: { show: false },
-        axisLabel: {
-          show: true,
-          margin: 8,
-          fontSize: 10,
-          color: timelineMarkupColor,
-          fontFamily: TIMELINE_MONO_FONT,
-          formatter: yAxisFormatter,
-        },
+        axisLabel: { formatter: yAxisFormatter },
       },
       {
         type: 'value',
@@ -212,7 +194,7 @@ export function Timeline({
         gridIndex: 0,
       },
     ],
-    [gridBorderColor, timelineMarkupColor, yAxisFormatter]
+    [yAxisFormatter]
   );
 
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
@@ -225,40 +207,28 @@ export function Timeline({
       show: true,
       min: startTimeMs,
       max: startTimeMs + durationSeconds * 1_000,
-      axisLine: {
-        show: true,
-        onZero: true,
-        lineStyle: { color: gridBorderColor },
-      },
-      axisTick: { show: false },
+      axisLine: { onZero: true },
       axisLabel: { show: false },
-      splitLine: {
-        show: false,
-      },
       axisPointer: {
         show: true,
         type: 'line',
         animation: false,
         label: { show: false },
-        lineStyle: {
-          type: 'dashed',
-          color: timelineMarkupColor,
-        },
       },
     }),
-    [timelineMarkupColor, gridBorderColor, startTimeMs, durationSeconds]
+    [startTimeMs, durationSeconds]
   );
 
-  const gridOptions = useMemo(
-    () => ({
-      ...TIMELINE_SPACING,
-      backgroundColor: gridBackgroundColor,
-      borderWidth: 1,
-      borderColor: gridBorderColor,
-      show: true,
-    }),
-    [gridBorderColor, gridBackgroundColor]
-  );
+  const gridOptions = useMemo(() => ({ ...TIMELINE_SPACING }), []);
+
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
+
+  const minZoomSpanPctRef = useRef(minZoomSpanPct);
+  minZoomSpanPctRef.current = minZoomSpanPct;
+  const atZoomLimitRef = useRef(false);
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
@@ -319,11 +289,18 @@ export function Timeline({
       yAxis: yAxisOptions,
       series: seriesOptions,
       dataZoom: [
-        { type: 'slider', show: false, realtime: true, filterMode: 'none' },
+        {
+          type: 'slider',
+          show: false,
+          realtime: true,
+          filterMode: 'none',
+          minSpan: minZoomSpanPct,
+        },
         {
           type: 'inside',
           zoomLock: true,
           zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
         },
@@ -334,12 +311,14 @@ export function Timeline({
           moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
         },
       ],
     } as EChartsOption;
   }, [
     showTooltip,
     gridOptions,
+    minZoomSpanPct,
     xAxisOptions,
     yAxisOptions,
     seriesOptions,
@@ -364,20 +343,47 @@ export function Timeline({
       isDraggingRef.current = false;
     });
 
-    // Let non-shift wheel events pass through to the page for normal scrolling.
-    // Without this, echarts' inside dataZoom calls preventDefault on all wheel events.
+    // Update atZoomLimitRef from ECharts' datazoom event, which fires synchronously
+    // within the same dispatch tick as the wheel handler — no React render-cycle lag.
+    instance.on('datazoom', () => {
+      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
+      const dz = opt.dataZoom?.[0];
+      if (dz != null) {
+        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
+        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
+      }
+    });
+
+    // Pass non-shift wheel events through to the page for normal scrolling.
+    // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
+    // When at the zoom limit, also block shift+wheel-in before ECharts sees it —
+    // ECharts converts a blocked zoom into a pan, so we must stop it at the source.
     dom.addEventListener(
       'wheel',
       e => {
-        if (!e.shiftKey) e.stopPropagation();
+        if (!e.shiftKey) {
+          e.stopPropagation();
+        } else if (e.deltaY < 0 && atZoomLimitRef.current) {
+          e.stopPropagation();
+        }
       },
       { capture: true, passive: true }
+    );
+
+    // Prevent the browser from handling shift+wheel-in when ECharts can't zoom further
+    dom.addEventListener(
+      'wheel',
+      e => {
+        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
+      },
+      { passive: false }
     );
   }, []);
 
   return (
     <ReactECharts
       echarts={echarts}
+      theme={themeName}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}
