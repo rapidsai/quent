@@ -12,7 +12,12 @@ import {
 } from '@/atoms/dag';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
-import type { PivotedRow, PivotedStatTableSchema } from '../pivot-table/types';
+import type {
+  PivotTableInteractionConfig,
+  PivotTableRenderConfig,
+  PivotedRow,
+  PivotedStatTableSchema,
+} from '../pivot-table/types';
 import type { GroupedDataTableGroupKeyEntry } from '../pivot-table/types';
 import { PivotedStatTable } from '../pivot-table/PivotedStatTable';
 import { getSchemaStatNames } from '../pivot-table/utils';
@@ -276,6 +281,32 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     );
   }, [setHoveredStat, setHighlightState]);
 
+  const interactionConfig = useMemo(
+    (): PivotTableInteractionConfig<PivotedRow> => ({
+      hoveredStat,
+      setHoveredStat,
+      hoveredItemId: dagHoveredOperatorId,
+      selectedItemIds: selectedNodeIds,
+      onTableMouseLeave: handleTableMouseLeave,
+      groupCellHandlers: getGroupCellHandlers,
+    }),
+    [
+      hoveredStat,
+      setHoveredStat,
+      dagHoveredOperatorId,
+      selectedNodeIds,
+      handleTableMouseLeave,
+      getGroupCellHandlers,
+    ]
+  );
+
+  const renderConfig = useMemo(
+    (): PivotTableRenderConfig => ({
+      getGroupTypeColor: getOperatorGroupTypeColor,
+    }),
+    []
+  );
+
   if (!selectedPlanId) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -319,14 +350,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           isAggregating={isAggregating}
           aggMode={aggMode}
           indexLabels={indexLabels}
-          selectedItemIds={selectedNodeIds}
-          hoveredItemId={dagHoveredOperatorId}
-          hoveredStat={hoveredStat}
-          onHoverStat={setHoveredStat}
-          onTableMouseLeave={handleTableMouseLeave}
+          interaction={interactionConfig}
+          renderConfig={renderConfig}
           virtualization={VIRTUALIZATION_CONFIG}
-          getGroupTypeColor={getOperatorGroupTypeColor}
-          getGroupCellHandlers={getGroupCellHandlers}
           sorting={sorting}
           onSortingChange={setSorting}
         />

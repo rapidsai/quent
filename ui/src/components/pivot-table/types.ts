@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { ContinuousPaletteName } from '@/services/colors';
 import type { StatValue } from '@/services/query-plan/types';
 
 /**
@@ -43,6 +44,44 @@ export interface GroupCellProps<TRow extends GroupedDataTableRowBase> {
 export interface DataCellProps<TRow extends GroupedDataTableRowBase> {
   row: TRow;
   stat: string;
+}
+
+export interface PivotTableGroupCellHoverHandlers {
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}
+
+export interface PivotTableInteractionConfig<TRow extends GroupedDataTableRowBase> {
+  hoveredStat: HoveredStatInfo | null;
+  setHoveredStat: (info: HoveredStatInfo | null) => void;
+  hoveredItemId?: string | null;
+  selectedItemIds?: Set<string>;
+  onTableMouseLeave?: () => void;
+  groupCellHandlers?: (
+    groupKey: GroupedDataTableGroupKeyEntry,
+    row: TRow
+  ) => PivotTableGroupCellHoverHandlers;
+}
+
+export interface PivotTableRenderConfig {
+  getGroupTypeColor?: (key: string, id: string) => string | undefined;
+}
+
+export interface PivotTableDnDConfig {
+  draggedStat: string | null;
+  getDropTargetPosition?: (statName: string) => 'before' | 'after' | undefined;
+  onStatDragStart: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDragOver: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDragLeave: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDrop: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
+  onStatDragEnd: () => void;
+}
+
+export interface PivotTableDisplayConfig {
+  isAggregating: boolean;
+  aggMode: AggMode;
+  colorPalette: ContinuousPaletteName;
+  darkMode: boolean;
 }
 
 // --- PivotedStatTable types ---
