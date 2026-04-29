@@ -21,24 +21,26 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
-import {
-  OPERATION_TYPE_COLORS,
-  DEFAULT_OPERATION_COLOR,
-} from '@/services/query-plan/operationTypes';
+import { getOperatorColor } from '@/services/query-plan/operationTypes';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
+import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 import {
   selectedNodeIdsAtom,
   selectedOperatorLabelAtom,
+  selectedNodeDataAtom,
   edgeWidthConfigAtom,
   edgeColoringAtom,
   edgeColorPaletteAtom,
   selectedEdgeWidthFieldAtom,
   selectedEdgeColorFieldAtom,
+  effectiveHighlightedNodeIdsAtom,
+  dagDisplayedNodeIdsAtom,
 } from '@/atoms/dag';
+import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import { continuousColor } from '@/services/colors';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
-import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@/services/formatters';
 
 const elk = new ELK();
 
@@ -46,7 +48,7 @@ const elk = new ELK();
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
 const EDGE_STROKE_WIDTH_MIN = 2;
 const EDGE_STROKE_WIDTH_RANGE = 10; // stroke = MIN + t * RANGE → [2, 12] px
-const EDGE_DIMMED_OPACITY = 0.15;
+const EDGE_DIMMED_OPACITY = 0.25;
 const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
@@ -79,6 +81,7 @@ const VariableWidthEdge = ({
   const edgeColoring = useAtomValue(edgeColoringAtom);
   const edgePalette = useAtomValue(edgeColorPaletteAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const highlightedNodeIds = useAtomValue(effectiveHighlightedNodeIdsAtom).ids;
   const edgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
   const edgeColorField = useAtomValue(selectedEdgeColorFieldAtom);
   const { theme } = useTheme();
@@ -118,8 +121,16 @@ const VariableWidthEdge = ({
   }
 
   const hasSelection = selectedNodeIds.size > 0;
-  const isEdgeDimmed =
-    edgeDimmed || (hasSelection && !selectedNodeIds.has(source) && !selectedNodeIds.has(target));
+  const hasActiveHighlight = highlightedNodeIds !== null;
+  // An edge "belongs to" a set when at least one endpoint is in the set.
+  const isInSelection = selectedNodeIds.has(source) || selectedNodeIds.has(target);
+  const isInHighlight =
+    hasActiveHighlight && (highlightedNodeIds.has(source) || highlightedNodeIds.has(target));
+  // While a hover-driven highlight set is active, it overrides the
+  // selection-based dim (matching `QueryPlanNode`).
+  const dimFromHighlight = hasActiveHighlight && !isInHighlight;
+  const dimFromSelection = !hasActiveHighlight && hasSelection && !isInSelection;
+  const isEdgeDimmed = edgeDimmed || dimFromHighlight || dimFromSelection;
 
   let edgeLabelValue: string | undefined;
   if (edgeColoring) {
@@ -288,8 +299,20 @@ const FlowLayout = ({
   const { fitView } = useReactFlow();
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
+  const setDagDisplayedNodeIds = useSetAtom(dagDisplayedNodeIdsAtom);
+  const setSelectedNodeData = useSetAtom(selectedNodeDataAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hasUserInteracted = useRef(false);
+
+  // Publish the set of operator IDs visible in this DAG so other consumers
+  // (effective highlight/heatmap atoms) can decide whether a hover-driven
+  // dim is meaningful for what's currently on screen.
+  useEffect(() => {
+    setDagDisplayedNodeIds(new Set(data.nodes.map(n => n.id)));
+    return () => {
+      setDagDisplayedNodeIds(new Set());
+    };
+  }, [data.nodes, setDagDisplayedNodeIds]);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
@@ -342,13 +365,26 @@ const FlowLayout = ({
       if (selectedNodeIds.has(node.id)) {
         setSelectedNodeIds(new Set());
         setSelectedOperatorLabel(null);
+        setSelectedNodeData(null);
       } else {
         setSelectedNodeIds(new Set([node.id]));
         setSelectedOperatorLabel(node.data.label);
+        setSelectedNodeData({
+          nodeId: node.id,
+          label: node.data.label,
+          operationType: node.data.operationType,
+          statistics: parseCustomStatistics(node.data.metadata?.rawNode),
+        });
       }
     },
-    [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel]
+    [selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel, setSelectedNodeData]
   );
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeIds(new Set());
+    setSelectedOperatorLabel(null);
+    setSelectedNodeData(null);
+  }, [setSelectedNodeIds, setSelectedOperatorLabel, setSelectedNodeData]);
 
   // Re-fit view when the react-flow container is resized, but only if the user
   // hasn't interacted with the chart (to maintain any focus states applied)
@@ -389,6 +425,7 @@ const FlowLayout = ({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
+      onPaneClick={handlePaneClick}
       onMoveStart={handleMoveStart}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
@@ -400,6 +437,7 @@ const FlowLayout = ({
     >
       <Background />
       <DAGLegend />
+      <DAGNodeInfoPanel />
       <MiniMap
         pannable
         zoomable
@@ -407,8 +445,7 @@ const FlowLayout = ({
         style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE, background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
         nodeColor={(node: Node<QueryPlanNodeData>) =>
-          OPERATION_TYPE_COLORS[(node.data as QueryPlanNodeData).operationType] ??
-          DEFAULT_OPERATION_COLOR
+          getOperatorColor((node.data as QueryPlanNodeData).operationType)
         }
       />
     </ReactFlow>

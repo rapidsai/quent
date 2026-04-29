@@ -113,7 +113,7 @@ const IEC: readonly [number, string][] = [
   [1, ''],
 ];
 
-function formatWithPrefix(
+export function formatWithPrefix(
   value: number,
   symbol: string,
   prefixSystem: PrefixSystem,
@@ -163,8 +163,69 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat(undefined, { maximumSignificantDigits: 3 }).format(value);
 }
 
+/**
+ * Format a number for dense tables (e.g. pivot cells): integers with grouping, floats capped to
+ * `maximumFractionDigits` decimal places. Differs from {@link formatNumber}, which uses significant
+ * figures for floats and is better suited to charts and DAG field labels.
+ */
+export function formatNumberWithMaxFractionDigits(
+  value: number,
+  maximumFractionDigits = 4
+): string {
+  if (Number.isInteger(value)) {
+    return new Intl.NumberFormat().format(value);
+  }
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits }).format(value);
+}
+
 export function formatBytes(value: number, decimals = 1): string {
   return formatWithPrefix(value, 'B', 'Iec', decimals);
+}
+
+/** Bytes-like statistic names (pivot tables, DAG field labels). */
+export function isBytesStat(name: string): boolean {
+  return (
+    name.includes('_bytes') ||
+    name.endsWith('_byte') ||
+    name.startsWith('bytes_') ||
+    name === 'bytes'
+  );
+}
+
+/** Row/batch count statistics — use SI-scaled display (k/M/…). */
+export function isCountStat(name: string): boolean {
+  return (
+    name.includes('_rows') ||
+    name.endsWith('_row') ||
+    name.startsWith('rows_') ||
+    name.includes('_batches') ||
+    name.endsWith('_batch') ||
+    name.startsWith('batches_')
+  );
+}
+
+function formatSiCount(value: number, decimals = 2): string {
+  return formatWithPrefix(value, '', 'Si', decimals);
+}
+
+/**
+ * Infer a numeric display formatter from a statistic/field name (DAG labels, pivot cells, legends).
+ * Order: duration (ns) → bytes → row/batch counts → throughput → ratios → default table number.
+ */
+export function inferFieldFormatter(fieldName: string): (value: number) => string {
+  if (fieldName.endsWith('_ns')) return v => formatDuration(v / 1e6);
+  if (isBytesStat(fieldName)) return v => formatBytes(v, 2);
+  if (isCountStat(fieldName)) return v => formatSiCount(v, 2);
+  if (fieldName.endsWith('_mbs')) return v => `${v.toFixed(1)} MB/s`;
+  if (
+    fieldName.endsWith('_ratio') ||
+    fieldName.endsWith('_fraction') ||
+    fieldName.endsWith('_fpr') ||
+    fieldName.endsWith('_selectivity') ||
+    fieldName.endsWith('_rate')
+  )
+    return v => `${(v * 100).toFixed(1)}%`;
+  return v => formatNumberWithMaxFractionDigits(v, 4);
 }
 
 /**

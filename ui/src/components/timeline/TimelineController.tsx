@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
@@ -13,6 +13,7 @@ import {
   connectChart,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
+  MIN_ZOOM_WINDOW_S,
   nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
@@ -193,6 +194,11 @@ export function TimelineController({
     [controllerGridBackgroundColor]
   );
 
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
+
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       tooltip: { show: true, showContent: false, trigger: 'axis' },
@@ -208,6 +214,7 @@ export function TimelineController({
           xAxisIndex: [1],
           realtime: true,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
           top: 0,
           height: height - 24,
           brushSelect: true,
@@ -240,6 +247,7 @@ export function TimelineController({
           zoomOnMouseWheel: true,
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
+          minSpan: minZoomSpanPct,
         },
       ],
       xAxis: [staticXAxisOptions, zoomXAxisOptions],
@@ -249,6 +257,7 @@ export function TimelineController({
   }, [
     gridOptions,
     height,
+    minZoomSpanPct,
     staticXAxisOptions,
     zoomXAxisOptions,
     yAxisOptions,
@@ -287,10 +296,17 @@ export function TimelineController({
 
   const instanceRef = useRef<EChartsInstance | null>(null);
   const selfTriggeredRef = useRef(false);
+  const [chartReady, setChartReady] = useState(false);
 
   const zoomRange = useAtomValue(zoomRangeAtom);
 
+  // Restore the dataZoom slider position from the persisted atom whenever
+  // either the zoom range changes or the chart instance becomes ready.
+  // Gating on `chartReady` is required so that on remount (e.g. tab switch
+  // back to /timeline) the saved zoom is re-applied after `handleChartReady`
+  // sets `instanceRef.current`.
   useEffect(() => {
+    if (!chartReady) return;
     if (selfTriggeredRef.current) {
       selfTriggeredRef.current = false;
       return;
@@ -307,12 +323,13 @@ export function TimelineController({
       start: startPct,
       end: endPct,
     });
-  }, [zoomRange, durationSeconds]);
+  }, [chartReady, zoomRange, durationSeconds]);
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance);
     registerAxisPointerSync(instance, 0);
+    setChartReady(true);
   }, []);
 
   useEffect(() => {
