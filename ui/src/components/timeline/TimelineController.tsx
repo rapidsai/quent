@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
@@ -342,10 +342,17 @@ export function TimelineController({
 
   const instanceRef = useRef<EChartsInstance | null>(null);
   const selfTriggeredRef = useRef(false);
+  const [chartReady, setChartReady] = useState(false);
 
   const zoomRange = useAtomValue(zoomRangeAtom);
 
+  // Restore the dataZoom slider position from the persisted atom whenever
+  // either the zoom range changes or the chart instance becomes ready.
+  // Gating on `chartReady` is required so that on remount (e.g. tab switch
+  // back to /timeline) the saved zoom is re-applied after `handleChartReady`
+  // sets `instanceRef.current`.
   useEffect(() => {
+    if (!chartReady) return;
     if (selfTriggeredRef.current) {
       selfTriggeredRef.current = false;
       return;
@@ -362,12 +369,13 @@ export function TimelineController({
       start: startPct,
       end: endPct,
     });
-  }, [zoomRange, durationSeconds]);
+  }, [chartReady, zoomRange, durationSeconds]);
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance);
     registerAxisPointerSync(instance, 0);
+    setChartReady(true);
   }, []);
 
   useEffect(() => {

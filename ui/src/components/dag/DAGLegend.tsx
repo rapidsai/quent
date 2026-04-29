@@ -12,7 +12,7 @@ import {
   selectedEdgeColorFieldAtom,
 } from '@/atoms/dag';
 import { getLegendGradientStops } from '@/services/colors';
-import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@/services/formatters';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { NodeColoring, EdgeColoring } from '@/services/query-plan/types';
 import type { ContinuousPaletteName } from '@/services/colors';

@@ -23,3 +23,7 @@ export const OPERATION_TYPE_COLORS: Record<string, string> = {
 };
 
 export const DEFAULT_OPERATION_COLOR = OPERATION_TYPE_COLORS.other;
+
+export function getOperatorColor(operatorType: string): string {
+  return OPERATION_TYPE_COLORS[operatorType] ?? DEFAULT_OPERATION_COLOR;
+}
