@@ -6,6 +6,7 @@ import { useAtomValue } from 'jotai';
 import { Pin } from 'lucide-react';
 import { selectedNodeIdsAtom, hoveredNodeDataAtom, selectedNodeDataAtom } from '@/atoms/dag';
 import { DataText } from '@/components/ui/data-text';
+import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
 
 export const DAGNodeInfoPanel = () => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
@@ -55,7 +56,11 @@ export const DAGNodeInfoPanel = () => {
                   ) : (
                     <div className="flex items-center justify-between">
                       <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
-                      <DataText className="text-muted-foreground ml-1">{String(value)}</DataText>
+                      <DataText className="text-muted-foreground ml-1">
+                        {typeof value === 'number'
+                          ? inferFieldFormatter(key)(value)
+                          : String(value)}
+                      </DataText>
                     </div>
                   )}
                 </div>
