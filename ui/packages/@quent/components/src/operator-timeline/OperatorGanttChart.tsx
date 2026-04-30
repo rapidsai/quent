@@ -15,7 +15,7 @@ import {
 } from '../lib/timeline.utils';
 import { echarts } from '../lib/echarts';
 import { CHART_GROUP } from '../timeline/Timeline';
-import { useTimelineChartColors } from '../timeline/useTimelineChartColors';
+import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
 import {
   useSelectedNodeIds,
   useSetSelectedNodeIds,
@@ -63,8 +63,7 @@ export function OperatorGanttChart({
   const setSelectedNodeIds = useSetSelectedNodeIds();
   const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
   const setSelectedPlanId = useSetSelectedPlanId();
-  const { gridBorderColor, gridBackgroundColor, timelineMarkupColor, textColor } =
-    useTimelineChartColors(isDark);
+  const { themeName, textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
   const barLabelTextColor = textColor;
@@ -216,12 +215,8 @@ export function OperatorGanttChart({
       right: TIMELINE_SPACING.right,
       width: undefined as number | undefined,
       height: undefined as number | undefined,
-      backgroundColor: gridBackgroundColor,
-      borderWidth: 1,
-      borderColor: gridBorderColor,
-      show: true,
     }),
-    [gridBackgroundColor, gridBorderColor]
+    []
   );
 
   const option: EChartsOption = useMemo(
@@ -237,19 +232,12 @@ export function OperatorGanttChart({
         min: startTimeMs,
         max: xAxisMax,
         show: true,
-        axisLine: { show: true, lineStyle: { color: gridBorderColor } },
-        axisTick: { show: false },
         axisLabel: { show: false },
-        splitLine: { show: false },
         axisPointer: {
           show: true,
           type: 'line',
           animation: false,
           label: { show: false },
-          lineStyle: {
-            type: 'dashed',
-            color: timelineMarkupColor,
-          },
         },
         ...TIMELINE_X_AXIS_ANIMATION,
       },
@@ -258,9 +246,7 @@ export function OperatorGanttChart({
         data: yAxisCategories,
         inverse: true,
         axisLine: { show: false },
-        axisTick: { show: false },
         axisLabel: { show: false },
-        splitLine: { show: false },
         axisPointer: { show: false },
       },
       series: [
@@ -321,8 +307,6 @@ export function OperatorGanttChart({
       gridOptions,
       startTimeMs,
       xAxisMax,
-      gridBorderColor,
-      timelineMarkupColor,
       yAxisCategories,
       customSeriesData,
       renderItem,
@@ -394,6 +378,7 @@ export function OperatorGanttChart({
   return (
     <ReactEChartsComponent
       echarts={echarts}
+      theme={themeName}
       option={option}
       style={{ height }}
       onChartReady={handleChartReady}

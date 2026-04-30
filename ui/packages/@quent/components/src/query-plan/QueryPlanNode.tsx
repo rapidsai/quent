@@ -1,13 +1,32 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { memo } from 'react';
+import { memo, useState, useMemo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useSelectedNodeIds } from '@quent/hooks';
-import { Operator } from '@quent/utils';
-import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
+import {
+  cn,
+  continuousColor,
+  isLightColor,
+  withOpacity,
+  WHITE,
+  BLACK,
+  NODE_LABEL_FIELD,
+  type Operator,
+} from '@quent/utils';
+import {
+  useSelectedNodeLabelField,
+  useNodeColoring,
+  useNodeColorPalette,
+  useEffectiveHighlightedNodeIds,
+  useEffectiveHoveredStat,
+  useSetHoveredNodeData,
+  useSetHighlightedNodeIds,
+} from '@quent/hooks';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
+import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { getOperatorColor } from '../services/query-plan/operationTypes';
+import { DataText } from '../ui/data-text';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -16,157 +35,201 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   metadata?: { rawNode?: Operator };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
+  /**
+   * Whether dark mode is active. Forwarded by `DAGChart` via the node's data
+   * payload so the renderer can derive heatmap colors without coupling to a
+   * host theme context.
+   */
+  isDark?: boolean;
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10',
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10 nodrag nopan',
   {
     variants: {
-      operationType: {
-        source:
-          'bg-blue-100/15 border-blue-500 hover:bg-blue-100/30 [--glow-color:var(--color-blue-500)]',
-        scan: 'bg-blue-100/15 border-blue-500 hover:bg-blue-100/30 [--glow-color:var(--color-blue-500)]',
-        filesystemscan:
-          'bg-blue-100/15 border-blue-500 hover:bg-blue-100/30 [--glow-color:var(--color-blue-500)]',
-        join: 'bg-purple-100/15 border-purple-500 hover:bg-purple-100/30 [--glow-color:var(--color-purple-500)]',
-        joinlocal:
-          'bg-purple-100/15 border-purple-500 hover:bg-purple-100/30 [--glow-color:var(--color-purple-500)]',
-        joinpartition:
-          'bg-purple-100/15 border-purple-500 hover:bg-purple-100/30 [--glow-color:var(--color-purple-500)]',
-        aggregate:
-          'bg-green-100/15 border-green-500 hover:bg-green-100/30 [--glow-color:var(--color-green-500)]',
-        exchange:
-          'bg-orange-100/15 border-orange-500 hover:bg-orange-100/30 [--glow-color:var(--color-orange-500)]',
-        output:
-          'bg-red-100/15 border-red-500 hover:bg-red-100/30 [--glow-color:var(--color-red-500)]',
-        stage:
-          'bg-indigo-100/15 border-indigo-600 hover:bg-indigo-100/30 [--glow-color:var(--color-indigo-600)] font-bold',
-        local:
-          'bg-amber-100/15 border-amber-500 hover:bg-amber-100/30 [--glow-color:var(--color-amber-500)]',
-        project:
-          'bg-teal-100/15 border-teal-500 hover:bg-teal-100/30 [--glow-color:var(--color-teal-500)]',
-        filter:
-          'bg-cyan-100/15 border-cyan-500 hover:bg-cyan-100/30 [--glow-color:var(--color-cyan-500)]',
-        sort: 'bg-violet-100/15 border-violet-500 hover:bg-violet-100/30 [--glow-color:var(--color-violet-500)]',
-        limit:
-          'bg-pink-100/15 border-pink-500 hover:bg-pink-100/30 [--glow-color:var(--color-pink-500)]',
-        union:
-          'bg-emerald-100/15 border-emerald-500 hover:bg-emerald-100/30 [--glow-color:var(--color-emerald-500)]',
-        other:
-          'bg-gray-100/15 border-gray-500 hover:bg-gray-100/30 [--glow-color:var(--color-gray-500)]',
-      },
       selected: {
         true: 'shadow-glow border-2 scale-110',
         false: 'shadow-md',
       },
-      dimmed: {
-        true: 'opacity-30',
-        false: 'opacity-100',
-      },
     },
-    compoundVariants: [
-      {
-        operationType: ['source', 'scan', 'filesystemscan'],
-        selected: true,
-        class: 'bg-blue-100/30',
-      },
-      {
-        operationType: ['join', 'joinlocal', 'joinpartition'],
-        selected: true,
-        class: 'bg-purple-100/30',
-      },
-      { operationType: 'aggregate', selected: true, class: 'bg-green-100/30' },
-      { operationType: 'exchange', selected: true, class: 'bg-orange-100/30' },
-      { operationType: 'output', selected: true, class: 'bg-red-100/30' },
-      { operationType: 'stage', selected: true, class: 'bg-indigo-100/30' },
-      { operationType: 'local', selected: true, class: 'bg-amber-100/30' },
-      { operationType: 'project', selected: true, class: 'bg-teal-100/30' },
-      { operationType: 'filter', selected: true, class: 'bg-cyan-100/30' },
-      { operationType: 'sort', selected: true, class: 'bg-violet-100/30' },
-      { operationType: 'limit', selected: true, class: 'bg-pink-100/30' },
-      { operationType: 'union', selected: true, class: 'bg-emerald-100/30' },
-      { operationType: 'other', selected: true, class: 'bg-gray-100/30' },
-    ],
     defaultVariants: {
-      operationType: 'other',
       selected: false,
-      dimmed: false,
     },
   }
 );
 
-type OperationType = NonNullable<Parameters<typeof nodeVariants>[0]>['operationType'];
-
-const validOperationTypes: Set<string> = new Set([
-  'source',
-  'scan',
-  'filesystemscan',
-  'join',
-  'joinlocal',
-  'joinpartition',
-  'aggregate',
-  'exchange',
-  'output',
-  'stage',
-  'local',
-  'project',
-  'filter',
-  'sort',
-  'limit',
-  'union',
-  'other',
-]);
-
-function resolveOperationType(type: string): OperationType {
-  return (validOperationTypes.has(type) ? type : 'other') as OperationType;
+function nodeOpacityClass({
+  hoveredStat,
+  highlightedNodeIds,
+  operatorId,
+  isDimmed,
+}: {
+  hoveredStat: { values: Map<string, number> } | null | undefined;
+  highlightedNodeIds: Set<string> | null;
+  operatorId: string;
+  isDimmed: boolean;
+}): string {
+  if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
+  // An active highlight set fully overrides the selection-based dim so that
+  // hovered (highlighted) operators are always visible, even when a DAG
+  // selection would otherwise dim them. The atom is fed through
+  // `effectiveHighlightedNodeIdsAtom`, which clears `ids` when nothing in
+  // the highlight set is actually shown — so an empty/null set here means
+  // "no meaningful highlight" and we leave everything at full opacity.
+  if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
+    return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-35';
+  }
+  if (isDimmed) return 'opacity-35';
+  return 'opacity-100';
 }
 
-/** Memoized DAG node rendered inside ReactFlow with operator-type-specific styling. */
+/** Memoized DAG node rendered inside ReactFlow. */
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  const selectedNodeIds = useSelectedNodeIds();
-  const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
-  const hasSelection = selectedNodeIds.size > 0;
-  const isDimmed = hasSelection && !isSelected;
+  // Writes go to the source atom so the table (which reads from it directly)
+  // still sees DAG hovers; reads come from the effective atom so the chart
+  // doesn't dim when nothing visible would be highlighted.
+  const setHighlightState = useSetHighlightedNodeIds();
+  const highlightState = useEffectiveHighlightedNodeIds();
+  const hoveredStat = useEffectiveHoveredStat();
+  const [nodePalette] = useNodeColorPalette();
+  const isDark = data.isDark ?? false;
+  const operatorId = data.metadata?.rawNode?.id ?? '';
+  const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+  const [nodeLabelField] = useSelectedNodeLabelField();
+  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId, isDark);
+  const [isHoveredLocal, setIsHoveredLocal] = useState(false);
+  const setHoveredNodeData = useSetHoveredNodeData();
+
+  const resolvedLabel = useMemo(() => {
+    if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
+    if (nodeLabelField === NODE_LABEL_FIELD.TYPE) return data.operationType;
+    return data.label;
+  }, [nodeLabelField, data]);
+
+  const colorFieldValue = colorField
+    ? (statistics.find(s => s.key === colorField)?.value ?? null)
+    : null;
+  const formattedColorFieldValue =
+    colorFieldValue === null
+      ? null
+      : typeof colorFieldValue === 'number'
+        ? inferFieldFormatter(colorField!)(colorFieldValue)
+        : String(colorFieldValue);
+
+  const baseColor = getOperatorColor(data.operationType);
+  const activeColor = fieldColor ?? baseColor;
+  const bgColor =
+    fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
+
+  const heatmapColor = useMemo(() => {
+    if (!hoveredStat) return undefined;
+    const v = hoveredStat.values.get(operatorId);
+    if (v === undefined) return undefined;
+    const range = hoveredStat.max - hoveredStat.min;
+    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    return continuousColor(t, nodePalette, isDark);
+  }, [hoveredStat, operatorId, nodePalette, isDark]);
+
+  const opacityClass = nodeOpacityClass({
+    hoveredStat,
+    highlightedNodeIds: highlightState.ids,
+    operatorId,
+    isDimmed,
+  });
+
+  const isActiveHighlight = isHighlighted && !isSelected;
+
+  const onMouseEnter = useCallback(() => {
+    setIsHoveredLocal(true);
+    setHoveredNodeData({
+      nodeId: data.nodeId,
+      label: data.label,
+      operationType: data.operationType,
+      statistics,
+    });
+    if (operatorId) {
+      setHighlightState(prev => ({
+        ...prev,
+        ids: new Set([operatorId]),
+        source: 'dag',
+        primaryOperatorId: operatorId,
+      }));
+    }
+  }, [
+    data.nodeId,
+    data.label,
+    data.operationType,
+    statistics,
+    operatorId,
+    setHighlightState,
+    setHoveredNodeData,
+  ]);
+  const onMouseLeave = useCallback(() => {
+    setIsHoveredLocal(false);
+    setHoveredNodeData(null);
+    setHighlightState(prev =>
+      prev.source === 'dag' && prev.ids?.size === 1 && prev.ids.has(operatorId)
+        ? { ...prev, ids: null, source: null, primaryOperatorId: null }
+        : prev
+    );
+  }, [operatorId, setHighlightState, setHoveredNodeData]);
 
   const nodeContent = (
     <div
-      className={nodeVariants({
-        operationType: resolveOperationType(data.operationType),
-        selected: isSelected,
-        dimmed: isDimmed,
-      })}
+      className={nodeVariants({ selected: isSelected })}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={
+        {
+          borderColor: heatmapColor ?? activeColor,
+          backgroundColor: heatmapColor ?? bgColor,
+          '--glow-color': activeColor,
+          ...(fieldColor && isLightColor(fieldColor) ? { color: '#111827' } : {}),
+        } as React.CSSProperties
+      }
     >
       {data.hasIncoming && (
-        <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
+        <Handle type="target" position={Position.Top} className="w-2 h-2 opacity-0" />
       )}
 
-      <div
-        className={`text-sm break-words text-center ${isSelected ? 'font-bold' : 'font-normal'}`}
+      <DataText
+        as="div"
+        className={cn('text-sm break-words text-center font-normal', {
+          'font-bold': data.operationType === 'stage' || isSelected,
+        })}
       >
-        {data.label}
-      </div>
+        {resolvedLabel}
+      </DataText>
+      {formattedColorFieldValue !== null && (
+        <div
+          className="text-xs text-center mt-0.5"
+          style={{
+            color: fieldColor
+              ? isLightColor(fieldColor)
+                ? withOpacity(BLACK, 0.5)
+                : withOpacity(WHITE, 0.65)
+              : undefined,
+          }}
+        >
+          {formattedColorFieldValue}
+        </div>
+      )}
 
       {data.hasOutgoing && (
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="w-2 h-2"
-          style={{ opacity: 0 }}
-        />
+        <Handle type="source" position={Position.Bottom} className="w-2 h-2 opacity-0" />
       )}
     </div>
   );
 
   return (
-    <OperatorStatisticsPopup
-      data={statistics}
-      nodeId={data.nodeId}
-      operatorLabel={data.label}
-      operationType={data.operationType}
+    <div
+      className={cn(opacityClass, 'z-10', {
+        'ring-2 ring-primary/50 rounded-md': isActiveHighlight,
+      })}
     >
       {nodeContent}
-    </OperatorStatisticsPopup>
+    </div>
   );
 });
 

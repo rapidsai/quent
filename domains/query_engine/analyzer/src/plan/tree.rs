@@ -3,8 +3,7 @@
 
 use rustc_hash::FxHashMap as HashMap;
 
-use quent_analyzer::{AnalyzerError, AnalyzerResult};
-use quent_query_engine_events::plan::PlanParent;
+use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity};
 use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
@@ -12,23 +11,23 @@ use crate::plan::Plan;
 
 /// A tree of [`Plan`]s.
 ///
-/// [`Plan`]s under a [`Query`] may form a tree, typically with a trunk and
+/// [`Plan`]s under a `Query` may form a tree, typically with a trunk and
 /// potentially a single branching point when they are fanned out over workers
-/// for distributed [`Engine`]s.
+/// for distributed `Engine`s.
 ///
-/// Under the [`Query`] there must be always one top-level [`Plan`] (the root of
-/// the tree). For example, this could be what in some [`Engine`]s is called a
+/// Under the `Query` there must be always one top-level [`Plan`] (the root of
+/// the tree). For example, this could be what in some `Engine`s is called a
 /// "logical" [`Plan`].
 ///
-/// An [`Engine`] may "lower" a [`Plan`] to produce a derived [`Plan`], any
-/// arbitrary number of times. At some point, at least one [`Worker`] will
-/// execute a [`Plan`], but the model is flexible enough to allow a [`Worker`]
+/// An `Engine` may "lower" a [`Plan`] to produce a derived [`Plan`], any
+/// arbitrary number of times. At some point, at least one `Worker` will
+/// execute a [`Plan`], but the model is flexible enough to allow a `Worker`
 /// to locally "lower" the [`Plan`] further.
 #[derive(Clone, Debug)]
 pub struct PlanTree {
     /// The [`Plan`] ID.
     pub id: Uuid,
-    /// The ID of the [`Worker`] this [`Plan`] is local to.
+    /// The ID of the `Worker` this [`Plan`] is local to.
     pub worker: Option<Uuid>,
     /// The child [`Plan`]. If this is an empty list, this is a leaf [`Plan`].
     pub children: Vec<PlanTree>,
@@ -43,18 +42,14 @@ impl PlanTree {
         let children = plans
             .values()
             .filter(|p| {
-                p.parent
-                    .as_ref()
-                    .map(|parent| match parent {
-                        PlanParent::Plan(uuid) => *uuid == current_plan_id,
-                        PlanParent::Query(_) => false,
-                    })
-                    .unwrap_or(false)
+                p.parent()
+                    .and_then(|parent| parent.plan_id)
+                    .is_some_and(|r| r.uuid() == current_plan_id)
             })
-            .map(|p| Self::build(p.id, plans))
+            .map(|p| Self::build(p.id(), plans))
             .collect::<AnalyzerResult<Vec<_>>>()?;
 
-        if children.is_empty() && plan.worker_id.is_none() {
+        if children.is_empty() && plan.worker_id().is_none() {
             return Err(AnalyzerError::Validation(format!(
                 "leaf plan {current_plan_id} must have a worker_id"
             )));
@@ -62,7 +57,7 @@ impl PlanTree {
 
         Ok(PlanTree {
             id: current_plan_id,
-            worker: plan.worker_id,
+            worker: plan.worker_id(),
             children,
         })
     }
@@ -71,18 +66,14 @@ impl PlanTree {
         plans: impl Iterator<Item = &'a Plan>,
         query_id: Uuid,
     ) -> AnalyzerResult<Self> {
-        let plans: HashMap<Uuid, &Plan> = plans.map(|p| (p.id, p)).collect();
+        let plans: HashMap<Uuid, &Plan> = plans.map(|p| (p.id(), p)).collect();
 
         let root_plans: Vec<_> = plans
             .values()
-            .filter(|p| {
-                p.parent
-                    .as_ref()
-                    .map(|parent| match parent {
-                        PlanParent::Query(uuid) => *uuid == query_id,
-                        PlanParent::Plan(_) => false,
-                    })
-                    .unwrap_or(false)
+            .filter(|p: &&&Plan| {
+                p.parent()
+                    .and_then(|parent| parent.query_id)
+                    .is_some_and(|r| r.uuid() == query_id)
             })
             .collect();
 
@@ -97,11 +88,11 @@ impl PlanTree {
                 "query {} has {} root plans (expected 1): {:?}",
                 query_id,
                 root_plans.len(),
-                root_plans.iter().map(|p| p.id).collect::<Vec<_>>()
+                root_plans.iter().map(|p| p.id()).collect::<Vec<_>>()
             )));
         }
 
-        Self::build(root_plans[0].id, &plans)
+        Self::build(root_plans[0].id(), &plans)
     }
 
     pub fn to_ui(&self) -> ui::PlanTree {
@@ -133,7 +124,27 @@ impl<'a> Iterator for PlanTreeIter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use quent_events::Event;
+    use quent_model::Ref;
+    use quent_query_engine_model::plan::{Declaration, PlanEvent, PlanParent};
+    use quent_time::TimeUnixNanoSec;
+
     use super::*;
+
+    fn make_plan(id: Uuid, parent: PlanParent, worker_id: Option<Uuid>) -> Plan {
+        let mut plan = Plan::try_new(id).unwrap();
+        plan.push(Event::new(
+            id,
+            TimeUnixNanoSec::default(),
+            PlanEvent::Declaration(Declaration {
+                parent,
+                instance_name: String::new(),
+                edges: Vec::new(),
+                worker_id: worker_id.map(Ref::new),
+            }),
+        ));
+        plan
+    }
 
     // Create a tree with a tunk of two plans, then split out into 3
     // worker-local plans
@@ -146,19 +157,41 @@ mod tests {
 
         let mut plans = HashMap::default();
 
-        let mut trunk0 = Plan::try_new(trunk_ids[0]).unwrap();
-        trunk0.parent = Some(PlanParent::Query(query_id));
-        plans.insert(trunk_ids[0], trunk0);
-
-        let mut trunk1 = Plan::try_new(trunk_ids[1]).unwrap();
-        trunk1.parent = Some(PlanParent::Plan(trunk_ids[0]));
-        plans.insert(trunk_ids[1], trunk1);
+        plans.insert(
+            trunk_ids[0],
+            make_plan(
+                trunk_ids[0],
+                PlanParent {
+                    query_id: Some(Ref::new(query_id)),
+                    plan_id: None,
+                },
+                None,
+            ),
+        );
+        plans.insert(
+            trunk_ids[1],
+            make_plan(
+                trunk_ids[1],
+                PlanParent {
+                    query_id: None,
+                    plan_id: Some(Ref::new(trunk_ids[0])),
+                },
+                None,
+            ),
+        );
 
         for i in 0..3 {
-            let mut leaf = Plan::try_new(leaf_ids[i]).unwrap();
-            leaf.parent = Some(PlanParent::Plan(trunk_ids[1]));
-            leaf.worker_id = Some(worker_ids[i]);
-            plans.insert(leaf_ids[i], leaf);
+            plans.insert(
+                leaf_ids[i],
+                make_plan(
+                    leaf_ids[i],
+                    PlanParent {
+                        query_id: None,
+                        plan_id: Some(Ref::new(trunk_ids[1])),
+                    },
+                    Some(worker_ids[i]),
+                ),
+            );
         }
 
         let tree = PlanTree::try_new(plans.values(), query_id).unwrap();
@@ -186,9 +219,17 @@ mod tests {
         let plan_id = Uuid::now_v7();
 
         let mut plans = HashMap::default();
-        let mut plan = Plan::try_new(plan_id).unwrap();
-        plan.parent = Some(PlanParent::Query(query_id));
-        plans.insert(plan_id, plan);
+        plans.insert(
+            plan_id,
+            make_plan(
+                plan_id,
+                PlanParent {
+                    query_id: Some(Ref::new(query_id)),
+                    plan_id: None,
+                },
+                None,
+            ),
+        );
 
         let result = PlanTree::try_new(plans.values(), query_id);
 

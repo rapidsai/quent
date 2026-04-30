@@ -4,7 +4,7 @@
 //! Exporter dumping events as length-prefixed MessagePack records into a file.
 //!
 //! File format: sequence of length-prefixed records.
-//! Each record: [4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]
+//! Each record: `[4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]`
 use std::{io::BufReader, marker::PhantomData, path::PathBuf};
 
 use quent_events::Event;
@@ -18,6 +18,11 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
+/// Options for the MessagePack exporter.
+///
+/// Writes events in MessagePack binary format. Compact and fast to
+/// serialize/deserialize. Produces one file per instrumentation context
+/// in `output_dir`.
 #[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
     pub output_dir: PathBuf,
@@ -33,6 +38,7 @@ impl MsgpackExporter {
         application_id: Uuid,
         options: MsgpackExporterOptions,
     ) -> ExporterResult<Self> {
+        tokio::fs::create_dir_all(&options.output_dir).await?;
         let path = options
             .output_dir
             .join(format!("{}.msgpack", application_id));
@@ -76,6 +82,7 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Options for the MessagePack importer. Reads events from the file at `path`.
 pub struct MsgpackImporterOptions {
     pub path: PathBuf,
 }

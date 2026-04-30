@@ -35,8 +35,18 @@ import { CHART_GROUP } from '../timeline/Timeline';
 // Suppress unused import warning — getColorForKey is used by consumers of this module
 void getColorForKey;
 
-const MAX_TIMELINE_BINS = 400;
+export const MAX_TIMELINE_BINS = 400;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
+
+/** Minimum bin duration in nanoseconds — prevents ECharts from stacking bins when zoomed too far. */
+export const MIN_BIN_DURATION_NS = 250;
+
+/**
+ * Minimum visible zoom window in seconds.
+ * Below this, each bin would cover less than MIN_BIN_DURATION_NS nanoseconds.
+ * 10 ns/bin × 400 bins = 4 μs
+ */
+export const MIN_ZOOM_WINDOW_S = (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000;
 
 /** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
 export function nanosToMs(ns: bigint): number {
@@ -205,6 +215,20 @@ export function buildTimelineMarks(
 }
 
 /**
+ * Mark every entry in a TimelineSeries as dimmed. Used both as the background
+ * layer when an operator overlay is rendered and as a placeholder while the
+ * overlay data for a freshly selected operator is still in flight (so the
+ * chart doesn't flash to full color in the gap).
+ */
+export function dimSeries(series: TimelineSeries): TimelineSeries {
+  const dimmed: TimelineSeries = {};
+  for (const [state, entry] of Object.entries(series)) {
+    dimmed[state] = { ...entry, isDimmed: true };
+  }
+  return dimmed;
+}
+
+/**
  * Merge overlay series into base series for overlay rendering.
  * Base series are dimmed; overlay series keep original colors so the
  * selected operator stands out clearly against the background.
@@ -215,10 +239,7 @@ export function mergeOverlaySeries(
   overlayLabel: string
 ): TimelineSeries {
   // Dim all base series to push them into the background.
-  const merged: TimelineSeries = {};
-  for (const [state, baseEntry] of Object.entries(baseSeries)) {
-    merged[state] = { ...baseEntry, isDimmed: true };
-  }
+  const merged: TimelineSeries = dimSeries(baseSeries);
   // Add overlay series at full intensity with original colors.
   for (const [state, overlayEntry] of Object.entries(overlaySeries)) {
     const baseEntry = baseSeries[state];

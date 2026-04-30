@@ -1,26 +1,27 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactEChartsComponent from 'echarts-for-react';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useZoomRange } from '@quent/hooks';
-import { withOpacity, formatDuration } from '@quent/utils';
+import { formatDuration } from '@quent/utils';
 import type { ZoomRange } from '@quent/utils';
 import {
   buildBinnedTimelineSeries,
   connectChart,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
+  MIN_ZOOM_WINDOW_S,
   nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '../lib/timeline.utils';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
-import { useTimelineChartColors } from './useTimelineChartColors';
+import { useTimelineEchartsTheme } from './timelineEchartsTheme';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
@@ -49,7 +50,7 @@ export function TimelineController({
   onZoomChange,
   isDark,
 }: TimelineControllerProps) {
-  const colors = useTimelineChartColors(isDark);
+  const { themeName, controllerGridBackgroundColor } = useTimelineEchartsTheme(isDark);
 
   const startTimeMillis = useMemo(() => nanosToMs(startTime), [startTime]);
 
@@ -92,14 +93,16 @@ export function TimelineController({
     const staticValues: number[] | null = hasSeriesData
       ? seriesData
       : Array(timestamps.length).fill(0);
+    // Color comes from the registered timeline theme's color palette
+    // (rollupTimelineColor); areaStyle inherits the line color at 80% opacity.
     const staticDisplaySeries = {
       name: 'static-display',
       type: 'line',
       xAxisIndex: 0,
       data: toTimePoints(staticValues ?? []),
       symbol: 'none',
-      lineStyle: { width: 1, color: colors.rollupTimelineColor },
-      areaStyle: { color: withOpacity(colors.rollupTimelineColor, 0.8) },
+      lineStyle: { width: 1 },
+      areaStyle: { opacity: 0.8 },
       silent: true,
       emphasis: { disabled: true },
       step: 'middle',
@@ -108,7 +111,7 @@ export function TimelineController({
     };
 
     return [zoomControlSeries, staticDisplaySeries];
-  }, [timestamps, hasSeriesData, seriesData, colors.rollupTimelineColor]);
+  }, [timestamps, hasSeriesData, seriesData]);
 
   const endTimeMillis = startTimeMillis + durationSeconds * 1000;
 
@@ -125,40 +128,23 @@ export function TimelineController({
       min: startTimeMillis,
       max: endTimeMillis,
       interval,
-      axisLine: {
-        show: true,
-        lineStyle: { color: colors.gridBorderColor },
-      },
       axisTick: { show: true },
       axisLabel: {
-        show: true,
         hideOverlap: false,
-        fontSize: 10,
-        color: colors.timelineMarkupColor,
         formatter: (value: number) => {
           return formatDuration(Number(value) - startTimeMillis);
         },
       },
-      splitLine: {
-        show: true,
-        lineStyle: {
-          color: colors.gridBorderColor,
-          type: 'solid',
-        },
-      },
+      splitLine: { show: true, lineStyle: { type: 'solid' } },
       axisPointer: {
         show: true,
         type: 'line',
         snap: false,
         label: { show: false },
         handle: { show: false },
-        lineStyle: {
-          type: 'dashed',
-          color: colors.timelineMarkupColor,
-        },
       },
     };
-  }, [startTimeMillis, endTimeMillis, colors.timelineMarkupColor, colors.gridBorderColor]);
+  }, [startTimeMillis, endTimeMillis]);
 
   const zoomXAxisOptions = useMemo(
     () => ({
@@ -201,13 +187,16 @@ export function TimelineController({
     () => ({
       ...TIMELINE_SPACING,
       bottom: 20,
-      backgroundColor: colors.controllerGridBackgroundColor,
-      borderWidth: 1,
-      borderColor: colors.gridBorderColor,
-      show: true,
+      // Override the registered theme's grid backgroundColor with the controller-specific tint.
+      backgroundColor: controllerGridBackgroundColor,
     }),
-    [colors.gridBorderColor, colors.controllerGridBackgroundColor]
+    [controllerGridBackgroundColor]
   );
+
+  const minZoomSpanPct = useMemo(() => {
+    if (durationSeconds <= 0) return 0;
+    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
+  }, [durationSeconds]);
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
@@ -224,39 +213,15 @@ export function TimelineController({
           xAxisIndex: [1],
           realtime: true,
           filterMode: 'none',
+          minSpan: minZoomSpanPct,
           top: 0,
           height: height - 24,
           brushSelect: true,
-          handleStyle: {
-            color: colors.dataZoomHandleColor,
-            width: 2,
-          },
-          fillerColor: colors.dataZoomFillerColor,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent',
-          dataBackground: {
-            lineStyle: { opacity: 0 },
-            areaStyle: { opacity: 0 },
-          },
-          selectedDataBackground: {
-            lineStyle: { opacity: 0 },
-            areaStyle: { opacity: 0 },
-          },
-          moveHandleSize: 5,
-          textStyle: {
-            color: colors.dataZoomTextColor,
-            opacity: 1,
-            backgroundColor: colors.dataZoomTextBackgroundColor,
-            padding: [2, 4],
-            borderRadius: 2,
-          },
+          // handleStyle, fillerColor, dataBackground, textStyle, etc. come from
+          // the registered timeline theme's dataZoom defaults.
+          textStyle: { opacity: 1 },
           labelFormatter: (tsMilliseconds: number) => {
             return formatDuration(Number(tsMilliseconds) - startTimeMillis);
-          },
-          emphasis: {
-            handleStyle: {
-              color: colors.dataZoomEmphasisHandleColor,
-            },
           },
         },
         {
@@ -276,6 +241,7 @@ export function TimelineController({
           zoomOnMouseWheel: true,
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
+          minSpan: minZoomSpanPct,
         },
       ],
       xAxis: [staticXAxisOptions, zoomXAxisOptions],
@@ -283,14 +249,15 @@ export function TimelineController({
       series: seriesOptions,
     } as EChartsOption;
   }, [
-    colors,
     gridOptions,
     height,
+    minZoomSpanPct,
     staticXAxisOptions,
     zoomXAxisOptions,
     yAxisOptions,
     seriesOptions,
     startTimeMillis,
+    endTimeMillis,
   ]);
 
   const handleDataZoom = useMemo(() => {
@@ -323,10 +290,17 @@ export function TimelineController({
 
   const instanceRef = useRef<EChartsInstance | null>(null);
   const selfTriggeredRef = useRef(false);
+  const [chartReady, setChartReady] = useState(false);
 
   const zoomRange = useZoomRange();
 
+  // Restore the dataZoom slider position from the persisted atom whenever
+  // either the zoom range changes or the chart instance becomes ready.
+  // Gating on `chartReady` is required so that on remount (e.g. tab switch
+  // back to /timeline) the saved zoom is re-applied after `handleChartReady`
+  // sets `instanceRef.current`.
   useEffect(() => {
+    if (!chartReady) return;
     if (selfTriggeredRef.current) {
       selfTriggeredRef.current = false;
       return;
@@ -343,12 +317,13 @@ export function TimelineController({
       start: startPct,
       end: endPct,
     });
-  }, [zoomRange, durationSeconds]);
+  }, [chartReady, zoomRange, durationSeconds]);
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance);
     registerAxisPointerSync(instance, 0);
+    setChartReady(true);
   }, []);
 
   useEffect(() => {
@@ -363,6 +338,7 @@ export function TimelineController({
   return (
     <ReactEChartsComponent
       echarts={echarts}
+      theme={themeName}
       option={eChartOptions}
       style={{ width: '100%', height: `${height}px` }}
       onChartReady={handleChartReady}

@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Column, TreeTable } from '@quent/components';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useAtom } from 'jotai';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
 import { ResourceTree, QueryBundle } from '@quent/utils';
 import type { EntityRef, SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
@@ -24,6 +25,11 @@ import {
   findItemById,
 } from '@quent/components';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
+import {
+  selectedTypesAtom,
+  selectedFsmTypesAtom,
+  rootResourceTypeAtom,
+} from '@/atoms/resourceTree';
 import { TimelineToolbar } from '@quent/components';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import {
@@ -82,8 +88,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const { entities, resource_tree: resourceTree } = queryBundle;
-  const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
-  const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
+  const [selectedTypes, setSelectedTypes] = useAtom(selectedTypesAtom);
+  const [selectedFsmTypes, setSelectedFsmTypes] = useAtom(selectedFsmTypesAtom);
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
@@ -104,11 +110,28 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const resourceTypeOptions = useMemo(() => collectResourceTypesFromTree([rootItem]), [rootItem]);
 
-  const [rootResourceType, setRootResourceType] = useState<string>(resourceTypeOptions[0] || '');
+  const [rootResourceType, setRootResourceType] = useAtom(rootResourceTypeAtom);
+
+  // Seed once per query when the atom is unset and options are available.
+  useEffect(() => {
+    if (rootResourceType != null) return;
+    const initial = resourceTypeOptions[0];
+    if (initial) setRootResourceType(initial);
+  }, [rootResourceType, resourceTypeOptions, setRootResourceType]);
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
+  // `useExpandedIds` updates this set asynchronously after mount, so on the
+  // very first render `controlledExpandedIds` would be empty and the root
+  // would render collapsed. Ensure the root is always considered expanded so
+  // first paint matches the previous uncontrolled behavior.
+  const controlledExpandedIds = useMemo(() => {
+    if (expandedIds.has(rootItem.id)) return expandedIds;
+    const next = new Set(expandedIds);
+    next.add(rootItem.id);
+    return next;
+  }, [expandedIds, rootItem.id]);
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
@@ -146,7 +169,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
-            resource_type_name: rootResourceType,
+            resource_type_name: rootResourceType ?? '',
             long_entities_threshold_s: null,
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
@@ -279,7 +302,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     fetchedRootTimeline,
     isDark,
     selectedTypes,
+    setSelectedTypes,
     selectedFsmTypes,
+    setSelectedFsmTypes,
+    setRootResourceType,
     entities,
     rootItem,
     engineId,
@@ -299,6 +325,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           columnWidths={[275, 'auto']}
           onExpandChange={onExpandChange}
           highlightedItemIds={highlightedItemIds}
+          controlledExpandedIds={controlledExpandedIds}
         />
       </div>
     </div>

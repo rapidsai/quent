@@ -112,6 +112,31 @@
   }
 }
 
+@layer components {
+  /* Shared positioning context for table header highlight overlays. */
+  .table-header-overlay {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* Highlight layer for header cells; stays behind text/content. */
+  .table-header-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: hsl(var(--primary));
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 120ms ease-out;
+  }
+
+  /* Active state uses a subtle fill wash (not border-only highlighting). */
+  .table-header-overlay-active::before {
+    opacity: 0.07;
+  }
+}
+
 @utility shadow-glow {
   box-shadow: 0 0 14px 2px color-mix(in srgb, var(--glow-color, transparent) 55%, transparent);
 }

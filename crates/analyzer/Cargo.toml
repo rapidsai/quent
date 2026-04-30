@@ -10,6 +10,7 @@ ts = ["serde", "ts-rs"]
 [dependencies]
 quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
+quent-model = { path = "../model" }
 quent-time = { path = "../time" }
 quent-exporter-types = { path = "../exporter/types" }
 rustc-hash.workspace = true

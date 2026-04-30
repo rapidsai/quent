@@ -1,33 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { X, Maximize2, Filter, Settings2 } from 'lucide-react';
+import { Maximize2, Settings } from 'lucide-react';
 import {
-  useSelectedOperatorLabel,
-  useSetSelectedNodeIds,
-  useSetSelectedOperatorLabel,
   useHideTasks,
   useSetHideTasks,
   useSetZoomRange,
   useSetDebouncedZoomRange,
 } from '@quent/hooks';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover';
-import { DataText } from '../ui/data-text';
+import { QueryToolbar } from './QueryToolbar';
 
 /** Toolbar for the timeline view: shows active operator filter, zoom reset, and settings. */
 export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
-  const operatorLabel = useSelectedOperatorLabel();
-  const setSelectedNodeIds = useSetSelectedNodeIds();
-  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
   const hideTasks = useHideTasks();
   const setHideTasks = useSetHideTasks();
   const setZoomRange = useSetZoomRange();
   const setDebouncedZoomRange = useSetDebouncedZoomRange();
-
-  const clearOperator = () => {
-    setSelectedNodeIds(new Set());
-    setSelectedOperatorLabel(null);
-  };
 
   const resetZoom = () => {
     const full = { start: 0, end: durationSeconds };
@@ -36,28 +25,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
   };
 
   return (
-    <div className="flex items-center gap-4 px-3 py-1 border-b border-border text-xs text-muted-foreground shrink-0">
-      {/* Operator filter */}
-      <div className="flex items-center gap-1.5">
-        <Filter className="h-3 w-3" />
-        {operatorLabel ? (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-primary/15 text-primary px-1.5 py-0.5 font-medium">
-            <DataText>{operatorLabel}</DataText>
-            <button
-              onClick={clearOperator}
-              className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors"
-            >
-              <X className="h-2.5 w-2.5" />
-            </button>
-          </span>
-        ) : (
-          <span>No filters</span>
-        )}
-      </div>
-
-      <div className="flex-1" />
-
-      {/* Zoom reset */}
+    <QueryToolbar>
       <button
         onClick={resetZoom}
         className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -69,14 +37,13 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
 
       <div className="h-3 w-px bg-border" />
 
-      {/* Settings popover */}
       <Popover>
         <PopoverTrigger asChild>
           <button
             className="inline-flex items-center rounded-sm p-0.5 hover:bg-accent hover:text-accent-foreground transition-colors"
             title="Timeline settings"
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <Settings className="h-3.5 w-3.5" />
           </button>
         </PopoverTrigger>
         <PopoverContent className="text-xs">
@@ -91,6 +58,6 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
           </label>
         </PopoverContent>
       </Popover>
-    </div>
+    </QueryToolbar>
   );
 }

@@ -19,6 +19,11 @@ use tokio::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
+/// Options for the ndjson exporter.
+///
+/// Writes events as newline-delimited JSON (one JSON object per line per file).
+/// Human-readable, useful for debugging and manual inspection. Produces one
+/// file per instrumentation context in `output_dir`.
 #[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
     pub output_dir: PathBuf,
@@ -34,6 +39,7 @@ impl NdjsonExporter {
         application_id: Uuid,
         options: NdjsonExporterOptions,
     ) -> ExporterResult<Self> {
+        tokio::fs::create_dir_all(&options.output_dir).await?;
         let path = options
             .output_dir
             .join(format!("{}.ndjson", application_id));
@@ -78,6 +84,7 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Options for the ndjson importer. Reads events from the file at `path`.
 pub struct NdjsonImporterOptions {
     pub path: PathBuf,
 }

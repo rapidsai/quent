@@ -1,0 +1,5 @@
+error: exit_from state `nonexistent` not found in states list
+  --> tests/compile_fail/fsm_exit_not_in_states.rs:13:22
+   |
+13 |         exit_from: { nonexistent },
+   |                      ^^^^^^^^^^^

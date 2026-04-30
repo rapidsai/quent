@@ -69,7 +69,23 @@ export {
   useEdgeColoring,
   useEdgeColorPalette,
   useSelectedNodeLabelField,
+  useHoveredNodeData,
+  useSetHoveredNodeData,
+  useSelectedNodeData,
+  useSetSelectedNodeData,
+  useHighlightedNodeIds,
+  useSetHighlightedNodeIds,
+  useEffectiveHighlightedNodeIds,
+  useEffectiveHoveredStat,
+  useHoveredStat,
+  useSetHoveredStat,
+  useSetDagDisplayedNodeIds,
 } from './dag/dagControlSelectors';
+export type {
+  HoveredStatInfo,
+  HighlightedNodeIdsState,
+  InspectedNodeData,
+} from './atoms/dagControls';
 
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';

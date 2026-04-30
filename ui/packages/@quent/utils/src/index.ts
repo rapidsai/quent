@@ -17,6 +17,7 @@ export {
   getPalette,
   BLACK,
   WHITE,
+  isLightColor,
   createCapacitiesColorFn,
   createFsmTypeColorFn,
   CONTINUOUS_PALETTES,

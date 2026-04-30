@@ -7,13 +7,14 @@ use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model,
     fsm::collection::FsmCollection,
     resource::{
-        Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl, Usage, Using,
+        CapacityValue, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
+        ResourceTypeDecl, Usage, Using,
         collection::{
             InMemoryResources, InMemoryResourcesBuilder, ResourceCollection,
             derive_resource_group_types,
         },
+        runtime::RtResourceTransition,
     },
-    trace::RtTraceBuilder,
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{
@@ -27,12 +28,13 @@ use quent_query_engine_analyzer::{
     query_group::QueryGroup,
     worker::Worker,
 };
-use quent_simulator_events::SimulatorEvent;
+use quent_query_engine_model::QueryEngineEvent;
+use quent_simulator_instrumentation::SimulatorEvent;
 use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
 use crate::{
-    task::{Task, TaskBuilder},
+    task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
 
@@ -130,7 +132,14 @@ impl SimulatorModel {
     }
 }
 
-impl FsmCollection<Task, crate::task::TaskTransition> for SimulatorModel {
+impl
+    FsmCollection<
+        Task,
+        quent_analyzer::fsm::events::TransitionEvent<
+            quent_simulator_instrumentation::task::TaskTransition,
+        >,
+    > for SimulatorModel
+{
     fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a Task> + 'a
     where
         Task: 'a,
@@ -228,7 +237,6 @@ impl Using for SimulatorModel {
 pub struct SimulatorModelBuilder {
     query_engine: InMemoryQueryEngineModelBuilder,
     arbitrary_resources: InMemoryResourcesBuilder,
-    traces: HashMap<Uuid, RtTraceBuilder>,
     tasks: HashMap<Uuid, TaskBuilder>,
 }
 
@@ -238,7 +246,6 @@ impl SimulatorModelBuilder {
             query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
             arbitrary_resources: InMemoryResourcesBuilder::default(),
             tasks: HashMap::default(),
-            traces: HashMap::default(),
         })
     }
 
@@ -252,26 +259,180 @@ impl SimulatorModelBuilder {
             SimulatorEvent::Task(t) => {
                 let task_builder = self
                     .tasks
-                    .entry(event.id)
-                    .or_insert_with(|| TaskBuilder::try_new(event.id).unwrap());
+                    .entry(id)
+                    .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
                 task_builder.push(Event::new(id, timestamp, t));
                 Ok(())
             }
-            SimulatorEvent::QueryEngineEvent(qe) => {
-                self.query_engine.try_push(Event::new(id, timestamp, qe))
+            SimulatorEvent::Engine(e) => {
+                self.query_engine
+                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Engine(e)))
             }
-            SimulatorEvent::Resource(r) => self
-                .arbitrary_resources
-                .try_push(Event::new(id, timestamp, r)),
-            SimulatorEvent::Trace(t) => {
-                let trace_builder = self
-                    .traces
-                    .entry(event.id)
-                    .or_insert_with(|| RtTraceBuilder::try_new(event.id).unwrap());
-                trace_builder.push(timestamp, t);
+            SimulatorEvent::Worker(e) => {
+                self.query_engine
+                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Worker(e)))
+            }
+            SimulatorEvent::QueryGroup(e) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                QueryEngineEvent::QueryGroup(e),
+            )),
+            SimulatorEvent::Query(e) => {
+                self.query_engine
+                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Query(e)))
+            }
+            SimulatorEvent::Plan(e) => {
+                self.query_engine
+                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Plan(e)))
+            }
+            SimulatorEvent::Operator(e) => {
+                self.query_engine
+                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Operator(e)))
+            }
+            SimulatorEvent::Port(e) => {
+                self.query_engine
+                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Port(e)))
+            }
+            SimulatorEvent::Memory(m) => self.push_memory(id, timestamp, m),
+            SimulatorEvent::Processor(p) => self.push_processor(id, timestamp, p),
+            SimulatorEvent::Channel(c) => self.push_channel(id, timestamp, c),
+            SimulatorEvent::ThreadPool(
+                quent_simulator_instrumentation::ThreadPoolEvent::Declaration(d),
+            ) => {
+                self.arbitrary_resources.push_group_raw(
+                    id,
+                    "thread_pool",
+                    &d.instance_name,
+                    Some(d.parent_group_id),
+                );
+                Ok(())
+            }
+            SimulatorEvent::Network(
+                quent_simulator_instrumentation::NetworkEvent::Declaration(d),
+            ) => {
+                self.arbitrary_resources.push_group_raw(
+                    id,
+                    "network",
+                    &d.instance_name,
+                    Some(d.parent_group_id),
+                );
                 Ok(())
             }
         }
+    }
+
+    fn push_memory(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: quent_stdlib::memory::MemoryEvent,
+    ) -> AnalyzerResult<()> {
+        let state = event.state;
+        use quent_stdlib::memory::MemoryTransition;
+        match state {
+            MemoryTransition::MemoryInitializing(init) => {
+                self.arbitrary_resources
+                    .insert_memory_resource(&init.resource_type_name);
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Init(timestamp));
+                bld.set_type_name(init.resource_type_name);
+                bld.set_instance_name(Some(init.instance_name));
+                bld.set_parent_group_id(init.parent_group_id);
+            }
+            MemoryTransition::MemoryOperating(op) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Operating(
+                    timestamp,
+                    ResourceCapacities(vec![CapacityValue::new(
+                        "capacity_bytes",
+                        op.capacity_bytes.value.unwrap_or(0),
+                    )]),
+                ));
+            }
+            MemoryTransition::MemoryFinalizing(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Finalizing(timestamp));
+            }
+            MemoryTransition::Exit => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Exit(timestamp));
+            }
+        }
+        Ok(())
+    }
+
+    fn push_processor(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: quent_stdlib::processor::ProcessorEvent,
+    ) -> AnalyzerResult<()> {
+        let state = event.state;
+        use quent_stdlib::processor::ProcessorTransition;
+        match state {
+            ProcessorTransition::ProcessorInitializing(init) => {
+                self.arbitrary_resources
+                    .insert_processor_resource(&init.resource_type_name);
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Init(timestamp));
+                bld.set_type_name(init.resource_type_name);
+                bld.set_instance_name(Some(init.instance_name));
+                bld.set_parent_group_id(init.parent_group_id);
+            }
+            ProcessorTransition::ProcessorOperating(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Operating(
+                    timestamp,
+                    ResourceCapacities(vec![]),
+                ));
+            }
+            ProcessorTransition::ProcessorFinalizing(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Finalizing(timestamp));
+            }
+            ProcessorTransition::Exit => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Exit(timestamp));
+            }
+        }
+        Ok(())
+    }
+
+    fn push_channel(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: quent_stdlib::channel::ChannelEvent,
+    ) -> AnalyzerResult<()> {
+        let state = event.state;
+        use quent_stdlib::channel::ChannelTransition;
+        match state {
+            ChannelTransition::ChannelInitializing(init) => {
+                self.arbitrary_resources
+                    .insert_channel_resource(&init.resource_type_name);
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Init(timestamp));
+                bld.set_type_name(init.resource_type_name);
+                bld.set_instance_name(Some(init.instance_name));
+                bld.set_parent_group_id(init.parent_group_id);
+            }
+            ChannelTransition::ChannelOperating(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Operating(
+                    timestamp,
+                    ResourceCapacities(vec![]),
+                ));
+            }
+            ChannelTransition::ChannelFinalizing(_) => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Finalizing(timestamp));
+            }
+            ChannelTransition::Exit => {
+                let bld = self.arbitrary_resources.try_builder(id)?;
+                bld.push(RtResourceTransition::Exit(timestamp));
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<SimulatorModel> {
@@ -302,7 +463,7 @@ impl SimulatorModelBuilder {
                 && let Some(task_span) = task.active_span()
                 && let Some(operator) = query_engine.operators.get_mut(&operator_id)
             {
-                operator.active_span = Some(match operator.active_span {
+                operator.active_span = Some(match operator.active_span() {
                     None => task_span,
                     Some(existing) => existing.extend(&task_span),
                 });

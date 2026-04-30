@@ -4,6 +4,7 @@ members = [
     # Application-agnostic crates
     "crates/analyzer",
     "crates/attributes",
+    "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
@@ -15,17 +16,26 @@ members = [
     "crates/exporter/postcard",
     "crates/exporter/types",
     "crates/instrumentation",
+    "crates/model",
+    "crates/model-macros",
+    "crates/stdlib",
     "crates/time",
     "crates/ui",
     # Domain-specific crates
     "domains/query_engine/analyzer",
-    "domains/query_engine/events",
+    "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
+    # C++ integration example (uses readme model)
+    "examples/cpp-integration/bridge",
+    # Query engine C++ bridge test
+    "domains/query_engine/tests/cpp/instrumentation",
+    "domains/query_engine/tests/cpp/bridge",
+    # README example
+    "examples/readme",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",
-    "examples/simulator/events",
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",

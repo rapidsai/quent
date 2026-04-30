@@ -15,6 +15,13 @@ import {
   edgeColoringAtom,
   edgeColorPaletteAtom,
   selectedNodeLabelFieldAtom,
+  hoveredNodeDataAtom,
+  selectedNodeDataAtom,
+  highlightedNodeIdsAtom,
+  effectiveHighlightedNodeIdsAtom,
+  effectiveHoveredStatAtom,
+  hoveredStatAtom,
+  dagDisplayedNodeIdsAtom,
 } from '../atoms/dagControls';
 
 export function useSelectedColorField() {
@@ -55,4 +62,44 @@ export function useEdgeColorPalette() {
 
 export function useSelectedNodeLabelField() {
   return useAtom(selectedNodeLabelFieldAtom);
+}
+
+export function useHoveredNodeData() {
+  return useAtomValue(hoveredNodeDataAtom);
+}
+export function useSetHoveredNodeData() {
+  return useSetAtom(hoveredNodeDataAtom);
+}
+
+export function useSelectedNodeData() {
+  return useAtomValue(selectedNodeDataAtom);
+}
+export function useSetSelectedNodeData() {
+  return useSetAtom(selectedNodeDataAtom);
+}
+
+export function useHighlightedNodeIds() {
+  return useAtom(highlightedNodeIdsAtom);
+}
+export function useSetHighlightedNodeIds() {
+  return useSetAtom(highlightedNodeIdsAtom);
+}
+
+export function useEffectiveHighlightedNodeIds() {
+  return useAtomValue(effectiveHighlightedNodeIdsAtom);
+}
+
+export function useEffectiveHoveredStat() {
+  return useAtomValue(effectiveHoveredStatAtom);
+}
+
+export function useHoveredStat() {
+  return useAtom(hoveredStatAtom);
+}
+export function useSetHoveredStat() {
+  return useSetAtom(hoveredStatAtom);
+}
+
+export function useSetDagDisplayedNodeIds() {
+  return useSetAtom(dagDisplayedNodeIdsAtom);
 }

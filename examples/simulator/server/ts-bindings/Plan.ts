@@ -20,7 +20,7 @@ instance_name: string | null,
  */
 parent: string | null, 
 /**
- * The ID of the [`super::worker::Worker`] that executed this [`Plan`].
+ * The ID of the `Worker` that executed this [`Plan`].
  *
  * If this level of [`Plan`] was not directly executed by a [`Worker`],
  * then this is set to None.

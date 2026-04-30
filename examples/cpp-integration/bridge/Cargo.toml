@@ -1,0 +1,18 @@
+[package]
+name = "quent-bridge"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "quent_bridge"
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1"
+quent-readme-example = { path = "../../readme" }
+
+[build-dependencies]
+cxx-build = "1"
+quent-codegen = { path = "../../../crates/codegen" }
+quent-readme-example = { path = "../../readme" }

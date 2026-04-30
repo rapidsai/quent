@@ -3,10 +3,10 @@ name = "quent-simulator-instrumentation"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+
 [dependencies]
-quent-events = { path = "../../../crates/events" }
-quent-exporter = { path = "../../../crates/exporter" }
-quent-simulator-events = { path = "../events" }
-quent-instrumentation = { path = "../../../crates/instrumentation" }
-quent-query-engine-events = { path = "../../../domains/query_engine/events" }
-uuid.workspace = true
+quent-model = { path = "../../../crates/model" }
+quent-query-engine-model = { path = "../../../domains/query_engine/model" }
+quent-stdlib = { path = "../../../crates/stdlib" }
+serde.workspace = true
+uuid = { workspace = true, features = ["serde", "v7"] }

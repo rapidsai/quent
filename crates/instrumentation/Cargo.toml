@@ -9,7 +9,6 @@ quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-types = { path = "../exporter/types" }
 serde.workspace = true
-thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tokio-util.workspace = true
 tracing.workspace = true

@@ -57,6 +57,18 @@ export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
 export { TreeTable } from './ui/tree-table';
 export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
+export { Badge, badgeVariants } from './ui/badge';
+export { OptionMultiSelect } from './ui/option-multi-select';
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+} from './ui/table';
 
 // ─── ECharts ──────────────────────────────────────────────────────────────────
 export { echarts } from './lib/echarts';
@@ -100,6 +112,7 @@ export { computeNodeColoring, computeEdgeColoring, computeEdgeWidthConfig, infer
 export {
   DEFAULT_OPERATION_COLOR,
   OPERATION_TYPE_COLORS,
+  getOperatorColor,
 } from './services/query-plan/operationTypes';
 export { getPlanDAG, getTreeData, validateQueryBundle } from './services/query-plan/query-bundle-transformer';
 export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/query-plan/types';
@@ -111,14 +124,24 @@ export { Timeline } from './timeline/Timeline';
 export { TimelineController } from './timeline/TimelineController';
 export { TimelineSkeleton } from './timeline/TimelineSkeleton';
 export { TimelineToolbar } from './timeline/TimelineToolbar';
+export { QueryToolbar } from './timeline/QueryToolbar';
 export { TooltipContent } from './timeline/TimelineTooltip';
-export { useTimelineChartColors } from './timeline/useTimelineChartColors';
+export {
+  useTimelineEchartsTheme,
+  TIMELINE_MONO_FONT,
+  TIMELINE_THEME_NAME_LIGHT,
+  TIMELINE_THEME_NAME_DARK,
+  MARK_AREA_BORDER_OPACITY,
+  MARK_AREA_FILL_OPACITY,
+  MARK_LABEL_TEXT_COLOR,
+  ROLLUP_TIMELINE_COLOR_LIGHT,
+  ROLLUP_TIMELINE_COLOR_DARK,
+} from './timeline/timelineEchartsTheme';
 export {
   DEFAULT_TIMELINE_HEIGHT,
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
 } from './timeline/types';
-export { TIMELINE_MONO_FONT } from './timeline/useTimelineChartColors';
 export type { TimelineMark, TimelineSeries, TimelineSeriesEntry } from './timeline/types';
 export { ResourceTimeline } from './timeline/ResourceTimeline';
 
@@ -126,11 +149,10 @@ export { ResourceTimeline } from './timeline/ResourceTimeline';
 export { DAGChart } from './dag/DAGChart';
 export { DAGControls } from './dag/DAGControls';
 export { DAGLegend } from './dag/DAGLegend';
+export { DAGNodeInfoPanel } from './dag/DAGNodeInfoPanel';
 export { DAGSettingsPopover } from './dag/DAGSettingsPopover';
 
 // ─── Query-plan components ────────────────────────────────────────────────────
-export { OperatorStatisticsPopup } from './query-plan/OperatorStatisticsPopup';
-export type { OperatorStatisticsPopupProps } from './query-plan/OperatorStatisticsPopup';
 export { QueryPlanNode } from './query-plan/QueryPlanNode';
 
 // ─── Resource-tree components ─────────────────────────────────────────────────

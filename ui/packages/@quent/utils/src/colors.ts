@@ -226,6 +226,17 @@ export const BLACK = '#000000';
 export const WHITE = '#ffffff';
 
 /**
+ * Returns true if the given hex color (#rrggbb) has high perceived luminance,
+ * meaning dark text should be used on top of it for readability.
+ */
+export function isLightColor(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 0.5;
+}
+
+/**
  * Maps a query plan operation type to its associated color string.
  * Colors are derived from the CVA variants in QueryPlanNode.tsx.
  * Returns CSS color values suitable for programmatic use (SVG, canvas, etc.).

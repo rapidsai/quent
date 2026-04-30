@@ -38,7 +38,7 @@ impl<'a> InMemoryQueryEngineModelView<'a> {
     ) -> AnalyzerResult<InMemoryQueryEngineModelView<'a>> {
         let engine = &model.engine;
         let query = model.query(query_id)?;
-        let query_group = model.query_group(query.query_group_id)?;
+        let query_group = model.query_group(query.query_group_id().unwrap())?;
         let workers = model.query_workers(query_id)?.collect::<Vec<_>>();
         let plans = model.query_plans(query_id)?.collect::<Vec<_>>();
         let operators = model
@@ -52,10 +52,10 @@ impl<'a> InMemoryQueryEngineModelView<'a> {
             engine,
             query_group,
             query,
-            workers: workers.into_iter().map(|w| (w.id, w)).collect(),
-            plans: plans.into_iter().map(|w| (w.id, w)).collect(),
-            operators: operators.into_iter().map(|w| (w.id, w)).collect(),
-            ports: ports.into_iter().map(|w| (w.id, w)).collect(),
+            workers: workers.into_iter().map(|w| (w.id(), w)).collect(),
+            plans: plans.into_iter().map(|w| (w.id(), w)).collect(),
+            operators: operators.into_iter().map(|w| (w.id(), w)).collect(),
+            ports: ports.into_iter().map(|w| (w.id(), w)).collect(),
         })
     }
 }
@@ -64,13 +64,13 @@ impl<'a> Model for InMemoryQueryEngineModelView<'a> {
     type EntityIdType = QueryEngineEntityId;
 
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        if self.engine.id == entity_id {
+        if Entity::id(self.engine) == entity_id {
             Ok(QueryEngineEntityId::Engine(entity_id))
         } else if self.workers.contains_key(&entity_id) {
             Ok(QueryEngineEntityId::Worker(entity_id))
-        } else if self.query_group.id == entity_id {
+        } else if self.query_group.id() == entity_id {
             Ok(QueryEngineEntityId::QueryGroup(entity_id))
-        } else if self.query.id == entity_id {
+        } else if Entity::id(self.query) == entity_id {
             Ok(QueryEngineEntityId::Query(entity_id))
         } else if self.plans.contains_key(&entity_id) {
             Ok(QueryEngineEntityId::Plan(entity_id))
@@ -93,12 +93,12 @@ impl<'a> QueryEngineModel for InMemoryQueryEngineModelView<'a> {
         Ok(self.engine)
     }
     fn query(&self, query_id: Uuid) -> AnalyzerResult<&Query> {
-        (self.query.id == query_id)
+        (Entity::id(self.query) == query_id)
             .then_some(self.query)
             .ok_or(AnalyzerError::InvalidId(query_id))
     }
     fn query_group(&self, query_group_id: Uuid) -> AnalyzerResult<&QueryGroup> {
-        (self.query_group.id == query_group_id)
+        (self.query_group.id() == query_group_id)
             .then_some(self.query_group)
             .ok_or(AnalyzerError::InvalidId(query_group_id))
     }

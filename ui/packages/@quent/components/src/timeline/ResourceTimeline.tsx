@@ -14,10 +14,11 @@ import {
   useDeferredReady,
 } from '@quent/hooks';
 import { TimelineSkeleton } from './TimelineSkeleton';
-import { useMemo, lazy, Suspense } from 'react';
+import { useMemo, useRef, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
   buildTimelineMarks,
+  dimSeries,
   getLongFsms,
   mergeOverlaySeries,
   getAdaptiveNumBins,
@@ -108,7 +109,18 @@ export function ResourceTimeline({
     operatorId,
   });
   const operatorTimelineData = useTimelineData(operatorCacheKey);
-  const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
+  // Preserve the last non-undefined overlay data while an operator is selected.
+  // Without this, switching operators causes a one-render undimmed flash because
+  // the new operator's atom is empty until the seed effect fires.
+  const lastOverlayRef = useRef<typeof operatorTimelineData>(undefined);
+  if (operatorTimelineData !== undefined) {
+    lastOverlayRef.current = operatorTimelineData;
+  } else if (!operatorId) {
+    lastOverlayRef.current = undefined;
+  }
+  const overlayPreloadedData = operatorId
+    ? (operatorTimelineData ?? lastOverlayRef.current)
+    : undefined;
 
   const {
     data: fetchedData,
@@ -170,8 +182,7 @@ export function ResourceTimeline({
     marks?: TimelineMark[];
   }>(() => {
     const data = preloadedData ?? fetchedData;
-    if (!data || (operatorId != null && !overlayPreloadedData))
-      return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
+    if (!data) return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
 
     const base = buildBinnedTimelineSeries(
       data.data,
@@ -185,36 +196,47 @@ export function ResourceTimeline({
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
 
-    if (overlayPreloadedData && operatorLabel) {
-      const baseSpan = getTimelineConfig(data).span;
-      const opSpan = getTimelineConfig(overlayPreloadedData).span;
-      const baseEqualsOpsSpan = baseSpan.start === opSpan.start && baseSpan.end === opSpan.end;
-      if (baseEqualsOpsSpan) {
-        const opResult = buildBinnedTimelineSeries(
-          overlayPreloadedData.data,
-          overlayPreloadedData.config,
-          startTime,
-          capacities,
-          quantitySpecs,
-          fsmTypes
-        );
-        const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
-        return {
-          timestamps: base.timestamps,
-          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
-          marks: buildTimelineMarks(
-            longFsms,
-            startTime,
-            filterSet,
-            fsmTypes,
-            opLongFsmIds,
-            operatorLabel
-          ),
-        };
-      }
-    }
-
     const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet, fsmTypes);
+
+    if (operatorId && operatorLabel) {
+      if (overlayPreloadedData) {
+        const baseSpan = getTimelineConfig(data).span;
+        const opSpan = getTimelineConfig(overlayPreloadedData).span;
+        const baseEqualsOpsSpan = baseSpan.start === opSpan.start && baseSpan.end === opSpan.end;
+        if (baseEqualsOpsSpan) {
+          const opResult = buildBinnedTimelineSeries(
+            overlayPreloadedData.data,
+            overlayPreloadedData.config,
+            startTime,
+            capacities,
+            quantitySpecs,
+            fsmTypes
+          );
+          const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
+          return {
+            timestamps: base.timestamps,
+            series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
+            marks: buildTimelineMarks(
+              longFsms,
+              startTime,
+              filterSet,
+              fsmTypes,
+              opLongFsmIds,
+              operatorLabel
+            ),
+          };
+        }
+      }
+      // Operator is selected but the overlay can't render this frame
+      // (data not yet populated for the new operator, or zoom span mismatch).
+      // Dim the base anyway so the chart never flashes back to full color
+      // between the click and the new overlay arriving.
+      return {
+        timestamps: base.timestamps,
+        series: dimSeries(base.series),
+        marks: timelineMarks,
+      };
+    }
 
     return { ...base, marks: timelineMarks };
   }, [
