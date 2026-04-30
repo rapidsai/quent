@@ -34,8 +34,8 @@ export const TIMELINE_THEME_NAME_DARK = 'quent-timeline-dark';
 
 const TIMELINE_MARKUP_COLOR_LIGHT = '#808080';
 const TIMELINE_MARKUP_COLOR_DARK = '#A0A0A0';
-const ROLLUP_TIMELINE_COLOR_LIGHT = '#AAAAAA';
-const ROLLUP_TIMELINE_COLOR_DARK = '#777777';
+export const ROLLUP_TIMELINE_COLOR_LIGHT = '#AAAAAA';
+export const ROLLUP_TIMELINE_COLOR_DARK = '#777777';
 
 /** Softer than pure black/white for chart text to reduce contrast. */
 const TEXT_COLOR_LIGHT = '#333333';

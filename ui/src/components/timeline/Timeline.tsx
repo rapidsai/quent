@@ -23,10 +23,13 @@ import {
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
   MARK_LABEL_TEXT_COLOR,
+  ROLLUP_TIMELINE_COLOR_DARK,
+  ROLLUP_TIMELINE_COLOR_LIGHT,
   useTimelineEchartsTheme,
 } from './timelineEchartsTheme';
 import { connectChart, MIN_ZOOM_WINDOW_S, nanosToMs } from '@/lib/timeline.utils';
 import { zoomRangeAtom } from '@/atoms/timeline';
+import { THEME_LIGHT, useTheme } from '@/contexts/ThemeContext';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
@@ -51,6 +54,7 @@ export function Timeline({
   marks?: TimelineMark[];
 }) {
   const { themeName } = useTimelineEchartsTheme();
+  const { theme } = useTheme();
 
   const zoomRange = useAtomValue(zoomRangeAtom);
   const windowMsRef = useRef(0);
@@ -60,11 +64,16 @@ export function Timeline({
 
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
+    const rollupTimelineColor =
+      theme === THEME_LIGHT ? ROLLUP_TIMELINE_COLOR_LIGHT : ROLLUP_TIMELINE_COLOR_DARK;
 
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
-      const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
       const isDimmed = seriesData.isDimmed ?? false;
+      // When an operator is selected, collapse all non-overlay states to a
+      // single neutral gray so the operator overlay reads as the figure and
+      // everything else recedes as a monotone background.
+      const renderColor = isDimmed ? rollupTimelineColor : seriesData.color;
 
       return {
         name,
@@ -79,9 +88,9 @@ export function Timeline({
         cursor: 'default',
         data: seriesData.values.map((value, index) => [timestamps[index], value]),
         lineStyle: { width: 0 },
-        itemStyle: { color },
+        itemStyle: { color: renderColor },
         areaStyle: {
-          color,
+          color: renderColor,
           opacity: isDimmed ? DIMMED_OPACITY : 1,
         },
         z: isOverlay ? 5 : 2,
