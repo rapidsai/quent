@@ -17,9 +17,33 @@
  * fails to resolve `resolve`. CJS sidesteps the whole interpreter dance.
  */
 const path = require('node:path');
+const fs = require('node:fs');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const PLUGIN_ID = 'quent-pivottable-panel';
+
+/**
+ * React 18 names the prod jsx-runtime `react-jsx-runtime.production.min.js`;
+ * React 19 dropped the `.min` suffix. Probe both so the alias works against
+ * whichever React the host expects (Grafana 12 currently ships React 18).
+ */
+function resolveProdJsxRuntime() {
+  const reactDir = path.dirname(require.resolve('react/package.json'));
+  const candidates = [
+    'cjs/react-jsx-runtime.production.min.js',
+    'cjs/react-jsx-runtime.production.js',
+  ];
+  for (const rel of candidates) {
+    const abs = path.resolve(reactDir, rel);
+    if (fs.existsSync(abs)) return abs;
+  }
+  throw new Error(
+    `Could not locate a production react/jsx-runtime in ${reactDir}. ` +
+      `Tried: ${candidates.join(', ')}`
+  );
+}
+
+const PROD_JSX_RUNTIME = resolveProdJsxRuntime();
 
 /** @type {(env: unknown, argv?: { mode?: 'development' | 'production' }) => import('webpack').Configuration} */
 module.exports = (_env, argv = {}) => {
@@ -50,6 +74,25 @@ module.exports = (_env, argv = {}) => {
         // `@quent/components`'s DAGChart pulls this in; pivot table doesn't,
         // but keep it here so the example stays useful as a copy-paste base.
         elkjs: 'elkjs/lib/elk.bundled.js',
+        // ALWAYS bundle the *production* JSX runtime, regardless of webpack
+        // mode. The swc-loader option `transform.react.development = false`
+        // controls which specifier swc emits (`react/jsx-runtime` vs
+        // `react/jsx-dev-runtime`), but the resolution of `react/jsx-runtime`
+        // through React's package.json `exports` field still picks
+        // `react-jsx-runtime.development.js` when webpack runs in
+        // `mode: 'development'`. The dev runtime reads
+        // `ReactSharedInternals.recentlyCreatedOwnerStacks`, which only
+        // exists on a development React build — Grafana ships a production
+        // React, so the property is `undefined` and the panel crashes with
+        // "Cannot read properties of undefined (reading
+        // 'recentlyCreatedOwnerStacks')". Pinning the alias here makes
+        // `pnpm dev` and `pnpm build` produce equivalent runtime behavior.
+        // React's `exports` blocks `./cjs/*` from `require.resolve`, so we
+        // build the path manually relative to the plain `react` entry.
+        // (PROD_JSX_RUNTIME is computed above, probing for both React 18
+        // and React 19 filename conventions.)
+        'react/jsx-runtime': PROD_JSX_RUNTIME,
+        'react/jsx-dev-runtime': PROD_JSX_RUNTIME,
       },
     },
     module: {

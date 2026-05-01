@@ -1,16 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { PanelProps } from '@grafana/data';
 import { useTheme2 } from '@grafana/ui';
 import { Provider as JotaiProvider } from 'jotai';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  setApiBaseUrl,
-  DEFAULT_STALE_TIME,
-  useQueryBundle,
-} from '@quent/client';
 import {
   PivotedStatTable,
   PivotTableToolbar,
@@ -22,7 +17,7 @@ import type {
   GroupedDataTableGroupKeyEntry,
 } from '@quent/components';
 import { useStatGroupTableControls } from '@quent/hooks';
-import { buildOperatorRows, type OperatorRow } from './buildOperatorRows';
+import { frameToOperatorRows, type OperatorRow } from './frameToOperatorRows';
 import type { QuentPivotTablePanelOptions } from './types';
 
 type IndexKey = 'partition' | 'item_type' | 'item';
@@ -62,24 +57,19 @@ const INDEX_LABELS: Record<IndexKey, React.ReactNode> = {
 };
 
 /**
- * Inner panel: assumes providers and `setApiBaseUrl` have already been wired.
- * Split out so the provider boilerplate does not pollute the data flow.
+ * Inner panel: assumes providers are wired and `rows` have been adapted from
+ * the Grafana `PanelData`. Split out so the provider boilerplate does not
+ * pollute the data flow.
  */
 function PivotTableBody({
-  engineId,
-  queryId,
+  rows,
   isDark,
+  persistKey,
 }: {
-  engineId: string;
-  queryId: string;
+  rows: OperatorRow[];
   isDark: boolean;
+  persistKey: string;
 }) {
-  const { data: queryBundle, isLoading, error } = useQueryBundle({ engineId, queryId });
-
-  const rows = useMemo(
-    () => (queryBundle ? buildOperatorRows(queryBundle.entities) : []),
-    [queryBundle]
-  );
   const allStatNames = useMemo(() => getSchemaStatNames(rows, SCHEMA), [rows]);
 
   const {
@@ -105,13 +95,13 @@ function PivotTableBody({
     allStatNames,
     // Default to a small, readable subset; user can add more from the toolbar.
     defaultStatSelector: stats => {
-      const duration = stats.filter(s => s === 'duration_s');
-      const inputs = stats.filter(s => s.startsWith('input_'));
-      const outputs = stats.filter(s => s.startsWith('output_'));
+      const duration = stats.filter(s => /duration/i.test(s));
+      const inputs = stats.filter(s => /^input[_-]/i.test(s));
+      const outputs = stats.filter(s => /^output[_-]/i.test(s));
       const picked = [...duration, ...inputs, ...outputs];
       return picked.length > 0 ? picked : null;
     },
-    persistKey: `quent-pivot-${engineId}-${queryId}`,
+    persistKey,
     rows,
     getRowIndexId: (row, key) => SCHEMA.groups[key].id(row),
   });
@@ -133,24 +123,11 @@ function PivotTableBody({
     _row: unknown
   ): { onMouseEnter?: () => void; onMouseLeave?: () => void } => ({});
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        Loading query bundle…
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full text-destructive text-sm p-4 text-center">
-        Failed to load query bundle: {error.message}
-      </div>
-    );
-  }
   if (rows.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No operators in this query.
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">
+        No rows in the panel data. Configure a query that returns at least an{' '}
+        <code className="px-1">item_id</code> column.
       </div>
     );
   }
@@ -197,8 +174,15 @@ function PivotTableBody({
  * Top-level Grafana panel component. One QueryClient + Jotai store *per
  * panel instance* so dashboards with multiple Quent panels don't share
  * sort/visibility state.
+ *
+ * Data plane: the panel reads `props.data.series` (Grafana `DataFrame[]`)
+ * and adapts it to `OperatorRow[]`. Any datasource that produces the
+ * documented columns can drive it — see `frameToOperatorRows.ts` and
+ * `provisioning/dashboards/quent-pivot-demo.json` for the expected shape.
  */
 export function QuentPivotTablePanel({
+  id,
+  data,
   options,
   width,
   height,
@@ -215,21 +199,16 @@ export function QuentPivotTablePanel({
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: DEFAULT_STALE_TIME, refetchOnWindowFocus: false },
+          queries: { staleTime: 60_000, refetchOnWindowFocus: false },
         },
       })
   );
 
-  // `setApiBaseUrl` is a module-global setter in `@quent/client`. Calling it
-  // in an effect rather than during render keeps render pure and prevents
-  // tearing if multiple panels with different apiBaseUrls coexist (last
-  // mount wins; in practice all panels in a dashboard should point at the
-  // same Quent instance).
-  useEffect(() => {
-    setApiBaseUrl(options.apiBaseUrl ?? '/api');
-  }, [options.apiBaseUrl]);
+  const rows = useMemo(() => frameToOperatorRows(data?.series), [data?.series]);
 
-  const ready = options.engineId.length > 0 && options.queryId.length > 0;
+  // Per-panel persistence key: scopes toolbar/sort state to this panel
+  // instance so two pivot panels in one dashboard do not clobber each other.
+  const persistKey = `quent-pivot-panel-${id}`;
 
   return (
     <JotaiProvider>
@@ -238,18 +217,7 @@ export function QuentPivotTablePanel({
           style={{ width, height }}
           className={isDark ? 'dark bg-background text-foreground' : 'bg-background text-foreground'}
         >
-          {ready ? (
-            <PivotTableBody
-              engineId={options.engineId}
-              queryId={options.queryId}
-              isDark={isDark}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">
-              Configure the panel: set <code className="px-1">Engine ID</code> and{' '}
-              <code className="px-1">Query ID</code> in the panel options.
-            </div>
-          )}
+          <PivotTableBody rows={rows} isDark={isDark} persistKey={persistKey} />
         </div>
       </QueryClientProvider>
     </JotaiProvider>

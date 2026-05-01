@@ -3,8 +3,8 @@
 
 # quent-pivot-table-panel
 
-Grafana panel plugin that renders a Quent query's operator statistics in a
-pivoted, sortable, virtualized table — backed by `PivotedStatTable` from
+Grafana panel plugin that renders any tabular dataset as a pivoted, sortable,
+virtualized table — backed by `PivotedStatTable` from
 [`@quent/components`](../../packages/@quent/components).
 
 | | |
@@ -12,32 +12,50 @@ pivoted, sortable, virtualized table — backed by `PivotedStatTable` from
 | **Host**           | Grafana 12+ (ships React 19) |
 | **Plugin id**      | `quent-pivottable-panel` |
 | **Quent component**| `PivotedStatTable` + `PivotTableToolbar` |
-| **Data source**    | Direct fetch via `@quent/client` (`useQueryBundle`) — does **not** use Grafana datasources |
+| **Data source**    | Any Grafana datasource that returns the documented columns. The repo provisions Grafana's built-in `TestData` datasource for the demo. |
 
 ## What it shows
 
-For a configured `(engineId, queryId)` pair, the panel:
+For every row Grafana returns from the panel's query, the panel produces one
+operator entry. The toolbar exposes:
 
-1. Fetches the `QueryBundle` from the Quent API.
-2. Flattens it into one row per operator (`buildOperatorRows.ts`).
-3. Renders a pivot table grouped by `Worker / Plan → Operator Type → Operator`,
-   with a heatmap on numeric stat cells, drag-to-reorder columns, click-to-sort,
-   and aggregation (sum / mean / min / max / stdev) when groups collapse rows.
-
-The toolbar exposes:
-
-- **Group by** — toggle/reorder index dimensions.
-- **Aggregate** — pick the aggregation mode (only meaningful when an index is hidden).
+- **Group by** — toggle/reorder index dimensions (`Worker / Plan` →
+  `Operator Type` → `Operator`).
+- **Aggregate** — pick the aggregation mode (sum / mean / min / max / stdev),
+  applied when an index dimension is hidden.
 - **Columns** — multi-select of which stat columns are visible.
+
+Cells get a heatmap, columns are drag-to-reorder, and headers are
+click-to-sort.
+
+## Expected data shape
+
+The panel adapts each row of `props.data.series[*]` (Grafana `DataFrame`s) into
+an `OperatorRow`. Field names are matched case-insensitively; both
+snake\_case and camelCase work.
+
+| Column | Required | Purpose |
+|--------|----------|---------|
+| `item_id`         | yes | Stable identifier for the row. Without it the row is dropped. |
+| `item_name`       | no  | Display name for the operator (defaults to `item_id`). |
+| `item_type`       | no  | Used by the operator-type group and color (defaults to `-`). |
+| `partition_id`    | no  | Outer group identity (defaults to `-`). |
+| `partition_label` | no  | Human label for the partition (defaults to `partition_id`). |
+| `scope_id`        | no  | Plan/scope identity (defaults to `partition_id`). |
+| `scope_label`     | no  | Human label for the scope (defaults to `scope_id`). |
+| **all other fields** | — | Become stats keyed by field name; numeric fields drive the heatmap and aggregations. |
+
+See `provisioning/dashboards/quent-pivot-demo.json` for a worked example
+using the `TestData` `csv_content` scenario.
 
 ## Panel options
 
 | Option       | Default | Notes |
 |--------------|---------|-------|
-| API base URL | `/api`  | Quent server root, e.g. `https://quent.example.com/api`. |
-| Engine ID    | _(empty)_ | Required. Until set, the panel shows a "configure me" message. |
-| Query ID     | _(empty)_ | Required. |
 | Theme mode   | `auto`  | `auto` follows Grafana's `theme.isDark`; `light`/`dark` force a mode. |
+
+The panel intentionally has no datasource-aware options — everything else is
+the responsibility of the panel's query.
 
 ## Running locally
 
@@ -57,21 +75,21 @@ pnpm install
 pnpm dev
 ```
 
-In a second terminal, boot Grafana with the plugin mounted:
+In a second terminal, boot Grafana with the plugin and demo dashboard mounted:
 
 ```sh
-cd ui/examples/quent-pivot-table-panel
 pnpm server   # docker compose up — http://localhost:3000, admin/admin
 ```
 
-Add a new dashboard, choose **Quent Pivot Table** as the visualization, and fill in
-**API base URL**, **Engine ID**, and **Query ID** in the panel options.
+The `TestData` datasource and the demo dashboard are provisioned automatically
+via `provisioning/`. After login the dashboard appears under the **Quent
+Examples** folder at `/d/quent-pivot-demo`.
 
 > **Note** on the `.config/` directory: A production-ready Grafana plugin would
 > typically be scaffolded with `pnpm dlx @grafana/create-plugin@latest`, which
 > drops a `.config/` directory containing webpack/jest/cypress configs that
 > the official plugin workflow expects. To keep this example readable, we
-> ship a single `webpack.config.ts` that mirrors what that scaffold produces
+> ship a single `webpack.config.cjs` that mirrors what that scaffold produces
 > for the panel-loading bits. Drop the official `.config/` in alongside it
 > when you are ready to publish.
 
@@ -82,19 +100,40 @@ src/QuentPivotTablePanel.tsx
 ├─ JotaiProvider                     ← per-panel store, isolates state
 ├─ QueryClientProvider               ← per-panel TanStack Query cache
 │  └─ <PivotTableBody>
-│     ├─ useQueryBundle()            ← @quent/client
-│     ├─ buildOperatorRows()         ← local adapter (QueryEntities → rows)
+│     ├─ frameToOperatorRows()       ← local adapter (DataFrame[] → rows)
 │     ├─ useStatGroupTableControls() ← @quent/hooks (group/sort/agg state)
 │     ├─ <PivotTableToolbar>         ← @quent/components
 │     └─ <PivotedStatTable>          ← @quent/components
 ```
 
-`setApiBaseUrl()` is called in an effect on mount with the panel's configured URL.
+Note: `@quent/client` is **not** a dependency. The panel reads `props.data`
+directly from Grafana's data pipeline; no Quent server is needed for the
+component to render.
 
 ## Why a per-panel `QueryClient` and Jotai `Provider`?
 
-Grafana dashboards can host many panels. If we shared a single `QueryClient`
-across panels, two panels pointing at different Quent instances would compete
-for cache keys; if we shared a single Jotai store, sort/visibility state from
-one panel would leak into another. Mounting both providers inside the panel
-component scopes everything correctly.
+Grafana dashboards can host many panels. If we shared a single Jotai store,
+sort/visibility state from one panel would leak into another. Mounting the
+provider inside the panel component scopes everything correctly. The
+`QueryClient` is unused today (the panel reads from Grafana, not from an
+HTTP API), but `useStatGroupTableControls` lives in `@quent/hooks` which
+declares `@tanstack/react-query` as a peer dep, so we keep the provider in
+the tree to satisfy that contract and to leave a hook in place for future
+features (e.g. cross-panel data fetching from a Quent app plugin).
+
+## Pointing it at a different datasource
+
+Anything that returns the documented columns works. Some examples:
+
+- **CSV core datasource** — point the panel at a checked-in CSV in the
+  plugin's `public/` folder.
+- **Infinity / JSON API datasource** — fetch a JSON endpoint that already
+  returns operator rows.
+- **PostgreSQL / MySQL** — `SELECT plan_id AS partition_id, …` from your
+  warehouse.
+- **A future "Quent datasource" plugin** — would do the
+  `QueryBundle → OperatorRow[]` adapter server-side and let this panel
+  remain identical.
+
+For each, the only thing that changes is the dashboard's panel `targets[*]` —
+no plugin code edits required.

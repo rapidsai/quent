@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Provisions Grafana's built-in TestData datasource with a stable uid that
+# the demo dashboard references. The TestData plugin ships with Grafana —
+# nothing to install.
+apiVersion: 1
+
+datasources:
+  - name: TestData
+    type: grafana-testdata-datasource
+    uid: quent-pivot-testdata
+    isDefault: true
+    editable: true

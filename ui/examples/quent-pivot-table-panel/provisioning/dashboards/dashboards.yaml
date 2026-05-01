@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Loads every dashboard JSON in this directory at Grafana startup.
+apiVersion: 1
+
+providers:
+  - name: 'quent-pivot-demo'
+    orgId: 1
+    folder: 'Quent Examples'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

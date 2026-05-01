@@ -1,0 +1,59 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-testdata-datasource",
+        "uid": "quent-pivot-testdata"
+      },
+      "gridPos": {
+        "h": 24,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "themeMode": "auto"
+      },
+      "pluginVersion": "0.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-testdata-datasource",
+            "uid": "quent-pivot-testdata"
+          },
+          "refId": "A",
+          "scenarioId": "csv_content",
+          "csvContent": "partition_id,partition_label,scope_id,scope_label,item_id,item_type,item_name,duration_s,input_rows,input_bytes,output_rows,output_bytes,peak_memory_bytes\nworker-1:plan-a,Worker 1 / Plan A,plan-a,Plan A,op-1,Scan,scan_customers,0.234,0,0,1000000,128000000,256000000\nworker-1:plan-a,Worker 1 / Plan A,plan-a,Plan A,op-2,Filter,filter_active,0.045,1000000,128000000,750000,96000000,8000000\nworker-1:plan-a,Worker 1 / Plan A,plan-a,Plan A,op-3,Project,project_name,0.012,750000,96000000,750000,12000000,4000000\nworker-1:plan-a,Worker 1 / Plan A,plan-a,Plan A,op-4,Aggregate,agg_by_region,0.187,750000,12000000,50,3200,16000000\nworker-1:plan-a,Worker 1 / Plan A,plan-a,Plan A,op-5,Sort,sort_by_revenue,0.034,50,3200,50,3200,1024\nworker-2:plan-b,Worker 2 / Plan B,plan-b,Plan B,op-6,Scan,scan_orders,0.567,0,0,5000000,640000000,512000000\nworker-2:plan-b,Worker 2 / Plan B,plan-b,Plan B,op-7,Join,hash_join_customers,0.892,5000000,640000000,750000,96000000,1024000000\nworker-2:plan-b,Worker 2 / Plan B,plan-b,Plan B,op-8,Sort,sort_by_ts,0.421,750000,96000000,750000,96000000,256000000\nworker-2:plan-b,Worker 2 / Plan B,plan-b,Plan B,op-9,Project,project_final,0.018,750000,96000000,750000,24000000,4000000\nworker-2:plan-b,Worker 2 / Plan B,plan-b,Plan B,op-10,Aggregate,agg_by_status,0.134,750000,24000000,5,320,8000000\nworker-1:plan-c,Worker 1 / Plan C,plan-c,Plan C,op-11,Scan,scan_events,1.234,0,0,12000000,1536000000,1024000000\nworker-1:plan-c,Worker 1 / Plan C,plan-c,Plan C,op-12,Filter,filter_recent,0.156,12000000,1536000000,3000000,384000000,32000000\nworker-1:plan-c,Worker 1 / Plan C,plan-c,Plan C,op-13,Join,broadcast_join_users,0.678,3000000,384000000,3000000,448000000,128000000\nworker-1:plan-c,Worker 1 / Plan C,plan-c,Plan C,op-14,Window,window_lag,0.345,3000000,448000000,3000000,512000000,64000000\nworker-1:plan-c,Worker 1 / Plan C,plan-c,Plan C,op-15,Aggregate,agg_session,0.512,3000000,512000000,8500,544000,48000000\nworker-1:plan-c,Worker 1 / Plan C,plan-c,Plan C,op-16,Sort,sort_by_user,0.089,8500,544000,8500,544000,2000000"
+        }
+      ],
+      "title": "Operator statistics — pivoted",
+      "type": "quent-pivottable-panel"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["quent", "pivot", "example"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Quent Pivot Table — Demo",
+  "uid": "quent-pivot-demo",
+  "version": 1,
+  "weekStart": ""
+}

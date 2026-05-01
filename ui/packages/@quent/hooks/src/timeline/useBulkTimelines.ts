@@ -78,7 +78,7 @@ export function useBulkTimelines<T extends TreeNode>({
 }) {
   const store = useStore();
   const queryClient = useQueryClient();
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
 

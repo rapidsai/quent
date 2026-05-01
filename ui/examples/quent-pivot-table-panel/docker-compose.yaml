@@ -1,13 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Local-dev Grafana with the unsigned plugin mounted in.
+# Local-dev Grafana with the unsigned plugin mounted in plus a provisioned
+# TestData datasource and demo dashboard so the example is one-command:
 #
-# Run from this directory:
 #   pnpm dev      # in one terminal — webpack watch into ./dist
-#   pnpm server   # in another  — boots Grafana on http://localhost:3000
+#   pnpm server   # in another      — boots Grafana on http://localhost:3000
 #
-# Login is admin / admin (Grafana defaults).
+# Login is admin / admin (Grafana defaults). The demo dashboard appears under
+# the "Quent Examples" folder at /d/quent-pivot-demo.
 services:
   grafana:
     image: grafana/grafana:12.0.0
@@ -20,6 +21,8 @@ services:
       GF_LOG_LEVEL: 'info'
     volumes:
       - ./dist:/var/lib/grafana/plugins/quent-pivottable-panel
+      - ./provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - grafana-data:/var/lib/grafana
 
 volumes:

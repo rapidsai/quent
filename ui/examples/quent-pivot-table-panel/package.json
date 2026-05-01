@@ -11,18 +11,16 @@
     "server:down": "docker compose down"
   },
   "dependencies": {
-    "@quent/client": "workspace:*",
     "@quent/components": "workspace:*",
     "@quent/hooks": "workspace:*",
     "@quent/utils": "workspace:*",
     "@tanstack/react-query": "^5.90.21",
-    "@tanstack/react-router": "^1.166.2",
     "@xyflow/react": "^12.10.1",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.6",
     "jotai": "^2.18.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "tslib": "^2.8.1"
   },
   "devDependencies": {
@@ -31,12 +29,13 @@
     "@grafana/ui": "^12.0.0",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^20.19.35",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
     "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^7.1.2",
     "postcss": "^8.5.3",
     "postcss-loader": "^8.1.1",
+    "resolve": "^1.22.12",
     "style-loader": "^4.0.0",
     "swc-loader": "^0.2.6",
     "tailwindcss": "^4.2.1",
@@ -48,5 +47,20 @@
     "@grafana/data": "*",
     "@grafana/runtime": "*",
     "@grafana/ui": "*"
+  },
+  "pnpm": {
+    "_comment_react": "The @quent/* packages declare a React 19 peer dep (matching the main UI app), but Grafana 12 ships React 18 — so we relax the peer for this example. The plugin only consumes @quent/* via webpack-bundled source, where the externalized 'react' resolves to whatever Grafana provides at runtime; the React 18/19 hooks surface used by these components is identical.",
+    "_comment_overrides": "The example is a nested pnpm workspace that re-references ../../packages/@quent/*. When pnpm resolves peer deps for those packages from this side, it can pick newer @tanstack/* versions than ui/'s root lockfile, which then *replaces* the symlinks under ui/packages/@quent/*/node_modules/@tanstack/* and breaks the main ui/'s typecheck (two different copies of the same class). Pinning these to ui/ root's lockfile versions keeps both workspaces consistent.",
+    "overrides": {
+      "@tanstack/react-query": "5.90.21",
+      "@tanstack/query-core": "5.90.20",
+      "@tanstack/react-table": "8.21.3"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "18.3.1",
+        "react-dom": "18.3.1"
+      }
+    }
   }
 }
