@@ -203,7 +203,23 @@ type Accumulator = {
   itemType: string;
 };
 
-/** Build pivoted (and optionally aggregated) rows from flat rows. */
+/**
+ * Build pivoted (and optionally aggregated) rows from flat rows.
+ *
+ * Output ordering: rows are clustered so that same-id runs along the group-key
+ * hierarchy are contiguous (which is what `computeRowSpans` needs to merge
+ * cells). Within each cluster, ties are broken by the order each distinct id
+ * first appeared in `flatRows`, so callers that feed rows in a meaningful
+ * sequence (e.g. operator pipeline / execution order) keep that sequence.
+ *
+ * For already-contiguous inputs (like the operator panels, which feed rows
+ * clustered by `partition → item_type → item` naturally) this reordering is a
+ * no-op — the stable sort runs over monotonically non-decreasing ranks.
+ * For datasets where the natural row order interleaves groups (e.g. a CSV of
+ * cars where `Ford, Hyundai, BMW, Hyundai, Honda, BMW, …` alternates brands),
+ * it produces the expected grouped view without requiring the caller to
+ * pre-sort.
+ */
 export function buildPivotedRows(
   flatRows: StatGroupExpandedRow[],
   activeIndices: GroupIndexDef[],
@@ -274,5 +290,32 @@ export function buildPivotedRows(
       itemType: group.itemType,
     });
   }
+
+  // Cluster rows along the group-key hierarchy without re-sorting them into
+  // an alien order. For each column we assign every distinct id a rank equal
+  // to its first-appearance index among rows seen so far; then we stably sort
+  // by the tuple of those ranks. Equal ids share a rank (so their rows end
+  // up adjacent and `computeRowSpans` can collapse them), and novel ids keep
+  // the order the caller produced — preserving pipeline/execution order for
+  // operator panels while fixing interleaved-group datasets.
+  if (activeIndices.length > 0 && result.length > 1) {
+    const rankByCol: Array<Map<string, number>> = activeIndices.map(() => new Map());
+    for (const row of result) {
+      for (let c = 0; c < row.groupKeys.length; c++) {
+        const ranks = rankByCol[c];
+        const id = row.groupKeys[c].id;
+        if (!ranks.has(id)) ranks.set(id, ranks.size);
+      }
+    }
+    result.sort((a, b) => {
+      for (let c = 0; c < a.groupKeys.length; c++) {
+        const ra = rankByCol[c].get(a.groupKeys[c].id)!;
+        const rb = rankByCol[c].get(b.groupKeys[c].id)!;
+        if (ra !== rb) return ra - rb;
+      }
+      return 0;
+    });
+  }
+
   return result;
 }
