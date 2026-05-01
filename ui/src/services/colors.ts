@@ -192,9 +192,7 @@ export function getColorByIndex(index: number, theme: PaletteTheme): ChartColor 
 export function createFsmTypeColorFn(
   fsmTypes: { [key in string]?: FsmTypeDecl },
   theme: PaletteTheme
-): (
-  stateName: string
-) => ChartColor {
+): (stateName: string) => ChartColor {
   const stateIndexMap = buildFsmStateIndexMap(fsmTypes);
   return (stateName: string) => {
     const stateIndex = stateIndexMap.get(stateName);

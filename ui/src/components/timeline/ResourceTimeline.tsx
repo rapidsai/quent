@@ -194,7 +194,13 @@ export function ResourceTimeline({
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
 
-    const timelineMarks = buildTimelineMarks(longFsms, startTime, paletteTheme, filterSet, fsmTypes);
+    const timelineMarks = buildTimelineMarks(
+      longFsms,
+      startTime,
+      paletteTheme,
+      filterSet,
+      fsmTypes
+    );
 
     if (operatorId && operatorLabel) {
       if (overlayPreloadedData) {
