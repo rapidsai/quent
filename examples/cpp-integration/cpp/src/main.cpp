@@ -28,14 +28,14 @@ int main() {
     // Create instrumentation context — events exported to ndjson.
     auto ctx = quent::create_context(cluster_id, "ndjson", "./events");
 
-    auto cluster_obs = quent::cluster::create_observer();
+    auto cluster_obs = quent::cluster::create_observer(*ctx);
     cluster_obs->cluster_declaration(cluster_id,
                                      quent::cluster::ClusterDeclaration{
                                          .instance_name = "example_cluster",
                                      });
 
     // Spawn a worker.
-    auto worker_obs = quent::worker::create_observer();
+    auto worker_obs = quent::worker::create_observer(*ctx);
     auto worker_id = uuid::now_v7();
     quent::CustomAttributes custom;
     custom.string_attrs.push_back({"version", "42.1.2"});
@@ -52,10 +52,10 @@ int main() {
                                    });
 
     // Construct a queue.
-    auto queue = quent::queue::create(quent::queue::Initializing{
-        .instance_name = "my_queue",
-        .parent_group_id = worker_id,
-    });
+    auto queue = quent::queue::create(*ctx, quent::queue::Initializing{
+                                                .instance_name = "my_queue",
+                                                .parent_group_id = worker_id,
+                                            });
     // Operating with unbounded capacity (Option<u64> = None in Rust).
     // In C++, the bridge wraps the value in Some(), so 0 here means Some(0).
     // True unbounded (None) is not representable in CXX without sentinel
@@ -63,30 +63,31 @@ int main() {
     queue->operating(quent::queue::Operating{.capacity_entries = 0});
 
     // Construct a memory pool (resizable).
-    auto mem_pool = quent::memory_pool::create(quent::memory_pool::Initializing{
-        .instance_name = "my_memory_pool",
-        .parent_group_id = worker_id,
-    });
+    auto mem_pool = quent::memory_pool::create(
+        *ctx, quent::memory_pool::Initializing{
+                  .instance_name = "my_memory_pool",
+                  .parent_group_id = worker_id,
+              });
     mem_pool->operating(quent::memory_pool::Operating{.capacity_bytes = 1337});
     mem_pool->resizing();
     mem_pool->operating(quent::memory_pool::Operating{.capacity_bytes = 2048});
 
     // Spawn a thread.
-    auto thread = quent::thread::create(quent::thread::Initializing{
-        .instance_name = "my_thread",
-        .parent_group_id = worker_id,
-    });
+    auto thread = quent::thread::create(*ctx, quent::thread::Initializing{
+                                                  .instance_name = "my_thread",
+                                                  .parent_group_id = worker_id,
+                                              });
     thread->operating();
 
     // Single event entity.
-    auto info_obs = quent::info::create_observer();
+    auto info_obs = quent::info::create_observer(*ctx);
     info_obs->info(uuid::now_v7(), quent::info::Info{
                                        .message = "ready to operate",
                                        .source = "main.cpp",
                                    });
 
     // Multi-event entity.
-    auto file_stats_obs = quent::file_stats::create_observer();
+    auto file_stats_obs = quent::file_stats::create_observer(*ctx);
     auto fs_id = uuid::now_v7();
     file_stats_obs->checksum(fs_id, quent::file_stats::Checksum{
                                         .algorithm = "sha256",
@@ -98,12 +99,12 @@ int main() {
                                         });
 
     // Queue a task. The entry transition returns an FSM handle.
-    auto task = quent::task::create(quent::task::Queued{
-        .instance_name = "my_task_31415",
-        .index = 1,
-        .worker = worker_id,
-        .queue_resource_id = queue->uuid(),
-    });
+    auto task = quent::task::create(*ctx, quent::task::Queued{
+                                              .instance_name = "my_task_31415",
+                                              .index = 1,
+                                              .worker = worker_id,
+                                              .queue_resource_id = queue->uuid(),
+                                          });
 
     // First computing transition — thread usage only, no memory pool.
     task->computing(quent::task::Computing{
