@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
-// user facing types used for modeling
+// User-facing types used for modeling
 
 // An event that can only be emitted <= 1 time per entity
 pub struct Once<T> {
@@ -18,13 +18,14 @@ pub struct Multi<T> {
 // Every entity has a unique id.
 // For instrumentation:
 pub trait EntityHandle {
-    fn id() -> Uuid;
+    fn id(&self) -> Uuid;
 }
 
 // Every entity has a unique id.
 // For analysis:
 pub trait EntityModel {
-    fn id() -> Uuid;
+    fn id(&self) -> Uuid;
+    fn type_name() -> String;
 }
 
 // An event has a timestamp and a payload
@@ -34,13 +35,19 @@ pub struct Event<T> {
     pub payload: T,
 }
 
+#[derive(Debug)]
 pub struct ObserverError;
+impl std::fmt::Display for ObserverError {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+impl std::error::Error for ObserverError {}
 
 mod one_shot_empty {
     use super::*;
 
     mod model {
-        use super::*;
         // Most trivial entity. Just emits one event without attributes. Thus
         // its only properties are a UUID and a timestamp for its single event.
         #[derive(Entity)]
@@ -48,7 +55,6 @@ mod one_shot_empty {
     }
 
     mod events {
-        use super::*;
         // nothing here, Event<()> already captures everything.
     }
 
@@ -84,6 +90,12 @@ mod one_shot_empty {
 
     mod analyzer {
         use super::*;
+        // Generate traits of entity models in analysis. These traits exist for
+        // convenience and could be implemented by various entity containers,
+        // e.g. plain Rust types, column-oriented formats such as Arrow through
+        // a reference to some row representing the entity, or a time-series
+        // database, etc.
+        //
         // Single-event entity, so if the event ever arrived, we know its
         // timestamp.
         pub trait OneShotEmptyModel: EntityModel {
@@ -96,7 +108,6 @@ mod one_shot_with_attribs {
     use super::*;
 
     mod model {
-        use super::*;
         // Single-event entity. Just emits one event with attributes of this
         // struct.
         #[derive(Entity)]
@@ -113,7 +124,6 @@ mod one_shot_with_attribs {
     }
 
     mod events {
-        use super::*;
         // the OneShotWithAttribs struct is the event
     }
 
@@ -126,7 +136,7 @@ mod one_shot_with_attribs {
             // Same as OneShotEmpty, does not take &self since there is no
             // state, so we don't need an entity handle yet.
             pub fn one_shot_with_attribs(
-                attributes: super::model::OneShotWithAttribs,
+                _attributes: super::model::OneShotWithAttribs,
             ) -> Result<Uuid, ObserverError> {
                 // emits event
                 todo!()
@@ -168,8 +178,6 @@ mod multi_one_shot {
     }
 
     mod events {
-        use super::*;
-
         pub enum MultiOneShotEvent {
             A(super::model::X),
             B(super::model::Y),
@@ -200,23 +208,23 @@ mod multi_one_shot {
         }
 
         impl EntityHandle for MultiOneShotHandle {
-            fn id() -> Uuid {
+            fn id(&self) -> Uuid {
                 todo!()
             }
         }
 
         impl MultiOneShotHandle {
-            fn a(&self, attributes: super::model::X) -> Result<(), ObserverError> {
+            fn a(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
                 // errors out if the event was previously submitted already
                 //
                 // emits event, flags this as emitted
                 todo!()
             }
-            fn b(&self, attributes: super::model::Y) {
+            fn b(&self, _attributes: super::model::Y) {
                 todo!()
             }
             // same attributes type as b(), but semantically different event
-            fn c(&self, attributes: super::model::Y) {
+            fn c(&self, _attributes: super::model::Y) {
                 todo!()
             }
             fn d(&self) {
@@ -257,8 +265,6 @@ mod one_multi_shot {
     }
 
     mod events {
-        use super::*;
-
         pub enum OneMultiShotEvent {
             A(super::model::X),
         }
@@ -282,13 +288,13 @@ mod one_multi_shot {
         }
 
         impl EntityHandle for OneMultiShotHandle {
-            fn id() -> Uuid {
+            fn id(&self) -> Uuid {
                 todo!()
             }
         }
 
         impl OneMultiShotHandle {
-            fn a(&self, attributes: super::model::X) {
+            fn a(&self, _attributes: super::model::X) {
                 // emits event
                 todo!()
             }
@@ -327,8 +333,6 @@ mod multi_multi_shot {
     }
 
     mod events {
-        use super::*;
-
         pub enum XEvent {
             A(super::model::X),
             B(super::model::X),
@@ -353,21 +357,21 @@ mod multi_multi_shot {
         }
 
         impl EntityHandle for MultiMultiHandle {
-            fn id() -> Uuid {
+            fn id(&self) -> Uuid {
                 todo!()
             }
         }
 
         impl MultiMultiHandle {
-            fn a(&self, attributes: super::model::X) {
+            fn a(&self, _attributes: super::model::X) {
                 // emits event
                 todo!()
             }
-            fn b(&self, attributes: super::model::X) {
+            fn b(&self, _attributes: super::model::X) {
                 // emits event
                 todo!()
             }
-            fn c(&self, attributes: super::model::Y) {
+            fn c(&self, _attributes: super::model::Y) {
                 // emits event
                 todo!()
             }
@@ -407,8 +411,6 @@ mod mixed {
     }
 
     mod events {
-        use super::*;
-
         pub enum MixedEvent {
             A(super::model::X),
             B(super::model::Y),
@@ -433,19 +435,19 @@ mod mixed {
         }
 
         impl EntityHandle for MixedHandle {
-            fn id() -> Uuid {
+            fn id(&self) -> Uuid {
                 todo!()
             }
         }
 
         impl MixedHandle {
-            pub fn a(&self, attributes: super::model::X) -> Result<(), ObserverError> {
+            pub fn a(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
                 // emits event
                 // errors out if event was already sent
                 todo!()
             }
 
-            pub fn b(&self, attributes: super::model::X) {
+            pub fn b(&self, _attributes: super::model::X) {
                 // emits event
                 todo!()
             }
