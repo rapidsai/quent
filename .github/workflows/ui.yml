@@ -12,7 +12,7 @@ on:
       - ".github/workflows/ui.yml"
 
 env:
-  PNPM_VERSION: "9.15.0"
+  PNPM_VERSION: "11.0.0-rc.2"
   NODE_VERSION: "24.11.0"
 
 jobs:
