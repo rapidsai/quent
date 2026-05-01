@@ -8,11 +8,11 @@ import { GroupedDataTable } from './GroupedDataTable';
 import { cn } from '@/lib/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
 import type {
-  GroupedDataTableGroupKeyEntry,
-  GroupedDataTableSortInfo,
   DataHeaderProps,
   GroupCellProps,
   DataCellProps,
+  PivotTableInteractionConfig,
+  PivotTableRenderConfig,
 } from './types';
 import {
   buildPivotedRows,
@@ -30,69 +30,22 @@ import type {
 } from './GroupedDataTable';
 import { nodeColorPaletteAtom } from '@/atoms/dag';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
-import type { ContinuousPaletteName } from '@/services/colors';
 import { useColumnDragDrop } from './useColumnDragDrop';
+import {
+  PivotTableRenderProvider,
+  usePivotTableRenderContext,
+  type PivotTableRenderContextValue,
+} from './PivotTableRenderContext';
 
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
 
-/**
- * Stable wrapper for renderer components passed into `<GroupedDataTable>`.
- *
- * The naive pattern — `const X = useCallback((props) => <Inner {...props} foo={foo} />, [foo])` —
- * returns a new function reference whenever `foo` changes, so React sees a
- * different component *type* at the same JSX position and unmounts/remounts
- * the underlying DOM. For our hover handlers that's fatal: the `<td>`'s
- * `mouseleave` handler is removed before the user can leave the cell, so the
- * highlight set by `mouseenter` is never paired with a `mouseleave` and the
- * DAG ends up with orphan-highlighted nodes (and stale stat heatmap colors).
- *
- * This hook holds the latest impl in a ref and exposes a single memoised
- * invocation function, so the wrapper reference is permanently stable while
- * each call still picks up the latest closure values.
- */
-function useStableRenderer<P>(impl: (props: P) => React.ReactNode): (props: P) => React.ReactNode {
-  const implRef = useRef(impl);
-  implRef.current = impl;
-  return useMemo(() => (props: P) => implRef.current(props), []);
-}
-
-function DataHeader({
-  stat,
-  sortInfo,
-  onSort,
-  className,
-  style,
-  draggedStat,
-  getDropTargetPosition,
-  onStatDragStart,
-  onStatDragOver,
-  onStatDragLeave,
-  onStatDrop,
-  onStatDragEnd,
-  onHoverStat,
-  buildHoveredStatInfo,
-  hoveredStatName,
-}: {
-  stat: string;
-  sortInfo: GroupedDataTableSortInfo | null;
-  onSort: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-  draggedStat: string | null;
-  getDropTargetPosition?: (statName: string) => 'before' | 'after' | undefined;
-  onStatDragStart: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
-  onStatDragOver: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
-  onStatDragLeave: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
-  onStatDrop: (e: React.DragEvent<HTMLTableCellElement>, statName: string) => void;
-  onStatDragEnd: () => void;
-  onHoverStat?: (info: HoveredStatInfo | null) => void;
-  buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
-  hoveredStatName: string | undefined;
-}) {
+function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProps) {
+  const { dnd, interaction, derived } = usePivotTableRenderContext();
+  const hoveredStatName = interaction.hoveredStat?.name;
   // While a column is being dragged, show a 3px primary-colored bar on the
   // leading or trailing edge of the column under the cursor to indicate where
   // a drop would insert.
-  const dropTargetPosition = getDropTargetPosition?.(stat);
+  const dropTargetPosition = dnd.getDropTargetPosition?.(stat);
   let dropTargetShadow: string | undefined;
   if (dropTargetPosition === 'before') {
     dropTargetShadow = 'inset 3px 0 0 hsl(var(--primary))';
@@ -112,23 +65,23 @@ function DataHeader({
   return (
     <th
       draggable
-      onDragStart={e => onStatDragStart(e, stat)}
-      onDragOver={e => onStatDragOver(e, stat)}
-      onDragLeave={e => onStatDragLeave(e, stat)}
-      onDrop={e => onStatDrop(e, stat)}
-      onDragEnd={onStatDragEnd}
+      onDragStart={e => dnd.onStatDragStart(e, stat)}
+      onDragOver={e => dnd.onStatDragOver(e, stat)}
+      onDragLeave={e => dnd.onStatDragLeave(e, stat)}
+      onDrop={e => dnd.onStatDrop(e, stat)}
+      onDragEnd={dnd.onStatDragEnd}
       onClick={() => {
-        if (draggedStat !== null) return;
+        if (dnd.draggedStat !== null) return;
         onSort();
       }}
-      onMouseEnter={() => onHoverStat?.(buildHoveredStatInfo(stat))}
-      onMouseLeave={() => onHoverStat?.(null)}
+      onMouseEnter={() => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat))}
+      onMouseLeave={() => interaction.setHoveredStat(null)}
       className={cn(
         'table-header-overlay text-right px-3 py-2 text-sm font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground font-normal',
         className,
         {
           'font-semibold': Boolean(sortInfo),
-          'opacity-50': draggedStat === stat,
+          'opacity-50': dnd.draggedStat === stat,
           'text-foreground': Boolean(sortInfo),
           'table-header-overlay-active': hoveredStatName === stat,
         }
@@ -147,36 +100,22 @@ function GroupCell({
   row,
   groupKey: gk,
   rowSpan,
+  columnIndex: _columnIndex,
   style,
   className,
-  getGroupTypeColor,
-  getGroupCellHandlers,
-  onHoverStat,
-  hoveredItemId,
-  selectedItemIds,
-}: {
-  row: PivotedRow;
-  groupKey: GroupedDataTableGroupKeyEntry;
-  rowSpan: number;
-  columnIndex: number;
-  style?: React.CSSProperties;
-  className?: string;
-  getGroupTypeColor?: (key: string, id: string) => string | undefined;
-  onHoverStat?: (info: HoveredStatInfo | null) => void;
-  hoveredItemId?: string | null;
-  selectedItemIds?: Set<string>;
-  getGroupCellHandlers?: (
-    groupKey: GroupedDataTableGroupKeyEntry,
-    row: PivotedRow
-  ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
-}) {
-  const typeColor = getGroupTypeColor?.(gk.key, gk.id);
-  const handlers = getGroupCellHandlers?.(gk, row);
+}: GroupCellProps<PivotedRow>) {
+  const { interaction, renderConfig } = usePivotTableRenderContext();
+  const typeColor = renderConfig.getGroupTypeColor?.(gk.key, gk.id);
+  const handlers = interaction.groupCellHandlers?.(gk, row);
   const isRowHighlightedFromDag =
-    hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
-  const hasDagSelection = (selectedItemIds?.size ?? 0) > 0;
+    interaction.hoveredItemId !== null &&
+    interaction.hoveredItemId !== undefined &&
+    row.itemIds.has(interaction.hoveredItemId);
+  const hasDagSelection = (interaction.selectedItemIds?.size ?? 0) > 0;
   const isRowSelectedFromDag =
-    hasDagSelection && selectedItemIds != null && itemHasId(row.itemIds, selectedItemIds);
+    hasDagSelection &&
+    interaction.selectedItemIds != null &&
+    itemHasId(row.itemIds, interaction.selectedItemIds);
   const backgroundColor = typeColor
     ? `color-mix(in srgb, ${typeColor} 15%, hsl(var(--card)))`
     : undefined;
@@ -206,7 +145,7 @@ function GroupCell({
       rowSpan={rowSpan}
       style={baseStyle}
       onMouseEnter={() => {
-        onHoverStat?.(null);
+        interaction.setHoveredStat(null);
         handlers?.onMouseEnter?.();
       }}
       onMouseLeave={() => {
@@ -221,53 +160,30 @@ function GroupCell({
   );
 }
 
-function DataCell({
-  row,
-  stat,
-  isAggregating,
-  aggMode,
-  columnRanges,
-  colorPalette,
-  darkMode,
-  hoveredHeaderItemIds,
-  hoveredItemId,
-  hoveredStatName,
-  onHoverStat,
-  buildHoveredStatInfo,
-}: {
-  row: PivotedRow;
-  stat: string;
-  isAggregating: boolean;
-  aggMode: AggMode;
-  columnRanges: Map<string, { min: number; max: number }>;
-  colorPalette: ContinuousPaletteName;
-  darkMode: boolean;
-  hoveredHeaderItemIds?: Set<string> | null;
-  hoveredItemId?: string | null;
-  hoveredStatName: string | undefined;
-  onHoverStat?: (info: HoveredStatInfo | null) => void;
-  buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
-}) {
-  const numVal = getSortValue(row, stat, isAggregating, aggMode);
-  const range = columnRanges.get(stat);
+function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
+  const { display, interaction, derived } = usePivotTableRenderContext();
+  const numVal = getSortValue(row, stat, display.isAggregating, display.aggMode);
+  const range = derived.columnRanges.get(stat);
   const bg =
     numVal !== null && range
-      ? gradientBg(numVal, range.min, range.max, colorPalette, darkMode)
+      ? gradientBg(numVal, range.min, range.max, display.colorPalette, display.darkMode)
       : undefined;
-  const isStatHovered = hoveredStatName === stat;
+  const isStatHovered = interaction.hoveredStat?.name === stat;
   const colHighlight = isStatHovered ? HIGHLIGHT_WASH : undefined;
   const isRowHighlightedFromTable =
-    hoveredHeaderItemIds != null && itemHasId(row.itemIds, hoveredHeaderItemIds);
+    derived.hoveredHeaderItemIds != null && itemHasId(row.itemIds, derived.hoveredHeaderItemIds);
   const isRowHighlightedFromDag =
-    hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
+    interaction.hoveredItemId !== null &&
+    interaction.hoveredItemId !== undefined &&
+    row.itemIds.has(interaction.hoveredItemId);
   const rowHighlight =
     isRowHighlightedFromTable || isRowHighlightedFromDag ? HIGHLIGHT_WASH : undefined;
   const cellHighlight = rowHighlight ?? colHighlight;
   const statCellProps = {
-    onMouseEnter: () => onHoverStat?.(buildHoveredStatInfo(stat)),
-    onMouseLeave: () => onHoverStat?.(null),
+    onMouseEnter: () => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat)),
+    onMouseLeave: () => interaction.setHoveredStat(null),
   };
-  if (!isAggregating) {
+  if (!display.isAggregating) {
     const val = row.values.get(stat) ?? null;
     return (
       <td
@@ -291,7 +207,7 @@ function DataCell({
       </td>
     );
   }
-  const displayVal = agg[aggMode as Exclude<AggMode, 'value'>] ?? null;
+  const displayVal = agg[display.aggMode as Exclude<AggMode, 'value'>] ?? null;
   return (
     <td
       className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
@@ -318,22 +234,11 @@ interface PivotedStatTableProps<TRow> {
    * a future "show null rows" toggle.
    */
   hideEmptyRows?: boolean;
-  // interaction state
-  selectedItemIds?: Set<string>;
-  hoveredItemId?: string | null;
-  hoveredStat?: HoveredStatInfo | null;
-  onHoverStat?: (info: HoveredStatInfo | null) => void;
-  onTableMouseLeave?: () => void;
-  // rendering
+  interaction: PivotTableInteractionConfig<PivotedRow>;
+  renderConfig?: PivotTableRenderConfig;
   virtualization?: GroupedDataTableVirtualizationOptions;
   groupRenderMode?: GroupedDataTableGroupRenderMode;
   stickyGroupColumns?: boolean;
-  // display config
-  getGroupTypeColor?: (key: string, id: string) => string | undefined;
-  getGroupCellHandlers?: (
-    groupKey: GroupedDataTableGroupKeyEntry,
-    row: PivotedRow
-  ) => { onMouseEnter?: () => void; onMouseLeave?: () => void };
   onReorderStat?: (from: string, to: string) => void;
   /** Optional controlled sort state, forwarded to the underlying GroupedDataTable. */
   sorting?: SortingState;
@@ -349,16 +254,11 @@ export function PivotedStatTable<TRow>({
   aggMode = 'sum',
   indexLabels,
   hideEmptyRows = true,
-  selectedItemIds,
-  hoveredItemId,
-  hoveredStat,
-  onHoverStat,
-  onTableMouseLeave,
+  interaction,
+  renderConfig,
   virtualization,
   groupRenderMode,
   stickyGroupColumns = true,
-  getGroupTypeColor,
-  getGroupCellHandlers,
   onReorderStat,
   sorting,
   onSortingChange,
@@ -370,11 +270,18 @@ export function PivotedStatTable<TRow>({
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
   const [tableStatOrder, setTableStatOrder] = useState<string[]>([]);
-  const [uncontrolledHoveredStat, setUncontrolledHoveredStat] = useState<HoveredStatInfo | null>(
-    null
+  const setHoveredStat = interaction.setHoveredStat;
+  const effectiveHoveredStat = interaction.hoveredStat;
+  const effectiveHoveredItemId = interaction.hoveredItemId;
+  const effectiveSelectedItemIds = interaction.selectedItemIds;
+  const effectiveGroupCellHandlers = interaction.groupCellHandlers;
+  const effectiveOnTableMouseLeave = interaction.onTableMouseLeave;
+  const effectiveRenderConfig = useMemo(
+    (): PivotTableRenderConfig => ({
+      getGroupTypeColor: renderConfig?.getGroupTypeColor,
+    }),
+    [renderConfig]
   );
-  const effectiveHoveredStat = hoveredStat ?? uncontrolledHoveredStat;
-  const emitHoverStat = onHoverStat ?? setUncontrolledHoveredStat;
   const expandedRows = useMemo(() => expandRowsFromSchema(rows, schema), [rows, schema]);
   const resolvedVisibleStats = useMemo(
     () => visibleStats ?? getSchemaStatNames(rows, schema),
@@ -549,9 +456,9 @@ export function PivotedStatTable<TRow>({
 
   const handleTableMouseLeave = useCallback(() => {
     setHoveredHeaderItemIds(null);
-    emitHoverStat(null);
-    onTableMouseLeave?.();
-  }, [emitHoverStat, onTableMouseLeave]);
+    setHoveredStat(null);
+    effectiveOnTableMouseLeave?.();
+  }, [setHoveredStat, effectiveOnTableMouseLeave]);
 
   // Safety net: fast mouse movements, drag captures, and pointer-events: none
   // overlays can all swallow the per-element onMouseLeave. Clear stale hover
@@ -575,59 +482,76 @@ export function PivotedStatTable<TRow>({
   }, [handleTableMouseLeave]);
 
   useEffect(() => {
-    if (!hoveredItemId) return;
-    const row = visiblePivotedRows.find(r => r.itemIds.has(hoveredItemId));
+    if (!effectiveHoveredItemId) return;
+    const row = visiblePivotedRows.find(r => r.itemIds.has(effectiveHoveredItemId));
     if (!row) return;
     const el = rowRefs.current.get(row.rowKey);
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [hoveredItemId, visiblePivotedRows]);
+  }, [effectiveHoveredItemId, visiblePivotedRows]);
 
-  // The renderers below are intentionally NOT wrapped in `useCallback`. A
-  // changing useCallback dep list would re-create the function reference and
-  // force <GroupedDataTable> to remount every cell on every atom update,
-  // dropping the in-flight mouseleave handlers — see `useStableRenderer`.
-  const DataHeaderRenderer = useStableRenderer<DataHeaderProps>(props => (
-    <DataHeader
-      {...props}
-      draggedStat={statDragDrop.draggedId}
-      getDropTargetPosition={statDragDrop.getDropTargetPosition}
-      onStatDragStart={statDragDrop.handleDragStart}
-      onStatDragOver={statDragDrop.handleDragOver}
-      onStatDragLeave={statDragDrop.handleDragLeave}
-      onStatDrop={statDragDrop.handleDrop}
-      onStatDragEnd={statDragDrop.handleDragEnd}
-      onHoverStat={emitHoverStat}
-      buildHoveredStatInfo={buildHoveredStatInfo}
-      hoveredStatName={effectiveHoveredStat?.name}
-    />
-  ));
-
-  const GroupCellRenderer = useStableRenderer<GroupCellProps<PivotedRow>>(props => (
-    <GroupCell
-      {...props}
-      getGroupTypeColor={getGroupTypeColor}
-      getGroupCellHandlers={getGroupCellHandlers}
-      onHoverStat={emitHoverStat}
-      hoveredItemId={hoveredItemId}
-      selectedItemIds={selectedItemIds}
-    />
-  ));
-
-  const DataCellRenderer = useStableRenderer<DataCellProps<PivotedRow>>(props => (
-    <DataCell
-      {...props}
-      isAggregating={isAggregating}
-      aggMode={aggMode}
-      columnRanges={columnRanges}
-      colorPalette={nodePalette}
-      darkMode={isDarkMode}
-      hoveredHeaderItemIds={hoveredHeaderItemIds}
-      hoveredItemId={hoveredItemId}
-      hoveredStatName={effectiveHoveredStat?.name}
-      onHoverStat={emitHoverStat}
-      buildHoveredStatInfo={buildHoveredStatInfo}
-    />
-  ));
+  const interactionContextValue = useMemo(
+    () => ({
+      hoveredStat: effectiveHoveredStat,
+      setHoveredStat,
+      hoveredItemId: effectiveHoveredItemId,
+      selectedItemIds: effectiveSelectedItemIds,
+      onTableMouseLeave: effectiveOnTableMouseLeave,
+      groupCellHandlers: effectiveGroupCellHandlers,
+    }),
+    [
+      effectiveHoveredStat,
+      setHoveredStat,
+      effectiveHoveredItemId,
+      effectiveSelectedItemIds,
+      effectiveOnTableMouseLeave,
+      effectiveGroupCellHandlers,
+    ]
+  );
+  const displayContextValue = useMemo(
+    () => ({
+      isAggregating,
+      aggMode,
+      colorPalette: nodePalette,
+      darkMode: isDarkMode,
+    }),
+    [isAggregating, aggMode, nodePalette, isDarkMode]
+  );
+  const dndContextValue = useMemo(
+    () => ({
+      draggedStat: statDragDrop.draggedId,
+      getDropTargetPosition: statDragDrop.getDropTargetPosition,
+      onStatDragStart: statDragDrop.handleDragStart,
+      onStatDragOver: statDragDrop.handleDragOver,
+      onStatDragLeave: statDragDrop.handleDragLeave,
+      onStatDrop: statDragDrop.handleDrop,
+      onStatDragEnd: statDragDrop.handleDragEnd,
+    }),
+    [statDragDrop]
+  );
+  const derivedContextValue = useMemo(
+    () => ({
+      hoveredHeaderItemIds,
+      columnRanges,
+      buildHoveredStatInfo,
+    }),
+    [hoveredHeaderItemIds, columnRanges, buildHoveredStatInfo]
+  );
+  const renderContextValue = useMemo(
+    (): PivotTableRenderContextValue => ({
+      interaction: interactionContextValue,
+      renderConfig: effectiveRenderConfig,
+      display: displayContextValue,
+      dnd: dndContextValue,
+      derived: derivedContextValue,
+    }),
+    [
+      interactionContextValue,
+      effectiveRenderConfig,
+      displayContextValue,
+      dndContextValue,
+      derivedContextValue,
+    ]
+  );
 
   const columns = useMemo((): ColumnDef<PivotedRow>[] => {
     const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(def => ({
@@ -645,9 +569,23 @@ export function PivotedStatTable<TRow>({
     return [...groupCols, ...statCols];
   }, [activeIndices, effectiveVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
 
-  const hasSelection = (selectedItemIds?.size ?? 0) > 0;
+  const hasSelection = (effectiveSelectedItemIds?.size ?? 0) > 0;
   const isSelected = (row: PivotedRow) =>
-    selectedItemIds != null && itemHasId(row.itemIds, selectedItemIds);
+    effectiveSelectedItemIds != null && itemHasId(row.itemIds, effectiveSelectedItemIds);
+  const renderGroupHeader = useCallback(
+    (columnId: string) => (
+      <span className={cn('relative z-10')}>{resolvedIndexLabels[columnId]}</span>
+    ),
+    [resolvedIndexLabels]
+  );
+
+  const getRowRef = useCallback(
+    (rowKey: string) => (el: HTMLTableRowElement | null) => {
+      if (el) rowRefs.current.set(rowKey, el);
+      else rowRefs.current.delete(rowKey);
+    },
+    []
+  );
 
   return (
     <div
@@ -655,43 +593,42 @@ export function PivotedStatTable<TRow>({
       onMouseLeave={handleTableMouseLeave}
       onPointerLeave={handleTableMouseLeave}
     >
-      <GroupedDataTable
-        data={visiblePivotedRows}
-        columns={columns}
-        getRowId={row => row.rowKey}
-        groupColumnIds={activeIndices}
-        renderGroupHeader={columnId => (
-          <span className={cn('relative z-10')}>{resolvedIndexLabels[columnId]}</span>
-        )}
-        DataHeader={DataHeaderRenderer}
-        GroupCell={GroupCellRenderer}
-        DataCell={DataCellRenderer}
-        virtualization={virtualization}
-        groupRenderMode={effectiveGroupRenderMode}
-        stickyGroupColumns={stickyGroupColumns}
-        sorting={sorting}
-        onSortingChange={onSortingChange}
-        getRowRef={rowKey => el => {
-          if (el) rowRefs.current.set(rowKey, el);
-          else rowRefs.current.delete(rowKey);
-        }}
-        getRowClassName={row =>
-          cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
-            'bg-muted/70': isSelected(row),
-          })
-        }
-        getRowStyle={row => {
-          const isHoveredFromDag =
-            hoveredItemId !== null && hoveredItemId !== undefined && row.itemIds.has(hoveredItemId);
-          const isDimmed = hasSelection && !isSelected(row) && !isHoveredFromDag;
-          return isDimmed
-            ? {
-                // Use an opaque wash instead of row opacity so sticky/group cells do not visually bleed.
-                backgroundColor: 'color-mix(in srgb, hsl(var(--muted)) 55%, hsl(var(--card)))',
-              }
-            : {};
-        }}
-      />
+      <PivotTableRenderProvider value={renderContextValue}>
+        <GroupedDataTable
+          data={visiblePivotedRows}
+          columns={columns}
+          getRowId={row => row.rowKey}
+          groupColumnIds={activeIndices}
+          renderGroupHeader={renderGroupHeader}
+          DataHeader={DataHeader}
+          GroupCell={GroupCell}
+          DataCell={DataCell}
+          virtualization={virtualization}
+          groupRenderMode={effectiveGroupRenderMode}
+          stickyGroupColumns={stickyGroupColumns}
+          sorting={sorting}
+          onSortingChange={onSortingChange}
+          getRowRef={getRowRef}
+          getRowClassName={row =>
+            cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
+              'bg-muted/70': isSelected(row),
+            })
+          }
+          getRowStyle={row => {
+            const isHoveredFromDag =
+              effectiveHoveredItemId !== null &&
+              effectiveHoveredItemId !== undefined &&
+              row.itemIds.has(effectiveHoveredItemId);
+            const isDimmed = hasSelection && !isSelected(row) && !isHoveredFromDag;
+            return isDimmed
+              ? {
+                  // Use an opaque wash instead of row opacity so sticky/group cells do not visually bleed.
+                  backgroundColor: 'color-mix(in srgb, hsl(var(--muted)) 55%, hsl(var(--card)))',
+                }
+              : {};
+          }}
+        />
+      </PivotTableRenderProvider>
     </div>
   );
 }

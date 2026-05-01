@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type DropPosition = 'before' | 'after';
 
@@ -110,13 +110,24 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
     [dropIndicator]
   );
 
-  return {
-    draggedId,
-    getDropTargetPosition,
-    handleDragStart,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleDragEnd: resetDragState,
-  };
+  return useMemo(
+    () => ({
+      draggedId,
+      getDropTargetPosition,
+      handleDragStart,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop,
+      handleDragEnd: resetDragState,
+    }),
+    [
+      draggedId,
+      getDropTargetPosition,
+      handleDragStart,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop,
+      resetDragState,
+    ]
+  );
 }
