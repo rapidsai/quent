@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Local-dev Grafana with the unsigned plugin mounted in.
+#
+# Run from this directory:
+#   pnpm dev      # in one terminal — webpack watch into ./dist
+#   pnpm server   # in another  — boots Grafana on http://localhost:3000
+#
+# Login is admin / admin (Grafana defaults).
+services:
+  grafana:
+    image: grafana/grafana:12.0.0
+    ports:
+      - '3000:3000'
+    environment:
+      # Required because the plugin is unsigned in dev.
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: 'quent-pivottable-panel'
+      GF_DEFAULT_APP_MODE: 'development'
+      GF_LOG_LEVEL: 'info'
+    volumes:
+      - ./dist:/var/lib/grafana/plugins/quent-pivottable-panel
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  grafana-data:

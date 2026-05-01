@@ -19,8 +19,20 @@ Add a new folder under `ui/examples/` when you need to:
   but is not part of the main Quent UI.
 - Validate that the packages work as a portable library, not just inside the main app.
 
-Each example must be a self-contained workspace package picked up automatically by the
-`examples/*` glob in `ui/pnpm-workspace.yaml`.
+Each example is a **self-contained, opt-in workspace** that re-references the `@quent/*`
+packages via a *nested* `pnpm-workspace.yaml`. The root `ui/pnpm-workspace.yaml`
+intentionally **does not** include `examples/*`, so:
+
+- `cd ui && pnpm install` does **not** install example dependencies.
+- `cd ui && pnpm ci:check` / `pnpm build` do **not** lint, typecheck, test, or build
+  any example.
+- `cd ui/examples/<name> && pnpm install` (or `pnpm dev`, `pnpm build`, etc.) is the
+  only entry point for working on an example. The nested workspace makes
+  `"workspace:*"` deps resolve to the live `@quent/*` source.
+
+Examples therefore behave as fully isolated downstream consumers: their host
+toolchains (Grafana's webpack, Superset's chart bundler, etc.) must not be assumed to
+be available in the main UI install.
 
 ## Folder layout
 
@@ -31,6 +43,7 @@ ui/examples/
 │   ├── AGENTS.md             # per-example agent notes (always required)
 │   ├── README.md             # human-facing setup + run instructions
 │   ├── package.json          # name: "@quent-examples/<name>"
+│   ├── pnpm-workspace.yaml   # nested workspace; references ../../packages/@quent/*
 │   └── src/                  # entry + glue code
 └── ...
 ```
@@ -135,7 +148,7 @@ Use this when there is no host application — you are shipping a standalone SPA
 5. **Entry point** (`src/main.tsx`) — wrap your app in the providers from "What every
    consumer needs" above and render your visualizations.
 
-6. **Run from the workspace root**: `pnpm --filter @quent-examples/<name> dev`.
+6. **Run from the example folder** (not the workspace root): `cd ui/examples/<name> && pnpm install && pnpm dev`. The nested `pnpm-workspace.yaml` re-references `../../packages/@quent/*` so `workspace:*` resolves to source. The root `ui/pnpm-workspace.yaml` is intentionally unaware of examples so the main UI install stays slim.
 
 ### B. Grafana panel plugin
 
@@ -359,12 +372,22 @@ These are non-negotiable; CI will fail otherwise.
 3. **Atoms only inside React** — never import a Jotai atom from a `.ts` utility file.
    Pass values as plain arguments. (See `ui/AGENTS.md` "Atom usage".)
 
-4. **Run from `ui/` after every change**:
+4. **Run checks in two places after every change**:
+
+   From `ui/` (must still pass even though examples are not part of the workspace —
+   they import live `@quent/*` source, so a breaking package change still trips the
+   example's typecheck):
    ```
    pnpm format
    pnpm ci:check
    ```
-   The example's own `pnpm --filter @quent-examples/<name> build` must also succeed.
+   From the example folder (opt-in; not run by root CI):
+   ```
+   cd ui/examples/<name>
+   pnpm install
+   pnpm typecheck
+   pnpm build
+   ```
 
 5. **Per-example AGENTS.md** — drop a short AGENTS.md at the example root that lists:
    what host it targets, how data flows in, which `@quent/*` components it uses, and

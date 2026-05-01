@@ -1,0 +1,19 @@
+# Nested workspace for this example. The root `ui/pnpm-workspace.yaml`
+# intentionally excludes `examples/*` so the main UI build/install does not
+# pull in `@grafana/*` and friends. Running `pnpm install` from this folder
+# uses this file instead, which still references the workspace `@quent/*`
+# packages so `workspace:*` resolves to source.
+packages:
+  - .
+  - '../../packages/@quent/*'
+
+allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
+  esbuild: true
+  protobufjs: true
+
+# `@grafana/ui` transitively pulls a fork of `react-data-grid` from git;
+# pnpm 11 blocks exotic subdeps by default. Allow them here so the install
+# completes inside this example's workspace.
+blockExoticSubdeps: false
