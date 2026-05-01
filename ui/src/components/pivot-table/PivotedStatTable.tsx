@@ -579,6 +579,14 @@ export function PivotedStatTable<TRow>({
     [resolvedIndexLabels]
   );
 
+  const getRowRef = useCallback(
+    (rowKey: string) => (el: HTMLTableRowElement | null) => {
+      if (el) rowRefs.current.set(rowKey, el);
+      else rowRefs.current.delete(rowKey);
+    },
+    []
+  );
+
   return (
     <div
       className="h-full"
@@ -600,10 +608,7 @@ export function PivotedStatTable<TRow>({
           stickyGroupColumns={stickyGroupColumns}
           sorting={sorting}
           onSortingChange={onSortingChange}
-          getRowRef={rowKey => el => {
-            if (el) rowRefs.current.set(rowKey, el);
-            else rowRefs.current.delete(rowKey);
-          }}
+          getRowRef={getRowRef}
           getRowClassName={row =>
             cn('border-b border-border/50 hover:bg-muted/50 transition-opacity', {
               'bg-muted/70': isSelected(row),
