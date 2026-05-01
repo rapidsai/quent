@@ -11,14 +11,18 @@
  * the integration with `@quent/*` workspace packages is obvious; the rules
  * below mirror what the scaffolded config would do (TS via SWC, externalized
  * `@grafana/*` and React, plugin.json + img/ copied to `dist/`).
+ *
+ * Deliberately written as `.cjs` (not `.ts`) — webpack-cli's TS config
+ * loader pulls in `rechoir`, which in pnpm's strict node_modules layout
+ * fails to resolve `resolve`. CJS sidesteps the whole interpreter dance.
  */
-import path from 'node:path';
-import type { Configuration } from 'webpack';
-import CopyWebpackPlugin from 'copy-webpack-plugin';
+const path = require('node:path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const PLUGIN_ID = 'quent-pivottable-panel';
 
-const config = (_env: unknown, argv: { mode?: 'development' | 'production' } = {}): Configuration => {
+/** @type {(env: unknown, argv?: { mode?: 'development' | 'production' }) => import('webpack').Configuration} */
+module.exports = (_env, argv = {}) => {
   const mode = argv.mode ?? 'production';
   const isProd = mode === 'production';
 
@@ -59,7 +63,21 @@ const config = (_env: unknown, argv: { mode?: 'development' | 'production' } = {
               jsc: {
                 parser: { syntax: 'typescript', tsx: true, decorators: false },
                 target: 'es2022',
-                transform: { react: { runtime: 'automatic' } },
+                transform: {
+                  react: {
+                    runtime: 'automatic',
+                    // ALWAYS use the *production* JSX runtime
+                    // (`react/jsx-runtime`), even when webpack is in
+                    // development mode. Grafana ships React as a production
+                    // build, so the dev runtime's reads of
+                    // `ReactSharedInternals.recentlyCreatedOwnerStacks`
+                    // (and friends) hit `undefined` and crash. The prod
+                    // runtime only calls `React.createElement`-style
+                    // exports that exist on every React build.
+                    development: false,
+                    refresh: false,
+                  },
+                },
               },
             },
           },
@@ -75,6 +93,16 @@ const config = (_env: unknown, argv: { mode?: 'development' | 'production' } = {
       ],
     },
     // Grafana's plugin loader provides these at runtime; do not bundle them.
+    //
+    // Only the bare specifiers are externalized — Grafana's SystemJS does
+    // *not* register submodule paths like `react/jsx-runtime` or
+    // `react-dom/client`, so externalizing those triggers a runtime
+    // "SystemJS: failed to resolve" error. The JSX runtime itself is
+    // small; we let webpack bundle it, and inside the bundle it `import`s
+    // `'react'`, which goes through the bare external and resolves to
+    // Grafana's React instance — so we still end up with exactly one
+    // React in the page.
+    externalsType: 'amd',
     externals: [
       'react',
       'react-dom',
@@ -96,5 +124,3 @@ const config = (_env: unknown, argv: { mode?: 'development' | 'production' } = {
     ],
   };
 };
-
-export default config;

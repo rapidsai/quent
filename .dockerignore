@@ -1,4 +1,27 @@
+# The Dockerfile only builds the Rust simulator binaries
+# (`quent-simulator-server`, `quent-simulator`). Nothing under `ui/` is
+# referenced by the Cargo build, so excluding the whole tree keeps build
+# contexts small and prevents `pnpm install` artifacts from any UI package
+# (including `ui/examples/*/node_modules`) from being slurped into the
+# image.
+ui/
+
+# Rust build outputs
 target/
-server/data/*.ndjson
+
+# Generated/runtime data the server writes to a mounted volume
 data/
-ui/node_modules
+server/data/*.ndjson
+
+# Generic noise that should never enter a Docker build context.
+**/node_modules/
+**/dist/
+**/.pnpm-store/
+**/.cache/
+**/.turbo/
+.git/
+.github/
+.vscode/
+.idea/
+**/.DS_Store
+*.log

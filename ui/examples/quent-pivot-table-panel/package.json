@@ -4,8 +4,8 @@
   "description": "Grafana panel plugin that renders Quent operator statistics in a pivot table.",
   "private": true,
   "scripts": {
-    "build": "webpack -c ./webpack.config.ts --env production",
-    "dev": "webpack -w -c ./webpack.config.ts --env development",
+    "build": "webpack -c ./webpack.config.cjs --mode production",
+    "dev": "webpack -w -c ./webpack.config.cjs --mode development",
     "typecheck": "tsc --noEmit",
     "server": "docker compose up --build",
     "server:down": "docker compose down"
