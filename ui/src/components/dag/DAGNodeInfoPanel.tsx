@@ -6,7 +6,7 @@ import { useAtomValue } from 'jotai';
 import { Pin } from 'lucide-react';
 import { selectedNodeIdsAtom, hoveredNodeDataAtom, selectedNodeDataAtom } from '@/atoms/dag';
 import { DataText } from '@/components/ui/data-text';
-import { inferFieldFormatter } from '@/services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@/services/formatters';
 
 export const DAGNodeInfoPanel = () => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
