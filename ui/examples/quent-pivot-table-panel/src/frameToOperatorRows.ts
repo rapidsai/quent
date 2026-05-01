@@ -36,9 +36,7 @@ const IDENTITY_FIELDS = {
   itemName: ['item_name', 'itemname'],
 } as const;
 
-const IDENTITY_FIELD_SET = new Set<string>(
-  Object.values(IDENTITY_FIELDS).flat()
-);
+const IDENTITY_FIELD_SET = new Set<string>(Object.values(IDENTITY_FIELDS).flat());
 
 function findField(frame: DataFrame, aliases: readonly string[]): Field | undefined {
   for (const f of frame.fields) {
@@ -103,9 +101,7 @@ export function frameToOperatorRows(frames: DataFrame[] | undefined): OperatorRo
     const itemTypeField = findField(frame, IDENTITY_FIELDS.itemType);
     const itemNameField = findField(frame, IDENTITY_FIELDS.itemName);
 
-    const statFields = frame.fields.filter(
-      f => !IDENTITY_FIELD_SET.has(f.name.toLowerCase())
-    );
+    const statFields = frame.fields.filter(f => !IDENTITY_FIELD_SET.has(f.name.toLowerCase()));
 
     for (let i = 0; i < frame.length; i++) {
       const itemIdRaw = fieldValue(itemIdField, i);

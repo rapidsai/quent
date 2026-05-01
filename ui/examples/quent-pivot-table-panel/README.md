@@ -7,12 +7,12 @@ Grafana panel plugin that renders any tabular dataset as a pivoted, sortable,
 virtualized table — backed by `PivotedStatTable` from
 [`@quent/components`](../../packages/@quent/components).
 
-| | |
-|--|--|
-| **Host**           | Grafana 12+ (ships React 19) |
-| **Plugin id**      | `quent-pivottable-panel` |
-| **Quent component**| `PivotedStatTable` + `PivotTableToolbar` |
-| **Data source**    | Any Grafana datasource that returns the documented columns. The repo provisions Grafana's built-in `TestData` datasource for the demo. |
+|                     |                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Host**            | Grafana 12+ (ships React 19)                                                                                                           |
+| **Plugin id**       | `quent-pivottable-panel`                                                                                                               |
+| **Quent component** | `PivotedStatTable` + `PivotTableToolbar`                                                                                               |
+| **Data source**     | Any Grafana datasource that returns the documented columns. The repo provisions Grafana's built-in `TestData` datasource for the demo. |
 
 ## What it shows
 
@@ -32,30 +32,46 @@ click-to-sort.
 
 The panel adapts each row of `props.data.series[*]` (Grafana `DataFrame`s) into
 an `OperatorRow`. Field names are matched case-insensitively; both
-snake\_case and camelCase work.
+snake_case and camelCase work.
 
-| Column | Required | Purpose |
-|--------|----------|---------|
-| `item_id`         | yes | Stable identifier for the row. Without it the row is dropped. |
-| `item_name`       | no  | Display name for the operator (defaults to `item_id`). |
-| `item_type`       | no  | Used by the operator-type group and color (defaults to `-`). |
-| `partition_id`    | no  | Outer group identity (defaults to `-`). |
-| `partition_label` | no  | Human label for the partition (defaults to `partition_id`). |
-| `scope_id`        | no  | Plan/scope identity (defaults to `partition_id`). |
-| `scope_label`     | no  | Human label for the scope (defaults to `scope_id`). |
-| **all other fields** | — | Become stats keyed by field name; numeric fields drive the heatmap and aggregations. |
+| Column               | Required | Purpose                                                                              |
+| -------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `item_id`            | yes      | Stable identifier for the row. Without it the row is dropped.                        |
+| `item_name`          | no       | Display name for the operator (defaults to `item_id`).                               |
+| `item_type`          | no       | Used by the operator-type group and color (defaults to `-`).                         |
+| `partition_id`       | no       | Outer group identity (defaults to `-`).                                              |
+| `partition_label`    | no       | Human label for the partition (defaults to `partition_id`).                          |
+| `scope_id`           | no       | Plan/scope identity (defaults to `partition_id`).                                    |
+| `scope_label`        | no       | Human label for the scope (defaults to `scope_id`).                                  |
+| **all other fields** | —        | Become stats keyed by field name; numeric fields drive the heatmap and aggregations. |
 
 See `provisioning/dashboards/quent-pivot-demo.json` for a worked example
 using the `TestData` `csv_content` scenario.
 
 ## Panel options
 
-| Option       | Default | Notes |
-|--------------|---------|-------|
-| Theme mode   | `auto`  | `auto` follows Grafana's `theme.isDark`; `light`/`dark` force a mode. |
+| Option          | Default         | Notes                                                                                                        |
+| --------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| Theme mode      | `auto`          | `auto` follows Grafana's `theme.isDark`; `light`/`dark` force a mode.                                        |
+| Partition label | `Worker / Plan` | Header for the outer (`partition`) index dimension. Override to re-skin the panel for non-operator datasets. |
+| Item-type label | `Operator Type` | Header for the middle (`item_type`) index dimension.                                                         |
+| Item label      | `Operator`      | Header for the innermost (`item`) index dimension.                                                           |
 
 The panel intentionally has no datasource-aware options — everything else is
 the responsibility of the panel's query.
+
+### Two demo panels in one dashboard
+
+`provisioning/dashboards/quent-pivot-demo.json` boots with two panels driven
+by the same plugin to show the label overrides in action:
+
+1. **Operator statistics** — the original Quent operator dataset (defaults).
+2. **Car price dataset** — a 40-row subset of `car_price_dataset.csv`, mapped
+   so `Brand → Fuel type → Car` becomes the `partition / item_type / item`
+   hierarchy. The numeric columns (`mileage`, `horsepower`, `price`,
+   `engine_size`, `model_year`, `doors`, `owner_count`) become aggregatable
+   stats. Toggle off the `Fuel type` index to compare brands directly, or
+   switch the aggregator to **mean** to see fleet-wide averages.
 
 ## Running locally
 

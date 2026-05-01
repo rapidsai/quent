@@ -12,10 +12,7 @@ import {
   getOperatorColor,
   getSchemaStatNames,
 } from '@quent/components';
-import type {
-  PivotedStatTableSchema,
-  GroupedDataTableGroupKeyEntry,
-} from '@quent/components';
+import type { PivotedStatTableSchema, GroupedDataTableGroupKeyEntry } from '@quent/components';
 import { useStatGroupTableControls } from '@quent/hooks';
 import { frameToOperatorRows, type OperatorRow } from './frameToOperatorRows';
 import type { QuentPivotTablePanelOptions } from './types';
@@ -50,12 +47,6 @@ const getGroupTypeColor = (key: string, id: string): string | undefined =>
 
 const VIRTUALIZATION_CONFIG = { enabled: true, overscan: 12 } as const;
 
-const INDEX_LABELS: Record<IndexKey, React.ReactNode> = {
-  partition: 'Worker / Plan',
-  item_type: 'Operator Type',
-  item: 'Operator',
-};
-
 /**
  * Inner panel: assumes providers are wired and `rows` have been adapted from
  * the Grafana `PanelData`. Split out so the provider boilerplate does not
@@ -65,10 +56,12 @@ function PivotTableBody({
   rows,
   isDark,
   persistKey,
+  indexLabels,
 }: {
   rows: OperatorRow[];
   isDark: boolean;
   persistKey: string;
+  indexLabels: Record<IndexKey, React.ReactNode>;
 }) {
   const allStatNames = useMemo(() => getSchemaStatNames(rows, SCHEMA), [rows]);
 
@@ -110,10 +103,10 @@ function PivotTableBody({
     () =>
       visibleIndexOrder.map(key => ({
         key,
-        label: INDEX_LABELS[key],
+        label: indexLabels[key],
         enabled: enabledIndices[key],
       })),
-    [visibleIndexOrder, enabledIndices]
+    [visibleIndexOrder, enabledIndices, indexLabels]
   );
 
   // Hover handlers omitted: this example panel is standalone (no DAG to
@@ -157,7 +150,7 @@ function PivotTableBody({
           visibleStats={visibleStats}
           isAggregating={isAggregating}
           aggMode={aggMode}
-          indexLabels={INDEX_LABELS}
+          indexLabels={indexLabels}
           isDark={isDark}
           virtualization={VIRTUALIZATION_CONFIG}
           getGroupTypeColor={getGroupTypeColor}
@@ -189,11 +182,7 @@ export function QuentPivotTablePanel({
 }: PanelProps<QuentPivotTablePanelOptions>) {
   const theme = useTheme2();
   const isDark =
-    options.themeMode === 'dark'
-      ? true
-      : options.themeMode === 'light'
-        ? false
-        : theme.isDark;
+    options.themeMode === 'dark' ? true : options.themeMode === 'light' ? false : theme.isDark;
 
   const [queryClient] = useState(
     () =>
@@ -206,6 +195,15 @@ export function QuentPivotTablePanel({
 
   const rows = useMemo(() => frameToOperatorRows(data?.series), [data?.series]);
 
+  const indexLabels = useMemo<Record<IndexKey, React.ReactNode>>(
+    () => ({
+      partition: options.partitionLabel,
+      item_type: options.itemTypeLabel,
+      item: options.itemLabel,
+    }),
+    [options.partitionLabel, options.itemTypeLabel, options.itemLabel]
+  );
+
   // Per-panel persistence key: scopes toolbar/sort state to this panel
   // instance so two pivot panels in one dashboard do not clobber each other.
   const persistKey = `quent-pivot-panel-${id}`;
@@ -215,9 +213,16 @@ export function QuentPivotTablePanel({
       <QueryClientProvider client={queryClient}>
         <div
           style={{ width, height }}
-          className={isDark ? 'dark bg-background text-foreground' : 'bg-background text-foreground'}
+          className={
+            isDark ? 'dark bg-background text-foreground' : 'bg-background text-foreground'
+          }
         >
-          <PivotTableBody rows={rows} isDark={isDark} persistKey={persistKey} />
+          <PivotTableBody
+            rows={rows}
+            isDark={isDark}
+            persistKey={persistKey}
+            indexLabels={indexLabels}
+          />
         </div>
       </QueryClientProvider>
     </JotaiProvider>
