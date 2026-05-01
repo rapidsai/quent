@@ -3,9 +3,13 @@
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
-import { getActivePalette } from '@/services/colors';
+import { getActivePalette, type PaletteTheme } from '@/services/colors';
 
-export function computeNodeColoring(nodes: DAGNode[], field: string | null): NodeColoring {
+export function computeNodeColoring(
+  nodes: DAGNode[],
+  field: string | null,
+  theme: PaletteTheme
+): NodeColoring {
   if (!field || !nodes.length) return null;
 
   const entries = nodes.flatMap(node => {
@@ -25,7 +29,7 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
     };
   }
 
-  const palette = getActivePalette();
+  const palette = getActivePalette(theme);
   const uniqueValues = [...new Set(entries.map(e => String(e.value)))];
   const valueColor = new Map(uniqueValues.map((v, i) => [v, palette[i % palette.length]]));
   return {
@@ -35,7 +39,11 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
   };
 }
 
-export function computeEdgeColoring(edges: DAGEdge[], field: string | null): EdgeColoring {
+export function computeEdgeColoring(
+  edges: DAGEdge[],
+  field: string | null,
+  theme: PaletteTheme
+): EdgeColoring {
   if (!field || !edges.length) return null;
 
   const entries = edges.flatMap(edge => {
@@ -55,7 +63,7 @@ export function computeEdgeColoring(edges: DAGEdge[], field: string | null): Edg
     };
   }
 
-  const palette = getActivePalette();
+  const palette = getActivePalette(theme);
   const uniqueValues = [...new Set(entries.map(e => String(e.value)))];
   const valueColor = new Map(uniqueValues.map((v, i) => [v, palette[i % palette.length]]));
   return {

@@ -34,30 +34,54 @@ export const PALETTES = {
     '#ea7ccc', // Pink
   ],
   /** Tol qualitative colorblind-friendly palette */
-  extended: [
-    '#44AA99', // Teal
-    '#CC6677', // Rose
-    '#332288', // Indigo
-    '#DDCC77', // Sand
-    '#AA4499', // Purple
-    '#88CCEE', // Cyan
-    '#882255', // Wine
-    '#88AA55', // Muted Lime
-    '#666666', // Grey
-  ],
+  extended: {
+    /** Qualitative palette — light mode */
+    light: [
+      '#44AA99', // Teal
+      '#CC6677', // Rose
+      '#332288', // Indigo
+      '#DDCC77', // Sand
+      '#AA4499', // Purple
+      '#88CCEE', // Cyan
+      '#882255', // Wine
+      '#88AA55', // Muted Lime
+      '#666666', // Grey
+    ],
+    /** Qualitative palette — dark mode (muted, lower contrast) */
+    dark: [
+      '#3D9485', // Teal
+      '#B85858', // Coral Red
+      '#4A68AA', // Steel Blue
+      '#B8A85E', // Sand
+      '#9466BB', // Violet
+      '#6BA8C8', // Cyan
+      '#B87A44', // Amber
+      '#6E8C44', // Muted Lime
+      '#808080', // Grey
+    ],
+  },
 } as const;
 
 export type PaletteName = keyof typeof PALETTES;
 export type ChartColor = string;
+export type PaletteTheme = 'light' | 'dark';
+type PaletteValue = (typeof PALETTES)[PaletteName];
 
 // Current active palette
 let activePalette: PaletteName = 'extended';
 
+function resolvePalette(palette: PaletteValue, theme: PaletteTheme = 'light'): readonly string[] {
+  if ('light' in palette && 'dark' in palette) {
+    return palette[theme];
+  }
+  return palette;
+}
+
 /**
  * Get the currently active palette.
  */
-export function getActivePalette(): readonly string[] {
-  return PALETTES[activePalette];
+export function getActivePalette(theme: PaletteTheme = 'light'): readonly string[] {
+  return resolvePalette(PALETTES[activePalette], theme);
 }
 
 /**
@@ -71,8 +95,8 @@ export function setActivePalette(name: PaletteName): void {
 /**
  * Get palette by name.
  */
-export function getPalette(name: PaletteName): readonly string[] {
-  return PALETTES[name];
+export function getPalette(name: PaletteName, theme: PaletteTheme = 'light'): readonly string[] {
+  return resolvePalette(PALETTES[name], theme);
 }
 
 /**
@@ -98,8 +122,8 @@ const usedIndices = new Set<number>();
  * collisions so different keys get different colors (until the palette
  * is exhausted, after which duplicates are allowed).
  */
-export function getColorForKey(key: string): ChartColor {
-  const palette = getActivePalette();
+export function getColorForKey(key: string, theme: PaletteTheme): ChartColor {
+  const palette = getActivePalette(theme);
 
   if (colorAssignments.has(key)) {
     return palette[colorAssignments.get(key)!];
@@ -128,8 +152,11 @@ export function getColorForKey(key: string): ChartColor {
  * Assign colors to an array of keys in order.
  * Useful for batch assignment to maintain consistent ordering.
  */
-export function assignColors<T extends string>(keys: T[]): Record<T, ChartColor> {
-  const palette = getActivePalette();
+export function assignColors<T extends string>(
+  keys: T[],
+  theme: PaletteTheme
+): Record<T, ChartColor> {
+  const palette = getActivePalette(theme);
   return Object.fromEntries(
     keys.map((key, index) => [key, palette[index % palette.length]])
   ) as Record<T, ChartColor>;
@@ -141,31 +168,39 @@ export function assignColors<T extends string>(keys: T[]): Record<T, ChartColor>
  * key-based deterministic coloring to stay stable across timelines.
  */
 export function createCapacitiesColorFn(
-  capacityKeys: string[]
+  capacityKeys: string[],
+  theme: PaletteTheme
 ): (capacityName: string) => ChartColor {
   const colorMap =
     capacityKeys.length > 1
-      ? assignColors(capacityKeys)
-      : Object.fromEntries(capacityKeys.map(capacity => [capacity, getColorForKey(capacity)]));
+      ? assignColors(capacityKeys, theme)
+      : Object.fromEntries(
+          capacityKeys.map(capacity => [capacity, getColorForKey(capacity, theme)])
+        );
 
-  return (capacityName: string) => colorMap[capacityName] ?? getColorForKey(capacityName);
+  return (capacityName: string) => colorMap[capacityName] ?? getColorForKey(capacityName, theme);
 }
 
 /**
  * Get a color by index from the active palette (wraps around).
  */
-export function getColorByIndex(index: number): ChartColor {
-  const palette = getActivePalette();
+export function getColorByIndex(index: number, theme: PaletteTheme): ChartColor {
+  const palette = getActivePalette(theme);
   return palette[index % palette.length];
 }
 
-export function createFsmTypeColorFn(fsmTypes: { [key in string]?: FsmTypeDecl }): (
+export function createFsmTypeColorFn(
+  fsmTypes: { [key in string]?: FsmTypeDecl },
+  theme: PaletteTheme
+): (
   stateName: string
 ) => ChartColor {
   const stateIndexMap = buildFsmStateIndexMap(fsmTypes);
   return (stateName: string) => {
     const stateIndex = stateIndexMap.get(stateName);
-    return stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(stateName);
+    return stateIndex != null
+      ? getColorByIndex(stateIndex, theme)
+      : getColorForKey(stateName, theme);
   };
 }
 

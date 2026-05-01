@@ -18,11 +18,17 @@ import {
   computeEdgeColoring,
 } from '@/services/query-plan/dagFieldProcessing';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
+import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 
 export function useDagNodeColoring(nodes: DAGNode[]) {
   const selectedField = useAtomValue(selectedColorField);
   const setNodeColoring = useSetAtom(nodeColoringAtom);
-  const coloring = useMemo(() => computeNodeColoring(nodes, selectedField), [nodes, selectedField]);
+  const { theme } = useTheme();
+  const paletteTheme = theme === THEME_DARK ? 'dark' : 'light';
+  const coloring = useMemo(
+    () => computeNodeColoring(nodes, selectedField, paletteTheme),
+    [nodes, selectedField, paletteTheme]
+  );
   useEffect(() => {
     setNodeColoring(coloring);
   }, [coloring, setNodeColoring]);
@@ -43,7 +49,12 @@ export function useDagEdgeWidthConfig(edges: DAGEdge[]) {
 export function useDagEdgeColoring(edges: DAGEdge[]) {
   const selectedField = useAtomValue(selectedEdgeColorFieldAtom);
   const setEdgeColoring = useSetAtom(edgeColoringAtom);
-  const coloring = useMemo(() => computeEdgeColoring(edges, selectedField), [edges, selectedField]);
+  const { theme } = useTheme();
+  const paletteTheme = theme === THEME_DARK ? 'dark' : 'light';
+  const coloring = useMemo(
+    () => computeEdgeColoring(edges, selectedField, paletteTheme),
+    [edges, selectedField, paletteTheme]
+  );
   useEffect(() => {
     setEdgeColoring(coloring);
   }, [coloring, setEdgeColoring]);
