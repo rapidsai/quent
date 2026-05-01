@@ -310,7 +310,11 @@ function blendToColor(
 /**
  * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
  */
-export function continuousColor(t: number, palette: ContinuousPaletteName, darkMode = false): string {
+export function continuousColor(
+  t: number,
+  palette: ContinuousPaletteName,
+  darkMode = false
+): string {
   const neutral = darkMode ? NEUTRAL_DARK : NEUTRAL;
   switch (palette) {
     case 'blue':

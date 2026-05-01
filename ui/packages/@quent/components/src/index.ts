@@ -108,13 +108,22 @@ export {
 export type { AxisPointerSyncOptions } from './lib/timeline.utils';
 
 // ─── Services – query-plan ────────────────────────────────────────────────────
-export { computeNodeColoring, computeEdgeColoring, computeEdgeWidthConfig, inferFieldFormatter } from './services/query-plan/dagFieldProcessing';
+export {
+  computeNodeColoring,
+  computeEdgeColoring,
+  computeEdgeWidthConfig,
+  inferFieldFormatter,
+} from './services/query-plan/dagFieldProcessing';
 export {
   DEFAULT_OPERATION_COLOR,
   OPERATION_TYPE_COLORS,
   getOperatorColor,
 } from './services/query-plan/operationTypes';
-export { getPlanDAG, getTreeData, validateQueryBundle } from './services/query-plan/query-bundle-transformer';
+export {
+  getPlanDAG,
+  getTreeData,
+  validateQueryBundle,
+} from './services/query-plan/query-bundle-transformer';
 export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/query-plan/types';
 // DAGNode, DAGEdge, StatValue re-exported via services/query-plan/types (avoid direct @quent/utils re-export here)
 

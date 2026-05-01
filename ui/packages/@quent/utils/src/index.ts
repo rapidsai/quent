@@ -27,7 +27,13 @@ export {
 export type { PaletteName, ChartColor, ContinuousPaletteName } from './colors';
 
 // Formatter utilities
-export { formatDuration, formatDurationForWindow, formatQuantity, formatBytes, formatNumber } from './formatters';
+export {
+  formatDuration,
+  formatDurationForWindow,
+  formatQuantity,
+  formatBytes,
+  formatNumber,
+} from './formatters';
 
 // Rust-generated TypeScript types
 export * from './types/index';

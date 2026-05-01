@@ -524,11 +524,4 @@ const TreeActions = ({
   );
 };
 
-export {
-  TreeView,
-  AccordionTrigger,
-  AccordionContent,
-  TreeLeaf,
-  TreeNode,
-  TreeItem,
-};
+export { TreeView, AccordionTrigger, AccordionContent, TreeLeaf, TreeNode, TreeItem };

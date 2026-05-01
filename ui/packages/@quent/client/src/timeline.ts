@@ -22,7 +22,5 @@ export const singleTimelineQueryOptions = (
     staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,
   });
 
-export const useTimeline = (
-  params: SingleTimelineParams,
-  options?: { staleTime?: number }
-) => useQuery(singleTimelineQueryOptions(params, options));
+export const useTimeline = (params: SingleTimelineParams, options?: { staleTime?: number }) =>
+  useQuery(singleTimelineQueryOptions(params, options));

@@ -19,10 +19,7 @@ type ComputeEdgeWidthConfigFn = (edges: DAGEdge[], field: string | null) => Edge
 type ComputeEdgeColoringFn = (edges: DAGEdge[], field: string | null) => EdgeColoring;
 type ParseCustomStatisticsFn = (rawNode: unknown) => Array<{ key: string }>;
 
-export function useDagNodeColoring(
-  nodes: DAGNode[],
-  computeNodeColoring: ComputeNodeColoringFn,
-) {
+export function useDagNodeColoring(nodes: DAGNode[], computeNodeColoring: ComputeNodeColoringFn) {
   const selectedField = useAtomValue(selectedColorField);
   const setNodeColoring = useSetAtom(nodeColoringAtom);
   const coloring = useMemo(
@@ -36,7 +33,7 @@ export function useDagNodeColoring(
 
 export function useDagEdgeWidthConfig(
   edges: DAGEdge[],
-  computeEdgeWidthConfig: ComputeEdgeWidthConfigFn,
+  computeEdgeWidthConfig: ComputeEdgeWidthConfigFn
 ) {
   const selectedEdgeWidthField = useAtomValue(selectedEdgeWidthFieldAtom);
   const setEdgeWidthConfig = useSetAtom(edgeWidthConfigAtom);
@@ -49,10 +46,7 @@ export function useDagEdgeWidthConfig(
   }, [config, setEdgeWidthConfig]);
 }
 
-export function useDagEdgeColoring(
-  edges: DAGEdge[],
-  computeEdgeColoring: ComputeEdgeColoringFn,
-) {
+export function useDagEdgeColoring(edges: DAGEdge[], computeEdgeColoring: ComputeEdgeColoringFn) {
   const selectedField = useAtomValue(selectedEdgeColorFieldAtom);
   const setEdgeColoring = useSetAtom(edgeColoringAtom);
   const coloring = useMemo(
@@ -66,7 +60,7 @@ export function useDagEdgeColoring(
 
 export function useOperatorStatFields(
   nodes: DAGNode[],
-  parseCustomStatistics: ParseCustomStatisticsFn,
+  parseCustomStatistics: ParseCustomStatisticsFn
 ): string[] {
   return useMemo(
     () => [

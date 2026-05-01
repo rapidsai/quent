@@ -14,4 +14,3 @@ export function getApiBaseUrl(): string {
 export function setApiBaseUrl(url: string): void {
   apiBaseUrl = url;
 }
-

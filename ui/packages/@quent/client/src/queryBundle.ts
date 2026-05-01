@@ -20,10 +20,7 @@ export const queryBundleQueryOptions = ({ engineId, queryId }: QueryBundleParams
     retry: 2,
   });
 
-export const useQueryBundle = (
-  params: QueryBundleParams,
-  options?: { staleTime?: number }
-) =>
+export const useQueryBundle = (params: QueryBundleParams, options?: { staleTime?: number }) =>
   useQuery({
     ...queryBundleQueryOptions(params),
     staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,

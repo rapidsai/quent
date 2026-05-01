@@ -1,25 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Settings2 } from 'lucide-react';
-import {
-  useNodeColorPalette,
-  useEdgeColorPalette,
-} from '@quent/hooks';
-import {
-  CONTINUOUS_PALETTES,
-  continuousColor,
-  type ContinuousPaletteName,
-} from '@quent/utils';
+import { useNodeColorPalette, useEdgeColorPalette } from '@quent/hooks';
+import { CONTINUOUS_PALETTES, continuousColor, type ContinuousPaletteName } from '@quent/utils';
 
 const paletteEntries = Object.entries(CONTINUOUS_PALETTES) as [
   ContinuousPaletteName,

@@ -108,8 +108,16 @@ export function useBulkTimelines<T extends TreeNode>({
         bulkConfig,
         groupFsmFilters
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rootItem, expandedIds, selectedTypes, entities, bulkConfig, groupFsmFilters, collectVisibleEntriesFn]
+
+    [
+      rootItem,
+      expandedIds,
+      selectedTypes,
+      entities,
+      bulkConfig,
+      groupFsmFilters,
+      collectVisibleEntriesFn,
+    ]
   );
 
   useEffect(() => {
@@ -161,7 +169,13 @@ export function useBulkTimelines<T extends TreeNode>({
 
       const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
       for (const child of item.children as T[]) {
-        const params = buildBulkParamsFn(child, selectedTypes, entities, expandConfig, groupFsmFilters);
+        const params = buildBulkParamsFn(
+          child,
+          selectedTypes,
+          entities,
+          expandConfig,
+          groupFsmFilters
+        );
         const resourceTypeName = getResourceTypeName(params);
         const fsmTypeName = getFsmTypeName(params);
         const key = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });

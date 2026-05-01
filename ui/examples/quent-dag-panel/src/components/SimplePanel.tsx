@@ -35,15 +35,7 @@ const getStyles = () => {
   };
 };
 
-function QuentDagPanel({
-  options,
-  width,
-  height,
-}: {
-  options: DagPanelOptions;
-  width: number;
-  height: number;
-}) {
+function QuentDagPanel({ options, width, height }: { options: DagPanelOptions; width: number; height: number }) {
   const apiBaseUrl = options.apiBaseUrl?.trim() || DEFAULT_API_BASE_URL;
   const engineId = options.engineId?.trim() || DEFAULT_ENGINE_ID;
   const queryId = options.queryId?.trim() || DEFAULT_QUERY_ID;
@@ -59,7 +51,9 @@ function QuentDagPanel({
   });
 
   const dagData = useMemo<DAGData>(() => {
-    if (!queryBundle) {return emptyDagData;}
+    if (!queryBundle) {
+      return emptyDagData;
+    }
     try {
       const planId = queryBundle.plan_tree.id;
       return {
@@ -92,8 +86,8 @@ function QuentDagPanel({
           padding: 16,
         }}
       >
-        Failed to load query bundle from <code>{apiBaseUrl}</code> for engine <code>{engineId}</code>{' '}
-        and query <code>{queryId}</code>.
+        Failed to load query bundle from <code>{apiBaseUrl}</code> for engine <code>{engineId}</code> and query{' '}
+        <code>{queryId}</code>.
       </div>
     );
   }

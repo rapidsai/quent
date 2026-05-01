@@ -113,14 +113,14 @@ const config = async (env: Env): Promise<Configuration> => {
           test: /\.(png|jpe?g|gif|svg)$/,
           type: 'asset/resource',
           generator: {
-            filename: Boolean(env.production) ? '[hash][ext]' : '[file]',
+            filename: env.production ? '[hash][ext]' : '[file]',
           },
         },
         {
           test: /\.(woff|woff2|eot|ttf|otf)(\?v=\d+\.\d+\.\d+)?$/,
           type: 'asset/resource',
           generator: {
-            filename: Boolean(env.production) ? '[hash][ext]' : '[file]',
+            filename: env.production ? '[hash][ext]' : '[file]',
           },
         },
       ],

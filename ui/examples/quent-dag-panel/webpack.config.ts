@@ -19,4 +19,3 @@ const config = async (env: Env): Promise<Configuration> => {
 };
 
 export default config;
-

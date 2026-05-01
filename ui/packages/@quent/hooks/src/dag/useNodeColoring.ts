@@ -4,11 +4,7 @@
 import { useMemo } from 'react';
 import { useSelectedNodeIds } from './useSelectedNodeIds';
 import { useAtomValue } from 'jotai';
-import {
-  nodeColoringAtom,
-  selectedColorField,
-  nodeColorPaletteAtom,
-} from '../atoms/dagControls';
+import { nodeColoringAtom, selectedColorField, nodeColorPaletteAtom } from '../atoms/dagControls';
 import { continuousColor } from '@quent/utils';
 
 interface NodeColoringResult {

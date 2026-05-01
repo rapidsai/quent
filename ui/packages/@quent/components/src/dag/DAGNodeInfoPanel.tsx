@@ -3,11 +3,7 @@
 
 import { Panel } from '@xyflow/react';
 import { Pin } from 'lucide-react';
-import {
-  useSelectedNodeIds,
-  useHoveredNodeData,
-  useSelectedNodeData,
-} from '@quent/hooks';
+import { useSelectedNodeIds, useHoveredNodeData, useSelectedNodeData } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
 
 /**
