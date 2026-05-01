@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { inferFieldFormatter } from '@quent/components';
+import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
 import type { StatValue, ContinuousPaletteName } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
 import type {

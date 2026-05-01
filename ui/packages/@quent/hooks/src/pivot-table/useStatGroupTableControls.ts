@@ -12,8 +12,8 @@ import {
   aggModeAtomFamily,
   appliedDefaultKeyAtomFamily,
   sortingAtomFamily,
-} from '@/atoms/statGroupTable';
-import type { AggMode } from './types';
+  type AggMode,
+} from '../atoms/pivotTable';
 
 const EMPTY_SORTING: SortingState = [];
 

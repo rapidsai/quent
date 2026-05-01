@@ -5,13 +5,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@quent/client';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@quent/components';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@quent/components';
 import { cn } from '@quent/utils';
 
 export function EngineSelectionPage() {

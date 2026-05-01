@@ -27,9 +27,7 @@ import { DataText } from '@quent/components';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
-const DAGChart = lazy(() =>
-  import('@quent/components').then(mod => ({ default: mod.DAGChart }))
-);
+const DAGChart = lazy(() => import('@quent/components').then(mod => ({ default: mod.DAGChart })));
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const { theme } = useTheme();
@@ -165,7 +163,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         <div className="border-t border-border">
-          <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} isDark={isDark} />
+          <DAGControls
+            operatorStatFields={operatorStatFields}
+            portStatFields={portStatFields}
+            isDark={isDark}
+          />
         </div>
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}

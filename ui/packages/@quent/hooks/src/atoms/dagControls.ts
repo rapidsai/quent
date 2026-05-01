@@ -16,8 +16,9 @@ import { NODE_LABEL_FIELD } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
 
 /**
- * Stat-driven hover info shared between table and DAG. Defined here (rather
- * than in the pivot-table app code) so @quent/hooks remains self-contained.
+ * Stat-driven hover info shared between the pivot table and the DAG. Defined
+ * here so `@quent/hooks` remains self-contained — both the DAG hooks below
+ * and the pivot-table package consume this type.
  */
 export interface HoveredStatInfo {
   name: string;

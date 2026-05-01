@@ -3,16 +3,10 @@
 
 import { useCallback } from 'react';
 import { cn } from '@quent/utils';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  OptionMultiSelect,
-} from '@quent/components';
+import { useColumnDragDrop } from '@quent/hooks';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { OptionMultiSelect } from '../ui/option-multi-select';
 import type { AggMode } from './types';
-import { useColumnDragDrop } from './useColumnDragDrop';
 
 export interface IndexConfigEntry {
   key: string;

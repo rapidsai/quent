@@ -28,9 +28,8 @@ import type {
   GroupedDataTableVirtualizationOptions,
 } from './GroupedDataTable';
 import { useNodeColorPalette } from '@quent/hooks';
-import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { ContinuousPaletteName } from '@quent/utils';
-import { useColumnDragDrop } from './useColumnDragDrop';
+import { useColumnDragDrop } from '@quent/hooks';
 
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
 
@@ -317,6 +316,12 @@ interface PivotedStatTableProps<TRow> {
    * a future "show null rows" toggle.
    */
   hideEmptyRows?: boolean;
+  /**
+   * Whether the host app is rendering in dark mode. Drives the heatmap
+   * gradient palette so the table stays portable across theme systems
+   * (Tailwind dark mode, Grafana `useTheme2`, etc.).
+   */
+  isDark?: boolean;
   // interaction state
   selectedItemIds?: Set<string>;
   hoveredItemId?: string | null;
@@ -348,6 +353,7 @@ export function PivotedStatTable<TRow>({
   aggMode = 'sum',
   indexLabels,
   hideEmptyRows = true,
+  isDark = false,
   selectedItemIds,
   hoveredItemId,
   hoveredStat,
@@ -363,8 +369,6 @@ export function PivotedStatTable<TRow>({
   onSortingChange,
 }: PivotedStatTableProps<TRow>) {
   const [nodePalette] = useNodeColorPalette();
-  const { theme } = useTheme();
-  const isDarkMode = theme === THEME_DARK;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
@@ -619,7 +623,7 @@ export function PivotedStatTable<TRow>({
       aggMode={aggMode}
       columnRanges={columnRanges}
       colorPalette={nodePalette}
-      darkMode={isDarkMode}
+      darkMode={isDark}
       hoveredHeaderItemIds={hoveredHeaderItemIds}
       hoveredItemId={hoveredItemId}
       hoveredStatName={effectiveHoveredStat?.name}

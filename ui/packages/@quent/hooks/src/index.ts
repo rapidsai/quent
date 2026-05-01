@@ -89,3 +89,9 @@ export type {
 
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';
+
+// Pivot-table hooks
+export { useColumnDragDrop } from './pivot-table/useColumnDragDrop';
+export type { DropPosition } from './pivot-table/useColumnDragDrop';
+export { useStatGroupTableControls } from './pivot-table/useStatGroupTableControls';
+export type { AggMode } from './atoms/pivotTable';

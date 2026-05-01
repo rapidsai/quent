@@ -163,6 +163,50 @@ export { ResourceRow } from './resource-tree/ResourceRow';
 export type { TreeTableItem } from './resource-tree/types';
 export { UsageColumn } from './resource-tree/UsageColumn';
 
+// ─── Pivot-table components ──────────────────────────────────────────────────
+export { GroupedDataTable } from './pivot-table/GroupedDataTable';
+export type {
+  GroupedDataTableProps,
+  GroupedDataTableVirtualizationOptions,
+  GroupedDataTableGroupRenderMode,
+} from './pivot-table/GroupedDataTable';
+export { PivotedStatTable } from './pivot-table/PivotedStatTable';
+export { PivotTableToolbar } from './pivot-table/PivotTableToolbar';
+export type { IndexConfigEntry, PivotTableToolbarProps } from './pivot-table/PivotTableToolbar';
+export type {
+  AggMode,
+  HoveredStatInfo,
+  GroupedDataTableRowBase,
+  GroupedDataTableSortInfo,
+  GroupedDataTableGroupKeyEntry,
+  DataHeaderProps,
+  GroupCellProps,
+  DataCellProps,
+  SortDir,
+  StatGroupInputGroupValue,
+  StatGroupExpandedRow,
+  PivotedStatTableSchema,
+  GroupKeyEntry,
+  PivotedRowAgg,
+  PivotedRow,
+} from './pivot-table/types';
+export {
+  buildPivotedRows,
+  computeRowSpans,
+  expandRowsFromSchema,
+  formatNumericStat,
+  formatStatValue,
+  getGroupKeys,
+  getSchemaStatNames,
+  getSortValue,
+  getUniqueStatNames,
+  gradientBg,
+  isNumericValue,
+  itemHasId,
+  rowGroupKey,
+} from './pivot-table/utils';
+export type { GroupIndexDef, RowWithGroupKeys } from './pivot-table/utils';
+
 // ─── Operator-timeline components ────────────────────────────────────────────
 export { OperatorGanttChart } from './operator-timeline/OperatorGanttChart';
 export type { OperatorGanttChartProps } from './operator-timeline/OperatorGanttChart';

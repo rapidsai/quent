@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { StatValue } from '@quent/utils';
-export type { HoveredStatInfo } from '@quent/hooks';
+
+// Re-exports of pivot-table-related types that originate in @quent/hooks but
+// are commonly imported alongside the table-specific types defined below.
+export type { AggMode, HoveredStatInfo } from '@quent/hooks';
 
 /**
  * Minimal row contract for GroupedDataTable: group columns (with rowSpan) + rowKey for identity.
@@ -47,8 +50,6 @@ export interface DataCellProps<TRow extends GroupedDataTableRowBase> {
 }
 
 // --- PivotedStatTable types ---
-
-export type AggMode = 'value' | 'sum' | 'mean' | 'min' | 'max' | 'stdev';
 
 export type SortDir = 'asc' | 'desc';
 

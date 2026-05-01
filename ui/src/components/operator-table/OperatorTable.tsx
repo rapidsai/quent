@@ -5,20 +5,24 @@ import { useMemo, useCallback } from 'react';
 import {
   QueryToolbar,
   getOperatorColor,
+  PivotedStatTable,
+  PivotTableToolbar,
+  getSchemaStatNames,
+} from '@quent/components';
+import type {
+  PivotedRow,
+  PivotedStatTableSchema,
+  GroupedDataTableGroupKeyEntry,
 } from '@quent/components';
 import {
   useSelectedPlanId,
   useSelectedNodeIds,
   useHighlightedNodeIds,
   useHoveredStat,
+  useStatGroupTableControls,
 } from '@quent/hooks';
 import type { QueryBundle, EntityRef } from '@quent/utils';
-import type { PivotedRow, PivotedStatTableSchema } from '../pivot-table/types';
-import type { GroupedDataTableGroupKeyEntry } from '../pivot-table/types';
-import { PivotedStatTable } from '../pivot-table/PivotedStatTable';
-import { getSchemaStatNames } from '../pivot-table/utils';
-import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
-import { useStatGroupTableControls } from '../pivot-table/useStatGroupTableControls';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { OperatorTableRow } from './types';
 import { buildOperatorRows, buildItemIdIndex } from './utils';
 
@@ -89,6 +93,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const selectedNodeIds = useSelectedNodeIds();
   const [highlightState, setHighlightState] = useHighlightedNodeIds();
   const [hoveredStat, setHoveredStat] = useHoveredStat();
+  const { theme } = useTheme();
+  const isDark = theme === THEME_DARK;
   const { entities } = queryBundle;
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
@@ -319,6 +325,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           isAggregating={isAggregating}
           aggMode={aggMode}
           indexLabels={indexLabels}
+          isDark={isDark}
           selectedItemIds={selectedNodeIds}
           hoveredItemId={dagHoveredOperatorId}
           hoveredStat={hoveredStat}
