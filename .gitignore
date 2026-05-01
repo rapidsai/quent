@@ -7,5 +7,6 @@ target/
 .claude
 .playwright-mcp/
 tarpaulin-report.html
+*.tsbuildinfo
 docs/agents/
 events/

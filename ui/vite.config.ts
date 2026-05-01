@@ -63,6 +63,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    dedupe: ['react', 'react-dom', 'jotai', '@tanstack/react-query', '@tanstack/react-router'],
     alias: {
       '@': path.resolve(__dirname, './src'),
       // TODO: Using ts bindings from quent for now this will need to change
@@ -72,7 +73,25 @@ export default defineConfig({
       elkjs: 'elkjs/lib/elk.bundled.js',
     },
   },
+  optimizeDeps: {
+    // Workspace packages must NOT be pre-bundled. Pre-bundling collapses each
+    // package's source into a single optimized chunk in `node_modules/.vite/`,
+    // which means saving any file under `packages/@quent/*/src/` triggers a
+    // full page reload ("new dependencies optimized") instead of surgical HMR.
+    // Excluding them keeps their source in Vite's on-demand transform pipeline
+    // alongside `src/`, so React Fast Refresh works across package boundaries.
+    exclude: ['@quent/components', '@quent/hooks', '@quent/client', '@quent/utils'],
+    include: [
+      // echarts-for-react is a CJS peer dep of @quent/components; must be pre-bundled
+      // here so Vite converts it to ESM with a proper default export rather than
+      // serving the raw module.exports object to the browser.
+      'echarts-for-react',
+    ],
+  },
   server: {
+    watch: {
+      followSymlinks: true,
+    },
     proxy: {
       '/api': {
         target: API_TARGET,

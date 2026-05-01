@@ -6,52 +6,58 @@ import { waitFor, act } from '@testing-library/react';
 import { renderWithQuery } from '@/test/test-utils';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { QueryResourceTree } from './QueryResourceTree';
-import { applyBulkTimelineResponse } from '@/hooks/useBulkTimelineFetch';
-import { timelineCacheKey, timelineDataAtom } from '@/atoms/timeline';
-import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
+import { applyBulkTimelineResponse, timelineCacheKey } from '@quent/hooks';
+import { timelineDataMapAtom } from '@quent/hooks/testing';
+import type { SingleTimelineResponse, QueryBundle, EntityRef } from '@quent/utils';
 
 // ---------------------------------------------------------------------------
 // Mock heavy/visual dependencies so tests run without a real browser/canvas
 // ---------------------------------------------------------------------------
 
-vi.mock('@/hooks/useBulkTimelines', () => ({
-  useBulkTimelines: () => ({ handleZoomChange: vi.fn(), handleExpand: vi.fn() }),
-}));
+vi.mock('@quent/hooks', async importOriginal => {
+  const actual = await importOriginal<typeof import('@quent/hooks')>();
+  return {
+    ...actual,
+    useBulkTimelines: () => ({ handleZoomChange: vi.fn(), handleExpand: vi.fn() }),
+    useHighlightedItemIds: () => new Set<string>(),
+  };
+});
 
 vi.mock('@/hooks/useExpandedIds', () => ({
   useExpandedIds: () => ({ expandedIds: new Set<string>(), handleExpandChange: vi.fn() }),
 }));
 
-vi.mock('@/hooks/useHighlightedItemIds', () => ({
-  useHighlightedItemIds: () => new Set<string>(),
+vi.mock('@/contexts/ThemeContext', () => ({
+  useTheme: () => ({ theme: 'light', setTheme: vi.fn() }),
+  THEME_DARK: 'dark',
+  THEME_LIGHT: 'light',
 }));
 
 // Capture the timelineData prop passed to TimelineController on every render
 let capturedTimelineData: SingleTimelineResponse | null | undefined = undefined;
-vi.mock('./timeline/TimelineController', () => ({
-  TimelineController: (props: { timelineData?: SingleTimelineResponse | null }) => {
-    capturedTimelineData = props.timelineData;
-    return null;
-  },
-}));
 
-// Render subHeaderContent so TimelineController is actually mounted
-vi.mock('@/components/ui/tree-table', () => ({
-  TreeTable: ({ columns }: { columns: Array<{ subHeaderContent?: React.ReactNode }> }) => {
-    const col = columns.find(c => c.subHeaderContent != null);
-    return <>{col?.subHeaderContent}</>;
-  },
-}));
+// Mock @quent/components: keep all actual exports but override heavy/visual ones
+vi.mock('@quent/components', async importOriginal => {
+  const actual = await importOriginal<typeof import('@quent/components')>();
+  return {
+    ...actual,
+    TimelineController: (props: { timelineData?: SingleTimelineResponse | null }) => {
+      capturedTimelineData = props.timelineData;
+      return null;
+    },
+    TreeTable: ({ columns }: { columns: Array<{ subHeaderContent?: React.ReactNode }> }) => {
+      const col = columns.find(c => c.subHeaderContent != null);
+      return <>{col?.subHeaderContent}</>;
+    },
+    ResourceColumn: () => null,
+    UsageColumn: () => null,
+    TimelineToolbar: () => null,
+  };
+});
 
-vi.mock('./resource-tree/ResourceColumn', () => ({ ResourceColumn: () => null }));
-vi.mock('./resource-tree/UsageColumn', () => ({ UsageColumn: () => null }));
-vi.mock('./timeline/TimelineToolbar', () => ({ TimelineToolbar: () => null }));
-
-import * as api from '@/services/api';
-vi.mock('@/services/api', async importOriginal => {
-  const actual = await importOriginal<typeof api>();
+import * as clientApi from '@quent/client';
+vi.mock('@quent/client', async importOriginal => {
+  const actual = await importOriginal<typeof clientApi>();
   return { ...actual, fetchSingleTimeline: vi.fn(), fetchBulkTimelines: vi.fn() };
 });
 
@@ -104,12 +110,12 @@ const makeTimeline = (start: number, end: number): SingleTimelineResponse =>
 describe('QueryResourceTree — TimelineController always shows full-range data', () => {
   beforeEach(() => {
     capturedTimelineData = undefined;
-    vi.mocked(api.fetchBulkTimelines).mockResolvedValue({ entries: {} } as never);
+    vi.mocked(clientApi.fetchBulkTimelines).mockResolvedValue({ entries: {} } as never);
   });
 
   it('passes full-range timeline data to TimelineController', async () => {
     const fullRange = makeTimeline(0, DURATION_S);
-    vi.mocked(api.fetchSingleTimeline).mockResolvedValue(fullRange);
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(fullRange);
 
     const store = createStore();
     renderWithQuery(
@@ -126,7 +132,7 @@ describe('QueryResourceTree — TimelineController always shows full-range data'
   it('is unaffected when a zoom-bounded bulk fetch overwrites the same atom cache key', async () => {
     const fullRange = makeTimeline(0, DURATION_S);
     const zoomed = makeTimeline(25, 75);
-    vi.mocked(api.fetchSingleTimeline).mockResolvedValue(fullRange);
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(fullRange);
 
     const store = createStore();
     renderWithQuery(
@@ -172,7 +178,8 @@ describe('QueryResourceTree — TimelineController always shows full-range data'
       resourceTypeName: RESOURCE_TYPE,
       fsmTypeName: null,
     });
-    expect(store.get(timelineDataAtom(cacheKey))?.config.span.start).toBe(25);
+    const timelineMap = store.get(timelineDataMapAtom) as Record<string, SingleTimelineResponse>;
+    expect(timelineMap[cacheKey]?.config.span.start).toBe(25);
 
     // TimelineController must still show the full-range data — not the atom value.
     expect(capturedTimelineData?.config.span.start).toBe(0);

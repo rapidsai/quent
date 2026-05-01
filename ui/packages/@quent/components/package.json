@@ -1,0 +1,35 @@
+{
+  "name": "@quent/components",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": ["**/echarts.ts", "**/*.css"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quent/utils": "workspace:*",
+    "@quent/hooks": "workspace:*",
+    "elkjs": "^0.11.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@xyflow/react": "^12.10.1",
+    "echarts": "^5.6.0",
+    "echarts-for-react": "^3.0.6",
+    "jotai": "^2.0.0",
+    "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-table": "^8.0.0",
+    "@tanstack/react-virtual": "^3.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.3"
+  }
+}

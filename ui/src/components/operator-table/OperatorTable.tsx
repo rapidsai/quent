@@ -2,23 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
-import { QueryToolbar } from '@/components/QueryToolbar';
 import {
-  selectedPlanIdAtom,
-  selectedNodeIdsAtom,
-  hoveredStatAtom,
-  highlightedNodeIdsAtom,
-} from '@/atoms/dag';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
-import type { PivotedRow, PivotedStatTableSchema } from '../pivot-table/types';
-import type { GroupedDataTableGroupKeyEntry } from '../pivot-table/types';
-import { PivotedStatTable } from '../pivot-table/PivotedStatTable';
-import { getSchemaStatNames } from '../pivot-table/utils';
-import { PivotTableToolbar } from '../pivot-table/PivotTableToolbar';
-import { useStatGroupTableControls } from '../pivot-table/useStatGroupTableControls';
-import { getOperatorColor } from '@/services/query-plan/operationTypes';
+  QueryToolbar,
+  getOperatorColor,
+  PivotedStatTable,
+  PivotTableToolbar,
+  getSchemaStatNames,
+} from '@quent/components';
+import type {
+  PivotedRow,
+  PivotedStatTableSchema,
+  GroupedDataTableGroupKeyEntry,
+} from '@quent/components';
+import {
+  useSelectedPlanId,
+  useSelectedNodeIds,
+  useHighlightedNodeIds,
+  useHoveredStat,
+  useStatGroupTableControls,
+} from '@quent/hooks';
+import type { QueryBundle, EntityRef } from '@quent/utils';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import type { OperatorTableRow } from './types';
 import { buildOperatorRows, buildItemIdIndex } from './utils';
 
@@ -85,10 +89,12 @@ interface OperatorTableProps {
 }
 
 export function OperatorTable({ queryBundle }: OperatorTableProps) {
-  const selectedPlanId = useAtomValue(selectedPlanIdAtom);
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const [highlightState, setHighlightState] = useAtom(highlightedNodeIdsAtom);
-  const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
+  const selectedPlanId = useSelectedPlanId();
+  const selectedNodeIds = useSelectedNodeIds();
+  const [highlightState, setHighlightState] = useHighlightedNodeIds();
+  const [hoveredStat, setHoveredStat] = useHoveredStat();
+  const { theme } = useTheme();
+  const isDark = theme === THEME_DARK;
   const { entities } = queryBundle;
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
@@ -319,6 +325,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           isAggregating={isAggregating}
           aggMode={aggMode}
           indexLabels={indexLabels}
+          isDark={isDark}
           selectedItemIds={selectedNodeIds}
           hoveredItemId={dagHoveredOperatorId}
           hoveredStat={hoveredStat}

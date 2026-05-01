@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { QueryEntities } from '~quent/types/QueryEntities';
-import type { StatValue } from '@/services/query-plan/types';
-import { parseCustomStatistics } from '@/lib/queryBundle.utils';
+import type { StatValue } from '@quent/utils';
+import { parseCustomStatistics } from '@quent/components';
 import type { OperatorTableRow } from './types';
 
 /**

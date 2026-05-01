@@ -1,0 +1,236 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { memo, useState, useMemo, useCallback } from 'react';
+import { Handle, Position } from '@xyflow/react';
+import { cva } from 'class-variance-authority';
+import {
+  cn,
+  continuousColor,
+  isLightColor,
+  withOpacity,
+  WHITE,
+  BLACK,
+  NODE_LABEL_FIELD,
+  type Operator,
+} from '@quent/utils';
+import {
+  useSelectedNodeLabelField,
+  useNodeColoring,
+  useNodeColorPalette,
+  useEffectiveHighlightedNodeIds,
+  useEffectiveHoveredStat,
+  useSetHoveredNodeData,
+  useSetHighlightedNodeIds,
+} from '@quent/hooks';
+import { parseCustomStatistics } from '../lib/queryBundle.utils';
+import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { getOperatorColor } from '../services/query-plan/operationTypes';
+import { DataText } from '../ui/data-text';
+
+export interface QueryPlanNodeData extends Record<string, unknown> {
+  label: string;
+  nodeId: string;
+  operationType: string;
+  metadata?: { rawNode?: Operator };
+  hasIncoming?: boolean;
+  hasOutgoing?: boolean;
+  /**
+   * Whether dark mode is active. Forwarded by `DAGChart` via the node's data
+   * payload so the renderer can derive heatmap colors without coupling to a
+   * host theme context.
+   */
+  isDark?: boolean;
+}
+
+const nodeVariants = cva(
+  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition cursor-pointer text-foreground z-10 nodrag nopan',
+  {
+    variants: {
+      selected: {
+        true: 'shadow-glow border-2 scale-110',
+        false: 'shadow-md',
+      },
+    },
+    defaultVariants: {
+      selected: false,
+    },
+  }
+);
+
+function nodeOpacityClass({
+  hoveredStat,
+  highlightedNodeIds,
+  operatorId,
+  isDimmed,
+}: {
+  hoveredStat: { values: Map<string, number> } | null | undefined;
+  highlightedNodeIds: Set<string> | null;
+  operatorId: string;
+  isDimmed: boolean;
+}): string {
+  if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
+  // An active highlight set fully overrides the selection-based dim so that
+  // hovered (highlighted) operators are always visible, even when a DAG
+  // selection would otherwise dim them. The atom is fed through
+  // `effectiveHighlightedNodeIdsAtom`, which clears `ids` when nothing in
+  // the highlight set is actually shown — so an empty/null set here means
+  // "no meaningful highlight" and we leave everything at full opacity.
+  if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
+    return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-35';
+  }
+  if (isDimmed) return 'opacity-35';
+  return 'opacity-100';
+}
+
+/** Memoized DAG node rendered inside ReactFlow. */
+export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
+  // Writes go to the source atom so the table (which reads from it directly)
+  // still sees DAG hovers; reads come from the effective atom so the chart
+  // doesn't dim when nothing visible would be highlighted.
+  const setHighlightState = useSetHighlightedNodeIds();
+  const highlightState = useEffectiveHighlightedNodeIds();
+  const hoveredStat = useEffectiveHoveredStat();
+  const [nodePalette] = useNodeColorPalette();
+  const isDark = data.isDark ?? false;
+  const operatorId = data.metadata?.rawNode?.id ?? '';
+  const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
+  const statistics = parseCustomStatistics(data.metadata?.rawNode);
+  const [nodeLabelField] = useSelectedNodeLabelField();
+  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId, isDark);
+  const [isHoveredLocal, setIsHoveredLocal] = useState(false);
+  const setHoveredNodeData = useSetHoveredNodeData();
+
+  const resolvedLabel = useMemo(() => {
+    if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
+    if (nodeLabelField === NODE_LABEL_FIELD.TYPE) return data.operationType;
+    return data.label;
+  }, [nodeLabelField, data]);
+
+  const colorFieldValue = colorField
+    ? (statistics.find(s => s.key === colorField)?.value ?? null)
+    : null;
+  const formattedColorFieldValue =
+    colorFieldValue === null
+      ? null
+      : typeof colorFieldValue === 'number'
+        ? inferFieldFormatter(colorField!)(colorFieldValue)
+        : String(colorFieldValue);
+
+  const baseColor = getOperatorColor(data.operationType);
+  const activeColor = fieldColor ?? baseColor;
+  const bgColor =
+    fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
+
+  const heatmapColor = useMemo(() => {
+    if (!hoveredStat) return undefined;
+    const v = hoveredStat.values.get(operatorId);
+    if (v === undefined) return undefined;
+    const range = hoveredStat.max - hoveredStat.min;
+    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    return continuousColor(t, nodePalette, isDark);
+  }, [hoveredStat, operatorId, nodePalette, isDark]);
+
+  const opacityClass = nodeOpacityClass({
+    hoveredStat,
+    highlightedNodeIds: highlightState.ids,
+    operatorId,
+    isDimmed,
+  });
+
+  const isActiveHighlight = isHighlighted && !isSelected;
+
+  const onMouseEnter = useCallback(() => {
+    setIsHoveredLocal(true);
+    setHoveredNodeData({
+      nodeId: data.nodeId,
+      label: data.label,
+      operationType: data.operationType,
+      statistics,
+    });
+    if (operatorId) {
+      setHighlightState(prev => ({
+        ...prev,
+        ids: new Set([operatorId]),
+        source: 'dag',
+        primaryOperatorId: operatorId,
+      }));
+    }
+  }, [
+    data.nodeId,
+    data.label,
+    data.operationType,
+    statistics,
+    operatorId,
+    setHighlightState,
+    setHoveredNodeData,
+  ]);
+  const onMouseLeave = useCallback(() => {
+    setIsHoveredLocal(false);
+    setHoveredNodeData(null);
+    setHighlightState(prev =>
+      prev.source === 'dag' && prev.ids?.size === 1 && prev.ids.has(operatorId)
+        ? { ...prev, ids: null, source: null, primaryOperatorId: null }
+        : prev
+    );
+  }, [operatorId, setHighlightState, setHoveredNodeData]);
+
+  const nodeContent = (
+    <div
+      className={nodeVariants({ selected: isSelected })}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={
+        {
+          borderColor: heatmapColor ?? activeColor,
+          backgroundColor: heatmapColor ?? bgColor,
+          '--glow-color': activeColor,
+          ...(fieldColor && isLightColor(fieldColor) ? { color: '#111827' } : {}),
+        } as React.CSSProperties
+      }
+    >
+      {data.hasIncoming && (
+        <Handle type="target" position={Position.Top} className="w-2 h-2 opacity-0" />
+      )}
+
+      <DataText
+        as="div"
+        className={cn('text-sm break-words text-center font-normal', {
+          'font-bold': data.operationType === 'stage' || isSelected,
+        })}
+      >
+        {resolvedLabel}
+      </DataText>
+      {formattedColorFieldValue !== null && (
+        <div
+          className="text-xs text-center mt-0.5"
+          style={{
+            color: fieldColor
+              ? isLightColor(fieldColor)
+                ? withOpacity(BLACK, 0.5)
+                : withOpacity(WHITE, 0.65)
+              : undefined,
+          }}
+        >
+          {formattedColorFieldValue}
+        </div>
+      )}
+
+      {data.hasOutgoing && (
+        <Handle type="source" position={Position.Bottom} className="w-2 h-2 opacity-0" />
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      className={cn(opacityClass, 'z-10', {
+        'ring-2 ring-primary/50 rounded-md': isActiveHighlight,
+      })}
+    >
+      {nodeContent}
+    </div>
+  );
+});
+
+QueryPlanNode.displayName = 'QueryPlanNode';

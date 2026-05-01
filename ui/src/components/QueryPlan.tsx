@@ -2,32 +2,39 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, lazy, Suspense } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
-import { useQueryBundle } from '@/hooks/useQueryBundle';
+import { useQueryBundle } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
-import { TreeView } from '@/components/ui/tree-view';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { type QueryPlanDataItem } from '@/services/query-plan/types';
+import { TreeView } from '@quent/components';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
+import { type QueryPlanDataItem } from '@quent/components';
 import { Network } from 'lucide-react';
-import { selectedPlanIdAtom, hoveredWorkerIdAtom } from '@/atoms/dag';
-import { DAGControls } from '@/components/dag/DAGControls';
+import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
+import { DAGControls } from '@quent/components';
 import {
   useDagNodeColoring,
   useDagEdgeWidthConfig,
   useDagEdgeColoring,
   useOperatorStatFields,
   usePortStatFields,
-} from '@/hooks/useDagControls';
-import { DataText } from '@/components/ui/data-text';
+} from '@quent/hooks';
+import {
+  computeNodeColoring,
+  computeEdgeWidthConfig,
+  computeEdgeColoring,
+  parseCustomStatistics,
+} from '@quent/components';
+import { DataText } from '@quent/components';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
-const DAGChart = lazy(() =>
-  import('@/components/dag/DAGChart').then(mod => ({ default: mod.DAGChart }))
-);
+const DAGChart = lazy(() => import('@quent/components').then(mod => ({ default: mod.DAGChart })));
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
-  const [planId, setPlanId] = useAtom(selectedPlanIdAtom);
-  const setHoveredWorkerId = useSetAtom(hoveredWorkerIdAtom);
+  const { theme } = useTheme();
+  const isDark = theme === THEME_DARK;
+  const planId = useSelectedPlanId();
+  const setPlanId = useSetSelectedPlanId();
+  const setHoveredWorkerId = useSetHoveredWorkerId();
 
   const {
     data: queryBundle,
@@ -37,10 +44,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
 
-  useDagNodeColoring(dagData.nodes);
-  useDagEdgeWidthConfig(dagData.edges);
-  useDagEdgeColoring(dagData.edges);
-  const operatorStatFields = useOperatorStatFields(dagData.nodes);
+  useDagNodeColoring(dagData.nodes, computeNodeColoring);
+  useDagEdgeWidthConfig(dagData.edges, computeEdgeWidthConfig);
+  useDagEdgeColoring(dagData.edges, computeEdgeColoring);
+  const operatorStatFields = useOperatorStatFields(dagData.nodes, parseCustomStatistics);
   const portStatFields = usePortStatFields(dagData.edges);
 
   const handlePlanSelect = (item: QueryPlanDataItem | undefined) => {
@@ -156,7 +163,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         <div className="border-t border-border">
-          <DAGControls operatorStatFields={operatorStatFields} portStatFields={portStatFields} />
+          <DAGControls
+            operatorStatFields={operatorStatFields}
+            portStatFields={portStatFields}
+            isDark={isDark}
+          />
         </div>
 
         {/* DAG Chart - lazy loaded to split elkjs into separate chunk */}
@@ -174,7 +185,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               </div>
             }
           >
-            <DAGChart data={dagData} height="100%" />
+            <DAGChart data={dagData} height="100%" isDark={isDark} />
           </Suspense>
         </ResizablePanel>
       </ResizablePanelGroup>

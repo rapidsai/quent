@@ -1,3 +1,14 @@
+packages:
+  - 'packages/@quent/*'
+  - 'examples/*'
+
 allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
   esbuild: true
   msw: true
+  protobufjs: true
+
+# pnpm 11 enables this by default; the Grafana panel example pulls
+# `react-data-grid` (a fork) via git through `@grafana/ui`.
+blockExoticSubdeps: false
