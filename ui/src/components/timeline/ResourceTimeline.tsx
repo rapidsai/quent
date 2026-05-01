@@ -28,6 +28,7 @@ import {
 import { TimelineSeries, TimelineMark } from './types';
 import { EntityTypeKey } from '@/types';
 import { WHITE, withOpacity } from '@/services/colors';
+import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
@@ -78,6 +79,8 @@ export function ResourceTimeline({
   quantitySpecs,
   fsmTypes,
 }: ResourceTimelineProps) {
+  const { theme } = useTheme();
+  const paletteTheme = theme === THEME_DARK ? 'dark' : 'light';
   const deferredReady = useDeferredReady();
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
   const bulkInitialized = useAtomValue(bulkInitializedAtom);
@@ -182,6 +185,7 @@ export function ResourceTimeline({
       data.data,
       data.config,
       startTime,
+      paletteTheme,
       capacities,
       quantitySpecs,
       fsmTypes
@@ -190,7 +194,13 @@ export function ResourceTimeline({
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
 
-    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet, fsmTypes);
+    const timelineMarks = buildTimelineMarks(
+      longFsms,
+      startTime,
+      paletteTheme,
+      filterSet,
+      fsmTypes
+    );
 
     if (operatorId && operatorLabel) {
       if (overlayPreloadedData) {
@@ -202,6 +212,7 @@ export function ResourceTimeline({
             overlayPreloadedData.data,
             overlayPreloadedData.config,
             startTime,
+            paletteTheme,
             capacities,
             quantitySpecs,
             fsmTypes
@@ -213,6 +224,7 @@ export function ResourceTimeline({
             marks: buildTimelineMarks(
               longFsms,
               startTime,
+              paletteTheme,
               filterSet,
               fsmTypes,
               opLongFsmIds,
@@ -245,6 +257,7 @@ export function ResourceTimeline({
     resourceType,
     resourceId,
     operatorLabel,
+    paletteTheme,
   ]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {
