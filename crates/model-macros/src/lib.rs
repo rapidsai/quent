@@ -42,13 +42,13 @@ pub fn derive_attributes(input: TokenStream) -> TokenStream {
 /// Derive macro for fixed-bounds resource definitions.
 ///
 /// Used internally by `resource!` — prefer that macro for new code.
-#[proc_macro_derive(Resource)]
-pub fn derive_resource(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    resource_derive::expand_resource(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
+// #[proc_macro_derive(Resource)]
+// pub fn derive_resource(input: TokenStream) -> TokenStream {
+//     let input = syn::parse_macro_input!(input as syn::DeriveInput);
+//     resource_derive::expand_resource(input)
+//         .unwrap_or_else(|e| e.to_compile_error())
+//         .into()
+// }
 
 /// Derive macro for resizable resource definitions.
 ///
@@ -181,4 +181,21 @@ pub fn entity(input: TokenStream) -> TokenStream {
     entity_macro::expand(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
+}
+
+// v2 stubs:
+
+#[proc_macro_derive(Entity, attributes(quent))]
+pub fn derive_entity(_input: TokenStream) -> TokenStream {
+    TokenStream::new()
+}
+
+#[proc_macro_derive(Fsm, attributes(quent))]
+pub fn derive_fsm(_input: TokenStream) -> TokenStream {
+    TokenStream::new()
+}
+
+#[proc_macro_derive(Resource, attributes(quent))]
+pub fn derive_resource(_input: TokenStream) -> TokenStream {
+    TokenStream::new()
 }
