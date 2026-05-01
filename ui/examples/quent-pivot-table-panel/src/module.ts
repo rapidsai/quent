@@ -44,4 +44,15 @@ export const plugin = new PanelPlugin<QuentPivotTablePanelOptions>(
       defaultValue: DEFAULT_OPTIONS.itemLabel,
       category: ['Index labels'],
     })
+    .addTextInput({
+      path: 'groupByColumns',
+      name: 'Extra group-by columns',
+      description:
+        'Comma-separated list of additional dataset columns to promote into ' +
+        'group-by toggles (e.g. "Transmission,Doors"). Each column is hoisted ' +
+        'out of stats and inserted between item_type and item. Column names ' +
+        'match case-insensitively.',
+      defaultValue: DEFAULT_OPTIONS.groupByColumns,
+      category: ['Index labels'],
+    })
 );

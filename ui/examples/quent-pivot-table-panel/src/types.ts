@@ -15,6 +15,16 @@ export interface QuentPivotTablePanelOptions {
   itemTypeLabel: string;
   /** Header for the innermost (`item`) index dimension. */
   itemLabel: string;
+  /**
+   * Comma-separated list of additional column names from the dataset to
+   * promote into group-by index dimensions (e.g. `"Transmission,Doors"`).
+   * Each named column is hoisted out of `stats` and inserted between
+   * `item_type` and `item` in the index hierarchy. Column names match
+   * case-insensitively against the field names produced by the datasource.
+   * Use this for low-cardinality categorical columns that aren't covered
+   * by `partition_id` / `item_type`.
+   */
+  groupByColumns: string;
 }
 
 export const DEFAULT_OPTIONS: QuentPivotTablePanelOptions = {
@@ -22,4 +32,5 @@ export const DEFAULT_OPTIONS: QuentPivotTablePanelOptions = {
   partitionLabel: 'Worker / Plan',
   itemTypeLabel: 'Operator Type',
   itemLabel: 'Operator',
+  groupByColumns: '',
 };
