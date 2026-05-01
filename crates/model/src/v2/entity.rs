@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use quent_model_macros::Entity;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
@@ -48,6 +49,8 @@ mod one_shot_empty {
     use super::*;
 
     mod model {
+        use super::*;
+
         // Most trivial entity. Just emits one event without attributes. Thus
         // its only properties are a UUID and a timestamp for its single event.
         #[derive(Entity)]
@@ -80,9 +83,8 @@ mod one_shot_empty {
 
         impl OneShotEmptyObserver {
             // Returns a result with the uuid of the entity. Since this is a
-            // single one shot event entity, it just returns a Uuid, and does
-            // not take &self as it is stateless.
-            pub fn one_shot_empty() -> Result<Uuid, ObserverError> {
+            // single one shot event entity, it just returns a Uuid.
+            pub fn one_shot_empty(&self) -> Result<Uuid, ObserverError> {
                 todo!()
             }
         }
@@ -99,7 +101,7 @@ mod one_shot_empty {
         // Single-event entity, so if the event ever arrived, we know its
         // timestamp.
         pub trait OneShotEmptyModel: EntityModel {
-            fn one_shot_empty() -> Event<()>;
+            fn one_shot_empty(&self) -> Event<()>;
         }
     }
 }
@@ -108,6 +110,8 @@ mod one_shot_with_attribs {
     use super::*;
 
     mod model {
+        use super::*;
+
         // Single-event entity. Just emits one event with attributes of this
         // struct.
         #[derive(Entity)]
@@ -220,11 +224,11 @@ mod multi_one_shot {
                 // emits event, flags this as emitted
                 todo!()
             }
-            fn b(&self, _attributes: super::model::Y) {
+            fn b(&self, _attributes: super::model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
             // same attributes type as b(), but semantically different event
-            fn c(&self, _attributes: super::model::Y) {
+            fn c(&self, _attributes: super::model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
             fn d(&self) {
@@ -447,7 +451,7 @@ mod mixed {
                 todo!()
             }
 
-            pub fn b(&self, _attributes: super::model::X) {
+            pub fn b(&self, _attributes: super::model::Y) {
                 // emits event
                 todo!()
             }
@@ -460,6 +464,24 @@ mod mixed {
         pub trait MixedModel: EntityModel {
             fn a() -> Option<Event<super::model::X>>;
             fn b() -> impl Iterator<Item = Event<super::model::X>>;
+        }
+    }
+}
+
+// Some invalid things that should produce compilation errors
+mod invalid {
+    use super::*;
+
+    mod model {
+        use super::*;
+
+        // Can't have plain fields if there are any Once or Many typed fields.
+        // Plain fields are only allowed for single, one-shot event entities.
+
+        #[derive(Entity)]
+        pub struct Invalid {
+            plain: u64,
+            a: Once<()>,
         }
     }
 }

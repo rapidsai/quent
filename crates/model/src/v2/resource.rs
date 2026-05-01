@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use quent_model_macros::Resource;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
@@ -12,6 +13,8 @@ mod thread {
     use super::*;
 
     mod model {
+        use super::*;
+
         // Unit resource
         #[derive(Resource)] // Derive macro to be implemented
         struct Thread;
