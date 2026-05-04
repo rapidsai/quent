@@ -200,6 +200,7 @@ impl TimelineCache {
         } = cache_result;
 
         if !chunk_misses.is_empty() {
+            let mut error_entries = HashMap::new();
             self.partial_fetch_and_cache(
                 Arc::clone(&analyzer),
                 &request.entries,
@@ -207,8 +208,13 @@ impl TimelineCache {
                 &chunk_misses,
                 &ctx,
                 &mut entry_chunks,
+                &mut error_entries,
             )
             .await?;
+
+            let mut response = assemble_bulk_response(entry_chunks, &request.entries, &geometry)?;
+            response.entries.extend(error_entries);
+            return Ok(response);
         }
 
         assemble_bulk_response(entry_chunks, &request.entries, &geometry)
@@ -252,7 +258,7 @@ impl TimelineCache {
         }
     }
 
-    /// Cold-cache path: fetch all entries in one bulk call, then split and cache each chunk.
+    /// Cold-cache path: fetch canonical chunks for all entries, then assemble the requested view.
     async fn cold_fetch_and_cache<A>(
         &self,
         analyzer: Arc<A>,
@@ -264,47 +270,35 @@ impl TimelineCache {
     ) -> ServerResult<BulkTimelinesResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
-        <A as UiAnalyzer>::TimelineParams: Send + 'static,
+        <A as UiAnalyzer>::TimelineGlobalParams: Clone + Send + 'static,
+        <A as UiAnalyzer>::TimelineParams: Clone + Send + 'static,
     {
         debug!(
             n_entries = request.entries.len(),
             zoom_level = ctx.geometry.zoom_level,
-            "bulk timeline cold cache: full fetch"
+            "bulk timeline cold cache: fetching canonical chunks"
         );
 
-        let response =
-            tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request)).await??;
+        let chunk_misses: HashMap<u64, Vec<String>> = (ctx.geometry.first_chunk
+            ..=ctx.geometry.last_chunk)
+            .map(|chunk_idx| (chunk_idx, request.entries.keys().cloned().collect()))
+            .collect();
+        let mut entry_chunks = HashMap::new();
+        let mut error_entries = HashMap::new();
 
-        for (key, entry_resp) in &response.entries {
-            if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
-                let chunk_resp = SingleTimelineResponse {
-                    config: *config,
-                    data: data.clone(),
-                };
-                let chunks = split_response_into_chunks(
-                    &chunk_resp,
-                    ctx.geometry.first_chunk,
-                    ctx.geometry.last_chunk,
-                    ctx.geometry.chunk_duration,
-                    ctx.geometry.zoom_level,
-                    ctx.geometry.epoch,
-                    ctx.geometry.engine_end,
-                )?;
+        self.partial_fetch_and_cache(
+            analyzer,
+            &request.entries,
+            &request.app_params,
+            &chunk_misses,
+            ctx,
+            &mut entry_chunks,
+            &mut error_entries,
+        )
+        .await?;
 
-                for (chunk_idx, chunk) in chunks {
-                    let cache_key = ChunkCacheKey {
-                        engine_id: ctx.engine_id,
-                        params_hash: ctx.entry_hashes[key],
-                        zoom_level: ctx.geometry.zoom_level,
-                        chunk_idx,
-                        num_bins: ctx.geometry.num_bins,
-                    };
-                    self.chunks.insert(cache_key, chunk).await;
-                }
-            }
-        }
-
+        let mut response = assemble_bulk_response(entry_chunks, &request.entries, ctx.geometry)?;
+        response.entries.extend(error_entries);
         Ok(response)
     }
 
@@ -317,6 +311,7 @@ impl TimelineCache {
         chunk_misses: &HashMap<u64, Vec<String>>,
         ctx: &CacheRequestContext<'_>,
         entry_chunks: &mut HashMap<String, Vec<SingleTimelineResponse>>,
+        error_entries: &mut HashMap<String, BulkTimelinesResponseEntry>,
     ) -> ServerResult<()>
     where
         A: UiAnalyzer + Send + Sync + 'static,
@@ -366,17 +361,22 @@ impl TimelineCache {
             .await??;
 
             for (key, entry_resp) in response.entries {
-                if let BulkTimelinesResponseEntry::Ok { config, data, .. } = entry_resp {
-                    let single = SingleTimelineResponse { config, data };
-                    let cache_key = ChunkCacheKey {
-                        engine_id: ctx.engine_id,
-                        params_hash: ctx.entry_hashes[&key],
-                        zoom_level: ctx.geometry.zoom_level,
-                        chunk_idx: *chunk_idx,
-                        num_bins: ctx.geometry.num_bins,
-                    };
-                    self.chunks.insert(cache_key, single.clone()).await;
-                    entry_chunks.entry(key).or_default().push(single);
+                match entry_resp {
+                    BulkTimelinesResponseEntry::Ok { config, data, .. } => {
+                        let single = SingleTimelineResponse { config, data };
+                        let cache_key = ChunkCacheKey {
+                            engine_id: ctx.engine_id,
+                            params_hash: ctx.entry_hashes[&key],
+                            zoom_level: ctx.geometry.zoom_level,
+                            chunk_idx: *chunk_idx,
+                            num_bins: ctx.geometry.num_bins,
+                        };
+                        self.chunks.insert(cache_key, single.clone()).await;
+                        entry_chunks.entry(key).or_default().push(single);
+                    }
+                    BulkTimelinesResponseEntry::Error { message } => {
+                        error_entries.insert(key, BulkTimelinesResponseEntry::Error { message });
+                    }
                 }
             }
         }
@@ -636,97 +636,6 @@ fn assemble_bulk_response<EP>(
     })
 }
 
-/// Splits a full-viewport response into per-chunk responses for caching.
-fn split_response_into_chunks(
-    response: &SingleTimelineResponse,
-    first_chunk: u64,
-    last_chunk: u64,
-    chunk_duration: u64,
-    zoom_level: u64,
-    epoch: TimeNanoSec,
-    engine_end: TimeNanoSec,
-) -> ServerResult<Vec<(u64, SingleTimelineResponse)>> {
-    let mut result = Vec::new();
-
-    for chunk_idx in first_chunk..=last_chunk {
-        let chunk_start = epoch + chunk_idx * chunk_duration;
-        let chunk_end = if chunk_idx == zoom_level - 1 {
-            engine_end
-        } else {
-            epoch + (chunk_idx + 1) * chunk_duration
-        };
-
-        let chunk_span = match SpanNanoSec::try_new(chunk_start, chunk_end) {
-            Ok(span) => span,
-            Err(_) => continue,
-        };
-
-        // Find the bin range within the full response that falls inside this chunk.
-        let (start_idx, end_idx) = overlap_indices(response, &chunk_span, epoch);
-        if start_idx >= end_idx {
-            continue;
-        }
-
-        let chunk_num_bins = (end_idx - start_idx) as u64;
-        let chunk_config = BinnedSpan::try_new(
-            chunk_span,
-            std::num::NonZero::try_from(chunk_num_bins).map_err(|e| {
-                quent_time::TimeError::InvalidArgument(format!("chunk bins must be > 0: {e}"))
-            })?,
-        )?
-        .try_to_secs_relative(epoch)?;
-
-        // Slice the data arrays at the chunk's bin boundaries.
-        let chunk_data = match &response.data {
-            ResourceTimeline::Binned(data) => {
-                let capacities_values = data
-                    .capacities_values
-                    .iter()
-                    .map(|(cap_name, values)| {
-                        (cap_name.clone(), values[start_idx..end_idx].to_vec())
-                    })
-                    .collect();
-                ResourceTimeline::Binned(ResourceTimelineBinned {
-                    config: chunk_config,
-                    capacities_values,
-                    long_fsms: data.long_fsms.clone(),
-                })
-            }
-            ResourceTimeline::BinnedByState(data) => {
-                let capacities_states_values = data
-                    .capacities_states_values
-                    .iter()
-                    .map(|(cap_name, states)| {
-                        let sliced_states = states
-                            .iter()
-                            .map(|(state_name, values)| {
-                                (state_name.clone(), values[start_idx..end_idx].to_vec())
-                            })
-                            .collect();
-                        (cap_name.clone(), sliced_states)
-                    })
-                    .collect();
-                ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
-                    config: chunk_config,
-                    capacities_states_values,
-                    long_fsms: data.long_fsms.clone(),
-                })
-            }
-        };
-
-        // Push this chunk into the result.
-        result.push((
-            chunk_idx,
-            SingleTimelineResponse {
-                config: chunk_config,
-                data: chunk_data,
-            },
-        ));
-    }
-
-    Ok(result)
-}
-
 fn combine_chunks(
     chunks: &[SingleTimelineResponse],
     req_span: SpanNanoSec,
@@ -764,6 +673,8 @@ fn combine_chunks(
             std::collections::HashMap<String, Vec<f64>>,
         > = std::collections::HashMap::new();
         let mut total_bins: u64 = 0;
+        let mut combined_start: Option<TimeNanoSec> = None;
+        let mut combined_end: Option<TimeNanoSec> = None;
 
         for chunk in &sorted {
             let (start_idx, end_idx) = overlap_indices(chunk, &req_span, epoch);
@@ -771,6 +682,9 @@ fn combine_chunks(
                 continue;
             }
             total_bins += (end_idx - start_idx) as u64;
+            let (bin_start, bin_end) = selected_bin_span(chunk, start_idx, end_idx, epoch);
+            combined_start = Some(combined_start.map_or(bin_start, |start| start.min(bin_start)));
+            combined_end = Some(combined_end.map_or(bin_end, |end| end.max(bin_end)));
 
             if let ResourceTimeline::BinnedByState(ref data) = chunk.data {
                 for (cap_name, states) in &data.capacities_states_values {
@@ -785,8 +699,12 @@ fn combine_chunks(
             }
         }
 
+        let combined_span = SpanNanoSec::try_new(
+            combined_start.unwrap_or(req_span.start()),
+            combined_end.unwrap_or(req_span.end()),
+        )?;
         let config = BinnedSpan::try_new(
-            req_span,
+            combined_span,
             std::num::NonZero::try_from(total_bins).map_err(|e| {
                 quent_time::TimeError::InvalidArgument(format!("combined bins must be > 0: {e}"))
             })?,
@@ -805,6 +723,8 @@ fn combine_chunks(
         let mut combined: std::collections::HashMap<String, Vec<f64>> =
             std::collections::HashMap::new();
         let mut total_bins: u64 = 0;
+        let mut combined_start: Option<TimeNanoSec> = None;
+        let mut combined_end: Option<TimeNanoSec> = None;
 
         for chunk in &sorted {
             let (start_idx, end_idx) = overlap_indices(chunk, &req_span, epoch);
@@ -812,6 +732,9 @@ fn combine_chunks(
                 continue;
             }
             total_bins += (end_idx - start_idx) as u64;
+            let (bin_start, bin_end) = selected_bin_span(chunk, start_idx, end_idx, epoch);
+            combined_start = Some(combined_start.map_or(bin_start, |start| start.min(bin_start)));
+            combined_end = Some(combined_end.map_or(bin_end, |end| end.max(bin_end)));
 
             if let ResourceTimeline::Binned(ref data) = chunk.data {
                 for (cap_name, values) in &data.capacities_values {
@@ -823,8 +746,12 @@ fn combine_chunks(
             }
         }
 
+        let combined_span = SpanNanoSec::try_new(
+            combined_start.unwrap_or(req_span.start()),
+            combined_end.unwrap_or(req_span.end()),
+        )?;
         let config = BinnedSpan::try_new(
-            req_span,
+            combined_span,
             std::num::NonZero::try_from(total_bins).map_err(|e| {
                 quent_time::TimeError::InvalidArgument(format!("combined bins must be > 0: {e}"))
             })?,
@@ -840,6 +767,20 @@ fn combine_chunks(
             }),
         })
     }
+}
+
+fn selected_bin_span(
+    chunk: &SingleTimelineResponse,
+    start_idx: usize,
+    end_idx: usize,
+    epoch: TimeNanoSec,
+) -> (TimeNanoSec, TimeNanoSec) {
+    let chunk_start = epoch + to_nanosecs(chunk.config.span.start());
+    let bin_duration_ns = to_nanosecs(chunk.config.bin_duration);
+    (
+        chunk_start + start_idx as u64 * bin_duration_ns,
+        chunk_start + end_idx as u64 * bin_duration_ns,
+    )
 }
 
 fn overlap_indices(
@@ -868,4 +809,563 @@ fn overlap_indices(
     let end_idx = (overlap_end - chunk_start).div_ceil(bin_duration_ns) as usize;
 
     (start_idx.min(num_bins), end_idx.min(num_bins))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use quent_analyzer::AnalyzerResult;
+    use quent_events::Event;
+    use quent_query_engine_analyzer::{
+        QueryEngineModel, engine::Engine, model::InMemoryQueryEngineModel, ui::UiAnalyzer,
+    };
+    use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
+    use quent_ui::{
+        FiniteStateMachine, FsmTransition,
+        timeline::{
+            request::{
+                BulkTimelineRequest, EntityFilter, ResourceTimelineRequest, TimelineConfig,
+                TimelineRequest,
+            },
+            response::{
+                BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
+                ResourceTimelineBinned, SingleTimelineResponse,
+            },
+        },
+    };
+    use uuid::Uuid;
+
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    struct TestGlobalParams {
+        query_id: Uuid,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    struct TestTimelineParams {
+        operator_id: Option<Uuid>,
+        series_offset: u32,
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct BulkCallEntry {
+        key: String,
+        start: f64,
+        end: f64,
+        operator_id: Option<Uuid>,
+    }
+
+    struct TestAnalyzer {
+        engine_id: Uuid,
+        model: InMemoryQueryEngineModel,
+        calls: Mutex<Vec<Vec<BulkCallEntry>>>,
+    }
+
+    impl TestAnalyzer {
+        fn new() -> Self {
+            let engine_id = Uuid::from_u128(1);
+            let mut engine = Engine::new(engine_id).unwrap();
+            engine.push(Event::new(engine_id, 0, EngineEvent::Init(Init::default())));
+            engine.push(Event::new(
+                engine_id,
+                100_000_000_000,
+                EngineEvent::Exit(Exit),
+            ));
+
+            Self {
+                engine_id,
+                model: InMemoryQueryEngineModel {
+                    engine,
+                    workers: Default::default(),
+                    query_groups: Default::default(),
+                    queries: Default::default(),
+                    plans: Default::default(),
+                    operators: Default::default(),
+                    ports: Default::default(),
+                },
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn call_entries(&self) -> Vec<BulkCallEntry> {
+            let mut entries = self
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .flat_map(|call| call.iter().cloned())
+                .collect::<Vec<_>>();
+            entries.sort_by(|a, b| {
+                a.start
+                    .partial_cmp(&b.start)
+                    .unwrap()
+                    .then_with(|| a.key.cmp(&b.key))
+            });
+            entries
+        }
+
+        fn call_keys_by_call(&self) -> Vec<Vec<String>> {
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|call| {
+                    let mut keys = call
+                        .iter()
+                        .map(|entry| entry.key.clone())
+                        .collect::<Vec<_>>();
+                    keys.sort();
+                    keys
+                })
+                .collect()
+        }
+    }
+
+    impl UiAnalyzer for TestAnalyzer {
+        type Event = ();
+        type EntityRef = ();
+        type TimelineGlobalParams = TestGlobalParams;
+        type TimelineParams = TestTimelineParams;
+
+        fn try_new(
+            _engine_id: Uuid,
+            _events: impl Iterator<Item = Event<Self::Event>>,
+        ) -> AnalyzerResult<Self>
+        where
+            Self: Sized,
+        {
+            unimplemented!("not needed by timeline cache tests")
+        }
+
+        fn extract_engine(
+            _engine_id: Uuid,
+            _events: impl Iterator<Item = Event<Self::Event>>,
+        ) -> AnalyzerResult<quent_query_engine_ui::Engine>
+        where
+            Self: Sized,
+        {
+            unimplemented!("not needed by timeline cache tests")
+        }
+
+        fn query_bundle(
+            &self,
+            _query_id: Uuid,
+        ) -> AnalyzerResult<quent_query_engine_ui::QueryBundle<Self::EntityRef>> {
+            unimplemented!("not needed by timeline cache tests")
+        }
+
+        fn query_engine_model(&self) -> &impl QueryEngineModel {
+            &self.model
+        }
+
+        fn single_resource_timeline(
+            &self,
+            _request: quent_ui::timeline::request::SingleTimelineRequest<
+                Self::TimelineGlobalParams,
+                Self::TimelineParams,
+            >,
+        ) -> AnalyzerResult<SingleTimelineResponse> {
+            unimplemented!("not needed by bulk cache tests")
+        }
+
+        fn bulk_resource_timeline(
+            &self,
+            request: BulkTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+        ) -> AnalyzerResult<BulkTimelinesResponse> {
+            let mut call = request
+                .entries
+                .iter()
+                .map(|(key, entry)| BulkCallEntry {
+                    key: key.clone(),
+                    start: entry.config().start,
+                    end: entry.config().end,
+                    operator_id: entry_params(entry).operator_id,
+                })
+                .collect::<Vec<_>>();
+            call.sort_by(|a, b| a.key.cmp(&b.key));
+            self.calls.lock().unwrap().push(call);
+
+            let entries = request
+                .entries
+                .into_iter()
+                .map(|(key, entry)| response_entry(key, entry))
+                .collect::<AnalyzerResult<HashMap<_, _>>>()?;
+
+            Ok(BulkTimelinesResponse { entries })
+        }
+    }
+
+    fn entry_params(entry: &TimelineRequest<TestTimelineParams>) -> &TestTimelineParams {
+        match entry {
+            TimelineRequest::Resource(req) => &req.application,
+            TimelineRequest::ResourceGroup(req) => &req.app_params,
+        }
+    }
+
+    fn response_entry(
+        key: String,
+        entry: TimelineRequest<TestTimelineParams>,
+    ) -> AnalyzerResult<(String, BulkTimelinesResponseEntry)> {
+        let params = entry_params(&entry);
+        if params.series_offset == 999 {
+            return Ok((
+                key,
+                BulkTimelinesResponseEntry::Error {
+                    message: "bad entry".to_string(),
+                },
+            ));
+        }
+
+        let config = entry.config().clone().try_into_binned_span(0)?;
+        let config_secs = config.try_to_secs_relative(0)?;
+        let values = (0..config.num_bins.get())
+            .map(|idx| {
+                let bin = config.bin(idx).unwrap();
+                to_secs_relative(bin.start(), 0) + params.series_offset as f64
+            })
+            .collect::<Vec<_>>();
+        let long_fsms = params
+            .operator_id
+            .map(|id| FiniteStateMachine {
+                id,
+                type_name: "task".to_string(),
+                instance_name: format!("operator-{id}"),
+                transitions: vec![
+                    FsmTransition {
+                        name: "start".to_string(),
+                        usages: vec![],
+                        timestamp: config_secs.span.start(),
+                    },
+                    FsmTransition {
+                        name: "end".to_string(),
+                        usages: vec![],
+                        timestamp: config_secs.span.end(),
+                    },
+                ],
+            })
+            .into_iter()
+            .collect();
+        let data = ResourceTimeline::Binned(ResourceTimelineBinned {
+            config: config_secs,
+            capacities_values: HashMap::from([("capacity".to_string(), values)]),
+            long_fsms,
+        });
+
+        Ok((
+            key,
+            BulkTimelinesResponseEntry::Ok {
+                message: String::new(),
+                config: config_secs,
+                data,
+            },
+        ))
+    }
+
+    fn request(
+        entries: Vec<(&str, f64, f64, u32, Option<Uuid>)>,
+    ) -> BulkTimelineRequest<TestGlobalParams, TestTimelineParams> {
+        BulkTimelineRequest {
+            entries: entries
+                .into_iter()
+                .map(|(key, start, end, series_offset, operator_id)| {
+                    (
+                        key.to_string(),
+                        TimelineRequest::Resource(ResourceTimelineRequest {
+                            resource_id: Uuid::from_u128(2),
+                            long_entities_threshold_s: Some(0.0),
+                            entity_filter: EntityFilter {
+                                entity_type_name: None,
+                            },
+                            application: TestTimelineParams {
+                                operator_id,
+                                series_offset,
+                            },
+                            config: TimelineConfig {
+                                num_bins: 4,
+                                start,
+                                end,
+                            },
+                        }),
+                    )
+                })
+                .collect(),
+            app_params: TestGlobalParams {
+                query_id: Uuid::from_u128(3),
+            },
+        }
+    }
+
+    fn values(response: &BulkTimelinesResponse, key: &str) -> Vec<f64> {
+        match response.entries.get(key).unwrap() {
+            BulkTimelinesResponseEntry::Ok {
+                data: ResourceTimeline::Binned(data),
+                ..
+            } => data.capacities_values["capacity"].clone(),
+            _ => panic!("expected binned ok response"),
+        }
+    }
+
+    fn response_span(response: &BulkTimelinesResponse, key: &str) -> (f64, f64) {
+        match response.entries.get(key).unwrap() {
+            BulkTimelinesResponseEntry::Ok { config, .. } => {
+                (config.span.start(), config.span.end())
+            }
+            _ => panic!("expected ok response"),
+        }
+    }
+
+    fn fsm_ids(response: &BulkTimelinesResponse, key: &str) -> Vec<Uuid> {
+        match response.entries.get(key).unwrap() {
+            BulkTimelinesResponseEntry::Ok {
+                data: ResourceTimeline::Binned(data),
+                ..
+            } => data.long_fsms.iter().map(|fsm| fsm.id).collect(),
+            _ => panic!("expected binned ok response"),
+        }
+    }
+
+    fn assert_error(response: &BulkTimelinesResponse, key: &str) {
+        assert!(
+            matches!(
+                response.entries.get(key),
+                Some(BulkTimelinesResponseEntry::Error { .. })
+            ),
+            "expected error entry for {key}, got {:?}",
+            response.entries
+        );
+    }
+
+    fn assert_close(actual: &[f64], expected: &[f64]) {
+        assert_eq!(actual.len(), expected.len());
+        for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+            assert!(
+                (actual - expected).abs() < 1e-9,
+                "value at index {idx} differs: actual={actual}, expected={expected}"
+            );
+        }
+    }
+
+    fn block_on<F: std::future::Future>(future: F) -> F::Output {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .build()
+            .unwrap()
+            .block_on(future)
+    }
+
+    #[test]
+    fn cold_bulk_fetches_canonical_chunks_not_original_viewport() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+
+            let response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 30.0, 80.0, 0, None)]),
+                )
+                .await
+                .unwrap();
+
+            let spans = analyzer
+                .call_entries()
+                .into_iter()
+                .map(|call| (call.start, call.end))
+                .collect::<Vec<_>>();
+            assert_eq!(spans, vec![(25.0, 50.0), (50.0, 75.0), (75.0, 100.0)]);
+            assert_close(
+                &values(&response, "a"),
+                &[25.0, 31.25, 37.5, 43.75, 50.0, 56.25, 62.5, 68.75, 75.0],
+            );
+            assert_close(
+                &[
+                    response_span(&response, "a").0,
+                    response_span(&response, "a").1,
+                ],
+                &[25.0, 81.25],
+            );
+        });
+    }
+
+    #[test]
+    fn panned_bulk_view_reuses_overlapping_cached_chunks() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+
+            cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 25.0, 75.0, 0, None)]),
+                )
+                .await
+                .unwrap();
+            let response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 30.0, 80.0, 0, None)]),
+                )
+                .await
+                .unwrap();
+
+            let spans = analyzer
+                .call_entries()
+                .into_iter()
+                .map(|call| (call.start, call.end))
+                .collect::<Vec<_>>();
+            assert_eq!(spans, vec![(25.0, 50.0), (50.0, 75.0), (75.0, 100.0)]);
+            assert_close(
+                &values(&response, "a"),
+                &[25.0, 31.25, 37.5, 43.75, 50.0, 56.25, 62.5, 68.75, 75.0],
+            );
+        });
+    }
+
+    #[test]
+    fn partial_bulk_entry_miss_fetches_only_new_entry_for_cached_chunks() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+
+            cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![
+                        ("a", 25.0, 75.0, 0, None),
+                        ("b", 25.0, 75.0, 100, None),
+                    ]),
+                )
+                .await
+                .unwrap();
+            let response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![
+                        ("a", 25.0, 75.0, 0, None),
+                        ("b", 25.0, 75.0, 100, None),
+                        ("c", 25.0, 75.0, 200, None),
+                    ]),
+                )
+                .await
+                .unwrap();
+
+            let calls = analyzer.call_keys_by_call();
+            assert_eq!(
+                calls
+                    .iter()
+                    .filter(|keys| keys.as_slice() == ["a", "b"])
+                    .count(),
+                2
+            );
+            assert_eq!(
+                calls.iter().filter(|keys| keys.as_slice() == ["c"]).count(),
+                2
+            );
+            assert_close(
+                &values(&response, "c"),
+                &[225.0, 231.25, 237.5, 243.75, 250.0, 256.25, 262.5, 268.75],
+            );
+        });
+    }
+
+    #[test]
+    fn operator_filter_is_part_of_chunk_cache_key() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+            let first_operator = Uuid::from_u128(6);
+            let second_operator = Uuid::from_u128(7);
+
+            cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 25.0, 75.0, 0, Some(first_operator))]),
+                )
+                .await
+                .unwrap();
+            let response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 25.0, 75.0, 0, Some(second_operator))]),
+                )
+                .await
+                .unwrap();
+
+            let operator_ids = analyzer
+                .call_entries()
+                .into_iter()
+                .map(|call| call.operator_id)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                operator_ids
+                    .iter()
+                    .filter(|id| **id == Some(first_operator))
+                    .count(),
+                2
+            );
+            assert_eq!(
+                operator_ids
+                    .iter()
+                    .filter(|id| **id == Some(second_operator))
+                    .count(),
+                2
+            );
+            assert_eq!(fsm_ids(&response, "a"), vec![second_operator]);
+        });
+    }
+
+    #[test]
+    fn bulk_entry_errors_are_not_dropped_on_cold_or_partial_miss() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+
+            let cold_response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("bad", 25.0, 75.0, 999, None)]),
+                )
+                .await
+                .unwrap();
+            assert_error(&cold_response, "bad");
+
+            cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 25.0, 75.0, 0, None)]),
+                )
+                .await
+                .unwrap();
+            let partial_response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![
+                        ("a", 25.0, 75.0, 0, None),
+                        ("bad", 25.0, 75.0, 999, None),
+                    ]),
+                )
+                .await
+                .unwrap();
+            assert_error(&partial_response, "bad");
+            assert_close(
+                &values(&partial_response, "a"),
+                &[25.0, 31.25, 37.5, 43.75, 50.0, 56.25, 62.5, 68.75],
+            );
+        });
+    }
 }
