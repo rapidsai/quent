@@ -13,7 +13,10 @@ use quent_analyzer::Span;
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan, to_nanosecs, to_secs_relative};
 use quent_ui::timeline::{
-    request::{BulkTimelineRequest, SingleTimelineRequest, TimelineConfig, TimelineRequest},
+    request::{
+        BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest, TimelineConfig,
+        TimelineRequest,
+    },
     response::{
         BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
         ResourceTimelineBinned, ResourceTimelineBinnedByState, SingleTimelineResponse,
@@ -105,7 +108,6 @@ struct CacheCheckResult {
     entry_chunks: HashMap<String, Vec<SingleTimelineResponse>>,
     /// Entry keys that missed, grouped by chunk index.
     chunk_misses: HashMap<u64, Vec<String>>,
-    any_cache_hit: bool,
     hit_count: u64,
     miss_count: u64,
 }
@@ -187,12 +189,6 @@ impl TimelineCache {
             "bulk timeline cache check"
         );
 
-        if !cache_result.any_cache_hit {
-            return self
-                .cold_fetch_and_cache(Arc::clone(&analyzer), request, &ctx)
-                .await;
-        }
-
         let CacheCheckResult {
             mut entry_chunks,
             chunk_misses,
@@ -201,7 +197,7 @@ impl TimelineCache {
 
         if !chunk_misses.is_empty() {
             let mut error_entries = HashMap::new();
-            self.partial_fetch_and_cache(
+            self.fetch_missing_chunks(
                 Arc::clone(&analyzer),
                 &request.entries,
                 &request.app_params,
@@ -224,7 +220,6 @@ impl TimelineCache {
     async fn check_cache(&self, ctx: &CacheRequestContext<'_>) -> CacheCheckResult {
         let mut entry_chunks: HashMap<String, Vec<SingleTimelineResponse>> = HashMap::new();
         let mut chunk_misses: HashMap<u64, Vec<String>> = HashMap::new();
-        let mut any_cache_hit = false;
         let mut hit_count = 0u64;
         let mut miss_count = 0u64;
 
@@ -239,7 +234,6 @@ impl TimelineCache {
                 };
 
                 if let Some(cached) = self.chunks.get(&cache_key).await {
-                    any_cache_hit = true;
                     hit_count += 1;
                     entry_chunks.entry(key.clone()).or_default().push(cached);
                 } else {
@@ -252,58 +246,15 @@ impl TimelineCache {
         CacheCheckResult {
             entry_chunks,
             chunk_misses,
-            any_cache_hit,
             hit_count,
             miss_count,
         }
     }
 
-    /// Cold-cache path: fetch canonical chunks for all entries, then assemble the requested view.
-    async fn cold_fetch_and_cache<A>(
-        &self,
-        analyzer: Arc<A>,
-        request: BulkTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
-        ctx: &CacheRequestContext<'_>,
-    ) -> ServerResult<BulkTimelinesResponse>
-    where
-        A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Clone + Send + 'static,
-        <A as UiAnalyzer>::TimelineParams: Clone + Send + 'static,
-    {
-        debug!(
-            n_entries = request.entries.len(),
-            zoom_level = ctx.geometry.zoom_level,
-            "bulk timeline cold cache: fetching canonical chunks"
-        );
-
-        let chunk_misses: HashMap<u64, Vec<String>> = (ctx.geometry.first_chunk
-            ..=ctx.geometry.last_chunk)
-            .map(|chunk_idx| (chunk_idx, request.entries.keys().cloned().collect()))
-            .collect();
-        let mut entry_chunks = HashMap::new();
-        let mut error_entries = HashMap::new();
-
-        self.partial_fetch_and_cache(
-            analyzer,
-            &request.entries,
-            &request.app_params,
-            &chunk_misses,
-            ctx,
-            &mut entry_chunks,
-            &mut error_entries,
-        )
-        .await?;
-
-        let mut response = assemble_bulk_response(entry_chunks, &request.entries, ctx.geometry)?;
-        response.entries.extend(error_entries);
-        Ok(response)
-    }
-
-    /// Partial-hit path: fetch only the (entry, chunk) pairs that missed the cache.
-    async fn partial_fetch_and_cache<A>(
+    /// Fetch every (entry, chunk) pair flagged as a miss, in a single chunked
+    /// analyzer call. Caches the canonical chunks and accumulates per-entry
+    /// chunk responses; per-entry errors land in `error_entries`.
+    async fn fetch_missing_chunks<A>(
         &self,
         analyzer: Arc<A>,
         entries: &HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>>,
@@ -318,49 +269,81 @@ impl TimelineCache {
         <A as UiAnalyzer>::TimelineGlobalParams: Clone + Send + 'static,
         <A as UiAnalyzer>::TimelineParams: Clone + Send + 'static,
     {
-        let n_miss_entries: usize = chunk_misses.values().map(|v| v.len()).sum();
+        // Union of missed chunk indices, sorted for stable response slot ordering.
+        let mut miss_chunk_indices: Vec<u64> = chunk_misses.keys().copied().collect();
+        miss_chunk_indices.sort();
+        if miss_chunk_indices.is_empty() {
+            return Ok(());
+        }
+
+        // Set of (entry_key, chunk_idx) pairs that actually missed. Used to
+        // discard responses for pairs the analyzer recomputed redundantly when
+        // entries have non-uniform miss patterns (rare).
+        let miss_pairs: std::collections::HashSet<(String, u64)> = chunk_misses
+            .iter()
+            .flat_map(|(chunk_idx, keys)| keys.iter().map(move |k| (k.clone(), *chunk_idx)))
+            .collect();
+
+        // Union of entries that missed any chunk.
+        let mut miss_entry_keys: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for keys in chunk_misses.values() {
+            for k in keys {
+                miss_entry_keys.insert(k.clone());
+            }
+        }
+
         debug!(
-            n_miss_chunks = chunk_misses.len(),
-            n_miss_entries,
+            n_miss_chunks = miss_chunk_indices.len(),
+            n_miss_entries = miss_entry_keys.len(),
             zoom_level = ctx.geometry.zoom_level,
-            "bulk timeline partial cache: fetching missing chunks"
+            "bulk timeline: fetching missing chunks"
         );
 
-        for (chunk_idx, miss_keys) in chunk_misses {
-            let chunk_start = ctx.geometry.epoch + chunk_idx * ctx.geometry.chunk_duration;
-            let chunk_end = if *chunk_idx == ctx.geometry.zoom_level - 1 {
-                ctx.geometry.engine_end
-            } else {
-                ctx.geometry.epoch + (chunk_idx + 1) * ctx.geometry.chunk_duration
-            };
-            let timeline_config = TimelineConfig {
-                num_bins: ctx.geometry.num_bins,
-                start: to_secs_relative(chunk_start, ctx.geometry.epoch),
-                end: to_secs_relative(chunk_end, ctx.geometry.epoch),
-            };
-
-            let chunk_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
-                miss_keys
-                    .iter()
-                    .map(|key| {
-                        (
-                            key.clone(),
-                            entries[key].clone().with_config(timeline_config.clone()),
-                        )
-                    })
-                    .collect();
-
-            let a = Arc::clone(&analyzer);
-            let app_params_clone = app_params.clone();
-            let response = tokio::task::spawn_blocking(move || {
-                a.bulk_resource_timeline(BulkTimelineRequest {
-                    entries: chunk_entries,
-                    app_params: app_params_clone,
-                })
+        // Build canonical chunk configs aligned with `miss_chunk_indices`.
+        let configs: Vec<TimelineConfig> = miss_chunk_indices
+            .iter()
+            .map(|&chunk_idx| {
+                let chunk_start = ctx.geometry.epoch + chunk_idx * ctx.geometry.chunk_duration;
+                let chunk_end = if chunk_idx == ctx.geometry.zoom_level - 1 {
+                    ctx.geometry.engine_end
+                } else {
+                    ctx.geometry.epoch + (chunk_idx + 1) * ctx.geometry.chunk_duration
+                };
+                TimelineConfig {
+                    num_bins: ctx.geometry.num_bins,
+                    start: to_secs_relative(chunk_start, ctx.geometry.epoch),
+                    end: to_secs_relative(chunk_end, ctx.geometry.epoch),
+                }
             })
-            .await??;
+            .collect();
 
-            for (key, entry_resp) in response.entries {
+        let chunked_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
+            miss_entry_keys
+                .iter()
+                .map(|k| (k.clone(), entries[k].clone()))
+                .collect();
+
+        let a = Arc::clone(&analyzer);
+        let app_params_clone = app_params.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            a.bulk_chunked_resource_timeline(BulkChunkedTimelineRequest {
+                entries: chunked_entries,
+                configs,
+                app_params: app_params_clone,
+            })
+        })
+        .await??;
+
+        for (key, per_chunk) in response.entries {
+            for (slot_idx, entry_resp) in per_chunk.into_iter().enumerate() {
+                let chunk_idx = miss_chunk_indices[slot_idx];
+                // Skip slots that weren't actually a miss for this entry —
+                // mixed miss patterns can lead the analyzer to recompute pairs
+                // we already have cached. Don't double-push or overwrite.
+                if !miss_pairs.contains(&(key.clone(), chunk_idx)) {
+                    continue;
+                }
                 match entry_resp {
                     BulkTimelinesResponseEntry::Ok { config, data, .. } => {
                         let single = SingleTimelineResponse { config, data };
@@ -368,14 +351,17 @@ impl TimelineCache {
                             engine_id: ctx.engine_id,
                             params_hash: ctx.entry_hashes[&key],
                             zoom_level: ctx.geometry.zoom_level,
-                            chunk_idx: *chunk_idx,
+                            chunk_idx,
                             num_bins: ctx.geometry.num_bins,
                         };
                         self.chunks.insert(cache_key, single.clone()).await;
-                        entry_chunks.entry(key).or_default().push(single);
+                        entry_chunks.entry(key.clone()).or_default().push(single);
                     }
                     BulkTimelinesResponseEntry::Error { message } => {
-                        error_entries.insert(key, BulkTimelinesResponseEntry::Error { message });
+                        error_entries.insert(
+                            key.clone(),
+                            BulkTimelinesResponseEntry::Error { message },
+                        );
                     }
                 }
             }
