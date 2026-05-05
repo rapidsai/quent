@@ -9,9 +9,12 @@ use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
     quantity::QuantitySpec,
     timeline::{
-        request::{BulkTimelineRequest, EntityFilter, SingleTimelineRequest, TimelineRequest},
+        request::{
+            BulkChunkedTimelineRequest, BulkTimelineRequest, EntityFilter, SingleTimelineRequest,
+            TimelineRequest,
+        },
         response::{
-            BulkTimelinesResponse, BulkTimelinesResponseEntry,
+            BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
             ResourceTimeline as UiResourceTimeline, ResourceTimelineBinned,
             ResourceTimelineBinnedByState, SingleTimelineResponse,
         },
@@ -511,6 +514,197 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         }
 
         Ok(BulkTimelinesResponse { entries })
+    }
+
+    fn bulk_chunked_resource_timeline(
+        &self,
+        request: BulkChunkedTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+    ) -> AnalyzerResult<BulkChunkedTimelinesResponse> {
+        let epoch = self
+            .query_engine_model()
+            .query_epoch(request.app_params.query_id)?;
+        let view = self.model.query_view(request.app_params.query_id)?;
+        let resource_tree = view.resource_tree()?;
+
+        let n_configs = request.configs.len();
+
+        // One slot per (entry, config_idx). Builder tuples carry their entry_id
+        // and config_idx so finalize can reassemble the per-entry Vec in order.
+        let mut plain_builders: Vec<(
+            String,
+            usize,
+            ResourceTimelineBuilder,
+            HashSet<Uuid>,
+            TaskFilter,
+        )> = Vec::with_capacity(request.entries.len() * n_configs);
+        let mut per_state_builders: Vec<(
+            String,
+            usize,
+            ResourceTimelineByKeyBuilder<&str>,
+            HashSet<Uuid>,
+            TaskFilter,
+        )> = Vec::with_capacity(request.entries.len() * n_configs);
+
+        // Per-entry prep happens once; per-config builders share the prep's
+        // resource_id_filter, entity_filter, task_filter, and threshold.
+        for (entry_id, entry) in &request.entries {
+            let BulkEntryPrep {
+                resource_type,
+                resource_id_filter,
+                entity_filter,
+                task_filter,
+                long_entities_threshold,
+            } = self.try_prepare_bulk_entry(entry.clone(), &resource_tree)?;
+
+            for (config_idx, config) in request.configs.iter().enumerate() {
+                let entry_config = config.clone().try_into_binned_span(epoch)?;
+                if entity_filter.entity_type_name.is_some() {
+                    per_state_builders.push((
+                        entry_id.clone(),
+                        config_idx,
+                        ResourceTimelineByKeyBuilder::try_new(
+                            resource_type,
+                            entry_config,
+                            long_entities_threshold,
+                        )?,
+                        resource_id_filter.clone(),
+                        task_filter.clone(),
+                    ));
+                } else {
+                    plain_builders.push((
+                        entry_id.clone(),
+                        config_idx,
+                        ResourceTimelineBuilder::try_new(
+                            resource_type,
+                            entry_config,
+                            long_entities_threshold,
+                        )?,
+                        resource_id_filter.clone(),
+                        task_filter.clone(),
+                    ));
+                }
+            }
+        }
+
+        // Reverse index: resource_id -> all builder indices that care about it.
+        let plain_index: HashMap<Uuid, Vec<usize>> = plain_builders
+            .iter()
+            .enumerate()
+            .flat_map(|(builder_idx, builder)| {
+                builder
+                    .3
+                    .iter()
+                    .map(move |&resource_id| (resource_id, builder_idx))
+            })
+            .fold(
+                HashMap::default(),
+                |mut acc, (resource_id, builder_idx)| {
+                    acc.entry(resource_id).or_default().push(builder_idx);
+                    acc
+                },
+            );
+        let per_state_index: HashMap<Uuid, Vec<usize>> = per_state_builders
+            .iter()
+            .enumerate()
+            .flat_map(|(builder_idx, builder)| {
+                builder
+                    .3
+                    .iter()
+                    .map(move |&resource_id| (resource_id, builder_idx))
+            })
+            .fold(
+                HashMap::default(),
+                |mut acc, (resource_id, builder_idx)| {
+                    acc.entry(resource_id).or_default().push(builder_idx);
+                    acc
+                },
+            );
+
+        // Single pass over all tasks/usages — the dominant cost — dispatched to
+        // every matching (entry, config) builder. Builders filter by their own
+        // span internally, so out-of-window usages are no-ops.
+        for task in self.model.tasks.values() {
+            let task_operator_id = task.operator_id();
+            for usage in task.usages() {
+                let resource_id = usage.resource_id();
+                if let Some(builder_indices) = plain_index.get(&resource_id) {
+                    for &builder_idx in builder_indices {
+                        let builder = &plain_builders[builder_idx];
+                        if builder
+                            .4
+                            .operator_id
+                            .is_none_or(|op| task_operator_id == Some(op))
+                        {
+                            plain_builders[builder_idx].2.try_push(&usage)?;
+                        }
+                    }
+                }
+            }
+            for (state_name, usage) in task.usages_with_state_names() {
+                let resource_id = usage.resource_id();
+                if let Some(builder_indices) = per_state_index.get(&resource_id) {
+                    for &builder_idx in builder_indices {
+                        let builder = &per_state_builders[builder_idx];
+                        if builder
+                            .4
+                            .operator_id
+                            .is_none_or(|op| task_operator_id == Some(op))
+                        {
+                            per_state_builders[builder_idx]
+                                .2
+                                .try_push(state_name, &usage)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reassemble per-entry Vec aligned with `request.configs` order. Slots
+        // start as `None` and must all be filled by the end — every (entry,
+        // config_idx) had a builder, and every builder produces an `Ok`.
+        let mut slots: HashMap<String, Vec<Option<BulkTimelinesResponseEntry>>> = request
+            .entries
+            .keys()
+            .map(|k| (k.clone(), (0..n_configs).map(|_| None).collect()))
+            .collect();
+
+        for (entry_id, config_idx, builder, _, _) in plain_builders {
+            let built = builder.build();
+            let config = built.config.try_to_secs_relative(epoch)?;
+            let resp = BulkTimelinesResponseEntry::Ok {
+                message: String::new(),
+                config,
+                data: self.timeline_to_ui(built, epoch)?,
+            };
+            slots.get_mut(&entry_id).unwrap()[config_idx] = Some(resp);
+        }
+        for (entry_id, config_idx, builder, _, _) in per_state_builders {
+            let built = builder.build();
+            let config = built.config.try_to_secs_relative(epoch)?;
+            let resp = BulkTimelinesResponseEntry::Ok {
+                message: String::new(),
+                config,
+                data: self.timeline_to_ui_keyed(built, epoch)?,
+            };
+            slots.get_mut(&entry_id).unwrap()[config_idx] = Some(resp);
+        }
+
+        let entries = slots
+            .into_iter()
+            .map(|(k, v)| {
+                let v = v
+                    .into_iter()
+                    .map(|opt| {
+                        opt.ok_or(AnalyzerError::BrokenImpl(
+                            "chunked bulk: missing builder slot",
+                        ))
+                    })
+                    .collect::<AnalyzerResult<Vec<_>>>()?;
+                Ok((k, v))
+            })
+            .collect::<AnalyzerResult<std::collections::HashMap<_, _>>>()?;
+
+        Ok(BulkChunkedTimelinesResponse { entries })
     }
 }
 
