@@ -126,3 +126,24 @@ pub struct BulkTimelineRequest<GlobalParams, TimelineParams> {
     /// Global application-specific parameters, e.g. filters.
     pub app_params: GlobalParams,
 }
+
+/// Bulk request that asks for multiple time windows per entry in a single
+/// analyzer call.
+///
+/// The embedded `config` on each `TimelineRequest` is ignored here — the
+/// actual time windows come from the top-level `configs` vector and apply to
+/// every entry. This shape exists to amortize expensive per-call setup
+/// (e.g. iterating every task in the model) across multiple windows; see
+/// `UiAnalyzer::bulk_chunked_resource_timeline`.
+///
+/// Server-internal type — never crosses the HTTP boundary, so no `TS` or
+/// `Deserialize`.
+#[derive(Debug, Clone)]
+pub struct BulkChunkedTimelineRequest<GlobalParams, TimelineParams> {
+    /// Identity of each timeline entry. The embedded `config` is ignored.
+    pub entries: HashMap<String, TimelineRequest<TimelineParams>>,
+    /// Time windows to evaluate for every entry, in order.
+    pub configs: Vec<TimelineConfig>,
+    /// Global application-specific parameters, e.g. filters.
+    pub app_params: GlobalParams,
+}

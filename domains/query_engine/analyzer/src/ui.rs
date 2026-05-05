@@ -1,12 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
 use quent_query_engine_ui as ui;
 use quent_ui::timeline::{
-    request::{BulkTimelineRequest, SingleTimelineRequest},
-    response::{BulkTimelinesResponse, SingleTimelineResponse},
+    request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
+    response::{
+        BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
+        SingleTimelineResponse,
+    },
 };
 use uuid::Uuid;
 
@@ -65,4 +70,48 @@ pub trait UiAnalyzer {
         &self,
         request: BulkTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
     ) -> AnalyzerResult<BulkTimelinesResponse>;
+
+    /// Return chunked bulk timelines: multiple time windows per entry.
+    ///
+    /// The default implementation falls back to one `bulk_resource_timeline`
+    /// call per config — correct, but pays the per-call setup cost N times.
+    /// Implementors should override this to amortize expensive per-call work
+    /// (e.g. iterating every task in the model) across all configs in a
+    /// single pass.
+    fn bulk_chunked_resource_timeline(
+        &self,
+        request: BulkChunkedTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+    ) -> AnalyzerResult<BulkChunkedTimelinesResponse>
+    where
+        Self::TimelineGlobalParams: Clone,
+        Self::TimelineParams: Clone,
+    {
+        let mut entries: HashMap<String, Vec<BulkTimelinesResponseEntry>> = request
+            .entries
+            .keys()
+            .map(|k| (k.clone(), Vec::with_capacity(request.configs.len())))
+            .collect();
+
+        for config in &request.configs {
+            let inner_entries = request
+                .entries
+                .iter()
+                .map(|(k, e)| (k.clone(), e.clone().with_config(config.clone())))
+                .collect();
+            let mut response = self.bulk_resource_timeline(BulkTimelineRequest {
+                entries: inner_entries,
+                app_params: request.app_params.clone(),
+            })?;
+            for (k, slot) in entries.iter_mut() {
+                let entry = response.entries.remove(k.as_str()).unwrap_or_else(|| {
+                    BulkTimelinesResponseEntry::Error {
+                        message: format!("missing entry '{k}' in chunked fallback"),
+                    }
+                });
+                slot.push(entry);
+            }
+        }
+
+        Ok(BulkChunkedTimelinesResponse { entries })
+    }
 }
