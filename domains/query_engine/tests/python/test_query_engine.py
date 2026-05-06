@@ -10,14 +10,33 @@ def main() -> None:
     output_dir = Path(__file__).resolve().parent / "events"
 
     engine_id = quent.now_v7()
+    other_id = quent.now_v7()
+    assert engine_id == engine_id
+    assert engine_id != other_id
+    assert engine_id != object()
+    try:
+        engine_id < other_id
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("Uuid ordering should not be supported")
+    try:
+        engine_id < object()
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("Uuid ordering against arbitrary objects should not be supported")
+
     context = quent.Context(engine_id, "ndjson", str(output_dir))
 
-    engine_attrs = quent.CustomAttributes()
-    engine_attrs.add_string("deployment", "test")
-    engine_attrs.add_u64("slots", 8)
-    engine_attrs.add_i64("max_memory_mb", 4096)
-    engine_attrs.add_f64("scale", 1.0)
-    engine_attrs.add_bool("debug", True)
+    engine_attrs = {
+        "deployment": "test",
+        "slots": 8,
+        "max_memory_mb": 4096,
+        "scale": 1.0,
+        "debug": True,
+        "default": None,
+    }
 
     engine = context.engine_observer().create(engine_id)
     assert context.id == engine_id

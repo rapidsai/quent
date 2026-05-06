@@ -24,7 +24,7 @@ fn generate_readme_pyo3_bridge() {
     assert!(file.content.contains("pub struct PyUuid"));
     assert!(file.content.contains("pub fn now_v7() -> PyUuid"));
     assert!(file.content.contains("pub struct PyContext"));
-    assert!(file.content.contains("pub struct PyCustomAttributes"));
+    assert!(!file.content.contains("PyCustomAttributes"));
     assert!(file.content.contains("pub struct PyWorkerObserver"));
     assert!(file.content.contains("pub struct PyFileStatsHandle"));
     assert!(file.content.contains("pub struct PyTaskHandle"));
@@ -32,13 +32,16 @@ fn generate_readme_pyo3_bridge() {
     assert!(!file.content.contains("pub fn worker_declaration"));
     assert!(
         file.content
-            .contains("pub fn create(&self, id: &Bound<'_, PyAny>)")
+            .contains("pub fn create(&self, id: PyRef<'_, PyUuid>)")
     );
+    assert!(file.content.contains("parent_group_id: PyRef<'_, PyUuid>"));
     assert!(file.content.contains("pub fn checksum("));
     assert!(!file.content.contains("pub fn checksum(&self, id:"));
     assert!(file.content.contains("pub fn queued"));
     assert!(!file.content.contains("self.inner.queued("));
     assert!(file.content.contains("__usage_arg_item"));
+    assert!(file.content.contains("expected dict for custom attributes"));
+    assert!(file.content.contains("value.cast::<PyBool>()"));
     assert!(
         file.content
             .contains("extract::<PyRef<'_, PyQueueHandle>>()")
@@ -47,6 +50,7 @@ fn generate_readme_pyo3_bridge() {
         file.content
             .contains("extract::<PyRef<'_, PyThreadHandle>>()")
     );
+    assert!(!file.content.contains("expected Uuid or Quent handle"));
     assert!(!file.content.contains("__extract_uuid(&resource_obj)"));
 }
 
@@ -65,6 +69,11 @@ fn generate_readme_pyo3_type_stubs() {
     assert_eq!(file.name, "quent_readme.pyi");
     assert!(file.content.contains("class Uuid:"));
     assert!(file.content.contains("def now_v7() -> Uuid"));
+    assert!(!file.content.contains("class CustomAttributes:"));
+    assert!(
+        file.content
+            .contains("_CustomAttributeValue = typing.Union[None, bool, int, float, str]")
+    );
     assert!(file.content.contains("class Context:"));
     assert!(
         file.content
@@ -100,6 +109,11 @@ fn generate_readme_pyo3_type_stubs() {
         file.content
             .contains("typing.Union[QueueHandle, typing.Tuple[QueueHandle, int]]")
     );
+    assert!(
+        file.content
+            .contains("custom: typing.Mapping[str, _CustomAttributeValue]")
+    );
+    assert!(!file.content.contains("typing.Mapping[str, object]"));
     assert!(!file.content.contains("typing.Union[Uuid, QueueHandle"));
 }
 
@@ -119,6 +133,11 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
     assert!(bridge.content.contains("pub struct PyEngineHandle"));
     assert!(bridge.content.contains("pub struct PyOperatorHandle"));
     assert!(bridge.content.contains("pub struct PyQueryHandle"));
+    assert!(
+        bridge
+            .content
+            .contains("worker_id: Option<PyRef<'_, PyUuid>>")
+    );
     assert!(bridge.content.contains("self.inner.init("));
 
     let files = emit_pyo3_stubs(&builder, &options);
@@ -129,6 +148,11 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
         stubs
             .content
             .contains("class EngineImplementationAttributesDict")
+    );
+    assert!(
+        stubs
+            .content
+            .contains("custom_attributes: typing.Mapping[str, _CustomAttributeValue]")
     );
     assert!(stubs.content.contains("class PlanParentDict"));
     assert!(

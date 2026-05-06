@@ -123,6 +123,50 @@ fn emit_pyany_conversion_expr(
     }
 }
 
+fn emit_attr_param_and_binding(
+    name: &syn::Ident,
+    ty: &ValueType,
+    optional: bool,
+    q: &syn::Path,
+    component_mod: &syn::Path,
+) -> (TokenStream, TokenStream) {
+    match (ty, optional) {
+        (ValueType::Uuid, false) => (
+            quote! { #name: PyRef<'_, PyUuid> },
+            quote! {
+                let #name = #name.inner;
+            },
+        ),
+        (ValueType::Uuid, true) => (
+            quote! { #name: Option<PyRef<'_, PyUuid>> },
+            quote! {
+                let #name = #name.map(|value| value.inner);
+            },
+        ),
+        (ValueType::Ref(_), false) => (
+            quote! { #name: PyRef<'_, PyUuid> },
+            quote! {
+                let #name = #q::Ref::new(#name.inner);
+            },
+        ),
+        (ValueType::Ref(_), true) => (
+            quote! { #name: Option<PyRef<'_, PyUuid>> },
+            quote! {
+                let #name = #name.map(|value| #q::Ref::new(value.inner));
+            },
+        ),
+        _ => {
+            let conv = emit_pyany_conversion_expr(ty, optional, quote! { #name }, q, component_mod);
+            (
+                quote! { #name: &Bound<'_, PyAny> },
+                quote! {
+                    let #name = #conv;
+                },
+            )
+        }
+    }
+}
+
 fn emit_pyany_list_conversion_expr(
     inner: &ValueType,
     obj: TokenStream,
@@ -313,17 +357,10 @@ fn emit_state_args(
 
     for attr in &state.attributes {
         let name = format_ident!("{}", attr.name);
-        params.push(quote! { #name: &Bound<'_, PyAny> });
-        let conv = emit_pyany_conversion_expr(
-            &attr.value_type,
-            attr.optional,
-            quote! { #name },
-            q,
-            component_mod,
-        );
-        bindings.push(quote! {
-            let #name = #conv;
-        });
+        let (param, binding) =
+            emit_attr_param_and_binding(&name, &attr.value_type, attr.optional, q, component_mod);
+        params.push(param);
+        bindings.push(binding);
         if attr.name == "instance_name" && attr.value_type == ValueType::String && !attr.optional {
             args.push(quote! { #name.as_str() });
         } else {
@@ -355,43 +392,10 @@ fn emit_state_args(
 fn emit_helpers(q: &syn::Path) -> TokenStream {
     quote! {
         use pyo3::prelude::*;
-        use pyo3::types::{PyAny, PyDict, PyModule, PyTuple};
-
-        #[pyclass(name = "CustomAttributes", skip_from_py_object)]
-        #[derive(Clone, Default)]
-        pub struct PyCustomAttributes {
-            inner: #q::attributes::CustomAttributes,
-        }
-
-        #[pymethods]
-        impl PyCustomAttributes {
-            #[new]
-            pub fn new() -> Self {
-                Self {
-                    inner: #q::attributes::CustomAttributes::new(),
-                }
-            }
-
-            pub fn add_string(&mut self, key: String, value: String) {
-                self.inner.add_string(key, value);
-            }
-
-            pub fn add_u64(&mut self, key: String, value: u64) {
-                self.inner.add_u64(key, value);
-            }
-
-            pub fn add_i64(&mut self, key: String, value: i64) {
-                self.inner.add_i64(key, value);
-            }
-
-            pub fn add_f64(&mut self, key: String, value: f64) {
-                self.inner.add_f64(key, value);
-            }
-
-            pub fn add_bool(&mut self, key: String, value: bool) {
-                self.inner.add_bool(key, value);
-            }
-        }
+        use pyo3::types::{
+            PyAny, PyBool, PyBoolMethods, PyDict, PyFloat, PyFloatMethods, PyInt, PyModule,
+            PyString, PyStringMethods, PyTuple,
+        };
 
         #[pyclass(name = "Uuid", frozen, skip_from_py_object)]
         #[derive(Clone)]
@@ -414,12 +418,19 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
                 other: &Bound<'_, PyAny>,
                 op: pyo3::class::basic::CompareOp,
             ) -> PyResult<bool> {
-                let Ok(other) = other.extract::<PyRef<'_, PyUuid>>() else {
-                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
-                };
                 match op {
-                    pyo3::class::basic::CompareOp::Eq => Ok(self.inner == other.inner),
-                    pyo3::class::basic::CompareOp::Ne => Ok(self.inner != other.inner),
+                    pyo3::class::basic::CompareOp::Eq => {
+                        let Ok(other) = other.extract::<PyRef<'_, PyUuid>>() else {
+                            return Ok(false);
+                        };
+                        Ok(self.inner == other.inner)
+                    }
+                    pyo3::class::basic::CompareOp::Ne => {
+                        let Ok(other) = other.extract::<PyRef<'_, PyUuid>>() else {
+                            return Ok(true);
+                        };
+                        Ok(self.inner != other.inner)
+                    }
                     _ => Err(pyo3::exceptions::PyTypeError::new_err(
                         "Uuid only supports equality comparison",
                     )),
@@ -435,15 +446,8 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
         }
 
         fn __extract_uuid(obj: &Bound<'_, PyAny>) -> PyResult<#q::uuid::Uuid> {
-            if let Ok(value) = obj.extract::<PyRef<'_, PyUuid>>() {
-                return Ok(value.inner);
-            }
-            if let Ok(uuid_attr) = obj.getattr("uuid") {
-                return __extract_uuid(&uuid_attr);
-            }
-            Err(pyo3::exceptions::PyTypeError::new_err(
-                "expected Uuid or Quent handle with a `uuid` attribute",
-            ))
+            Ok(obj.extract::<PyRef<'_, PyUuid>>()
+                .map(|value| value.inner)?)
         }
 
         fn __usage_arg_item<'py>(
@@ -469,34 +473,32 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
         fn __extract_custom_attributes(
             obj: &Bound<'_, PyAny>,
         ) -> PyResult<#q::attributes::CustomAttributes> {
-            if obj.is_none() {
-                return Ok(#q::attributes::CustomAttributes::new());
-            }
-            if let Ok(attrs) = obj.extract::<PyRef<'_, PyCustomAttributes>>() {
-                return Ok(attrs.inner.clone());
-            }
             let dict = obj.cast::<PyDict>().map_err(|_| {
                 pyo3::exceptions::PyTypeError::new_err(
-                    "expected CustomAttributes or a dict for custom attributes",
+                    "expected dict for custom attributes",
                 )
             })?;
             let mut attrs = #q::attributes::CustomAttributes::new();
             for (key, value) in dict.iter() {
-                let key = key.extract::<String>()?;
+                let key = key
+                    .cast::<PyString>()
+                    .map_err(|_| {
+                        pyo3::exceptions::PyTypeError::new_err(
+                            "custom attribute keys must be strings",
+                        )
+                    })?
+                    .to_str()?
+                    .to_owned();
                 if value.is_none() {
                     attrs.add(#q::attributes::Attribute::null(key));
-                } else if let Ok(value) = value.extract::<bool>() {
-                    attrs.add_bool(key, value);
-                } else if let Ok(value) = value.extract::<i64>() {
-                    if value >= 0 {
-                        attrs.add_u64(key, value as u64);
-                    } else {
-                        attrs.add_i64(key, value);
-                    }
-                } else if let Ok(value) = value.extract::<f64>() {
-                    attrs.add_f64(key, value);
-                } else if let Ok(value) = value.extract::<String>() {
-                    attrs.add_string(key, value);
+                } else if let Ok(value) = value.cast::<PyBool>() {
+                    attrs.add_bool(key, value.is_true());
+                } else if let Ok(value) = value.cast::<PyInt>() {
+                    attrs.add_i64(key, value.extract::<i64>()?);
+                } else if let Ok(value) = value.cast::<PyFloat>() {
+                    attrs.add_f64(key, value.value());
+                } else if let Ok(value) = value.cast::<PyString>() {
+                    attrs.add_string(key, value.to_str()?);
                 } else {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "unsupported custom attribute value for `{key}`"
@@ -569,11 +571,11 @@ fn emit_context(
         impl PyContext {
             #[new]
             pub fn new(
-                id: &Bound<'_, PyAny>,
+                id: PyRef<'_, PyUuid>,
                 exporter: Option<String>,
                 output_dir: Option<String>,
             ) -> PyResult<Self> {
-                let id = __extract_uuid(id)?;
+                let id = id.inner;
                 let opts = match exporter.as_deref() {
                     Some("ndjson") => Some(#q::exporter::ExporterOptions::Ndjson(
                         #q::exporter::NdjsonExporterOptions {
@@ -665,28 +667,26 @@ fn emit_entity_bridge(
             let mut params = if multi_event {
                 Vec::new()
             } else {
-                vec![quote! { id: &Bound<'_, PyAny> }]
+                vec![quote! { id: PyRef<'_, PyUuid> }]
             };
             let mut bindings = if multi_event {
                 Vec::new()
             } else {
-                vec![quote! { let id = __extract_uuid(id)?; }]
+                vec![quote! { let id = id.inner; }]
             };
             let mut field_inits = Vec::new();
 
             for attr in &event.attributes {
                 let field = format_ident!("{}", attr.name);
-                params.push(quote! { #field: &Bound<'_, PyAny> });
-                let conv = emit_pyany_conversion_expr(
+                let (param, binding) = emit_attr_param_and_binding(
+                    &field,
                     &attr.value_type,
                     attr.optional,
-                    quote! { #field },
                     q,
                     &component_mod,
                 );
-                bindings.push(quote! {
-                    let #field = #conv;
-                });
+                params.push(param);
+                bindings.push(binding);
                 field_inits.push(quote! { #field });
             }
 
@@ -744,9 +744,9 @@ fn emit_entity_bridge(
 
             #[pymethods]
             impl #observer {
-                pub fn create(&self, id: &Bound<'_, PyAny>) -> PyResult<#handle> {
+                pub fn create(&self, id: PyRef<'_, PyUuid>) -> PyResult<#handle> {
                     Ok(#handle {
-                        id: __extract_uuid(id)?,
+                        id: id.inner,
                         tx: self.tx.clone(),
                     })
                 }
@@ -857,10 +857,10 @@ fn emit_fsm_bridge(
         impl #observer {
             pub fn #entry_method(
                 &self,
-                id: &Bound<'_, PyAny>,
+                id: PyRef<'_, PyUuid>,
                 #(#entry_params,)*
             ) -> PyResult<#handle> {
-                let id = __extract_uuid(id)?;
+                let id = id.inner;
                 #entry_bindings
                 let obs = #component_mod::#observer_name::new(&self.tx);
                 Ok(#handle {
@@ -945,7 +945,6 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
             m.add_function(wrap_pyfunction!(now_v7, m)?)?;
             m.add_function(wrap_pyfunction!(nil_uuid, m)?)?;
             m.add_class::<PyUuid>()?;
-            m.add_class::<PyCustomAttributes>()?;
             m.add_class::<PyContext>()?;
             #(
                 m.add_class::<#observer_classes>()?;
