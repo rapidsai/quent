@@ -580,10 +580,10 @@ fn emit_context(
                             output_dir: output_dir.unwrap_or_else(|| ".".to_string()).into(),
                         },
                     )),
-                    Some("none") | Some("") | None => None,
+                    None => None,
                     Some(other) => {
                         return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "unsupported exporter `{other}` for generated PyO3 bridge; supported values: `ndjson`, `none`"
+                            "unsupported exporter `{other}` for generated PyO3 bridge; supported values: `'ndjson'`, `None`"
                         )));
                     }
                 };
