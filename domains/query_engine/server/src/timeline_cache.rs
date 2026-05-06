@@ -199,8 +199,7 @@ impl TimelineCache {
             let mut error_entries = HashMap::new();
             self.fetch_missing_chunks(
                 Arc::clone(&analyzer),
-                &request.entries,
-                &request.app_params,
+                &request,
                 &chunk_misses,
                 &ctx,
                 &mut entry_chunks,
@@ -257,8 +256,10 @@ impl TimelineCache {
     async fn fetch_missing_chunks<A>(
         &self,
         analyzer: Arc<A>,
-        entries: &HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>>,
-        app_params: &<A as UiAnalyzer>::TimelineGlobalParams,
+        request: &BulkTimelineRequest<
+            <A as UiAnalyzer>::TimelineGlobalParams,
+            <A as UiAnalyzer>::TimelineParams,
+        >,
         chunk_misses: &HashMap<u64, Vec<String>>,
         ctx: &CacheRequestContext<'_>,
         entry_chunks: &mut HashMap<String, Vec<SingleTimelineResponse>>,
@@ -319,11 +320,11 @@ impl TimelineCache {
         let chunked_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
             miss_entry_keys
                 .iter()
-                .map(|k| (k.clone(), entries[k].clone()))
+                .map(|k| (k.clone(), request.entries[k].clone()))
                 .collect();
 
         let a = Arc::clone(&analyzer);
-        let app_params_clone = app_params.clone();
+        let app_params_clone = request.app_params.clone();
         let response = tokio::task::spawn_blocking(move || {
             a.bulk_chunked_resource_timeline(BulkChunkedTimelineRequest {
                 entries: chunked_entries,
