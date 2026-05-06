@@ -53,6 +53,24 @@ pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
 }
 
+/// `(entry_id, config_idx, builder, resource_id_filter, task_filter)` for the
+/// chunked bulk path. Carries the entry and config bookkeeping needed to slot
+/// each builder back into the per-entry response Vec at finalize time.
+type PlainBuilderSlot<'a> = (
+    String,
+    usize,
+    ResourceTimelineBuilder<'a>,
+    HashSet<Uuid>,
+    TaskFilter,
+);
+type PerStateBuilderSlot<'a> = (
+    String,
+    usize,
+    ResourceTimelineByKeyBuilder<'a, &'a str>,
+    HashSet<Uuid>,
+    TaskFilter,
+);
+
 impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
     type EntityRef = EntityRef;
@@ -528,22 +546,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         let n_configs = request.configs.len();
 
-        // Builder tuples carry entry_id + config_idx so finalize can slot them
-        // back into the per-entry Vec in `configs` order.
-        let mut plain_builders: Vec<(
-            String,
-            usize,
-            ResourceTimelineBuilder,
-            HashSet<Uuid>,
-            TaskFilter,
-        )> = Vec::with_capacity(request.entries.len() * n_configs);
-        let mut per_state_builders: Vec<(
-            String,
-            usize,
-            ResourceTimelineByKeyBuilder<&str>,
-            HashSet<Uuid>,
-            TaskFilter,
-        )> = Vec::with_capacity(request.entries.len() * n_configs);
+        let mut plain_builders: Vec<PlainBuilderSlot<'_>> =
+            Vec::with_capacity(request.entries.len() * n_configs);
+        let mut per_state_builders: Vec<PerStateBuilderSlot<'_>> =
+            Vec::with_capacity(request.entries.len() * n_configs);
 
         // Per-entry prep runs once; the builders for that entry's N configs all share it.
         for (entry_id, entry) in &request.entries {
