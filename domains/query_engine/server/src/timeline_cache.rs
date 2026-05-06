@@ -356,10 +356,8 @@ impl TimelineCache {
                         entry_chunks.entry(key.clone()).or_default().push(single);
                     }
                     BulkTimelinesResponseEntry::Error { message } => {
-                        error_entries.insert(
-                            key.clone(),
-                            BulkTimelinesResponseEntry::Error { message },
-                        );
+                        error_entries
+                            .insert(key.clone(), BulkTimelinesResponseEntry::Error { message });
                     }
                 }
             }

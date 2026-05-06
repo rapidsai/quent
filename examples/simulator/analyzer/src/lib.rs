@@ -594,13 +594,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     .iter()
                     .map(move |&resource_id| (resource_id, builder_idx))
             })
-            .fold(
-                HashMap::default(),
-                |mut acc, (resource_id, builder_idx)| {
-                    acc.entry(resource_id).or_default().push(builder_idx);
-                    acc
-                },
-            );
+            .fold(HashMap::default(), |mut acc, (resource_id, builder_idx)| {
+                acc.entry(resource_id).or_default().push(builder_idx);
+                acc
+            });
         let per_state_index: HashMap<Uuid, Vec<usize>> = per_state_builders
             .iter()
             .enumerate()
@@ -610,13 +607,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     .iter()
                     .map(move |&resource_id| (resource_id, builder_idx))
             })
-            .fold(
-                HashMap::default(),
-                |mut acc, (resource_id, builder_idx)| {
-                    acc.entry(resource_id).or_default().push(builder_idx);
-                    acc
-                },
-            );
+            .fold(HashMap::default(), |mut acc, (resource_id, builder_idx)| {
+                acc.entry(resource_id).or_default().push(builder_idx);
+                acc
+            });
 
         // Single pass over all tasks/usages — the dominant cost — dispatched to
         // every matching (entry, config) builder. Builders filter by their own
