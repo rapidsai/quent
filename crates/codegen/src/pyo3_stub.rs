@@ -7,12 +7,8 @@ use std::collections::BTreeMap;
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, UsageDef, ValueType};
 
+use crate::common::{is_auto_declaration_event, resource_operating_attrs, to_pascal_case};
 use crate::{GeneratedFile, PyO3Options};
-
-fn to_pascal_case(s: &str) -> String {
-    use convert_case::{Case, Casing};
-    s.to_case(Case::Pascal)
-}
 
 fn sanitize_py_ident(s: &str) -> String {
     let mut out = String::new();
@@ -98,26 +94,12 @@ fn function_params(params: &[String]) -> String {
     }
 }
 
-fn resource_operating_attrs(model: &ModelBuilder, usage: &UsageDef) -> Vec<AttributeDef> {
-    model
-        .fsms
-        .iter()
-        .find(|fsm| fsm.name == usage.resource_name)
-        .and_then(|fsm| fsm.states.iter().find(|state| state.name == "operating"))
-        .map(|state| state.attributes.clone())
-        .unwrap_or_default()
-}
-
 fn handle_class_name(component_name: &str) -> String {
     format!("{}Handle", to_pascal_case(component_name))
 }
 
 fn observer_class_name(component_name: &str) -> String {
     format!("{}Observer", to_pascal_case(component_name))
-}
-
-fn is_auto_declaration_event(entity_name: &str, event_name: &str) -> bool {
-    event_name == format!("{entity_name}_declaration")
 }
 
 fn usage_type(model: &ModelBuilder, usage: &UsageDef) -> String {

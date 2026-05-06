@@ -17,6 +17,7 @@ use quote::{format_ident, quote};
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, ValueType};
 
+use crate::common::{pretty_print, quent_path, remap_module_path, to_pascal_case};
 use crate::{CxxOptions, GeneratedFile};
 
 /// Recursively check whether any attribute in the list (or nested structs) uses `CustomAttributes`.
@@ -141,33 +142,6 @@ fn cxx_safe_name(name: &str) -> String {
     }
 }
 
-/// Parse the `__quent_{model}` re-export path.
-fn quent_path(model_name: &str, options: &CxxOptions) -> syn::Path {
-    let snake = convert_case::Casing::to_case(&model_name, convert_case::Case::Snake);
-    syn::parse_str(&format!(
-        "{}::__quent_{}",
-        options.instrumentation_crate, snake
-    ))
-    .unwrap()
-}
-
-/// Remap a `module_path!()` value to be relative to the instrumentation crate.
-///
-/// `module_path!()` returns paths like `quent_query_engine_model::engine`.
-/// The bridge accesses types through `quent_qe_cpp_instrumentation::engine`
-/// (via re-exports). This strips the original crate prefix and prepends the
-/// instrumentation crate name.
-fn remap_module_path(module_path: &str, options: &CxxOptions) -> String {
-    // module_path is "crate_name" or "crate_name::sub::module"
-    // Strip the crate name (first segment) and prepend instrumentation_crate
-    if let Some(rest) = module_path.split_once("::").map(|(_, rest)| rest) {
-        format!("{}::{}", options.instrumentation_crate, rest)
-    } else {
-        // Flat model — module_path is just the crate name, no submodules
-        options.instrumentation_crate.clone()
-    }
-}
-
 /// Map a Quent `ValueType` to a CXX-compatible Rust type string.
 /// Returns None if the type is not representable in CXX.
 fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
@@ -206,18 +180,6 @@ fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
     } else {
         Some(base)
     }
-}
-
-/// Convert snake_case to PascalCase.
-fn to_pascal_case(s: &str) -> String {
-    use convert_case::{Case, Casing};
-    s.to_case(Case::Pascal)
-}
-
-/// Format a `TokenStream` into a pretty-printed Rust source string via `prettyplease`.
-fn pretty_print(tokens: TokenStream) -> String {
-    let file = syn::parse2::<syn::File>(tokens).expect("generated tokens must be valid syntax");
-    prettyplease::unparse(&file)
 }
 
 /// Generate CXX bridge files for all model components.

@@ -10,6 +10,8 @@ pub mod cxx_bridge;
 pub mod pyo3_bridge;
 pub mod pyo3_stub;
 
+mod common;
+
 use quent_model::ModelBuilder;
 
 /// Configuration for the CXX bridge backend.
@@ -27,7 +29,7 @@ pub struct CxxOptions {
 impl CxxOptions {
     /// The fully qualified event type path. Requires the model name.
     pub fn event_type(&self, model_name: &str) -> String {
-        format!("{}::{}Event", self.instrumentation_crate, model_name)
+        common::event_type_path(model_name, self)
     }
 }
 
@@ -60,7 +62,7 @@ pub struct PyO3Options {
 impl PyO3Options {
     /// The fully qualified event type path. Requires the model name.
     pub fn event_type(&self, model_name: &str) -> String {
-        format!("{}::{}Event", self.instrumentation_crate, model_name)
+        common::event_type_path(model_name, self)
     }
 }
 

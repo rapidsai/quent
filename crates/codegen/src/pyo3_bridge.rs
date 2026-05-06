@@ -13,38 +13,11 @@ use quote::{format_ident, quote};
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, UsageDef, ValueType};
 
+use crate::common::{
+    is_auto_declaration_event, pretty_print, quent_path, remap_module_path,
+    resource_operating_attrs, to_pascal_case,
+};
 use crate::{GeneratedFile, PyO3Options};
-
-/// Parse the `__quent_{model}` re-export path.
-fn quent_path(model_name: &str, options: &PyO3Options) -> syn::Path {
-    let snake = convert_case::Casing::to_case(&model_name, convert_case::Case::Snake);
-    syn::parse_str(&format!(
-        "{}::__quent_{}",
-        options.instrumentation_crate, snake
-    ))
-    .unwrap()
-}
-
-/// Remap a `module_path!()` value to be relative to the instrumentation crate.
-fn remap_module_path(module_path: &str, options: &PyO3Options) -> String {
-    if let Some(rest) = module_path.split_once("::").map(|(_, rest)| rest) {
-        format!("{}::{}", options.instrumentation_crate, rest)
-    } else {
-        options.instrumentation_crate.clone()
-    }
-}
-
-/// Convert snake_case to PascalCase.
-fn to_pascal_case(s: &str) -> String {
-    use convert_case::{Case, Casing};
-    s.to_case(Case::Pascal)
-}
-
-/// Format a `TokenStream` into a pretty-printed Rust source string via `prettyplease`.
-fn pretty_print(tokens: TokenStream) -> String {
-    let file = syn::parse2::<syn::File>(tokens).expect("generated tokens must be valid syntax");
-    prettyplease::unparse(&file)
-}
 
 fn module_ident(name: &str) -> syn::Ident {
     let mut ident = String::new();
@@ -69,10 +42,6 @@ fn py_class_ident(name: &str) -> syn::Ident {
 
 fn event_enum_ident(component_name: &str) -> syn::Ident {
     format_ident!("{}Event", to_pascal_case(component_name))
-}
-
-fn is_auto_declaration_event(entity_name: &str, event_name: &str) -> bool {
-    event_name == format!("{entity_name}_declaration")
 }
 
 fn type_from_model_path(type_path: &str, component_mod: &syn::Path) -> syn::Type {
@@ -236,16 +205,6 @@ fn emit_pyany_struct_conversion_expr(
             }
         }
     }
-}
-
-fn resource_operating_attrs(model: &ModelBuilder, usage: &UsageDef) -> Vec<AttributeDef> {
-    model
-        .fsms
-        .iter()
-        .find(|fsm| fsm.name == usage.resource_name)
-        .and_then(|fsm| fsm.states.iter().find(|state| state.name == "operating"))
-        .map(|state| state.attributes.clone())
-        .unwrap_or_default()
 }
 
 fn usage_resource_type(usage: &UsageDef, component_mod_str: &str) -> syn::Type {
