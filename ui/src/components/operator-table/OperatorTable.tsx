@@ -4,11 +4,11 @@
 import { useMemo, useCallback } from 'react';
 import {
   QueryToolbar,
-  getOperatorColor,
   PivotedStatTable,
   PivotTableToolbar,
   getSchemaStatNames,
 } from '@quent/components';
+import { getOperationTypeColor } from '@quent/utils';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -79,7 +79,7 @@ const DEFAULT_ENABLED: Record<IndexKey, boolean> = {
 // `useStableRenderer` doc comment in PivotedStatTable.
 const getOperatorGroupTypeColor = (key: string, id: string): string | undefined =>
   key === 'item_type' || key === 'parent_item_type'
-    ? getOperatorColor(id?.toLowerCase() ?? '')
+    ? getOperationTypeColor(id?.toLowerCase() ?? '')
     : undefined;
 
 // Same reasoning: an inline `{ enabled: true, overscan: 12 }` would be a

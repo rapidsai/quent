@@ -24,11 +24,7 @@ import {
   useNodeColoringValue,
   useNodeColorPalette,
 } from '@quent/hooks';
-import { continuousColor, withOpacity } from '@quent/utils';
-import {
-  OPERATION_TYPE_COLORS,
-  DEFAULT_OPERATION_COLOR,
-} from '../services/query-plan/operationTypes';
+import { continuousColor, withOpacity, getOperationTypeColor } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
 import { clipRectByRect } from './utils';
 import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '../timeline/types';
@@ -39,8 +35,8 @@ const BAR_FONT_SIZE = 10;
 const BAR_HEIGHT = 16;
 
 function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
-  const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? 'other';
-  const stroke = OPERATION_TYPE_COLORS[key] ?? DEFAULT_OPERATION_COLOR;
+  const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? '';
+  const stroke = getOperationTypeColor(key);
   return { stroke, fill: withOpacity(stroke, 0.15) };
 }
 

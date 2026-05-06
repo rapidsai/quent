@@ -9,9 +9,9 @@ import {
   PivotedStatTable,
   PivotTableToolbar,
   QuentProvider,
-  getOperatorColor,
   getSchemaStatNames,
 } from '@quent/components';
+import { getOperationTypeColor } from '@quent/utils';
 import type { PivotedStatTableSchema, GroupedDataTableGroupKeyEntry } from '@quent/components';
 import { useStatGroupTableControls } from '@quent/hooks';
 import { frameToOperatorRows, type OperatorRow } from './frameToOperatorRows';
@@ -31,7 +31,7 @@ const EXTRA_GROUP_PREFIX = 'extra:';
 // cell to remount on every hover atom update — see the `useStableRenderer`
 // doc comment in PivotedStatTable.
 const getGroupTypeColor = (key: string, id: string): string | undefined =>
-  key === 'item_type' ? getOperatorColor(id?.toLowerCase() ?? '') : undefined;
+  key === 'item_type' ? getOperationTypeColor(id?.toLowerCase() ?? '') : undefined;
 
 // Virtualization is off in the example: the demo CSVs are small (≤40 rows)
 // and the virtualizer's compact group renderer collapses the row-span

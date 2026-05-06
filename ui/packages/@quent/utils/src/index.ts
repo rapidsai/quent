@@ -12,6 +12,7 @@ export {
   assignColors,
   getColorByIndex,
   getOperationTypeColor,
+  buildOperatorColorMap,
   withOpacity,
   resetColorAssignments,
   darkenColor,

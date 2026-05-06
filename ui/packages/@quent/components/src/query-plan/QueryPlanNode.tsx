@@ -9,6 +9,7 @@ import {
   continuousColor,
   isLightColor,
   withOpacity,
+  getOperationTypeColor,
   WHITE,
   BLACK,
   NODE_LABEL_FIELD,
@@ -25,7 +26,6 @@ import {
 } from '@quent/hooks';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
-import { getOperatorColor } from '../services/query-plan/operationTypes';
 import { DataText } from '../ui/data-text';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
@@ -41,6 +41,8 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    * host theme context.
    */
   isDark?: boolean;
+  /** Pre-computed collision-free color for this operator type within the current DAG. */
+  baseColor?: string;
 }
 
 const nodeVariants = cva(
@@ -117,7 +119,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         ? inferFieldFormatter(colorField!)(colorFieldValue)
         : String(colorFieldValue);
 
-  const baseColor = getOperatorColor(data.operationType);
+  const baseColor = data.baseColor ?? getOperationTypeColor(data.operationType);
   const activeColor = fieldColor ?? baseColor;
   const bgColor =
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);

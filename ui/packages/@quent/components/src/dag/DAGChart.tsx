@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import ELK from 'elkjs';
-import { useCallback, useEffect, useLayoutEffect, useRef, MouseEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, MouseEvent, type RefObject } from 'react';
 import {
   Background,
   EdgeLabelRenderer,
@@ -33,12 +33,11 @@ import {
   useSetDagDisplayedNodeIds,
 } from '@quent/hooks';
 import type { DAGData } from '../services/query-plan/types';
-import { getOperatorColor } from '../services/query-plan/operationTypes';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { continuousColor } from '@quent/utils';
+import { continuousColor, getOperationTypeColor, buildOperatorColorMap } from '@quent/utils';
 import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
 
 const elk = new ELK();
@@ -340,6 +339,11 @@ const FlowLayout = ({
     }
   }, []);
 
+  const operatorColorMap = useMemo(
+    () => buildOperatorColorMap(data.nodes.map(n => n.type)),
+    [data.nodes]
+  );
+
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
     // Determine which nodes have incoming/outgoing edges
@@ -358,6 +362,7 @@ const FlowLayout = ({
           hasIncoming: nodesWithIncoming.has(node.id),
           hasOutgoing: nodesWithOutgoing.has(node.id),
           isDark,
+          baseColor: operatorColorMap.get(node.type.toLowerCase()),
         },
         style: {
           width: 'auto',
@@ -381,7 +386,7 @@ const FlowLayout = ({
     }));
 
     return { flowNodes, flowEdges };
-  }, [data, isDark]);
+  }, [data, isDark, operatorColorMap]);
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
@@ -477,7 +482,8 @@ const FlowLayout = ({
         style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE, background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
         nodeColor={(node: Node<QueryPlanNodeData>) =>
-          getOperatorColor((node.data as QueryPlanNodeData).operationType)
+          (node.data as QueryPlanNodeData).baseColor ??
+          getOperationTypeColor((node.data as QueryPlanNodeData).operationType)
         }
       />
     </ReactFlow>
