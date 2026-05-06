@@ -2,7 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import ELK from 'elkjs';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, MouseEvent, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  MouseEvent,
+  type RefObject,
+} from 'react';
 import {
   Background,
   EdgeLabelRenderer,
