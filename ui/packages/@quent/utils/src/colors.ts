@@ -280,28 +280,38 @@ export function isLightColor(hex: string): boolean {
  * @param operationType - The operation type string (e.g., 'source', 'join', 'aggregate')
  * @returns A CSS color string (Tailwind color name mapped to its standard hex value)
  */
-const OPERATION_TYPE_COLORS: Record<string, string> = {
-  source: '#3b82f6', // blue-500
-  scan: '#3b82f6', // blue-500
-  filesystemscan: '#3b82f6', // blue-500
-  join: '#a855f7', // purple-500
-  joinlocal: '#a855f7', // purple-500
-  joinpartition: '#a855f7', // purple-500
-  aggregate: '#22c55e', // green-500
-  exchange: '#f97316', // orange-500
-  output: '#ef4444', // red-500
-  stage: '#4f46e5', // indigo-600
-  local: '#f59e0b', // amber-500
-  project: '#14b8a6', // teal-500
-  filter: '#06b6d4', // cyan-500
-  sort: '#8b5cf6', // violet-500
-  limit: '#ec4899', // pink-500
-  union: '#10b981', // emerald-500
-  other: '#6b7280', // gray-500
-};
+
+const OPERATOR_PALETTE = [
+  '#3b82f6', // blue-500
+  '#a855f7', // purple-500
+  '#22c55e', // green-500
+  '#f97316', // orange-500
+  '#ef4444', // red-500
+  '#4f46e5', // indigo-600
+  '#f59e0b', // amber-500
+  '#14b8a6', // teal-500
+  '#06b6d4', // cyan-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#10b981', // emerald-500
+];
 
 export function getOperationTypeColor(operationType: string): string {
-  return OPERATION_TYPE_COLORS[operationType.toLowerCase()] ?? OPERATION_TYPE_COLORS.other;
+  const index = hashString(operationType.toLowerCase()) % OPERATOR_PALETTE.length;
+  return OPERATOR_PALETTE[index]!;
+}
+
+export function buildOperatorColorMap(operatorTypes: string[]): Map<string, string> {
+  const sorted = [...new Set(operatorTypes.map(t => t.toLowerCase()))].sort();
+  const used = new Set<number>();
+  const map = new Map<string, string>();
+  for (const type of sorted) {
+    let index = hashString(type) % OPERATOR_PALETTE.length;
+    while (used.has(index)) index = (index + 1) % OPERATOR_PALETTE.length;
+    used.add(index);
+    map.set(type, OPERATOR_PALETTE[index]!);
+  }
+  return map;
 }
 
 // ---------------------------------------------------------------------------
