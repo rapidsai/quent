@@ -7,25 +7,10 @@ use std::collections::BTreeMap;
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, UsageDef, ValueType};
 
-use crate::common::{is_auto_declaration_event, resource_operating_attrs, to_pascal_case};
+use crate::common::{
+    is_auto_declaration_event, py_export_name, resource_operating_attrs, to_pascal_case,
+};
 use crate::{GeneratedFile, PyO3Options};
-
-fn sanitize_py_ident(s: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in s.chars().enumerate() {
-        if (i == 0 && (ch == '_' || ch.is_ascii_alphabetic()))
-            || (i > 0 && (ch == '_' || ch.is_ascii_alphanumeric()))
-        {
-            out.push(ch);
-        } else {
-            out.push('_');
-        }
-    }
-    if out.is_empty() || out.as_bytes()[0].is_ascii_digit() {
-        out.insert(0, '_');
-    }
-    out
-}
 
 fn struct_stub_name(type_path: &str) -> String {
     let last = type_path
@@ -33,7 +18,7 @@ fn struct_stub_name(type_path: &str) -> String {
         .next()
         .unwrap_or(type_path)
         .replace(' ', "");
-    format!("{}Dict", sanitize_py_ident(&to_pascal_case(&last)))
+    py_export_name(&format!("{}Dict", to_pascal_case(&last)))
 }
 
 fn py_type(ty: &ValueType, optional: bool) -> String {
@@ -93,11 +78,11 @@ fn function_params(params: &[String]) -> String {
 }
 
 fn handle_class_name(component_name: &str) -> String {
-    format!("{}Handle", to_pascal_case(component_name))
+    py_export_name(&format!("{}Handle", to_pascal_case(component_name)))
 }
 
 fn observer_class_name(component_name: &str) -> String {
-    format!("{}Observer", to_pascal_case(component_name))
+    py_export_name(&format!("{}Observer", to_pascal_case(component_name)))
 }
 
 fn usage_type(model: &ModelBuilder, usage: &UsageDef) -> String {
@@ -122,7 +107,7 @@ fn state_params(model: &ModelBuilder, state: &StateDef) -> Vec<String> {
         .map(|attr| {
             format!(
                 "{}: {}",
-                sanitize_py_ident(&attr.name),
+                py_export_name(&attr.name),
                 py_type(&attr.value_type, attr.optional)
             )
         })
@@ -130,7 +115,7 @@ fn state_params(model: &ModelBuilder, state: &StateDef) -> Vec<String> {
     params.extend(state.usages.iter().map(|usage| {
         format!(
             "{}: {}",
-            sanitize_py_ident(&usage.field_name),
+            py_export_name(&usage.field_name),
             usage_type(model, usage)
         )
     }));
@@ -158,7 +143,7 @@ fn emit_struct_definitions(model: &ModelBuilder, out: &mut String) {
             for attr in attrs {
                 out.push_str(&format!(
                     "    {}: {}\n",
-                    sanitize_py_ident(&attr.name),
+                    py_export_name(&attr.name),
                     py_type(&attr.value_type, attr.optional)
                 ));
             }
@@ -178,15 +163,15 @@ fn emit_context(model: &ModelBuilder, out: &mut String) {
     out.push_str("    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None: ...\n");
     for entity in &model.entities {
         out.push_str(&format!(
-            "    def {}_observer(self) -> {}: ...\n",
-            sanitize_py_ident(&entity.name),
+            "    def {}(self) -> {}: ...\n",
+            py_export_name(&format!("{}_observer", entity.name)),
             observer_class_name(&entity.name)
         ));
     }
     for fsm in &model.fsms {
         out.push_str(&format!(
-            "    def {}_observer(self) -> {}: ...\n",
-            sanitize_py_ident(&fsm.name),
+            "    def {}(self) -> {}: ...\n",
+            py_export_name(&format!("{}_observer", fsm.name)),
             observer_class_name(&fsm.name)
         ));
     }
@@ -210,9 +195,9 @@ fn emit_entity_observer(entity: &quent_model::EntityDef, out: &mut String) {
     for event in &entity.events {
         let is_declaration = is_auto_declaration_event(&entity.name, &event.name);
         let method_name = if is_declaration {
-            sanitize_py_ident(&entity.name)
+            py_export_name(&entity.name)
         } else {
-            sanitize_py_ident(&event.name)
+            py_export_name(&event.name)
         };
         let return_type = if is_declaration { "Uuid" } else { "None" };
         let params = event
@@ -221,7 +206,7 @@ fn emit_entity_observer(entity: &quent_model::EntityDef, out: &mut String) {
             .map(|attr| {
                 format!(
                     "{}: {}",
-                    sanitize_py_ident(&attr.name),
+                    py_export_name(&attr.name),
                     py_type(&attr.value_type, attr.optional)
                 )
             })
@@ -246,9 +231,9 @@ fn emit_entity_handle(entity: &quent_model::EntityDef, out: &mut String) {
     for event in &entity.events {
         let is_declaration = is_auto_declaration_event(&entity.name, &event.name);
         let method_name = if is_declaration {
-            sanitize_py_ident(&entity.name)
+            py_export_name(&entity.name)
         } else {
-            sanitize_py_ident(&event.name)
+            py_export_name(&event.name)
         };
         let return_type = if is_declaration { "Uuid" } else { "None" };
         let params = event
@@ -257,7 +242,7 @@ fn emit_entity_handle(entity: &quent_model::EntityDef, out: &mut String) {
             .map(|attr| {
                 format!(
                     "{}: {}",
-                    sanitize_py_ident(&attr.name),
+                    py_export_name(&attr.name),
                     py_type(&attr.value_type, attr.optional)
                 )
             })
@@ -279,7 +264,7 @@ fn emit_fsm_observer(model: &ModelBuilder, fsm: &FsmDef, out: &mut String) {
     out.push_str(&format!("\nclass {}:\n", observer_class_name(&fsm.name)));
     out.push_str(&format!(
         "    def {}(self, id: Uuid{}) -> {}: ...\n",
-        sanitize_py_ident(&entry_state.name),
+        py_export_name(&entry_state.name),
         function_params(&params),
         handle_class_name(&fsm.name)
     ));
@@ -296,7 +281,7 @@ fn emit_fsm_handle(model: &ModelBuilder, fsm: &FsmDef, out: &mut String) {
         let params = state_params(model, state);
         out.push_str(&format!(
             "    def {}(self{}) -> None: ...\n",
-            sanitize_py_ident(&state.name),
+            py_export_name(&state.name),
             function_params(&params)
         ));
     }

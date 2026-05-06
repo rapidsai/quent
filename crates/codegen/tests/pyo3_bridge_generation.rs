@@ -4,6 +4,7 @@
 //! Tests for PyO3 bridge code generation.
 
 use quent_codegen::{PyO3Options, emit_pyo3, emit_pyo3_stubs};
+use quent_model::{EntityDef, EntityEventDef, ModelBuilder};
 
 #[test]
 fn generate_readme_pyo3_bridge() {
@@ -52,6 +53,10 @@ fn generate_readme_pyo3_bridge() {
     );
     assert!(!file.content.contains("expected Uuid or Quent handle"));
     assert!(!file.content.contains("__extract_uuid(&resource_obj)"));
+    assert!(
+        file.content
+            .contains("#[pymodule(name = \"quent_readme\")]")
+    );
 }
 
 #[test]
@@ -170,4 +175,56 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
             .content
             .contains("def init(self, instance_name: str, query_group_id: Uuid) -> None")
     );
+}
+
+#[test]
+fn dotted_pyo3_module_name_uses_export_basename() {
+    let builder = quent_readme_example::AppModel::build("App");
+    let options = PyO3Options {
+        module_name: "quent_pkg._native".into(),
+        instrumentation_crate: "quent_readme_example".into(),
+    };
+
+    let bridge = emit_pyo3(&builder, &options).remove(0);
+    syn::parse_file(&bridge.content).unwrap_or_else(|e| panic!("{}: {}", bridge.name, e));
+    assert!(bridge.content.contains("#[pymodule(name = \"_native\")]"));
+    assert!(bridge.content.contains("pub fn quent_pkg__native"));
+
+    let stubs = emit_pyo3_stubs(&builder, &options).remove(0);
+    assert_eq!(stubs.name, "quent_pkg/_native.pyi");
+}
+
+fn keyword_named_model() -> ModelBuilder {
+    let mut builder = ModelBuilder::new("Keyword");
+    builder.add_entity(EntityDef {
+        name: "class".into(),
+        events: vec![EntityEventDef {
+            name: "class_declaration".into(),
+            attributes: Vec::new(),
+        }],
+        module_path: "crate::keyword".into(),
+    });
+    builder
+}
+
+#[test]
+fn pyo3_bridge_and_stubs_share_python_keyword_escaping() {
+    let builder = keyword_named_model();
+    let options = PyO3Options {
+        module_name: "keyword".into(),
+        instrumentation_crate: "crate".into(),
+    };
+
+    let bridge = emit_pyo3(&builder, &options).remove(0);
+    syn::parse_file(&bridge.content).unwrap_or_else(|e| panic!("{}: {}", bridge.name, e));
+    assert!(bridge.content.contains("pub fn class_observer"));
+    assert!(bridge.content.contains("pub fn class_(&self"));
+
+    let stubs = emit_pyo3_stubs(&builder, &options).remove(0);
+    assert!(
+        stubs
+            .content
+            .contains("def class_observer(self) -> ClassObserver")
+    );
+    assert!(stubs.content.contains("def class_(self, id: Uuid) -> Uuid"));
 }

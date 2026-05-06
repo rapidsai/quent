@@ -8,36 +8,29 @@
 //! `#[pyfunction]`, and `#[pymodule]`, so it can be included at the root of a
 //! `cdylib` crate compiled by PyO3/maturin.
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, UsageDef, ValueType};
 
 use crate::common::{
-    is_auto_declaration_event, pretty_print, quent_path, remap_module_path,
+    is_auto_declaration_event, pretty_print, py_export_name, quent_path, remap_module_path,
     resource_operating_attrs, to_pascal_case,
 };
 use crate::{GeneratedFile, PyO3Options};
 
+/// Turn a dotted Python module name into the local Rust identifier used for the
+/// `#[pymodule]` function.
 fn module_ident(name: &str) -> syn::Ident {
-    let mut ident = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if (i == 0 && (ch == '_' || ch.is_ascii_alphabetic()))
-            || (i > 0 && (ch == '_' || ch.is_ascii_alphanumeric()))
-        {
-            ident.push(ch);
-        } else {
-            ident.push('_');
-        }
-    }
-    if ident.is_empty() || ident.as_bytes()[0].is_ascii_digit() {
-        ident.insert(0, '_');
-    }
-    format_ident!("{}", ident)
+    format_ident!("{}", name.replace('.', "_"))
+}
+
+fn module_export_name(name: &str) -> &str {
+    name.rsplit('.').next().unwrap_or(name)
 }
 
 fn py_class_ident(name: &str) -> syn::Ident {
-    format_ident!("Py{name}")
+    format_ident!("Py{}", py_export_name(name))
 }
 
 fn event_enum_ident(component_name: &str) -> syn::Ident {
@@ -200,7 +193,7 @@ fn emit_pyany_struct_conversion_expr(
         .iter()
         .map(|attr| {
             let field = format_ident!("{}", attr.name);
-            let field_name = &attr.name;
+            let field_name = py_export_name(&attr.name);
             if attr.optional {
                 let conv = emit_pyany_conversion_expr(
                     &attr.value_type,
@@ -356,7 +349,7 @@ fn emit_state_args(
     let mut args = Vec::new();
 
     for attr in &state.attributes {
-        let name = format_ident!("{}", attr.name);
+        let name = format_ident!("{}", py_export_name(&attr.name));
         let (param, binding) =
             emit_attr_param_and_binding(&name, &attr.value_type, attr.optional, q, component_mod);
         params.push(param);
@@ -369,7 +362,7 @@ fn emit_state_args(
     }
 
     for usage in &state.usages {
-        let name = format_ident!("{}", usage.field_name);
+        let name = format_ident!("{}", py_export_name(&usage.field_name));
         params.push(quote! { #name: &Bound<'_, PyAny> });
         let capacity_attrs = resource_operating_attrs(model, usage);
         let conv = emit_usage_conversion_expr(
@@ -534,8 +527,11 @@ fn emit_context(
         .entities
         .iter()
         .map(|entity| {
-            let method = format_ident!("{}_observer", entity.name);
-            let class = py_class_ident(&format!("{}Observer", to_pascal_case(&entity.name)));
+            let method = format_ident!("{}", py_export_name(&format!("{}_observer", entity.name)));
+            let class = py_class_ident(&py_export_name(&format!(
+                "{}Observer",
+                to_pascal_case(&entity.name)
+            )));
             quote! {
                 pub fn #method(&self) -> PyResult<#class> {
                     Ok(#class {
@@ -545,8 +541,11 @@ fn emit_context(
             }
         })
         .chain(model.fsms.iter().map(|fsm| {
-            let method = format_ident!("{}_observer", fsm.name);
-            let class = py_class_ident(&format!("{}Observer", to_pascal_case(&fsm.name)));
+            let method = format_ident!("{}", py_export_name(&format!("{}_observer", fsm.name)));
+            let class = py_class_ident(&py_export_name(&format!(
+                "{}Observer",
+                to_pascal_case(&fsm.name)
+            )));
             quote! {
                 pub fn #method(&self) -> PyResult<#class> {
                     Ok(#class {
@@ -645,10 +644,10 @@ fn emit_entity_bridge(
 ) -> TokenStream {
     let multi_event = entity.events.len() > 1;
     let pascal_name = to_pascal_case(&entity.name);
-    let observer = py_class_ident(&format!("{pascal_name}Observer"));
-    let handle = py_class_ident(&format!("{pascal_name}Handle"));
-    let observer_py_name = format!("{pascal_name}Observer");
-    let handle_py_name = format!("{pascal_name}Handle");
+    let observer_py_name = py_export_name(&format!("{pascal_name}Observer"));
+    let handle_py_name = py_export_name(&format!("{pascal_name}Handle"));
+    let observer = py_class_ident(&observer_py_name);
+    let handle = py_class_ident(&handle_py_name);
     let component_mod: syn::Path =
         syn::parse_str(&remap_module_path(&entity.module_path, options)).unwrap();
     let entity_event_enum = event_enum_ident(&entity.name);
@@ -659,9 +658,9 @@ fn emit_entity_bridge(
         .map(|event| {
             let is_declaration = is_auto_declaration_event(&entity.name, &event.name);
             let method = if is_declaration {
-                format_ident!("{}", entity.name)
+                format_ident!("{}", py_export_name(&entity.name))
             } else {
-                format_ident!("{}", event.name)
+                format_ident!("{}", py_export_name(&event.name))
             };
             let event_pascal = format_ident!("{}", to_pascal_case(&event.name));
             let mut params = if multi_event {
@@ -677,7 +676,8 @@ fn emit_entity_bridge(
             let mut field_inits = Vec::new();
 
             for attr in &event.attributes {
-                let field = format_ident!("{}", attr.name);
+                let field = format_ident!("{}", py_export_name(&attr.name));
+                let model_field = format_ident!("{}", attr.name);
                 let (param, binding) = emit_attr_param_and_binding(
                     &field,
                     &attr.value_type,
@@ -687,7 +687,7 @@ fn emit_entity_bridge(
                 );
                 params.push(param);
                 bindings.push(binding);
-                field_inits.push(quote! { #field });
+                field_inits.push(quote! { #model_field: #field });
             }
 
             let model_event = if event.attributes.is_empty() {
@@ -791,8 +791,10 @@ fn emit_fsm_bridge(
     options: &PyO3Options,
 ) -> TokenStream {
     let pascal_name = to_pascal_case(&fsm.name);
-    let observer = py_class_ident(&format!("{pascal_name}Observer"));
-    let handle = py_class_ident(&format!("{pascal_name}Handle"));
+    let observer_py_name = py_export_name(&format!("{pascal_name}Observer"));
+    let handle_py_name = py_export_name(&format!("{pascal_name}Handle"));
+    let observer = py_class_ident(&observer_py_name);
+    let handle = py_class_ident(&handle_py_name);
     let component_mod_str = remap_module_path(&fsm.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&component_mod_str).unwrap();
     let model_handle: syn::Type = syn::parse_str(&format!(
@@ -813,7 +815,8 @@ fn emit_fsm_bridge(
                 fsm.entry, fsm.name
             )
         });
-    let entry_method = format_ident!("{}", entry_state.name);
+    let entry_method = format_ident!("{}", py_export_name(&entry_state.name));
+    let model_entry_method = format_ident!("{}", entry_state.name);
     let observer_name = format_ident!("{}Observer", pascal_name);
     let (entry_params, entry_bindings, entry_args) =
         emit_state_args(model, entry_state, q, &component_mod_str, &component_mod);
@@ -823,11 +826,12 @@ fn emit_fsm_bridge(
         .iter()
         .filter(|state| state.name != fsm.entry)
         .map(|state| {
-            let method = format_ident!("{}", state.name);
+            let method = format_ident!("{}", py_export_name(&state.name));
+            let model_method = format_ident!("{}", state.name);
             if state.attributes.is_empty() && state.usages.is_empty() {
                 quote! {
                     pub fn #method(&mut self) {
-                        self.inner.#method();
+                        self.inner.#model_method();
                     }
                 }
             } else {
@@ -836,16 +840,13 @@ fn emit_fsm_bridge(
                 quote! {
                     pub fn #method(&mut self, #(#params,)*) -> PyResult<()> {
                         #bindings
-                        self.inner.#method(#(#args),*);
+                        self.inner.#model_method(#(#args),*);
                         Ok(())
                     }
                 }
             }
         })
         .collect();
-
-    let observer_py_name = format!("{pascal_name}Observer");
-    let handle_py_name = format!("{pascal_name}Handle");
 
     quote! {
         #[pyclass(name = #observer_py_name)]
@@ -864,7 +865,7 @@ fn emit_fsm_bridge(
                 #entry_bindings
                 let obs = #component_mod::#observer_name::new(&self.tx);
                 Ok(#handle {
-                    inner: obs.#entry_method(id, #(#entry_args),*),
+                    inner: obs.#model_entry_method(id, #(#entry_args),*),
                 })
             }
         }
@@ -897,6 +898,7 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
     let q = quent_path(&model.name, options);
     let event_type: syn::Type = syn::parse_str(&options.event_type(&model.name)).unwrap();
     let module_fn = module_ident(&options.module_name);
+    let module_name = syn::LitStr::new(module_export_name(&options.module_name), Span::call_site());
 
     let helpers = emit_helpers(&q);
     let context = emit_context(model, &q, &event_type, options);
@@ -940,7 +942,7 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
         #(#entity_bridges)*
         #(#fsm_bridges)*
 
-        #[pymodule]
+        #[pymodule(name = #module_name)]
         pub fn #module_fn(m: &Bound<'_, PyModule>) -> PyResult<()> {
             m.add_function(wrap_pyfunction!(now_v7, m)?)?;
             m.add_function(wrap_pyfunction!(nil_uuid, m)?)?;
