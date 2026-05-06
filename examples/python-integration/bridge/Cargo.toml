@@ -1,0 +1,17 @@
+[package]
+name = "quent-readme-python"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "quent_readme"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.28", features = ["abi3-py311"] }
+quent-readme-example = { path = "../../readme" }
+
+[build-dependencies]
+quent-codegen = { path = "../../../crates/codegen" }
+quent-readme-example = { path = "../../readme" }

@@ -28,9 +28,14 @@ members = [
     "domains/query_engine/ui",
     # C++ integration example (uses readme model)
     "examples/cpp-integration/bridge",
+    # Python integration example (uses readme model)
+    "examples/python-integration/bridge",
     # Query engine C++ bridge test
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
+    # Query engine Python bridge test
+    "domains/query_engine/tests/python/instrumentation",
+    "domains/query_engine/tests/python/bridge",
     # README example
     "examples/readme",
     # Simulator crates

@@ -1,0 +1,17 @@
+[package]
+name = "quent-qe-python"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "quent_qe"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.28", features = ["abi3-py311"] }
+quent-qe-python-instrumentation = { path = "../instrumentation" }
+
+[build-dependencies]
+quent-codegen = { path = "../../../../../crates/codegen" }
+quent-qe-python-instrumentation = { path = "../instrumentation" }

@@ -1,0 +1,9 @@
+[package]
+name = "quent-qe-python-instrumentation"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-model = { path = "../../../../../crates/model" }
+quent-query-engine-model = { path = "../../../model" }

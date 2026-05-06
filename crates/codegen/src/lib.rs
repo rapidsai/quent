@@ -7,6 +7,8 @@
 //! YAML/JSON) and emits target-language code.
 
 pub mod cxx_bridge;
+pub mod pyo3_bridge;
+pub mod pyo3_stub;
 
 use quent_model::ModelBuilder;
 
@@ -45,6 +47,43 @@ impl Default for CxxOptions {
 /// Returns a map of filename → source code content.
 pub fn emit_cxx(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     cxx_bridge::emit(model, options)
+}
+
+/// Configuration for the PyO3 bridge backend.
+pub struct PyO3Options {
+    /// Python extension module name (e.g., "quent_readme").
+    pub module_name: String,
+    /// Rust path to the instrumentation crate (e.g., "quent_readme_example").
+    pub instrumentation_crate: String,
+}
+
+impl PyO3Options {
+    /// The fully qualified event type path. Requires the model name.
+    pub fn event_type(&self, model_name: &str) -> String {
+        format!("{}::{}Event", self.instrumentation_crate, model_name)
+    }
+}
+
+impl Default for PyO3Options {
+    fn default() -> Self {
+        Self {
+            module_name: "quent_model".to_string(),
+            instrumentation_crate: "instrumentation".to_string(),
+        }
+    }
+}
+
+/// Generate PyO3 bridge Rust source code from a model.
+///
+/// The generated file is intended to be included at the crate root of a PyO3
+/// `cdylib` crate.
+pub fn emit_pyo3(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
+    pyo3_bridge::emit(model, options)
+}
+
+/// Generate Python type stub files for a PyO3 bridge.
+pub fn emit_pyo3_stubs(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
+    pyo3_stub::emit(model, options)
 }
 
 /// A generated source file.
@@ -92,6 +131,39 @@ pub fn write_bridge_files(files: &[GeneratedFile], options: &CxxOptions) -> Vec<
     fs::write(out_dir.join("bridge_mod.rs"), mod_lines.join("\n")).unwrap();
 
     bridge_files
+}
+
+/// Write generated PyO3 bridge files to `OUT_DIR`.
+///
+/// The PyO3 backend currently emits one root-level Rust source file. Include it
+/// from the extension crate with:
+///
+/// ```ignore
+/// include!(concat!(env!("OUT_DIR"), "/pyo3_bridge.rs"));
+/// ```
+pub fn write_pyo3_files(files: &[GeneratedFile]) {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let out_dir: PathBuf = std::env::var("OUT_DIR").unwrap().into();
+    for file in files {
+        fs::write(out_dir.join(&file.name), &file.content).unwrap();
+    }
+}
+
+/// Write generated files to a specific directory.
+pub fn write_generated_files(files: &[GeneratedFile], dir: impl AsRef<std::path::Path>) {
+    use std::fs;
+
+    let dir = dir.as_ref();
+    fs::create_dir_all(dir).unwrap();
+    for file in files {
+        let path = dir.join(&file.name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, &file.content).unwrap();
+    }
 }
 
 /// Copy CXX-generated headers to `include/` under the crate root.

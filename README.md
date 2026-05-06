@@ -43,6 +43,10 @@ This is shown here:
 
 - [C++ Integration Example](examples/cpp-integration/)
 
+It can also generate a PyO3-backed Python extension module for the same model:
+
+- [Python Integration Example](examples/python-integration/)
+
 ## How
 
 A developer constructs a **model** of their application: **FSMs** to track
