@@ -284,7 +284,6 @@ impl TimelineCache {
             .flat_map(|(chunk_idx, keys)| keys.iter().map(move |k| (k.clone(), *chunk_idx)))
             .collect();
 
-        // Union of entries that missed any chunk.
         let mut miss_entry_keys: std::collections::HashSet<String> =
             std::collections::HashSet::new();
         for keys in chunk_misses.values() {
@@ -300,7 +299,6 @@ impl TimelineCache {
             "bulk timeline: fetching missing chunks"
         );
 
-        // Build canonical chunk configs aligned with `miss_chunk_indices`.
         let configs: Vec<TimelineConfig> = miss_chunk_indices
             .iter()
             .map(|&chunk_idx| {

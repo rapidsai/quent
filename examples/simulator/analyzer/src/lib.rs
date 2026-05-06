@@ -528,8 +528,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         let n_configs = request.configs.len();
 
-        // One slot per (entry, config_idx). Builder tuples carry their entry_id
-        // and config_idx so finalize can reassemble the per-entry Vec in order.
+        // Builder tuples carry entry_id + config_idx so finalize can slot them
+        // back into the per-entry Vec in `configs` order.
         let mut plain_builders: Vec<(
             String,
             usize,
@@ -545,8 +545,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             TaskFilter,
         )> = Vec::with_capacity(request.entries.len() * n_configs);
 
-        // Per-entry prep happens once; per-config builders share the prep's
-        // resource_id_filter, entity_filter, task_filter, and threshold.
+        // Per-entry prep runs once; the builders for that entry's N configs all share it.
         for (entry_id, entry) in &request.entries {
             let BulkEntryPrep {
                 resource_type,
@@ -586,7 +585,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             }
         }
 
-        // Reverse index: resource_id -> all builder indices that care about it.
         let plain_index: HashMap<Uuid, Vec<usize>> = plain_builders
             .iter()
             .enumerate()
