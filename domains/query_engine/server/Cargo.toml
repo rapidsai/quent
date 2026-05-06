@@ -31,3 +31,6 @@ utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
 uuid.workspace = true
 mime_guess = { version = "2", optional = true }
 rust-embed = { version = "8", optional = true }
+
+[dev-dependencies]
+quent-query-engine-model = { path = "../model" }

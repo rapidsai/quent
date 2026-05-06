@@ -1709,6 +1709,7 @@ dependencies = [
  "quent-events",
  "quent-exporter-types",
  "quent-query-engine-analyzer",
+ "quent-query-engine-model",
  "quent-query-engine-ui",
  "quent-time",
  "quent-ui",
