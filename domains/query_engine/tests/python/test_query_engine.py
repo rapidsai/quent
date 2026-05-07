@@ -1,33 +1,28 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from pathlib import Path
+import pytest
 
 import quent_qe as quent
 
 
-def main() -> None:
-    output_dir = Path(__file__).resolve().parent / "events"
+def test_uuid_ordering() -> None:
+    uuid_a = quent.now_v7()
+    uuid_b = quent.now_v7()
+    assert uuid_a == uuid_a
+    assert uuid_a != uuid_b
+    assert uuid_a != object()
+    with pytest.raises(TypeError):
+        uuid_a < uuid_b  # ty:ignore[unsupported-operator]
+    with pytest.raises(TypeError):
+        uuid_a < object()  # ty:ignore[unsupported-operator]
+
+
+def test_engine_definition(tmp_path_factory: pytest.TempPathFactory) -> None:
+    path = tmp_path_factory.mktemp("events")
 
     engine_id = quent.now_v7()
-    other_id = quent.now_v7()
-    assert engine_id == engine_id
-    assert engine_id != other_id
-    assert engine_id != object()
-    try:
-        engine_id < other_id
-    except TypeError:
-        pass
-    else:
-        raise AssertionError("Uuid ordering should not be supported")
-    try:
-        engine_id < object()
-    except TypeError:
-        pass
-    else:
-        raise AssertionError("Uuid ordering against arbitrary objects should not be supported")
-
-    context = quent.Context(engine_id, "ndjson", str(output_dir))
+    context = quent.Context(engine_id, "ndjson", str(path))
 
     engine_attrs = {
         "deployment": "test",
@@ -111,10 +106,6 @@ def main() -> None:
     engine.exit()
     context.close()
 
-    output_path = (output_dir / f"{engine_id}.ndjson").resolve()
+    output_path = (path / f"{engine_id}.ndjson").resolve()
     assert output_path.exists(), output_path
     assert output_path.stat().st_size > 0, output_path
-
-
-if __name__ == "__main__":
-    main()
