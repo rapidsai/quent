@@ -98,11 +98,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   const renderItem = ({ item, hasChildren }: { item: QueryPlanDataItem; hasChildren: boolean }) => {
     return (
-      <div
-        className="flex flex-col items-start py-0.5 pl-1"
-        onMouseEnter={() => item.workerId && setHoveredWorkerId(item.workerId)}
-        onMouseLeave={() => setHoveredWorkerId(null)}
-      >
+      <div className="flex flex-col items-start py-0.5 pl-1">
         {singleQueryPlan ? (
           <span className="text-xs">
             Query: <DataText>{item.queryId}</DataText>
@@ -156,6 +152,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
             initialSelectedItemId={planId}
             selectedItemId={planId}
             onSelectChange={handlePlanSelect}
+            onItemHover={item => setHoveredWorkerId(item?.workerId ?? null)}
             renderItem={renderItem}
           />
         </ResizablePanel>

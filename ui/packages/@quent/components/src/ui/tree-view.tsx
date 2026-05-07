@@ -50,6 +50,7 @@ type TreeProps<T extends TreeDataItem = TreeDataItem> = React.HTMLAttributes<HTM
   defaultLeafIcon?: React.ComponentType<{ className?: string }>;
   onDocumentDrag?: (sourceItem: T, targetItem: T) => void;
   renderItem?: (params: TreeRenderItemParams<T>) => React.ReactNode;
+  onItemHover?: (item: T | null) => void;
 };
 
 /** Recursive tree view with drag-and-drop, selection, and custom rendering support. */
@@ -64,6 +65,7 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
   className,
   onDocumentDrag,
   renderItem,
+  onItemHover,
   ...props
 }: TreeProps<T>) {
   const [selectedItemId, setSelectedItemId] = React.useState<string | undefined>(
@@ -144,6 +146,7 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
         handleDrop={handleDrop}
         draggedItem={draggedItem}
         renderItem={renderItem}
+        onItemHover={onItemHover}
         level={0}
         {...props}
       />
@@ -177,6 +180,7 @@ function TreeItem<T extends TreeDataItem = TreeDataItem>({
   handleDrop,
   draggedItem,
   renderItem,
+  onItemHover,
   level,
   ...props
 }: TreeItemProps<T>) {
@@ -204,6 +208,7 @@ function TreeItem<T extends TreeDataItem = TreeDataItem>({
                 handleDrop={handleDrop}
                 draggedItem={draggedItem}
                 renderItem={renderItem}
+                onItemHover={onItemHover}
               />
             ) : (
               <TreeLeaf
@@ -216,6 +221,7 @@ function TreeItem<T extends TreeDataItem = TreeDataItem>({
                 handleDrop={handleDrop}
                 draggedItem={draggedItem}
                 renderItem={renderItem}
+                onItemHover={onItemHover}
               />
             )}
           </li>
@@ -238,6 +244,7 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
   handleDrop,
   draggedItem,
   renderItem,
+  onItemHover,
   level = 0,
 }: {
   item: T;
@@ -250,6 +257,7 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
   handleDrop?: (item: T) => void;
   draggedItem: T | null;
   renderItem?: (params: TreeRenderItemParams<T>) => React.ReactNode;
+  onItemHover?: (item: T | null) => void;
   level?: number;
 }) {
   const [value, setValue] = React.useState(expandedItemIds.includes(item.id) ? [item.id] : []);
@@ -299,6 +307,8 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
+          onMouseEnter={onItemHover ? () => onItemHover(item) : undefined}
+          onMouseLeave={onItemHover ? () => onItemHover(null) : undefined}
         >
           <div
             className="flex items-center flex-1"
@@ -343,6 +353,7 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
             handleDrop={handleDrop}
             draggedItem={draggedItem}
             renderItem={renderItem}
+            onItemHover={onItemHover}
             level={level + 1}
           />
         </AccordionContent>
@@ -362,6 +373,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
   handleDrop,
   draggedItem,
   renderItem,
+  onItemHover,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
   item: T;
@@ -373,6 +385,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
   handleDrop?: (item: T) => void;
   draggedItem: T | null;
   renderItem?: (params: TreeRenderItemParams<T>) => React.ReactNode;
+  onItemHover?: (item: T | null) => void;
 }) {
   const [isDragOver, setIsDragOver] = React.useState(false);
   const isSelected = selectedItemId === item.id;
@@ -425,6 +438,8 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
+      onMouseEnter={onItemHover ? () => onItemHover(item) : undefined}
+      onMouseLeave={onItemHover ? () => onItemHover(null) : undefined}
       {...props}
     >
       {renderItem ? (
