@@ -23,5 +23,6 @@ server/data/*.ndjson
 .github/
 .vscode/
 .idea/
+.claude/
 **/.DS_Store
 *.log

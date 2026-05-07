@@ -8,14 +8,15 @@ import type { EChartsOption } from '../lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import type { CustomSeriesOption } from 'echarts/charts';
 import {
-  nanosToMs,
   connectChart,
+  nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '../lib/timeline.utils';
 import { echarts } from '../lib/echarts';
 import { CHART_GROUP } from '../timeline/Timeline';
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
+import { HiddenScroll } from '../ui/thin-scroll';
 import {
   useSelectedNodeIds,
   useSetSelectedNodeIds,
@@ -30,14 +31,15 @@ import { clipRectByRect } from './utils';
 import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '../timeline/types';
 
 const DEFAULT_HEIGHT = 75;
-const MAX_VISIBLE_ROWS = 10;
+const MAX_HEIGHT = 200;
 const BAR_FONT_SIZE = 10;
 const BAR_HEIGHT = 16;
+const BAR_GAP = 2;
 
 function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
   const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? '';
   const stroke = getOperationTypeColor(key);
-  return { stroke, fill: withOpacity(stroke, 0.15) };
+  return { stroke, fill: withOpacity(stroke, 0.45) };
 }
 
 export interface OperatorGanttChartProps {
@@ -78,6 +80,9 @@ export function OperatorGanttChart({
       rowCount: maxRow + 1,
     };
   }, [operators]);
+  // Render every row at full height — the wrapping element scrolls vertically.
+  const contentHeight = rowCount * BAR_HEIGHT;
+  const chartHeight = Math.max(height, contentHeight);
 
   const customSeriesData = useMemo(
     () =>
@@ -113,8 +118,6 @@ export function OperatorGanttChart({
     }
     return styles;
   }, [operators, nodeColoring, nodePalette, isDark]);
-  const showYScroll = rowCount > MAX_VISIBLE_ROWS;
-  const yAxisZoomEnd = showYScroll ? (MAX_VISIBLE_ROWS / rowCount) * 100 : 100;
   type RenderItem = NonNullable<CustomSeriesOption['renderItem']>;
 
   const renderItem: RenderItem = useCallback(
@@ -127,7 +130,7 @@ export function OperatorGanttChart({
       const endPoint = api.coord([endMs, rowIndex]);
 
       // Full band height
-      const barHeight = Math.max(BAR_FONT_SIZE + 4, BAR_HEIGHT);
+      const barHeight = Math.max(1, BAR_HEIGHT - BAR_GAP);
       const y = startPoint[1] - barHeight / 2;
       const width = Math.max(1, endPoint[0] - startPoint[0]);
 
@@ -156,10 +159,8 @@ export function OperatorGanttChart({
         op?.typeName && op.typeName !== op.label
           ? `${op.typeName}: ${op.label}`
           : (op?.label ?? '');
-      const { fill: fallbackFill, stroke: fallbackStroke } = getOperatorBarColors(op?.typeName);
+      const { fill } = getOperatorBarColors(op?.typeName);
       const fieldStyle = op ? operatorFieldStyles.get(op.operatorId) : undefined;
-      const stroke = fieldStyle?.stroke ?? fallbackStroke;
-      const fill = fieldStyle?.stroke ? withOpacity(stroke, 0.15) : fallbackFill;
       const hasSelection = selectedNodeIds.size > 0;
       const isSelected = op != null && selectedNodeIds.has(op.operatorId);
       const fieldDimmed = fieldStyle?.fieldDimmed ?? false;
@@ -170,7 +171,6 @@ export function OperatorGanttChart({
         shape: { ...clippedShape, r: 2 },
         style: {
           fill,
-          stroke,
           lineWidth: 1,
           opacity,
         },
@@ -268,6 +268,7 @@ export function OperatorGanttChart({
           type: 'inside',
           zoomLock: true,
           zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
           throttle: 30,
           filterMode: 'none',
           xAxisIndex: [0],
@@ -281,34 +282,9 @@ export function OperatorGanttChart({
           filterMode: 'none',
           xAxisIndex: [0],
         },
-        ...(showYScroll
-          ? [
-              {
-                type: 'inside' as const,
-                yAxisIndex: [0],
-                start: 0,
-                end: yAxisZoomEnd,
-                zoomLock: true,
-                zoomOnMouseWheel: false,
-                moveOnMouseMove: true,
-                moveOnMouseWheel: true,
-                throttle: 30,
-                filterMode: 'none' as const,
-              },
-            ]
-          : []),
       ],
     }),
-    [
-      gridOptions,
-      startTimeMs,
-      xAxisMax,
-      yAxisCategories,
-      customSeriesData,
-      renderItem,
-      showYScroll,
-      yAxisZoomEnd,
-    ]
+    [gridOptions, startTimeMs, xAxisMax, yAxisCategories, customSeriesData, renderItem]
   );
 
   const instanceRef = useRef<EChartsInstance | null>(null);
@@ -336,19 +312,8 @@ export function OperatorGanttChart({
 
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
-    // Join timeline-sync-group for frame-rate-level x-axis zoom sync via ECharts connect().
-    // The y-axis dataZoom (index 3, when present) has a unique component ID and does not
-    // propagate to resource timelines that have no matching component.
     connectChart(instance, CHART_GROUP, false);
     registerAxisPointerSync(instance, 0, { receiveShowTip: false });
-    const dom = instance.getDom();
-    dom.addEventListener(
-      'wheel',
-      (e: WheelEvent) => {
-        if (!e.shiftKey) e.preventDefault();
-      },
-      { capture: true, passive: false }
-    );
   }, []);
 
   useEffect(() => {
@@ -360,11 +325,27 @@ export function OperatorGanttChart({
     };
   }, []);
 
+  // Handle scrolling from the container, echarts captures wheel events and prevents the container
+  // from receiving.
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (e.shiftKey) return;
+      e.stopPropagation();
+    };
+    wrapper.addEventListener('wheel', handleWheel, { capture: true, passive: true });
+    return () => {
+      wrapper.removeEventListener('wheel', handleWheel, { capture: true });
+    };
+  }, []);
+
   if (operators.length === 0) {
     return (
       <div
         className="flex items-center justify-center text-muted-foreground text-sm"
-        style={{ height }}
+        style={{ height: DEFAULT_HEIGHT }}
       >
         No operator active spans
       </div>
@@ -372,16 +353,18 @@ export function OperatorGanttChart({
   }
 
   return (
-    <ReactEChartsComponent
-      echarts={echarts}
-      theme={themeName}
-      option={option}
-      style={{ height }}
-      onChartReady={handleChartReady}
-      onEvents={handleClick}
-      notMerge={false}
-      lazyUpdate={false}
-      replaceMerge={['series']}
-    />
+    <HiddenScroll ref={wrapperRef} style={{ maxHeight: MAX_HEIGHT }}>
+      <ReactEChartsComponent
+        echarts={echarts}
+        theme={themeName}
+        option={option}
+        style={{ height: chartHeight }}
+        onChartReady={handleChartReady}
+        onEvents={handleClick}
+        notMerge={false}
+        lazyUpdate={false}
+        replaceMerge={['series']}
+      />
+    </HiddenScroll>
   );
 }

@@ -68,7 +68,7 @@ function RootComponent() {
           </main>
         </div>
       </ThemeProvider>
-      {import.meta.env.DEV && !import.meta.env.TEST && <TanStackRouterDevtools />}
+      {import.meta.env.VITE_DEBUG && !import.meta.env.TEST && <TanStackRouterDevtools />}
     </>
   );
 }

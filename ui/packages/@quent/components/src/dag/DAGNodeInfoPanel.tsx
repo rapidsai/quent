@@ -5,6 +5,7 @@ import { Panel } from '@xyflow/react';
 import { Pin } from 'lucide-react';
 import { useSelectedNodeIds, useHoveredNodeData, useSelectedNodeData } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
+import { thinScrollbarClass } from '../ui/thin-scroll';
 import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
 
 /**
@@ -40,7 +41,7 @@ export const DAGNodeInfoPanel = () => {
           {displayData.nodeId}
         </DataText>
         {displayData.statistics.length > 0 && (
-          <div className="mt-1 border-t pt-1.5 max-h-56 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
+          <div className={`mt-1 border-t pt-1.5 max-h-56 overflow-y-auto ${thinScrollbarClass}`}>
             <div className="flex flex-col gap-1 pr-3">
               {displayData.statistics.map(({ key, value }) => (
                 <div key={key} className="text-xs mt-1">

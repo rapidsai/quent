@@ -45,6 +45,13 @@ export { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 export { ScrollArea, ScrollBar } from './ui/scroll-area';
 export {
+  ThinScroll,
+  thinScrollbarClass,
+  HiddenScroll,
+  hiddenScrollbarClass,
+} from './ui/thin-scroll';
+export type { ThinScrollProps, HiddenScrollProps } from './ui/thin-scroll';
+export {
   Select,
   SelectGroup,
   SelectValue,

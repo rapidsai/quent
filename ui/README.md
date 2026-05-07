@@ -167,10 +167,26 @@ pnpm dlx shadcn@latest add dropdown-menu
 
 ## Development Tools
 
-The application includes development tools for debugging:
+The application can render TanStack devtools for debugging:
 
 - **TanStack Router Devtools** - Visual router debugging
 - **TanStack Query Devtools** - Query state inspection
 
-These are automatically included in development mode and removed in production
-builds.
+Both are off by default and gated behind the `VITE_DEBUG` env var, so they
+won't appear in normal `pnpm dev` sessions or in production builds.
+
+To enable them, start the dev server with `VITE_DEBUG=1`:
+
+```bash
+VITE_DEBUG=1 pnpm dev
+```
+
+To leave them on for every dev session on your machine, create a
+`ui/.env.development.local` file (already gitignored via `*.local`):
+
+```bash
+VITE_DEBUG=1
+```
+
+Then a plain `pnpm dev` will pick it up. Restart the dev server after
+changing env vars — Vite does not hot-reload `import.meta.env` changes.
