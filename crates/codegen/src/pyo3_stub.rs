@@ -313,8 +313,26 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
         emit_fsm_handle(model, fsm, &mut out);
     }
 
-    vec![GeneratedFile {
-        name: format!("{}.pyi", options.module_name.replace('.', "/")),
-        content: out,
-    }]
+    let module_path = options.module_name.replace('.', "/");
+    let stub_name = if options.module_name.contains('.') {
+        format!("{module_path}.pyi")
+    } else {
+        format!("{module_path}/__init__.pyi")
+    };
+    let package_name = options
+        .module_name
+        .split('.')
+        .next()
+        .expect("module_name should not be empty");
+
+    vec![
+        GeneratedFile {
+            name: stub_name,
+            content: out,
+        },
+        GeneratedFile {
+            name: format!("{package_name}/py.typed"),
+            content: String::new(),
+        },
+    ]
 }

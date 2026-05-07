@@ -13,6 +13,6 @@ python main.py
 
 The generated module is named `quent_readme`. Its schema comes from the normal
 Rust `model!` / `entity!` / `fsm!` definitions in `examples/readme`; the bridge
-crate only asks `quent-codegen` to emit PyO3 wrappers from `AppModel::build`.
-The same build script also writes `quent_readme.pyi` so the wheel includes type
-stubs for IDEs and type checkers.
+crate only asks `quent-codegen` to emit PyO3 wrappers from
+`AppModel::build`. As well as generating python bindings, the build script
+also emits type stubs in the generated wheel.

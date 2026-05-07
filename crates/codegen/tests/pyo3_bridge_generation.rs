@@ -68,17 +68,14 @@ fn generate_readme_pyo3_type_stubs() {
     };
 
     let files = emit_pyo3_stubs(&builder, &options);
-    assert_eq!(files.len(), 1);
+    assert_eq!(files.len(), 2);
 
     let file = &files[0];
-    assert_eq!(file.name, "quent_readme.pyi");
+    assert_eq!(file.name, "quent_readme/__init__.pyi");
     assert!(file.content.contains("class Uuid:"));
     assert!(file.content.contains("def now_v7() -> Uuid"));
     assert!(file.content.contains("class Context:"));
-    assert!(
-        file.content
-            .contains("class DetailsDict(TypedDict):")
-    );
+    assert!(file.content.contains("class DetailsDict(TypedDict):"));
     assert!(file.content.contains("def worker(self, id: Uuid"));
     assert!(
         file.content
@@ -98,23 +95,25 @@ fn generate_readme_pyo3_type_stubs() {
             .contains("def queued(self, id: Uuid, instance_name: str, index: int")
     );
     assert!(
-        file.content
+        !file
+            .content
             .contains("def queued(self, instance_name: str, index: int")
     );
+    assert!(file.content.contains("thread: ThreadHandle | None"));
     assert!(
         file.content
-            .contains("thread: ThreadHandle | None")
+            .contains("QueueHandle | tuple[QueueHandle, int] | None")
     );
     assert!(
         file.content
-            .contains("typing.Union[QueueHandle, typing.Tuple[QueueHandle, int]]")
+            .contains("custom: Mapping[str, bool | int | float | str | None]")
     );
-    assert!(
-        file.content
-            .contains("custom: typing.Mapping[str, _CustomAttributeValue]")
-    );
-    assert!(!file.content.contains("typing.Mapping[str, object]"));
-    assert!(!file.content.contains("typing.Union[Uuid, QueueHandle"));
+    assert!(!file.content.contains("Mapping[str, object]"));
+    assert!(!file.content.contains("Uuid | QueueHandle"));
+
+    let marker = &files[1];
+    assert_eq!(marker.name, "quent_readme/py.typed");
+    assert!(marker.content.is_empty());
 }
 
 #[test]
@@ -138,12 +137,12 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
             .content
             .contains("worker_id: Option<PyRef<'_, PyUuid>>")
     );
-    assert!(bridge.content.contains("self.inner.init("));
+    assert!(!bridge.content.contains("self.inner.init("));
 
     let files = emit_pyo3_stubs(&builder, &options);
-    assert_eq!(files.len(), 1);
+    assert_eq!(files.len(), 2);
     let stubs = &files[0];
-    assert_eq!(stubs.name, "quent_qe.pyi");
+    assert_eq!(stubs.name, "quent_qe/__init__.pyi");
     assert!(
         stubs
             .content
@@ -165,11 +164,17 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
             .content
             .contains("def declaration(self, plan_id: Uuid")
     );
+    assert!(stubs.content.contains(
+        "def init(self, id: Uuid, instance_name: str, query_group_id: Uuid) -> QueryHandle"
+    ));
     assert!(
-        stubs
+        !stubs
             .content
             .contains("def init(self, instance_name: str, query_group_id: Uuid) -> None")
     );
+    let marker = &files[1];
+    assert_eq!(marker.name, "quent_qe/py.typed");
+    assert!(marker.content.is_empty());
 }
 
 #[test]
@@ -185,8 +190,10 @@ fn dotted_pyo3_module_name_uses_export_basename() {
     assert!(bridge.content.contains("#[pymodule(name = \"_native\")]"));
     assert!(bridge.content.contains("pub fn quent_pkg__native"));
 
-    let stubs = emit_pyo3_stubs(&builder, &options).remove(0);
-    assert_eq!(stubs.name, "quent_pkg/_native.pyi");
+    let stubs = emit_pyo3_stubs(&builder, &options);
+    assert_eq!(stubs.len(), 2);
+    assert_eq!(stubs[0].name, "quent_pkg/_native.pyi");
+    assert_eq!(stubs[1].name, "quent_pkg/py.typed");
 }
 
 fn keyword_named_model() -> ModelBuilder {
