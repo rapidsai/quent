@@ -111,6 +111,21 @@ function hashString(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
+/**
+ * Pick a palette index for `key` using hash + linear probe.
+ * Probes forward from the hash index, skipping anything already in `used`,
+ * until it finds a free slot. If `used` is already full (size >= paletteSize)
+ * the bare hash index is returned — duplicates are unavoidable past the
+ * palette size, and the early return prevents an infinite probe loop.
+ */
+function pickPaletteIndex(key: string, paletteSize: number, used: Set<number>): number {
+  const hashIndex = hashString(key) % paletteSize;
+  if (used.size >= paletteSize) return hashIndex;
+  let index = hashIndex;
+  while (used.has(index)) index = (index + 1) % paletteSize;
+  return index;
+}
+
 // Cache: key -> palette index
 const colorAssignments = new Map<string, number>();
 // Track which palette indices are taken
@@ -129,20 +144,7 @@ export function getColorForKey(key: string, theme: PaletteTheme): ChartColor {
     return palette[colorAssignments.get(key)!];
   }
 
-  const hashIndex = hashString(key) % palette.length;
-
-  // If palette is full, just use the hash index
-  if (usedIndices.size >= palette.length) {
-    colorAssignments.set(key, hashIndex);
-    return palette[hashIndex];
-  }
-
-  // Probe forward from hash index to find an unused slot
-  let index = hashIndex;
-  while (usedIndices.has(index)) {
-    index = (index + 1) % palette.length;
-  }
-
+  const index = pickPaletteIndex(key, palette.length, usedIndices);
   colorAssignments.set(key, index);
   usedIndices.add(index);
   return palette[index];
@@ -306,8 +308,7 @@ export function buildOperatorColorMap(operatorTypes: string[]): Map<string, stri
   const used = new Set<number>();
   const map = new Map<string, string>();
   for (const type of sorted) {
-    let index = hashString(type) % OPERATOR_PALETTE.length;
-    while (used.has(index)) index = (index + 1) % OPERATOR_PALETTE.length;
+    const index = pickPaletteIndex(type, OPERATOR_PALETTE.length, used);
     used.add(index);
     map.set(type, OPERATOR_PALETTE[index]!);
   }
