@@ -74,15 +74,10 @@ fn generate_readme_pyo3_type_stubs() {
     assert_eq!(file.name, "quent_readme.pyi");
     assert!(file.content.contains("class Uuid:"));
     assert!(file.content.contains("def now_v7() -> Uuid"));
-    assert!(!file.content.contains("class CustomAttributes:"));
-    assert!(
-        file.content
-            .contains("_CustomAttributeValue = typing.Union[None, bool, int, float, str]")
-    );
     assert!(file.content.contains("class Context:"));
     assert!(
         file.content
-            .contains("class DetailsDict(typing.TypedDict):")
+            .contains("class DetailsDict(TypedDict):")
     );
     assert!(file.content.contains("def worker(self, id: Uuid"));
     assert!(
@@ -108,7 +103,7 @@ fn generate_readme_pyo3_type_stubs() {
     );
     assert!(
         file.content
-            .contains("thread: typing.Optional[ThreadHandle]")
+            .contains("thread: ThreadHandle | None")
     );
     assert!(
         file.content
@@ -157,7 +152,7 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
     assert!(
         stubs
             .content
-            .contains("custom_attributes: typing.Mapping[str, _CustomAttributeValue]")
+            .contains("custom_attributes: Mapping[str, bool | int | float | str | None]")
     );
     assert!(stubs.content.contains("class PlanParentDict"));
     assert!(

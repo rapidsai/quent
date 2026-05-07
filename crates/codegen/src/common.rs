@@ -30,60 +30,6 @@ pub(crate) fn to_pascal_case(s: &str) -> String {
     s.to_case(Case::Pascal)
 }
 
-/// Convert a model-provided Rust identifier into the Python identifier spelling
-/// exported by generated bindings.
-///
-/// The model definition language supplies ordinary Rust identifiers, so the
-/// only Python-specific conflict we handle here is a Python reserved word.
-pub(crate) fn py_export_name(name: &str) -> String {
-    let mut out = name.to_string();
-    if matches!(
-        name,
-        "False"
-            | "None"
-            | "True"
-            | "and"
-            | "as"
-            | "assert"
-            | "async"
-            | "await"
-            | "break"
-            | "class"
-            | "continue"
-            | "def"
-            | "del"
-            | "elif"
-            | "else"
-            | "except"
-            | "finally"
-            | "for"
-            | "from"
-            | "global"
-            | "if"
-            | "import"
-            | "in"
-            | "is"
-            | "lambda"
-            | "nonlocal"
-            | "not"
-            | "or"
-            | "pass"
-            | "raise"
-            | "return"
-            | "try"
-            | "while"
-            | "with"
-            | "yield"
-    ) {
-        println!(
-            "cargo:warning=model component `{name}` is a Python reserved keyword. \
-             The exposed Python name will be `{name}_`"
-        );
-        out.push('_');
-    }
-    out
-}
-
 /// Format a `TokenStream` into pretty-printed Rust source.
 pub(crate) fn pretty_print(tokens: TokenStream) -> String {
     let file = syn::parse2::<syn::File>(tokens).expect("generated tokens must be valid syntax");

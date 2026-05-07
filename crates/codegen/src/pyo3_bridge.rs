@@ -14,10 +14,64 @@ use quote::{format_ident, quote};
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, UsageDef, ValueType};
 
 use crate::common::{
-    is_auto_declaration_event, pretty_print, py_export_name, quent_path, remap_module_path,
+    is_auto_declaration_event, pretty_print, quent_path, remap_module_path,
     resource_operating_attrs, to_pascal_case,
 };
 use crate::{GeneratedFile, PyO3Options};
+
+/// Convert a model-provided Rust identifier into the Python identifier spelling
+/// exported by generated bindings.
+///
+/// The model definition language supplies ordinary Rust identifiers, so the
+/// only Python-specific conflict we handle here is a Python reserved word.
+pub(crate) fn py_export_name(name: &str) -> String {
+    let mut out = name.to_string();
+    if matches!(
+        name,
+        "False"
+            | "None"
+            | "True"
+            | "and"
+            | "as"
+            | "assert"
+            | "async"
+            | "await"
+            | "break"
+            | "class"
+            | "continue"
+            | "def"
+            | "del"
+            | "elif"
+            | "else"
+            | "except"
+            | "finally"
+            | "for"
+            | "from"
+            | "global"
+            | "if"
+            | "import"
+            | "in"
+            | "is"
+            | "lambda"
+            | "nonlocal"
+            | "not"
+            | "or"
+            | "pass"
+            | "raise"
+            | "return"
+            | "try"
+            | "while"
+            | "with"
+            | "yield"
+    ) {
+        println!(
+            "cargo:warning=model component `{name}` is a Python reserved keyword. \
+             The exposed Python name will be `{name}_`"
+        );
+        out.push('_');
+    }
+    out
+}
 
 /// Turn a dotted Python module name into the local Rust identifier used for the
 /// `#[pymodule]` function.
