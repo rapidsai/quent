@@ -95,12 +95,7 @@ fn type_from_model_path(type_path: &str, component_mod: &syn::Path) -> syn::Type
     if type_path.contains("::") {
         syn::parse_str(type_path).unwrap()
     } else {
-        syn::parse_str(&format!(
-            "{}::{}",
-            quote!(#component_mod).to_string(),
-            type_path
-        ))
-        .unwrap()
+        syn::parse_str(&format!("{}::{}", quote!(#component_mod), type_path)).unwrap()
     }
 }
 
@@ -741,7 +736,11 @@ fn emit_entity_bridge(
                 );
                 params.push(param);
                 bindings.push(binding);
-                field_inits.push(quote! { #model_field: #field });
+                if field == model_field {
+                    field_inits.push(quote! { #field });
+                } else {
+                    field_inits.push(quote! { #model_field: #field });
+                }
             }
 
             let model_event = if event.attributes.is_empty() {
@@ -991,24 +990,30 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
         )
         .collect();
     let tokens = quote! {
-        #helpers
-        #context
-        #(#entity_bridges)*
-        #(#fsm_bridges)*
+        // Some of the emitted code borrows an already-borrowed value. In
+        // theory we can track when a value is borrowed, but it makes the
+        // codegen more complicated and the additional borrow is harmless.
+        #[allow(clippy::needless_borrow)]
+        mod __quent_pyo3_bridge {
+            #helpers
+            #context
+            #(#entity_bridges)*
+            #(#fsm_bridges)*
 
-        #[pymodule(name = #module_name)]
-        pub fn #module_fn(m: &Bound<'_, PyModule>) -> PyResult<()> {
-            m.add_function(wrap_pyfunction!(now_v7, m)?)?;
-            m.add_function(wrap_pyfunction!(nil_uuid, m)?)?;
-            m.add_class::<PyUuid>()?;
-            m.add_class::<PyContext>()?;
-            #(
-                m.add_class::<#observer_classes>()?;
-            )*
-            #(
-                m.add_class::<#handle_classes>()?;
-            )*
-            Ok(())
+            #[pymodule(name = #module_name)]
+            pub fn #module_fn(m: &Bound<'_, PyModule>) -> PyResult<()> {
+                m.add_function(wrap_pyfunction!(now_v7, m)?)?;
+                m.add_function(wrap_pyfunction!(nil_uuid, m)?)?;
+                m.add_class::<PyUuid>()?;
+                m.add_class::<PyContext>()?;
+                #(
+                    m.add_class::<#observer_classes>()?;
+                )*
+                #(
+                    m.add_class::<#handle_classes>()?;
+                )*
+                Ok(())
+            }
         }
     };
 
