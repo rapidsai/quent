@@ -25,7 +25,7 @@ use quent_ui::timeline::{
 use tracing::{debug, trace};
 use uuid::Uuid;
 
-use crate::error::ServerResult;
+use crate::error::{ServerError, ServerResult};
 
 /// Target number of chunks visible in the current view range.
 const TARGET_CHUNKS_PER_VIEW: u64 = 2;
@@ -338,6 +338,14 @@ impl TimelineCache {
         .await??;
 
         for (key, per_chunk) in response.entries {
+            if per_chunk.len() != miss_chunk_indices.len() {
+                return Err(ServerError::Cache(format!(
+                    "chunked analyzer returned {} slots for entry '{}', expected {}",
+                    per_chunk.len(),
+                    key,
+                    miss_chunk_indices.len()
+                )));
+            }
             for (slot_idx, entry_resp) in per_chunk.into_iter().enumerate() {
                 let chunk_idx = miss_chunk_indices[slot_idx];
                 // Skip slots that weren't actually a miss for this entry —
