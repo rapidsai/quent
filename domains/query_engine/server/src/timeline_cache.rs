@@ -764,8 +764,8 @@ fn selected_bin_span(
     let chunk_start = epoch + to_nanosecs(chunk.config.span.start());
     let bin_duration_ns = to_nanosecs(chunk.config.bin_duration);
     (
-        chunk_start + start_idx as u64 * bin_duration_ns,
-        chunk_start + end_idx as u64 * bin_duration_ns,
+        chunk_start + (start_idx as u64 * bin_duration_ns),
+        chunk_start + (end_idx as u64 * bin_duration_ns),
     )
 }
 
