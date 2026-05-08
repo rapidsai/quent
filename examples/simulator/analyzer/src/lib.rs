@@ -22,6 +22,7 @@ use quent_ui::{
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::HashMap as StdHashMap;
+use std::sync::Arc;
 use tracing::debug;
 
 use quent_analyzer::{
@@ -57,7 +58,7 @@ struct PlainBuilderSlot<'a> {
     entry_id: String,
     config_idx: usize,
     builder: ResourceTimelineBuilder<'a>,
-    resource_id_filter: HashSet<Uuid>,
+    resource_id_filter: Arc<HashSet<Uuid>>,
     task_filter: TaskFilter,
 }
 
@@ -65,7 +66,7 @@ struct PerStateBuilderSlot<'a> {
     entry_id: String,
     config_idx: usize,
     builder: ResourceTimelineByKeyBuilder<'a, &'a str>,
-    resource_id_filter: HashSet<Uuid>,
+    resource_id_filter: Arc<HashSet<Uuid>>,
     task_filter: TaskFilter,
 }
 
@@ -559,6 +560,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 long_entities_threshold,
             } = self.try_prepare_bulk_entry(entry.clone(), &resource_tree)?;
 
+            // Wrap the filter once so per-config slots share one allocation.
+            let resource_id_filter = Arc::new(resource_id_filter);
+
             for (config_idx, config) in request.configs.iter().enumerate() {
                 let entry_config = config.try_into_binned_span(epoch)?;
                 if entity_filter.entity_type_name.is_some() {
@@ -570,7 +574,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                             entry_config,
                             long_entities_threshold,
                         )?,
-                        resource_id_filter: resource_id_filter.clone(),
+                        resource_id_filter: Arc::clone(&resource_id_filter),
                         task_filter: task_filter.clone(),
                     });
                 } else {
@@ -582,7 +586,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                             entry_config,
                             long_entities_threshold,
                         )?,
-                        resource_id_filter: resource_id_filter.clone(),
+                        resource_id_filter: Arc::clone(&resource_id_filter),
                         task_filter: task_filter.clone(),
                     });
                 }
