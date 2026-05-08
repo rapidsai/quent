@@ -670,10 +670,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 config,
                 data: self.timeline_to_ui(built, epoch)?,
             };
-            slots
-                .get_mut(&slot.entry_id)
-                .unwrap_or_else(|| panic!("known key, instead found unknown key {}", slot.entry_id))
-                [slot.config_idx] = Some(resp);
+            slots.get_mut(&slot.entry_id).unwrap_or_else(|| {
+                panic!("known key, instead found unknown key {}", slot.entry_id)
+            })[slot.config_idx] = Some(resp);
         }
         for slot in per_state_builders {
             let built = slot.builder.build();
@@ -683,10 +682,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 config,
                 data: self.timeline_to_ui_keyed(built, epoch)?,
             };
-            slots
-                .get_mut(&slot.entry_id)
-                .unwrap_or_else(|| panic!("known key, instead found unknown key {}", slot.entry_id))
-                [slot.config_idx] = Some(resp);
+            slots.get_mut(&slot.entry_id).unwrap_or_else(|| {
+                panic!("known key, instead found unknown key {}", slot.entry_id)
+            })[slot.config_idx] = Some(resp);
         }
 
         let entries = slots
