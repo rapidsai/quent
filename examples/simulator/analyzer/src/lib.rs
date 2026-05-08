@@ -659,7 +659,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let mut slots: HashMap<String, Vec<Option<BulkTimelinesResponseEntry>>> = request
             .entries
             .keys()
-            .map(|k| (k.clone(), (0..n_configs).map(|_| None).collect()))
+            .map(|k| (k.clone(), vec![None; n_configs]))
             .collect();
 
         for slot in plain_builders {
