@@ -318,8 +318,11 @@ impl TimelineCache {
 
         let chunked_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
             miss_entry_keys
-                .iter()
-                .map(|k| (k.clone(), request.entries[k].clone()))
+                .into_iter()
+                .map(|k| {
+                    let request = request.entries[&k].clone();
+                    (k, request)
+                })
                 .collect();
 
         let a = Arc::clone(&analyzer);
