@@ -280,8 +280,7 @@ impl TimelineCache {
         // For each entry that missed at least one chunk, the set of chunk indices
         // it missed. Used to discard responses for pairs the analyzer recomputed
         // redundantly when entries have non-uniform miss patterns (rare).
-        let mut entry_miss_chunks: HashMap<String, std::collections::HashSet<u64>> =
-            HashMap::new();
+        let mut entry_miss_chunks: HashMap<String, std::collections::HashSet<u64>> = HashMap::new();
         for (chunk_idx, keys) in chunk_misses {
             for k in keys {
                 entry_miss_chunks
