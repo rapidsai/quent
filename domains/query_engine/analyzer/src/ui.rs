@@ -96,7 +96,7 @@ pub trait UiAnalyzer {
             let inner_entries = request
                 .entries
                 .iter()
-                .map(|(k, e)| (k.clone(), e.clone().with_config(config.clone())))
+                .map(|(k, e)| (k.clone(), e.clone().with_config(*config)))
                 .collect();
             let mut response = self.bulk_resource_timeline(BulkTimelineRequest {
                 entries: inner_entries,

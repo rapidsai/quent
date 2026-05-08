@@ -256,7 +256,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let epoch = self
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
-        let config = request.entry.config().clone().try_into_binned_span(epoch)?;
+        let config = request.entry.config().try_into_binned_span(epoch)?;
         let config_secs = config.try_to_secs_relative(epoch)?;
 
         match request.entry {
@@ -391,7 +391,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         )> = Vec::new();
 
         for (entry_id, entry) in request.entries {
-            let entry_config = entry.config().clone().try_into_binned_span(epoch)?;
+            let entry_config = entry.config().try_into_binned_span(epoch)?;
             let BulkEntryPrep {
                 resource_type,
                 resource_id_filter,
@@ -562,7 +562,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             } = self.try_prepare_bulk_entry(entry.clone(), &resource_tree)?;
 
             for (config_idx, config) in request.configs.iter().enumerate() {
-                let entry_config = config.clone().try_into_binned_span(epoch)?;
+                let entry_config = config.try_into_binned_span(epoch)?;
                 if entity_filter.entity_type_name.is_some() {
                     per_state_builders.push((
                         entry_id.clone(),

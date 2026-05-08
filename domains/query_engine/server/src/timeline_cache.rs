@@ -285,7 +285,8 @@ impl TimelineCache {
             .flat_map(|(chunk_idx, keys)| keys.iter().map(move |k| (k.clone(), *chunk_idx)))
             .collect();
 
-        let mut miss_entry_keys: HashSet<String> = HashSet::new();
+        let mut miss_entry_keys: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         for keys in chunk_misses.values() {
             for k in keys {
                 miss_entry_keys.insert(k.clone());
@@ -668,8 +669,8 @@ fn combine_chunks(
             }
             total_bins += (end_idx - start_idx) as u64;
             let (bin_start, bin_end) = selected_bin_span(chunk, start_idx, end_idx, epoch);
-            combined_start = Some(combined_start.map_or(bin_start, |start| start.min(bin_start)));
-            combined_end = Some(combined_end.map_or(bin_end, |end| end.max(bin_end)));
+            combined_start.get_or_insert(bin_start);
+            combined_end = Some(bin_end);
 
             if let ResourceTimeline::BinnedByState(ref data) = chunk.data {
                 for (cap_name, states) in &data.capacities_states_values {
@@ -718,8 +719,8 @@ fn combine_chunks(
             }
             total_bins += (end_idx - start_idx) as u64;
             let (bin_start, bin_end) = selected_bin_span(chunk, start_idx, end_idx, epoch);
-            combined_start = Some(combined_start.map_or(bin_start, |start| start.min(bin_start)));
-            combined_end = Some(combined_end.map_or(bin_end, |end| end.max(bin_end)));
+            combined_start.get_or_insert(bin_start);
+            combined_end = Some(bin_end);
 
             if let ResourceTimeline::Binned(ref data) = chunk.data {
                 for (cap_name, values) in &data.capacities_values {
@@ -1006,7 +1007,7 @@ mod tests {
             ));
         }
 
-        let config = entry.config().clone().try_into_binned_span(0)?;
+        let config = entry.config().try_into_binned_span(0)?;
         let config_secs = config.try_to_secs_relative(0)?;
         let values = (0..config.num_bins.get())
             .map(|idx| {

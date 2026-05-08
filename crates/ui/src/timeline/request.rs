@@ -11,7 +11,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 /// Configuration of the window and number of bins of a timeline.
-#[derive(TS, Debug, Clone, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TimelineConfig {
     /// The number of bins for binned timelines.
     pub num_bins: u16,
