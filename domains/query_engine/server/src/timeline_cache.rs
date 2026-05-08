@@ -285,8 +285,7 @@ impl TimelineCache {
             .flat_map(|(chunk_idx, keys)| keys.iter().map(move |k| (k.clone(), *chunk_idx)))
             .collect();
 
-        let mut miss_entry_keys: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
+        let mut miss_entry_keys: HashSet<String> = HashSet::new();
         for keys in chunk_misses.values() {
             for k in keys {
                 miss_entry_keys.insert(k.clone());
