@@ -53,23 +53,21 @@ pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
 }
 
-/// `(entry_id, config_idx, builder, resource_id_filter, task_filter)` for the
-/// chunked bulk path. Carries the entry and config bookkeeping needed to slot
-/// each builder back into the per-entry response Vec at finalize time.
-type PlainBuilderSlot<'a> = (
-    String,
-    usize,
-    ResourceTimelineBuilder<'a>,
-    HashSet<Uuid>,
-    TaskFilter,
-);
-type PerStateBuilderSlot<'a> = (
-    String,
-    usize,
-    ResourceTimelineByKeyBuilder<'a, &'a str>,
-    HashSet<Uuid>,
-    TaskFilter,
-);
+struct PlainBuilderSlot<'a> {
+    entry_id: String,
+    config_idx: usize,
+    builder: ResourceTimelineBuilder<'a>,
+    resource_id_filter: HashSet<Uuid>,
+    task_filter: TaskFilter,
+}
+
+struct PerStateBuilderSlot<'a> {
+    entry_id: String,
+    config_idx: usize,
+    builder: ResourceTimelineByKeyBuilder<'a, &'a str>,
+    resource_id_filter: HashSet<Uuid>,
+    task_filter: TaskFilter,
+}
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
@@ -564,29 +562,29 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             for (config_idx, config) in request.configs.iter().enumerate() {
                 let entry_config = config.try_into_binned_span(epoch)?;
                 if entity_filter.entity_type_name.is_some() {
-                    per_state_builders.push((
-                        entry_id.clone(),
+                    per_state_builders.push(PerStateBuilderSlot {
+                        entry_id: entry_id.clone(),
                         config_idx,
-                        ResourceTimelineByKeyBuilder::try_new(
+                        builder: ResourceTimelineByKeyBuilder::try_new(
                             resource_type,
                             entry_config,
                             long_entities_threshold,
                         )?,
-                        resource_id_filter.clone(),
-                        task_filter.clone(),
-                    ));
+                        resource_id_filter: resource_id_filter.clone(),
+                        task_filter: task_filter.clone(),
+                    });
                 } else {
-                    plain_builders.push((
-                        entry_id.clone(),
+                    plain_builders.push(PlainBuilderSlot {
+                        entry_id: entry_id.clone(),
                         config_idx,
-                        ResourceTimelineBuilder::try_new(
+                        builder: ResourceTimelineBuilder::try_new(
                             resource_type,
                             entry_config,
                             long_entities_threshold,
                         )?,
-                        resource_id_filter.clone(),
-                        task_filter.clone(),
-                    ));
+                        resource_id_filter: resource_id_filter.clone(),
+                        task_filter: task_filter.clone(),
+                    });
                 }
             }
         }
@@ -594,9 +592,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let plain_index: HashMap<Uuid, Vec<usize>> = plain_builders
             .iter()
             .enumerate()
-            .flat_map(|(builder_idx, builder)| {
-                builder
-                    .3
+            .flat_map(|(builder_idx, slot)| {
+                slot.resource_id_filter
                     .iter()
                     .map(move |&resource_id| (resource_id, builder_idx))
             })
@@ -607,9 +604,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let per_state_index: HashMap<Uuid, Vec<usize>> = per_state_builders
             .iter()
             .enumerate()
-            .flat_map(|(builder_idx, builder)| {
-                builder
-                    .3
+            .flat_map(|(builder_idx, slot)| {
+                slot.resource_id_filter
                     .iter()
                     .map(move |&resource_id| (resource_id, builder_idx))
             })
@@ -627,13 +623,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 let resource_id = usage.resource_id();
                 if let Some(builder_indices) = plain_index.get(&resource_id) {
                     for &builder_idx in builder_indices {
-                        let builder = &plain_builders[builder_idx];
-                        if builder
-                            .4
+                        let slot = &plain_builders[builder_idx];
+                        if slot
+                            .task_filter
                             .operator_id
                             .is_none_or(|op| task_operator_id == Some(op))
                         {
-                            plain_builders[builder_idx].2.try_push(&usage)?;
+                            plain_builders[builder_idx].builder.try_push(&usage)?;
                         }
                     }
                 }
@@ -642,14 +638,14 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 let resource_id = usage.resource_id();
                 if let Some(builder_indices) = per_state_index.get(&resource_id) {
                     for &builder_idx in builder_indices {
-                        let builder = &per_state_builders[builder_idx];
-                        if builder
-                            .4
+                        let slot = &per_state_builders[builder_idx];
+                        if slot
+                            .task_filter
                             .operator_id
                             .is_none_or(|op| task_operator_id == Some(op))
                         {
                             per_state_builders[builder_idx]
-                                .2
+                                .builder
                                 .try_push(state_name, &usage)?;
                         }
                     }
@@ -666,25 +662,25 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .map(|k| (k.clone(), (0..n_configs).map(|_| None).collect()))
             .collect();
 
-        for (entry_id, config_idx, builder, _, _) in plain_builders {
-            let built = builder.build();
+        for slot in plain_builders {
+            let built = slot.builder.build();
             let config = built.config.try_to_secs_relative(epoch)?;
             let resp = BulkTimelinesResponseEntry::Ok {
                 message: String::new(),
                 config,
                 data: self.timeline_to_ui(built, epoch)?,
             };
-            slots.get_mut(&entry_id).unwrap()[config_idx] = Some(resp);
+            slots.get_mut(&slot.entry_id).unwrap()[slot.config_idx] = Some(resp);
         }
-        for (entry_id, config_idx, builder, _, _) in per_state_builders {
-            let built = builder.build();
+        for slot in per_state_builders {
+            let built = slot.builder.build();
             let config = built.config.try_to_secs_relative(epoch)?;
             let resp = BulkTimelinesResponseEntry::Ok {
                 message: String::new(),
                 config,
                 data: self.timeline_to_ui_keyed(built, epoch)?,
             };
-            slots.get_mut(&entry_id).unwrap()[config_idx] = Some(resp);
+            slots.get_mut(&slot.entry_id).unwrap()[slot.config_idx] = Some(resp);
         }
 
         let entries = slots
