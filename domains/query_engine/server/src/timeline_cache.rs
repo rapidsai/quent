@@ -277,13 +277,19 @@ impl TimelineCache {
             return Ok(());
         }
 
-        // Set of (entry_key, chunk_idx) pairs that actually missed. Used to
-        // discard responses for pairs the analyzer recomputed redundantly when
-        // entries have non-uniform miss patterns (rare).
-        let miss_pairs: std::collections::HashSet<(String, u64)> = chunk_misses
-            .iter()
-            .flat_map(|(chunk_idx, keys)| keys.iter().map(move |k| (k.clone(), *chunk_idx)))
-            .collect();
+        // For each entry that missed at least one chunk, the set of chunk indices
+        // it missed. Used to discard responses for pairs the analyzer recomputed
+        // redundantly when entries have non-uniform miss patterns (rare).
+        let mut entry_miss_chunks: HashMap<String, std::collections::HashSet<u64>> =
+            HashMap::new();
+        for (chunk_idx, keys) in chunk_misses {
+            for k in keys {
+                entry_miss_chunks
+                    .entry(k.clone())
+                    .or_default()
+                    .insert(*chunk_idx);
+            }
+        }
 
         let mut miss_entry_keys: std::collections::HashSet<String> =
             std::collections::HashSet::new();
@@ -346,12 +352,15 @@ impl TimelineCache {
                     miss_chunk_indices.len()
                 )));
             }
+            // Skip entries the analyzer recomputed redundantly (mixed miss
+            // patterns, rare). We only cache and collect slots that we actually
+            // asked for.
+            let Some(missed_chunks) = entry_miss_chunks.get(&key) else {
+                continue;
+            };
             for (slot_idx, entry_resp) in per_chunk.into_iter().enumerate() {
                 let chunk_idx = miss_chunk_indices[slot_idx];
-                // Skip slots that weren't actually a miss for this entry —
-                // mixed miss patterns can lead the analyzer to recompute pairs
-                // we already have cached. Don't double-push or overwrite.
-                if !miss_pairs.contains(&(key.clone(), chunk_idx)) {
+                if !missed_chunks.contains(&chunk_idx) {
                     continue;
                 }
                 match entry_resp {
