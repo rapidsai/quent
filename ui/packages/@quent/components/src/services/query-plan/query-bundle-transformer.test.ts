@@ -123,9 +123,9 @@ describe('validateQueryBundle', () => {
 
 describe('getTreeData', () => {
   it('throws for an invalid bundle', () => {
-    expect(() =>
-      getTreeData(null as unknown as QueryBundle<EntityRef>)
-    ).toThrow('Invalid QueryBundle format');
+    expect(() => getTreeData(null as unknown as QueryBundle<EntityRef>)).toThrow(
+      'Invalid QueryBundle format'
+    );
   });
 
   it('returns an array of length 1', () => {
@@ -205,9 +205,9 @@ describe('getTreeData', () => {
 
 describe('getPlanDAG', () => {
   it('throws for an invalid bundle', () => {
-    expect(() =>
-      getPlanDAG(null as unknown as QueryBundle<EntityRef>, 'p1')
-    ).toThrow('Invalid QueryBundle format');
+    expect(() => getPlanDAG(null as unknown as QueryBundle<EntityRef>, 'p1')).toThrow(
+      'Invalid QueryBundle format'
+    );
   });
 
   it('throws when all plan values are undefined (no usable plans)', () => {
@@ -231,10 +231,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes).toHaveLength(2);
     const ids = result.nodes.map(n => n.id);
@@ -270,10 +267,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.edges[0]!.id).toBe('port1-port2');
   });
@@ -284,10 +278,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.edges[0]!.type).toBe('smoothstep');
   });
@@ -298,10 +289,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.edges[0]!.source).toBe('op1');
     expect(result.edges[0]!.target).toBe('op2');
@@ -312,10 +300,7 @@ describe('getPlanDAG', () => {
     const port2 = makePort('port2', 'op2');
     // port1 is intentionally absent
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op2 }, ports: { port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op2 }, ports: { port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
@@ -326,10 +311,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', null); // no linked operator
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
@@ -341,10 +323,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.label).toBe('ScanAlias');
   });
@@ -355,10 +334,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.label).toBe('Scan');
   });
@@ -369,10 +345,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.label).toBe('Node');
   });
@@ -383,10 +356,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.type).toBe('hashjoin');
   });
@@ -397,10 +367,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.type).toBe('operator');
   });
@@ -411,10 +378,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     // 'no-such-plan' doesn't exist; should fall back to p1
     const result = getPlanDAG(bundle, 'no-such-plan');
     expect(result.nodes).toHaveLength(2);
@@ -427,10 +391,7 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
-    const bundle = makeBundle(
-      { p1: plan },
-      { operators: { op1, op2 }, ports: { port1, port2 } }
-    );
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.rawNode).toBe(op1);
   });

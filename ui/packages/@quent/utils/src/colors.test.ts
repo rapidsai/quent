@@ -185,12 +185,8 @@ describe('createCapacitiesColorFn', () => {
 
   it('uses key-based coloring for a single capacity', () => {
     const fn = createCapacitiesColorFn(['cpu'], 'light');
-    const expected = getColorForKey('cpu', 'light');
-    // Reset and rebuild since getColorForKey was already called above
-    resetColorAssignments();
-    const fn2 = createCapacitiesColorFn(['cpu'], 'light');
-    expect(fn2('cpu')).toBe(getColorForKey('cpu', 'light'));
-    void fn; // suppress unused warning
+    // getColorForKey is called at construction time; calling it again returns the cached assignment
+    expect(fn('cpu')).toBe(getColorForKey('cpu', 'light'));
   });
 
   it('falls back to getColorForKey for unknown capacity names', () => {

@@ -337,17 +337,23 @@ describe('operatorsWithActiveSpans', () => {
   });
 
   it('returns [] when planId is null', () => {
-    const bundle = makeBundle({ op1: makeOp({ plan_id: 'p1', active_span: { start: 0, end: 1 } }) });
+    const bundle = makeBundle({
+      op1: makeOp({ plan_id: 'p1', active_span: { start: 0, end: 1 } }),
+    });
     expect(operatorsWithActiveSpans(bundle, 0n, null)).toEqual([]);
   });
 
   it('returns [] when planId is empty string', () => {
-    const bundle = makeBundle({ op1: makeOp({ plan_id: 'p1', active_span: { start: 0, end: 1 } }) });
+    const bundle = makeBundle({
+      op1: makeOp({ plan_id: 'p1', active_span: { start: 0, end: 1 } }),
+    });
     expect(operatorsWithActiveSpans(bundle, 0n, '')).toEqual([]);
   });
 
   it('returns [] when no operator has a matching plan_id', () => {
-    const bundle = makeBundle({ op1: makeOp({ plan_id: 'p2', active_span: { start: 0, end: 1 } }) });
+    const bundle = makeBundle({
+      op1: makeOp({ plan_id: 'p2', active_span: { start: 0, end: 1 } }),
+    });
     expect(operatorsWithActiveSpans(bundle, 0n, 'p1')).toEqual([]);
   });
 
@@ -383,7 +389,13 @@ describe('operatorsWithActiveSpans', () => {
 
   it('falls back to operator_type_name when instance_name is null', () => {
     const bundle = makeBundle({
-      op1: makeOp({ id: 'op1', plan_id: 'p1', active_span: { start: 0, end: 1 }, operator_type_name: 'Join', instance_name: null }),
+      op1: makeOp({
+        id: 'op1',
+        plan_id: 'p1',
+        active_span: { start: 0, end: 1 },
+        operator_type_name: 'Join',
+        instance_name: null,
+      }),
     });
     const [entry] = operatorsWithActiveSpans(bundle, 0n, 'p1');
     expect(entry.label).toBe('Join');
@@ -410,7 +422,10 @@ describe('operatorsWithActiveSpans', () => {
 
 describe('operatorsWithActiveSpansForWorker', () => {
   it('returns [] when operators is absent', () => {
-    const bundle = { entities: {}, plan_tree: { id: 'root', worker: null, children: [] } } as unknown as QueryBundle<EntityRef>;
+    const bundle = {
+      entities: {},
+      plan_tree: { id: 'root', worker: null, children: [] },
+    } as unknown as QueryBundle<EntityRef>;
     expect(operatorsWithActiveSpansForWorker(bundle, 0n, 'w1')).toEqual([]);
   });
 
@@ -429,7 +444,14 @@ describe('operatorsWithActiveSpansForWorker', () => {
       children: [{ id: 'p1', worker: 'w1', children: [] }],
     };
     const bundle = makeBundleWithTree(
-      { op1: makeOp({ id: 'op1', plan_id: 'p1', active_span: { start: 0, end: 2 }, operator_type_name: 'Scan' }) },
+      {
+        op1: makeOp({
+          id: 'op1',
+          plan_id: 'p1',
+          active_span: { start: 0, end: 2 },
+          operator_type_name: 'Scan',
+        }),
+      },
       planTree
     );
     const result = operatorsWithActiveSpansForWorker(bundle, 0n, 'w1');

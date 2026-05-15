@@ -14,10 +14,7 @@ import {
 // ---- Helpers ---------------------------------------------------------------
 
 /** Build a DAGNode whose rawNode carries the given custom_statistics map. */
-function makeNode(
-  id: string,
-  stats: Record<string, unknown> = {}
-): DAGNode {
+function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
   return {
     id,
     label: id,
@@ -29,10 +26,7 @@ function makeNode(
 }
 
 /** Build a DAGEdge with optional portStats. */
-function makeEdge(
-  id: string,
-  portStats: DAGEdge['portStats'] = []
-): DAGEdge {
+function makeEdge(id: string, portStats: DAGEdge['portStats'] = []): DAGEdge {
   return { id, source: 's', target: 't', portStats };
 }
 

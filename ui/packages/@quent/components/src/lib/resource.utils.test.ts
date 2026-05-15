@@ -36,7 +36,11 @@ describe('collectResourceTypesFromTree', () => {
   });
 
   it('deduplicates repeated type names', () => {
-    const items = [makeResourceItem('r1', 'GPU'), makeResourceItem('r2', 'GPU'), makeResourceItem('r3', 'CPU')];
+    const items = [
+      makeResourceItem('r1', 'GPU'),
+      makeResourceItem('r2', 'GPU'),
+      makeResourceItem('r3', 'CPU'),
+    ];
     const result = collectResourceTypesFromTree(items);
     expect(result).toHaveLength(2);
     expect(result).toContain('GPU');
@@ -45,10 +49,7 @@ describe('collectResourceTypesFromTree', () => {
 
   it('collects type names from nested leaf nodes', () => {
     const items = [
-      makeGroupItem('g1', 'Engine', [
-        makeResourceItem('r1', 'GPU'),
-        makeResourceItem('r2', 'CPU'),
-      ]),
+      makeGroupItem('g1', 'Engine', [makeResourceItem('r1', 'GPU'), makeResourceItem('r2', 'CPU')]),
     ];
     const result = collectResourceTypesFromTree(items);
     expect(result).toContain('GPU');
@@ -57,11 +58,7 @@ describe('collectResourceTypesFromTree', () => {
   });
 
   it('does not collect type_name from a non-leaf group node', () => {
-    const items = [
-      makeGroupItem('g1', 'Engine', [
-        makeResourceItem('r1', 'GPU'),
-      ]),
-    ];
+    const items = [makeGroupItem('g1', 'Engine', [makeResourceItem('r1', 'GPU')])];
     const result = collectResourceTypesFromTree(items);
     expect(result).not.toContain('Engine');
     expect(result).toEqual(['GPU']);
@@ -69,11 +66,7 @@ describe('collectResourceTypesFromTree', () => {
 
   it('collects type names from deeply nested leaves', () => {
     const items = [
-      makeGroupItem('g1', 'Top', [
-        makeGroupItem('g2', 'Mid', [
-          makeResourceItem('r1', 'SSD'),
-        ]),
-      ]),
+      makeGroupItem('g1', 'Top', [makeGroupItem('g2', 'Mid', [makeResourceItem('r1', 'SSD')])]),
     ];
     expect(collectResourceTypesFromTree(items)).toEqual(['SSD']);
   });
@@ -88,10 +81,7 @@ describe('collectResourceTypesFromTree', () => {
   });
 
   it('collects from multiple top-level items', () => {
-    const items = [
-      makeResourceItem('r1', 'GPU'),
-      makeResourceItem('r2', 'NIC'),
-    ];
+    const items = [makeResourceItem('r1', 'GPU'), makeResourceItem('r2', 'NIC')];
     const result = collectResourceTypesFromTree(items);
     expect(result).toContain('GPU');
     expect(result).toContain('NIC');

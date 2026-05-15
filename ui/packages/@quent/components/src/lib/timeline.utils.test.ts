@@ -4,7 +4,11 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Prevent ECharts canvas initialization in jsdom
-vi.mock('../lib/echarts', () => ({ connect: vi.fn(), disconnect: vi.fn(), getInstanceByDom: vi.fn() }));
+vi.mock('../lib/echarts', () => ({
+  connect: vi.fn(),
+  disconnect: vi.fn(),
+  getInstanceByDom: vi.fn(),
+}));
 vi.mock('../timeline/Timeline', () => ({ CHART_GROUP: 'timeline-sync-group' }));
 
 import {
@@ -271,7 +275,8 @@ describe('setOperatorOnEntry', () => {
   it('does not mutate the original ResourceGroup entry', () => {
     const entry = makeGroupEntry();
     setOperatorOnEntry(entry, 'op-42');
-    const origOpId = 'ResourceGroup' in entry ? entry.ResourceGroup.app_params.operator_id : 'mutated';
+    const origOpId =
+      'ResourceGroup' in entry ? entry.ResourceGroup.app_params.operator_id : 'mutated';
     expect(origOpId).toBeNull();
   });
 
@@ -297,7 +302,8 @@ describe('setOperatorOnEntries', () => {
     const entries = { r1: makeResourceEntry(), g1: makeGroupEntry() };
     const updated = setOperatorOnEntries(entries, 'op-99');
     const r1OpId = 'Resource' in updated.r1 ? updated.r1.Resource.application.operator_id : null;
-    const g1OpId = 'ResourceGroup' in updated.g1 ? updated.g1.ResourceGroup.app_params.operator_id : null;
+    const g1OpId =
+      'ResourceGroup' in updated.g1 ? updated.g1.ResourceGroup.app_params.operator_id : null;
     expect(r1OpId).toBe('op-99');
     expect(g1OpId).toBe('op-99');
   });
@@ -305,7 +311,8 @@ describe('setOperatorOnEntries', () => {
   it('returns a new record without mutating the input', () => {
     const entries = { r1: makeResourceEntry() };
     setOperatorOnEntries(entries, 'op-99');
-    const origOpId = 'Resource' in entries.r1 ? entries.r1.Resource.application.operator_id : 'mutated';
+    const origOpId =
+      'Resource' in entries.r1 ? entries.r1.Resource.application.operator_id : 'mutated';
     expect(origOpId).toBeNull();
   });
 

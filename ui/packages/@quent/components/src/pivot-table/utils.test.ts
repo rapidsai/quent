@@ -24,7 +24,6 @@ import type {
   PivotedRow,
   PivotedRowAgg,
   PivotedStatTableSchema,
-  AggMode,
 } from './types';
 
 // ---- Helpers ---------------------------------------------------------------
@@ -494,7 +493,10 @@ describe('getSortValue', () => {
     });
 
     it('returns agg.stdev for aggMode "stdev"', () => {
-      const row = makePivotedRow({}, { exec_ns: { sum: 100, mean: 50, min: 10, max: 90, stdev: 5 } });
+      const row = makePivotedRow(
+        {},
+        { exec_ns: { sum: 100, mean: 50, min: 10, max: 90, stdev: 5 } }
+      );
       expect(getSortValue(row, 'exec_ns', true, 'stdev')).toBe(5);
     });
   });
