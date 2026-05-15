@@ -9,7 +9,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/com
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
 import { Network } from 'lucide-react';
 import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
-import { DAGControls } from '@quent/components';
+import { DAGControls, DAGNodeInfoPanel } from '@quent/components';
 import {
   useDagNodeColoring,
   useDagEdgeWidthConfig,
@@ -175,15 +175,20 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           collapsedSize="0%"
           className="overflow-hidden"
         >
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                Loading visualization...
-              </div>
-            }
-          >
-            <DAGChart data={dagData} height="100%" isDark={isDark} />
-          </Suspense>
+          <div className="flex flex-col h-full">
+            <div className="flex-1 min-h-0">
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    Loading visualization...
+                  </div>
+                }
+              >
+                <DAGChart data={dagData} height="100%" isDark={isDark} />
+              </Suspense>
+            </div>
+            <DAGNodeInfoPanel />
+          </div>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
