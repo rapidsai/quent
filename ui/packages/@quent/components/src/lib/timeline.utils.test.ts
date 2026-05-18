@@ -98,6 +98,23 @@ describe('nanosToMs', () => {
     // 2e15 ns = 2e9 ms
     expect(nanosToMs(2_000_000_000_000_000n)).toBe(2_000_000_000);
   });
+
+  it('accepts a number zero', () => {
+    expect(nanosToMs(0)).toBe(0);
+  });
+
+  it('accepts a number for an exact millisecond', () => {
+    expect(nanosToMs(1_000_000)).toBe(1);
+  });
+
+  it('accepts a number and preserves sub-millisecond precision', () => {
+    expect(nanosToMs(500_000)).toBe(0.5);
+    expect(nanosToMs(1_500_000)).toBe(1.5);
+  });
+
+  it('accepts a number for a full second', () => {
+    expect(nanosToMs(1_000_000_000)).toBe(1000);
+  });
 });
 
 // ---- getLongEntitiesThreshold ----------------------------------------------
