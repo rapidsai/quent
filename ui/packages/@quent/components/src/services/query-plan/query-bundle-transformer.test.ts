@@ -2,46 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import type { QueryBundle, EntityRef } from '@quent/utils';
+import type { QueryBundle, EntityRef, Plan, Operator, Port, PlanTree } from '@quent/utils';
 import { validateQueryBundle, getTreeData, getPlanDAG } from './query-bundle-transformer';
 
 // ---- Helpers ---------------------------------------------------------------
 
-type MinimalPlan = {
-  id: string;
-  instance_name: string | null;
-  parent: string | null;
-  worker_id: string | null;
-  edges: Array<{ source: string; target: string }>;
-};
-
-type MinimalOperator = {
-  id: string;
-  plan_id: string | null;
-  parent_operator_ids: string[];
-  instance_name: string | null;
-  operator_type_name: string | null;
-  custom_attributes: Record<string, unknown>;
-  statistics: unknown;
-};
-
-type MinimalPort = {
-  id: string;
-  operator_id: string | null;
-  instance_name: string | null;
-  statistics: null;
-};
-
-type MinimalPlanTree = {
-  id: string;
-  worker: string | null;
-  children: MinimalPlanTree[];
-};
-
 function makePlan(
   id: string,
-  opts: { instanceName?: string | null; edges?: Array<{ source: string; target: string }> } = {}
-): MinimalPlan {
+  opts: { instanceName?: string | null; edges?: Plan['edges'] } = {}
+): Plan {
   return {
     id,
     instance_name: opts.instanceName ?? null,
@@ -54,7 +23,7 @@ function makePlan(
 function makeOperator(
   id: string,
   opts: { typeName?: string | null; instanceName?: string | null } = {}
-): MinimalOperator {
+): Operator {
   return {
     id,
     plan_id: null,
@@ -63,27 +32,28 @@ function makeOperator(
     operator_type_name: opts.typeName ?? null,
     custom_attributes: {},
     statistics: null,
+    active_span: null,
   };
 }
 
-function makePort(id: string, operatorId: string | null): MinimalPort {
+function makePort(id: string, operatorId: string | null): Port {
   return { id, operator_id: operatorId, instance_name: null, statistics: null };
 }
 
 function makePlanTree(
   id: string,
   worker: string | null = null,
-  children: MinimalPlanTree[] = []
-): MinimalPlanTree {
+  children: PlanTree[] = []
+): PlanTree {
   return { id, worker, children };
 }
 
 function makeBundle(
-  plans: Record<string, MinimalPlan | undefined>,
+  plans: Record<string, Plan | undefined>,
   opts: {
-    operators?: Record<string, MinimalOperator | undefined>;
-    ports?: Record<string, MinimalPort | undefined>;
-    planTree?: MinimalPlanTree;
+    operators?: Record<string, Operator | undefined>;
+    ports?: Record<string, Port | undefined>;
+    planTree?: PlanTree;
   } = {}
 ): QueryBundle<EntityRef> {
   return {
