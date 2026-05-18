@@ -36,7 +36,9 @@ function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
                     variant="ghost"
                     size="sm"
                     asChild
-                    className={cn(highlightProfile && 'bg-accent text-accent-foreground font-semibold')}
+                    className={cn(
+                      highlightProfile && 'bg-accent text-accent-foreground font-semibold'
+                    )}
                   >
                     <Link to="/profile">Profile</Link>
                   </Button>
