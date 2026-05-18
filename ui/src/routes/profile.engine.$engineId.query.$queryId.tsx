@@ -6,9 +6,11 @@ import { queryBundleQueryOptions } from '@quent/client';
 import { queryClient } from '@/lib/queryClient';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { cn } from '@quent/utils';
+import { RouteError } from '@/components/RouteError';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')({
   component: QueryLayout,
+  errorComponent: RouteError,
   loader: async ({ params }): Promise<QueryBundle<EntityRef>> => {
     const { engineId, queryId } = params;
     return await queryClient.ensureQueryData(queryBundleQueryOptions({ engineId, queryId }));
