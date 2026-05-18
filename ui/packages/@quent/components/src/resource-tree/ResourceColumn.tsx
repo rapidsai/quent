@@ -28,7 +28,7 @@ export function ResourceColumn({
   className,
 }: ResourceColumnProps): React.ReactNode {
   return (
-    <div className={cn('text-foreground flex truncate items-center py-2', className)}>
+    <div className={cn('text-foreground flex truncate items-center', className)}>
       <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
       <div>
         {item?.children?.length ? (

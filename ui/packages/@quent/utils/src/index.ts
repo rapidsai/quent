@@ -34,6 +34,7 @@ export type { PaletteName, PaletteTheme, ChartColor, ContinuousPaletteName } fro
 export {
   formatDuration,
   formatDurationForWindow,
+  formatDurationForAxisInterval,
   formatQuantity,
   formatBytes,
   formatNumber,

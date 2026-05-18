@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { waitFor, act } from '@testing-library/react';
 import { renderWithQuery } from '@/test/test-utils';
@@ -45,10 +46,20 @@ vi.mock('@quent/components', async importOriginal => {
       capturedTimelineData = props.timelineData;
       return null;
     },
-    TreeTable: ({ columns }: { columns: Array<{ subHeaderContent?: React.ReactNode }> }) => {
-      const col = columns.find(c => c.subHeaderContent != null);
-      return <>{col?.subHeaderContent}</>;
-    },
+    TreeTable: ({
+      columns,
+    }: {
+      columns: Array<{ headerContent?: React.ReactNode; subHeaderContent?: React.ReactNode }>;
+    }) => (
+      <>
+        {columns.map((col, i) => (
+          <React.Fragment key={i}>
+            {col.headerContent}
+            {col.subHeaderContent}
+          </React.Fragment>
+        ))}
+      </>
+    ),
     ResourceColumn: () => null,
     UsageColumn: () => null,
     TimelineToolbar: () => null,
