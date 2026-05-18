@@ -28,7 +28,10 @@ export const InlineSelector = ({
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
     >
-      <label id={`type-select-label-${id}`} className="text-xs text-muted-foreground shrink-0">
+      <label
+        id={`type-select-label-${id}`}
+        className="text-[11px] leading-none text-muted-foreground shrink-0"
+      >
         {label}:
       </label>
       <Select value={value} onValueChange={value => onChange(id, value)}>
@@ -36,7 +39,7 @@ export const InlineSelector = ({
           id={`type-select-${id}`}
           aria-labelledby={`type-select-label-${id}`}
           className={cn(
-            'h-auto w-auto min-w-0 max-w-80 border-0 border-b border-dashed border-muted-foreground/60 rounded-none bg-transparent px-0 py-px text-xs font-mono shadow-none cursor-pointer',
+            'h-auto w-auto min-w-0 max-w-80 border-0 border-b border-dashed border-muted-foreground/60 rounded-none bg-transparent px-0 py-0 text-[11px] leading-none font-mono shadow-none cursor-pointer',
             'focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
             'data-[placeholder]:text-muted-foreground',
             '[&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0 [&>svg]:translate-y-px [&>svg]:opacity-70'

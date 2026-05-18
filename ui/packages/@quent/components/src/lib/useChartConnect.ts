@@ -6,6 +6,7 @@ import type { MutableRefObject } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useZoomRange } from '@quent/hooks';
 import { connectChart } from './timeline.utils';
+import { useChartResize } from './useChartResize';
 
 export interface UseChartConnectOptions {
   /** Full query duration in seconds. Used to convert zoomRangeAtom seconds → percent. */
@@ -51,7 +52,6 @@ export function useChartConnect({
 }: UseChartConnectOptions): UseChartConnectResult {
   const zoomRange = useZoomRange();
 
-  const instanceRef = useRef<EChartsInstance | null>(null);
   const zoomRangeRef = useRef(zoomRange);
   zoomRangeRef.current = zoomRange;
   const durationSecondsRef = useRef(durationSeconds);
@@ -59,9 +59,11 @@ export function useChartConnect({
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
 
+  const { handleChartReady: handleResize, instanceRef } = useChartResize();
+
   const handleChartReady = useCallback(
     (instance: EChartsInstance) => {
-      instanceRef.current = instance;
+      handleResize(instance);
       const dur = durationSecondsRef.current;
       const range = zoomRangeRef.current;
       const zoomPct =
@@ -69,7 +71,7 @@ export function useChartConnect({
       connectChart(instance, chartGroup, activateBrushSelect, zoomPct);
       onReadyRef.current?.(instance);
     },
-    [chartGroup, activateBrushSelect]
+    [handleResize, chartGroup, activateBrushSelect]
   );
 
   return { handleChartReady, instanceRef };

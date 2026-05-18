@@ -2,16 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Skeleton } from '../ui/skeleton';
-import { DEFAULT_TIMELINE_HEIGHT } from './types';
-
-type TimelineSkeletonProps = {
-  height?: number;
-};
 
 /** Animated skeleton placeholder rendered while timeline data loads. */
-export function TimelineSkeleton({ height = DEFAULT_TIMELINE_HEIGHT }: TimelineSkeletonProps) {
+export function TimelineSkeleton() {
   return (
-    <div className="relative w-full" style={{ height: `${height}px` }}>
+    <div className="relative w-full h-full">
       {/* Chart area background */}
       <div
         className="absolute rounded-sm bg-muted/30"

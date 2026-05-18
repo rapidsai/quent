@@ -9,22 +9,18 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { withOpacity } from '@quent/utils';
 import type { TimelineSeriesEntry } from './types';
-import {
-  TimelineSeries,
-  TimelineMark,
-  DEFAULT_TIMELINE_HEIGHT,
-  TIMELINE_SPACING,
-  TIMELINE_X_AXIS_ANIMATION,
-} from './types';
+import { TimelineSeries, TimelineMark, TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from './types';
 import {
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
   MARK_LABEL_TEXT_COLOR,
   ROLLUP_TIMELINE_COLOR_DARK,
   ROLLUP_TIMELINE_COLOR_LIGHT,
+  TIMELINE_MONO_FONT,
   useTimelineEchartsTheme,
 } from './timelineEchartsTheme';
 import { MIN_ZOOM_WINDOW_S, nanosToMs } from '../lib/timeline.utils';
+import { useVisibleMaxValue } from './useVisibleMaxValue';
 import { useChartConnect } from '../lib/useChartConnect';
 import { Opts } from 'echarts-for-react/lib/types';
 
@@ -48,7 +44,6 @@ export function Timeline({
   durationSeconds,
   series,
   timestamps,
-  height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
   marks,
   isDark,
@@ -59,7 +54,6 @@ export function Timeline({
   durationSeconds: number;
   series: TimelineSeries;
   timestamps: number[];
-  height?: number;
   showTooltip?: boolean;
   /** Annotation marks rendered as mark areas on the first series */
   marks?: TimelineMark[];
@@ -68,8 +62,7 @@ export function Timeline({
   /** Pointer-state callback. */
   onHoverChange?: (position: TimelineHoverPosition | null) => void;
 }) {
-  const { themeName } = useTimelineEchartsTheme(isDark);
-
+  const { themeName, textColor, labelBackgroundColor } = useTimelineEchartsTheme(isDark);
   const maxMarkCountRef = useRef(0);
 
   const seriesOptions = useMemo(() => {
@@ -131,7 +124,7 @@ export function Timeline({
                 show: !dimmed,
                 formatter: () =>
                   `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
-                position: [0, -5],
+                position: [0, -2.5],
                 fontSize: 9,
                 fontWeight: 500,
                 color: MARK_LABEL_TEXT_COLOR,
@@ -179,10 +172,14 @@ export function Timeline({
     return allSeries;
   }, [series, timestamps, marks, isDark]);
 
-  const yAxisFormatter = useMemo(() => {
+  const formatAxisValue = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
-    return (v: number) => firstEntry?.formatter(v, 0) ?? ((v: number) => `${v}`);
+    return (v: number) => firstEntry?.formatter(v, 0) ?? String(v);
   }, [series]);
+
+  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
+
+  const maxValue = useVisibleMaxValue(series, timestamps, startTimeMs);
 
   const yAxisOptions = useMemo(
     () => [
@@ -193,7 +190,7 @@ export function Timeline({
         max: (value: { max: number }) => value.max * 1.1 || 1,
         splitNumber: 1,
         show: true,
-        axisLabel: { formatter: yAxisFormatter },
+        axisLabel: { show: false },
       },
       {
         type: 'value',
@@ -203,10 +200,8 @@ export function Timeline({
         gridIndex: 0,
       },
     ],
-    [yAxisFormatter]
+    []
   );
-
-  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const xAxisOptions = useMemo(
     () => ({
@@ -414,7 +409,7 @@ export function Timeline({
     };
   }, []);
 
-  const style = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
+  const style = useMemo(() => ({ width: '100%', height: '100%' }), []);
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
 
   const { handleChartReady } = useChartConnect({
@@ -424,17 +419,34 @@ export function Timeline({
   });
 
   return (
-    <ReactEChartsComponent
-      echarts={echarts}
-      theme={themeName}
-      opts={opts}
-      option={eChartOptions}
-      style={style}
-      onChartReady={handleChartReady}
-      notMerge={false}
-      lazyUpdate={false}
-      replaceMerge={['series']}
-    />
+    <div className="relative w-full h-full">
+      {maxValue != null && (
+        <span
+          className="absolute z-[8] pointer-events-none text-[10px] leading-none rounded-sm px-1 py-0.5"
+          style={{
+            top: TIMELINE_SPACING.top + 1,
+            left: TIMELINE_SPACING.left + 1,
+            fontFamily: TIMELINE_MONO_FONT,
+            color: textColor,
+            background: labelBackgroundColor,
+          }}
+        >
+          {formatAxisValue(maxValue)}
+        </span>
+      )}
+      <ReactEChartsComponent
+        echarts={echarts}
+        theme={themeName}
+        opts={opts}
+        option={eChartOptions}
+        style={style}
+        onChartReady={handleChartReady}
+        notMerge={false}
+        lazyUpdate={false}
+        replaceMerge={['series']}
+        autoResize={false}
+      />
+    </div>
   );
 }
 

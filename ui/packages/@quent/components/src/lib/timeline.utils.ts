@@ -304,6 +304,21 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
 const NICE_TIMELINE_INTERVALS_MS = [
+  0.001, // 1 µs
+  0.002,
+  0.005,
+  0.01, // 10 µs
+  0.02,
+  0.05,
+  0.1, // 100 µs
+  0.2,
+  0.5,
+  1, // 1 ms
+  2,
+  5,
+  10, // 10 ms
+  20,
+  50,
   100,
   200,
   500,
@@ -338,7 +353,7 @@ const NICE_TIMELINE_INTERVALS_MS = [
  * `targetSplits` is treated as the minimum number of displayed splits/labels.
  */
 export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number = 8): number {
-  const safeSpanMs = Math.max(1, spanMs);
+  const safeSpanMs = Math.max(MIN_ZOOM_WINDOW_S * 1000, spanMs);
   const minSplits = Math.max(2, targetSplits);
   // To display at least `minSplits`, interval must be <= span/(minSplits-1).
   const maxAllowedStep = safeSpanMs / (minSplits - 1);
@@ -677,4 +692,23 @@ export function collectVisibleEntries(
     walk(item);
   }
   return result;
+}
+
+/** Max stacked value across non-dimmed, non-overlay bins within [zoomStartMs, zoomEndMs]. */
+export function computeVisibleMaxValue(
+  series: TimelineSeries,
+  timestamps: number[],
+  zoomStartMs: number,
+  zoomEndMs: number
+): number | null {
+  const entries = Object.values(series).filter(e => !e.isDimmed && !e.isOverlay);
+  if (!entries.length || !entries[0]?.values.length) return null;
+  let max = 0;
+  for (let i = 0; i < entries[0].values.length; i++) {
+    const t = timestamps[i];
+    if (t === undefined || t < zoomStartMs || t > zoomEndMs) continue;
+    const sum = entries.reduce((acc, e) => acc + (e.values[i] ?? 0), 0);
+    if (sum > max) max = sum;
+  }
+  return max > 0 ? max : null;
 }

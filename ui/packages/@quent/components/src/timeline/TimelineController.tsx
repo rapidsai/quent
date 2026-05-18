@@ -23,22 +23,24 @@ import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineEchartsTheme } from './timelineEchartsTheme';
 import type { PaletteTheme } from '@quent/utils';
+import { Opts } from 'echarts-for-react/lib/types';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
 const CONTROLLER_X_MIN_LABELS = 8;
+/** Reserves space for the top-positioned xAxis labels. */
+const CONTROLLER_GRID_TOP = 20;
+// Balanced with CONTROLLER_GRID_TOP so the chart area is centered in the controller height.
+const CONTROLLER_GRID_BOTTOM = 10;
+// Shifts the datazoom slider up so it overlaps the label row instead of sitting flush with the chart.
+const DATAZOOM_TOP_OFFSET = 5;
 
 type TimelineControllerProps = {
-  /** Start time in nanoseconds (bigint) */
   startTime: bigint;
-  /** Duration in seconds */
   durationSeconds: number;
   height?: number;
-  /** Optional timeline data to render on the static display (e.g. overlay from root resource group) */
   timelineData?: SingleTimelineResponse | null;
-  /** Called when the zoom/pan range changes, with start/end in seconds */
   onZoomChange?: (range: ZoomRange) => void;
-  /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
 };
 
@@ -96,8 +98,7 @@ export function TimelineController({
     const staticValues: number[] | null = hasSeriesData
       ? seriesData
       : Array(timestamps.length).fill(0);
-    // Color comes from the registered timeline theme's color palette
-    // (rollupTimelineColor); areaStyle inherits the line color at 80% opacity.
+    // Color comes from the timeline theme's `rollupTimelineColor` palette entry.
     const staticDisplaySeries = {
       name: 'static-display',
       type: 'line',
@@ -130,12 +131,18 @@ export function TimelineController({
       boundaryGap: false,
       type: 'value',
       show: true,
+      position: 'top',
       min: startTimeMillis,
       max: endTimeMillis,
       interval,
-      axisTick: { show: true },
+      // Re-enable ticks the shared theme disables; default `inside: false`
+      // points them up toward the top-positioned labels.
+      axisTick: { show: true, alignWithLabel: true },
       axisLabel: {
         hideOverlap: false,
+        // Keeps min/max axis labels contained within the chart
+        alignMinLabel: 'left',
+        alignMaxLabel: 'right',
         formatter: (value: number) => {
           return formatDuration(Number(value) - startTimeMillis);
         },
@@ -193,8 +200,8 @@ export function TimelineController({
   const gridOptions = useMemo(
     () => ({
       ...TIMELINE_SPACING,
-      bottom: 20,
-      // Override the registered theme's grid backgroundColor with the controller-specific tint.
+      top: CONTROLLER_GRID_TOP,
+      bottom: CONTROLLER_GRID_BOTTOM,
       backgroundColor: controllerGridBackgroundColor,
     }),
     [controllerGridBackgroundColor]
@@ -229,15 +236,11 @@ export function TimelineController({
           realtime: true,
           filterMode: 'none',
           minSpan: minZoomSpanPct,
-          top: 0,
-          height: height - 24,
+          top: CONTROLLER_GRID_TOP - DATAZOOM_TOP_OFFSET,
+          height: height - CONTROLLER_GRID_TOP - CONTROLLER_GRID_BOTTOM,
           brushSelect: true,
-          // handleStyle, fillerColor, dataBackground, textStyle, etc. come from
-          // the registered timeline theme's dataZoom defaults.
-          textStyle: { opacity: 1 },
-          labelFormatter: (tsMilliseconds: number) => {
-            return formatDuration(Number(tsMilliseconds) - startTimeMillis);
-          },
+          // Built-in labels disabled — replaced by custom DOM chips below.
+          showDetail: false,
         },
         {
           type: 'inside',
@@ -271,8 +274,6 @@ export function TimelineController({
     zoomXAxisOptions,
     yAxisOptions,
     seriesOptions,
-    startTimeMillis,
-    endTimeMillis,
   ]);
 
   const handleDataZoom = useMemo(() => {
@@ -304,16 +305,14 @@ export function TimelineController({
   }, [onZoomChange, durationSeconds]);
 
   const selfTriggeredRef = useRef(false);
-  // Increments on every chart-ready event so the restore effect re-fires when
-  // the underlying ECharts instance is recreated (e.g. on theme change, which
-  // disposes and re-creates the chart and would otherwise leave the new
-  // instance at its default 0–100% zoom).
+  // Bumped on chart-ready so the restore effect re-runs when the instance is
+  // recreated (e.g. theme change disposes and rebuilds the chart at 0–100%).
   const [readyTick, setReadyTick] = useState(0);
 
   const zoomRange = useZoomRange();
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
-    registerAxisPointerSync(instance, 0);
+    registerAxisPointerSync(instance);
     setReadyTick(t => t + 1);
   }, []);
 
@@ -323,10 +322,7 @@ export function TimelineController({
     onReady: onChartReady,
   });
 
-  // Restore the dataZoom slider position from the persisted atom whenever the
-  // zoom range changes or a (re)created chart instance becomes ready. The
-  // `readyTick` dependency ensures recreated instances inherit the saved zoom
-  // even when the atom value itself is unchanged across the remount.
+  // Restore the persisted zoom on range change or instance (re)creation.
   useEffect(() => {
     if (readyTick === 0) return;
     if (selfTriggeredRef.current) {
@@ -339,9 +335,7 @@ export function TimelineController({
     const startPct = (zoomRange.start / durationSeconds) * 100;
     const endPct = (zoomRange.end / durationSeconds) * 100;
 
-    // Mute the dataZoom event our own dispatch is about to emit, so the
-    // recreated chart's initial restore doesn't echo back through onZoomChange
-    // and overwrite the atom (which would visibly snap the bounds back).
+    // Mute our own dispatch so the echoed dataZoom event doesn't overwrite the atom.
     selfTriggeredRef.current = true;
     instance.dispatchAction({
       type: 'dataZoom',
@@ -360,6 +354,8 @@ export function TimelineController({
     };
   }, [instanceRef]);
 
+  const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
+
   return (
     <ReactEChartsComponent
       echarts={echarts}
@@ -370,7 +366,8 @@ export function TimelineController({
       onEvents={handleDataZoom}
       notMerge={false}
       lazyUpdate
-      opts={{ renderer: 'canvas' }}
+      opts={opts}
+      autoResize={false}
     />
   );
 }
