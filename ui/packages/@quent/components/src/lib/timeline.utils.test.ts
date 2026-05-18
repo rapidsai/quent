@@ -139,32 +139,16 @@ describe('getLongEntitiesThreshold', () => {
 // ---- getTimelineXAxisIntervalMs --------------------------------------------
 
 describe('getTimelineXAxisIntervalMs', () => {
-  it('picks a 1-second interval for a 7-second span', () => {
-    expect(getTimelineXAxisIntervalMs(7_000)).toBe(1_000);
-  });
-
-  it('picks a 500ms interval for a 3.5-second span', () => {
-    expect(getTimelineXAxisIntervalMs(3_500)).toBe(500);
-  });
-
-  it('picks a 200ms interval for a 1.4-second span', () => {
-    expect(getTimelineXAxisIntervalMs(1_400)).toBe(200);
-  });
-
-  it('picks a 100ms interval for a 700ms span', () => {
-    expect(getTimelineXAxisIntervalMs(700)).toBe(100);
-  });
-
-  it('picks a 1-minute interval for a 7-minute span', () => {
-    expect(getTimelineXAxisIntervalMs(7 * 60_000)).toBe(60_000);
-  });
-
-  it('picks a 1-hour interval for a 7-hour span', () => {
-    expect(getTimelineXAxisIntervalMs(7 * 3_600_000)).toBe(3_600_000);
-  });
-
-  it('picks a 1-day interval for a 7-day span', () => {
-    expect(getTimelineXAxisIntervalMs(7 * 86_400_000)).toBe(86_400_000);
+  it.each([
+    [700, 100],
+    [1_400, 200],
+    [3_500, 500],
+    [7_000, 1_000],
+    [7 * 60_000, 60_000],
+    [7 * 3_600_000, 3_600_000],
+    [7 * 86_400_000, 86_400_000],
+  ])('picks the right nice interval for span %i ms', (span, expected) => {
+    expect(getTimelineXAxisIntervalMs(span)).toBe(expected);
   });
 
   it('falls back to the raw step when the span is smaller than any nice interval', () => {
