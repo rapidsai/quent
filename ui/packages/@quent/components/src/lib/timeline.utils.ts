@@ -48,9 +48,10 @@ export const MIN_BIN_DURATION_NS = 250;
  */
 export const MIN_ZOOM_WINDOW_S = (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000;
 
-/** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
-export function nanosToMs(ns: bigint): number {
-  return Number(ns / 1_000_000n) + Number(ns % 1_000_000n) / 1_000_000;
+/** Convert a nanosecond-precision timestamp to milliseconds, preserving sub-ms precision. */
+export function nanosToMs(ns: bigint | number): number {
+  const bigNs = typeof ns === 'bigint' ? ns : BigInt(ns);
+  return Number(bigNs / 1_000_000n) + Number(bigNs % 1_000_000n) / 1_000_000;
 }
 
 /**
