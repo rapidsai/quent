@@ -13,6 +13,9 @@ on:
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
 
+permissions:
+  contents: read
+
 jobs:
   markdown:
     name: Lint

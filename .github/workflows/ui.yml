@@ -15,6 +15,9 @@ env:
   PNPM_VERSION: "11.0.0-rc.2"
   NODE_VERSION: "24.11.0"
 
+permissions:
+  contents: read
+
 jobs:
   fmt:
     name: Format
