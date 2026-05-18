@@ -75,7 +75,7 @@ function RootNotFoundComponent() {
           The page you&#39;re looking for doesn&#39;t exist.
         </p>
       </div>
-      <Button size="sm" asChild>
+      <Button variant="outline" size="sm" asChild>
         <Link to="/profile">Go to profile</Link>
       </Button>
     </div>
