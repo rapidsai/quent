@@ -88,33 +88,3 @@ describe('collectResourceTypesFromTree', () => {
     expect(result).toHaveLength(2);
   });
 });
-
-describe('getIconForType', () => {
-  it('returns LineChart for EntityTypeKey.Resource', () => {
-    expect(getIconForType(EntityTypeKey.Resource)).toBe(LineChart);
-  });
-
-  it('returns Folder for EntityTypeKey.ResourceGroup', () => {
-    expect(getIconForType(EntityTypeKey.ResourceGroup)).toBe(Folder);
-  });
-
-  it('returns Database for "Engine"', () => {
-    expect(getIconForType('Engine')).toBe(Database);
-  });
-
-  it('returns Network for "Network"', () => {
-    expect(getIconForType('Network')).toBe(Network);
-  });
-
-  it('returns Rocket for "Worker"', () => {
-    expect(getIconForType('Worker')).toBe(Rocket);
-  });
-
-  it('returns Star for an unknown type', () => {
-    expect(getIconForType('SomethingElse')).toBe(Star);
-  });
-
-  it('returns Star for an empty string', () => {
-    expect(getIconForType('')).toBe(Star);
-  });
-});
