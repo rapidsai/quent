@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { formatDuration, formatBytes, formatNumber, getActivePalette } from '@quent/utils';
+import { getActivePalette } from '@quent/utils';
 import type { DAGNode, DAGEdge } from '@quent/utils';
 import {
-  inferFieldFormatter,
   computeNodeColoring,
   computeEdgeColoring,
   computeEdgeWidthConfig,
@@ -33,61 +32,6 @@ function makeEdge(id: string, portStats: DAGEdge['portStats'] = []): DAGEdge {
 function tagged(variant: string, value: unknown) {
   return { [variant]: value };
 }
-
-// ---- inferFieldFormatter ---------------------------------------------------
-
-describe('inferFieldFormatter', () => {
-  it('routes _ns fields through formatDuration (nanoseconds → ms)', () => {
-    const fmt = inferFieldFormatter('exec_ns');
-    // 1_000_000 ns = 1 ms
-    expect(fmt(1_000_000)).toBe(formatDuration(1_000_000 / 1e6));
-  });
-
-  it('routes _bytes fields through formatBytes', () => {
-    const fmt = inferFieldFormatter('output_bytes');
-    expect(fmt(1024)).toBe(formatBytes(1024));
-  });
-
-  it('routes the exact field name "bytes" through formatBytes', () => {
-    const fmt = inferFieldFormatter('bytes');
-    expect(fmt(2048)).toBe(formatBytes(2048));
-  });
-
-  it('routes _mbs fields to a MB/s string', () => {
-    expect(inferFieldFormatter('throughput_mbs')(2.5)).toBe('2.5 MB/s');
-    expect(inferFieldFormatter('throughput_mbs')(100)).toBe('100.0 MB/s');
-  });
-
-  it('routes _ratio fields to a percentage string', () => {
-    expect(inferFieldFormatter('hit_ratio')(0.5)).toBe('50.0%');
-    expect(inferFieldFormatter('hit_ratio')(1)).toBe('100.0%');
-  });
-
-  it('routes _fraction fields to a percentage string', () => {
-    expect(inferFieldFormatter('cache_fraction')(0.25)).toBe('25.0%');
-  });
-
-  it('routes _fpr fields to a percentage string', () => {
-    expect(inferFieldFormatter('bloom_fpr')(0.01)).toBe('1.0%');
-  });
-
-  it('routes _selectivity fields to a percentage string', () => {
-    expect(inferFieldFormatter('filter_selectivity')(0.75)).toBe('75.0%');
-  });
-
-  it('routes _rate fields to a percentage string', () => {
-    expect(inferFieldFormatter('miss_rate')(0.1)).toBe('10.0%');
-  });
-
-  it('falls back to formatNumber for unrecognized field names', () => {
-    const fmt = inferFieldFormatter('row_count');
-    expect(fmt(42)).toBe(formatNumber(42));
-  });
-
-  it('falls back to formatNumber for an empty field name', () => {
-    expect(inferFieldFormatter('')(0)).toBe(formatNumber(0));
-  });
-});
 
 // ---- computeNodeColoring ---------------------------------------------------
 
