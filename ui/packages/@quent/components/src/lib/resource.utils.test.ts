@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { Database, Folder, LineChart, Network, Rocket, Star } from 'lucide-react';
-import { EntityTypeKey } from '@quent/utils';
 import type { TreeTableItem } from '../resource-tree/types';
-import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
+import { collectResourceTypesFromTree } from './resource.utils';
 
 function makeResourceItem(id: string, typeName: string, children?: TreeTableItem[]): TreeTableItem {
   return {
