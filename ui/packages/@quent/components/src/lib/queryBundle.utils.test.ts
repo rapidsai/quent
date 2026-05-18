@@ -177,6 +177,14 @@ describe('parsePortStatistics', () => {
     expect(parsePortStatistics(port)).toEqual([{ key: 'missing', value: null }]);
   });
 
+  it('falls back to JSON.stringify for multi-key objects that are not attribute-shaped', () => {
+    const weirdObj = { a: 1, b: 2, c: 3 };
+    const port = makePort({ weird: makeTagged('Obj', weirdObj) });
+    const result = parsePortStatistics(port);
+    expect(result[0]?.key).toBe('weird');
+    expect(result[0]?.value).toBe(JSON.stringify(weirdObj));
+  });
+
   it('returns one entry per statistic key', () => {
     const port = makePort({
       rows: makeTagged('UInt64', 10),
