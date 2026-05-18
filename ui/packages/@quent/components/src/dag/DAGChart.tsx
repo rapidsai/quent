@@ -45,7 +45,7 @@ import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNo
 import { DAGLegend } from './DAGLegend';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { continuousColor, getOperationTypeColor, buildOperatorColorMap } from '@quent/utils';
-import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@quent/utils';
 
 const elk = new ELK();
 

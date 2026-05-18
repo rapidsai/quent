@@ -124,7 +124,6 @@ export {
   computeNodeColoring,
   computeEdgeColoring,
   computeEdgeWidthConfig,
-  inferFieldFormatter,
 } from './services/query-plan/dagFieldProcessing';
 export {
   getPlanDAG,

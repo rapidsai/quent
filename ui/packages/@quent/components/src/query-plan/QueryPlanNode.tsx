@@ -24,7 +24,7 @@ import {
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@quent/utils';
 import { DataText } from '../ui/data-text';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {

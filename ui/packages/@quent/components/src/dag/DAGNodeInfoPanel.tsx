@@ -6,7 +6,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useSelectedNodeData } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
 import { thinScrollbarClass } from '../ui/thin-scroll';
-import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@quent/utils';
 
 export const DAGNodeInfoPanel = () => {
   const selectedNodeData = useSelectedNodeData();
