@@ -29,7 +29,7 @@ export const DAGSettingsPopover = ({ isDark }: DAGSettingsPopoverProps) => {
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
         >
           <Settings2 className="h-3.5 w-3.5" />
         </Button>
