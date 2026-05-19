@@ -41,9 +41,9 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   return (
     <div className="bg-card">
       <div className="flex items-center justify-between px-4 py-2">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Plan Controls
-          </span>
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Plan Controls
+        </span>
         <DAGSettingsPopover isDark={isDark} />
       </div>
       <div className="px-4 pb-2 grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5">
