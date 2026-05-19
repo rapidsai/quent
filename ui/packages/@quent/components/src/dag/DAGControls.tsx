@@ -39,17 +39,14 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const portOptions: SelectFieldOption[] = portStatFields.map(f => ({ value: f }));
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="bg-card">
+    <div className="bg-card">
       <div className="flex items-center justify-between px-4 py-2">
-        <CollapsibleTrigger className="flex items-center gap-2 group">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Plan Controls
           </span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 cursor-pointer group-data-[state=open]:rotate-180" />
-        </CollapsibleTrigger>
         <DAGSettingsPopover isDark={isDark} />
       </div>
-      <CollapsibleContent className="px-4 pb-2 grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5">
+      <div className="px-4 pb-2 grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5">
         <SelectField
           label="Node color"
           icon={Palette}
@@ -87,7 +84,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
           clearable={false}
           triggerClassName="h-6 text-xs"
         />
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </div>
   );
 };

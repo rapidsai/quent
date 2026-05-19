@@ -33,7 +33,7 @@ type PlanTab = 'plan' | 'controls';
 
 const tabClass = cn(
   'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1',
-  'text-sm font-normal text-muted-foreground transition-all',
+  'text-sm font-normal text-muted-foreground transition-all cursor-pointer',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
 );
 const activeTabClass = cn(tabClass, 'text-foreground font-semibold bg-muted shadow');
@@ -141,7 +141,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel
-          defaultSize="25%"
+          defaultSize="15%"
           className="flex flex-col"
         >
           <div className="shrink-0 border-b">
@@ -183,7 +183,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
 
         <ResizablePanel
-          defaultSize="75%"
+          defaultSize="85%"
           minSize="25%"
           collapsible
           collapsedSize="0%"
