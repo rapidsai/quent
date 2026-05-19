@@ -34,9 +34,10 @@ export {
   useHydrateTimelineAtoms,
 } from './timeline/useTimelineAtoms';
 
-// Timeline cache key helper (consumers need this to address per-item data)
+// Timeline cache key helpers (consumers need these to address per-item data)
 export { timelineCacheKey } from './atoms/timeline';
 export type { TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
+export { bulkEntryId } from './timeline/timeline.utils';
 
 // Complex timeline hooks
 export { useBulkTimelines } from './timeline/useBulkTimelines';
@@ -75,8 +76,6 @@ export {
   useEdgeColoring,
   useEdgeColorPalette,
   useSelectedNodeLabelField,
-  useHoveredNodeData,
-  useSetHoveredNodeData,
   useSelectedNodeData,
   useSetSelectedNodeData,
   useHighlightedNodeIds,

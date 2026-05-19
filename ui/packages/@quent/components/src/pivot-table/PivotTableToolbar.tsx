@@ -88,7 +88,7 @@ export function PivotTableToolbar({
               onDragEnd={dragDrop.handleDragEnd}
               onClick={() => onToggleIndex(key)}
               className={cn(
-                'text-xs px-2 py-0.5 rounded border transition-colors cursor-grab active:cursor-grabbing select-none whitespace-nowrap h-full',
+                'text-xs px-2 py-0.5 rounded border transition-colors cursor-pointer active:cursor-grabbing select-none whitespace-nowrap h-full',
                 {
                   'bg-primary/10 border-primary/40 text-primary': enabled,
                   'bg-muted/50 border-border text-muted-foreground': !enabled,

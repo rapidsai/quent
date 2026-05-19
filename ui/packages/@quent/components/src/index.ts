@@ -124,7 +124,6 @@ export {
   computeNodeColoring,
   computeEdgeColoring,
   computeEdgeWidthConfig,
-  inferFieldFormatter,
 } from './services/query-plan/dagFieldProcessing';
 export {
   getPlanDAG,
@@ -138,6 +137,7 @@ export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/q
 export { CHART_GROUP } from './timeline/Timeline';
 export { Timeline } from './timeline/Timeline';
 export { TimelineController } from './timeline/TimelineController';
+export { TimelineRuler } from './timeline/TimelineRuler';
 export { TimelineSkeleton } from './timeline/TimelineSkeleton';
 export { TimelineToolbar } from './timeline/TimelineToolbar';
 export { QueryToolbar } from './timeline/QueryToolbar';

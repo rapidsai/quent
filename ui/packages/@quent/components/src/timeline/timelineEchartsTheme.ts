@@ -23,6 +23,8 @@ import { BLACK, WHITE, withOpacity } from '@quent/utils';
 export const TIMELINE_MONO_FONT =
   'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
 
+export const TIMELINE_LABEL_FONT_SIZE = 10;
+
 export const MARK_AREA_FILL_OPACITY = 0.12;
 export const MARK_AREA_BORDER_OPACITY = 0.75;
 /** Mark labels sit on a colored chip; white reads well against every state color. */
@@ -40,14 +42,15 @@ export const ROLLUP_TIMELINE_COLOR_DARK = '#777777';
 const TEXT_COLOR_LIGHT = '#333333';
 const TEXT_COLOR_DARK = '#d4d4d4';
 
+const AXIS_TICK_COLOR_LIGHT = '#aaaaaa';
+const AXIS_TICK_COLOR_DARK = '#c0c0c0';
+
 const GRID_BORDER_OPACITY = 0.2;
 const GRID_BACKGROUND_OPACITY = 0.1;
 const CONTROLLER_GRID_BACKGROUND_OPACITY = 0.05;
 const DATAZOOM_HANDLE_OPACITY = 0.3;
 const DATAZOOM_FILLER_OPACITY = 0.2;
 const DATAZOOM_EMPHASIS_HANDLE_OPACITY = 0.5;
-const DATAZOOM_LABEL_BACKGROUND_OPACITY = 0.5;
-
 function buildTimelineTheme(isDark: boolean) {
   const timelineMarkupColor = isDark ? TIMELINE_MARKUP_COLOR_DARK : TIMELINE_MARKUP_COLOR_LIGHT;
   const rollupTimelineColor = isDark ? ROLLUP_TIMELINE_COLOR_DARK : ROLLUP_TIMELINE_COLOR_LIGHT;
@@ -55,11 +58,6 @@ function buildTimelineTheme(isDark: boolean) {
   const gridBorderColor = withOpacity(timelineMarkupColor, GRID_BORDER_OPACITY);
   const gridBackgroundColor = withOpacity(timelineMarkupColor, GRID_BACKGROUND_OPACITY);
 
-  const dataZoomTextColor = isDark ? WHITE : BLACK;
-  const dataZoomTextBackgroundColor = withOpacity(
-    isDark ? BLACK : WHITE,
-    DATAZOOM_LABEL_BACKGROUND_OPACITY
-  );
   const dataZoomHandleColor = withOpacity(timelineMarkupColor, DATAZOOM_HANDLE_OPACITY);
   const dataZoomFillerColor = withOpacity(timelineMarkupColor, DATAZOOM_FILLER_OPACITY);
   const dataZoomEmphasisHandleColor = withOpacity(
@@ -107,13 +105,6 @@ function buildTimelineTheme(isDark: boolean) {
       moveHandleSize: 5,
       dataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } },
       selectedDataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } },
-      textStyle: {
-        color: dataZoomTextColor,
-        backgroundColor: dataZoomTextBackgroundColor,
-        padding: [2, 4],
-        borderRadius: 2,
-        fontFamily: TIMELINE_MONO_FONT,
-      },
       emphasis: {
         handleStyle: { color: dataZoomEmphasisHandleColor },
       },
@@ -137,6 +128,14 @@ export function useTimelineEchartsTheme(isDark: boolean) {
     () => ({
       themeName: isDark ? TIMELINE_THEME_NAME_DARK : TIMELINE_THEME_NAME_LIGHT,
       textColor: isDark ? TEXT_COLOR_DARK : TEXT_COLOR_LIGHT,
+      /** Color used by xAxis labels in the registered theme; mirror for DOM overlays. */
+      axisLabelColor: isDark ? TIMELINE_MARKUP_COLOR_DARK : TIMELINE_MARKUP_COLOR_LIGHT,
+      /** Prominent color for axis ticks — darker in light mode, lighter in dark mode. */
+      axisTickColor: isDark ? AXIS_TICK_COLOR_DARK : AXIS_TICK_COLOR_LIGHT,
+      /** Semi-transparent chip background for DOM labels overlaid on the chart canvas. */
+      labelBackgroundColor: withOpacity(isDark ? BLACK : WHITE, 0.75),
+      /** Nearly-opaque chip background — used when the label must obscure what's behind it. */
+      solidLabelBackgroundColor: withOpacity(isDark ? BLACK : WHITE, 0.95),
       controllerGridBackgroundColor: withOpacity(
         isDark ? TIMELINE_MARKUP_COLOR_DARK : TIMELINE_MARKUP_COLOR_LIGHT,
         CONTROLLER_GRID_BACKGROUND_OPACITY

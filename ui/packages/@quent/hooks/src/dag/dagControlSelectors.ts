@@ -15,7 +15,6 @@ import {
   edgeColoringAtom,
   edgeColorPaletteAtom,
   selectedNodeLabelFieldAtom,
-  hoveredNodeDataAtom,
   selectedNodeDataAtom,
   highlightedNodeIdsAtom,
   effectiveHighlightedNodeIdsAtom,
@@ -62,13 +61,6 @@ export function useEdgeColorPalette() {
 
 export function useSelectedNodeLabelField() {
   return useAtom(selectedNodeLabelFieldAtom);
-}
-
-export function useHoveredNodeData() {
-  return useAtomValue(hoveredNodeDataAtom);
-}
-export function useSetHoveredNodeData() {
-  return useSetAtom(hoveredNodeDataAtom);
 }
 
 export function useSelectedNodeData() {

@@ -8,7 +8,7 @@ import { useAtom } from 'jotai';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
 import { ResourceTree, QueryBundle } from '@quent/utils';
 import type { EntityRef, SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
-import { TimelineController } from '@quent/components';
+import { TimelineController, TimelineRuler } from '@quent/components';
 import { collectResourceTypesFromTree } from '@quent/components';
 import { EntityRefKey } from '@quent/utils';
 import { TreeTableItem } from '@quent/components';
@@ -122,16 +122,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
-  // `useExpandedIds` updates this set asynchronously after mount, so on the
-  // very first render `controlledExpandedIds` would be empty and the root
-  // would render collapsed. Ensure the root is always considered expanded so
-  // first paint matches the previous uncontrolled behavior.
-  const controlledExpandedIds = useMemo(() => {
-    if (expandedIds.has(rootItem.id)) return expandedIds;
-    const next = new Set(expandedIds);
-    next.add(rootItem.id);
-    return next;
-  }, [expandedIds, rootItem.id]);
+  const controlledExpandedIds = expandedIds;
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
@@ -215,6 +206,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
+        headerContent: (
+          <div className="flex items-center h-full px-3 text-xs font-semibold text-muted-foreground select-none">
+            Resource
+          </div>
+        ),
         render: ({ item }: { item: TreeTableItem; level: number }) => {
           switch (item.type) {
             case OPERATOR_TIMELINE_ROW_TYPE: {
@@ -251,8 +247,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         key: 'usage',
         label: 'Usage',
         widthIndex: 1,
-        subHeaderContent: (
-          <div className="h-full overflow-hidden flex items-center py-2">
+        headerContent: (
+          <div className="h-full overflow-hidden flex items-center py-1">
             <TimelineController
               startTime={startTime}
               durationSeconds={durationSeconds}
@@ -262,6 +258,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             />
           </div>
         ),
+        subHeaderContent: <TimelineRuler startTime={startTime} isDark={isDark} />,
         render: ({ item }: { item: TreeTableItem }) => {
           switch (item.type) {
             case OPERATOR_TIMELINE_ROW_TYPE: {

@@ -43,10 +43,9 @@ import {
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
-import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { continuousColor, getOperationTypeColor, buildOperatorColorMap } from '@quent/utils';
-import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@quent/utils';
 
 const elk = new ELK();
 
@@ -482,7 +481,6 @@ const FlowLayout = ({
     >
       <Background />
       <DAGLegend isDark={isDark} />
-      <DAGNodeInfoPanel />
       <MiniMap
         pannable
         zoomable

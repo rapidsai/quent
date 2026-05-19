@@ -11,7 +11,7 @@ import {
   useSelectedEdgeColorField,
 } from '@quent/hooks';
 import { getLegendGradientStops } from '@quent/utils';
-import { inferFieldFormatter } from '../services/query-plan/dagFieldProcessing';
+import { inferFieldFormatter } from '@quent/utils';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
 

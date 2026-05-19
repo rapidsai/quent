@@ -36,7 +36,7 @@ export function QueryToolbar({ children }: QueryToolbarProps) {
             {operatorLabel}
             <button
               onClick={clearOperator}
-              className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors"
+              className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors cursor-pointer"
             >
               <X className="h-2.5 w-2.5" />
             </button>

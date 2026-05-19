@@ -59,7 +59,7 @@ export const SelectField = ({
           <span
             role="button"
             aria-label={`Clear ${label ?? 'selection'}`}
-            className="ml-auto mr-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            className="ml-auto mr-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             onPointerDown={e => {
               e.stopPropagation();
               e.preventDefault();

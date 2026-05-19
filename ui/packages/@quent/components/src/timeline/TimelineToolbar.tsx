@@ -28,7 +28,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
     <QueryToolbar>
       <button
         onClick={resetZoom}
-        className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 hover:bg-accent hover:text-accent-foreground transition-colors"
+        className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
         title="Reset zoom"
       >
         <Maximize2 className="h-3 w-3" />
@@ -40,7 +40,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
       <Popover>
         <PopoverTrigger asChild>
           <button
-            className="inline-flex items-center rounded-sm p-0.5 hover:bg-accent hover:text-accent-foreground transition-colors"
+            className="inline-flex items-center rounded-sm p-0.5 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
             title="Timeline settings"
           >
             <Settings className="h-3.5 w-3.5" />

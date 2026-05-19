@@ -300,7 +300,7 @@ export function ResourceTimeline({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center p-8 text-red-400">
+      <div className="flex items-center justify-center h-full text-red-400 text-xs">
         Failed to load timeline
       </div>
     );
@@ -309,26 +309,28 @@ export function ResourceTimeline({
   const effectiveMarks = hideTasks ? undefined : marks;
 
   return (
-    <Suspense fallback={<TimelineSkeleton />}>
-      <Timeline
-        series={series}
-        timestamps={timestamps ?? []}
-        startTime={startTime}
-        durationSeconds={durationSeconds}
-        showTooltip={showTooltip}
-        marks={effectiveMarks}
-        isDark={isDark}
-        onHoverChange={handleHoverChange}
-      />
-      {showTooltip && (
-        <TimelineTooltipPortal
-          ownerId={ownerId}
+    <div className="h-full w-full">
+      <Suspense fallback={<TimelineSkeleton />}>
+        <Timeline
           series={series}
           timestamps={timestamps ?? []}
-          marks={effectiveMarks}
           startTime={startTime}
+          durationSeconds={durationSeconds}
+          showTooltip={showTooltip}
+          marks={effectiveMarks}
+          isDark={isDark}
+          onHoverChange={handleHoverChange}
         />
-      )}
-    </Suspense>
+        {showTooltip && (
+          <TimelineTooltipPortal
+            ownerId={ownerId}
+            series={series}
+            timestamps={timestamps ?? []}
+            marks={effectiveMarks}
+            startTime={startTime}
+          />
+        )}
+      </Suspense>
+    </div>
   );
 }

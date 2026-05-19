@@ -16,6 +16,11 @@ export function getFsmTypeName(params: TimelineRequest<TaskFilter>): string | nu
   return params.Resource.entity_filter.entity_type_name;
 }
 
+/** Stable request-entry key for bulk timeline fetches. Omit operatorId for the base variant. */
+export function bulkEntryId(resourceId: string, operatorId?: string | null): string {
+  return operatorId ? `${resourceId}:op:${operatorId}` : `${resourceId}:base`;
+}
+
 /** Clone entries and set operator_id on each TimelineRequest */
 export function setOperatorOnEntry(
   entry: TimelineRequest<TaskFilter>,

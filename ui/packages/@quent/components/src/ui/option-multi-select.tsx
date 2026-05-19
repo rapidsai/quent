@@ -120,7 +120,7 @@ export function OptionMultiSelect({
                   data-state={checked ? 'checked' : 'unchecked'}
                   onClick={() => onToggleOption(option)}
                   className={cn(
-                    'relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1 text-xs font-mono outline-none',
+                    'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-xs font-mono outline-none',
                     'transition-colors hover:bg-accent hover:text-accent-foreground',
                     'focus-visible:bg-accent focus-visible:text-accent-foreground'
                   )}
@@ -166,7 +166,7 @@ export function OptionMultiSelect({
                       onToggleOption(option);
                     }}
                     aria-label={`Remove ${option}`}
-                    className="ml-0.5 rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="ml-0.5 rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
                   >
                     <X className="size-2.5" />
                   </button>

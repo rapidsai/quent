@@ -9,3 +9,4 @@ target/
 tarpaulin-report.html
 *.tsbuildinfo
 docs/agents/
+.cursor

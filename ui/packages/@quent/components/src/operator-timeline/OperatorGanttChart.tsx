@@ -21,6 +21,7 @@ import {
   useSelectedNodeIds,
   useSetSelectedNodeIds,
   useSetSelectedOperatorLabel,
+  useSetSelectedNodeData,
   useSetSelectedPlanId,
   useNodeColoringValue,
   useNodeColorPalette,
@@ -61,6 +62,7 @@ export function OperatorGanttChart({
   const setSelectedNodeIds = useSetSelectedNodeIds();
   const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
   const setSelectedPlanId = useSetSelectedPlanId();
+  const setSelectedNodeData = useSetSelectedNodeData();
   const { themeName, textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
@@ -80,9 +82,11 @@ export function OperatorGanttChart({
       rowCount: maxRow + 1,
     };
   }, [operators]);
-  // Render every row at full height — the wrapping element scrolls vertically.
+  // Chart paints every operator row; wrapper caps at MAX_HEIGHT and scrolls overflow.
   const contentHeight = rowCount * BAR_HEIGHT;
   const chartHeight = Math.max(height, contentHeight);
+  // Explicit (not max-) height so the virtualizer measures the row correctly on first commit.
+  const wrapperHeight = Math.min(chartHeight, MAX_HEIGHT);
 
   const customSeriesData = useMemo(
     () =>
@@ -205,10 +209,6 @@ export function OperatorGanttChart({
   const gridOptions = useMemo(
     () => ({
       ...TIMELINE_SPACING,
-      top: 0,
-      bottom: 0,
-      left: TIMELINE_SPACING.left,
-      right: TIMELINE_SPACING.right,
       width: undefined as number | undefined,
       height: undefined as number | undefined,
     }),
@@ -296,16 +296,30 @@ export function OperatorGanttChart({
         if (selectedNodeIds.has(op.operatorId)) {
           setSelectedNodeIds(new Set());
           setSelectedOperatorLabel(null);
+          setSelectedNodeData(null);
         } else {
           setSelectedNodeIds(new Set([op.operatorId]));
           setSelectedOperatorLabel(op.label);
+          setSelectedNodeData({
+            nodeId: op.operatorId,
+            label: op.label,
+            operationType: op.typeName,
+            statistics: op.statistics,
+          });
           if (op.planId) {
             setSelectedPlanId(op.planId);
           }
         }
       },
     }),
-    [operators, selectedNodeIds, setSelectedNodeIds, setSelectedOperatorLabel, setSelectedPlanId]
+    [
+      operators,
+      selectedNodeIds,
+      setSelectedNodeIds,
+      setSelectedOperatorLabel,
+      setSelectedPlanId,
+      setSelectedNodeData,
+    ]
   );
 
   // Join timeline-sync-group for frame-rate-level x-axis zoom sync via ECharts connect().
@@ -350,7 +364,7 @@ export function OperatorGanttChart({
     return (
       <div
         className="flex items-center justify-center text-muted-foreground text-sm"
-        style={{ height: DEFAULT_HEIGHT }}
+        style={{ height }}
       >
         No operator active spans
       </div>
@@ -358,7 +372,7 @@ export function OperatorGanttChart({
   }
 
   return (
-    <HiddenScroll ref={wrapperRef} style={{ maxHeight: MAX_HEIGHT }}>
+    <HiddenScroll ref={wrapperRef} style={{ height: wrapperHeight }}>
       <ReactEChartsComponent
         echarts={echarts}
         theme={themeName}
@@ -369,6 +383,7 @@ export function OperatorGanttChart({
         notMerge={false}
         lazyUpdate={false}
         replaceMerge={['series']}
+        autoResize={false}
       />
     </HiddenScroll>
   );

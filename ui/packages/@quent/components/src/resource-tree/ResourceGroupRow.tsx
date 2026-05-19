@@ -36,32 +36,40 @@ export const ResourceGroupRow = ({
   const hasMultipleFsms = fsmCount > 1;
   const fsmOptions = hasMultipleFsms ? [FSM_ALL, ...(availableFsmTypes ?? [])] : [];
 
+  const showType = hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes;
+  const showFsmStatic = hasOneFsm;
+  const showFsmSelector = hasMultipleFsms && onFsmChange && fsmOptions.length > 0;
+  const hasMetadata = showType || showFsmStatic || showFsmSelector;
+
   return (
-    <div>
-      <DataText className="text-sm font-bold">{group.instance_name}</DataText>
-      {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
-        <InlineSelector
-          id={`${id}-resource-type`}
-          label="Type"
-          value={selectedType}
-          options={availableResourceTypes}
-          onChange={(_, value) => onTypeChange(id, value)}
-        />
-      )}
-      {hasOneFsm && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          FSM: <DataText className="text-foreground">{availableFsmTypes![0]}</DataText>
-        </p>
-      )}
-      {hasMultipleFsms && onFsmChange && fsmOptions.length > 0 && (
-        <InlineSelector
-          id={`${id}-fsm`}
-          label="FSM"
-          value={selectedFsmType ?? FSM_ALL}
-          options={fsmOptions}
-          onChange={(_, value) => onFsmChange(id, value === FSM_ALL ? null : value)}
-          className="mt-1"
-        />
+    <div className="pb-1">
+      <DataText className="text-xs font-bold leading-none">{group.instance_name}</DataText>
+      {hasMetadata && (
+        <div className="flex flex-col gap-y-1">
+          {showType && (
+            <InlineSelector
+              id={`${id}-resource-type`}
+              label="Type"
+              value={selectedType!}
+              options={availableResourceTypes!}
+              onChange={(_, value) => onTypeChange!(id, value)}
+            />
+          )}
+          {showFsmStatic && (
+            <span className="text-[11px] leading-none text-muted-foreground">
+              FSM: <DataText className="text-foreground">{availableFsmTypes![0]}</DataText>
+            </span>
+          )}
+          {showFsmSelector && (
+            <InlineSelector
+              id={`${id}-fsm`}
+              label="FSM"
+              value={selectedFsmType ?? FSM_ALL}
+              options={fsmOptions}
+              onChange={(_, value) => onFsmChange!(id, value === FSM_ALL ? null : value)}
+            />
+          )}
+        </div>
       )}
     </div>
   );

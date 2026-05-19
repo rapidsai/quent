@@ -42,9 +42,6 @@ export interface InspectedNodeData {
   statistics: Array<{ key: string; value: StatValue }>;
 }
 
-/** Data for the node currently being hovered (drives the preview panel) */
-export const hoveredNodeDataAtom = atom<InspectedNodeData | null>(null);
-
 /** Data for the currently selected/pinned node (persists in the panel after click) */
 export const selectedNodeDataAtom = atom<InspectedNodeData | null>(null);
 

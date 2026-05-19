@@ -12,7 +12,12 @@ import type {
   ZoomRange,
   SingleTimelineResponse,
 } from '@quent/utils';
-import { getResourceTypeName, getFsmTypeName, setOperatorOnEntry } from './timeline.utils';
+import {
+  getResourceTypeName,
+  getFsmTypeName,
+  setOperatorOnEntry,
+  bulkEntryId,
+} from './timeline.utils';
 import { timelineCacheKey, timelineDataMapAtom } from '../atoms/timeline';
 
 /**
@@ -68,14 +73,14 @@ export function buildMergedBulkEntries(
   for (const [resourceId, params] of Object.entries(baseEntries)) {
     const resourceTypeName = getResourceTypeName(params);
     const fsmTypeName = getFsmTypeName(params);
-    const baseUuid = crypto.randomUUID();
-    entries[baseUuid] = params;
-    idToMeta.set(baseUuid, { resourceId, resourceTypeName, operatorId: null, fsmTypeName });
+    const baseId = bulkEntryId(resourceId);
+    entries[baseId] = params;
+    idToMeta.set(baseId, { resourceId, resourceTypeName, operatorId: null, fsmTypeName });
     if (operatorId) {
-      const opUuid = crypto.randomUUID();
+      const opId = bulkEntryId(resourceId, operatorId);
       const withOperator = setOperatorOnEntry(params, operatorId);
-      entries[opUuid] = withOperator;
-      idToMeta.set(opUuid, { resourceId, resourceTypeName, operatorId, fsmTypeName });
+      entries[opId] = withOperator;
+      idToMeta.set(opId, { resourceId, resourceTypeName, operatorId, fsmTypeName });
     }
   }
 
