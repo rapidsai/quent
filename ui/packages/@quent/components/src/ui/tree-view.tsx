@@ -420,7 +420,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
   return (
     <div
       className={cn(
-        'ml-5 flex text-left items-center py-0.5 cursor-pointer before:right-1',
+        'ml-5 flex text-left items-center py-1 cursor-pointer before:right-1',
         treeVariants(),
         className,
         isSelected && selectedTreeVariants(),
