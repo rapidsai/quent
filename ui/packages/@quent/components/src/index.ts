@@ -82,6 +82,7 @@ export {
   TableCell,
   TableCaption,
 } from './ui/table';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 
 // ─── ECharts ──────────────────────────────────────────────────────────────────
 export { echarts } from './lib/echarts';
