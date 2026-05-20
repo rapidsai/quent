@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, lazy, Suspense, useState } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { useQueryBundle } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@quent/components';
@@ -9,6 +9,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/com
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
 import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
 import { DAGControls, DAGNodeInfoPanel } from '@quent/components';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
 import {
   useDagNodeColoring,
   useDagEdgeWidthConfig,
@@ -24,24 +25,18 @@ import {
 } from '@quent/components';
 import { DataText } from '@quent/components';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
-import { cn } from '@quent/utils';
 
 // Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
 const DAGChart = lazy(() => import('@quent/components').then(mod => ({ default: mod.DAGChart })));
 
-type PlanTab = 'plan' | 'controls';
-
-const tabClass = cn(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1',
-  'text-sm font-normal text-muted-foreground transition-all cursor-pointer',
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-);
-const activeTabClass = cn(tabClass, 'text-foreground font-semibold bg-muted shadow');
+const TABS = {
+  PLAN: 'plan',
+  CONTROLS: 'controls',
+} as const;
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
-  const [activeTab, setActiveTab] = useState<PlanTab>('plan');
   const planId = useSelectedPlanId();
   const setPlanId = useSetSelectedPlanId();
   const setHoveredWorkerId = useSetHoveredWorkerId();
@@ -140,28 +135,26 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <ResizablePanelGroup orientation="vertical" className="flex-1">
-        <ResizablePanel
-          defaultSize="15%"
-          className="flex flex-col"
-        >
-          <div className="shrink-0 border-b">
-            <div className="inline-flex h-9 w-full items-center justify-start p-1 text-muted-foreground gap-0">
-              <button
-                className={activeTab === 'plan' ? activeTabClass : tabClass}
-                onClick={() => setActiveTab('plan')}
+        <ResizablePanel defaultSize="15%" className="flex flex-col">
+          <Tabs defaultValue={TABS.PLAN} className="flex flex-col flex-1 overflow-hidden">
+            <TabsList className="h-9 w-full shrink-0 justify-start rounded-none border-b bg-transparent p-1">
+              <TabsTrigger
+                value={TABS.PLAN}
+                className="rounded-md px-3 py-1 text-sm font-normal data-[state=active]:bg-muted data-[state=active]:font-semibold data-[state=active]:shadow"
               >
                 Query Plan
-              </button>
-              <button
-                className={activeTab === 'controls' ? activeTabClass : tabClass}
-                onClick={() => setActiveTab('controls')}
+              </TabsTrigger>
+              <TabsTrigger
+                value={TABS.CONTROLS}
+                className="rounded-md px-3 py-1 text-sm font-normal data-[state=active]:bg-muted data-[state=active]:font-semibold data-[state=active]:shadow"
               >
                 Settings
-              </button>
-            </div>
-          </div>
-          <div className={`flex-1 overflow-y-auto ${thinScrollbarClass}`}>
-            {activeTab === 'plan' ? (
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent
+              value={TABS.PLAN}
+              className={`flex-1 overflow-y-auto ${thinScrollbarClass}`}
+            >
               <TreeView<QueryPlanDataItem>
                 data={treeData}
                 initialSelectedItemId={planId}
@@ -170,14 +163,18 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
                 onItemHover={item => setHoveredWorkerId(item?.workerId ?? null)}
                 renderItem={renderItem}
               />
-            ) : (
+            </TabsContent>
+            <TabsContent
+              value={TABS.CONTROLS}
+              className={`flex-1 overflow-y-auto ${thinScrollbarClass}`}
+            >
               <DAGControls
                 operatorStatFields={operatorStatFields}
                 portStatFields={portStatFields}
                 isDark={isDark}
               />
-            )}
-          </div>
+            </TabsContent>
+          </Tabs>
         </ResizablePanel>
 
         <ResizableHandle withHandle data-panel-group-direction="vertical" />
