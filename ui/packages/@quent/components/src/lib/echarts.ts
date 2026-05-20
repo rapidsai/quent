@@ -38,8 +38,8 @@ import type {
   VisualMapComponentOption,
 } from 'echarts/components';
 
-// Renderer - use Canvas for better performance (SVG available if needed)
-import { CanvasRenderer } from 'echarts/renderers';
+// Renderers - timeline charts opt into SVG, while canvas remains available for heavier charts.
+import { CanvasRenderer, SVGRenderer } from 'echarts/renderers';
 
 // Register the required components
 echarts.use([
@@ -58,6 +58,7 @@ echarts.use([
   VisualMapComponent,
   // Renderer
   CanvasRenderer,
+  SVGRenderer,
 ]);
 
 // Compose the option type from the components we use

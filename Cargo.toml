@@ -44,6 +44,48 @@ members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    # Deterministic query-engine event emitter (opt-in via `-p`).
+    # Activates `quent-time/__test-clock-override`; excluded from default-members
+    # so default builds keep `quent-time` zero-cost.
+    "domains/query_engine/tests/fixed",
+]
+
+# default-members excludes any crate that activates `quent-time/__test-clock-override`.
+# `cargo build` and `cargo test` (no -p, no --workspace) skip those crates, preserving
+# the zero-cost guarantee for everything else. Use `cargo build -p <crate>` to opt in.
+default-members = [
+    "crates/analyzer",
+    "crates/attributes",
+    "crates/codegen",
+    "crates/collector/server",
+    "crates/collector/client",
+    "crates/collector/proto",
+    "crates/events",
+    "crates/exporter",
+    "crates/exporter/collector",
+    "crates/exporter/msgpack",
+    "crates/exporter/ndjson",
+    "crates/exporter/postcard",
+    "crates/exporter/types",
+    "crates/instrumentation",
+    "crates/model",
+    "crates/model-macros",
+    "crates/stdlib",
+    "crates/time",
+    "crates/ui",
+    "domains/query_engine/analyzer",
+    "domains/query_engine/model",
+    "domains/query_engine/server",
+    "domains/query_engine/ui",
+    "examples/cpp-integration/bridge",
+    "domains/query_engine/tests/cpp/instrumentation",
+    "domains/query_engine/tests/cpp/bridge",
+    "examples/readme",
+    "examples/simulator/analyzer",
+    "examples/simulator/application",
+    "examples/simulator/instrumentation",
+    "examples/simulator/server",
+    "examples/simulator/ui",
 ]
 
 [workspace.package]

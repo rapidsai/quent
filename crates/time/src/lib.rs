@@ -7,8 +7,22 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use thiserror::Error;
 
+#[cfg(feature = "__test-clock-override")]
+use std::cell::Cell;
+
 pub mod bin;
 pub mod span;
+
+#[cfg(feature = "__test-clock-override")]
+thread_local!(static TIMESTAMP_OVERRIDE: Cell<Option<TimeUnixNanoSec>> = const { Cell::new(None) });
+
+/// Arm the next [`timestamp()`] read on this thread to return `ts`.
+/// The override is consumed on read.
+#[cfg(feature = "__test-clock-override")]
+#[doc(hidden)]
+pub fn set_timestamp(ts: TimeUnixNanoSec) {
+    TIMESTAMP_OVERRIDE.with(|c| c.set(Some(ts)));
+}
 
 pub use span::{SpanNanoSec, SpanSec};
 
@@ -46,6 +60,10 @@ pub type Result<T> = std::result::Result<T, TimeError>;
 /// aggressive, the system is most likely very misconfigured.
 #[inline]
 pub fn timestamp() -> TimeUnixNanoSec {
+    #[cfg(feature = "__test-clock-override")]
+    if let Some(ts) = TIMESTAMP_OVERRIDE.with(|c| c.take()) {
+        return ts;
+    }
     static EPOCH: OnceLock<(Instant, u64)> = OnceLock::new();
     let (instant, epoch_unix_ns) = EPOCH.get_or_init(|| {
         (
@@ -143,5 +161,26 @@ where
         for transition in iter {
             self.push(transition)
         }
+    }
+}
+
+#[cfg(all(test, feature = "__test-clock-override"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn override_consumed_on_read() {
+        set_timestamp(42);
+        assert_eq!(timestamp(), 42);
+        // Override consumed by the read — next call returns wall-clock,
+        // well above any post-1970 nanosecond count we'd collide with.
+        let now = timestamp();
+        assert!(
+            now > 1_600_000_000_000_000_000,
+            "expected wall-clock ns, got {now}"
+        );
+        // Re-arming works.
+        set_timestamp(43);
+        assert_eq!(timestamp(), 43);
     }
 }

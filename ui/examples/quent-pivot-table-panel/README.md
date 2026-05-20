@@ -128,9 +128,11 @@ src/QuentPivotTablePanel.tsx
 │     └─ <PivotedStatTable>          ← @quent/components
 ```
 
-Note: `@quent/client` is **not** a dependency. The panel reads `props.data`
-directly from Grafana's data pipeline; no Quent server is needed for the
-component to render.
+Note: the panel code does **not** import `@quent/client` or fetch from a Quent
+server. It reads `props.data` directly from Grafana's data pipeline. The
+library package may bring `@quent/client` transitively because
+`@quent/components` also exports HTTP-backed timeline components, but no Quent
+server is needed for this panel to render.
 
 ## Why a per-panel `QueryClient` and Jotai `Provider`?
 

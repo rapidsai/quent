@@ -13,8 +13,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@quent/utils": "workspace:*",
+    "@quent/client": "workspace:*",
     "@quent/hooks": "workspace:*",
+    "@quent/utils": "workspace:*",
     "elkjs": "^0.11.1"
   },
   "peerDependencies": {

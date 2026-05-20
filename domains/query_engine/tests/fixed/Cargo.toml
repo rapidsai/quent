@@ -1,0 +1,16 @@
+[package]
+name = "quent-query-engine-fixed"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+clap = { version = "4.5.57", features = ["derive", "env"] }
+quent-time = { path = "../../../../crates/time", features = ["__test-clock-override"] }
+quent-model = { path = "../../../../crates/model" }
+quent-attributes = { path = "../../../../crates/attributes" }
+quent-exporter = { path = "../../../../crates/exporter" }
+quent-query-engine-model = { path = "../../model" }
+quent-simulator-instrumentation = { path = "../../../../examples/simulator/instrumentation" }
+quent-stdlib = { path = "../../../../crates/stdlib" }
+uuid = { workspace = true }

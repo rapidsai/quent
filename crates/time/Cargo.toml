@@ -6,6 +6,8 @@ publish.workspace = true
 [features]
 default = []
 ts = ["ts-rs", "serde"]
+# Internal: timestamp() override for the deterministic event emitter.
+__test-clock-override = []
 
 [dependencies]
 thiserror.workspace = true
