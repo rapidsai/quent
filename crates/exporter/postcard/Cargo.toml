@@ -6,9 +6,13 @@ publish.workspace = true
 [dependencies]
 async-trait.workspace = true
 postcard.workspace = true
+quent-build-info = { path = "../../build-info" }
 quent-events = { path = "../../events" }
 quent-exporter-types = { path = "../types" }
 serde.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
 uuid.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

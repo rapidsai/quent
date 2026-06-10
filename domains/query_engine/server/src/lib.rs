@@ -5,6 +5,7 @@
 
 use crate::{analyzer_cache::AnalyzerCache, state::ServiceState, timeline_cache::TimelineCache};
 use axum::Router as AxumRouter;
+use quent_collector::ModelSource;
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
@@ -46,7 +47,7 @@ pub fn collector_service<E>(
     options: CollectorServiceOptions,
 ) -> Result<Router, Box<dyn std::error::Error>>
 where
-    E: Serialize + Send + Sync + 'static,
+    E: Serialize + Send + Sync + 'static + ModelSource,
     for<'de> E: Deserialize<'de>,
 {
     let collector = CollectorService::<E>::new(options);

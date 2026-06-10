@@ -4,7 +4,7 @@
 //! Quent Instrumentation API
 //!
 use quent_events::Event;
-use quent_exporter::{ExporterOptions, create_exporter};
+use quent_exporter::{ExporterOptions, ModelSource, create_exporter};
 use quent_exporter_types::Exporter;
 use serde::Serialize;
 use std::sync::{
@@ -102,7 +102,10 @@ where
     pub fn try_new(
         id: Uuid,
         exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        T: ModelSource,
+    {
         let kind = match exporter {
             None => {
                 debug!("using noop exporter");
@@ -225,6 +228,15 @@ mod tests {
 
     #[derive(Debug, serde::Serialize)]
     struct TestEvent;
+
+    impl ModelSource for TestEvent {
+        fn package() -> &'static str {
+            env!("CARGO_PKG_NAME")
+        }
+        fn source() -> quent_exporter::BuildInfo {
+            quent_exporter::BuildInfo::unknown()
+        }
+    }
 
     #[test]
     fn noop_exporter() {

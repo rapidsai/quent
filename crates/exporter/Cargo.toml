@@ -11,6 +11,7 @@ postcard = ["dep:quent-exporter-postcard"]
 collector = ["dep:quent-exporter-collector"]
 
 [dependencies]
+quent-build-info = { path = "../build-info" }
 quent-exporter-types = { path = "types" }
 quent-exporter-collector = { path = "collector", optional = true }
 quent-exporter-msgpack = { path = "msgpack", optional = true }

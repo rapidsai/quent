@@ -24,8 +24,8 @@ use pprof::criterion::{Output, PProfProfiler};
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    BuildInfo, CollectorExporterOptions, ExporterOptions, ModelSource, MsgpackExporterOptions,
+    NdjsonExporterOptions, PostcardExporterOptions,
 };
 use quent_instrumentation::Context;
 use serde::{Deserialize, Serialize};
@@ -38,6 +38,15 @@ type BenchResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Serialize, Deserialize)]
 struct BenchEvent;
+
+impl ModelSource for BenchEvent {
+    fn package() -> &'static str {
+        env!("CARGO_PKG_NAME")
+    }
+    fn source() -> BuildInfo {
+        BuildInfo::unknown()
+    }
+}
 
 // Starts the in-process collector server and leaks its runtime, so the
 // server task and its file handles outlive `try_bench_emit`. Dropping the

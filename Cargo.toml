@@ -4,6 +4,7 @@ members = [
     # Application-agnostic crates
     "crates/analyzer",
     "crates/attributes",
+    "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
@@ -61,6 +62,7 @@ members = [
 default-members = [
     "crates/analyzer",
     "crates/attributes",
+    "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",

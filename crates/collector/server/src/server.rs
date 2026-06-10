@@ -6,7 +6,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use dashmap::DashMap;
-use quent_exporter::{ExporterOptions, create_exporter};
+use quent_exporter::{ExporterOptions, ModelSource, create_exporter};
 use quent_exporter_types::Exporter;
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
@@ -49,7 +49,7 @@ impl<T> CollectorService<T> {
 #[tonic::async_trait]
 impl<T> proto::collector_server::Collector for CollectorService<T>
 where
-    for<'de> T: Serialize + Deserialize<'de> + Send + 'static,
+    for<'de> T: Serialize + Deserialize<'de> + Send + ModelSource + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(
