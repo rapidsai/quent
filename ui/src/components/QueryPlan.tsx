@@ -136,18 +136,12 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel defaultSize="15%" className="flex flex-col">
-          <Tabs defaultValue={TABS.PLAN} className="flex flex-col flex-1 overflow-hidden">
-            <TabsList className="h-9 w-full shrink-0 justify-start rounded-none border-b bg-transparent p-1">
-              <TabsTrigger
-                value={TABS.PLAN}
-                className="rounded-md px-3 py-1 text-sm font-normal data-[state=active]:bg-muted data-[state=active]:font-semibold data-[state=active]:shadow"
-              >
+          <Tabs defaultValue={TABS.PLAN}>
+            <TabsList>
+              <TabsTrigger value={TABS.PLAN}>
                 Query Plan
               </TabsTrigger>
-              <TabsTrigger
-                value={TABS.CONTROLS}
-                className="rounded-md px-3 py-1 text-sm font-normal data-[state=active]:bg-muted data-[state=active]:font-semibold data-[state=active]:shadow"
-              >
+              <TabsTrigger value={TABS.CONTROLS}>
                 Settings
               </TabsTrigger>
             </TabsList>
