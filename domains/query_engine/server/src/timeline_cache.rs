@@ -823,7 +823,8 @@ mod tests {
     use quent_analyzer::AnalyzerResult;
     use quent_events::Event;
     use quent_query_engine_analyzer::{
-        QueryEngineModel, engine::Engine, model::InMemoryQueryEngineModel, ui::UiAnalyzer,
+        QueryEngineModel, diff::QueryOperatorStats, engine::Engine,
+        model::InMemoryQueryEngineModel, ui::UiAnalyzer,
     };
     use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
     use quent_ui::{
@@ -958,6 +959,13 @@ mod tests {
             &self,
             _query_id: Uuid,
         ) -> AnalyzerResult<quent_query_engine_ui::QueryBundle<Self::EntityRef>> {
+            unimplemented!("not needed by timeline cache tests")
+        }
+
+        fn query_operator_stats(
+            &self,
+            _query_id: Uuid,
+        ) -> AnalyzerResult<QueryOperatorStats> {
             unimplemented!("not needed by timeline cache tests")
         }
 

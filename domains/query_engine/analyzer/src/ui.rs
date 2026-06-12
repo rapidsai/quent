@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
 use quent_query_engine_ui as ui;
+
+use crate::diff::QueryOperatorStats;
 use quent_ui::timeline::{
     request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
     response::{
@@ -51,6 +53,11 @@ pub trait UiAnalyzer {
     /// Deliver a UI-friendly `QueryBundle` with all high-level yet
     /// non-volumous information related to this query.
     fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle<Self::EntityRef>>;
+
+    /// Return the per-operator stats for a single query.
+    ///
+    /// Used as input to the workload diff computation.
+    fn query_operator_stats(&self, query_id: Uuid) -> AnalyzerResult<QueryOperatorStats>;
 
     /// Access the underlying query engine model of this analyzer.
     fn query_engine_model(&self) -> &impl QueryEngineModel;

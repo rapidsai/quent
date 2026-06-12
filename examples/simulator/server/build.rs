@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_query_engine_ui::diff::{DiffRequest, DiffResponse};
 use quent_query_engine_ui::QueryBundle;
 use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
 use quent_ui::timeline::{
@@ -19,6 +20,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     <SingleTimelineResponse as TS>::export_all_to(TS_OUT_DIR)?;
     <BulkTimelineRequest<QueryFilter, TaskFilter> as TS>::export_all_to(TS_OUT_DIR)?;
     <BulkTimelinesResponse as TS>::export_all_to(TS_OUT_DIR)?;
+
+    <DiffRequest as TS>::export_all_to(TS_OUT_DIR)?;
+    <DiffResponse as TS>::export_all_to(TS_OUT_DIR)?;
 
     Ok(())
 }

@@ -3,6 +3,8 @@
 
 //! Types shared with the UI.
 
+pub mod diff;
+
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_attributes::{Attribute, Value};
 use quent_query_engine_model as qe;

@@ -46,6 +46,7 @@ pub mod model;
 pub mod view;
 
 // UI related mods
+pub mod diff;
 pub mod ui;
 
 pub trait QueryEngineModel: Model {

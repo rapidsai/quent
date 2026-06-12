@@ -3,8 +3,9 @@
 
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
+use quent_query_engine_analyzer::diff::QueryOperatorStats;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
-use quent_query_engine_ui::{QueryBundle, QueryEntities};
+use quent_query_engine_ui::{self as ui, QueryBundle, QueryEntities};
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
     quantity::QuantitySpec,
@@ -236,6 +237,37 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .into(),
             start_time_unix_ns,
             duration_s,
+        })
+    }
+
+    fn query_operator_stats(&self, query_id: Uuid) -> AnalyzerResult<QueryOperatorStats> {
+        let view = self.model.query_view(query_id)?;
+
+        let engine = view.engine()?.to_ui()?;
+        let epoch = view.query_epoch(query_id)?;
+        let query = self.model.query(query_id)?;
+        // println!("{:#?}", query.to_ui()?);
+        let duration_s = to_secs(query.span()?.duration());
+
+        // get query group metadata
+        let query_group_id = query.query_group_id().ok_or_else(|| {
+            quent_analyzer::AnalyzerError::IncompleteEntity(format!(
+                "query {} has no query_group_id",
+                query_id
+            ))
+        })?;
+        let query_group = view.query_group(query_group_id)?.to_ui();
+        // println!("{:#?}", query_group.to_ui());
+        let operators: StdHashMap<Uuid, ui::Operator> =
+            view.operators().map(|o| (o.id(), o.to_ui(epoch))).collect();
+
+        Ok(QueryOperatorStats {
+            engine_id: engine.id,
+            instance_name: engine.instance_name,
+            query_group_id: Some(query_group_id),
+            query_group_name: query_group.instance_name,
+            duration_s,
+            operators,
         })
     }
 

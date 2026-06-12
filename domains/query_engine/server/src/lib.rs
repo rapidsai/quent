@@ -72,7 +72,9 @@ where
         timelines: TimelineCache::new(),
     };
 
-    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(state));
+    let mut http_routes = axum::Router::new()
+        .nest("/api/engines", ui::routes(state.clone()))
+        .nest("/api", ui::diff_routes(state));
 
     #[cfg(feature = "swagger")]
     {
