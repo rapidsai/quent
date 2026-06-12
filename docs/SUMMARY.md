@@ -4,6 +4,9 @@
 
 - [Event Model](./event_model.md)
 - [FAQ](./faq.md)
+- [Schema Crate Internals](./crate-architecture.md)
+  - [Crate Architecture](./crate-architecture.md)
+  - [quent-ref-tree explained](./ref-tree-explained.md)
 - [Modeling Concepts](./modeling/README.md)
   - [Attributes](./modeling/attributes.md)
   - [Time-related concepts](./modeling/time.md)

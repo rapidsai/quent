@@ -57,6 +57,22 @@ See the [FAQ](./faq.md) for detailed comparisons.
 The current focus is on query engines, but the modeling
 concepts are domain-agnostic and may be applied to other domains.
 
+## Schema crate internals
+
+The five foundational schema crates (`quent-schema`, `quent-constraints`,
+`quent-fsm`, `quent-ref-target`, `quent-ref-tree`) form the layer on which
+all modeling and instrumentation is built. Two documents cover them in depth:
+
+- [**Crate Architecture**](./crate-architecture.md) — the complete picture:
+  how the five crates fit together, the two-layer design, constraint
+  composition, single-pass validation, and a full Kubernetes platform example
+  showing FSM order, ref-target, and ref-tree working together in one
+  `validate()` call.
+- [**`quent-ref-tree` explained**](./ref-tree-explained.md) — a focused
+  deep-dive into `quent-ref-tree`: its five requirements, the internal
+  entity/event/record graph it builds, the `finish()` collapse algorithm, and
+  the full error taxonomy.
+
 For development instructions and repository overview, see the
 [root README](../README.md).
 
