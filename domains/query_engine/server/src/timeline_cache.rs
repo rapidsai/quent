@@ -498,7 +498,8 @@ fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec)
     if view_duration == 0 {
         return 1;
     }
-    ((total_duration * TARGET_CHUNKS_PER_VIEW) / view_duration).max(1)
+    (total_duration.saturating_mul(TARGET_CHUNKS_PER_VIEW) / view_duration)
+        .clamp(1, total_duration.max(1))
 }
 
 /// Compute chunk geometry from engine metadata and the current viewport.
@@ -812,8 +813,8 @@ mod tests {
         FiniteStateMachine, FsmTransition,
         timeline::{
             request::{
-                BulkTimelineRequest, EntityFilter, ResourceTimelineRequest, TimelineConfig,
-                TimelineRequest,
+                BulkTimelineRequest, EntityFilter, ResourceTimelineRequest, SingleTimelineRequest,
+                TimelineConfig, TimelineRequest,
             },
             response::{
                 BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
@@ -951,12 +952,16 @@ mod tests {
 
         fn single_resource_timeline(
             &self,
-            _request: quent_ui::timeline::request::SingleTimelineRequest<
-                QueryFilter,
-                OperatorFilter,
-            >,
+            request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
         ) -> AnalyzerResult<SingleTimelineResponse> {
-            unimplemented!("not needed by bulk cache tests")
+            match response_entry("single".to_string(), request.entry, 0)?.1 {
+                BulkTimelinesResponseEntry::Ok { config, data, .. } => {
+                    Ok(SingleTimelineResponse { config, data })
+                }
+                BulkTimelinesResponseEntry::Error { message } => {
+                    unreachable!("unexpected test timeline error: {message}")
+                }
+            }
         }
 
         fn bulk_resource_timeline(
@@ -1095,6 +1100,27 @@ mod tests {
         }
     }
 
+    fn single_request(start: f64, end: f64) -> SingleTimelineRequest<QueryFilter, OperatorFilter> {
+        SingleTimelineRequest {
+            entry: TimelineRequest::Resource(ResourceTimelineRequest {
+                resource_id: resource_id_for("single"),
+                long_entities_threshold_s: Some(0.0),
+                entity_filter: EntityFilter {
+                    entity_type_name: None,
+                },
+                application: OperatorFilter { operator_id: None },
+                config: TimelineConfig {
+                    num_bins: 4,
+                    start,
+                    end,
+                },
+            }),
+            app_params: QueryFilter {
+                query_id: Uuid::from_u128(3),
+            },
+        }
+    }
+
     fn values(response: &BulkTimelinesResponse, key: &str) -> Vec<f64> {
         match response.entries.get(key).unwrap() {
             BulkTimelinesResponseEntry::Ok {
@@ -1151,6 +1177,66 @@ mod tests {
             .build()
             .unwrap()
             .block_on(future)
+    }
+
+    #[test]
+    fn zoom_level_is_clamped_for_tiny_viewports() {
+        let zoom_level = determine_zoom_level(1, 100);
+
+        assert_eq!(zoom_level, 100);
+        assert_eq!(100 / zoom_level, 1);
+        assert_eq!(determine_zoom_level(1, u64::MAX), u64::MAX);
+        assert_eq!(u64::MAX / determine_zoom_level(1, u64::MAX), 1);
+    }
+
+    #[test]
+    fn bulk_timeline_clamps_tiny_viewport_to_nonzero_chunk_duration() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+
+            let response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request(vec![("a", 0.0, 1e-9, None)]),
+                )
+                .await
+                .unwrap();
+
+            let spans = analyzer.call_entries();
+            assert_eq!(spans.len(), 1);
+            assert_close(&[spans[0].start, spans[0].end], &[0.0, 1e-9]);
+            assert_close(
+                &[
+                    response_span(&response, "a").0,
+                    response_span(&response, "a").1,
+                ],
+                &[0.0, 1e-9],
+            );
+        });
+    }
+
+    #[test]
+    fn single_timeline_clamps_tiny_viewport_to_nonzero_chunk_duration() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+
+            let response = cache
+                .cached_single_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    single_request(0.0, 1e-9),
+                )
+                .await
+                .unwrap();
+
+            assert_close(
+                &[response.config.span.start(), response.config.span.end()],
+                &[0.0, 1e-9],
+            );
+        });
     }
 
     #[test]
