@@ -6,3 +6,8 @@
 //! This allows multiple sources to send events to a centralized place, where it can be further processed / exported.
 
 pub mod server;
+
+/// Re-exported so callers constructing a [`server::CollectorService`] over a
+/// generic event type can bound it without depending on `quent-build-info`
+/// directly.
+pub use quent_build_info::ModelSource;

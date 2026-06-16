@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use quent_build_info::{ArtifactInfo, ModelSource};
 use quent_exporter::{ExporterOptions, create_exporter};
 use quent_exporter_types::Exporter;
 use serde::{Deserialize, Serialize};
@@ -51,7 +52,7 @@ impl<T> CollectorService<T> {
 #[tonic::async_trait]
 impl<T> proto::collector_server::Collector for CollectorService<T>
 where
-    for<'de> T: Serialize + Deserialize<'de> + Send + 'static,
+    for<'de> T: Serialize + Deserialize<'de> + Send + ModelSource + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(
@@ -90,6 +91,15 @@ where
                                     break;
                                 }
                             };
+                            // Write the provenance sidecar once per application,
+                            // alongside the events this exporter just created
+                            // the directory for (filesystem exporters only).
+                            if let Some(dir) = exporter_kind.filesystem_root() {
+                                let info = ArtifactInfo::new(T::model_info());
+                                if let Err(e) = info.write_sidecar(dir) {
+                                    warn!("failed to write provenance sidecar: {e}");
+                                }
+                            }
                             exporters.insert(application_id, Arc::clone(&exporter));
                             exporter
                         };

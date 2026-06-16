@@ -7,6 +7,7 @@ version.workspace = true
 [dependencies]
 ciborium = "0.2.2"
 dashmap = "6.1.0"
+quent-build-info = { path = "../../build-info" }
 quent-collector-proto = { path = "../proto" }
 quent-exporter-types = { path = "../../exporter/types" }
 quent-exporter = { path = "../../exporter" }

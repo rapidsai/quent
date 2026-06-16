@@ -45,7 +45,7 @@ pub fn collector_service<E>(
     options: CollectorServiceOptions,
 ) -> Result<Router, Box<dyn std::error::Error>>
 where
-    E: Serialize + Send + Sync + 'static,
+    E: Serialize + Send + Sync + 'static + quent_collector::ModelSource,
     for<'de> E: Deserialize<'de>,
 {
     let collector = CollectorService::<E>::new(options);

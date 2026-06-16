@@ -3,6 +3,7 @@
 
 //! Quent Instrumentation API
 //!
+use quent_build_info::{ArtifactInfo, ModelSource};
 use quent_events::Event;
 use quent_exporter::{ExporterOptions, create_exporter};
 use quent_exporter_types::Exporter;
@@ -101,7 +102,10 @@ impl<T> Context<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        T: ModelSource,
+    {
         let id = Uuid::now_v7();
         let kind = match exporter {
             None => {
@@ -139,7 +143,19 @@ where
 
         debug!("constructing exporter");
         let kind = kind.in_context_dir(id);
+        // Provenance sidecar destination, captured before `kind` is consumed.
+        let sidecar_dir = kind.filesystem_root().map(std::path::Path::to_path_buf);
         let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind))?;
+
+        // Write the provenance sidecar once per context, alongside the events
+        // the exporter just created the directory for. Filesystem exporters
+        // only; the collector server writes it for collector-routed events.
+        if let Some(dir) = sidecar_dir {
+            let info = ArtifactInfo::new(T::model_info());
+            if let Err(e) = info.write_sidecar(&dir) {
+                warn!("failed to write provenance sidecar: {e}");
+            }
+        }
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -233,6 +249,15 @@ mod tests {
 
     #[derive(Debug, serde::Serialize)]
     struct TestEvent;
+
+    impl ModelSource for TestEvent {
+        fn package() -> &'static str {
+            "quent-instrumentation"
+        }
+        fn source() -> quent_build_info::BuildInfo {
+            quent_build_info::BuildInfo::unknown()
+        }
+    }
 
     #[test]
     fn noop_exporter() {

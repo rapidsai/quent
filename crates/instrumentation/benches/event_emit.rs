@@ -38,6 +38,15 @@ type BenchResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 #[derive(Serialize, Deserialize)]
 struct BenchEvent;
 
+impl quent_build_info::ModelSource for BenchEvent {
+    fn package() -> &'static str {
+        "quent-instrumentation"
+    }
+    fn source() -> quent_build_info::BuildInfo {
+        quent_build_info::BuildInfo::unknown()
+    }
+}
+
 // Starts the in-process collector server and leaks its runtime, so the
 // server task and its file handles outlive `try_bench_emit`. Dropping the
 // runtime mid-operation triggers an internal `unwrap` panic in tokio's

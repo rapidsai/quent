@@ -1837,6 +1837,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-build-info"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "quent-codegen"
 version = "0.1.0"
 dependencies = [
@@ -1858,6 +1866,7 @@ version = "0.1.0"
 dependencies = [
  "ciborium",
  "dashmap",
+ "quent-build-info",
  "quent-collector-proto",
  "quent-exporter",
  "quent-exporter-types",
@@ -2008,6 +2017,7 @@ dependencies = [
  "criterion",
  "pprof",
  "quent-attributes",
+ "quent-build-info",
  "quent-collector",
  "quent-collector-proto",
  "quent-events",
@@ -2055,6 +2065,7 @@ name = "quent-model"
 version = "0.1.0"
 dependencies = [
  "quent-attributes",
+ "quent-build-info",
  "quent-events",
  "quent-exporter",
  "quent-instrumentation",

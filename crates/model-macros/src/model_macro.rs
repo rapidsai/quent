@@ -202,6 +202,27 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             }
         )*
 
+        // Records this model's package and source git so exporters can trace an
+        // artifact back to the crate that defines it — including out-of-repo
+        // crates, whose own `build.rs` populates `QUENT_SOURCE_*` (in-repo it
+        // falls back to quent's git). `env!`/`option_env!` resolve in the crate
+        // that invokes `model!`. The type path and name come from `type_name`.
+        impl quent_model::build_info::ModelSource for #event_type {
+            fn package() -> &'static str {
+                env!("CARGO_PKG_NAME")
+            }
+            fn source() -> quent_model::build_info::BuildInfo {
+                quent_model::build_info::source_or_quent(
+                    env!("CARGO_PKG_VERSION"),
+                    option_env!("QUENT_SOURCE_REMOTE"),
+                    option_env!("QUENT_SOURCE_COMMIT"),
+                    option_env!("QUENT_SOURCE_BRANCH"),
+                    option_env!("QUENT_SOURCE_DIRTY"),
+                    option_env!("QUENT_SOURCE_BUILT_AT"),
+                )
+            }
+        }
+
         const _: () = {
             assert!(
                 <#root as quent_model::ResourceGroup>::IS_ROOT,

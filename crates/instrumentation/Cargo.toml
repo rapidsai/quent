@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 [dependencies]
 quent-attributes = { path = "../attributes" }
+quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-types = { path = "../exporter/types" }

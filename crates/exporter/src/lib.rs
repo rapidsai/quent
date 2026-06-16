@@ -61,6 +61,17 @@ impl ExporterOptions {
             ExporterOptions::Collector(options) => ExporterOptions::Collector(options),
         }
     }
+
+    /// Filesystem output directory for filesystem exporters; `None` for
+    /// exporters (e.g. the collector) that do not write a local directory.
+    /// Used to locate where a provenance sidecar should be written.
+    pub fn filesystem_root(&self) -> Option<&std::path::Path> {
+        match self {
+            ExporterOptions::FileSystem(options) => Some(&options.root),
+            #[cfg(feature = "collector")]
+            ExporterOptions::Collector(_) => None,
+        }
+    }
 }
 
 /// Selects an importer and its options.
