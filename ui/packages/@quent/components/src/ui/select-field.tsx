@@ -33,6 +33,10 @@ export interface SelectFieldProps {
   className?: string;
   /** className forwarded to SelectTrigger */
   triggerClassName?: string;
+  /** Custom render function for each option item (replaces default label rendering). */
+  renderOption?: (option: SelectFieldOption) => React.ReactNode;
+  /** Node rendered after the select trigger (e.g. a palette swatch button). */
+  trailingAdornment?: React.ReactNode;
 }
 
 /** Select dropdown with optional label, icon, and clear button. */
@@ -46,6 +50,8 @@ export const SelectField = ({
   clearable = true,
   className,
   triggerClassName,
+  renderOption,
+  trailingAdornment,
 }: SelectFieldProps) => (
   <div className={cn('flex items-center gap-1.5 min-w-0', className)}>
     {Icon && <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />}
@@ -83,7 +89,7 @@ export const SelectField = ({
             ) : (
               options.map(opt => (
                 <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                  {opt.label ?? opt.value}
+                  {renderOption ? renderOption(opt) : (opt.label ?? opt.value)}
                 </SelectItem>
               ))
             )}
@@ -91,5 +97,6 @@ export const SelectField = ({
         </ScrollArea>
       </SelectContent>
     </Select>
+    {trailingAdornment}
   </div>
 );

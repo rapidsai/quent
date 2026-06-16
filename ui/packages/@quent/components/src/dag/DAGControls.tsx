@@ -1,18 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { SelectField, type SelectFieldOption } from '../ui/select-field';
 import {
   useSelectedColorField,
   useSelectedEdgeWidthField,
   useSelectedEdgeColorField,
   useSelectedNodeLabelField,
+  useNodeColorPalette,
+  useEdgeColorPalette,
 } from '@quent/hooks';
 import { NODE_LABEL_FIELD, type NodeLabelField } from '@quent/utils';
-import { Palette, Spline, Brush, ChevronDown, Type } from 'lucide-react';
-import { DAGSettingsPopover } from './DAGSettingsPopover';
-import { useState } from 'react';
+import { Palette, Spline, Brush, Type } from 'lucide-react';
+import { PalettePicker } from './PalettePicker';
 
 interface DAGControlsProps {
   operatorStatFields: string[];
@@ -33,18 +33,18 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const [edgeWidthField, setEdgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField, setEdgeColorField] = useSelectedEdgeColorField();
   const [nodeLabelField, setNodeLabelField] = useSelectedNodeLabelField();
-  const [open, setOpen] = useState(true);
+  const [nodePalette, setNodePalette] = useNodeColorPalette();
+  const [edgePalette, setEdgePalette] = useEdgeColorPalette();
 
   const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({ value: f }));
   const portOptions: SelectFieldOption[] = portStatFields.map(f => ({ value: f }));
 
   return (
     <div className="bg-card">
-      <div className="flex items-center justify-between px-4 py-2">
+      <div className="px-4 py-2">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Plan Controls
         </span>
-        <DAGSettingsPopover isDark={isDark} />
       </div>
       <div className="px-4 pb-2 grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5">
         <SelectField
@@ -55,6 +55,9 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
           onValueChange={setColorField}
           placeholder="None"
           triggerClassName="h-6 text-xs"
+          trailingAdornment={
+            <PalettePicker value={nodePalette} onValueChange={setNodePalette} isDark={isDark} />
+          }
         />
         <SelectField
           label="Edge width"
@@ -73,6 +76,9 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
           onValueChange={setEdgeColorField}
           placeholder="None"
           triggerClassName="h-6 text-xs"
+          trailingAdornment={
+            <PalettePicker value={edgePalette} onValueChange={setEdgePalette} isDark={isDark} />
+          }
         />
         <SelectField
           label="Node label"
