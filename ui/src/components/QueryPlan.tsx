@@ -138,12 +138,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         <ResizablePanel defaultSize="15%" className="flex flex-col">
           <Tabs defaultValue={TABS.PLAN}>
             <TabsList>
-              <TabsTrigger value={TABS.PLAN}>
-                Query Plan
-              </TabsTrigger>
-              <TabsTrigger value={TABS.CONTROLS}>
-                Settings
-              </TabsTrigger>
+              <TabsTrigger value={TABS.PLAN}>Query Plan</TabsTrigger>
+              <TabsTrigger value={TABS.CONTROLS}>Settings</TabsTrigger>
             </TabsList>
             <TabsContent
               value={TABS.PLAN}
