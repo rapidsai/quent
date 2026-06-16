@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
+import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useQueryBundle } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@quent/components';
@@ -34,6 +35,10 @@ const TABS = {
   CONTROLS: 'controls',
 } as const;
 
+const MAX_TOP_PANEL_HEIGHT_PX = 300;
+// Approximate height of the TabsList header; used when computing desired panel height.
+const TAB_HEADER_HEIGHT_PX = 42;
+
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
@@ -60,6 +65,21 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
       setPlanId(item.id);
     }
   };
+
+  const topPanelRef = useRef<PanelImperativeHandle | null>(null);
+  const treeContentRef = useRef<HTMLDivElement>(null);
+
+  // Resize the top panel to fit tree content (capped at MAX_TOP_PANEL_HEIGHT_PX).
+  // Note: PanelImperativeHandle.resize() treats numbers as pixels.
+  useLayoutEffect(() => {
+    const treeContent = treeContentRef.current;
+    const topPanel = topPanelRef.current;
+    if (!treeContent || !topPanel) return;
+
+    const desiredPx = treeContent.scrollHeight + TAB_HEADER_HEIGHT_PX;
+    const cappedPx = Math.min(desiredPx, MAX_TOP_PANEL_HEIGHT_PX);
+    topPanel.resize(cappedPx);
+  }, [treeData, planId]);
 
   // TODO: Currently fetching root plan when bundle loads - is this correct?
   useEffect(() => {
@@ -135,7 +155,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <ResizablePanelGroup orientation="vertical" className="flex-1">
-        <ResizablePanel defaultSize="15%" className="flex flex-col">
+        <ResizablePanel panelRef={topPanelRef} defaultSize="15%" className="flex flex-col">
           <Tabs defaultValue={TABS.PLAN}>
             <TabsList>
               <TabsTrigger value={TABS.PLAN}>
@@ -149,14 +169,16 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               value={TABS.PLAN}
               className={`flex-1 overflow-y-auto ${thinScrollbarClass}`}
             >
-              <TreeView<QueryPlanDataItem>
-                data={treeData}
-                initialSelectedItemId={planId}
-                selectedItemId={planId}
-                onSelectChange={handlePlanSelect}
-                onItemHover={item => setHoveredWorkerId(item?.workerId ?? null)}
-                renderItem={renderItem}
-              />
+              <div ref={treeContentRef}>
+                <TreeView<QueryPlanDataItem>
+                  data={treeData}
+                  initialSelectedItemId={planId}
+                  selectedItemId={planId}
+                  onSelectChange={handlePlanSelect}
+                  onItemHover={item => setHoveredWorkerId(item?.workerId ?? null)}
+                  renderItem={renderItem}
+                />
+              </div>
             </TabsContent>
             <TabsContent
               value={TABS.CONTROLS}
