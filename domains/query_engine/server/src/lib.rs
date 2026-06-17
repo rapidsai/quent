@@ -15,6 +15,8 @@ use tower_http::cors::CorsLayer;
 
 pub mod analyzer_cache;
 pub mod error;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 mod state;
 mod timeline_cache;
 mod ui;
@@ -66,7 +68,15 @@ where
         timelines: TimelineCache::new(),
     };
 
+    #[cfg(feature = "mcp")]
+    let mcp_service = mcp::http_service(state.clone());
+
     let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(state));
+
+    #[cfg(feature = "mcp")]
+    {
+        http_routes = http_routes.nest_service("/mcp", mcp_service);
+    }
 
     #[cfg(feature = "swagger")]
     {
@@ -78,7 +88,7 @@ where
     }
 
     if let Some(cors) = cors {
-        let cors = CorsLayer::new()
+        let mut cors = CorsLayer::new()
             .allow_origin(cors.parse::<axum::http::HeaderValue>().unwrap())
             .allow_methods([
                 axum::http::Method::GET,
@@ -86,6 +96,29 @@ where
                 axum::http::Method::OPTIONS,
             ])
             .allow_headers([axum::http::header::CONTENT_TYPE]);
+
+        // The streamable HTTP MCP transport adds session/protocol headers, uses
+        // DELETE to tear down a session, and returns the session id to the
+        // client, so browser-based MCP clients need these allowed and exposed.
+        #[cfg(feature = "mcp")]
+        {
+            use axum::http::{HeaderName, Method, header::CONTENT_TYPE};
+            const MCP_SESSION_ID: HeaderName = HeaderName::from_static("mcp-session-id");
+            const MCP_PROTOCOL_VERSION: HeaderName =
+                HeaderName::from_static("mcp-protocol-version");
+            // Sent when a browser client resumes an interrupted SSE stream.
+            const LAST_EVENT_ID: HeaderName = HeaderName::from_static("last-event-id");
+            cors = cors
+                .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE])
+                .allow_headers([
+                    CONTENT_TYPE,
+                    MCP_SESSION_ID,
+                    MCP_PROTOCOL_VERSION,
+                    LAST_EVENT_ID,
+                ])
+                .expose_headers([MCP_SESSION_ID]);
+        }
+
         http_routes = http_routes.layer(cors);
     }
 

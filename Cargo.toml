@@ -111,8 +111,10 @@ petgraph = "0.8.3"
 postcard = { version = "1", features = ["alloc"] }
 prost = "0.14.1"
 pyo3 = "0.29"
+rmcp = { version = "1.7.0", default-features = false }
 rmp-serde = "1"
 rustc-hash = "2"
+schemars = "1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 smallvec = {version = "1.15.1", features = ["serde"] }

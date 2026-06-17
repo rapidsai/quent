@@ -6,6 +6,13 @@ publish.workspace = true
 [features]
 swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
 ui = ["dep:mime_guess", "dep:rust-embed"]
+mcp = [
+    "dep:rmcp",
+    "dep:schemars",
+    "dep:serde_json",
+    "tokio/io-std",
+    "tokio/macros",
+]
 
 [dependencies]
 axum = { version = "0.8.7" }
@@ -19,7 +26,15 @@ quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" 
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
+rmcp = { workspace = true, features = [
+    "server",
+    "macros",
+    "transport-io",
+    "transport-streamable-http-server",
+], optional = true }
+schemars = { workspace = true, optional = true }
 serde.workspace = true
+serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tonic.workspace = true

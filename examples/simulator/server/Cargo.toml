@@ -3,9 +3,13 @@ name = "quent-simulator-server"
 version.workspace = true
 edition.workspace =  true
 publish.workspace = true
+# With the `mcp` feature there are two eligible binaries; keep `cargo run` on the
+# HTTP server (the stdio MCP binary is run explicitly via `--bin quent-simulator-mcp`).
+default-run = "quent-simulator-server"
 [features]
 ui = ["quent-query-engine-server/ui"]
 swagger = ["quent-query-engine-server/swagger"]
+mcp = ["quent-query-engine-server/mcp"]
 
 [dependencies]
 axum = { version = "0.8.7" }
@@ -18,6 +22,15 @@ quent-simulator-instrumentation = { path = "../instrumentation" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true
+
+[[bin]]
+name = "quent-simulator-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "quent-simulator-mcp"
+path = "src/bin/mcp.rs"
+required-features = ["mcp"]
 
 [build-dependencies]
 ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

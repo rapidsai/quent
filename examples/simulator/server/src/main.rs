@@ -3,17 +3,13 @@
 
 use std::{net::ToSocketAddrs, path::PathBuf};
 
-use uuid::Uuid;
-
 use clap::Parser;
 use quent_collector::server::CollectorServiceOptions;
-use quent_exporter::{
-    ExporterOptions, FileSystemExporterOptions, FileSystemFormat, FileSystemImporterOptions,
-    ImporterOptions, create_importer,
-};
+use quent_exporter::{ExporterOptions, FileSystemExporterOptions};
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_server::{build_importer, build_lister, parse_format};
 use tokio::net::TcpListener;
 
 mod defaults {
@@ -91,12 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
 
-    let format = match exporter.as_str() {
-        "ndjson" => FileSystemFormat::Ndjson,
-        "msgpack" => FileSystemFormat::Msgpack,
-        "postcard" => FileSystemFormat::Postcard,
-        other => return Err(format!("unknown exporter: {other}").into()),
-    };
+    let format = parse_format(&exporter)?;
     let exporter_kind = ExporterOptions::FileSystem(FileSystemExporterOptions {
         format,
         root: output_dir,
@@ -117,43 +108,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
 
-    // Each context exports to its own `output_dir/<context-id>/` subdirectory;
-    // list those subdirectories whose name is a uuid.
-    let lister = move || {
-        let mut ids = Vec::new();
-        for entry in std::fs::read_dir(&lister_output_dir)? {
-            let path = entry?.path();
-            if !path.is_dir() {
-                continue;
-            }
-            if let Some(id) = path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .and_then(|s| Uuid::parse_str(s).ok())
-            {
-                ids.push(id);
-            }
-        }
-        Ok(ids)
-    };
-
-    // Hand the importer the per-context directory; it locates the event file by
-    // the configured format's extension.
-    let importer = move |context_id| {
-        let dir = importer_output_dir.join(format!("{context_id}"));
-        let kind = ImporterOptions::FileSystem(FileSystemImporterOptions { format, path: dir });
-        Ok(Box::new(create_importer::<SimulatorEvent>(&kind)?) as Box<dyn Iterator<Item = _>>)
-    };
+    let lister = build_lister(lister_output_dir);
+    let importer = build_importer(format, importer_output_dir);
 
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router::<SimulatorUiAnalyzer>(
-                Box::new(importer),
-                Box::new(lister),
-                cors_address,
-            )?
-            .into_make_service(),
+            analyzer_service_router::<SimulatorUiAnalyzer>(importer, lister, cors_address)?
+                .into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())
