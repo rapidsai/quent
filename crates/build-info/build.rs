@@ -14,5 +14,6 @@ fn main() {
     let manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    emit("QUENT_BUILD", &manifest_dir);
+    let repository = std::env::var("CARGO_PKG_REPOSITORY").ok();
+    emit_with_package_repository("QUENT_BUILD", &manifest_dir, repository.as_deref());
 }

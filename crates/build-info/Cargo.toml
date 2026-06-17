@@ -3,6 +3,7 @@ name = "quent-build-info"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+repository.workspace = true
 
 [dependencies]
 serde.workspace = true

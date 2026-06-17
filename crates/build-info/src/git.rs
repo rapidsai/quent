@@ -5,6 +5,7 @@
 // `emit_source` build-script helper (via `mod git`). Kept dependency-free and
 // free of `//!` inner-doc comments so it is valid in both contexts.
 
+use std::ffi::OsStr;
 use std::path::Path;
 use std::process::Command;
 
@@ -50,16 +51,94 @@ fn sanitize_remote(url: String) -> String {
     url
 }
 
+// Prefer the real `origin` so a build's provenance reflects where it was
+// actually built from (including a fork). Fall back to the Cargo package
+// repository only when `origin` is absent or is a cargo git-cache mirror
+// (`file://…/.cargo/git/db/…`), which is useless for locating the source.
+fn select_remote(origin: Option<&str>, package_repository: Option<&str>) -> Option<String> {
+    let package_repository = package_repository
+        .map(str::trim)
+        .filter(|repository| !repository.is_empty());
+
+    origin
+        .filter(|url| !is_cargo_git_file_remote(url))
+        .or(package_repository)
+        .map(|url| sanitize_remote(url.to_string()))
+}
+
+fn has_component_sequence(path: &Path, sequence: &[&str]) -> bool {
+    let components = path
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => Some(value),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    components.windows(sequence.len()).any(|window| {
+        window
+            .iter()
+            .zip(sequence.iter())
+            .all(|(component, expected)| *component == OsStr::new(*expected))
+    })
+}
+
+fn is_cargo_home_git_path(path: &Path, leaf: &str) -> bool {
+    if let Some(cargo_home) = std::env::var_os("CARGO_HOME") {
+        let cache_path = std::path::PathBuf::from(cargo_home).join("git").join(leaf);
+        if path.starts_with(cache_path) {
+            return true;
+        }
+    }
+
+    has_component_sequence(path, &[".cargo", "git", leaf])
+}
+
+fn is_cargo_git_checkout_path(path: &Path) -> bool {
+    is_cargo_home_git_path(path, "checkouts")
+}
+
+fn is_cargo_git_db_path(path: &Path) -> bool {
+    is_cargo_home_git_path(path, "db")
+}
+
+fn is_cargo_git_file_remote(url: &str) -> bool {
+    url.strip_prefix("file://")
+        .map(Path::new)
+        .is_some_and(is_cargo_git_db_path)
+}
+
+fn is_cargo_git_source(dir: &Path, origin: Option<&str>, git_dir: Option<&str>) -> bool {
+    is_cargo_git_checkout_path(dir)
+        || origin.is_some_and(is_cargo_git_file_remote)
+        || git_dir
+            .map(Path::new)
+            .is_some_and(is_cargo_git_checkout_path)
+}
+
 /// Capture git provenance for the working tree containing `dir`. Each field is
 /// `None` when unavailable.
 pub fn capture(dir: &Path) -> RawGit {
+    capture_with_package_repository(dir, None)
+}
+
+/// Capture git provenance, preferring a Cargo package repository when provided.
+pub fn capture_with_package_repository(dir: &Path, package_repository: Option<&str>) -> RawGit {
+    let origin = run(dir, &["remote", "get-url", "origin"]);
+    let git_dir = run(dir, &["rev-parse", "--absolute-git-dir"]);
+    let dirty = if is_cargo_git_source(dir, origin.as_deref(), git_dir.as_deref()) {
+        None
+    } else {
+        run(dir, &["status", "--porcelain"]).map(|status| !status.is_empty())
+    };
+
     RawGit {
         commit: run(dir, &["rev-parse", "HEAD"]),
         branch: run(dir, &["rev-parse", "--abbrev-ref", "HEAD"]),
-        dirty: run(dir, &["status", "--porcelain"]).map(|status| !status.is_empty()),
-        remote: run(dir, &["remote", "get-url", "origin"]).map(sanitize_remote),
+        dirty,
+        remote: select_remote(origin.as_deref(), package_repository),
         built_at: run(dir, &["log", "-1", "--format=%cI"]),
-        git_dir: run(dir, &["rev-parse", "--absolute-git-dir"]),
+        git_dir,
     }
 }
 
@@ -68,6 +147,17 @@ pub fn capture(dir: &Path) -> RawGit {
 /// resolves to `None` for absent values. Called from build scripts.
 pub fn emit(prefix: &str, dir: &Path) {
     let git = capture(dir);
+    emit_raw(prefix, &git);
+}
+
+/// Emit provenance, preferring a Cargo package repository when provided.
+#[allow(dead_code)]
+pub fn emit_with_package_repository(prefix: &str, dir: &Path, package_repository: Option<&str>) {
+    let git = capture_with_package_repository(dir, package_repository);
+    emit_raw(prefix, &git);
+}
+
+fn emit_raw(prefix: &str, git: &RawGit) {
     if let Some(commit) = &git.commit {
         println!("cargo:rustc-env={prefix}_COMMIT={commit}");
     }
@@ -100,7 +190,12 @@ pub fn emit(prefix: &str, dir: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::sanitize_remote;
+    use std::path::Path;
+
+    use super::{
+        is_cargo_git_checkout_path, is_cargo_git_file_remote, is_cargo_git_source, sanitize_remote,
+        select_remote,
+    };
 
     #[test]
     fn sanitize_remote_strips_http_userinfo_only() {
@@ -127,5 +222,56 @@ mod tests {
             sanitize_remote("ssh://git@host/o/r.git".to_string()),
             "ssh://git@host/o/r.git"
         );
+    }
+
+    #[test]
+    fn select_remote_prefers_real_origin_over_package_repository() {
+        // A real `origin` (even a fork) wins, so provenance reflects where the
+        // build actually came from.
+        assert_eq!(
+            select_remote(
+                Some("git@github.com:me/quent-fork.git"),
+                Some("https://github.com/rapidsai/quent")
+            ),
+            Some("git@github.com:me/quent-fork.git".to_string())
+        );
+        // A cargo git-cache `file://` mirror is useless, so fall back to the
+        // package repository (with any embedded token stripped).
+        assert_eq!(
+            select_remote(
+                Some("file:///home/me/.cargo/git/db/quent-515d44f958e14372"),
+                Some("https://token@github.com/rapidsai/quent")
+            ),
+            Some("https://github.com/rapidsai/quent".to_string())
+        );
+        // No package repository: keep the real `origin`.
+        assert_eq!(
+            select_remote(Some("git@github.com:rapidsai/quent.git"), Some("  ")),
+            Some("git@github.com:rapidsai/quent.git".to_string())
+        );
+        // A cargo mirror with no package repository leaves nothing usable.
+        assert_eq!(
+            select_remote(
+                Some("file:///home/me/.cargo/git/db/quent-515d44f958e14372"),
+                None
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn cargo_git_cache_sources_are_detected() {
+        assert!(is_cargo_git_checkout_path(Path::new(
+            "/home/me/.cargo/git/checkouts/quent-515d44f958e14372/90e7ae0/crates/build-info"
+        )));
+        assert!(is_cargo_git_file_remote(
+            "file:///home/me/.cargo/git/db/quent-515d44f958e14372"
+        ));
+        assert!(is_cargo_git_source(
+            Path::new("/tmp/quent/crates/build-info"),
+            Some("file:///home/me/.cargo/git/db/quent-515d44f958e14372"),
+            None
+        ));
+        assert!(!is_cargo_git_file_remote("file:///tmp/quent.git"));
     }
 }
