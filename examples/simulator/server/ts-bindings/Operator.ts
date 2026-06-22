@@ -28,7 +28,7 @@ operator_type_name: string | null,
 /**
  * The custom attributes of this [`Operator`].
  */
-custom_attributes: { [key in string]?: Value | null }, 
+custom_attributes: { [key in string]: Value | null }, 
 /**
  * The statistics of this [`Operator`].
  *

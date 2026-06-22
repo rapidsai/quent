@@ -28,7 +28,7 @@ unique_operator_names: Array<string>,
 /**
  * Quantity specifications for capacity display, keyed by capacity name.
  */
-quantity_specs: { [key in string]?: QuantitySpec }, 
+quantity_specs: { [key in string]: QuantitySpec }, 
 /**
  * The number of nanoseconds passed since the Unix epoch at which the
  * engine started executing this query.

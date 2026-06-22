@@ -36,29 +36,29 @@ query: Query,
  *
  * Is a Resource Group.
  */
-workers: { [key in string]?: Worker }, 
+workers: { [key in string]: Worker }, 
 /**
  * The plans of this query.
  *
  * Is a Resource Group.
  */
-plans: { [key in string]?: Plan }, 
+plans: { [key in string]: Plan }, 
 /**
  * The operators of the plans.
  *
  * Is a Resource Group.
  */
-operators: { [key in string]?: Operator }, 
+operators: { [key in string]: Operator }, 
 /**
  * The ports of the operators.
  *
  * Is a Resource Group.
  */
-ports: { [key in string]?: Port }, 
+ports: { [key in string]: Port }, 
 /**
  * Application-specific resource types
  */
-resource_types: { [key in string]?: ResourceTypeDecl }, 
+resource_types: { [key in string]: ResourceTypeDecl }, 
 /**
  * Resource group types.
  *
@@ -71,16 +71,16 @@ resource_types: { [key in string]?: ResourceTypeDecl },
  * - [`Operator`]
  * - [`Port`]
  */
-resource_group_types: { [key in string]?: ResourceGroupTypeDecl }, 
+resource_group_types: { [key in string]: ResourceGroupTypeDecl }, 
 /**
  * Application-specific resources
  */
-resources: { [key in string]?: Resource }, 
+resources: { [key in string]: Resource }, 
 /**
  * Application-specific resource groups
  */
-resource_groups: { [key in string]?: ResourceGroup }, 
+resource_groups: { [key in string]: ResourceGroup }, 
 /**
  * Application-specific FSMs
  */
-fsm_types: { [key in string]?: FsmTypeDecl }, };
+fsm_types: { [key in string]: FsmTypeDecl }, };
