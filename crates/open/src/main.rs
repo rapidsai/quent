@@ -4,11 +4,18 @@
 //! `quent-open` opens local Quent benchmark artifacts in an application-specific
 //! viewer. See <https://github.com/rapidsai/quent/issues/234>.
 //!
-//! This is a scaffold: the CLI surface is in place and the provenance sidecar
-//! (`model.qmi`) is read to identify each artifact's model; selecting, building,
-//! serving and launching a viewer is not yet implemented.
+//! Given a context directory, it reads the `model.qmi` provenance sidecar,
+//! generates a small viewer crate pinned to the recorded quent + analyzer commits
+//! (see [`wrapper`]), builds and serves it, and opens a browser.
+//!
+//! Building the viewer fetches the recorded git sources and compiles the embedded
+//! UI, which runs `pnpm`/`node` on first build (cached afterwards); these must be
+//! available on `PATH`.
 
 mod error;
+mod spec;
+mod viewer;
+mod wrapper;
 
 use std::path::{Path, PathBuf};
 
@@ -16,6 +23,7 @@ use clap::{Parser, Subcommand};
 use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 
 use crate::error::{OpenError, Result};
+use crate::spec::ViewerSpec;
 
 #[derive(Debug, Parser)]
 #[command(name = "quent-open")]
@@ -62,22 +70,35 @@ async fn main() -> Result<()> {
 
 /// Open local artifacts in a viewer.
 ///
-/// Reads the `model.qmi` provenance sidecar in each context directory to identify
-/// the model that produced the artifacts. Each path is treated as a context
-/// directory; resolving a sidecar from a nested per-entity subdirectory is not
-/// supported.
+/// Reads each context directory's `model.qmi` sidecar, then resolves the viewer
+/// build spec (analyzer package, pinned git sources, artifact format). Each path
+/// is treated as a context directory; resolving a sidecar from a nested per-entity
+/// subdirectory is not supported.
 ///
-/// TODO(#234): load config, then select and build a viewer matching the model's
-/// provenance, serve the artifacts, and launch the viewer / open a browser.
-async fn run_local(_cli: &Cli, paths: &[PathBuf]) -> Result<()> {
+/// For each context directory: generate a viewer crate from the spec, build it,
+/// serve the artifacts, and open a browser. Serving blocks until the viewer
+/// exits, so multiple paths are opened one after another.
+async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
     for path in paths {
         let info = ArtifactInfo::read_sidecar(path).map_err(|source| OpenError::Sidecar {
             path: path.join(SIDECAR_FILE_NAME),
             source,
         })?;
         report_artifact(path, &info);
+        let spec = ViewerSpec::from_artifact(path, &info)?;
+        report_spec(&spec);
+        viewer::open(&spec, cli.no_browser, cli.print_url).await?;
     }
     Ok(())
+}
+
+/// Print the resolved viewer build spec for `spec`.
+fn report_spec(spec: &ViewerSpec) {
+    println!(
+        "  viewer:   {}::Viewer ({})",
+        spec.analyzer_crate(),
+        spec.format.extension()
+    );
 }
 
 /// Print the provenance discovered for `path`. The model `source` is what later

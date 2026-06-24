@@ -9,6 +9,11 @@ publish.workspace = true
 
 [dependencies]
 clap = { version = "4.5.58", features = ["derive", "env"] }
+dirs = "6"
+open = "5"
 quent-build-info = { path = "../build-info" }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "net", "process", "rt-multi-thread", "time"] }
+
+[dev-dependencies]
+tempfile = "3"
