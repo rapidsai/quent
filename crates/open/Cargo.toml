@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "quent-open"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+clap = { version = "4.5.58", features = ["derive", "env"] }
+quent-build-info = { path = "../build-info" }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

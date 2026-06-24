@@ -2091,6 +2091,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-open"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quent-build-info",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "quent-qe-bridge"
 version = "0.1.0"
 dependencies = [
