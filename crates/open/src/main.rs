@@ -91,10 +91,13 @@ fn read_artifact_info(dir: &Path) -> Result<ArtifactInfo> {
 fn report_artifact(path: &Path, info: &ArtifactInfo) {
     let model = &info.model;
     println!("{}", path.display());
-    println!("  model:   {} ({})", model.name, model.type_path);
-    println!("  package: {}", model.package);
-    println!("  quent:   {}", describe_build(&info.quent));
-    println!("  source:  {}", describe_build(&model.source));
+    println!("  model:    {} ({})", model.name, model.type_path);
+    println!("  package:  {}", model.package);
+    if let Some(analyzer) = &model.analyzer_package {
+        println!("  analyzer: {analyzer}");
+    }
+    println!("  quent:    {}", describe_build(&info.quent));
+    println!("  source:   {}", describe_build(&model.source));
 }
 
 /// One-line summary of a [`BuildInfo`](quent_build_info::BuildInfo): version with
