@@ -131,6 +131,16 @@ impl ArtifactInfo {
         std::fs::write(&tmp, json)?;
         std::fs::rename(&tmp, dir.join(SIDECAR_FILE_NAME))
     }
+
+    /// Read the [`SIDECAR_FILE_NAME`] sidecar from `dir` and parse it. The
+    /// inverse of [`write_sidecar`](Self::write_sidecar): a missing sidecar
+    /// surfaces as [`std::io::ErrorKind::NotFound`], a malformed one as
+    /// [`std::io::ErrorKind::InvalidData`].
+    pub fn read_sidecar(dir: &Path) -> std::io::Result<Self> {
+        let bytes = std::fs::read(dir.join(SIDECAR_FILE_NAME))?;
+        serde_json::from_slice(&bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
 }
 
 /// Build info for the quent framework itself, captured by this crate's `build.rs`.
@@ -252,13 +262,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        ArtifactInfo::new(TestModel::model_info())
-            .write_sidecar(&dir)
-            .unwrap();
+        let info = ArtifactInfo::new(TestModel::model_info());
+        info.write_sidecar(&dir).unwrap();
 
         assert!(dir.join(SIDECAR_FILE_NAME).is_file());
         // The temp file used for the atomic rename must not linger.
         assert!(!dir.join(format!(".{SIDECAR_FILE_NAME}.tmp")).exists());
+
+        // The sidecar reads back to an equal value.
+        assert_eq!(ArtifactInfo::read_sidecar(&dir).unwrap(), info);
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
