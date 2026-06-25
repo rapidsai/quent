@@ -213,7 +213,7 @@ mod tests {
         build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
@@ -296,7 +296,7 @@ mod tests {
         build_root_and_memory(&mut resources, resource_b_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
@@ -382,7 +382,7 @@ mod tests {
         builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
         let mut resources = builder.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Add a resource with 2 capacities.
         resources.insert_type(ResourceTypeDecl::new(
@@ -484,7 +484,7 @@ mod tests {
         build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs with 2 usage states
         for i in 0..4 {
@@ -605,7 +605,7 @@ mod tests {
         build_root_and_memory(&mut resources, resource_b_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce the same utilization as previous test but spread it out across two leaf resources.
         for i in 0..4 {
@@ -771,7 +771,7 @@ mod tests {
             .unwrap()
         };
 
-        let mut outside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut outside_fsms = InMemoryFsms::<RtFsm>::new();
         outside_fsms.insert(make_fsm(0, 500));
         outside_fsms.insert(make_fsm(2500, 3000));
 
@@ -780,7 +780,7 @@ mod tests {
         outside_builder.try_extend(outside_fsms.usages()).unwrap();
         assert!(!outside_builder.build().long_entities.contains(&resource_id));
 
-        let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut inside_fsms = InMemoryFsms::<RtFsm>::new();
         inside_fsms.insert(make_fsm(500, 1500));
         inside_fsms.insert(make_fsm(1100, 1900));
 

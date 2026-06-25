@@ -132,23 +132,11 @@ impl SimulatorModel {
     }
 }
 
-impl
-    FsmCollection<
-        Task,
-        quent_analyzer::fsm::events::TransitionEvent<
-            quent_simulator_instrumentation::task::TaskTransition,
-        >,
-    > for SimulatorModel
-{
-    fn fsms<'a>(&'a self) -> impl Iterator<Item = &'a Task> + 'a
-    where
-        Task: 'a,
-    {
-        self.tasks.values()
-    }
+impl FsmCollection for SimulatorModel {
+    type Fsm = Task;
 
-    fn contains_fsm_type(&self, type_name: &str) -> bool {
-        !self.tasks.is_empty() && type_name == "task"
+    fn fsms(&self) -> impl Iterator<Item = &Task> {
+        self.tasks.values()
     }
 }
 
