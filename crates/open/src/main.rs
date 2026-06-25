@@ -15,34 +15,24 @@ mod spec;
 mod viewer;
 mod wrapper;
 
+use std::collections::BTreeMap;
 use std::net::IpAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 
 use crate::error::{OpenError, Result};
 use crate::spec::ViewerSpec;
+use crate::viewer::ViewerGroup;
 
 #[derive(Debug, Parser)]
 #[command(name = "quent-open")]
-#[command(about = "Open local Quent benchmark artifacts in an application-specific viewer")]
+#[command(about = "Open local Quent artifacts in an application-specific viewer")]
 struct Cli {
-    /// Config file path. Defaults to ./quent-open.toml, then ~/.config/quent/open.toml.
-    #[arg(long, global = true)]
-    config: Option<PathBuf>,
-
-    /// Do not open a browser.
+    /// Do not open a browser (a viewer's URL is always printed when it is ready).
     #[arg(long, global = true)]
     no_browser: bool,
-
-    /// Print the opened viewer URL.
-    #[arg(long, global = true)]
-    print_url: bool,
-
-    /// Force a specific viewer by name from the config (skips automatic matching).
-    #[arg(long, global = true)]
-    viewer: Option<String>,
 
     /// Host/interface the viewer binds (`0.0.0.0` exposes it to other hosts).
     #[arg(long, global = true, default_value = "127.0.0.1")]
@@ -71,49 +61,42 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Open local artifacts in a viewer.
-///
-/// Reads each context directory's `model.qmi` sidecar, then resolves the viewer
-/// build spec (analyzer package, pinned git sources, artifact format). Each path
-/// is treated as a context directory; resolving a sidecar from a nested per-entity
-/// subdirectory is not supported.
-///
-/// For each context directory: generate a viewer crate from the spec, build it,
-/// serve the artifacts, and open a browser. Serving blocks until the viewer
-/// exits, so multiple paths are opened one after another.
+/// Discover all context directories under `paths` (recursively), group them into
+/// one viewer per distinct build spec (same analyzer + pinned commits + format),
+/// then build and serve those viewers in parallel. Contexts that can't be opened
+/// (no analyzer package, unreadable sidecar) are skipped with a warning rather
+/// than aborting.
 async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
-    for path in paths {
-        let info = ArtifactInfo::read_sidecar(path).map_err(|source| OpenError::Sidecar {
-            path: path.join(SIDECAR_FILE_NAME),
-            source,
-        })?;
-        report_artifact(path, &info);
-        let spec = ViewerSpec::from_artifact(path, &info)?;
-        report_spec(&spec);
-        viewer::open(&spec, cli.no_browser, cli.print_url, cli.host).await?;
-    }
-    Ok(())
-}
+    let contexts = spec::discover_contexts(paths)?;
 
-/// Print the resolved viewer build spec for `spec`.
-fn report_spec(spec: &ViewerSpec) {
-    println!(
-        "  viewer:   {}::Viewer ({})",
-        spec.analyzer_crate(),
-        spec.format.extension()
-    );
-}
-
-/// Print the provenance discovered for `path`. The model `source` is what later
-/// drives checking out and building a viewer for the producing crate.
-fn report_artifact(path: &Path, info: &ArtifactInfo) {
-    let model = &info.model;
-    println!("{}", path.display());
-    println!("  model:    {} ({})", model.name, model.type_path);
-    println!("  package:  {}", model.package);
-    if let Some(analyzer) = &model.analyzer_package {
-        println!("  analyzer: {analyzer}");
+    // One group per build spec; contexts sharing a spec share a viewer.
+    let mut groups: BTreeMap<String, ViewerGroup> = BTreeMap::new();
+    for context in contexts {
+        let spec = match ArtifactInfo::read_sidecar(&context)
+            .map_err(|source| OpenError::Sidecar {
+                path: context.join(SIDECAR_FILE_NAME),
+                source,
+            })
+            .and_then(|info| ViewerSpec::from_artifact(&context, &info))
+        {
+            Ok(spec) => spec,
+            Err(e) => {
+                eprintln!("skipping {}: {e}", context.display());
+                continue;
+            }
+        };
+        groups
+            .entry(spec.group_key())
+            .or_insert_with(|| ViewerGroup {
+                spec: spec.clone(),
+                contexts: Vec::new(),
+            })
+            .contexts
+            .push(context);
     }
-    println!("  quent:    {}", info.quent);
-    println!("  source:   {}", model.source);
+
+    if groups.is_empty() {
+        return Err(OpenError::NoContexts);
+    }
+    viewer::open_all(groups.into_values().collect(), cli.no_browser, cli.host).await
 }

@@ -59,6 +59,14 @@ pub enum OpenError {
     #[error("the viewer exited unexpectedly (status {status})")]
     ViewerExited { status: String },
 
+    /// No context directories (with a `model.qmi`) were found under the paths.
+    #[error("no Quent context directories (with a model.qmi) found under the given paths")]
+    NoContexts,
+
+    /// One or more viewers failed to build or serve.
+    #[error("{count} viewer(s) failed")]
+    ViewersFailed { count: usize },
+
     /// An I/O error occurred (reading artifacts, spawning the viewer, etc.).
     #[error(transparent)]
     Io(#[from] std::io::Error),

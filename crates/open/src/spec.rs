@@ -4,11 +4,63 @@
 //! Build a [`ViewerSpec`] from a context's `model.qmi`: pinned git sources,
 //! analyzer package, and artifact format for generating/building a viewer.
 
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use quent_build_info::{ArtifactInfo, BuildInfo};
+use quent_build_info::{ArtifactInfo, BuildInfo, SIDECAR_FILE_NAME};
 
 use crate::error::{OpenError, Result};
+
+/// Recursively discover context directories (those containing a `model.qmi`
+/// sidecar) under the given `paths`. A directory that is itself a context is not
+/// descended into; hidden directories (dotfiles, e.g. `.git`) and symlinks (to
+/// avoid cycles) are skipped during the walk. Results are canonicalized and
+/// deduplicated, preserving discovery order.
+pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    let mut found = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for path in paths {
+        collect_contexts(path, &mut found, &mut seen)?;
+    }
+    Ok(found)
+}
+
+fn collect_contexts(
+    dir: &Path,
+    found: &mut Vec<PathBuf>,
+    seen: &mut std::collections::HashSet<PathBuf>,
+) -> Result<()> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    if dir.join(SIDECAR_FILE_NAME).is_file() {
+        let canonical = dir.canonicalize()?;
+        if seen.insert(canonical.clone()) {
+            found.push(canonical);
+        }
+        return Ok(()); // a context is a leaf; do not descend into its entity dirs
+    }
+    for entry in std::fs::read_dir(dir)?.flatten() {
+        // `file_type()` does not traverse symlinks, so a symlinked directory is
+        // neither hidden-checked away nor recursed into — this keeps the walk
+        // cycle-safe (a symlink back to an ancestor can't loop).
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let child = entry.path();
+        let hidden = child
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with('.'));
+        if !hidden {
+            collect_contexts(&child, found, seen)?;
+        }
+    }
+    Ok(())
+}
 
 /// Serialization format of an artifact's event streams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,11 +135,10 @@ impl GitPin {
     }
 }
 
-/// Everything needed to generate and build a viewer for one context directory.
+/// Everything needed to generate and build a viewer (the contexts it serves are
+/// tracked separately, since one viewer can serve several same-spec contexts).
 #[derive(Debug, Clone)]
 pub struct ViewerSpec {
-    /// The context directory holding the per-entity event streams.
-    pub root: PathBuf,
     /// Event serialization format, detected from the on-disk streams.
     pub format: Format,
     /// Cargo package of the analyzer crate providing `Viewer` (`QuentViewer`).
@@ -109,7 +160,6 @@ impl ViewerSpec {
                     model: info.model.name.clone(),
                 })?;
         Ok(Self {
-            root: root.to_path_buf(),
             format: detect_format(root)?,
             analyzer_package,
             quent: GitPin::from_build_info(&info.quent, "quent")?,
@@ -123,15 +173,35 @@ impl ViewerSpec {
         self.analyzer_package.replace('-', "_")
     }
 
-    /// Stable directory name for caching this viewer's generated crate and build,
-    /// keyed on everything that affects the build output.
+    /// Full, unambiguous identity of a build — every input that affects its
+    /// output (analyzer package, format, and both git pins incl. their remotes
+    /// and full commits). Use this to group/dedup contexts into viewers.
+    pub fn group_key(&self) -> String {
+        // Unit separator between fields so values can't run together.
+        [
+            self.analyzer_package.as_str(),
+            self.format.extension(),
+            &self.quent.remote,
+            &self.quent.commit,
+            &self.analyzer.remote,
+            &self.analyzer.commit,
+        ]
+        .join("\u{1f}")
+    }
+
+    /// Filesystem-safe cache directory name for this viewer's generated crate and
+    /// build. A readable prefix plus a hash of [`group_key`](Self::group_key), so
+    /// distinct builds never share a directory even when their short commits or
+    /// packages match.
     pub fn cache_key(&self) -> String {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.group_key().hash(&mut hasher);
         format!(
-            "{}-{}-{}-{}",
+            "{}-{}-{}-{:016x}",
             self.analyzer_package,
             short_commit(&self.analyzer.commit),
-            short_commit(&self.quent.commit),
             self.format.extension(),
+            hasher.finish(),
         )
     }
 }
@@ -199,6 +269,46 @@ mod tests {
         dir
     }
 
+    fn make_context(dir: &Path) {
+        std::fs::create_dir_all(dir.join("engine")).unwrap();
+        std::fs::write(dir.join("engine").join("events.ndjson"), b"").unwrap();
+        std::fs::write(dir.join(SIDECAR_FILE_NAME), b"{}").unwrap();
+    }
+
+    #[test]
+    fn discover_finds_nested_contexts_and_skips_hidden() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        make_context(&root.join("a"));
+        make_context(&root.join("nested/b"));
+        make_context(&root.join(".hidden/c")); // under a dotdir: must be skipped
+
+        let found = discover_contexts(&[root.to_path_buf()]).unwrap();
+        let mut names: Vec<String> = found
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["a", "b"]);
+
+        // Passing a context directly yields just it (no descent into entity dirs).
+        let direct = discover_contexts(&[root.join("a")]).unwrap();
+        assert_eq!(direct.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovery_does_not_follow_symlink_cycles() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        make_context(&root.join("a"));
+        // A symlink back to the root would loop a naive recursive walk.
+        std::os::unix::fs::symlink(root, root.join("loop")).unwrap();
+
+        let found = discover_contexts(&[root.to_path_buf()]).unwrap(); // must terminate
+        assert_eq!(found.len(), 1);
+    }
+
     #[test]
     fn detects_format_from_entity_subdir() {
         let ctx = ctx_with_stream("engine", "events.msgpack");
@@ -245,16 +355,36 @@ mod tests {
     }
 
     #[test]
-    fn spec_derives_crate_ident_and_cache_key() {
+    fn spec_derives_crate_ident_and_keys() {
         let ctx = ctx_with_stream("engine", "events.ndjson");
         let info = artifact_with(Some("quent-simulator-analyzer"), "feedface99887766");
         let spec = ViewerSpec::from_artifact(ctx.path(), &info).unwrap();
         assert_eq!(spec.analyzer_crate(), "quent_simulator_analyzer");
         assert_eq!(spec.format, Format::Ndjson);
-        // commit is truncated to 12 chars in the key.
-        assert_eq!(
-            spec.cache_key(),
-            "quent-simulator-analyzer-feedface9988-0123456789ab-ndjson"
+        assert!(
+            spec.cache_key()
+                .starts_with("quent-simulator-analyzer-feedface9988-ndjson-")
         );
+    }
+
+    #[test]
+    fn keys_distinguish_full_pins_not_just_short_commit() {
+        let ctx = ctx_with_stream("engine", "events.ndjson");
+        // Same package, format, and 12-char commit prefix, but different full
+        // analyzer commits — must NOT collide.
+        let a =
+            ViewerSpec::from_artifact(ctx.path(), &artifact_with(Some("p"), "abcabcabcabc1111"))
+                .unwrap();
+        let b =
+            ViewerSpec::from_artifact(ctx.path(), &artifact_with(Some("p"), "abcabcabcabc2222"))
+                .unwrap();
+        assert_ne!(a.group_key(), b.group_key());
+        assert_ne!(a.cache_key(), b.cache_key());
+        // Identical inputs group together and are deterministic.
+        let a2 =
+            ViewerSpec::from_artifact(ctx.path(), &artifact_with(Some("p"), "abcabcabcabc1111"))
+                .unwrap();
+        assert_eq!(a.group_key(), a2.group_key());
+        assert_eq!(a.cache_key(), a2.cache_key());
     }
 }
