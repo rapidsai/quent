@@ -56,9 +56,9 @@ axum = "0.8"
 tokio = {{ version = "1", features = ["macros", "net", "rt-multi-thread"] }}
 uuid = "1"
 "#,
-        q_remote = quent.remote,
+        q_remote = quent.cargo_url(),
         q_commit = quent.commit,
-        a_remote = analyzer.remote,
+        a_remote = analyzer.cargo_url(),
         a_commit = analyzer.commit,
         analyzer_pkg = spec.analyzer_package,
     )

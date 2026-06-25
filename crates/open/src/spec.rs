@@ -56,6 +56,23 @@ pub struct GitPin {
 }
 
 impl GitPin {
+    /// The remote as a URL Cargo accepts in a `git = "..."` dependency.
+    ///
+    /// Git records `origin` as an scp-style address (`git@host:path`), which
+    /// Cargo rejects; rewrite it to `ssh://git@host/path`. URLs that already
+    /// carry a scheme (`https://`, `ssh://`, …) are left unchanged, as are local
+    /// paths — matching git, a remote is scp-style only when the first colon has
+    /// no slash before it (so `/tmp/foo:bar` stays a path).
+    pub fn cargo_url(&self) -> String {
+        if self.remote.contains("://") {
+            return self.remote.clone();
+        }
+        match self.remote.split_once(':') {
+            Some((host, path)) if !host.contains('/') => format!("ssh://{host}/{path}"),
+            _ => self.remote.clone(),
+        }
+    }
+
     /// Extract a pin from a [`BuildInfo`], or report which provenance is missing.
     fn from_build_info(info: &BuildInfo, what: &str) -> Result<Self> {
         match (&info.remote, &info.commit) {
@@ -207,6 +224,26 @@ mod tests {
             ViewerSpec::from_artifact(ctx.path(), &info),
             Err(OpenError::NoAnalyzer { .. })
         ));
+    }
+
+    #[test]
+    fn cargo_url_normalizes_scp_style_but_leaves_real_urls() {
+        let scp = GitPin {
+            remote: "git@github.com:mbrobbel/quent.git".into(),
+            commit: "c".into(),
+        };
+        assert_eq!(scp.cargo_url(), "ssh://git@github.com/mbrobbel/quent.git");
+        let https = GitPin {
+            remote: "https://github.com/rapidsai/quent".into(),
+            commit: "c".into(),
+        };
+        assert_eq!(https.cargo_url(), "https://github.com/rapidsai/quent");
+        // A local path with a colon after a slash is not scp-style: leave it.
+        let local = GitPin {
+            remote: "/tmp/foo:bar.git".into(),
+            commit: "c".into(),
+        };
+        assert_eq!(local.cargo_url(), "/tmp/foo:bar.git");
     }
 
     #[test]
