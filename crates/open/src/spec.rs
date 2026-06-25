@@ -128,16 +128,69 @@ impl GitPin {
         }
     }
 
-    /// Extract a pin from a [`BuildInfo`], or report which provenance is missing.
+    /// Extract a pin from a [`BuildInfo`], validating the (untrusted) remote and
+    /// commit so they can't inject into the generated `Cargo.toml`.
     fn from_build_info(info: &BuildInfo, what: &str) -> Result<Self> {
         match (&info.remote, &info.commit) {
-            (Some(remote), Some(commit)) => Ok(GitPin {
-                remote: remote.clone(),
-                commit: commit.clone(),
-            }),
+            (Some(remote), Some(commit)) => {
+                validate_remote(remote)?;
+                validate_commit(commit)?;
+                Ok(GitPin {
+                    remote: remote.clone(),
+                    commit: commit.clone(),
+                })
+            }
             _ => Err(OpenError::MissingProvenance { what: what.into() }),
         }
     }
+}
+
+/// A git commit must be a hex object id (sha-1 or sha-256, possibly abbreviated).
+fn validate_commit(commit: &str) -> Result<()> {
+    let ok = (7..=64).contains(&commit.len()) && commit.bytes().all(|b| b.is_ascii_hexdigit());
+    ok.then_some(())
+        .ok_or_else(|| OpenError::InvalidProvenance {
+            field: "commit".into(),
+            value: commit.into(),
+        })
+}
+
+/// A git remote must use an authenticated/integrity-checked transport — `https`
+/// or `ssh` (incl. scp-style `user@host:path`) — and be free of characters that
+/// could break out of the generated TOML string. Unauthenticated `http`/`git`
+/// transports are rejected so a trusted source can't be silently downgraded
+/// (the scheme is dropped during trust canonicalization).
+fn validate_remote(remote: &str) -> Result<()> {
+    let inject = remote
+        .bytes()
+        .any(|b| b.is_ascii_control() || b == b'"' || b == b'\\');
+    // scp-style: `[user@]host:path` — a `:` before any `/`, user optional
+    // (matches git; `cargo_url` rewrites it to an `ssh://` URL).
+    let shaped = matches!(remote.split_once("://"), Some(("https" | "ssh", _)))
+        || (!remote.contains("://")
+            && remote
+                .split_once(':')
+                .is_some_and(|(host, _)| !host.is_empty() && !host.contains('/')));
+    (!inject && shaped)
+        .then_some(())
+        .ok_or_else(|| OpenError::InvalidProvenance {
+            field: "remote".into(),
+            value: remote.into(),
+        })
+}
+
+/// A cargo package name: ASCII alphanumerics, `-`, and `_` only. Keeps the name
+/// safe to interpolate into the manifest and `use <crate>::Viewer`.
+fn validate_package(package: &str) -> Result<()> {
+    let ok = !package.is_empty()
+        && package
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    ok.then_some(())
+        .ok_or_else(|| OpenError::InvalidProvenance {
+            field: "analyzer_package".into(),
+            value: package.into(),
+        })
 }
 
 /// Viewer build inputs; contexts are tracked separately because one viewer can
@@ -164,6 +217,7 @@ impl ViewerSpec {
                 .ok_or_else(|| OpenError::NoAnalyzer {
                     model: info.model.name.clone(),
                 })?;
+        validate_package(&analyzer_package)?;
         Ok(Self {
             format: detect_format(root)?,
             analyzer_package,
@@ -405,6 +459,28 @@ mod tests {
             detect_format(ctx.path()),
             Err(OpenError::UnknownFormat { .. })
         ));
+    }
+
+    #[test]
+    fn validators_accept_good_and_reject_injection() {
+        assert!(validate_commit("0123456789abcdef0123456789abcdef01234567").is_ok());
+        assert!(validate_commit("deadbeef").is_ok());
+        assert!(validate_commit("nothex!!").is_err());
+        assert!(validate_commit("abc").is_err()); // too short
+
+        assert!(validate_remote("https://github.com/rapidsai/quent").is_ok());
+        assert!(validate_remote("git@github.com:rapidsai/quent.git").is_ok());
+        assert!(validate_remote("github.com:rapidsai/quent.git").is_ok()); // scp, no user
+        assert!(validate_remote("ssh://git@github.com/rapidsai/quent.git").is_ok());
+        assert!(validate_remote("https://x/y\"\n[dependencies]\nevil=\"1").is_err());
+        assert!(validate_remote("file:///etc/passwd").is_err());
+        // Unauthenticated transports are rejected (no silent downgrade).
+        assert!(validate_remote("http://github.com/rapidsai/quent").is_err());
+        assert!(validate_remote("git://github.com/rapidsai/quent").is_err());
+
+        assert!(validate_package("quent-simulator-analyzer").is_ok());
+        assert!(validate_package("evil\"]\nfoo = { path = \"/").is_err());
+        assert!(validate_package("").is_err());
     }
 
     #[test]

@@ -25,6 +25,17 @@ pub enum OpenError {
     )]
     NoAnalyzer { model: String },
 
+    /// A provenance field was malformed (and could otherwise inject into the
+    /// generated build files).
+    #[error("invalid {field} in provenance: {value:?}")]
+    InvalidProvenance { field: String, value: String },
+
+    /// Every discovered viewer's source was untrusted (and not approved).
+    #[error(
+        "no trusted sources to build; re-run with --trust <remote> or --trust-all, or add to the allowlist"
+    )]
+    NothingTrusted,
+
     /// No recognized event stream extension was found, so the artifact format is
     /// unknown.
     #[error(

@@ -12,6 +12,7 @@
 
 mod error;
 mod spec;
+mod trust;
 mod viewer;
 mod wrapper;
 
@@ -37,6 +38,16 @@ struct Cli {
     /// Host/interface the viewer binds (`0.0.0.0` exposes it to other hosts).
     #[arg(long, global = true, default_value = "127.0.0.1")]
     host: IpAddr,
+
+    /// Trust a git remote (repeatable) without prompting: a full repo URL for an
+    /// exact repo, or a `github.com/org/*` form to trust a whole org/prefix.
+    #[arg(long = "trust", global = true, value_name = "REMOTE")]
+    trust: Vec<String>,
+
+    /// Trust every source (skips the trust gate entirely — only for sources you
+    /// already trust, since building runs their code).
+    #[arg(long, global = true)]
+    trust_all: bool,
 
     #[command(subcommand)]
     command: OpenCommand,
@@ -94,8 +105,42 @@ async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
             .push(context);
     }
 
+    let groups: Vec<ViewerGroup> = groups.into_values().collect();
     if groups.is_empty() {
         return Err(OpenError::NoContexts);
     }
-    viewer::open_all(groups.into_values().collect(), cli.no_browser, cli.host).await
+
+    // Each viewer builds + runs code from its quent and analyzer git remotes, so
+    // gate on trust before building. Authorize each distinct remote once (prompts
+    // are sequential, before the parallel build phase).
+    let mut trust = trust::Trust::new(&cli.trust, cli.trust_all);
+    let mut decided: BTreeMap<String, bool> = BTreeMap::new();
+    for group in &groups {
+        for pin in [&group.spec.quent, &group.spec.analyzer] {
+            if let std::collections::btree_map::Entry::Vacant(slot) =
+                decided.entry(trust::canonicalize_remote(&pin.remote))
+            {
+                slot.insert(trust.authorize(&pin.remote, &pin.commit));
+            }
+        }
+    }
+    let approved: Vec<ViewerGroup> = groups
+        .into_iter()
+        .filter(|group| {
+            let trusted = [&group.spec.quent, &group.spec.analyzer]
+                .iter()
+                .all(|pin| decided[&trust::canonicalize_remote(&pin.remote)]);
+            if !trusted {
+                eprintln!(
+                    "skipping {}: source not trusted",
+                    group.spec.analyzer_package
+                );
+            }
+            trusted
+        })
+        .collect();
+    if approved.is_empty() {
+        return Err(OpenError::NothingTrusted);
+    }
+    viewer::open_all(approved, cli.no_browser, cli.host).await
 }
