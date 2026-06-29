@@ -45,9 +45,8 @@ struct Cli {
 enum OpenCommand {
     /// Analyze local Quent artifacts directly.
     Local {
-        /// Context directories to analyze. A context directory holds a `model.qmi`
-        /// provenance sidecar at its root, plus one per-entity subdirectory per
-        /// entity containing that entity's event stream.
+        /// Context directories to analyze; each has a root `model.qmi` sidecar and
+        /// per-entity subdirectories containing event streams.
         #[arg(required = true, num_args = 1..)]
         paths: Vec<PathBuf>,
     },

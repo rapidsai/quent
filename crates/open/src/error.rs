@@ -11,8 +11,7 @@ pub type Result<T> = std::result::Result<T, OpenError>;
 /// Errors that can occur while opening Quent artifacts in a viewer.
 #[derive(Debug, Error)]
 pub enum OpenError {
-    /// The provenance sidecar could not be read or parsed (missing, malformed,
-    /// or unreadable `model.qmi`).
+    /// The provenance sidecar (`model.qmi`) is missing, malformed, or unreadable.
     #[error("failed to read provenance sidecar '{path}': {source}")]
     Sidecar {
         path: PathBuf,
