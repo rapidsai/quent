@@ -19,22 +19,21 @@ pub enum OpenError {
         source: std::io::Error,
     },
 
-    /// The model did not declare an `analyzer_package`, so no viewer can be built
-    /// for it.
+    /// The model lacks `analyzer_package`, so no viewer can be built.
     #[error(
         "model '{model}' declares no analyzer package (set `analyzer_package` in its `model!`)"
     )]
     NoAnalyzer { model: String },
 
-    /// No event stream with a recognized extension was found, so the artifact
-    /// serialization format could not be determined.
+    /// No recognized event stream extension was found, so the artifact format is
+    /// unknown.
     #[error(
         "could not determine the artifact format under '{root}': no ndjson, msgpack, or postcard event streams found"
     )]
     UnknownFormat { root: PathBuf },
 
-    /// The sidecar lacks the git provenance (remote and commit) needed to fetch a
-    /// crate for the viewer build.
+    /// The sidecar lacks git remote/commit provenance needed to fetch a crate for
+    /// the viewer build.
     #[error(
         "{what} provenance is incomplete: a git remote and commit are required to build a viewer"
     )]
@@ -56,7 +55,7 @@ pub enum OpenError {
     #[error("building the viewer failed (cargo exited with {status})")]
     Build { status: String },
 
-    /// The viewer process exited or never reported a URL before serving.
+    /// The viewer exited or never reported its URL before serving.
     #[error("the viewer exited unexpectedly (status {status})")]
     ViewerExited { status: String },
 

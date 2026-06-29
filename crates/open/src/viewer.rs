@@ -64,8 +64,8 @@ fn symlink_dir(_src: &Path, _link: &Path) -> Result<()> {
     )))
 }
 
-/// Cache directory for this viewer's generated crate and build, under the user
-/// cache dir keyed by [`ViewerSpec::cache_key`] so identical specs are reused.
+/// Cache dir for this viewer's generated crate/build, keyed by
+/// [`ViewerSpec::cache_key`] under the user cache dir so identical specs are reused.
 fn build_dir(spec: &ViewerSpec) -> Result<PathBuf> {
     let base = dirs::cache_dir().ok_or(OpenError::NoCacheDir)?;
     Ok(base
@@ -137,8 +137,8 @@ async fn serve(output_root: &Path, bin: &Path, no_browser: bool, print_url: bool
     Ok(())
 }
 
-/// Pick a currently-free localhost TCP port. There is a small race between this
-/// and the viewer binding it, acceptable for a local dev tool.
+/// Pick a currently free localhost TCP port; the small race before viewer bind
+/// is acceptable for a local dev tool.
 fn free_port() -> Result<u16> {
     let listener = StdTcpListener::bind(("127.0.0.1", 0))?;
     Ok(listener.local_addr()?.port())

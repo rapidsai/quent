@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Turn a context directory's `model.qmi` sidecar into a [`ViewerSpec`]: the
-//! pinned git sources, analyzer package, and artifact format needed to generate
-//! and build a viewer for it.
+//! Build a [`ViewerSpec`] from a context's `model.qmi`: pinned git sources,
+//! analyzer package, and artifact format for generating/building a viewer.
 
 use std::path::{Path, PathBuf};
 
@@ -56,13 +55,12 @@ pub struct GitPin {
 }
 
 impl GitPin {
-    /// The remote as a URL Cargo accepts in a `git = "..."` dependency.
+    /// Remote as a Cargo `git = "..."` URL.
     ///
-    /// Git records `origin` as an scp-style address (`git@host:path`), which
-    /// Cargo rejects; rewrite it to `ssh://git@host/path`. URLs that already
-    /// carry a scheme (`https://`, `ssh://`, …) are left unchanged, as are local
-    /// paths — matching git, a remote is scp-style only when the first colon has
-    /// no slash before it (so `/tmp/foo:bar` stays a path).
+    /// Rewrite git's scp-style `git@host:path` to `ssh://git@host/path`, which
+    /// Cargo accepts. Leave URLs with a scheme (`https://`, `ssh://`, ...) and
+    /// local paths unchanged; like git, treat a remote as scp-style only when the
+    /// first colon has no earlier slash, so `/tmp/foo:bar` stays a path.
     pub fn cargo_url(&self) -> String {
         if self.remote.contains("://") {
             return self.remote.clone();
@@ -119,8 +117,8 @@ impl ViewerSpec {
         })
     }
 
-    /// Rust crate identifier of the analyzer package (hyphens to underscores), to
-    /// name `<crate>::Viewer` in generated code.
+    /// Analyzer crate identifier (hyphens to underscores) for `<crate>::Viewer`
+    /// in generated code.
     pub fn analyzer_crate(&self) -> String {
         self.analyzer_package.replace('-', "_")
     }
@@ -144,8 +142,8 @@ fn short_commit(commit: &str) -> &str {
     &commit[..end]
 }
 
-/// Detect the artifact format by finding an `events.<ext>` stream in any of the
-/// context directory's per-entity subdirectories.
+/// Detect the artifact format from an `events.<ext>` stream in any per-entity
+/// subdirectory.
 fn detect_format(root: &Path) -> Result<Format> {
     let entries = std::fs::read_dir(root).map_err(|source| OpenError::Sidecar {
         path: root.to_path_buf(),

@@ -1,16 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! `quent-open` opens local Quent benchmark artifacts in an application-specific
-//! viewer. See <https://github.com/rapidsai/quent/issues/234>.
+//! Open local Quent benchmark artifacts in an application-specific viewer.
+//! See <https://github.com/rapidsai/quent/issues/234>.
 //!
-//! Given a context directory, it reads the `model.qmi` provenance sidecar,
-//! generates a small viewer crate pinned to the recorded quent + analyzer commits
-//! (see [`wrapper`]), builds and serves it, and opens a browser.
+//! Given a context directory, read `model.qmi`, generate a viewer crate pinned
+//! to the recorded quent/analyzer commits (see [`wrapper`]), build and serve it,
+//! and open a browser.
 //!
-//! Building the viewer fetches the recorded git sources and compiles the embedded
-//! UI, which runs `pnpm`/`node` on first build (cached afterwards); these must be
-//! available on `PATH`.
+//! The first viewer build fetches git sources and compiles the embedded UI,
+//! invoking `pnpm`/`node`; these must be on `PATH`.
 
 mod error;
 mod spec;
