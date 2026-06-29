@@ -108,25 +108,25 @@ pub trait UiAnalyzer {
     }
 }
 
-/// A boxed, owned stream of an analyzer's [`UiAnalyzer::Event`], as produced by
+/// Boxed owned stream of an analyzer's [`UiAnalyzer::Event`] from
 /// [`QuentViewer::import_events`].
 pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>;
 
-/// A model's viewer entry point for `quent-open`: ties the model's event
-/// importer to the [`UiAnalyzer`] that renders it, so a viewer can be built
-/// knowing only the crate that provides this impl (no analyzer type path).
+/// Model viewer entry point for `quent-open`: connects the event importer to
+/// the rendering [`UiAnalyzer`], letting a viewer build from only the crate
+/// providing this impl (no analyzer type path).
 ///
-/// Implement it on a local unit type named `Viewer` at the analyzer crate root —
-/// the conventional path `quent-open` names when it generates a viewer wrapper.
-/// The associated [`Analyzer`](Self::Analyzer) and the model's `import_events`
-/// share an event type, so the wiring is checked at compile time.
+/// Implement on a local unit type named `Viewer` at the analyzer crate root,
+/// the conventional path `quent-open` names in generated wrappers. The
+/// associated [`Analyzer`](Self::Analyzer) and model `import_events` share an
+/// event type, so wiring is compile-time checked.
 pub trait QuentViewer {
     /// The analyzer that renders this model's events.
     type Analyzer: UiAnalyzer + Send + Sync + 'static;
 
-    /// Reconstruct the model's event stream from a single context directory,
-    /// yielding events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps
-    /// the model marker's generated `import_events`.
+    /// Reconstruct the model's event stream from one context directory, yielding
+    /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model
+    /// marker's generated `import_events`.
     fn import_events(
         dir: &Path,
         format: FileSystemFormat,
