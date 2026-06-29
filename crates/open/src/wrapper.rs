@@ -9,8 +9,10 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use cargo_manifest::{
+    Dependency, DependencyDetail, Edition, Manifest, MaybeInherited, Package, Publish, Workspace,
+};
 use quote::{format_ident, quote};
-use serde::Serialize;
 
 use crate::error::Result;
 use crate::spec::ViewerSpec;
@@ -32,98 +34,69 @@ pub fn generate(spec: &ViewerSpec, crate_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// A generated `Cargo.toml` (serialized with `toml`). The empty `[workspace]`
-/// keeps the generated crate out of any parent workspace.
-#[derive(Serialize)]
-struct Manifest {
-    package: Package,
-    workspace: Workspace,
-    dependencies: BTreeMap<String, Dep>,
+/// A git-pinned dependency, with optional features.
+fn git_dep(url: String, rev: &str, features: &[&str]) -> Dependency {
+    Dependency::Detailed(DependencyDetail {
+        git: Some(url),
+        rev: Some(rev.to_string()),
+        features: (!features.is_empty()).then(|| features.iter().map(|f| f.to_string()).collect()),
+        ..Default::default()
+    })
 }
 
-#[derive(Serialize)]
-struct Package {
-    name: String,
-    version: String,
-    edition: String,
-    publish: bool,
-}
-
-#[derive(Serialize)]
-struct Workspace {}
-
-/// A `[dependencies]` entry: a crates.io version or a git pin, plus features.
-#[derive(Serialize)]
-struct Dep {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    git: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rev: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    features: Vec<String>,
-}
-
-impl Dep {
-    fn version(version: &str, features: &[&str]) -> Self {
-        Self {
-            version: Some(version.into()),
-            git: None,
-            rev: None,
-            features: features.iter().map(|f| f.to_string()).collect(),
-        }
-    }
-
-    fn git(url: &str, rev: &str, features: &[&str]) -> Self {
-        Self {
-            version: None,
-            git: Some(url.into()),
-            rev: Some(rev.into()),
-            features: features.iter().map(|f| f.to_string()).collect(),
-        }
-    }
-}
-
-/// Wrapper `Cargo.toml`: pin quent crates to `quent.{remote,commit}` and the
-/// analyzer to `analyzer.{remote,commit}`.
+/// Wrapper `Cargo.toml`, built with `cargo-manifest`: pin quent crates to
+/// `quent.{remote,commit}` and the analyzer to `analyzer.{remote,commit}`; the
+/// empty `[workspace]` keeps the generated crate out of any parent workspace.
 fn cargo_toml(spec: &ViewerSpec) -> String {
     let quent = spec.quent.cargo_url();
     let q_rev = spec.quent.commit.as_str();
     let dependencies = BTreeMap::from([
         (
             "quent-query-engine-server".to_string(),
-            Dep::git(&quent, q_rev, &["ui"]),
+            git_dep(quent.clone(), q_rev, &["ui"]),
         ),
         (
             "quent-query-engine-analyzer".to_string(),
-            Dep::git(&quent, q_rev, &[]),
+            git_dep(quent.clone(), q_rev, &[]),
         ),
         (
             "quent-exporter".to_string(),
-            Dep::git(&quent, q_rev, &[spec.format.extension()]),
+            git_dep(quent, q_rev, &[spec.format.extension()]),
         ),
         (
             spec.analyzer_package.clone(),
-            Dep::git(&spec.analyzer.cargo_url(), &spec.analyzer.commit, &[]),
+            git_dep(spec.analyzer.cargo_url(), &spec.analyzer.commit, &[]),
         ),
-        ("axum".to_string(), Dep::version("0.8", &[])),
+        ("axum".to_string(), Dependency::Simple("0.8".to_string())),
         (
             "tokio".to_string(),
-            Dep::version("1", &["macros", "net", "rt-multi-thread"]),
+            Dependency::Detailed(DependencyDetail {
+                version: Some("1".to_string()),
+                features: Some(
+                    ["macros", "net", "rt-multi-thread"]
+                        .iter()
+                        .map(|f| f.to_string())
+                        .collect(),
+                ),
+                ..Default::default()
+            }),
         ),
-        ("uuid".to_string(), Dep::version("1", &[])),
+        ("uuid".to_string(), Dependency::Simple("1".to_string())),
     ]);
-    let manifest = Manifest {
-        package: Package {
-            name: WRAPPER_PACKAGE.to_string(),
-            version: "0.0.0".to_string(),
-            edition: "2024".to_string(),
-            publish: false,
-        },
-        workspace: Workspace {},
-        dependencies,
+
+    let mut package = Package::new(WRAPPER_PACKAGE.to_string(), "0.0.0".to_string());
+    package.edition = Some(MaybeInherited::Local(Edition::E2024));
+    package.publish = Some(MaybeInherited::Local(Publish::Flag(false)));
+
+    // `()` metadata so `Workspace::default()` applies (the default `Value`
+    // metadata type is not `Default`); we emit no `[package.metadata]` anyway.
+    let manifest = Manifest::<(), ()> {
+        package: Some(package),
+        workspace: Some(Workspace::default()),
+        dependencies: Some(dependencies),
+        ..Default::default()
     };
+
     format!(
         "# Generated by quent-open. Do not edit.\n{}",
         toml::to_string(&manifest).expect("wrapper manifest serializes")
