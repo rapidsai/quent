@@ -11,11 +11,9 @@ use quent_build_info::{ArtifactInfo, BuildInfo, SIDECAR_FILE_NAME};
 
 use crate::error::{OpenError, Result};
 
-/// Recursively discover context directories (those containing a `model.qmi`
-/// sidecar) under the given `paths`. A directory that is itself a context is not
-/// descended into; hidden directories (dotfiles, e.g. `.git`) and symlinks (to
-/// avoid cycles) are skipped during the walk. Results are canonicalized and
-/// deduplicated, preserving discovery order.
+/// Recursively discover context directories containing `model.qmi` under `paths`.
+/// Treat contexts as leaves; skip hidden dirs and symlinks to avoid cycles.
+/// Canonicalize and deduplicate results while preserving discovery order.
 pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -41,9 +39,8 @@ fn collect_contexts(
         return Ok(()); // a context is a leaf; do not descend into its entity dirs
     }
     for entry in std::fs::read_dir(dir)?.flatten() {
-        // `file_type()` does not traverse symlinks, so a symlinked directory is
-        // neither hidden-checked away nor recursed into — this keeps the walk
-        // cycle-safe (a symlink back to an ancestor can't loop).
+        // `file_type()` does not follow symlinks, so symlinked dirs are not
+        // recursed into and the walk stays cycle-safe.
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
@@ -135,8 +132,8 @@ impl GitPin {
     }
 }
 
-/// Everything needed to generate and build a viewer (the contexts it serves are
-/// tracked separately, since one viewer can serve several same-spec contexts).
+/// Viewer build inputs; contexts are tracked separately because one viewer can
+/// serve multiple same-spec contexts.
 #[derive(Debug, Clone)]
 pub struct ViewerSpec {
     /// Event serialization format, detected from the on-disk streams.
@@ -173,9 +170,8 @@ impl ViewerSpec {
         self.analyzer_package.replace('-', "_")
     }
 
-    /// Full, unambiguous identity of a build — every input that affects its
-    /// output (analyzer package, format, and both git pins incl. their remotes
-    /// and full commits). Use this to group/dedup contexts into viewers.
+    /// Unambiguous build identity: analyzer package, format, and both git
+    /// remotes + full commits. Used to group/dedup contexts into viewers.
     pub fn group_key(&self) -> String {
         // Unit separator between fields so values can't run together.
         [
@@ -189,10 +185,9 @@ impl ViewerSpec {
         .join("\u{1f}")
     }
 
-    /// Filesystem-safe cache directory name for this viewer's generated crate and
-    /// build. A readable prefix plus a hash of [`group_key`](Self::group_key), so
-    /// distinct builds never share a directory even when their short commits or
-    /// packages match.
+    /// Filesystem-safe cache dir for this generated crate/build: readable prefix
+    /// plus [`group_key`](Self::group_key) hash, so distinct builds never share a
+    /// directory even when short commits or package names match.
     pub fn cache_key(&self) -> String {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.group_key().hash(&mut hasher);

@@ -30,7 +30,7 @@ use crate::viewer::ViewerGroup;
 #[command(name = "quent-open")]
 #[command(about = "Open local Quent artifacts in an application-specific viewer")]
 struct Cli {
-    /// Do not open a browser (a viewer's URL is always printed when it is ready).
+    /// Do not open a browser; print each viewer URL when ready.
     #[arg(long, global = true)]
     no_browser: bool,
 
@@ -61,11 +61,10 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Discover all context directories under `paths` (recursively), group them into
-/// one viewer per distinct build spec (same analyzer + pinned commits + format),
-/// then build and serve those viewers in parallel. Contexts that can't be opened
-/// (no analyzer package, unreadable sidecar) are skipped with a warning rather
-/// than aborting.
+/// Recursively discover contexts under `paths`, group them by build spec (same
+/// analyzer + pinned commits + format), then build and serve viewers in parallel.
+/// Contexts that can't be opened (no analyzer package, unreadable sidecar) are
+/// warned and skipped.
 async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
     let contexts = spec::discover_contexts(paths)?;
 
