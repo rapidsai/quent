@@ -178,7 +178,7 @@ mod tests {
         model.name = "Simulator".into();
         model.analyzer_package = analyzer_package.map(str::to_string);
         model.source = BuildInfo {
-            remote: Some("https://example.com/sirius".into()),
+            remote: Some("https://example.com/analyzer".into()),
             commit: Some(commit.into()),
             ..BuildInfo::unknown()
         };
@@ -227,10 +227,10 @@ mod tests {
     #[test]
     fn cargo_url_normalizes_scp_style_but_leaves_real_urls() {
         let scp = GitPin {
-            remote: "git@github.com:mbrobbel/quent.git".into(),
+            remote: "git@github.com:org/repo.git".into(),
             commit: "c".into(),
         };
-        assert_eq!(scp.cargo_url(), "ssh://git@github.com/mbrobbel/quent.git");
+        assert_eq!(scp.cargo_url(), "ssh://git@github.com/org/repo.git");
         let https = GitPin {
             remote: "https://github.com/rapidsai/quent".into(),
             commit: "c".into(),

@@ -8,20 +8,22 @@ use std::net::TcpListener as StdTcpListener;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use backon::{ConstantBuilder, Retryable};
 use tokio::process::Command;
 
 use crate::error::{OpenError, Result};
 use crate::spec::ViewerSpec;
-use crate::wrapper::{self, PORT_ENV, ROOT_ENV, WRAPPER_PACKAGE};
+use crate::wrapper::{self, HOST_ENV, PORT_ENV, ROOT_ENV, WRAPPER_PACKAGE};
 
-/// Generate, build, and serve the viewer for `spec`. Blocks serving until the
-/// viewer process exits (e.g. Ctrl-C). Opens a browser unless `no_browser`.
-pub async fn open(spec: &ViewerSpec, no_browser: bool, print_url: bool) -> Result<()> {
+/// Generate, build, and serve the viewer for `spec`, bound to `host`. Blocks
+/// serving until the viewer process exits (e.g. Ctrl-C). Opens a browser unless
+/// `no_browser`.
+pub async fn open(spec: &ViewerSpec, no_browser: bool, print_url: bool, host: &str) -> Result<()> {
     let crate_dir = build_dir(spec)?;
     wrapper::generate(spec, &crate_dir)?;
     let bin = cargo_build(&crate_dir).await?;
     let output_root = stage_output_root(&crate_dir, &spec.root)?;
-    let result = serve(&output_root, &bin, no_browser, print_url).await;
+    let result = serve(&output_root, &bin, no_browser, print_url, host).await;
     // Best-effort cleanup of this run's staged root (the cached build is kept).
     let _ = std::fs::remove_dir_all(&output_root);
     result
@@ -102,14 +104,23 @@ async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
         .join(WRAPPER_PACKAGE))
 }
 
-/// Spawn the built viewer serving `output_root`, print/open its URL, and run
-/// until it exits.
-async fn serve(output_root: &Path, bin: &Path, no_browser: bool, print_url: bool) -> Result<()> {
-    let port = free_port()?;
-    let url = format!("http://127.0.0.1:{port}/");
+/// Spawn the built viewer serving `output_root` bound to `host`, print/open its
+/// URL, and run until it exits.
+async fn serve(
+    output_root: &Path,
+    bin: &Path,
+    no_browser: bool,
+    print_url: bool,
+    host: &str,
+) -> Result<()> {
+    let port = free_port(host)?;
+    // `0.0.0.0` is not browseable; show and probe loopback instead.
+    let reachable = if host == "0.0.0.0" { "127.0.0.1" } else { host };
+    let url = format!("http://{reachable}:{port}/");
 
     let mut child = Command::new(bin)
         .env(ROOT_ENV, output_root)
+        .env(HOST_ENV, host)
         .env(PORT_ENV, port.to_string())
         .spawn()
         .map_err(|source| OpenError::Spawn {
@@ -122,7 +133,7 @@ async fn serve(output_root: &Path, bin: &Path, no_browser: bool, print_url: bool
     }
     if !no_browser {
         // Wait for the server to accept connections before opening the browser.
-        wait_until_ready(port).await;
+        wait_until_ready(reachable, port).await;
         if let Err(e) = open::that(&url) {
             eprintln!("could not open a browser ({e}); open {url} manually");
         }
@@ -137,22 +148,21 @@ async fn serve(output_root: &Path, bin: &Path, no_browser: bool, print_url: bool
     Ok(())
 }
 
-/// Pick a currently free localhost TCP port; the small race before viewer bind
-/// is acceptable for a local dev tool.
-fn free_port() -> Result<u16> {
-    let listener = StdTcpListener::bind(("127.0.0.1", 0))?;
+/// Pick a currently free TCP port on `host`; the small race before the viewer
+/// binds it is acceptable for a local dev tool.
+fn free_port(host: &str) -> Result<u16> {
+    let listener = StdTcpListener::bind((host, 0))?;
     Ok(listener.local_addr()?.port())
 }
 
-/// Poll `port` until it accepts a connection (server up) or a few seconds pass.
-async fn wait_until_ready(port: u16) {
-    for _ in 0..50 {
-        if tokio::net::TcpStream::connect(("127.0.0.1", port))
-            .await
-            .is_ok()
-        {
-            return;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+/// Poll `host:port` until it accepts a connection (server up) or a few seconds
+/// pass, retrying on a fixed interval.
+async fn wait_until_ready(host: &str, port: u16) {
+    let _ = (|| async { tokio::net::TcpStream::connect((host, port)).await })
+        .retry(
+            ConstantBuilder::default()
+                .with_delay(Duration::from_millis(100))
+                .with_max_times(50),
+        )
+        .await;
 }

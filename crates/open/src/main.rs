@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Open local Quent benchmark artifacts in an application-specific viewer.
-//! See <https://github.com/rapidsai/quent/issues/234>.
 //!
 //! Given a context directory, read `model.qmi`, generate a viewer crate pinned
 //! to the recorded quent/analyzer commits (see [`wrapper`]), build and serve it,
@@ -43,6 +42,10 @@ struct Cli {
     /// Force a specific viewer by name from the config (skips automatic matching).
     #[arg(long, global = true)]
     viewer: Option<String>,
+
+    /// Host/interface the viewer binds (`0.0.0.0` exposes it to other hosts).
+    #[arg(long, global = true, default_value = "127.0.0.1")]
+    host: String,
 
     #[command(subcommand)]
     command: OpenCommand,
@@ -86,7 +89,7 @@ async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
         report_artifact(path, &info);
         let spec = ViewerSpec::from_artifact(path, &info)?;
         report_spec(&spec);
-        viewer::open(&spec, cli.no_browser, cli.print_url).await?;
+        viewer::open(&spec, cli.no_browser, cli.print_url, &cli.host).await?;
     }
     Ok(())
 }
