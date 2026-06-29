@@ -58,7 +58,7 @@ mod wrapper;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::net::IpAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 
@@ -130,7 +130,11 @@ pub async fn open(contexts: Vec<PathBuf>, options: OpenOptions) -> Result<()> {
     // One group per build spec; contexts sharing a spec share a viewer.
     let mut groups: BTreeMap<String, ViewerGroup> = BTreeMap::new();
     for context in contexts {
-        let spec = match read_artifact_info(&context)
+        let spec = match ArtifactInfo::read_sidecar(&context)
+            .map_err(|source| OpenError::Sidecar {
+                path: context.join(SIDECAR_FILE_NAME),
+                source,
+            })
             .and_then(|info| ViewerSpec::from_artifact(&context, &info))
         {
             Ok(spec) => spec,
@@ -186,14 +190,6 @@ pub async fn open(contexts: Vec<PathBuf>, options: OpenOptions) -> Result<()> {
         return Err(OpenError::NothingTrusted);
     }
     viewer::open_all(approved, no_browser, host).await
-}
-
-/// Read the [`ArtifactInfo`] sidecar from the context directory `dir`.
-fn read_artifact_info(dir: &Path) -> Result<ArtifactInfo> {
-    ArtifactInfo::read_sidecar(dir).map_err(|source| OpenError::Sidecar {
-        path: dir.join(SIDECAR_FILE_NAME),
-        source,
-    })
 }
 
 #[cfg(test)]
