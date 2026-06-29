@@ -120,10 +120,12 @@ enum Answer {
     No,
 }
 
-/// Prompt on the terminal whether to build from an untrusted source.
+/// Prompt on the terminal whether to trust an untrusted git remote. Trust is
+/// per-remote (the commit is shown only as context): `[y]es` trusts it for this
+/// run, `[a]lways` persists it to the allowlist.
 fn prompt(remote: &str, commit: &str) -> Answer {
     eprint!(
-        "Build and run code from untrusted source\n  {remote} @ {commit}\n[y]es once / [a]lways / [N]o: "
+        "Build and run code from an untrusted git remote:\n  {remote}\n  at commit {commit}\nTrust this remote? [y]es (this run) / [a]lways / [N]o: "
     );
     let _ = std::io::stderr().flush();
     let mut line = String::new();
