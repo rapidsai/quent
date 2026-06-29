@@ -55,7 +55,7 @@ pub struct SimulatorUiAnalyzer {
 }
 
 /// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
-/// streams with [`SimulatorUiAnalyzer`]. The conventional `Viewer` path
+/// streams with [`SimulatorUiAnalyzer`]. The required `Viewer` path
 /// `quent-open` names when building a viewer for this analyzer's models.
 pub struct Viewer;
 
