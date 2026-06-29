@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Trust policy for the git sources `quent-open` clones, builds, and runs.
+//! Trust policy for git sources `quent-open` clones, builds, and runs.
 //!
-//! A `model.qmi` from someone else's artifact is attacker-controlled, and opening
-//! it would `cargo build` (build scripts, proc-macros, `pnpm`) and run code from
-//! the remote it names. So a source is built only when it is trusted: a built-in
-//! default (the quent repo, and the remote this tool was built from), an entry in
-//! the allowlist file, a `--trust` flag, or an interactive confirmation.
+//! A `model.qmi` from another artifact is attacker-controlled: opening it would
+//! `cargo build` (build scripts, proc-macros, `pnpm`) and run code from the
+//! named remote. Build only trusted sources: built-in defaults (the quent repo
+//! and this tool's build remote), the allowlist file, `--trust`, or interactive
+//! confirmation.
 
 use std::collections::BTreeSet;
 use std::io::{IsTerminal, Write};
@@ -15,22 +15,22 @@ use std::path::PathBuf;
 
 /// Resolves whether git remotes are trusted to build.
 pub struct Trust {
-    /// Canonicalized trusted entries: an exact repo (`github.com/rapidsai/quent`)
-    /// or an explicit prefix (`github.com/org/*`) to trust a whole org.
+    /// Canonicalized trust entries: exact repos (`github.com/rapidsai/quent`) or
+    /// explicit org/prefix wildcards (`github.com/org/*`).
     allow: BTreeSet<String>,
     /// Bypass the gate entirely (`--trust-all`).
     trust_all: bool,
-    /// Path of the persistent allowlist, for the "always" answer to append to.
+    /// Persistent allowlist path for appending "always" answers.
     allowlist_file: Option<PathBuf>,
 }
 
 impl Trust {
-    /// Build the policy from the built-in defaults, the persistent allowlist file,
-    /// and the per-run `--trust` remotes / `--trust-all` flag.
+    /// Build policy from built-in defaults, persistent allowlist, and per-run
+    /// `--trust` / `--trust-all`.
     pub fn new(cli_trust: &[String], trust_all: bool) -> Self {
         let mut allow = BTreeSet::new();
-        // Built-in: the canonical quent repo and the remote this tool was built
-        // from (so opening your own artifacts built from your fork just works).
+        // Built-in: canonical quent repo plus this tool's build remote, so
+        // artifacts from your fork work.
         allow.insert("github.com/rapidsai/quent".to_string());
         if let Some(remote) = quent_build_info::quent().remote {
             allow.insert(canonicalize_remote(&remote));
@@ -56,10 +56,9 @@ impl Trust {
         }
     }
 
-    /// Whether `remote` is already trusted (without prompting). A plain entry
-    /// matches one repository exactly; only an explicit `…/*` entry trusts a whole
-    /// org/prefix (so a repo entry can't accidentally trust a different repo under
-    /// a nested group).
+    /// Whether `remote` is trusted without prompting. Plain entries match one repo
+    /// exactly; only explicit `.../*` entries trust an org/prefix, avoiding
+    /// accidental trust of nested repos.
     fn is_trusted(&self, remote: &str) -> bool {
         if self.trust_all {
             return true;
@@ -73,9 +72,8 @@ impl Trust {
             })
     }
 
-    /// Decide whether `remote` (recorded at `commit`) may be built. Trusted remotes
-    /// pass silently; otherwise prompt on an interactive terminal (`a` persists to
-    /// the allowlist), or refuse when non-interactive.
+    /// Decide whether `remote` at `commit` may be built. Trusted remotes pass;
+    /// otherwise prompt interactively (`a` persists) or refuse non-interactively.
     pub fn authorize(&mut self, remote: &str, commit: &str) -> bool {
         if self.is_trusted(remote) {
             return true;
@@ -144,9 +142,9 @@ fn allowlist_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("quent").join("open").join("trusted"))
 }
 
-/// Canonicalize a git remote to a scheme-agnostic `host/path` so the https, ssh,
-/// and scp-style forms of the same repo compare equal. Strips a leading scheme or
-/// `user@`, a trailing `.git`, and lowercases the host.
+/// Canonicalize a git remote to scheme-agnostic `host/path` so https, ssh, and
+/// scp-style forms of the same repo match. Strip scheme or `user@`, trailing
+/// `.git`, and lowercase the host.
 pub fn canonicalize_remote(remote: &str) -> String {
     // Drop the scheme, if any.
     let rest = remote.split_once("://").map(|(_, r)| r).unwrap_or(remote);
@@ -165,7 +163,7 @@ pub fn canonicalize_remote(remote: &str) -> String {
 }
 
 fn canonicalize_host_path(host_path: &str) -> String {
-    // Strip any `user@` in the host segment, a trailing `.git`, and a leading `/`.
+    // Strip `user@` from host, trailing `.git`, and leading `/`.
     let host_path = host_path.trim_start_matches('/');
     let (host, path) = match host_path.split_once('/') {
         Some((h, p)) => (h, p),

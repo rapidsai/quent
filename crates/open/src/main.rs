@@ -39,13 +39,13 @@ struct Cli {
     #[arg(long, global = true, default_value = "127.0.0.1")]
     host: IpAddr,
 
-    /// Trust a git remote (repeatable) without prompting: a full repo URL for an
-    /// exact repo, or a `github.com/org/*` form to trust a whole org/prefix.
+    /// Trust a git remote without prompting (repeatable): full repo URL, or
+    /// `github.com/org/*` for an org/prefix.
     #[arg(long = "trust", global = true, value_name = "REMOTE")]
     trust: Vec<String>,
 
-    /// Trust every source (skips the trust gate entirely — only for sources you
-    /// already trust, since building runs their code).
+    /// Trust every source, skipping the trust gate; only use for trusted sources,
+    /// because building runs their code.
     #[arg(long, global = true)]
     trust_all: bool,
 
@@ -110,9 +110,9 @@ async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
         return Err(OpenError::NoContexts);
     }
 
-    // Each viewer builds + runs code from its quent and analyzer git remotes, so
-    // gate on trust before building. Authorize each distinct remote once (prompts
-    // are sequential, before the parallel build phase).
+    // Each viewer builds and runs code from its quent/analyzer remotes; require
+    // trust before building. Authorize each distinct remote once, with prompts
+    // before parallel builds.
     let mut trust = trust::Trust::new(&cli.trust, cli.trust_all);
     let mut decided: BTreeMap<String, bool> = BTreeMap::new();
     for group in &groups {

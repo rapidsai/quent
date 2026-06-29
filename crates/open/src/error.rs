@@ -25,8 +25,7 @@ pub enum OpenError {
     )]
     NoAnalyzer { model: String },
 
-    /// A provenance field was malformed (and could otherwise inject into the
-    /// generated build files).
+    /// A malformed provenance field could inject into generated build files.
     #[error("invalid {field} in provenance: {value:?}")]
     InvalidProvenance { field: String, value: String },
 

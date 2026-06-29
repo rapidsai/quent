@@ -128,8 +128,8 @@ impl GitPin {
         }
     }
 
-    /// Extract a pin from a [`BuildInfo`], validating the (untrusted) remote and
-    /// commit so they can't inject into the generated `Cargo.toml`.
+    /// Extract a pin from [`BuildInfo`], validating the untrusted remote and
+    /// commit so they cannot inject into generated `Cargo.toml`.
     fn from_build_info(info: &BuildInfo, what: &str) -> Result<Self> {
         match (&info.remote, &info.commit) {
             (Some(remote), Some(commit)) => {
@@ -155,17 +155,16 @@ fn validate_commit(commit: &str) -> Result<()> {
         })
 }
 
-/// A git remote must use an authenticated/integrity-checked transport — `https`
-/// or `ssh` (incl. scp-style `user@host:path`) — and be free of characters that
-/// could break out of the generated TOML string. Unauthenticated `http`/`git`
-/// transports are rejected so a trusted source can't be silently downgraded
-/// (the scheme is dropped during trust canonicalization).
+/// A git remote must use an integrity-checked transport (`https`, `ssh`, or
+/// scp-style `user@host:path`) and avoid characters that can escape the
+/// generated TOML string. Reject `http`/`git` so trust canonicalization cannot
+/// silently downgrade a source.
 fn validate_remote(remote: &str) -> Result<()> {
     let inject = remote
         .bytes()
         .any(|b| b.is_ascii_control() || b == b'"' || b == b'\\');
-    // scp-style: `[user@]host:path` — a `:` before any `/`, user optional
-    // (matches git; `cargo_url` rewrites it to an `ssh://` URL).
+    // scp-style `[user@]host:path`: `:` before any `/`, optional user;
+    // `cargo_url` rewrites it to `ssh://`.
     let shaped = matches!(remote.split_once("://"), Some(("https" | "ssh", _)))
         || (!remote.contains("://")
             && remote
@@ -179,8 +178,8 @@ fn validate_remote(remote: &str) -> Result<()> {
         })
 }
 
-/// A cargo package name: ASCII alphanumerics, `-`, and `_` only. Keeps the name
-/// safe to interpolate into the manifest and `use <crate>::Viewer`.
+/// Cargo package name: ASCII alphanumerics, `-`, and `_`; safe for manifest
+/// interpolation and `use <crate>::Viewer`.
 fn validate_package(package: &str) -> Result<()> {
     let ok = !package.is_empty()
         && package
