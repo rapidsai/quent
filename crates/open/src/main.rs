@@ -14,7 +14,7 @@ use quent_open::{LocalLoader, OpenOptions, Result, Trust};
 #[command(name = "quent-open")]
 #[command(about = "Open local Quent artifacts in an application-specific viewer")]
 struct Cli {
-    /// Do not open a browser (a viewer's URL is always printed when it is ready).
+    /// Do not open a browser; print each viewer URL when ready.
     #[arg(long, global = true)]
     no_browser: bool,
 
@@ -22,13 +22,13 @@ struct Cli {
     #[arg(long, global = true, default_value = "127.0.0.1")]
     host: IpAddr,
 
-    /// Trust a git remote (repeatable) without prompting: a full repo URL for an
-    /// exact repo, or a `github.com/org/*` form to trust a whole org/prefix.
+    /// Trust a git remote without prompting (repeatable): full repo URL, or
+    /// `github.com/org/*` for an org/prefix.
     #[arg(long = "trust", global = true, value_name = "REMOTE")]
     trust: Vec<String>,
 
-    /// Trust every source (skips the trust gate entirely — only for sources you
-    /// already trust, since building runs their code).
+    /// Trust every source, skipping the trust gate; only use for trusted sources,
+    /// because building runs their code.
     #[arg(long, global = true)]
     trust_all: bool,
 
@@ -40,9 +40,8 @@ struct Cli {
 enum OpenCommand {
     /// Analyze local Quent artifacts directly.
     Local {
-        /// Context directories to analyze. A context directory holds a `model.qmi`
-        /// provenance sidecar at its root, plus one per-entity subdirectory per
-        /// entity containing that entity's event stream.
+        /// Context directories to analyze; each has a root `model.qmi` sidecar and
+        /// per-entity subdirectories containing event streams.
         #[arg(required = true, num_args = 1..)]
         paths: Vec<PathBuf>,
     },

@@ -1,16 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! `quent-open` opens local Quent benchmark artifacts in an application-specific
-//! viewer. See <https://github.com/rapidsai/quent/issues/234>.
+//! Open local Quent benchmark artifacts in an application-specific viewer.
+//! See <https://github.com/rapidsai/quent/issues/234>.
 //!
-//! Given a context directory, it reads the `model.qmi` provenance sidecar,
-//! generates a small viewer crate pinned to the recorded quent + analyzer commits,
-//! builds and serves it, and opens a browser.
+//! Given a context directory, read `model.qmi`, generate a viewer crate pinned
+//! to the recorded quent/analyzer commits, build and serve it, and open a browser.
 //!
-//! Building the viewer fetches the recorded git sources and compiles the embedded
-//! UI, which runs `pnpm`/`node` on first build (cached afterwards); these must be
-//! available on `PATH`.
+//! The first viewer build fetches git sources and compiles the embedded UI,
+//! invoking `pnpm`/`node`; these must be on `PATH`.
 //!
 //! # Library: custom loaders
 //!
@@ -156,9 +154,9 @@ pub async fn open(contexts: Vec<PathBuf>, options: OpenOptions) -> Result<()> {
         return Err(OpenError::NoContexts);
     }
 
-    // Each viewer builds + runs code from its quent and analyzer git remotes, so
-    // gate on trust before building. Authorize each distinct remote once (prompts
-    // are sequential, before the parallel build phase).
+    // Each viewer builds and runs code from its quent/analyzer remotes; require
+    // trust before building. Authorize each distinct remote once, with prompts
+    // before parallel builds.
     let mut decided: BTreeMap<String, bool> = BTreeMap::new();
     for group in &groups {
         for pin in [&group.spec.quent, &group.spec.analyzer] {
