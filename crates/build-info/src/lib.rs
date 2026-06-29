@@ -89,6 +89,20 @@ impl BuildInfo {
     }
 }
 
+impl std::fmt::Display for BuildInfo {
+    /// One-line summary: version, plus the commit and remote when known.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.version)?;
+        if let Some(commit) = &self.commit {
+            write!(f, " ({commit})")?;
+        }
+        if let Some(remote) = &self.remote {
+            write!(f, " from {remote}")?;
+        }
+        Ok(())
+    }
+}
+
 impl ModelInfo {
     /// A [`ModelInfo`] with no provenance, for placeholders (e.g. tests) where
     /// the model identity is irrelevant.

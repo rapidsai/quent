@@ -71,18 +71,13 @@ async fn main() -> Result<()> {
 /// provenance, serve the artifacts, and launch the viewer / open a browser.
 async fn run_local(_cli: &Cli, paths: &[PathBuf]) -> Result<()> {
     for path in paths {
-        let info = read_artifact_info(path)?;
+        let info = ArtifactInfo::read_sidecar(path).map_err(|source| OpenError::Sidecar {
+            path: path.join(SIDECAR_FILE_NAME),
+            source,
+        })?;
         report_artifact(path, &info);
     }
     Ok(())
-}
-
-/// Read the [`ArtifactInfo`] sidecar from the context directory `dir`.
-fn read_artifact_info(dir: &Path) -> Result<ArtifactInfo> {
-    ArtifactInfo::read_sidecar(dir).map_err(|source| OpenError::Sidecar {
-        path: dir.join(SIDECAR_FILE_NAME),
-        source,
-    })
 }
 
 /// Print the provenance discovered for `path`. The model `source` is what later
@@ -95,19 +90,6 @@ fn report_artifact(path: &Path, info: &ArtifactInfo) {
     if let Some(analyzer) = &model.analyzer_package {
         println!("  analyzer: {analyzer}");
     }
-    println!("  quent:    {}", describe_build(&info.quent));
-    println!("  source:   {}", describe_build(&model.source));
-}
-
-/// One-line summary of a [`BuildInfo`](quent_build_info::BuildInfo): version with
-/// the commit and remote when present.
-fn describe_build(build: &quent_build_info::BuildInfo) -> String {
-    let mut out = build.version.clone();
-    if let Some(commit) = &build.commit {
-        out.push_str(&format!(" ({commit})"));
-    }
-    if let Some(remote) = &build.remote {
-        out.push_str(&format!(" from {remote}"));
-    }
-    out
+    println!("  quent:    {}", info.quent);
+    println!("  source:   {}", model.source);
 }
