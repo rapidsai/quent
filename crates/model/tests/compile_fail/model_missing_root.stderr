@@ -1,0 +1,10 @@
+error: unexpected end of input, `model!` requires a `root: <Path>` field
+ --> tests/compile_fail/model_missing_root.rs:5:1
+  |
+5 | / quent_model::model! {
+6 | |     name: App,
+7 | |     entities: { Cluster },
+8 | | }
+  | |_^
+  |
+  = note: this error originates in the macro `quent_model::model` (in Nightly builds, run with -Z macro-backtrace for more info)

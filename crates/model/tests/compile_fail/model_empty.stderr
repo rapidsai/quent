@@ -1,5 +1,7 @@
-error: model! requires at least a root resource group: `root: MyRoot`
- --> tests/compile_fail/model_empty.rs:6:5
+error: unexpected end of input, `model!` requires a `name: <Ident>` field
+ --> tests/compile_fail/model_empty.rs:5:1
   |
-6 |     App {}
-  |     ^^^
+5 | quent_model::model! {}
+  | ^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `quent_model::model` (in Nightly builds, run with -Z macro-backtrace for more info)

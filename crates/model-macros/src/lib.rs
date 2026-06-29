@@ -63,14 +63,14 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 
 /// Composes a model's entities into a model type and event enum.
 ///
+/// Fields may appear in any order; `name` and `root` are required, `entities` is
+/// optional.
+///
 /// ```ignore
 /// model! {
-///     App {
-///         root: Cluster,
-///         Worker,
-///         Thread,
-///         Task,
-///     }
+///     name: App,
+///     root: Cluster,
+///     entities: { Worker, Thread, Task },
 /// }
 /// ```
 #[proc_macro]

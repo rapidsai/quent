@@ -43,11 +43,12 @@ quent_model::entity! {
 }
 
 quent_model::model! {
-    Test {
-        root: TestRoot,
+    name: Test,
+    root: TestRoot,
+    entities: {
         SimpleFsm,
         SimpleEntity,
-    }
+    },
 }
 
 #[test]

@@ -217,8 +217,9 @@ fsm! {
 // model! requires at least a root resource group
 // ```
 model! {
-    App {
-        root: Cluster,
+    name: App,
+    root: Cluster,
+    entities: {
         Worker,
         Thread,
         Cache,
@@ -227,7 +228,7 @@ model! {
         FileStats,
         Task,
         Info,
-    }
+    },
 }
 
 // Generates the instrumentation API

@@ -3,15 +3,16 @@
 
 //! `model!` proc macro implementation.
 //!
-//! Syntax:
+//! Syntax (fields in any order; `name` + `root` required, `entities` optional):
 //! ```ignore
 //! model! {
-//!     Simulator {
-//!         root: ResourceRoot,
+//!     name: Simulator,
+//!     root: ResourceRoot,
+//!     entities: {
 //!         quent_query_engine_model::Engine,
 //!         task::Task,
 //!         quent_stdlib::memory::Memory,
-//!     }
+//!     },
 //! }
 //! ```
 //!
@@ -31,43 +32,62 @@ struct DefineModelInput {
 
 impl Parse for DefineModelInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let name: Ident = input.parse()?;
+        // Labeled `key: value` fields in any order: `name`/`root` required,
+        // `entities` optional (a brace-delimited, comma-separated path list).
+        let mut name: Option<Ident> = None;
+        let mut root: Option<Path> = None;
+        let mut components: Option<Vec<Path>> = None;
 
-        let content;
-        syn::braced!(content in input);
-
-        // First entry must be `root: Path`
-        if content.is_empty() {
-            return Err(syn::Error::new_spanned(
-                name,
-                "model! requires at least a root resource group: `root: MyRoot`",
-            ));
-        }
-        let root_kw: Ident = content.parse()?;
-        if root_kw != "root" {
-            return Err(syn::Error::new_spanned(
-                root_kw,
-                "first entry must be `root: <RootResourceGroup>`",
-            ));
-        }
-        content.parse::<Token![:]>()?;
-        let root: Path = content.parse()?;
-        if content.peek(Token![,]) {
-            content.parse::<Token![,]>()?;
-        }
-
-        let mut components = Vec::new();
-        while !content.is_empty() {
-            components.push(content.parse::<Path>()?);
-            if content.peek(Token![,]) {
-                content.parse::<Token![,]>()?;
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![:]>()?;
+            let dup = || syn::Error::new_spanned(&key, format!("duplicate `{key}`"));
+            match key.to_string().as_str() {
+                "name" => {
+                    if name.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                "root" => {
+                    if root.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                "entities" => {
+                    if components.is_some() {
+                        return Err(dup());
+                    }
+                    let content;
+                    syn::braced!(content in input);
+                    let mut entities = Vec::new();
+                    while !content.is_empty() {
+                        entities.push(content.parse::<Path>()?);
+                        if content.peek(Token![,]) {
+                            content.parse::<Token![,]>()?;
+                        }
+                    }
+                    components = Some(entities);
+                }
+                other => {
+                    return Err(syn::Error::new_spanned(
+                        &key,
+                        format!(
+                            "unknown `model!` field `{other}`; expected `name`, `root`, or `entities`"
+                        ),
+                    ));
+                }
+            }
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
             }
         }
 
+        let name = name.ok_or_else(|| input.error("`model!` requires a `name: <Ident>` field"))?;
+        let root = root.ok_or_else(|| input.error("`model!` requires a `root: <Path>` field"))?;
         Ok(DefineModelInput {
             name,
             root,
-            components,
+            components: components.unwrap_or_default(),
         })
     }
 }
