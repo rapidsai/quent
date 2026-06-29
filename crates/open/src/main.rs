@@ -15,6 +15,7 @@ mod spec;
 mod viewer;
 mod wrapper;
 
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
@@ -45,7 +46,7 @@ struct Cli {
 
     /// Host/interface the viewer binds (`0.0.0.0` exposes it to other hosts).
     #[arg(long, global = true, default_value = "127.0.0.1")]
-    host: String,
+    host: IpAddr,
 
     #[command(subcommand)]
     command: OpenCommand,
@@ -89,7 +90,7 @@ async fn run_local(cli: &Cli, paths: &[PathBuf]) -> Result<()> {
         report_artifact(path, &info);
         let spec = ViewerSpec::from_artifact(path, &info)?;
         report_spec(&spec);
-        viewer::open(&spec, cli.no_browser, cli.print_url, &cli.host).await?;
+        viewer::open(&spec, cli.no_browser, cli.print_url, cli.host).await?;
     }
     Ok(())
 }

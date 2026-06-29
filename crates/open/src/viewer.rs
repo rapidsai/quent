@@ -4,7 +4,7 @@
 //! Generate, build, and serve the viewer crate for a [`ViewerSpec`], then open a
 //! browser at the served URL.
 
-use std::net::TcpListener as StdTcpListener;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener as StdTcpListener};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -13,12 +13,17 @@ use tokio::process::Command;
 
 use crate::error::{OpenError, Result};
 use crate::spec::ViewerSpec;
-use crate::wrapper::{self, HOST_ENV, PORT_ENV, ROOT_ENV, WRAPPER_PACKAGE};
+use crate::wrapper::{self, ADDR_ENV, ROOT_ENV, WRAPPER_PACKAGE};
 
-/// Generate, build, and serve the viewer for `spec`, bound to `host`. Blocks
+/// Generate, build, and serve the viewer for `spec`, bound on `host`. Blocks
 /// serving until the viewer process exits (e.g. Ctrl-C). Opens a browser unless
 /// `no_browser`.
-pub async fn open(spec: &ViewerSpec, no_browser: bool, print_url: bool, host: &str) -> Result<()> {
+pub async fn open(
+    spec: &ViewerSpec,
+    no_browser: bool,
+    print_url: bool,
+    host: IpAddr,
+) -> Result<()> {
     let crate_dir = build_dir(spec)?;
     wrapper::generate(spec, &crate_dir)?;
     let bin = cargo_build(&crate_dir).await?;
@@ -111,17 +116,21 @@ async fn serve(
     bin: &Path,
     no_browser: bool,
     print_url: bool,
-    host: &str,
+    host: IpAddr,
 ) -> Result<()> {
-    let port = free_port(host)?;
-    // `0.0.0.0` is not browseable; show and probe loopback instead.
-    let reachable = if host == "0.0.0.0" { "127.0.0.1" } else { host };
-    let url = format!("http://{reachable}:{port}/");
+    let addr = free_port(host)?;
+    // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe
+    // loopback instead.
+    let reachable = if addr.ip().is_unspecified() {
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), addr.port())
+    } else {
+        addr
+    };
+    let url = format!("http://{reachable}/");
 
     let mut child = Command::new(bin)
         .env(ROOT_ENV, output_root)
-        .env(HOST_ENV, host)
-        .env(PORT_ENV, port.to_string())
+        .env(ADDR_ENV, addr.to_string())
         .spawn()
         .map_err(|source| OpenError::Spawn {
             what: "viewer".into(),
@@ -133,7 +142,7 @@ async fn serve(
     }
     if !no_browser {
         // Wait for the server to accept connections before opening the browser.
-        wait_until_ready(reachable, port).await;
+        wait_until_ready(reachable).await;
         if let Err(e) = open::that(&url) {
             eprintln!("could not open a browser ({e}); open {url} manually");
         }
@@ -148,17 +157,17 @@ async fn serve(
     Ok(())
 }
 
-/// Pick a currently free TCP port on `host`; the small race before the viewer
-/// binds it is acceptable for a local dev tool.
-fn free_port(host: &str) -> Result<u16> {
+/// Reserve a free TCP port on `host`, returning the full bind address; the small
+/// race before the viewer binds it is acceptable for a local dev tool.
+fn free_port(host: IpAddr) -> Result<SocketAddr> {
     let listener = StdTcpListener::bind((host, 0))?;
-    Ok(listener.local_addr()?.port())
+    Ok(listener.local_addr()?)
 }
 
-/// Poll `host:port` until it accepts a connection (server up) or a few seconds
-/// pass, retrying on a fixed interval.
-async fn wait_until_ready(host: &str, port: u16) {
-    let _ = (|| async { tokio::net::TcpStream::connect((host, port)).await })
+/// Poll `addr` until it accepts a connection (server up) or a few seconds pass,
+/// retrying on a fixed interval.
+async fn wait_until_ready(addr: SocketAddr) {
+    let _ = (|| async { tokio::net::TcpStream::connect(addr).await })
         .retry(
             ConstantBuilder::default()
                 .with_delay(Duration::from_millis(100))

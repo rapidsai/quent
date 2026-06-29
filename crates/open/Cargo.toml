@@ -15,8 +15,10 @@ open = "5"
 prettyplease = "0.2"
 quent-build-info = { path = "../build-info" }
 quote = "1"
+serde.workspace = true
 syn = { version = "2", features = ["full", "parsing"] }
 thiserror.workspace = true
+toml = "0.8"
 tokio = { workspace = true, features = ["macros", "net", "process", "rt-multi-thread", "time"] }
 
 [dev-dependencies]
