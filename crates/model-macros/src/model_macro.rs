@@ -13,6 +13,7 @@
 //!         task::Task,
 //!         quent_stdlib::memory::Memory,
 //!     },
+//!     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
 //! }
 //! ```
 //!
@@ -22,12 +23,15 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Path, Token};
+use syn::{LitStr, Path, Token};
 
 struct DefineModelInput {
     name: Ident,
     root: Path,
     components: Vec<Path>,
+    /// Optional `analyzer: "<crate>"`: the cargo package providing this model's
+    /// `QuentViewer` entry, recorded in the provenance sidecar.
+    analyzer_package: Option<LitStr>,
 }
 
 impl Parse for DefineModelInput {
@@ -37,6 +41,7 @@ impl Parse for DefineModelInput {
         let mut name: Option<Ident> = None;
         let mut root: Option<Path> = None;
         let mut components: Option<Vec<Path>> = None;
+        let mut analyzer_package: Option<LitStr> = None;
 
         while !input.is_empty() {
             let key: Ident = input.parse()?;
@@ -68,11 +73,16 @@ impl Parse for DefineModelInput {
                     }
                     components = Some(entities);
                 }
+                "analyzer" => {
+                    if analyzer_package.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
                 other => {
                     return Err(syn::Error::new_spanned(
                         &key,
                         format!(
-                            "unknown `model!` field `{other}`; expected `name`, `root`, or `entities`"
+                            "unknown `model!` field `{other}`; expected `name`, `root`, `entities`, or `analyzer`"
                         ),
                     ));
                 }
@@ -88,6 +98,7 @@ impl Parse for DefineModelInput {
             name,
             root,
             components: components.unwrap_or_default(),
+            analyzer_package,
         })
     }
 }
@@ -272,6 +283,16 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          with no collector at capture time."
     );
 
+    // Emit a `ModelSource::analyzer_package()` override only when declared.
+    let analyzer_package_method = match &input.analyzer_package {
+        Some(lit) => quote! {
+            fn analyzer_package() -> Option<&'static str> {
+                Some(#lit)
+            }
+        },
+        None => quote! {},
+    };
+
     let output = quote! {
         #[doc = #doc_model]
         pub type #model_type = quent_model::Model<#model_tuple>;
@@ -313,6 +334,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     option_env!("QUENT_SOURCE_BUILT_AT"),
                 )
             }
+            #analyzer_package_method
         }
 
         impl #name {
@@ -464,4 +486,29 @@ pub fn expand_instrumentation(input: TokenStream) -> syn::Result<TokenStream> {
     Ok(quote! {
         #impl_macro_name!();
     })
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::DefineModelInput;
+
+    #[test]
+    fn parses_analyzer_field() {
+        let input: DefineModelInput = syn::parse_str(
+            r#"name: App, root: a::Root, entities: { b::Comp }, analyzer: "my-analyzer""#,
+        )
+        .unwrap();
+        assert_eq!(input.components.len(), 1);
+        assert_eq!(
+            input.analyzer_package.map(|l| l.value()),
+            Some("my-analyzer".to_string())
+        );
+    }
+
+    #[test]
+    fn analyzer_is_optional() {
+        let input: DefineModelInput = syn::parse_str("name: App, root: a::Root").unwrap();
+        assert!(input.analyzer_package.is_none());
+        assert!(input.components.is_empty());
+    }
 }

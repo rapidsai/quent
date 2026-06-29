@@ -68,6 +68,10 @@ pub struct ModelInfo {
     pub type_path: String,
     /// Git provenance of the crate defining the model.
     pub source: BuildInfo,
+    /// Cargo package providing this model's `QuentViewer` entry (shares the
+    /// model's [`source`](Self::source) git); `None` if the model didn't declare one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analyzer_package: Option<String>,
 }
 
 impl BuildInfo {
@@ -94,6 +98,7 @@ impl ModelInfo {
             package: "unknown".to_string(),
             type_path: "unknown".to_string(),
             source: BuildInfo::unknown(),
+            analyzer_package: None,
         }
     }
 }
@@ -195,6 +200,11 @@ pub trait ModelSource {
     fn package() -> &'static str;
     /// Git provenance of the crate defining the model.
     fn source() -> BuildInfo;
+    /// Cargo package providing this model's `QuentViewer` entry, if declared via
+    /// `analyzer_package` in `model!` (shares the model's [`source`](Self::source) git).
+    fn analyzer_package() -> Option<&'static str> {
+        None
+    }
 
     /// Assemble the [`ModelInfo`] for this model: the Rust type path and name
     /// from [`std::any::type_name`], the cargo package and source git from the
@@ -208,6 +218,7 @@ pub trait ModelSource {
             package: Self::package().to_string(),
             type_path: type_path.to_string(),
             source: Self::source(),
+            analyzer_package: Self::analyzer_package().map(str::to_string),
         }
     }
 }
@@ -254,6 +265,40 @@ mod tests {
         let bytes = serde_json::to_vec(&info).unwrap();
         let back: ArtifactInfo = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(info, back);
+    }
+
+    #[test]
+    fn analyzer_package_threads_and_roundtrips() {
+        struct WithAnalyzer;
+        impl ModelSource for WithAnalyzer {
+            fn package() -> &'static str {
+                "quent-build-info"
+            }
+            fn source() -> BuildInfo {
+                BuildInfo::unknown()
+            }
+            fn analyzer_package() -> Option<&'static str> {
+                Some("quent-simulator-analyzer")
+            }
+        }
+
+        // `model_info()` carries the declared analyzer package...
+        let info = WithAnalyzer::model_info();
+        assert_eq!(
+            info.analyzer_package.as_deref(),
+            Some("quent-simulator-analyzer")
+        );
+        let back: ModelInfo = serde_json::from_slice(&serde_json::to_vec(&info).unwrap()).unwrap();
+        assert_eq!(info, back);
+
+        // ...and absent by default, omitted from the serialized form.
+        let none = TestModel::model_info();
+        assert_eq!(none.analyzer_package, None);
+        assert!(
+            !serde_json::to_string(&none)
+                .unwrap()
+                .contains("analyzer_package")
+        );
     }
 
     #[test]
