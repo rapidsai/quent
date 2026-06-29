@@ -90,14 +90,26 @@ impl BuildInfo {
 }
 
 impl std::fmt::Display for BuildInfo {
-    /// One-line summary: version, plus the commit and remote when known.
+    /// One-line summary of every known field: `version` first, then the commit
+    /// (with branch and a `dirty` marker), the remote, and the build time, each
+    /// omitted when absent.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.version)?;
         if let Some(commit) = &self.commit {
-            write!(f, " ({commit})")?;
+            write!(f, " ({commit}")?;
+            if let Some(branch) = &self.branch {
+                write!(f, " on {branch}")?;
+            }
+            if self.dirty == Some(true) {
+                write!(f, ", dirty")?;
+            }
+            write!(f, ")")?;
         }
         if let Some(remote) = &self.remote {
             write!(f, " from {remote}")?;
+        }
+        if let Some(built_at) = &self.built_at {
+            write!(f, " built {built_at}")?;
         }
         Ok(())
     }
