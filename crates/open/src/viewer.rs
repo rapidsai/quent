@@ -164,8 +164,13 @@ async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
         .await?;
     let status = child.wait().await?;
     if !status.success() {
+        // Compiler diagnostics are rendered into the JSON stream; cargo's own
+        // output (build scripts, the final error summary) is on stderr in the
+        // log. Include both in full so the cause is never truncated away.
+        let mut detail = rendered_diagnostics(&json);
+        detail.push_str(&std::fs::read_to_string(&log_path).unwrap_or_default());
         return Err(OpenError::Build {
-            status: format!("{status}; last output:\n{}", log_tail(&log_path)),
+            status: format!("{status}\n{detail}"),
         });
     }
     wrapper_executable(&json).ok_or_else(|| OpenError::Build {
@@ -187,10 +192,19 @@ fn wrapper_executable(stdout: &[u8]) -> Option<PathBuf> {
 }
 
 /// Last 20 lines of a build log, for surfacing why a build failed.
-fn log_tail(path: &Path) -> String {
-    let text = std::fs::read_to_string(path).unwrap_or_default();
-    let lines: Vec<&str> = text.lines().collect();
-    lines[lines.len().saturating_sub(20)..].join("\n")
+/// Concatenate the human-rendered compiler diagnostics from cargo's JSON message
+/// stream (`--message-format=json-render-diagnostics` carries them here rather
+/// than on stderr).
+fn rendered_diagnostics(stdout: &[u8]) -> String {
+    let Ok(text) = std::str::from_utf8(stdout) else {
+        return String::new();
+    };
+    text.lines()
+        .filter_map(|line| {
+            let msg: serde_json::Value = serde_json::from_str(line).ok()?;
+            msg["message"]["rendered"].as_str().map(str::to_owned)
+        })
+        .collect()
 }
 
 /// Stage a clean output root, symlinking each `context` under its UUID name.
@@ -211,9 +225,11 @@ fn stage_output_root(crate_dir: &Path, contexts: &[PathBuf]) -> Result<PathBuf> 
                 "context path has no final component",
             ))
         })?;
-        // Two trees can hold copies of the same context id; they dedup to distinct
-        // canonical paths but one link name. Keep the first and skip the rest
-        // rather than failing the whole viewer on the colliding link.
+        // A context id (the dir name) is unique within one export, so this only
+        // fires when the same context is reached via two distinct paths — a copied
+        // context, or overlapping `paths` args that each contain it. Those dedup to
+        // distinct canonical paths but one link name; keep the first and skip the
+        // rest rather than aborting the whole viewer on the colliding link.
         if !linked.insert(name.to_owned()) {
             eprintln!(
                 "warning: ignoring duplicate context id `{}` at {}",
