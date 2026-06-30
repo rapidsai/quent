@@ -8,55 +8,41 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use quent_build_info::{ArtifactInfo, BuildInfo, SIDECAR_FILE_NAME};
+use walkdir::WalkDir;
 
 use crate::error::{OpenError, Result};
 
-/// Recursively discover context directories containing `model.qmi` under `paths`.
-/// Treat contexts as leaves; skip hidden dirs and symlinks to avoid cycles.
-/// Canonicalize and deduplicate results while preserving discovery order.
+/// Recursively discover context directories (those containing a `model.qmi`
+/// sidecar) under the given `paths`. Hidden directories (dotfiles, e.g. `.git`)
+/// are skipped and symlinks are not followed (so the walk stays cycle-safe).
+/// Results are canonicalized and deduplicated, preserving discovery order.
 pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for path in paths {
-        collect_contexts(path, &mut found, &mut seen)?;
+        // `WalkDir` does not follow symlinks by default (cycle-safe); `filter_entry`
+        // prunes hidden directories while keeping an explicitly-passed root.
+        let walk = WalkDir::new(path)
+            .into_iter()
+            .filter_entry(|entry| entry.depth() == 0 || !is_hidden(entry));
+        for entry in walk.flatten() {
+            if entry.file_type().is_dir() && entry.path().join(SIDECAR_FILE_NAME).is_file() {
+                let canonical = entry.path().canonicalize()?;
+                if seen.insert(canonical.clone()) {
+                    found.push(canonical);
+                }
+            }
+        }
     }
     Ok(found)
 }
 
-fn collect_contexts(
-    dir: &Path,
-    found: &mut Vec<PathBuf>,
-    seen: &mut std::collections::HashSet<PathBuf>,
-) -> Result<()> {
-    if !dir.is_dir() {
-        return Ok(());
-    }
-    if dir.join(SIDECAR_FILE_NAME).is_file() {
-        let canonical = dir.canonicalize()?;
-        if seen.insert(canonical.clone()) {
-            found.push(canonical);
-        }
-        return Ok(()); // a context is a leaf; do not descend into its entity dirs
-    }
-    for entry in std::fs::read_dir(dir)?.flatten() {
-        // `file_type()` does not follow symlinks, so symlinked dirs are not
-        // recursed into and the walk stays cycle-safe.
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-        if !file_type.is_dir() {
-            continue;
-        }
-        let child = entry.path();
-        let hidden = child
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.starts_with('.'));
-        if !hidden {
-            collect_contexts(&child, found, seen)?;
-        }
-    }
-    Ok(())
+/// Whether a walked entry is hidden (its file name starts with `.`).
+fn is_hidden(entry: &walkdir::DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .is_some_and(|name| name.starts_with('.'))
 }
 
 /// Serialization format of an artifact's event streams.
@@ -286,7 +272,7 @@ mod tests {
         names.sort();
         assert_eq!(names, vec!["a", "b"]);
 
-        // Passing a context directly yields just it (no descent into entity dirs).
+        // Passing a context directory directly yields just it.
         let direct = discover_contexts(&[root.join("a")]).unwrap();
         assert_eq!(direct.len(), 1);
     }
