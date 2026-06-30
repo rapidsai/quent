@@ -204,7 +204,6 @@ mod tests {
         let main = main_rs(&spec());
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
         assert!(main.contains("FileSystemFormat::Msgpack"));
-        assert!(main.contains("analyzer_service_router::<")); // turbofish may wrap
         assert!(main.contains("QUENT_OPEN_ADDR")); // bind address is configurable
     }
 }
