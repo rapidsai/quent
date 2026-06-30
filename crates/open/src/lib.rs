@@ -62,7 +62,7 @@ use std::path::PathBuf;
 use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 
 pub use crate::error::{OpenError, Result};
-pub use crate::spec::{Format, GitPin, ViewerSpec, discover_contexts};
+pub use crate::spec::{GitPin, ViewerSpec, discover_contexts};
 pub use crate::trust::{Trust, canonicalize_remote};
 pub use crate::viewer::ViewerGroup;
 
@@ -115,7 +115,7 @@ pub async fn run(loader: impl Loader, options: OpenOptions) -> Result<()> {
 }
 
 /// Group `contexts` into one viewer per distinct build spec (same analyzer + pinned
-/// commits + format), gate each source on [trust](OpenOptions::trust), then build
+/// commits), gate each source on [trust](OpenOptions::trust), then build
 /// and serve the approved viewers in parallel. Contexts that can't be opened (no
 /// analyzer package, unreadable sidecar) are skipped with a warning rather than
 /// aborting.
@@ -134,7 +134,7 @@ pub async fn open(contexts: Vec<PathBuf>, options: OpenOptions) -> Result<()> {
                 path: context.join(SIDECAR_FILE_NAME),
                 source,
             })
-            .and_then(|info| ViewerSpec::from_artifact(&context, &info))
+            .and_then(|info| ViewerSpec::from_artifact(&info))
         {
             Ok(spec) => spec,
             Err(e) => {

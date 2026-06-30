@@ -341,10 +341,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             #[doc = #doc_import]
             pub fn import_events(
                 dir: &std::path::Path,
-                format: quent_model::exporter::FileSystemFormat,
             ) -> quent_model::exporter::ImporterResult<
                 Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
             > {
+                // Detect the on-disk serialization format from the streams present;
+                // an empty/unrecognized context yields no events.
+                let Some(format) = quent_model::exporter::FileSystemFormat::detect(dir) else {
+                    return Ok(Box::new(std::iter::empty()));
+                };
                 let mut streams: Vec<
                     Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
                 > = Vec::new();

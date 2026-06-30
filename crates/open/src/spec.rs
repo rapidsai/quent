@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Build a [`ViewerSpec`] from a context's `model.qmi`: pinned git sources,
-//! analyzer package, and artifact format for generating/building a viewer.
+//! Build a [`ViewerSpec`] from a context's `model.qmi`: the pinned git sources
+//! and analyzer package needed to generate/build a viewer. (The serialization
+//! format is detected at import time by the analyzer, not here.)
 
 use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use quent_build_info::{ArtifactInfo, BuildInfo, SIDECAR_FILE_NAME};
 use walkdir::WalkDir;
@@ -65,43 +66,6 @@ fn is_hidden(entry: &walkdir::DirEntry) -> bool {
         .file_name()
         .to_str()
         .is_some_and(|name| name.starts_with('.'))
-}
-
-/// Serialization format of an artifact's event streams.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Format {
-    Ndjson,
-    Msgpack,
-    Postcard,
-}
-
-impl Format {
-    /// File extension of an event stream in this format.
-    pub fn extension(self) -> &'static str {
-        match self {
-            Format::Ndjson => "ndjson",
-            Format::Msgpack => "msgpack",
-            Format::Postcard => "postcard",
-        }
-    }
-
-    /// The `quent_exporter::FileSystemFormat` variant name, for generated code.
-    pub fn variant(self) -> &'static str {
-        match self {
-            Format::Ndjson => "Ndjson",
-            Format::Msgpack => "Msgpack",
-            Format::Postcard => "Postcard",
-        }
-    }
-
-    fn from_extension(ext: &str) -> Option<Self> {
-        match ext {
-            "ndjson" => Some(Format::Ndjson),
-            "msgpack" => Some(Format::Msgpack),
-            "postcard" => Some(Format::Postcard),
-            _ => None,
-        }
-    }
 }
 
 /// A git source pinned to an exact commit, as recorded in the sidecar.
@@ -197,8 +161,6 @@ fn validate_package(package: &str) -> Result<()> {
 /// serve multiple same-spec contexts.
 #[derive(Debug, Clone)]
 pub struct ViewerSpec {
-    /// Event serialization format, detected from the on-disk streams.
-    pub format: Format,
     /// Cargo package of the analyzer crate providing `Viewer` (`QuentViewer`).
     pub analyzer_package: String,
     /// Quent framework source, pinned to the build commit.
@@ -208,8 +170,8 @@ pub struct ViewerSpec {
 }
 
 impl ViewerSpec {
-    /// Derive a spec from a sidecar and its context directory.
-    pub fn from_artifact(root: &Path, info: &ArtifactInfo) -> Result<Self> {
+    /// Derive a spec from a sidecar.
+    pub fn from_artifact(info: &ArtifactInfo) -> Result<Self> {
         let analyzer_package =
             info.model
                 .analyzer_package
@@ -219,7 +181,6 @@ impl ViewerSpec {
                 })?;
         validate_package(&analyzer_package)?;
         Ok(Self {
-            format: detect_format(root)?,
             analyzer_package,
             quent: GitPin::from_build_info(&info.quent, "quent")?,
             analyzer: GitPin::from_build_info(&info.model.source, "analyzer source")?,
@@ -232,21 +193,20 @@ impl ViewerSpec {
         self.analyzer_package.replace('-', "_")
     }
 
-    /// Unambiguous build identity: analyzer package, format, and both git
-    /// remotes + full commits. Used to group/dedup contexts into viewers.
-    /// Short label distinguishing this build from other groups (package, format,
-    /// and short pins) so concurrent viewers with equal context counts are
-    /// still tellable apart.
+    /// Short label distinguishing this build from other groups (package and short
+    /// pins) so concurrent viewers with equal context counts are still tellable
+    /// apart.
     pub fn describe(&self) -> String {
         format!(
-            "{} ({}, quent@{} analyzer@{})",
+            "{} (quent@{} analyzer@{})",
             self.analyzer_package,
-            self.format.extension(),
             short_commit(&self.quent.commit),
             short_commit(&self.analyzer.commit),
         )
     }
 
+    /// Unambiguous build identity: analyzer package and both git remotes + full
+    /// commits. Used to group/dedup contexts into viewers.
     pub fn group_key(&self) -> String {
         // Key on the Cargo-normalized remotes so equivalent spellings (e.g.
         // scp-style vs `ssh://`) — which produce one dependency — share a build
@@ -254,7 +214,6 @@ impl ViewerSpec {
         // fields so values can't run together.
         [
             self.analyzer_package.as_str(),
-            self.format.extension(),
             self.quent.cargo_url().as_str(),
             &self.quent.commit,
             self.analyzer.cargo_url().as_str(),
@@ -270,10 +229,9 @@ impl ViewerSpec {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.group_key().hash(&mut hasher);
         format!(
-            "{}-{}-{}-{:016x}",
+            "{}-{}-{:016x}",
             self.analyzer_package,
             short_commit(&self.analyzer.commit),
-            self.format.extension(),
             hasher.finish(),
         )
     }
@@ -285,36 +243,11 @@ fn short_commit(commit: &str) -> &str {
     &commit[..end]
 }
 
-/// Detect the artifact format from an `events.<ext>` stream in any per-entity
-/// subdirectory.
-fn detect_format(root: &Path) -> Result<Format> {
-    let entries = std::fs::read_dir(root).map_err(|source| OpenError::Sidecar {
-        path: root.to_path_buf(),
-        source,
-    })?;
-    for entry in entries.flatten() {
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        if let Ok(files) = std::fs::read_dir(entry.path()) {
-            for file in files.flatten() {
-                if let Some(ext) = Path::new(&file.file_name()).extension()
-                    && let Some(format) = ext.to_str().and_then(Format::from_extension)
-                {
-                    return Ok(format);
-                }
-            }
-        }
-    }
-    Err(OpenError::UnknownFormat {
-        root: root.to_path_buf(),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use quent_build_info::ModelInfo;
+    use std::path::Path;
 
     fn artifact_with(analyzer_package: Option<&str>, commit: &str) -> ArtifactInfo {
         let mut model = ModelInfo::unknown();
@@ -332,14 +265,6 @@ mod tests {
             ..BuildInfo::unknown()
         };
         info
-    }
-
-    fn ctx_with_stream(name: &str, file: &str) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
-        let entity = dir.path().join(name);
-        std::fs::create_dir_all(&entity).unwrap();
-        std::fs::write(entity.join(file), b"").unwrap();
-        dir
     }
 
     fn make_context(dir: &Path) {
@@ -407,7 +332,6 @@ mod tests {
     #[test]
     fn group_key_normalizes_equivalent_remotes() {
         let scp = ViewerSpec {
-            format: Format::Ndjson,
             analyzer_package: "p".into(),
             quent: GitPin {
                 remote: "git@github.com:org/quent.git".into(),
@@ -447,21 +371,6 @@ mod tests {
     }
 
     #[test]
-    fn detects_format_from_entity_subdir() {
-        let ctx = ctx_with_stream("engine", "events.msgpack");
-        assert_eq!(detect_format(ctx.path()).unwrap(), Format::Msgpack);
-    }
-
-    #[test]
-    fn unknown_format_when_no_streams() {
-        let ctx = ctx_with_stream("engine", "notes.txt");
-        assert!(matches!(
-            detect_format(ctx.path()),
-            Err(OpenError::UnknownFormat { .. })
-        ));
-    }
-
-    #[test]
     fn validators_accept_good_and_reject_injection() {
         assert!(validate_commit("0123456789abcdef0123456789abcdef01234567").is_ok());
         assert!(validate_commit("deadbeef").is_ok());
@@ -485,10 +394,9 @@ mod tests {
 
     #[test]
     fn spec_requires_analyzer_package() {
-        let ctx = ctx_with_stream("engine", "events.ndjson");
         let info = artifact_with(None, "abc");
         assert!(matches!(
-            ViewerSpec::from_artifact(ctx.path(), &info),
+            ViewerSpec::from_artifact(&info),
             Err(OpenError::NoAnalyzer { .. })
         ));
     }
@@ -515,34 +423,25 @@ mod tests {
 
     #[test]
     fn spec_derives_crate_ident_and_keys() {
-        let ctx = ctx_with_stream("engine", "events.ndjson");
         let info = artifact_with(Some("quent-simulator-analyzer"), "feedface99887766");
-        let spec = ViewerSpec::from_artifact(ctx.path(), &info).unwrap();
+        let spec = ViewerSpec::from_artifact(&info).unwrap();
         assert_eq!(spec.analyzer_crate(), "quent_simulator_analyzer");
-        assert_eq!(spec.format, Format::Ndjson);
         assert!(
             spec.cache_key()
-                .starts_with("quent-simulator-analyzer-feedface9988-ndjson-")
+                .starts_with("quent-simulator-analyzer-feedface9988-")
         );
     }
 
     #[test]
     fn keys_distinguish_full_pins_not_just_short_commit() {
-        let ctx = ctx_with_stream("engine", "events.ndjson");
-        // Same package, format, and 12-char commit prefix, but different full
-        // analyzer commits — must NOT collide.
-        let a =
-            ViewerSpec::from_artifact(ctx.path(), &artifact_with(Some("p"), "abcabcabcabc1111"))
-                .unwrap();
-        let b =
-            ViewerSpec::from_artifact(ctx.path(), &artifact_with(Some("p"), "abcabcabcabc2222"))
-                .unwrap();
+        // Same package and 12-char commit prefix, but different full analyzer
+        // commits — must NOT collide.
+        let a = ViewerSpec::from_artifact(&artifact_with(Some("p"), "abcabcabcabc1111")).unwrap();
+        let b = ViewerSpec::from_artifact(&artifact_with(Some("p"), "abcabcabcabc2222")).unwrap();
         assert_ne!(a.group_key(), b.group_key());
         assert_ne!(a.cache_key(), b.cache_key());
         // Identical inputs group together and are deterministic.
-        let a2 =
-            ViewerSpec::from_artifact(ctx.path(), &artifact_with(Some("p"), "abcabcabcabc1111"))
-                .unwrap();
+        let a2 = ViewerSpec::from_artifact(&artifact_with(Some("p"), "abcabcabcabc1111")).unwrap();
         assert_eq!(a.group_key(), a2.group_key());
         assert_eq!(a.cache_key(), a2.cache_key());
     }

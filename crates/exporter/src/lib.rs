@@ -111,6 +111,33 @@ impl TryFrom<&str> for FileSystemFormat {
     }
 }
 
+#[cfg(filesystem)]
+impl FileSystemFormat {
+    /// Detect the format of a context directory from the first recognized
+    /// `*.<ext>` event stream in any of its per-entity subdirectories. Returns
+    /// `None` if no readable stream with a known extension is present.
+    pub fn detect(context_dir: &std::path::Path) -> Option<Self> {
+        for entry in std::fs::read_dir(context_dir).ok()?.flatten() {
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let Ok(files) = std::fs::read_dir(entry.path()) else {
+                continue;
+            };
+            for file in files.flatten() {
+                if let Some(format) = std::path::Path::new(&file.file_name())
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .and_then(|ext| Self::try_from(ext).ok())
+                {
+                    return Some(format);
+                }
+            }
+        }
+        None
+    }
+}
+
 /// Options for exporting events to the filesystem in the given `format`, under
 /// the directory `root`, together with a `model.qmi` provenance sidecar.
 #[cfg(filesystem)]

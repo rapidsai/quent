@@ -6,7 +6,7 @@ use std::path::Path;
 
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
-use quent_model::exporter::{FileSystemFormat, ImporterResult};
+use quent_model::exporter::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::timeline::{
     request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
@@ -133,8 +133,5 @@ pub trait QuentViewer {
     /// Reconstruct the model's event stream from one context directory, yielding
     /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model
     /// marker's generated `import_events`.
-    fn import_events(
-        dir: &Path,
-        format: FileSystemFormat,
-    ) -> ImporterResult<ViewerEventStream<Self::Analyzer>>;
+    fn import_events(dir: &Path) -> ImporterResult<ViewerEventStream<Self::Analyzer>>;
 }

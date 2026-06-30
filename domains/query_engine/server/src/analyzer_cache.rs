@@ -88,10 +88,7 @@ impl EngineIndex {
 ///
 /// "Dumb" because it re-scans and rebuilds from scratch on every call — a real
 /// history/indexing service replaces this later.
-pub fn index_query_engines(
-    output_dir: &Path,
-    format: FileSystemFormat,
-) -> ServerResult<EngineIndex> {
+pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
     let mut index = EngineIndex::default();
     for entry in std::fs::read_dir(output_dir)? {
         let context_dir = entry?.path();
@@ -100,6 +97,10 @@ pub fn index_query_engines(
             .and_then(|s| s.to_str())
             .and_then(|s| Uuid::parse_str(s).ok())
         else {
+            continue;
+        };
+        // Each context's serialization format is detected from its own streams.
+        let Some(format) = FileSystemFormat::detect(&context_dir) else {
             continue;
         };
 

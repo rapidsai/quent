@@ -35,13 +35,6 @@ pub enum OpenError {
     )]
     NothingTrusted,
 
-    /// No recognized event stream extension was found, so the artifact format is
-    /// unknown.
-    #[error(
-        "could not determine the artifact format under '{root}': no ndjson, msgpack, or postcard event streams found"
-    )]
-    UnknownFormat { root: PathBuf },
-
     /// The sidecar lacks git remote/commit provenance needed to fetch a crate for
     /// the viewer build.
     #[error(
