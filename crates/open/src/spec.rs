@@ -46,7 +46,12 @@ pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
                 }
                 // A context is a leaf: skip its entity dirs and event streams so
                 // discovery scales with the directory tree, not the payload size.
-                walk.skip_current_dir();
+                // Only for a genuinely-descended directory — for a symlinked
+                // context `skip_current_dir` would instead drop the symlink's
+                // (un-walked) siblings.
+                if entry.file_type().is_dir() {
+                    walk.skip_current_dir();
+                }
             }
         }
     }
@@ -308,6 +313,27 @@ mod tests {
         let found = discover_contexts(&[link]).unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].file_name().unwrap(), "real");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_context_does_not_hide_siblings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        make_context(&root.join("target"));
+        make_context(&root.join("sibling"));
+        // A non-root symlink straight to a context must not let `skip_current_dir`
+        // prune the symlink's (un-walked) siblings.
+        std::os::unix::fs::symlink(root.join("target"), root.join("link")).unwrap();
+
+        let found = discover_contexts(&[root.to_path_buf()]).unwrap();
+        let mut names: Vec<String> = found
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        // `link` canonicalizes to `target`, so the set is {sibling, target}.
+        assert_eq!(names, vec!["sibling", "target"]);
     }
 
     #[test]
