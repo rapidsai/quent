@@ -4,11 +4,13 @@
 //! Generate, build, and serve the viewer crate for a [`ViewerSpec`], then open a
 //! browser at the served URL.
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener as StdTcpListener};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener as StdTcpListener};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::time::Duration;
 
 use backon::{ConstantBuilder, Retryable};
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
 use crate::error::{OpenError, Result};
@@ -82,31 +84,58 @@ fn build_dir(spec: &ViewerSpec) -> Result<PathBuf> {
         .join(spec.cache_key()))
 }
 
-/// Run `cargo build --release` in `crate_dir` (output inherited so the user sees
-/// progress), returning the built binary path.
+/// Run `cargo build --release` in `crate_dir` and return the built binary path,
+/// read from Cargo's JSON output so a custom target dir/triple is handled.
+/// Diagnostics stream to stderr so the user still sees build progress.
 ///
 /// The first build fetches the pinned git sources and compiles the embedded UI,
 /// which invokes `pnpm`/`node`; both must be on `PATH`. Subsequent builds reuse
 /// the cached `crate_dir`.
 async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
-    let status = Command::new("cargo")
-        .args(["build", "--release"])
+    let mut child = Command::new("cargo")
+        .args([
+            "build",
+            "--release",
+            "--message-format=json-render-diagnostics",
+        ])
         .current_dir(crate_dir)
-        .status()
-        .await
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
         .map_err(|source| OpenError::Spawn {
             what: "cargo build".into(),
             source,
         })?;
+
+    let mut json = Vec::new();
+    child
+        .stdout
+        .take()
+        .expect("piped stdout")
+        .read_to_end(&mut json)
+        .await?;
+    let status = child.wait().await?;
     if !status.success() {
         return Err(OpenError::Build {
             status: status.to_string(),
         });
     }
-    Ok(crate_dir
-        .join("target")
-        .join("release")
-        .join(WRAPPER_PACKAGE))
+    wrapper_executable(&json).ok_or_else(|| OpenError::Build {
+        status: format!("cargo build reported no `{WRAPPER_PACKAGE}` executable"),
+    })
+}
+
+/// Find the wrapper binary's path in cargo's `--message-format=json`
+/// `compiler-artifact` messages (avoids assuming a target-dir layout).
+fn wrapper_executable(stdout: &[u8]) -> Option<PathBuf> {
+    std::str::from_utf8(stdout).ok()?.lines().find_map(|line| {
+        let msg: serde_json::Value = serde_json::from_str(line).ok()?;
+        let is_wrapper =
+            msg["reason"] == "compiler-artifact" && msg["target"]["name"] == WRAPPER_PACKAGE;
+        is_wrapper
+            .then(|| msg["executable"].as_str().map(PathBuf::from))
+            .flatten()
+    })
 }
 
 /// Spawn the built viewer serving `output_root` bound to `host`, print/open its
@@ -119,12 +148,12 @@ async fn serve(
     host: IpAddr,
 ) -> Result<()> {
     let addr = free_port(host)?;
-    // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe
-    // loopback instead.
-    let reachable = if addr.ip().is_unspecified() {
-        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), addr.port())
-    } else {
-        addr
+    // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe the
+    // matching loopback instead (the server may be bound v6-only on `::`).
+    let reachable = match addr.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => (Ipv4Addr::LOCALHOST, addr.port()).into(),
+        IpAddr::V6(ip) if ip.is_unspecified() => (Ipv6Addr::LOCALHOST, addr.port()).into(),
+        _ => addr,
     };
     let url = format!("http://{reachable}/");
 
