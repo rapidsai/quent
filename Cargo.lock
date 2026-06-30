@@ -2079,7 +2079,10 @@ dependencies = [
  "quent-exporter-ndjson",
  "quent-exporter-postcard",
  "quent-exporter-types",
+ "quent-query-engine-model",
  "serde",
+ "tempfile",
+ "tokio",
  "uuid",
 ]
 

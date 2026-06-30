@@ -26,3 +26,8 @@ quent-exporter-ndjson = { path = "ndjson", optional = true }
 quent-exporter-postcard = { path = "postcard", optional = true }
 serde.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+quent-query-engine-model = { path = "../../domains/query_engine/model" }
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
