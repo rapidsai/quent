@@ -25,7 +25,16 @@ pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let walk = WalkDir::new(path)
             .into_iter()
             .filter_entry(|entry| entry.depth() == 0 || !is_hidden(entry));
-        for entry in walk.flatten() {
+        for entry in walk {
+            // Report (don't silently drop) traversal errors so a permission-denied
+            // subtree can't quietly shrink the discovered set; keep walking the rest.
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    eprintln!("warning: skipping unreadable path during discovery: {error}");
+                    continue;
+                }
+            };
             if entry.file_type().is_dir() && entry.path().join(SIDECAR_FILE_NAME).is_file() {
                 let canonical = entry.path().canonicalize()?;
                 if seen.insert(canonical.clone()) {
