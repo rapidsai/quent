@@ -46,10 +46,11 @@ pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
                 }
                 // A context is a leaf: skip its entity dirs and event streams so
                 // discovery scales with the directory tree, not the payload size.
-                // Only for a genuinely-descended directory — for a symlinked
-                // context `skip_current_dir` would instead drop the symlink's
-                // (un-walked) siblings.
-                if entry.file_type().is_dir() {
+                // Skip only for directories `WalkDir` actually descends into: a
+                // real directory, or the root (followed even when it is a symlink).
+                // A non-root symlinked context isn't descended, and skipping it
+                // would instead drop the symlink's (un-walked) siblings.
+                if entry.depth() == 0 || entry.file_type().is_dir() {
                     walk.skip_current_dir();
                 }
             }
@@ -179,6 +180,19 @@ impl ViewerSpec {
 
     /// Unambiguous build identity: analyzer package, format, and both git
     /// remotes + full commits. Used to group/dedup contexts into viewers.
+    /// Short label distinguishing this build from other groups (package, format,
+    /// and short pins) so concurrent viewers with equal context counts are
+    /// still tellable apart.
+    pub fn describe(&self) -> String {
+        format!(
+            "{} ({}, quent@{} analyzer@{})",
+            self.analyzer_package,
+            self.format.extension(),
+            short_commit(&self.quent.commit),
+            short_commit(&self.analyzer.commit),
+        )
+    }
+
     pub fn group_key(&self) -> String {
         // Key on the Cargo-normalized remotes so equivalent spellings (e.g.
         // scp-style vs `ssh://`) — which produce one dependency — share a build

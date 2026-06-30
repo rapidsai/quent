@@ -86,7 +86,7 @@ pub async fn open_all(groups: Vec<ViewerGroup>, no_browser: bool, host: IpAddr) 
 /// Generate and build one group's viewer crate.
 async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
     let ViewerGroup { spec, contexts } = group;
-    let label = format!("{} ({} context(s))", spec.analyzer_package, contexts.len());
+    let label = format!("{} — {} context(s)", spec.describe(), contexts.len());
     println!("building: {label}");
 
     let crate_dir = build_dir(&spec)?;
