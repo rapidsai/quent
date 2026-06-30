@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Open local Quent benchmark artifacts in an application-specific viewer.
+//! Open local Quent artifacts in an application-specific viewer.
 //!
 //! Given a context directory, read `model.qmi`, generate a viewer crate pinned
 //! to the recorded quent/analyzer commits (see [`wrapper`]), build and serve it,
