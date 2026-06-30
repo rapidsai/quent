@@ -20,12 +20,13 @@ pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for path in paths {
-        // `WalkDir` does not follow symlinks by default (cycle-safe); `filter_entry`
-        // prunes hidden directories while keeping an explicitly-passed root.
-        let walk = WalkDir::new(path)
+        // `WalkDir` does not descend into symlinked directories (cycle-safe);
+        // `filter_entry` prunes hidden directories while keeping an explicitly-passed
+        // root.
+        let mut walk = WalkDir::new(path)
             .into_iter()
             .filter_entry(|entry| entry.depth() == 0 || !is_hidden(entry));
-        for entry in walk {
+        while let Some(entry) = walk.next() {
             // Report (don't silently drop) traversal errors so a permission-denied
             // subtree can't quietly shrink the discovered set; keep walking the rest.
             let entry = match entry {
@@ -35,11 +36,17 @@ pub fn discover_contexts(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
                     continue;
                 }
             };
-            if entry.file_type().is_dir() && entry.path().join(SIDECAR_FILE_NAME).is_file() {
+            // `Path::is_dir` follows symlinks, so a context reached via a symlinked
+            // argument (or directory) is still recognized, even though the walk
+            // itself never descends through the link.
+            if entry.path().is_dir() && entry.path().join(SIDECAR_FILE_NAME).is_file() {
                 let canonical = entry.path().canonicalize()?;
                 if seen.insert(canonical.clone()) {
                     found.push(canonical);
                 }
+                // A context is a leaf: skip its entity dirs and event streams so
+                // discovery scales with the directory tree, not the payload size.
+                walk.skip_current_dir();
             }
         }
     }
@@ -168,13 +175,16 @@ impl ViewerSpec {
     /// Unambiguous build identity: analyzer package, format, and both git
     /// remotes + full commits. Used to group/dedup contexts into viewers.
     pub fn group_key(&self) -> String {
-        // Unit separator between fields so values can't run together.
+        // Key on the Cargo-normalized remotes so equivalent spellings (e.g.
+        // scp-style vs `ssh://`) — which produce one dependency — share a build
+        // instead of splitting into separate viewers. Unit separator between
+        // fields so values can't run together.
         [
             self.analyzer_package.as_str(),
             self.format.extension(),
-            &self.quent.remote,
+            self.quent.cargo_url().as_str(),
             &self.quent.commit,
-            &self.analyzer.remote,
+            self.analyzer.cargo_url().as_str(),
             &self.analyzer.commit,
         ]
         .join("\u{1f}")
@@ -284,6 +294,49 @@ mod tests {
         // Passing a context directory directly yields just it.
         let direct = discover_contexts(&[root.join("a")]).unwrap();
         assert_eq!(direct.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovers_context_through_symlinked_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        make_context(&tmp.path().join("real"));
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(tmp.path().join("real"), &link).unwrap();
+
+        // A symlink pointing straight at a context must still be recognized.
+        let found = discover_contexts(&[link]).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].file_name().unwrap(), "real");
+    }
+
+    #[test]
+    fn group_key_normalizes_equivalent_remotes() {
+        let scp = ViewerSpec {
+            format: Format::Ndjson,
+            analyzer_package: "p".into(),
+            quent: GitPin {
+                remote: "git@github.com:org/quent.git".into(),
+                commit: "c".into(),
+            },
+            analyzer: GitPin {
+                remote: "git@github.com:org/a.git".into(),
+                commit: "d".into(),
+            },
+        };
+        let ssh = ViewerSpec {
+            quent: GitPin {
+                remote: "ssh://git@github.com/org/quent.git".into(),
+                commit: "c".into(),
+            },
+            analyzer: GitPin {
+                remote: "ssh://git@github.com/org/a.git".into(),
+                commit: "d".into(),
+            },
+            ..scp.clone()
+        };
+        assert_eq!(scp.group_key(), ssh.group_key());
+        assert_eq!(scp.cache_key(), ssh.cache_key());
     }
 
     #[cfg(unix)]

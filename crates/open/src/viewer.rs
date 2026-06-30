@@ -202,6 +202,7 @@ fn stage_output_root(crate_dir: &Path, contexts: &[PathBuf]) -> Result<PathBuf> 
     let root = crate_dir.join(format!("serve-root-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root)?;
+    let mut linked = std::collections::HashSet::new();
     for context in contexts {
         let context = context.canonicalize()?;
         let name = context.file_name().ok_or_else(|| {
@@ -210,6 +211,17 @@ fn stage_output_root(crate_dir: &Path, contexts: &[PathBuf]) -> Result<PathBuf> 
                 "context path has no final component",
             ))
         })?;
+        // Two trees can hold copies of the same context id; they dedup to distinct
+        // canonical paths but one link name. Keep the first and skip the rest
+        // rather than failing the whole viewer on the colliding link.
+        if !linked.insert(name.to_owned()) {
+            eprintln!(
+                "warning: ignoring duplicate context id `{}` at {}",
+                name.to_string_lossy(),
+                context.display()
+            );
+            continue;
+        }
         symlink_dir(&context, &root.join(name))?;
     }
     Ok(root)
