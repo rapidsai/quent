@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Build a [`ViewerSpec`] from a context's `model.qmi`: the pinned git sources
-//! and analyzer package needed to generate/build a viewer. (The serialization
-//! format is detected at import time by the analyzer, not here.)
+//! and analyzer package needed to generate/build a viewer.
 
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
