@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Open local Quent benchmark artifacts in an application-specific viewer.
-//! See <https://github.com/rapidsai/quent/issues/234>.
 //!
 //! Given a context directory, read `model.qmi`, generate a viewer crate pinned
 //! to the recorded quent/analyzer commits, build and serve it, and open a browser.
