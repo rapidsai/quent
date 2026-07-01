@@ -149,6 +149,8 @@ async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
         .env("CARGO_TARGET_DIR", crate_dir.join("target"))
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log))
+        // Reap the build if the caller drops us (library cancellation, Ctrl-C).
+        .kill_on_drop(true)
         .spawn()
         .map_err(|source| OpenError::Spawn {
             what: "cargo build".into(),
@@ -280,6 +282,9 @@ async fn serve(
     let mut child = Command::new(bin)
         .env(ROOT_ENV, output_root)
         .env(ADDR_ENV, addr.to_string())
+        // Don't orphan the viewer (holding its port) if the caller drops us:
+        // Ctrl-C on the CLI, or a cancelled `run`/`open` in a library embedding.
+        .kill_on_drop(true)
         .spawn()
         .map_err(|source| OpenError::Spawn {
             what: "viewer".into(),
