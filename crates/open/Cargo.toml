@@ -23,7 +23,10 @@ open = "5"
 prettyplease = "0.2"
 quent-build-info = { path = "../build-info" }
 quote = "1"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
+# `rustls-tls-native-roots` (OS trust store) rather than `rustls-tls` (bundled
+# webpki-roots): fits an internal CA, and avoids webpki-roots' CDLA-Permissive
+# license (rejected by cargo-deny).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "json"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json.workspace = true
 syn = { version = "2", features = ["full", "parsing"] }
