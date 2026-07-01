@@ -114,16 +114,17 @@ pub struct GitPin {
 impl GitPin {
     /// Remote as a Cargo `git = "..."` URL.
     ///
-    /// Rewrite git's scp-style `git@host:path` to `ssh://git@host/path`, which
-    /// Cargo accepts. Leave URLs with a scheme (`https://`, `ssh://`, ...) and
-    /// local paths unchanged; like git, treat a remote as scp-style only when the
-    /// first colon has no earlier slash, so `/tmp/foo:bar` stays a path.
+    /// Cargo rejects git's scp-style `git@host:path`, which `gix-url` parses as
+    /// the SSH alternative form; re-serialize that to `ssh://git@host/path`.
+    /// Other forms (`https://`/`ssh://` URLs, local paths) pass through unchanged.
     pub fn cargo_url(&self) -> String {
-        if self.remote.contains("://") {
-            return self.remote.clone();
-        }
-        match self.remote.split_once(':') {
-            Some((host, path)) if !host.contains('/') => format!("ssh://{host}/{path}"),
+        match gix_url::Url::try_from(self.remote.as_str()) {
+            Ok(mut url)
+                if url.serialize_alternative_form && matches!(url.scheme, gix_url::Scheme::Ssh) =>
+            {
+                url.serialize_alternative_form = false;
+                url.to_bstring().to_string()
+            }
             _ => self.remote.clone(),
         }
     }
@@ -155,23 +156,23 @@ fn validate_commit(commit: &str) -> Result<()> {
         })
 }
 
-/// A git remote must use an integrity-checked transport (`https`, `ssh`, or
-/// scp-style `user@host:path`) and avoid characters that can escape the
-/// generated TOML string. Reject `http`/`git` so trust canonicalization cannot
-/// silently downgrade a source.
+/// A git remote must parse (via `gix-url`) as an integrity-checked transport
+/// (`https`, `ssh`, or scp-style `user@host:path`) with a host. Reject
+/// `http`/`git`/`file` and unknown schemes so trust canonicalization cannot
+/// silently downgrade a source. Special characters in the URL are neutralized by
+/// TOML string escaping when the wrapper manifest is generated; control
+/// characters are rejected outright since a newline would later corrupt the
+/// line-delimited trust allowlist when the remote is persisted.
 fn validate_remote(remote: &str) -> Result<()> {
-    let inject = remote
-        .bytes()
-        .any(|b| b.is_ascii_control() || b == b'"' || b == b'\\');
-    // scp-style `[user@]host:path`: `:` before any `/`, optional user;
-    // `cargo_url` rewrites it to `ssh://`.
-    let shaped = matches!(remote.split_once("://"), Some(("https" | "ssh", _)))
-        || (!remote.contains("://")
-            && remote
-                .split_once(':')
-                .is_some_and(|(host, _)| !host.is_empty() && !host.contains('/')));
-    (!inject && shaped)
-        .then_some(())
+    let printable = !remote.bytes().any(|b| b.is_ascii_control());
+    gix_url::Url::try_from(remote)
+        .ok()
+        .filter(|url| {
+            printable
+                && matches!(url.scheme, gix_url::Scheme::Https | gix_url::Scheme::Ssh)
+                && url.host().is_some_and(|host| !host.is_empty())
+        })
+        .map(|_| ())
         .ok_or_else(|| OpenError::InvalidProvenance {
             field: "remote".into(),
             value: remote.into(),

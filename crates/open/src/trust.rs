@@ -143,37 +143,26 @@ fn allowlist_path() -> Option<PathBuf> {
 }
 
 /// Canonicalize a git remote to scheme-agnostic `host/path` so https, ssh, and
-/// scp-style forms of the same repo match. Strip scheme or `user@`, trailing
-/// `.git`, and lowercase the host.
+/// scp-style forms of the same repo match. Lowercase the host and strip a
+/// trailing `.git`.
 pub fn canonicalize_remote(remote: &str) -> String {
-    // Drop the scheme, if any.
-    let rest = remote.split_once("://").map(|(_, r)| r).unwrap_or(remote);
-    // For scp-style `user@host:path`, turn the first `:` into `/`.
-    let rest = if !remote.contains("://") {
-        match rest.split_once(':') {
-            Some((host, path)) if !host.contains('/') => {
-                return canonicalize_host_path(&format!("{host}/{path}"));
-            }
-            _ => rest,
-        }
-    } else {
-        rest
+    // `gix-url` parses real git URLs and scp-style forms into host + path (with
+    // the scheme and `user@` already split off). Bare `host/path` defaults and
+    // `host/org/*` allowlist wildcards aren't URLs — gix reads them as local file
+    // paths (no host) — so fall back to splitting the input on the first `/`.
+    let (host, path) = match gix_url::Url::try_from(remote) {
+        Ok(url) if url.host().is_some() => (
+            url.host().unwrap_or_default().to_string(),
+            url.path.to_string(),
+        ),
+        _ => match remote.split_once('/') {
+            Some((host, path)) => (host.to_string(), path.to_string()),
+            None => (remote.to_string(), String::new()),
+        },
     };
-    canonicalize_host_path(rest)
-}
-
-fn canonicalize_host_path(host_path: &str) -> String {
-    // Strip `user@` from host, trailing `.git`, and leading `/`.
-    let host_path = host_path.trim_start_matches('/');
-    let (host, path) = match host_path.split_once('/') {
-        Some((h, p)) => (h, p),
-        None => (host_path, ""),
-    };
-    let host = host.rsplit('@').next().unwrap_or(host).to_ascii_lowercase();
-    let path = path
-        .trim_end_matches('/')
-        .strip_suffix(".git")
-        .unwrap_or(path.trim_end_matches('/'));
+    let host = host.to_ascii_lowercase();
+    let path = path.trim_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
     if path.is_empty() {
         host
     } else {

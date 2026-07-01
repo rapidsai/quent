@@ -12,6 +12,7 @@ backon = "1"
 cargo-manifest = "0.21"
 clap = { version = "4.5.58", features = ["derive", "env"] }
 dirs = "6"
+gix-url = "0.36"
 open = "5"
 prettyplease = "0.2"
 quent-build-info = { path = "../build-info" }
