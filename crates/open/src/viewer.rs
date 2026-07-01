@@ -147,6 +147,9 @@ async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
         ])
         .current_dir(crate_dir)
         .env("CARGO_TARGET_DIR", crate_dir.join("target"))
+        // Don't leak the db-mode API token into the untrusted build (cargo, build
+        // scripts, pnpm). Keep in sync with the `db` subcommand's `--token` env.
+        .env_remove("QUENT_OPEN_TOKEN")
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log))
         // Reap the build if the caller drops us (library cancellation, Ctrl-C).
@@ -282,6 +285,9 @@ async fn serve(
     let mut child = Command::new(bin)
         .env(ROOT_ENV, output_root)
         .env(ADDR_ENV, addr.to_string())
+        // Don't leak the db-mode API token into the viewer we build and run from an
+        // untrusted source. Keep in sync with the `db` subcommand's `--token` env.
+        .env_remove("QUENT_OPEN_TOKEN")
         // Don't orphan the viewer (holding its port) if the caller drops us:
         // Ctrl-C on the CLI, or a cancelled `run`/`open` in a library embedding.
         .kill_on_drop(true)
@@ -293,7 +299,7 @@ async fn serve(
 
     if wait_until_ready(reachable).await {
         println!("ready: {label}  {url}");
-        if open_browser && let Err(e) = open::that(&url) {
+        if open_browser && let Err(e) = open_browser_without_token(&url) {
             eprintln!("could not open a browser ({e}); open {url} manually");
         }
     } else {
@@ -307,6 +313,23 @@ async fn serve(
         });
     }
     Ok(())
+}
+
+/// Open `url` in the browser like [`open::that`], but scrub the db-mode API token
+/// from the launcher's environment (`xdg-open`/`open`/`start`) so it can't reach
+/// the launcher or the browser it spawns. Keep the var in sync with the `db`
+/// subcommand's `--token` env.
+fn open_browser_without_token(url: &str) -> std::io::Result<()> {
+    let mut last = std::io::Error::other("no browser opener command available");
+    for mut command in open::commands(url) {
+        command.env_remove("QUENT_OPEN_TOKEN");
+        match command.status() {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(status) => last = std::io::Error::other(format!("opener exited with {status}")),
+            Err(error) => last = error,
+        }
+    }
+    Err(last)
 }
 
 /// Reserve a free TCP port on `host`, returning the full bind address; the small

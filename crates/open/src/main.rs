@@ -4,6 +4,7 @@
 //! Command-line frontend for `quent-open`: opens local Quent artifacts via the
 //! built-in [`LocalLoader`]. See the crate docs for the library and custom loaders.
 
+use std::future::Future;
 use std::net::IpAddr;
 use std::path::PathBuf;
 
@@ -45,6 +46,22 @@ enum OpenCommand {
         #[arg(required = true, num_args = 1..)]
         paths: Vec<PathBuf>,
     },
+
+    /// Analyze a benchmark run's telemetry fetched from the Benchmarking API
+    /// (an internal RAPIDS/NVIDIA service; not useful to non-NVIDIA users).
+    #[cfg(feature = "db")]
+    Db {
+        /// Benchmark run to open: its integer run id, or its `run_id` UUID.
+        run: String,
+
+        /// Base URL of the Benchmarking API (e.g. `https://host`).
+        #[arg(long, env = "QUENT_OPEN_API_BASE_URL")]
+        api_base_url: String,
+
+        /// Bearer token for the Benchmarking API.
+        #[arg(long, env = "QUENT_OPEN_TOKEN", hide_env_values = true)]
+        token: String,
+    },
 }
 
 #[tokio::main]
@@ -56,6 +73,28 @@ async fn main() -> Result<()> {
         trust: Trust::new(&cli.trust, cli.trust_all),
     };
     match cli.command {
-        OpenCommand::Local { paths } => quent_open::run(LocalLoader { paths }, options).await,
+        OpenCommand::Local { paths } => {
+            serve_until_interrupt(quent_open::run(LocalLoader { paths }, options)).await
+        }
+        #[cfg(feature = "db")]
+        OpenCommand::Db {
+            run,
+            api_base_url,
+            token,
+        } => {
+            let loader = quent_open::DbLoader::new(api_base_url, token, run)?;
+            serve_until_interrupt(quent_open::run(loader, options)).await
+        }
+    }
+}
+
+/// Serve `viewers` until it finishes or the user presses Ctrl-C. On interrupt we
+/// drop the future, which drops the loader — removing any scratch `TempDir` it
+/// owns — and kills the spawned viewers (`kill_on_drop`) before we exit, instead
+/// of the default SIGINT termination that would leak them.
+async fn serve_until_interrupt(viewers: impl Future<Output = Result<()>>) -> Result<()> {
+    tokio::select! {
+        result = viewers => result,
+        _ = tokio::signal::ctrl_c() => Ok(()),
     }
 }

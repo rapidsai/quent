@@ -7,22 +7,34 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+# Non-local mode: fetch a run's telemetry from the (internal RAPIDS/NVIDIA)
+# Benchmarking API database. Off by default; irrelevant to non-NVIDIA users.
+db = ["dep:reqwest", "dep:serde", "dep:tempfile", "dep:tar", "dep:flate2", "dep:zstd", "dep:uuid"]
+
 [dependencies]
 backon = "1"
 cargo-manifest = "0.21"
 clap = { version = "4.5.58", features = ["derive", "env"] }
 dirs = "6"
+flate2 = { version = "1", optional = true }
 gix-url = "0.36"
 open = "5"
 prettyplease = "0.2"
 quent-build-info = { path = "../build-info" }
 quote = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
 serde_json.workspace = true
 syn = { version = "2", features = ["full", "parsing"] }
+tar = { version = "0.4", optional = true }
+tempfile = { version = "3", optional = true }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
 toml = "0.8"
+uuid = { version = "1", optional = true }
 walkdir = "2"
+zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

@@ -48,6 +48,8 @@
 //! }
 //! ```
 
+#[cfg(feature = "db")]
+mod db;
 mod error;
 mod spec;
 mod trust;
@@ -61,6 +63,8 @@ use std::path::PathBuf;
 
 use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 
+#[cfg(feature = "db")]
+pub use crate::db::DbLoader;
 pub use crate::error::{OpenError, Result};
 pub use crate::spec::{GitPin, ViewerSpec, discover_contexts};
 pub use crate::trust::{Trust, canonicalize_remote};
