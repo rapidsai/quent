@@ -403,7 +403,9 @@ impl<R: Read> Read for LimitReader<'_, R> {
 /// and entries that aren't plain files or directories (symlinks/hardlinks/devices,
 /// which could redirect writes outside `root`). Extracted bytes are capped
 /// per-archive and against the shared `unpacked_remaining`; the entry count is
-/// capped against `entries_remaining`.
+/// capped against `entries_remaining`. Extracted directories are forced
+/// owner-writable so a read-only header (e.g. `0555`) can't block extracting their
+/// children or removing the scratch tree on cleanup.
 fn unpack_tar<R: Read>(
     reader: R,
     root: &Path,
@@ -416,10 +418,6 @@ fn unpack_tar<R: Read>(
         run_remaining: unpacked_remaining,
     };
     let mut archive = tar::Archive::new(reader);
-    // Don't apply archive file/dir modes: these are throwaway scratch dirs, and a
-    // read-only dir header (e.g. `0555`) would otherwise block extracting its
-    // children or removing the tree on cleanup.
-    archive.set_preserve_permissions(false);
     archive.set_preserve_mtime(false);
     for entry in archive.entries()? {
         if *entries_remaining == 0 {
@@ -430,11 +428,14 @@ fn unpack_tar<R: Read>(
         *entries_remaining -= 1;
         let mut entry = entry?;
         let kind = entry.header().entry_type();
+        let relative = entry.path().map(|p| p.into_owned()).unwrap_or_default();
         if !(kind.is_file() || kind.is_dir()) {
-            let path = entry_path(&entry);
             return Err(OpenError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("refusing non-regular archive entry ({kind:?}): {path}"),
+                format!(
+                    "refusing non-regular archive entry ({kind:?}): {}",
+                    relative.display()
+                ),
             )));
         }
         if !entry.unpack_in(root)? {
@@ -442,20 +443,25 @@ fn unpack_tar<R: Read>(
                 std::io::ErrorKind::InvalidData,
                 format!(
                     "refusing archive entry that escapes the scratch dir: {}",
-                    entry_path(&entry)
+                    relative.display()
                 ),
             )));
         }
+        // Directories precede their children in a tar; force this one owner-writable
+        // before those children arrive (and so the tree is removable on cleanup),
+        // regardless of a restrictive mode in the archive header.
+        #[cfg(unix)]
+        if kind.is_dir() {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = root.join(&relative);
+            if let Ok(metadata) = std::fs::metadata(&dir) {
+                let mut perms = metadata.permissions();
+                perms.set_mode(perms.mode() | 0o700);
+                let _ = std::fs::set_permissions(&dir, perms);
+            }
+        }
     }
     Ok(())
-}
-
-/// An archive entry's path as a lossy string, for error messages.
-fn entry_path<R: Read>(entry: &tar::Entry<'_, R>) -> String {
-    entry
-        .path()
-        .map(|p| p.display().to_string())
-        .unwrap_or_default()
 }
 
 /// Turn a non-success HTTP response into [`OpenError::Api`], preserving the body.
@@ -559,7 +565,7 @@ mod tests {
     #[test]
     fn extract_tolerates_readonly_dir_headers() {
         // A read-only dir header (0555) before its child must not block extracting
-        // the child (we don't preserve archive modes on scratch dirs).
+        // the child; scratch dirs are forced owner-writable.
         let mut builder = tar::Builder::new(Vec::new());
         let mut dir = tar::Header::new_gnu();
         dir.set_entry_type(tar::EntryType::Directory);
@@ -583,6 +589,21 @@ mod tests {
         )
         .unwrap();
         assert!(dest.path().join("ro/child.txt").is_file());
+        // Assert the mode directly (not just that the child extracted): root would
+        // bypass the OS write check, hiding a still-read-only dir that breaks
+        // cleanup and non-root runs.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(dest.path().join("ro"))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert!(
+                mode & 0o200 != 0,
+                "scratch dir not owner-writable: {mode:o}"
+            );
+        }
     }
 
     #[test]
