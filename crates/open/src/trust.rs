@@ -151,10 +151,15 @@ pub fn canonicalize_remote(remote: &str) -> String {
     // `host/org/*` allowlist wildcards aren't URLs — gix reads them as local file
     // paths (no host) — so fall back to splitting the input on the first `/`.
     let (host, path) = match gix_url::Url::try_from(remote) {
-        Ok(url) if url.host().is_some() => (
-            url.host().unwrap_or_default().to_string(),
-            url.path.to_string(),
-        ),
+        Ok(url) if url.host().is_some() => {
+            // Keep a non-default port in the key: a different port can be a
+            // different endpoint, so it must not inherit the default's trust.
+            let host = match url.port {
+                Some(port) => format!("{}:{port}", url.host().unwrap_or_default()),
+                None => url.host().unwrap_or_default().to_string(),
+            };
+            (host, url.path.to_string())
+        }
         _ => match remote.split_once('/') {
             Some((host, path)) => (host.to_string(), path.to_string()),
             None => (remote.to_string(), String::new()),
@@ -194,6 +199,20 @@ mod tests {
             want
         );
         assert_eq!(canonicalize_remote("git@GitHub.com:rapidsai/quent"), want);
+    }
+
+    #[test]
+    fn canonicalize_keeps_non_default_port() {
+        // A non-default port is a distinct endpoint and must not collapse onto the
+        // default-port repo's trust key.
+        assert_eq!(
+            canonicalize_remote("ssh://git@git.example:2222/team/repo.git"),
+            "git.example:2222/team/repo"
+        );
+        assert_ne!(
+            canonicalize_remote("ssh://git@git.example:2222/team/repo"),
+            canonicalize_remote("ssh://git@git.example/team/repo")
+        );
     }
 
     #[test]
