@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - cooldown:
+      default-days: 14
+    directory: "/"
+    open-pull-requests-limit: 5
+    package-ecosystem: "github-actions"
+    schedule:
+      interval: "weekly"
+  - cooldown:
+      default-days: 14
+    directory: "/"
+    open-pull-requests-limit: 5
+    package-ecosystem: "npm"
+    schedule:
+      interval: "weekly"
+  - cooldown:
+      default-days: 14
+    directory: "/"
+    open-pull-requests-limit: 5
+    package-ecosystem: "cargo"
+    schedule:
+      interval: "weekly"
