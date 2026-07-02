@@ -53,7 +53,7 @@ export { EntityTypeKey } from './entityTypes';
 export type { EntityTypeValue, SingleEntity, EntityRefKey } from './entityTypes';
 
 // DAG coloring types (shared between @quent/hooks and @quent/components)
-export { NODE_LABEL_FIELD } from './dagTypes';
+export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from './dagTypes';
 export type {
   ContinuousNodeColoring,
   CategoricalNodeColoring,
@@ -63,6 +63,7 @@ export type {
   CategoricalEdgeColoring,
   EdgeColoring,
   NodeLabelField,
+  DagLayoutDirection,
   StatValue,
   DAGNode,
   DAGEdge,

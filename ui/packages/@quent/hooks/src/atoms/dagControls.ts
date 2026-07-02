@@ -10,9 +10,10 @@ import type {
   EdgeWidthConfig,
   EdgeColoring,
   NodeLabelField,
+  DagLayoutDirection,
   StatValue,
 } from '@quent/utils';
-import { NODE_LABEL_FIELD } from '@quent/utils';
+import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
 
 /**
@@ -134,3 +135,8 @@ export const nodeColorPaletteAtom = atom<ContinuousPaletteName>('blue');
 
 /** Continuous color palette used for edge coloring */
 export const edgeColorPaletteAtom = atom<ContinuousPaletteName>('teal');
+
+/** Direction the DAG layout flows — defaults to sources at the bottom, result at the top */
+export const selectedDagLayoutDirectionAtom = atom<DagLayoutDirection>(
+  DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP
+);

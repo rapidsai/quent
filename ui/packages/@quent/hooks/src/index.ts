@@ -76,6 +76,7 @@ export {
   useEdgeColoring,
   useEdgeColorPalette,
   useSelectedNodeLabelField,
+  useSelectedDagLayoutDirection,
   useSelectedNodeData,
   useSetSelectedNodeData,
   useHighlightedNodeIds,
