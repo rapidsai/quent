@@ -13,7 +13,9 @@ import {
   WHITE,
   BLACK,
   NODE_LABEL_FIELD,
+  DAG_LAYOUT_DIRECTION,
   type Operator,
+  type DagLayoutDirection,
 } from '@quent/utils';
 import {
   useSelectedNodeLabelField,
@@ -34,6 +36,8 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   metadata?: { rawNode?: Operator };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
+  /** Which edge of the node incoming/outgoing handles attach to; flips with the DAG layout direction. */
+  layoutDirection?: DagLayoutDirection;
   /**
    * Whether dark mode is active. Forwarded by `DAGChart` via the node's data
    * payload so the renderer can derive heatmap colors without coupling to a
@@ -140,6 +144,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const isActiveHighlight = isHighlighted && !isSelected;
 
+  const isBottomToTop =
+    (data.layoutDirection ?? DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP) ===
+    DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP;
+  const incomingHandlePosition = isBottomToTop ? Position.Bottom : Position.Top;
+  const outgoingHandlePosition = isBottomToTop ? Position.Top : Position.Bottom;
+
   const onMouseEnter = useCallback(() => {
     setIsHoveredLocal(true);
     if (operatorId) {
@@ -178,7 +188,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       }
     >
       {data.hasIncoming && (
-        <Handle type="target" position={Position.Top} className="w-2 h-2 opacity-0" />
+        <Handle type="target" position={incomingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
 
       <DataText
@@ -205,7 +215,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       {data.hasOutgoing && (
-        <Handle type="source" position={Position.Bottom} className="w-2 h-2 opacity-0" />
+        <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
     </div>
   );

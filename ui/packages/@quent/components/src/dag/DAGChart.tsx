@@ -20,6 +20,7 @@ import {
   useEdgesState,
   useReactFlow,
   getSmoothStepPath,
+  Position,
   type Node,
   type Edge,
   type EdgeProps,
@@ -157,11 +158,12 @@ const VariableWidthEdge = ({
   const arrowWidth = strokeWidth * ARROW_WIDTH_MULTIPLIER + ARROW_WIDTH_BASE;
   const arrowDepth = arrowWidth * ARROW_DEPTH_RATIO;
   const markerId = `arrow-${id}`;
+  const targetYOffset = targetPosition === Position.Bottom ? arrowDepth : -arrowDepth;
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
-    targetY: targetY - arrowDepth,
+    targetY: targetY + targetYOffset,
     sourcePosition,
     targetPosition,
   });
@@ -325,6 +327,7 @@ const FlowLayout = ({
           metadata: node.metadata as QueryPlanNodeData['metadata'],
           hasIncoming: nodesWithIncoming.has(node.id),
           hasOutgoing: nodesWithOutgoing.has(node.id),
+          layoutDirection,
           isDark,
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
         },
@@ -349,7 +352,7 @@ const FlowLayout = ({
     }));
 
     return { flowNodes, flowEdges };
-  }, [data, isDark, operatorColorMap]);
+  }, [data, isDark, operatorColorMap, layoutDirection]);
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
