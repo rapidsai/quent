@@ -10,7 +10,7 @@ publish.workspace = true
 [features]
 # Non-local mode: fetch a run's telemetry from the (internal RAPIDS/NVIDIA)
 # Benchmarking API database. Off by default; irrelevant to non-NVIDIA users.
-db = ["dep:reqwest", "dep:serde", "dep:tempfile", "dep:tar", "dep:flate2", "dep:zstd", "dep:uuid"]
+db = ["dep:reqwest", "dep:serde", "dep:tempfile", "dep:tar", "dep:flate2", "dep:zstd", "dep:zip", "dep:uuid"]
 
 [dependencies]
 backon = "1"
@@ -37,6 +37,7 @@ tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "
 toml = "0.8"
 uuid = { version = "1", optional = true }
 walkdir = "2"
+zip = { version = "2", default-features = false, features = ["deflate", "deflate64", "zstd"], optional = true }
 zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]

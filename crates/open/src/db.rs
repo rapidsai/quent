@@ -29,9 +29,9 @@ use crate::Loader;
 use crate::error::{OpenError, Result};
 use crate::spec::discover_contexts;
 
-/// Asset filename suffixes treated as (possibly compressed) tar archives of
-/// telemetry. Other assets on a run (parquet traces, nsys reports, …) are skipped.
-const ARCHIVE_SUFFIXES: &[&str] = &[".tar", ".tar.gz", ".tgz", ".tar.zst", ".tzst"];
+/// Asset filename suffixes treated as archives of telemetry (tar family or zip).
+/// Other assets on a run (parquet traces, nsys reports, …) are skipped.
+const ARCHIVE_SUFFIXES: &[&str] = &[".tar", ".tar.gz", ".tgz", ".tar.zst", ".tzst", ".zip"];
 
 /// Run-wide cap on compressed bytes downloaded across all assets, so a run with
 /// many archives can't fill the disk despite each asset looking small.
@@ -224,11 +224,11 @@ impl DbLoader {
     }
 }
 
-/// Extract a downloaded tar archive (optionally gzip/zstd compressed) at `src` into
-/// `dest`. Entries that escape `dest` or aren't plain files/dirs (symlinks,
-/// hardlinks, devices) are rejected; extracted bytes are capped per-archive and
-/// against the run-wide `unpacked_remaining`, and the entry count against
-/// `entries_remaining`.
+/// Extract a downloaded archive (tar, optionally gzip/zstd compressed, or zip) at
+/// `src` into `dest`. Entries that escape `dest` or aren't plain files/dirs
+/// (symlinks, hardlinks, devices) are rejected; extracted bytes are capped
+/// per-archive and against the run-wide `unpacked_remaining`, and the entry count
+/// against `entries_remaining`.
 fn extract_archive(
     dest: &Path,
     filename: &str,
@@ -236,8 +236,11 @@ fn extract_archive(
     unpacked_remaining: &mut u64,
     entries_remaining: &mut u64,
 ) -> Result<()> {
-    let reader = std::io::BufReader::new(std::fs::File::open(src)?);
     let lower = filename.to_ascii_lowercase();
+    if lower.ends_with(".zip") {
+        return unpack_zip(src, dest, unpacked_remaining, entries_remaining);
+    }
+    let reader = std::io::BufReader::new(std::fs::File::open(src)?);
     if lower.ends_with(".tar.zst") || lower.ends_with(".tzst") {
         unpack_tar(
             zstd::stream::read::Decoder::new(reader)?,
@@ -371,19 +374,21 @@ fn is_archive(filename: &str) -> bool {
         .any(|suffix| lower.ends_with(suffix))
 }
 
-/// A reader that errors once its per-archive quota or the shared run-wide budget
-/// is exhausted, so an oversized stream (e.g. a decompression bomb, or a giant GNU
-/// long-name/PAX record `tar` buffers internally) fails loudly instead of being
-/// silently truncated at a [`Read::take`] EOF that `tar` would treat as success.
+/// A reader that errors once its (per-archive) `archive_remaining` quota or the
+/// shared run-wide `run_remaining` budget is exhausted, so an oversized stream
+/// (e.g. a decompression bomb, or a giant GNU long-name/PAX record `tar` buffers
+/// internally) fails loudly instead of being silently truncated at a
+/// [`Read::take`] EOF that `tar` would treat as success. Both counters are
+/// borrowed so they persist across an archive's entries.
 struct LimitReader<'a, R> {
     inner: R,
-    archive_remaining: u64,
+    archive_remaining: &'a mut u64,
     run_remaining: &'a mut u64,
 }
 
 impl<R: Read> Read for LimitReader<'_, R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let allowed = self.archive_remaining.min(*self.run_remaining);
+        let allowed = (*self.archive_remaining).min(*self.run_remaining);
         if allowed == 0 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -392,11 +397,37 @@ impl<R: Read> Read for LimitReader<'_, R> {
         }
         let cap = buf.len().min(allowed as usize);
         let read = self.inner.read(&mut buf[..cap])?;
-        self.archive_remaining -= read as u64;
+        *self.archive_remaining -= read as u64;
         *self.run_remaining -= read as u64;
         Ok(read)
     }
 }
+
+/// Draw one entry against the run-wide entry budget, erroring when it's exhausted.
+fn take_entry(entries_remaining: &mut u64) -> Result<()> {
+    if *entries_remaining == 0 {
+        return Err(OpenError::BadArtifactLayout {
+            detail: format!("run exceeds the {MAX_ENTRIES}-entry archive limit"),
+        });
+    }
+    *entries_remaining -= 1;
+    Ok(())
+}
+
+/// Force an extracted scratch directory owner-writable/traversable, so a read-only
+/// archive mode (e.g. `0555`) can't block extracting its children or removing the
+/// tree on cleanup.
+#[cfg(unix)]
+fn ensure_dir_writable(dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(metadata) = std::fs::metadata(dir) {
+        let mut perms = metadata.permissions();
+        perms.set_mode(perms.mode() | 0o700);
+        let _ = std::fs::set_permissions(dir, perms);
+    }
+}
+#[cfg(not(unix))]
+fn ensure_dir_writable(_dir: &Path) {}
 
 /// Unpack a tar archive under `root`. Rejects entries that escape `root` (paths
 /// with `..` or an absolute/root prefix — [`tar`] skips those, returning `false`)
@@ -404,28 +435,23 @@ impl<R: Read> Read for LimitReader<'_, R> {
 /// which could redirect writes outside `root`). Extracted bytes are capped
 /// per-archive and against the shared `unpacked_remaining`; the entry count is
 /// capped against `entries_remaining`. Extracted directories are forced
-/// owner-writable so a read-only header (e.g. `0555`) can't block extracting their
-/// children or removing the scratch tree on cleanup.
+/// owner-writable (see [`ensure_dir_writable`]).
 fn unpack_tar<R: Read>(
     reader: R,
     root: &Path,
     unpacked_remaining: &mut u64,
     entries_remaining: &mut u64,
 ) -> Result<()> {
+    let mut archive_remaining = MAX_ARCHIVE_UNPACKED_BYTES;
     let reader = LimitReader {
         inner: reader,
-        archive_remaining: MAX_ARCHIVE_UNPACKED_BYTES,
+        archive_remaining: &mut archive_remaining,
         run_remaining: unpacked_remaining,
     };
     let mut archive = tar::Archive::new(reader);
     archive.set_preserve_mtime(false);
     for entry in archive.entries()? {
-        if *entries_remaining == 0 {
-            return Err(OpenError::BadArtifactLayout {
-                detail: format!("run exceeds the {MAX_ENTRIES}-entry archive limit"),
-            });
-        }
-        *entries_remaining -= 1;
+        take_entry(entries_remaining)?;
         let mut entry = entry?;
         let kind = entry.header().entry_type();
         let relative = entry.path().map(|p| p.into_owned()).unwrap_or_default();
@@ -447,21 +473,81 @@ fn unpack_tar<R: Read>(
                 ),
             )));
         }
-        // Directories precede their children in a tar; force this one owner-writable
-        // before those children arrive (and so the tree is removable on cleanup),
-        // regardless of a restrictive mode in the archive header.
-        #[cfg(unix)]
+        // Directories precede their children in a tar; make this one writable
+        // before those children arrive.
         if kind.is_dir() {
-            use std::os::unix::fs::PermissionsExt;
-            let dir = root.join(&relative);
-            if let Ok(metadata) = std::fs::metadata(&dir) {
-                let mut perms = metadata.permissions();
-                perms.set_mode(perms.mode() | 0o700);
-                let _ = std::fs::set_permissions(&dir, perms);
-            }
+            ensure_dir_writable(&root.join(&relative));
         }
     }
     Ok(())
+}
+
+/// Unpack a zip archive at `src` under `root`, with the same guards as
+/// [`unpack_tar`]: reject entries that escape `root` or aren't plain files/dirs
+/// (e.g. unix symlinks), cap extracted bytes per-archive and against
+/// `unpacked_remaining`, cap the entry count against `entries_remaining`, and force
+/// extracted directories owner-writable.
+fn unpack_zip(
+    src: &Path,
+    root: &Path,
+    unpacked_remaining: &mut u64,
+    entries_remaining: &mut u64,
+) -> Result<()> {
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(src)?).map_err(zip_error)?;
+    let mut archive_remaining = MAX_ARCHIVE_UNPACKED_BYTES;
+    for index in 0..archive.len() {
+        take_entry(entries_remaining)?;
+        let mut entry = archive.by_index(index).map_err(zip_error)?;
+        // A path that would escape `root` (`..`, absolute) has no enclosed name.
+        let Some(relative) = entry.enclosed_name() else {
+            return Err(OpenError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "refusing zip entry that escapes the scratch dir: {}",
+                    entry.name()
+                ),
+            )));
+        };
+        // Reject anything that isn't a plain file or directory (e.g. unix symlinks
+        // stored via the mode bits), which could redirect writes outside `root`.
+        if let Some(mode) = entry.unix_mode() {
+            let format = mode & 0o170000;
+            if format != 0 && format != 0o040000 && format != 0o100000 {
+                return Err(OpenError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "refusing non-regular zip entry ({mode:o}): {}",
+                        relative.display()
+                    ),
+                )));
+            }
+        }
+        let out = root.join(&relative);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out)?;
+            ensure_dir_writable(&out);
+        } else {
+            if let Some(parent) = out.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut writer = std::fs::File::create(&out)?;
+            let mut reader = LimitReader {
+                inner: &mut entry,
+                archive_remaining: &mut archive_remaining,
+                run_remaining: unpacked_remaining,
+            };
+            std::io::copy(&mut reader, &mut writer)?;
+        }
+    }
+    Ok(())
+}
+
+/// Map a `zip` error to an [`OpenError`] (bad/unsupported archive contents).
+fn zip_error(error: zip::result::ZipError) -> OpenError {
+    OpenError::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!("invalid zip archive: {error}"),
+    ))
 }
 
 /// Turn a non-success HTTP response into [`OpenError::Api`], preserving the body.
@@ -712,10 +798,10 @@ mod tests {
     #[test]
     fn limit_reader_errors_when_run_budget_exhausted() {
         let data = [0u8; 100];
-        let mut run = 50u64;
+        let (mut archive, mut run) = (1_000u64, 50u64);
         let mut reader = LimitReader {
             inner: &data[..],
-            archive_remaining: 1_000,
+            archive_remaining: &mut archive,
             run_remaining: &mut run,
         };
         assert!(reader.read_to_end(&mut Vec::new()).is_err());
@@ -724,12 +810,47 @@ mod tests {
     #[test]
     fn limit_reader_errors_when_archive_cap_exhausted() {
         let data = [0u8; 100];
-        let mut run = 1_000u64;
+        let (mut archive, mut run) = (50u64, 1_000u64);
         let mut reader = LimitReader {
             inner: &data[..],
-            archive_remaining: 50,
+            archive_remaining: &mut archive,
             run_remaining: &mut run,
         };
         assert!(reader.read_to_end(&mut Vec::new()).is_err());
+    }
+
+    /// Build an in-memory zip nesting a context under `telemetry/`, like the real
+    /// run-assets zip.
+    fn context_zip() -> Vec<u8> {
+        let mut buf = Vec::new();
+        let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("telemetry/ctx-uuid/model.qmi", opts)
+            .unwrap();
+        zip.write_all(b"{}").unwrap();
+        zip.start_file("telemetry/ctx-uuid/engine/x.ndjson", opts)
+            .unwrap();
+        zip.finish().unwrap();
+        buf
+    }
+
+    #[test]
+    fn extract_zip_then_discover_finds_nested_context() {
+        let dest = tempfile::tempdir().unwrap();
+        let archive = archive_file(&context_zip());
+        let (mut bytes, mut entries) = budgets();
+        extract_archive(
+            dest.path(),
+            "run.zip",
+            archive.path(),
+            &mut bytes,
+            &mut entries,
+        )
+        .unwrap();
+
+        let found = discover_contexts(&[dest.path().to_path_buf()]).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].file_name().unwrap(), "ctx-uuid");
+        assert!(found[0].join(SIDECAR_FILE_NAME).is_file());
     }
 }
