@@ -22,7 +22,7 @@ import type {
   FiniteStateMachine,
   FsmTypeDecl,
   TimelineRequest,
-  TaskFilter,
+  OperatorFilter,
   TimelineConfig,
 } from '@quent/utils';
 import { QueryEntities, ResourceTree } from '@quent/utils';
@@ -257,23 +257,23 @@ export function mergeOverlaySeries(
 }
 
 /** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
-export function getResourceTypeName(params: TimelineRequest<TaskFilter> | undefined): string {
+export function getResourceTypeName(params: TimelineRequest<OperatorFilter> | undefined): string {
   if (!params) return '';
   if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
   return '';
 }
 
 /** Extract the entity_type_name (FSM filter) from a TimelineRequest */
-export function getFsmTypeName(params: TimelineRequest<TaskFilter>): string | null {
+export function getFsmTypeName(params: TimelineRequest<OperatorFilter>): string | null {
   if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
   return params.Resource.entity_filter.entity_type_name;
 }
 
 /** Clone entries and set operator_id on each TimelineRequest */
 export function setOperatorOnEntry(
-  entry: TimelineRequest<TaskFilter>,
+  entry: TimelineRequest<OperatorFilter>,
   operatorId: string
-): TimelineRequest<TaskFilter> {
+): TimelineRequest<OperatorFilter> {
   if ('ResourceGroup' in entry) {
     return {
       ResourceGroup: {
@@ -291,9 +291,9 @@ export function setOperatorOnEntry(
 }
 
 export function setOperatorOnEntries(
-  baseEntries: Record<string, TimelineRequest<TaskFilter>>,
+  baseEntries: Record<string, TimelineRequest<OperatorFilter>>,
   operatorId: string
-): Record<string, TimelineRequest<TaskFilter>> {
+): Record<string, TimelineRequest<OperatorFilter>> {
   return Object.fromEntries(
     Object.entries(baseEntries).map(([id, entry]) => [id, setOperatorOnEntry(entry, operatorId)])
   );
@@ -617,7 +617,7 @@ export function buildBulkParamsForItem(
   config: TimelineConfig,
   groupFsmFilters?: Map<string, string | null>,
   operatorId: string | null = null
-): TimelineRequest<TaskFilter> {
+): TimelineRequest<OperatorFilter> {
   const isGroup = item.type !== EntityTypeKey.Resource;
   const resourceTypeName = isGroup
     ? selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''
@@ -669,8 +669,8 @@ export function collectVisibleEntries(
   config: TimelineConfig,
   groupFsmFilters?: Map<string, string | null>,
   operatorId: string | null = null
-): Record<string, TimelineRequest<TaskFilter>> {
-  const result: Record<string, TimelineRequest<TaskFilter>> = {};
+): Record<string, TimelineRequest<OperatorFilter>> {
+  const result: Record<string, TimelineRequest<OperatorFilter>> = {};
 
   function walk(item: TreeTableItem) {
     result[item.id] = buildBulkParamsForItem(

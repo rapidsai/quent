@@ -1,0 +1,129 @@
+name: Feature request
+description: Suggest a new capability or improvement for Quent.
+title: "feat: "
+labels: ["feature request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to Quent.
+
+        Please describe the problem you are trying to solve, not just the implementation you have in mind. If a field does not apply, write "N/A".
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What would you like Quent to support or improve?
+      placeholder: "Example: Add a way to compare two simulator runs in the UI."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: Request type
+      description: Pick the closest fit.
+      options:
+        - New feature
+        - Improvement to existing functionality
+        - Documentation improvement
+        - Build, packaging, or tooling improvement
+        - Other
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Pick the closest area. Choose more than one if the request crosses boundaries.
+      multiple: true
+      options:
+        - Rust model/codegen/instrumentation
+        - Rust collector/analyzer/server
+        - Rust exporters or event formats
+        - Query engine domain
+        - UI
+        - C++ integration
+        - Python integration
+        - Build, CI, or tooling
+        - Documentation
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what makes it hard today?
+      placeholder: |
+        I am trying to ...
+        Today this is difficult because ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or API you would like. Include examples if helpful.
+      placeholder: |
+        I would like ...
+        A possible API/UI flow could be ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds, existing APIs, or different designs have you considered?
+      placeholder: "Example: I can export the data and inspect it manually, but ..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: rust_details
+    attributes:
+      label: Rust/API details
+      description: For Rust, generated bindings, analyzer, collector, server, C++, or Python bridge requests.
+      placeholder: |
+        - Crate/package:
+        - Proposed public API change:
+        - Relevant model, generated code, event payload, or dataset:
+        - Backwards compatibility concerns:
+    validations:
+      required: false
+
+  - type: textarea
+    id: ui_details
+    attributes:
+      label: UI details
+      description: For UI, visualization, browser, API, or static-page requests.
+      placeholder: |
+        - Route or view:
+        - User workflow:
+        - Data shown or interaction needed:
+        - Screenshot, sketch, or example from another tool:
+    validations:
+      required: false
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and migration notes
+      description: Would this be breaking, non-breaking, or require migration for existing users?
+      placeholder: "Example: This should be additive and non-breaking, unless ..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add links, screenshots, examples, related issues, or any other context.
+      placeholder: "Related issues, docs, examples, screenshots, or design notes."
+    validations:
+      required: false

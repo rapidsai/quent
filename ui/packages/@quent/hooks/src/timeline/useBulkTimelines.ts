@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAtomValue, useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@quent/client';
-import type { QueryEntities, TimelineRequest, TaskFilter, ZoomRange } from '@quent/utils';
+import type { QueryEntities, TimelineRequest, OperatorFilter, ZoomRange } from '@quent/utils';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 import { getResourceTypeName, getFsmTypeName } from './timeline.utils';
 import {
@@ -66,14 +66,14 @@ export function useBulkTimelines<T extends TreeNode>({
     entities: QueryEntities,
     config: { num_bins: number; start: number; end: number },
     groupFsmFilters?: Map<string, string | null>
-  ) => Record<string, TimelineRequest<TaskFilter>>;
+  ) => Record<string, TimelineRequest<OperatorFilter>>;
   buildBulkParamsFn: (
     item: T,
     selectedTypes: Map<string, string>,
     entities: QueryEntities,
     config: { num_bins: number; start: number; end: number },
     groupFsmFilters?: Map<string, string | null>
-  ) => TimelineRequest<TaskFilter>;
+  ) => TimelineRequest<OperatorFilter>;
   findItemByIdFn: (root: T, id: string) => T | undefined;
 }) {
   const store = useStore();
@@ -167,7 +167,7 @@ export function useBulkTimelines<T extends TreeNode>({
         end: zoom.end,
       };
 
-      const newBaseEntries: Record<string, TimelineRequest<TaskFilter>> = {};
+      const newBaseEntries: Record<string, TimelineRequest<OperatorFilter>> = {};
       for (const child of item.children as T[]) {
         const params = buildBulkParamsFn(
           child,

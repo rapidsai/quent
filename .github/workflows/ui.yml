@@ -12,7 +12,7 @@ on:
       - ".github/workflows/ui.yml"
 
 env:
-  PNPM_VERSION: "11.0.0"
+  PNPM_VERSION: "11.6.0"
   NODE_VERSION: "24.11.0"
 
 permissions:
@@ -112,6 +112,43 @@ jobs:
             ui/junit.xml
             ui/coverage/
 
+  e2e:
+    name: UI E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - run: curl -fsSL https://pixi.sh/install.sh | bash && echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
+        working-directory: .
+      - run: pixi install
+        working-directory: .
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_CARGO_COMMAND: pixi run cargo
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: ui-e2e-failure-report
+          path: |
+            ui/playwright-report/
+            ui/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
   audit:
     name: Audit
     runs-on: ubuntu-latest
@@ -136,7 +173,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [fmt, lint, typecheck, test]
+    needs: [fmt, lint, typecheck, test, e2e]
     defaults:
       run:
         working-directory: ui

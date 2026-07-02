@@ -138,7 +138,11 @@
 }
 
 @utility shadow-glow {
-  box-shadow: 0 0 14px 2px color-mix(in srgb, var(--glow-color, transparent) 55%, transparent);
+  box-shadow: 0 0 14px 2px color-mix(in srgb, var(--glow-color, transparent) 34%, transparent);
+}
+
+@utility shadow-node {
+  box-shadow: 0 0 8px 1px color-mix(in srgb, hsl(var(--foreground)) 16%, transparent);
 }
 
 @utility bg-diagonal-stripe {

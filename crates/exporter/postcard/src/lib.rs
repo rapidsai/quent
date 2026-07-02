@@ -16,15 +16,14 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
-use uuid::Uuid;
 
 /// Options for the Postcard exporter.
 ///
 /// Writes events in Postcard format (a compact, no_std-friendly binary
-/// encoding). Produces one file per instrumentation context in `output_dir`.
+/// encoding) to the file at `path`.
 #[derive(Debug, Clone)]
 pub struct PostcardExporterOptions {
-    pub output_dir: PathBuf,
+    pub path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -33,19 +32,15 @@ pub struct PostcardExporter {
 }
 
 impl PostcardExporter {
-    pub async fn try_new(
-        application_id: Uuid,
-        options: PostcardExporterOptions,
-    ) -> ExporterResult<Self> {
-        tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options
-            .output_dir
-            .join(format!("{}.postcard", application_id));
-        debug!("exporting to \"{}\"", path.display());
+    pub async fn try_new(options: PostcardExporterOptions) -> ExporterResult<Self> {
+        if let Some(parent) = options.path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        debug!("exporting to \"{}\"", options.path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(&options.path)
             .await?;
         Ok(Self {
             writer: Mutex::new(BufWriter::new(file)),
@@ -80,8 +75,9 @@ where
     }
 }
 
+/// Options for the Postcard importer. `path` is either the directory containing
+/// the event file (located by its `.postcard` extension) or the file itself.
 #[derive(Debug, Clone)]
-/// Options for the Postcard importer. Reads events from the file at `path`.
 pub struct PostcardImporterOptions {
     pub path: PathBuf,
 }
@@ -93,7 +89,8 @@ pub struct PostcardImporter<T> {
 
 impl<T> PostcardImporter<T> {
     pub fn try_new(options: &PostcardImporterOptions) -> ImporterResult<Self> {
-        let file = std::fs::File::open(&options.path)?;
+        let path = quent_exporter_types::resolve_import_path(&options.path, "postcard")?;
+        let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),

@@ -5,16 +5,17 @@
   "type": "module",
   "engines": {
     "node": ">=24.11.0",
-    "pnpm": ">=9.0.0"
+    "pnpm": ">=11.5.3"
   },
-  "packageManager": "pnpm@11.0.0",
+  "packageManager": "pnpm@11.6.0",
   "volta": {
     "node": "24.11.0",
-    "pnpm": "11.0.0"
+    "pnpm": "11.6.0"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "dev": "vite",
+    "start": "vite",
     "build": "tsr generate && tsc && vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -26,6 +27,10 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "playwright:install": "playwright install",
     "preview": "vite preview",
     "serve": "vite preview --port 4173",
     "stats": "vite build && open stats.html"
@@ -48,13 +53,13 @@
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-query-devtools": "^5.91.3",
     "@tanstack/react-router": "^1.169.9",
+    "@tanstack/react-router-devtools": "^1.166.20",
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.13.23",
-    "@tanstack/react-router-devtools": "^1.166.20",
     "@xyflow/react": "^12.10.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "echarts": "^5.6.0",
+    "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "elkjs": "^0.11.1",
     "jotai": "^2.18.0",
@@ -67,6 +72,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/router-cli": "^1.166.50",
     "@tanstack/router-vite-plugin": "^1.166.57",
@@ -94,6 +100,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.2",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.8"
   }
 }

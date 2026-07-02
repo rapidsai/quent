@@ -10,5 +10,4 @@ quent-events = { path = "../../events" }
 quent-exporter-types = { path = "../types" }
 serde.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
-uuid.workspace = true
 tracing.workspace = true

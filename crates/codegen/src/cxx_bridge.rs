@@ -17,7 +17,9 @@ use quote::{format_ident, quote};
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, ValueType};
 
-use crate::common::{pretty_print, quent_path, remap_module_path, to_pascal_case};
+use crate::common::{
+    pretty_print, quent_path, remap_module_path, resource_operating_attrs, to_pascal_case,
+};
 use crate::{CxxOptions, GeneratedFile};
 
 /// Recursively check whether any attribute in the list (or nested structs) uses `CustomAttributes`.
@@ -213,7 +215,7 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
 
     // Generate FSM bridges
     for fsm in &model.fsms {
-        files.push(emit_fsm_bridge(fsm, &model.name, options));
+        files.push(emit_fsm_bridge(model, fsm, &model.name, options));
     }
 
     files
@@ -427,16 +429,17 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
             type Kind = ::cxx::kind::Opaque;
         }
 
-        pub fn create_context(id: ffi::UUID, exporter: String, output_dir: String) -> Result<Box<Context>, String> {
+        pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
-                "ndjson" => Some(#q::exporter::ExporterOptions::Ndjson(
-                    #q::exporter::NdjsonExporterOptions {
-                        output_dir: output_dir.into(),
+                "ndjson" => Some(#q::exporter::ExporterOptions::FileSystem(
+                    #q::exporter::FileSystemExporterOptions {
+                        format: #q::exporter::FileSystemFormat::Ndjson,
+                        root: std::path::PathBuf::from(output_dir),
                     },
                 )),
                 _ => None,
             };
-            let inner = #q::Context::try_new(#q::uuid::Uuid::from(id), opts)
+            let inner = #q::Context::try_new(opts)
                 .map_err(|e| e.to_string())?;
             Ok(Box::new(Context { inner }))
         }
@@ -458,7 +461,7 @@ pub mod ffi {{
 
     extern "Rust" {{
         type Context;
-        fn create_context(id: UUID, exporter: String, output_dir: String) -> Result<Box<Context>>;
+        fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>>;
     }}
 }}
 "#
@@ -687,15 +690,71 @@ fn emit_struct_conversion(
     q: &syn::Path,
     component_mod: &syn::Path,
 ) -> TokenStream {
-    let type_ident: syn::Ident = syn::parse_str(type_path).unwrap();
+    let struct_path = qualify_struct_path(type_path, component_mod);
     let field_conversions: Vec<TokenStream> = attrs
         .iter()
         .map(|a| emit_field_conversion_tokens(a, q, component_mod))
         .collect();
     quote! {
-        #component_mod::#type_ident {
+        #struct_path {
             #(#field_conversions)*
         }
+    }
+}
+
+/// Resolve a model struct path into the facade path used by generated CXX bridge code.
+///
+/// Attribute metadata stores the path as it appeared at the declaration site. For
+/// example, an FSM in `my_instrumentation::task` can refer to local structs as
+/// `MemorySpaceId`, child-module structs as `attrs::MemorySpaceId`, or sibling
+/// module structs as `super::attrs::MemorySpaceId`. Generated bridge code lives
+/// outside that module, so relative paths must be qualified with the remapped
+/// component module path before constructing the real model struct.
+fn qualify_struct_path(type_path: &str, component_mod: &syn::Path) -> syn::Path {
+    let parsed: syn::Path = syn::parse_str(type_path).unwrap();
+    if parsed.leading_colon.is_some() {
+        return parsed;
+    }
+
+    let component_root = component_mod
+        .segments
+        .first()
+        .expect("component module path must not be empty")
+        .ident
+        .to_string();
+    if parsed
+        .segments
+        .first()
+        .is_some_and(|seg| seg.ident == component_root.as_str())
+    {
+        return parsed;
+    }
+
+    let mut prefix: Vec<syn::PathSegment> = component_mod.segments.iter().cloned().collect();
+    let mut suffix: Vec<syn::PathSegment> = parsed.segments.iter().cloned().collect();
+
+    if suffix.first().is_some_and(|seg| seg.ident == "crate") {
+        prefix.truncate(1);
+        suffix.remove(0);
+    } else if suffix.first().is_some_and(|seg| seg.ident == "self") {
+        suffix.remove(0);
+    }
+
+    while suffix.first().is_some_and(|seg| seg.ident == "super") {
+        prefix
+            .pop()
+            .expect("struct path cannot escape instrumentation facade");
+        suffix.remove(0);
+    }
+
+    let mut segments = syn::punctuated::Punctuated::<syn::PathSegment, syn::token::PathSep>::new();
+    for segment in prefix.into_iter().chain(suffix) {
+        segments.push(segment);
+    }
+
+    syn::Path {
+        leading_colon: None,
+        segments,
     }
 }
 
@@ -829,12 +888,19 @@ fn emit_entity_bridge(
 /// The state callback signature is: instance_name, attrs..., usages...
 /// where usages are `Option<Usage<T>>`.
 fn emit_state_flat_args(
+    model: &ModelBuilder,
     state: &StateDef,
     q: &syn::Path,
     component_mod_str: &str,
+    options: &CxxOptions,
 ) -> (TokenStream, Vec<TokenStream>) {
     let mut stmts = Vec::new();
     let mut args = Vec::new();
+
+    // FSM state attributes can include model structs. The CXX bridge receives
+    // its own ffi::Struct copy, but the model callback expects the real struct
+    // under the instrumentation crate facade.
+    let component_mod: syn::Path = syn::parse_str(component_mod_str).unwrap();
 
     // Attributes become flat args — instance_name first (as &str), then others
     for attr in &state.attributes {
@@ -876,6 +942,48 @@ fn emit_state_flat_args(
                     args.push(quote! { #q::Ref::new(#q::uuid::Uuid::from(data.#field_name)) });
                 }
             }
+            ValueType::CustomAttributes if !attr.optional => {
+                // Keep FSM state conversion aligned with entity/event payload
+                // conversion before calling the model callback.
+                args.push(quote! { data.#field_name.into_model() });
+            }
+            ValueType::Struct(type_path, inner_attrs) if !attr.optional => {
+                // Convert ffi::SomeStruct into instrumentation_crate::module::SomeStruct.
+                // Without this, Rust sees two distinct structs with identical fields.
+                let conversion = emit_struct_conversion(type_path, inner_attrs, q, &component_mod);
+                args.push(quote! {
+                    {
+                        let data = data.#field_name;
+                        #conversion
+                    }
+                });
+            }
+            ValueType::List(inner) if !attr.optional => match inner.as_ref() {
+                ValueType::Ref(_) => {
+                    args.push(quote! {
+                        data.#field_name
+                            .into_iter()
+                            .map(|u| #q::Ref::new(#q::uuid::Uuid::from(u)))
+                            .collect()
+                    });
+                }
+                ValueType::Uuid => {
+                    args.push(quote! {
+                        data.#field_name
+                            .into_iter()
+                            .map(|u| #q::uuid::Uuid::from(u))
+                            .collect()
+                    });
+                }
+                ValueType::Struct(type_path, inner_attrs) => {
+                    let conversion =
+                        emit_struct_conversion(type_path, inner_attrs, q, &component_mod);
+                    args.push(quote! {
+                        data.#field_name.into_iter().map(|data| { #conversion }).collect()
+                    });
+                }
+                _ => args.push(quote! { data.#field_name }),
+            },
             _ => {
                 if attr.optional {
                     // Optional numeric: always wrap in Some — C++ provides concrete values.
@@ -892,21 +1000,40 @@ fn emit_state_flat_args(
     for usage in &state.usages {
         let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
         let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
+        let capacity_attrs = resource_operating_attrs(model, usage);
+
         // Resource type paths may be bare names (e.g., "Queue") for types in the
-        // same crate, or qualified (e.g., "quent_stdlib::processor::Processor"). Bare names
-        // need to be resolved against the component's module path.
+        // same crate, or qualified (e.g., "quent_stdlib::processor::Processor").
+        // The bridge should depend on the instrumentation crate facade, so
+        // qualified paths are remapped through that facade:
+        //
+        //   quent_stdlib::memory::Memory
+        //
+        // becomes instrumentation_crate::memory::Memory.
         let resource_ty: syn::Type = {
             let path = &usage.resource_type_path;
-            if path.contains("::") {
-                syn::parse_str(path).unwrap()
+            let resource_path = if path.contains("::") {
+                remap_module_path(path, options)
             } else {
-                syn::parse_str(&format!("{}::{}", component_mod_str, path)).unwrap()
-            }
+                format!("{}::{}", component_mod_str, path)
+            };
+
+            syn::parse_str(&resource_path).unwrap()
         };
 
         stmts.push(quote! {
             type #alias = <#resource_ty as #q::Resource>::CapacityValue;
         });
+
+        let capacity_expr = if capacity_attrs.is_empty() {
+            quote! { #alias::default() }
+        } else {
+            let values = capacity_attrs.iter().map(|attr| {
+                let field = format_ident!("{}_{}", usage.field_name, attr.name);
+                quote! { data.#field }
+            });
+            quote! { #alias::from((#(#values,)*)) }
+        };
 
         args.push(quote! {
             {
@@ -916,7 +1043,7 @@ fn emit_state_flat_args(
                 } else {
                     Some(#q::Usage {
                         resource_id: #q::Ref::new(uuid),
-                        capacity: #alias::default(),
+                        capacity: #capacity_expr,
                     })
                 }
             }
@@ -927,7 +1054,12 @@ fn emit_state_flat_args(
 }
 
 /// Generate a CXX bridge for an FSM.
-fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> GeneratedFile {
+fn emit_fsm_bridge(
+    model: &ModelBuilder,
+    fsm: &FsmDef,
+    model_name: &str,
+    options: &CxxOptions,
+) -> GeneratedFile {
     let fsm_name = &fsm.name;
     let safe_name = cxx_safe_name(fsm_name);
     let ns = format!("{}::{}", options.namespace, safe_name);
@@ -981,6 +1113,21 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
                 "        pub {}_resource_id: UUID,\n",
                 usage.field_name
             ));
+
+            for attr in resource_operating_attrs(model, usage) {
+                let cxx_type = value_type_to_cxx(&attr.value_type, attr.optional)
+                          .unwrap_or_else(|| {
+                              panic!(
+                                  "usage capacity `{}` for usage `{}` on state `{}` has type not representable in CXX",
+                                  attr.name, usage.field_name, state.name
+                              )
+                          });
+
+                fields_str.push_str(&format!(
+                    "        pub {}_{}: {},\n",
+                    usage.field_name, attr.name, cxx_type
+                ));
+            }
         }
         shared_structs_str.push_str(&format!(
             "    #[derive(Debug)]\n    pub struct {state_pascal} {{\n{fields_str}    }}\n\n"
@@ -1051,7 +1198,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
                     }
                 }
             } else {
-                let (stmts, args) = emit_state_flat_args(state, &q, &remapped);
+                let (stmts, args) = emit_state_flat_args(model, state, &q, &remapped, options);
                 quote! {
                     pub fn #method_name(&mut self, data: ffi::#state_pascal_ident) {
                         #stmts
@@ -1064,7 +1211,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
 
     let observer_name = format_ident!("{}Observer", pascal_name);
     let factory_fn = if has_entry_data {
-        let (stmts, args) = emit_state_flat_args(entry_state, &q, &remapped);
+        let (stmts, args) = emit_state_flat_args(model, entry_state, &q, &remapped, options);
         quote! {
             pub fn create(ctx: &super::context::Context, data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #stmts

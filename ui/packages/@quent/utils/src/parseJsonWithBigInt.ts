@@ -1,31 +1,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { parse } from 'json-custom-numbers';
+
 /**
- * TODO: Figure out a more permanent solution for this
- * Parse JSON with BigInt support for large integers.
- * Integers larger than Number.MAX_SAFE_INTEGER are converted to BigInt.
+ * Parse JSON with BigInt support for large integer number tokens.
+ *
+ * Integers outside the safe JavaScript number range are converted to BigInt.
+ * Strings are parsed as strings, even when their contents look like large
+ * integers.
  */
 export function parseJsonWithBigInt<T>(text: string): T {
-  // Match integers that are too large for Number (and not floats)
-  // This regex finds: a number boundary, optional minus, digits only (no decimal/exponent)
-  // We convert integers > MAX_SAFE_INTEGER to BigInt
-  const processed = text.replace(
-    /([:\s[,]|^)(-?\d{16,})(?=[,\s}\]]|$)/g,
-    (match, prefix, numStr) => {
-      const num = Number(numStr);
-      // Only convert if it exceeds safe integer range
-      if (!Number.isSafeInteger(num)) {
-        return `${prefix}"__bigint__${numStr}"`;
-      }
-      return match;
-    }
-  );
+  return parse(text, undefined, parseUnsafeInteger) as T;
+}
 
-  return JSON.parse(processed, (_key, value) => {
-    if (typeof value === 'string' && value.startsWith('__bigint__')) {
-      return BigInt(value.slice(10));
-    }
-    return value;
-  });
+function parseUnsafeInteger(_key: string | number | undefined, source: string): number | bigint {
+  const value = Number(source);
+
+  if (isIntegerLiteral(source) && !Number.isSafeInteger(value)) {
+    return BigInt(source);
+  }
+
+  return value;
+}
+
+function isIntegerLiteral(source: string): boolean {
+  return !source.includes('.') && !source.includes('e') && !source.includes('E');
 }

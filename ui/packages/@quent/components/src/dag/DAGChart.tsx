@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import ELK from 'elkjs';
 import {
   useCallback,
   useEffect,
@@ -40,14 +39,13 @@ import {
   useSetSelectedNodeData,
   useSetDagDisplayedNodeIds,
 } from '@quent/hooks';
+import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { continuousColor, getOperationTypeColor, buildOperatorColorMap } from '@quent/utils';
 import { inferFieldFormatter } from '@quent/utils';
-
-const elk = new ELK();
 
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
@@ -61,8 +59,6 @@ const ARROW_DEPTH_RATIO = 0.6;
 const FALLBACK_NORMALIZED_T = 0.5; // used when min === max
 
 // Layout constants
-const NODE_LAYOUT_WIDTH = 200;
-const NODE_LAYOUT_HEIGHT = 60;
 const FIT_VIEW_PADDING = 0.1;
 const FLOW_MIN_ZOOM = 0.1;
 const FLOW_MAX_ZOOM = 2;
@@ -221,16 +217,6 @@ const VariableWidthEdge = ({
   );
 };
 
-const ELK_LAYER_SPACING = '100';
-const ELK_NODE_SPACING = '50';
-
-const elkOptions = {
-  'elk.algorithm': 'layered',
-  'elk.direction': 'DOWN',
-  'elk.layered.spacing.nodeNodeBetweenLayers': ELK_LAYER_SPACING,
-  'elk.spacing.nodeNode': ELK_NODE_SPACING,
-};
-
 const edgeTypes = {
   smoothstep: VariableWidthEdge,
   default: VariableWidthEdge,
@@ -267,37 +253,6 @@ interface DAGProps {
   selectedNodeIds?: string[];
   /** Called when node selection changes. */
   onSelectionChange?: (nodeIds: string[]) => void;
-}
-
-async function calculateLayout(
-  nodes: Node<QueryPlanNodeData>[],
-  edges: Edge[]
-): Promise<{ nodes: Node<QueryPlanNodeData>[]; edges: Edge[] }> {
-  const graph = {
-    id: 'root',
-    layoutOptions: elkOptions,
-    children: nodes.map(node => ({
-      id: node.id,
-      width: NODE_LAYOUT_WIDTH,
-      height: NODE_LAYOUT_HEIGHT,
-    })),
-    edges: edges.map(edge => ({
-      id: edge.id,
-      sources: [edge.source],
-      targets: [edge.target],
-    })),
-  };
-
-  const layout = await elk.layout(graph);
-
-  return {
-    nodes:
-      layout.children?.map((child, i) => ({
-        ...nodes[i],
-        position: { x: child.x ?? 0, y: child.y ?? 0 },
-      })) ?? [],
-    edges: edges,
-  };
 }
 
 const FlowLayout = ({
@@ -372,8 +327,7 @@ const FlowLayout = ({
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
         },
         style: {
-          width: 'auto',
-          minWidth: NODE_LAYOUT_WIDTH,
+          width: NODE_LAYOUT_WIDTH,
           background: 'transparent',
           boxShadow: 'none',
           border: 0,

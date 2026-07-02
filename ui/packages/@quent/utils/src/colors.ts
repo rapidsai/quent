@@ -337,8 +337,8 @@ const VIRIDIS_STOPS: [number, number, number][] = [
   [253, 231, 37],
 ];
 
-const NEUTRAL: [number, number, number] = [229, 231, 235];
-const NEUTRAL_DARK: [number, number, number] = [55, 65, 81];
+const NEUTRAL: [number, number, number] = [255, 255, 255];
+const NEUTRAL_DARK: [number, number, number] = [14, 22, 33];
 
 function blendToColor(
   r: number,

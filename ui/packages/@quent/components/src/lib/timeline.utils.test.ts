@@ -23,7 +23,7 @@ import {
 } from './timeline.utils';
 import type { TimelineSeries, TimelineSeriesEntry } from '../timeline/types';
 import type { TreeTableItem } from '../resource-tree/types';
-import type { TimelineRequest, TaskFilter } from '@quent/utils';
+import type { TimelineRequest, OperatorFilter } from '@quent/utils';
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -49,7 +49,7 @@ function makeTreeItem(id: string, children?: TreeTableItem[]): TreeTableItem {
 const baseConfig = { start: 0, end: 10, num_bins: 10 };
 const baseFilter = { entity_type_name: null };
 
-function makeResourceEntry(): TimelineRequest<TaskFilter> {
+function makeResourceEntry(): TimelineRequest<OperatorFilter> {
   return {
     Resource: {
       resource_id: 'r1',
@@ -61,7 +61,7 @@ function makeResourceEntry(): TimelineRequest<TaskFilter> {
   };
 }
 
-function makeGroupEntry(): TimelineRequest<TaskFilter> {
+function makeGroupEntry(): TimelineRequest<OperatorFilter> {
   return {
     ResourceGroup: {
       resource_group_id: 'g1',

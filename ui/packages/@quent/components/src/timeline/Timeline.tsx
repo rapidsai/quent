@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import ReactEChartsComponent from 'echarts-for-react';
+import EChartsReactCore from 'echarts-for-react/lib/core';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
@@ -82,10 +82,7 @@ export function Timeline({
         type: 'line',
         stack: isOverlay ? `overlay-total` : 'total',
         step: 'middle',
-        symbol: 'circle',
-        symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
-        hoverAnimation: false,
-        showSymbol: false,
+        symbol: 'none',
         ...TIMELINE_X_AXIS_ANIMATION,
         cursor: 'default',
         data: seriesData.values.map((value, index) => [timestamps[index], value]),
@@ -205,7 +202,7 @@ export function Timeline({
 
   const xAxisOptions = useMemo(
     () => ({
-      boundaryGap: false,
+      boundaryGap: [0, 0] as [number, number],
       type: 'time',
       animation: false,
       show: true,
@@ -246,9 +243,6 @@ export function Timeline({
         showContent: false,
         trigger: 'axis',
         transitionDuration: 0,
-      },
-      title: {
-        left: 'center',
       },
       axisPointer: {
         link: [{ xAxisIndex: 'all' }],
@@ -434,7 +428,7 @@ export function Timeline({
           {formatAxisValue(maxValue)}
         </span>
       )}
-      <ReactEChartsComponent
+      <EChartsReactCore
         echarts={echarts}
         theme={themeName}
         opts={opts}

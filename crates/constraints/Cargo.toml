@@ -1,0 +1,13 @@
+[package]
+name = "quent-constraints"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+petgraph = { workspace = true }
+quent-schema = { path = "../schema", features = ["visitor"] }
+rustc-hash = { workspace = true }
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }

@@ -8,10 +8,11 @@ import quent_readme as quent
 
 def main() -> None:
     output_dir = Path("./events")
-    cluster_id = quent.now_v7()
-    context = quent.Context(cluster_id, "ndjson", str(output_dir))
+    context = quent.Context("ndjson", str(output_dir))
 
-    # The root resource group uses the same ID as the context.
+    # The context generates its own id and writes events under
+    # `output_dir/<id>/`. Reuse it as the root resource group id.
+    cluster_id = context.id
     cluster = context.cluster_observer().cluster(cluster_id, "example_cluster")
 
     # Spawn a worker.
@@ -80,7 +81,7 @@ def main() -> None:
     # Close context to flush all pending events.
     context.close()
 
-    output_path = (output_dir / f"{cluster_id}.ndjson").resolve()
+    output_path = (output_dir / str(cluster_id) / "events.ndjson").resolve()
     print(f"Events written to: {output_path}")
 
 

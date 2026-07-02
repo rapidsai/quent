@@ -21,8 +21,9 @@ def test_uuid_ordering() -> None:
 def test_engine_definition(tmp_path_factory: pytest.TempPathFactory) -> None:
     path = tmp_path_factory.mktemp("events")
 
-    engine_id = quent.now_v7()
-    context = quent.Context(engine_id, "ndjson", str(path))
+    context = quent.Context("ndjson", str(path))
+    # The context generates its own id; use it as the root engine id.
+    engine_id = context.id
 
     engine_attrs = {
         "deployment": "test",
@@ -106,6 +107,6 @@ def test_engine_definition(tmp_path_factory: pytest.TempPathFactory) -> None:
     engine.exit()
     context.close()
 
-    output_path = (path / f"{engine_id}.ndjson").resolve()
+    output_path = (path / str(engine_id) / "events.ndjson").resolve()
     assert output_path.exists(), output_path
     assert output_path.stat().st_size > 0, output_path

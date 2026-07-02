@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
-import type { ZoomRange, SingleTimelineResponse, TimelineRequest, TaskFilter } from '@quent/utils';
+import type { ZoomRange, SingleTimelineResponse, TimelineRequest, OperatorFilter } from '@quent/utils';
 
 /**
  * All dimensions that distinguish a cached timeline entry.
@@ -71,7 +71,7 @@ export const startTimeMsAtom = atom(0);
 export const bulkInitializedAtom = atom(false);
 
 /** Visible entries for bulk fetch — set in useEffect, read imperatively via store.get() */
-export const visibleEntriesAtom = atom<Record<string, TimelineRequest<TaskFilter>>>({});
+export const visibleEntriesAtom = atom<Record<string, TimelineRequest<OperatorFilter>>>({});
 
 /** When true, hides task annotation marks on timeline charts */
 export const hideTasksAtom = atom(false);

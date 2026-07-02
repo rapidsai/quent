@@ -12,8 +12,7 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -1143,17 +1142,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut engine = Engine::new();
 
     let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir: "data".into(),
+        "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Postcard,
+            root: "data".into(),
         })),
-        "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir: "data".into(),
+        "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Msgpack,
+            root: "data".into(),
         })),
-        "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: "data".into(),
+        "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Ndjson,
+            root: "data".into(),
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
+            application_id: engine.id,
         })),
         "none" => None,
         _ => {
@@ -1164,7 +1167,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .into());
         }
     };
-    let context = SimulatorContext::try_new(engine.id, exporter)?;
+    let context = SimulatorContext::try_new(exporter)?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 

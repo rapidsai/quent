@@ -16,4 +16,5 @@ syn = { version = "2", features = ["full", "parsing"] }
 quent-query-engine-model = { path = "../../domains/query_engine/model" }
 quent-readme-example = { path = "../../examples/readme" }
 quent-simulator-instrumentation = { path = "../../examples/simulator/instrumentation" }
+serde = { workspace = true, features = ["derive"] }
 syn = { version = "2", features = ["full", "parsing"] }

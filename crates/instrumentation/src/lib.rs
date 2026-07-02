@@ -82,6 +82,8 @@ pub struct Context<T>
 where
     T: Serialize + Send + 'static,
 {
+    /// Identity of this context, generated on construction.
+    id: Uuid,
     handle: Option<Handle>,
     events_sender: EventSender<T>,
     exporter: Option<Arc<dyn Exporter<T>>>,
@@ -99,14 +101,13 @@ impl<T> Context<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub fn try_new(
-        id: Uuid,
-        exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>> {
+        let id = Uuid::now_v7();
         let kind = match exporter {
             None => {
                 debug!("using noop exporter");
                 return Ok(Context {
+                    id,
                     handle: None,
                     events_sender: EventSender {
                         tx: None,
@@ -137,7 +138,8 @@ where
         let (events_sender, mut events_receiver) = unbounded_channel();
 
         debug!("constructing exporter");
-        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind, id))?;
+        let kind = kind.in_context_dir(id);
+        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -177,6 +179,7 @@ where
         });
 
         Ok(Context {
+            id,
             handle: Some(handle),
             events_sender: EventSender {
                 tx: Some(events_sender),
@@ -187,6 +190,11 @@ where
             forwarder_handle: Some(forwarder_handle),
             _runtime: runtime,
         })
+    }
+
+    /// Identity of this context, generated on construction.
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 
     pub fn events_sender(&self) -> EventSender<T> {
@@ -228,7 +236,7 @@ mod tests {
 
     #[test]
     fn noop_exporter() {
-        let ctx = Context::<TestEvent>::try_new(Uuid::now_v7(), None).unwrap();
+        let ctx = Context::<TestEvent>::try_new(None).unwrap();
         assert!(ctx.handle.is_none());
         assert!(ctx.exporter.is_none());
         assert!(ctx.forwarder_handle.is_none());

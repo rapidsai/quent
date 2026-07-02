@@ -16,16 +16,14 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
-use uuid::Uuid;
 
 /// Options for the MessagePack exporter.
 ///
-/// Writes events in MessagePack binary format. Compact and fast to
-/// serialize/deserialize. Produces one file per instrumentation context
-/// in `output_dir`.
+/// Writes events in MessagePack binary format to the file at `path`. Compact
+/// and fast to serialize/deserialize.
 #[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
-    pub output_dir: PathBuf,
+    pub path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -34,19 +32,15 @@ pub struct MsgpackExporter {
 }
 
 impl MsgpackExporter {
-    pub async fn try_new(
-        application_id: Uuid,
-        options: MsgpackExporterOptions,
-    ) -> ExporterResult<Self> {
-        tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options
-            .output_dir
-            .join(format!("{}.msgpack", application_id));
-        debug!("exporting to \"{}\"", path.display());
+    pub async fn try_new(options: MsgpackExporterOptions) -> ExporterResult<Self> {
+        if let Some(parent) = options.path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        debug!("exporting to \"{}\"", options.path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(&options.path)
             .await?;
         Ok(Self {
             writer: Mutex::new(BufWriter::new(file)),
@@ -81,8 +75,10 @@ where
     }
 }
 
+/// Options for the MessagePack importer. `path` is either the directory
+/// containing the event file (located by its `.msgpack` extension) or the file
+/// itself.
 #[derive(Debug, Clone)]
-/// Options for the MessagePack importer. Reads events from the file at `path`.
 pub struct MsgpackImporterOptions {
     pub path: PathBuf,
 }
@@ -94,7 +90,8 @@ pub struct MsgpackImporter<T> {
 
 impl<T> MsgpackImporter<T> {
     pub fn try_new(options: &MsgpackImporterOptions) -> ImporterResult<Self> {
-        let file = std::fs::File::open(&options.path)?;
+        let path = quent_exporter_types::resolve_import_path(&options.path, "msgpack")?;
+        let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),

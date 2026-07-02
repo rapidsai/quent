@@ -1,0 +1,16 @@
+[package]
+name = "quent-instrumentation-build-example"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-attributes = { path = "../../attributes" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }
+
+[build-dependencies]
+quent-constraints = { path = "../../constraints" }
+quent-instrumentation-build = { path = ".." }
+quent-schema = { path = "../../schema", features = ["test-utils"] }

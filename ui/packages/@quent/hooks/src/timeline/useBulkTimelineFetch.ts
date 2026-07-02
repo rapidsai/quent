@@ -7,7 +7,7 @@ import { useStore } from 'jotai';
 import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@quent/client';
 import type {
   TimelineRequest,
-  TaskFilter,
+  OperatorFilter,
   BulkTimelinesResponse,
   ZoomRange,
   SingleTimelineResponse,
@@ -32,7 +32,7 @@ export interface BulkTimelineIdMeta {
 }
 
 export interface MergedBulkEntries {
-  entries: Record<string, TimelineRequest<TaskFilter>>;
+  entries: Record<string, TimelineRequest<OperatorFilter>>;
   idToMeta: Map<string, BulkTimelineIdMeta>;
   requestKey: string;
 }
@@ -64,10 +64,10 @@ export function applyBulkTimelineResponse(
  * operatorId when provided. Returns UUID-keyed entries, idToMeta map, and a stable requestKey.
  */
 export function buildMergedBulkEntries(
-  baseEntries: Record<string, TimelineRequest<TaskFilter>>,
+  baseEntries: Record<string, TimelineRequest<OperatorFilter>>,
   operatorId: string | null | undefined
 ): MergedBulkEntries {
-  const entries: Record<string, TimelineRequest<TaskFilter>> = {};
+  const entries: Record<string, TimelineRequest<OperatorFilter>> = {};
   const idToMeta = new Map<string, BulkTimelineIdMeta>();
 
   for (const [resourceId, params] of Object.entries(baseEntries)) {
@@ -116,7 +116,7 @@ export function useBulkTimelineFetch({
   engineId: string;
   queryId: string;
   debouncedZoomRange: ZoomRange;
-  entries: Record<string, TimelineRequest<TaskFilter>>;
+  entries: Record<string, TimelineRequest<OperatorFilter>>;
   operatorId?: string | null;
   enabled?: boolean;
 }) {

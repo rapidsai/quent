@@ -1,0 +1,17 @@
+{
+  "name": "@quent/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/generated/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "cargo test -p quent-schema --features ts --test export_bindings",
+    "typecheck": "pnpm build && tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

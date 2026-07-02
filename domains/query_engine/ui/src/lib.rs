@@ -11,10 +11,23 @@ use quent_ui::{
     Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
     quantity::QuantitySpec,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use ts_rs::TS;
 use uuid::Uuid;
+
+/// Global timeline-request parameter identifying the query to report on.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct QueryFilter {
+    pub query_id: Uuid,
+}
+
+/// Per-entry timeline-request parameter; restricts a resource timeline to a
+/// single operator when set.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct OperatorFilter {
+    pub operator_id: Option<Uuid>,
+}
 
 /// Attributes describing details about the implementation of this Engine
 #[derive(TS, Debug, Serialize)]

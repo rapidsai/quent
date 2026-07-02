@@ -35,7 +35,7 @@ import type {
   SingleTimelineResponse,
   SingleTimelineRequest,
   QueryFilter,
-  TaskFilter,
+  OperatorFilter,
   CapacityDecl,
   QuantitySpec,
   FsmTypeDecl,
@@ -150,7 +150,7 @@ export function ResourceTimeline({
         start,
         end,
       };
-      const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
+      const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: isGroup
           ? {
               ResourceGroup: {

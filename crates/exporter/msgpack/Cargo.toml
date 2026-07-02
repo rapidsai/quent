@@ -10,5 +10,4 @@ quent-exporter-types = { path = "../types" }
 rmp-serde.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
-uuid.workspace = true
 tracing.workspace = true

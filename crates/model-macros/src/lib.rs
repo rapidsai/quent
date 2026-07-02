@@ -89,9 +89,10 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// This generates `AppContext`, the entry point for instrumenting your
 /// application. To start emitting events:
 ///
-/// 1. Create a context: `let ctx = AppContext::try_new(Uuid::now_v7(), Some(exporter_options))?;`
-/// 2. Get an observer: `let obs = ctx.cluster_observer();`
-/// 3. Emit events: `obs.cluster(id, "my-cluster");`
+/// 1. Mint the root entity's id: `let cluster_id = Uuid::now_v7();`
+/// 2. Create a context with it: `let ctx = AppContext::try_new(cluster_id, Some(exporter_options))?;`
+/// 3. Get an observer: `let obs = ctx.cluster_observer();`
+/// 4. Declare the root with the same id: `obs.cluster(cluster_id, "my-cluster");`
 ///
 /// For FSMs: the observer's entry method returns a handle for state transitions.
 /// For resources: the observer's `initializing()` method returns a handle for

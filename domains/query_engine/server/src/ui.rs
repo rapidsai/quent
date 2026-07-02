@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::hash::Hash;
-
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -218,17 +216,10 @@ where
 async fn single_timeline<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
-    Json(request): Json<
-        SingleTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
-    >,
+    Json(request): Json<SingleTimelineRequest<ui::QueryFilter, ui::OperatorFilter>>,
 ) -> ServerResult<Json<SingleTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Hash + Eq + Clone + Send + 'static,
-    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Hash + Eq + Clone + Send + 'static,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(
@@ -256,18 +247,10 @@ where
 async fn bulk_timelines<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
-    Json(request): Json<
-        BulkTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
-    >,
+    Json(request): Json<BulkTimelineRequest<ui::QueryFilter, ui::OperatorFilter>>,
 ) -> ServerResult<Json<BulkTimelinesResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams:
-        Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
 {
     let analyzer = state.analyzers.get(engine_id).await?;
     Ok(Json(
@@ -301,11 +284,6 @@ pub fn routes<A>(state: ServiceState<A>) -> Router<()>
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams:
-        Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + Hash + Eq + 'static,
-    for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
-    for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
     Router::new()
         .route("/", get(list_engines))

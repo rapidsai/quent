@@ -5,7 +5,7 @@
 //! client emitting events.
 //!
 //! Single `emit` group with one entry per exporter backing (plus `noop`):
-//! - `noop` — `Context::try_new(_, None)`; the cost a caller pays when
+//! - `noop` — `Context::try_new(None)`; the cost a caller pays when
 //!   instrumentation is compiled in but not active.
 //! - `ndjson` / `msgpack` / `postcard` — write to a temp dir that is cleaned
 //!   up when the bench function returns.
@@ -24,8 +24,7 @@ use pprof::criterion::{Output, PProfProfiler};
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 use quent_instrumentation::Context;
 use serde::{Deserialize, Serialize};
@@ -55,8 +54,9 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
     let address = format!("http://{}", std_listener.local_addr()?);
     std_listener.set_nonblocking(true)?;
 
-    let backing = ExporterOptions::Ndjson(NdjsonExporterOptions {
-        output_dir: backing_dir.to_path_buf(),
+    let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
+        format: FileSystemFormat::Ndjson,
+        root: backing_dir.to_path_buf(),
     });
     let opts = CollectorServiceOptions { exporter: backing };
 
@@ -85,7 +85,7 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let ctx = Context::<BenchEvent>::try_new(Uuid::now_v7(), exporter)?;
+    let ctx = Context::<BenchEvent>::try_new(exporter)?;
     let sender = ctx.events_sender();
     let event_id = Uuid::now_v7();
 
@@ -121,22 +121,25 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
     bench_emit_variant(
         &mut group,
         "ndjson",
-        Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: ndjson_dir.path().to_path_buf(),
+        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Ndjson,
+            root: ndjson_dir.path().to_path_buf(),
         })),
     )?;
     bench_emit_variant(
         &mut group,
         "msgpack",
-        Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir: msgpack_dir.path().to_path_buf(),
+        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Msgpack,
+            root: msgpack_dir.path().to_path_buf(),
         })),
     )?;
     bench_emit_variant(
         &mut group,
         "postcard",
-        Some(ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir: postcard_dir.path().to_path_buf(),
+        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Postcard,
+            root: postcard_dir.path().to_path_buf(),
         })),
     )?;
     bench_emit_variant(
@@ -144,6 +147,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         "collector",
         Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: collector_address,
+            application_id: Uuid::now_v7(),
         })),
     )?;
 

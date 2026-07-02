@@ -2,9 +2,11 @@
 
 A front end for query profiling instrumentation
 
+![Quent overview demo](./docs/screenshots/demo.gif)
+
 ## Tech Stack
 
-- **React 18** - UI library
+- **React** - UI library
 - **TypeScript** - Type safety
 - **Vite** - Build tool and dev server
 - **TanStack Router** - Type-safe routing
@@ -20,11 +22,12 @@ A front end for query profiling instrumentation
 
 ### Prerequisites
 
-- **Node.js 24.11.0** (enforced via `.nvmrc` and `.node-version`)
+- **Node.js 24.11.0** (enforced via `.nvmrc`, `.node-version`, and Volta)
   - Using nvm: `nvm use` or `nvm install`
   - Using volta: Automatically switches to correct version
   - Using asdf/nodenv: Uses `.node-version` file
-- **pnpm 9.0.0+** (required) - Install with `npm install -g pnpm` or see
+- **pnpm 11.5.3** (pinned via `packageManager` and Volta; `>=11.5.3` required)
+  - Install with `npm install -g pnpm@11.5.3` or see
   [pnpm installation](https://pnpm.io/installation)
 
 ### Installation
@@ -55,6 +58,9 @@ pnpm dev
 
 The app will be available at `http://localhost:5173`
 
+The `pnpm start` script is also available as an alias for the Vite development
+server, which is what the end-to-end test runner uses.
+
 ### Build
 
 Build the production version:
@@ -71,28 +77,28 @@ Preview the production build:
 pnpm preview
 ```
 
-## Project Structure
+### End-to-End Tests
 
-```text
-ui/
-├── src/
-│   ├── components/        # Reusable components
-│   │   ├── ui/           # shadcn/ui components
-│   ├── lib/              # Utility libraries
-│   │   └── utils.ts     # Tailwind class merging utility
-│   ├── pages/            # Page components
-│   ├── routes/           # TanStack Router routes
-│   ├── services/         # API services
-│   ├── main.tsx         # Application entry point
-│   └── index.css        # Global styles with Tailwind directives
-├── index.html           # HTML entry point
-├── vite.config.ts       # Vite configuration
-├── tsconfig.json        # TypeScript configuration
-├── tailwind.config.js   # Tailwind CSS configuration
-├── postcss.config.js    # PostCSS configuration
-├── components.json      # shadcn/ui configuration
-└── package.json         # Project dependencies
+Install Playwright browser binaries if they are not already present:
+
+```bash
+pnpm playwright:install
 ```
+
+Run the Playwright smoke tests:
+
+```bash
+pnpm test:e2e
+```
+
+Playwright starts the Vite dev server on `http://127.0.0.1:5173` automatically
+unless `PLAYWRIGHT_BASE_URL` is set. The E2E global setup also starts
+`quent-simulator-server` on `http://127.0.0.1:18080`, runs the deterministic
+`quent-query-engine-fixed` emitter into its collector on `127.0.0.1:17836`, and
+stores generated event data in `ui/.e2e-data/`.
+
+In CI only, Playwright writes an HTML report and screenshots failures; the
+GitHub UI workflow uploads those files when the E2E job fails.
 
 ## API Integration
 
@@ -126,14 +132,6 @@ the theme by editing the CSS variables in `src/index.css`:
 You can also customize Tailwind's configuration in `tailwind.config.js` to
 extend the default theme with custom colors, fonts, spacing, etc.
 
-### Adding New Charts
-
-1. Create a new component in `src/components/`
-2. Wrap it in a shadcn `Card` component for consistent styling
-3. Define the ECharts options with TypeScript
-4. Use the `ReactECharts` component to render
-5. Import and use in your dashboard pages
-
 ### Adding shadcn/ui Components
 
 To add more shadcn/ui components to your project:
@@ -159,11 +157,13 @@ pnpm dlx shadcn@latest add dropdown-menu
 ## Available Scripts
 
 - `pnpm dev` - Start development server
+- `pnpm start` - Start development server
 - `pnpm build` - Build for production
 - `pnpm preview` - Preview production build
 - `pnpm lint` - Run ESLint
 - `pnpm lint:fix` - Fix ESLint errors and format code
 - `pnpm format` - Format code with Prettier
+- `pnpm test:e2e` - Run Playwright end-to-end tests
 
 ## Development Tools
 
@@ -188,5 +188,5 @@ To leave them on for every dev session on your machine, create a
 VITE_DEBUG=1
 ```
 
-Then a plain `pnpm dev` will pick it up. Restart the dev server after
-changing env vars — Vite does not hot-reload `import.meta.env` changes.
+Then a plain `pnpm dev` will pick it up. Restart the dev server after changing
+env vars; Vite does not hot-reload `import.meta.env` changes.

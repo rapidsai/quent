@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import type { TaskFilter, TimelineRequest } from '@quent/utils';
+import type { OperatorFilter, TimelineRequest } from '@quent/utils';
 import {
   getResourceTypeName,
   getFsmTypeName,
@@ -14,7 +14,7 @@ function makeResourceRequest(
   resourceId: string,
   entityTypeName: string | null = null,
   operatorId: string | null = null
-): TimelineRequest<TaskFilter> {
+): TimelineRequest<OperatorFilter> {
   return {
     Resource: {
       resource_id: resourceId,
@@ -31,7 +31,7 @@ function makeGroupRequest(
   resourceTypeName: string,
   entityTypeName: string | null = null,
   operatorId: string | null = null
-): TimelineRequest<TaskFilter> {
+): TimelineRequest<OperatorFilter> {
   return {
     ResourceGroup: {
       resource_group_id: groupId,
@@ -104,7 +104,7 @@ describe('setOperatorOnEntry', () => {
     const result = setOperatorOnEntry(entry, 'op-99');
     expect('Resource' in result).toBe(true);
     expect(
-      (result as { Resource: { application: TaskFilter } }).Resource.application.operator_id
+      (result as { Resource: { application: OperatorFilter } }).Resource.application.operator_id
     ).toBe('op-99');
   });
 
@@ -119,11 +119,11 @@ describe('setOperatorOnEntry', () => {
 
   it('does not mutate the original Resource entry', () => {
     const entry = makeResourceRequest('r1');
-    const original = (entry as { Resource: { application: TaskFilter } }).Resource.application
+    const original = (entry as { Resource: { application: OperatorFilter } }).Resource.application
       .operator_id;
     setOperatorOnEntry(entry, 'op-new');
     expect(
-      (entry as { Resource: { application: TaskFilter } }).Resource.application.operator_id
+      (entry as { Resource: { application: OperatorFilter } }).Resource.application.operator_id
     ).toBe(original);
   });
 
@@ -132,7 +132,7 @@ describe('setOperatorOnEntry', () => {
     const result = setOperatorOnEntry(entry, 'op-7');
     expect('ResourceGroup' in result).toBe(true);
     expect(
-      (result as { ResourceGroup: { app_params: TaskFilter } }).ResourceGroup.app_params.operator_id
+      (result as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params.operator_id
     ).toBe('op-7');
   });
 
@@ -148,11 +148,11 @@ describe('setOperatorOnEntry', () => {
 
   it('does not mutate the original ResourceGroup entry', () => {
     const entry = makeGroupRequest('g1', 'GPU');
-    const original = (entry as { ResourceGroup: { app_params: TaskFilter } }).ResourceGroup
+    const original = (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup
       .app_params.operator_id;
     setOperatorOnEntry(entry, 'op-new');
     expect(
-      (entry as { ResourceGroup: { app_params: TaskFilter } }).ResourceGroup.app_params.operator_id
+      (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params.operator_id
     ).toBe(original);
   });
 });

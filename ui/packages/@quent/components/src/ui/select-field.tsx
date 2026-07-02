@@ -33,8 +33,6 @@ export interface SelectFieldProps {
   className?: string;
   /** className forwarded to SelectTrigger */
   triggerClassName?: string;
-  /** Custom render function for each option item (replaces default label rendering). */
-  renderOption?: (option: SelectFieldOption) => React.ReactNode;
   /** Node rendered after the select trigger (e.g. a palette swatch button). */
   trailingAdornment?: React.ReactNode;
 }
@@ -50,7 +48,6 @@ export const SelectField = ({
   clearable = true,
   className,
   triggerClassName,
-  renderOption,
   trailingAdornment,
 }: SelectFieldProps) => (
   <div className={cn('flex items-center gap-1.5 min-w-0', className)}>

@@ -17,9 +17,10 @@
 #include <string>
 
 int main() {
-  // Create instrumentation context.
+  // Create instrumentation context. The context generates its own id for the
+  // output subdirectory; the root engine uses an independent id here.
   auto engine_id = uuid::now_v7();
-  auto ctx = quent::create_context(engine_id, "ndjson", "./events");
+  auto ctx = quent::create_context("ndjson", "./events");
 
   // Engine: init with implementation attributes and custom attributes.
   auto engine_obs = quent::engine::create_observer(*ctx);

@@ -22,8 +22,6 @@ use crate::QueryEngineModel;
 pub trait UiAnalyzer {
     type Event;
     type EntityRef;
-    type TimelineGlobalParams;
-    type TimelineParams;
 
     fn try_new(
         engine_id: Uuid,
@@ -56,19 +54,15 @@ pub trait UiAnalyzer {
     fn query_engine_model(&self) -> &impl QueryEngineModel;
 
     /// Return a resource timeline for a single resource (or resource group).
-    ///
-    /// The type F may contain additional application-specific entity filters.
     fn single_resource_timeline(
         &self,
-        request: SingleTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+        request: SingleTimelineRequest<ui::QueryFilter, ui::OperatorFilter>,
     ) -> AnalyzerResult<SingleTimelineResponse>;
 
     /// Return a set of resource timelines in bulk.
-    ///
-    /// The type F may contain additional application-specific entity filters.
     fn bulk_resource_timeline(
         &self,
-        request: BulkTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+        request: BulkTimelineRequest<ui::QueryFilter, ui::OperatorFilter>,
     ) -> AnalyzerResult<BulkTimelinesResponse>;
 
     /// Return chunked bulk timelines: multiple time windows per entry.
@@ -80,12 +74,8 @@ pub trait UiAnalyzer {
     /// single pass.
     fn bulk_chunked_resource_timeline(
         &self,
-        request: BulkChunkedTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
-    ) -> AnalyzerResult<BulkChunkedTimelinesResponse>
-    where
-        Self::TimelineGlobalParams: Clone,
-        Self::TimelineParams: Clone,
-    {
+        request: BulkChunkedTimelineRequest<ui::QueryFilter, ui::OperatorFilter>,
+    ) -> AnalyzerResult<BulkChunkedTimelinesResponse> {
         let mut entries: HashMap<String, Vec<BulkTimelinesResponseEntry>> = request
             .entries
             .keys()

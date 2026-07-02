@@ -175,7 +175,7 @@ where
 
         debug!("opening stream ...");
 
-        // Add the application id to the metadata of the request, so the collector knows which application this belongs to.
+        // Identify this stream so the collector groups its events under the id.
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
             "application-id",

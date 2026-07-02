@@ -21,8 +21,7 @@
 use clap::Parser;
 use quent_attributes::Attribute;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -632,17 +631,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir: args.output_dir.clone().into(),
+        "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Postcard,
+            root: args.output_dir.clone().into(),
         })),
-        "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir: args.output_dir.clone().into(),
+        "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Msgpack,
+            root: args.output_dir.clone().into(),
         })),
-        "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: args.output_dir.into(),
+        "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Ndjson,
+            root: args.output_dir.clone().into(),
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
+            application_id: ENGINE,
         })),
         "none" => None,
         _ => {
@@ -654,7 +657,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let ctx = SimulatorContext::try_new(ENGINE, exporter)?;
+    let ctx = SimulatorContext::try_new(exporter)?;
     emit(&ctx);
     drop(ctx);
     Ok(())

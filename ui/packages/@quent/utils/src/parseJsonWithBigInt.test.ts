@@ -60,6 +60,21 @@ describe('parseJsonWithBigInt', () => {
       expect(result.id).toBe('12345678901234567890');
       expect(typeof result.id).toBe('string');
     });
+
+    it('should preserve string values containing long number-like tokens', () => {
+      const json = '{"message": "worker id: 1704067200000000000, still just text", "value": 1}';
+      const result = parseJsonWithBigInt<{ message: string; value: number }>(json);
+
+      expect(result.message).toBe('worker id: 1704067200000000000, still just text');
+      expect(result.value).toBe(1);
+    });
+
+    it('should preserve strings that look like legacy BigInt sentinels', () => {
+      const json = '{"value": "__bigint__9007199254740993"}';
+      const result = parseJsonWithBigInt<{ value: string }>(json);
+
+      expect(result.value).toBe('__bigint__9007199254740993');
+    });
   });
 
   describe('BigInt conversion', () => {

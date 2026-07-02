@@ -1,0 +1,23 @@
+[package]
+name = "quent-schema"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["visitor"]
+serde = ["dep:serde", "indexmap/serde"]
+visitor = ["dep:smallvec"]
+test-utils = []
+ts = ["dep:ts-rs", "serde"]
+
+[dependencies]
+indexmap = { workspace = true }
+rustc-hash = { workspace = true }
+serde = { workspace = true, optional = true }
+smallvec = { workspace = true, optional = true }
+thiserror = { workspace = true }
+ts-rs = { workspace = true, optional = true, features = ["indexmap-impl"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }

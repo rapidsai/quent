@@ -5,7 +5,7 @@ edition.workspace =  true
 publish.workspace = true
 [dependencies]
 clap = {version = "4.5.57", features = ["derive", "env"] }
-petgraph = "0.8.3"
+petgraph.workspace = true
 quent-attributes = { path = "../../../crates/attributes" }
 quent-exporter = { path = "../../../crates/exporter" }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }

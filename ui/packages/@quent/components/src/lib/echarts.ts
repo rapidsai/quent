@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Custom ECharts build with only the modules we need.
- * This significantly reduces bundle size (~1MB → ~300KB).
- *
- * To add new chart types or features, import and register them here.
+ * Custom ECharts build — only SVGRenderer + LineChart + CustomChart + the components we actually use.
+ * To add chart types or features, import and register them here.
  * See: https://echarts.apache.org/handbook/en/basics/import
  */
 
@@ -18,60 +16,41 @@ import type { LineSeriesOption, CustomSeriesOption } from 'echarts/charts';
 
 // Components - only import what you use
 import {
-  TitleComponent,
   TooltipComponent,
   GridComponent,
   DataZoomComponent,
   DataZoomInsideComponent,
   DataZoomSliderComponent,
-  ToolboxComponent,
   MarkAreaComponent,
-  VisualMapComponent,
 } from 'echarts/components';
 import type {
-  TitleComponentOption,
   TooltipComponentOption,
   GridComponentOption,
   DataZoomComponentOption,
-  ToolboxComponentOption,
   MarkAreaComponentOption,
-  VisualMapComponentOption,
 } from 'echarts/components';
 
-// Renderers - timeline charts opt into SVG, while canvas remains available for heavier charts.
-import { CanvasRenderer, SVGRenderer } from 'echarts/renderers';
+import { SVGRenderer } from 'echarts/renderers';
 
-// Register the required components
 echarts.use([
-  // Charts
   LineChart,
   CustomChart,
-  // Components
-  TitleComponent,
   TooltipComponent,
   GridComponent,
   DataZoomComponent,
   DataZoomInsideComponent,
   DataZoomSliderComponent,
-  ToolboxComponent,
   MarkAreaComponent,
-  VisualMapComponent,
-  // Renderer
-  CanvasRenderer,
   SVGRenderer,
 ]);
 
-// Compose the option type from the components we use
 export type EChartsOption = ComposeOption<
   | LineSeriesOption
   | CustomSeriesOption
-  | TitleComponentOption
   | TooltipComponentOption
   | GridComponentOption
   | DataZoomComponentOption
-  | ToolboxComponentOption
   | MarkAreaComponentOption
-  | VisualMapComponentOption
 >;
 
 // Re-export echarts instance and types

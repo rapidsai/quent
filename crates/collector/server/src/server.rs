@@ -3,7 +3,7 @@
 
 //! A gRPC-based server that collects `Event`s from multiple sources and exports them.
 
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use dashmap::DashMap;
 use quent_exporter::{ExporterOptions, create_exporter};
@@ -25,6 +25,8 @@ pub struct CollectorServiceOptions {
 //
 // TODO(johanpel): clean up exporter after timeout or application end.
 pub struct CollectorService<T> {
+    // Exporters shared across streams, keyed by `application-id` so concurrent
+    // sources of the same application consolidate into one exporter.
     exporters: Arc<DashMap<Uuid, Arc<dyn Exporter<T>>>>,
     exporter: ExporterOptions,
 }
@@ -56,47 +58,38 @@ where
         &self,
         request: Request<Streaming<proto::CollectEventRequest>>,
     ) -> Result<Response<proto::CollectEventResponse>, Status> {
-        // Grab the application id from the request metadata.
-        let application_id_str = request
+        // The client identifies its stream with the `application-id` metadata.
+        let application_id = request
             .metadata()
             .get("application-id")
-            .ok_or_else(|| {
-                Status::invalid_argument("metadata key \"engine-id\" is not present in request")
-            })?
+            .ok_or_else(|| Status::invalid_argument("missing `application-id` metadata"))?
             .to_str()
-            .map_err(|e| {
-                Status::invalid_argument(format!(
-                    "metadata value for \"engine-id\" holds invalid string data: {e}"
-                ))
+            .ok()
+            .and_then(|s| Uuid::parse_str(s).ok())
+            .ok_or_else(|| {
+                Status::invalid_argument("`application-id` metadata is not a valid UUID")
             })?;
-
-        let application_id = Uuid::from_str(application_id_str).map_err(|e| {
-            Status::invalid_argument(format!(
-                "metadata value for key \"application-id\" is not a UUID: {e}"
-            ))
-        })?;
 
         let mut stream = request.into_inner();
         let exporters = Arc::clone(&self.exporters);
-        let exporter_kind = self.exporter.clone();
+        // Group each application's events under its own subdirectory.
+        let exporter_kind = self.exporter.clone().in_context_dir(application_id);
         let export_join_handle = tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(request) => {
-                        // Get an exporter from the DashMap, or insert it if it doesn't exist.
-                        let exporter = if exporters.contains_key(&application_id) {
-                            Arc::clone(&exporters.get(&application_id).unwrap())
+                        // Reuse this application's exporter, or create it lazily
+                        // on the first batch (so an empty stream writes nothing).
+                        let exporter = if let Some(exporter) = exporters.get(&application_id) {
+                            Arc::clone(&exporter)
                         } else {
-                            let exporter =
-                                match create_exporter::<T>(exporter_kind.clone(), application_id)
-                                    .await
-                                {
-                                    Ok(exporter) => exporter,
-                                    Err(e) => {
-                                        error!("unable to construct exporter: {e}");
-                                        break;
-                                    }
-                                };
+                            let exporter = match create_exporter::<T>(exporter_kind.clone()).await {
+                                Ok(exporter) => exporter,
+                                Err(e) => {
+                                    error!("unable to construct exporter: {e}");
+                                    break;
+                                }
+                            };
                             exporters.insert(application_id, Arc::clone(&exporter));
                             exporter
                         };
@@ -132,9 +125,8 @@ where
                         // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch.
                         // We should clean up here, but the todo is to figure out what else can go wrong.
                         if let Some(exporter) = exporters.get(&application_id) {
-                            match exporter.force_flush().await {
-                                Ok(_) => (),
-                                Err(e) => warn!("unable to flush exporter: {e}"),
+                            if let Err(e) = exporter.force_flush().await {
+                                warn!("unable to flush exporter: {e}");
                             }
                             exporters.remove(&application_id);
                         }
@@ -144,11 +136,10 @@ where
             }
 
             // Flush the exporter when stream ends normally
-            if let Some(exporter) = exporters.get(&application_id) {
-                match exporter.force_flush().await {
-                    Ok(_) => (),
-                    Err(e) => warn!("unable to flush exporter after stream completion: {e}"),
-                }
+            if let Some(exporter) = exporters.get(&application_id)
+                && let Err(e) = exporter.force_flush().await
+            {
+                warn!("unable to flush exporter after stream completion: {e}");
             }
         });
         let _ = export_join_handle.await;

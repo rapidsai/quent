@@ -7,7 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
 import { ResourceTree, QueryBundle } from '@quent/utils';
-import type { EntityRef, SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
+import type { EntityRef, SingleTimelineRequest, QueryFilter, OperatorFilter } from '@quent/utils';
 import { TimelineController, TimelineRuler } from '@quent/components';
 import { collectResourceTypesFromTree } from '@quent/components';
 import { EntityRefKey } from '@quent/utils';
@@ -156,7 +156,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
       rootResourceType,
     ],
     queryFn: () => {
-      const request: SingleTimelineRequest<QueryFilter, TaskFilter> = {
+      const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,

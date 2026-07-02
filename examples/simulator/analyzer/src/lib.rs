@@ -4,7 +4,7 @@
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
-use quent_query_engine_ui::{QueryBundle, QueryEntities};
+use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryEntities, QueryFilter};
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
     quantity::QuantitySpec,
@@ -37,7 +37,7 @@ use quent_analyzer::{
     },
 };
 use quent_simulator_instrumentation::SimulatorEvent;
-use quent_simulator_ui::{EntityRef, QueryFilter, TaskFilter};
+use quent_simulator_ui::EntityRef;
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, to_nanosecs, to_secs};
 use uuid::Uuid;
 
@@ -59,7 +59,7 @@ struct PlainBuilderSlot<'a> {
     config_idx: usize,
     builder: ResourceTimelineBuilder<'a>,
     resource_id_filter: Arc<HashSet<Uuid>>,
-    task_filter: TaskFilter,
+    operator_filter: OperatorFilter,
 }
 
 struct PerStateBuilderSlot<'a> {
@@ -67,14 +67,12 @@ struct PerStateBuilderSlot<'a> {
     config_idx: usize,
     builder: ResourceTimelineByKeyBuilder<'a, &'a str>,
     resource_id_filter: Arc<HashSet<Uuid>>,
-    task_filter: TaskFilter,
+    operator_filter: OperatorFilter,
 }
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
     type EntityRef = EntityRef;
-    type TimelineGlobalParams = QueryFilter;
-    type TimelineParams = TaskFilter;
 
     fn extract_engine(
         engine_id: Uuid,
@@ -246,7 +244,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
     // TODO(johanpel): consider re-using the bulk request API with a single entry for requests like this.
     fn single_resource_timeline(
         &self,
-        request: SingleTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+        request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> AnalyzerResult<SingleTimelineResponse> {
         // TODO(johanpel): we may want to sanity-check whether the requested
         // resource/group is actually in the resource tree for a given query.
@@ -262,7 +260,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             TimelineRequest::Resource(req) => {
                 let resource_type = self.model.resource_type_of(req.resource_id)?;
                 let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
-                let task_filter = req.application;
+                let operator_filter = req.application;
 
                 if req.entity_filter.entity_type_name.is_some() {
                     let mut builder = ResourceTimelineByKeyBuilder::try_new(
@@ -273,7 +271,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     // This application only has Task FSM
                     self.populate_keyed_builder(
                         &mut builder,
-                        self.entities_filtered(req.entity_filter, task_filter, config.span)?
+                        self.entities_filtered(req.entity_filter, operator_filter, config.span)?
                             .filter(|task| {
                                 task.usages()
                                     .any(|usage| usage.resource_id() == req.resource_id)
@@ -292,7 +290,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     )?;
 
                     builder.try_extend(
-                        self.entities_filtered(req.entity_filter, task_filter, config.span)?
+                        self.entities_filtered(req.entity_filter, operator_filter, config.span)?
                             .flat_map(|task| task.usages())
                             .filter(|usage| usage.resource_id() == req.resource_id),
                     )?;
@@ -361,7 +359,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
     fn bulk_resource_timeline(
         &self,
-        request: BulkTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+        request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> AnalyzerResult<BulkTimelinesResponse> {
         // Calculate this ASAP to help fail quickly.
         let epoch = self
@@ -378,15 +376,19 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // each bulk entry. After populating this, we'll build a reverse index,
         // that maps a resource_id to a list of indices in these vecs, for which
         // that resource's usages are relevant.
-        let mut plain_builders: Vec<(String, ResourceTimelineBuilder, HashSet<Uuid>, TaskFilter)> =
-            Vec::new();
+        let mut plain_builders: Vec<(
+            String,
+            ResourceTimelineBuilder,
+            HashSet<Uuid>,
+            OperatorFilter,
+        )> = Vec::new();
 
         // Prepare them also for keyed builders (building by state).
         let mut per_state_builders: Vec<(
             String,
             ResourceTimelineByKeyBuilder<&str>,
             HashSet<Uuid>,
-            TaskFilter,
+            OperatorFilter,
         )> = Vec::new();
 
         for (entry_id, entry) in request.entries {
@@ -395,7 +397,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 resource_type,
                 resource_id_filter,
                 entity_filter,
-                task_filter,
+                operator_filter,
                 long_entities_threshold,
             } = self.try_prepare_bulk_entry(entry, &resource_tree)?;
             if entity_filter.entity_type_name.is_some() {
@@ -407,7 +409,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         long_entities_threshold,
                     )?,
                     resource_id_filter,
-                    task_filter,
+                    operator_filter,
                 ));
             } else {
                 plain_builders.push((
@@ -418,7 +420,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         long_entities_threshold,
                     )?,
                     resource_id_filter,
-                    task_filter,
+                    operator_filter,
                 ));
             }
         }
@@ -535,7 +537,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
     fn bulk_chunked_resource_timeline(
         &self,
-        request: BulkChunkedTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+        request: BulkChunkedTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> AnalyzerResult<BulkChunkedTimelinesResponse> {
         let epoch = self
             .query_engine_model()
@@ -556,7 +558,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 resource_type,
                 resource_id_filter,
                 entity_filter,
-                task_filter,
+                operator_filter,
                 long_entities_threshold,
             } = self.try_prepare_bulk_entry(entry.clone(), &resource_tree)?;
 
@@ -575,7 +577,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                             long_entities_threshold,
                         )?,
                         resource_id_filter: Arc::clone(&resource_id_filter),
-                        task_filter: task_filter.clone(),
+                        operator_filter: operator_filter.clone(),
                     });
                 } else {
                     plain_builders.push(PlainBuilderSlot {
@@ -587,7 +589,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                             long_entities_threshold,
                         )?,
                         resource_id_filter: Arc::clone(&resource_id_filter),
-                        task_filter: task_filter.clone(),
+                        operator_filter: operator_filter.clone(),
                     });
                 }
             }
@@ -629,7 +631,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     for &builder_idx in builder_indices {
                         let slot = &plain_builders[builder_idx];
                         if slot
-                            .task_filter
+                            .operator_filter
                             .operator_id
                             .is_none_or(|op| task_operator_id == Some(op))
                         {
@@ -644,7 +646,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     for &builder_idx in builder_indices {
                         let slot = &per_state_builders[builder_idx];
                         if slot
-                            .task_filter
+                            .operator_filter
                             .operator_id
                             .is_none_or(|op| task_operator_id == Some(op))
                         {
@@ -715,13 +717,13 @@ impl SimulatorUiAnalyzer {
     fn entities_filtered(
         &self,
         entity_filter: EntityFilter,
-        task_filter: TaskFilter,
+        operator_filter: OperatorFilter,
         time_window: SpanNanoSec,
     ) -> AnalyzerResult<Box<dyn Iterator<Item = &Task> + '_>> {
         if let Some(entity_type_name) = entity_filter.entity_type_name {
             match entity_type_name.as_str() {
                 "task" => Ok(Box::new(self.model.tasks.values().filter(move |task| {
-                    task_filter
+                    operator_filter
                         .operator_id
                         .is_none_or(|op| task.operator_id() == Some(op))
                         && task.span().is_ok_and(|s| s.intersects(&time_window))
@@ -733,7 +735,7 @@ impl SimulatorUiAnalyzer {
             }
         } else {
             Ok(Box::new(self.model.tasks.values().filter(move |task| {
-                task_filter
+                operator_filter
                     .operator_id
                     .is_none_or(|op| task.operator_id() == Some(op))
                     && task.span().is_ok_and(|s| s.intersects(&time_window))
@@ -749,7 +751,7 @@ impl SimulatorUiAnalyzer {
     /// - What the threshold is for long entities.
     fn try_prepare_bulk_entry<'a>(
         &'a self,
-        request: TimelineRequest<TaskFilter>,
+        request: TimelineRequest<OperatorFilter>,
         tree: &ResourceTreeNode,
     ) -> AnalyzerResult<BulkEntryPrep<'a>> {
         Ok(match request {
@@ -757,7 +759,7 @@ impl SimulatorUiAnalyzer {
                 resource_type: self.model.resource_type_of(r.resource_id)?,
                 resource_id_filter: [r.resource_id].into_iter().collect(),
                 entity_filter: r.entity_filter,
-                task_filter: r.application,
+                operator_filter: r.application,
                 long_entities_threshold: r.long_entities_threshold_s.map(to_nanosecs),
             },
             TimelineRequest::ResourceGroup(rg) => {
@@ -778,7 +780,7 @@ impl SimulatorUiAnalyzer {
                     resource_type,
                     resource_id_filter: resource_ids,
                     entity_filter: rg.entity_filter,
-                    task_filter: rg.app_params,
+                    operator_filter: rg.app_params,
                     long_entities_threshold: rg.long_entities_threshold_s.map(to_nanosecs),
                 }
             }
@@ -869,6 +871,6 @@ struct BulkEntryPrep<'a> {
     resource_type: &'a ResourceTypeDecl,
     resource_id_filter: HashSet<Uuid>,
     entity_filter: EntityFilter,
-    task_filter: TaskFilter,
+    operator_filter: OperatorFilter,
     long_entities_threshold: Option<TimeNanoSec>,
 }

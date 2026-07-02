@@ -5,16 +5,18 @@ use quent_model::{Ref, attributes::Attribute, usage, uuid::Uuid};
 use quent_readme_example::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let output_dir = std::path::PathBuf::from("./events");
-    let exporter = quent_model::exporter::ExporterOptions::Ndjson(
-        quent_model::exporter::NdjsonExporterOptions {
-            output_dir: output_dir.clone(),
+    let root = std::path::PathBuf::from("./events");
+    let exporter = quent_model::exporter::ExporterOptions::FileSystem(
+        quent_model::exporter::FileSystemExporterOptions {
+            format: quent_model::exporter::FileSystemFormat::Ndjson,
+            root: root.clone(),
         },
     );
-    let id = Uuid::now_v7();
-    let context = AppContext::try_new(id, Some(exporter))?;
+    let context = AppContext::try_new(Some(exporter))?;
 
-    // The root resource group uses the same ID as the context.
+    // The context generates its own id and writes events under `root/<id>/`.
+    // Reuse it as the root resource group id.
+    let id = context.id();
     let cluster = context.cluster_observer().cluster(id, "example_cluster");
 
     // Spawn a worker.
@@ -83,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Drop context to flush all pending events.
     drop(context);
 
-    let output_path = output_dir.join(format!("{id}.ndjson"));
+    let output_path = root.join(id.to_string()).join("events.ndjson");
     println!(
         "Events written to: {}",
         output_path.canonicalize()?.display()

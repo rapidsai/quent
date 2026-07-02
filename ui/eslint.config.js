@@ -16,7 +16,16 @@ export default tseslint.config(
     // `.config/` directory is also vendor-scaffolded and must not be modified.
     // Each example's own CI lints itself; we don't want the root workspace
     // lint to second-guess them with a different rule set.
-    ignores: ['dist', 'src/routeTree.gen.ts', 'examples/**', '**/dist/**', '**/node_modules/**'],
+    ignores: [
+      'dist',
+      'src/routeTree.gen.ts',
+      'examples/**',
+      '**/dist/**',
+      '**/node_modules/**',
+      '.e2e-data/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

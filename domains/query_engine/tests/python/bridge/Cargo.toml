@@ -9,7 +9,7 @@ name = "quent_qe"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.28", features = ["abi3-py311"] }
+pyo3 = { workspace = true, features = ["abi3-py311"] }
 quent-qe-python-instrumentation = { path = "../instrumentation" }
 
 [build-dependencies]

@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { queryOptions, useQuery } from '@tanstack/react-query';
-import type { SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
+import type { SingleTimelineRequest, QueryFilter, OperatorFilter } from '@quent/utils';
 import { fetchSingleTimeline } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 
 interface SingleTimelineParams {
   engineId: string;
-  request: SingleTimelineRequest<QueryFilter, TaskFilter>;
+  request: SingleTimelineRequest<QueryFilter, OperatorFilter>;
   durationSeconds: number;
 }
 

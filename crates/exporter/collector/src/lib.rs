@@ -13,9 +13,12 @@ use uuid::Uuid;
 ///
 /// Streams events over gRPC to a remote collector service. Use this for
 /// distributed deployments where events are centralized for analysis.
+/// `application_id` identifies this stream to the collector, which groups its
+/// events under that id.
 #[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
     pub address: String,
+    pub application_id: Uuid,
 }
 
 #[derive(Debug)]
@@ -28,10 +31,9 @@ where
     T: Serialize + Send + 'static,
 {
     pub async fn try_new(
-        application_id: Uuid,
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(application_id, options.address).await?;
+        let client = Client::new(options.application_id, options.address).await?;
         Ok(Self { client })
     }
 }

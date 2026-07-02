@@ -8,9 +8,8 @@ use uuid::Uuid;
 use clap::Parser;
 use quent_collector::server::CollectorServiceOptions;
 use quent_exporter::{
-    ExporterOptions, ImporterOptions, MsgpackExporterOptions, MsgpackImporterOptions,
-    NdjsonExporterOptions, NdjsonImporterOptions, PostcardExporterOptions, PostcardImporterOptions,
-    create_importer,
+    ExporterOptions, FileSystemExporterOptions, FileSystemFormat, FileSystemImporterOptions,
+    ImporterOptions, create_importer,
 };
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
@@ -92,12 +91,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
 
-    let exporter_kind = match exporter.as_str() {
-        "ndjson" => ExporterOptions::Ndjson(NdjsonExporterOptions { output_dir }),
-        "msgpack" => ExporterOptions::Msgpack(MsgpackExporterOptions { output_dir }),
-        "postcard" => ExporterOptions::Postcard(PostcardExporterOptions { output_dir }),
+    let format = match exporter.as_str() {
+        "ndjson" => FileSystemFormat::Ndjson,
+        "msgpack" => FileSystemFormat::Msgpack,
+        "postcard" => FileSystemFormat::Postcard,
         other => return Err(format!("unknown exporter: {other}").into()),
     };
+    let exporter_kind = ExporterOptions::FileSystem(FileSystemExporterOptions {
+        format,
+        root: output_dir,
+    });
 
     let collector_options = CollectorServiceOptions {
         exporter: exporter_kind,
@@ -114,45 +117,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
 
+    // Each context exports to its own `output_dir/<context-id>/` subdirectory;
+    // list those subdirectories whose name is a uuid.
     let lister = move || {
-        let extensions = ["ndjson", "msgpack", "postcard"];
-        let mut ids = std::collections::HashSet::new();
+        let mut ids = Vec::new();
         for entry in std::fs::read_dir(&lister_output_dir)? {
             let path = entry?.path();
-            if !path.is_file() {
-                continue;
-            }
-            let has_known_ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|ext| extensions.contains(&ext));
-            if !has_known_ext {
+            if !path.is_dir() {
                 continue;
             }
             if let Some(id) = path
-                .file_stem()
+                .file_name()
                 .and_then(|s| s.to_str())
                 .and_then(|s| Uuid::parse_str(s).ok())
             {
-                ids.insert(id);
+                ids.push(id);
             }
         }
-        Ok(ids.into_iter().collect())
+        Ok(ids)
     };
 
-    let importer = move |engine_id| {
-        let postcard_path = importer_output_dir.join(format!("{engine_id}.postcard"));
-        let msgpack_path = importer_output_dir.join(format!("{engine_id}.msgpack"));
-        let ndjson_path = importer_output_dir.join(format!("{engine_id}.ndjson"));
-        let kind = if postcard_path.exists() {
-            ImporterOptions::Postcard(PostcardImporterOptions {
-                path: postcard_path,
-            })
-        } else if msgpack_path.exists() {
-            ImporterOptions::Msgpack(MsgpackImporterOptions { path: msgpack_path })
-        } else {
-            ImporterOptions::Ndjson(NdjsonImporterOptions { path: ndjson_path })
-        };
+    // Hand the importer the per-context directory; it locates the event file by
+    // the configured format's extension.
+    let importer = move |context_id| {
+        let dir = importer_output_dir.join(format!("{context_id}"));
+        let kind = ImporterOptions::FileSystem(FileSystemImporterOptions { format, path: dir });
         Ok(Box::new(create_importer::<SimulatorEvent>(&kind)?) as Box<dyn Iterator<Item = _>>)
     };
 

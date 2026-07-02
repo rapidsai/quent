@@ -37,6 +37,9 @@ vite.config.ts.timestamp-*
 
 coverage
 junit*
+.e2e-data/
+playwright-report/
+test-results/
 
 stats.html
 # For now ignore agents md, add official one later

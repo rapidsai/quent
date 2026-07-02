@@ -153,7 +153,7 @@ fn emit_struct_definitions(model: &ModelBuilder, out: &mut String) {
 fn emit_context(model: &ModelBuilder, out: &mut String) {
     out.push_str("\nclass Context:\n");
     out.push_str(
-        "    def __init__(self, id: Uuid, exporter: str | None = ..., output_dir: str | None = ...) -> None: ...\n",
+        "    def __init__(self, exporter: str | None = ..., output_dir: str | None = ...) -> None: ...\n",
     );
     out.push_str("    @property\n");
     out.push_str("    def id(self) -> Uuid: ...\n");

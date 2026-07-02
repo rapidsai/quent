@@ -21,6 +21,7 @@ export type { FsmTypeDecl } from '../../../../../../examples/simulator/server/ts
 export type { FsmUsage } from '../../../../../../examples/simulator/server/ts-bindings/FsmUsage';
 export type { List } from '../../../../../../examples/simulator/server/ts-bindings/List';
 export type { Operator } from '../../../../../../examples/simulator/server/ts-bindings/Operator';
+export type { OperatorFilter } from '../../../../../../examples/simulator/server/ts-bindings/OperatorFilter';
 export type { OperatorStatistics } from '../../../../../../examples/simulator/server/ts-bindings/OperatorStatistics';
 export type { Plan } from '../../../../../../examples/simulator/server/ts-bindings/Plan';
 export type { PlanTree } from '../../../../../../examples/simulator/server/ts-bindings/PlanTree';
@@ -48,7 +49,6 @@ export type { SingleTimelineRequest } from '../../../../../../examples/simulator
 export type { SingleTimelineResponse } from '../../../../../../examples/simulator/server/ts-bindings/SingleTimelineResponse';
 export type { SpanSec } from '../../../../../../examples/simulator/server/ts-bindings/SpanSec';
 export type { Struct } from '../../../../../../examples/simulator/server/ts-bindings/Struct';
-export type { TaskFilter } from '../../../../../../examples/simulator/server/ts-bindings/TaskFilter';
 export type { TimelineConfig } from '../../../../../../examples/simulator/server/ts-bindings/TimelineConfig';
 export type { TimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/TimelineRequest';
 export type { Value } from '../../../../../../examples/simulator/server/ts-bindings/Value';

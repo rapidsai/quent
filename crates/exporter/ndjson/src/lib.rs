@@ -17,16 +17,13 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
-use uuid::Uuid;
-
 /// Options for the ndjson exporter.
 ///
-/// Writes events as newline-delimited JSON (one JSON object per line per file).
-/// Human-readable, useful for debugging and manual inspection. Produces one
-/// file per instrumentation context in `output_dir`.
+/// Writes events as newline-delimited JSON (one JSON object per line) to the
+/// file at `path`. Human-readable, useful for debugging and manual inspection.
 #[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
-    pub output_dir: PathBuf,
+    pub path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -35,19 +32,15 @@ pub struct NdjsonExporter {
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(
-        application_id: Uuid,
-        options: NdjsonExporterOptions,
-    ) -> ExporterResult<Self> {
-        tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options
-            .output_dir
-            .join(format!("{}.ndjson", application_id));
-        debug!("exporting to \"{}\"", path.display());
+    pub async fn try_new(options: NdjsonExporterOptions) -> ExporterResult<Self> {
+        if let Some(parent) = options.path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        debug!("exporting to \"{}\"", options.path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(&options.path)
             .await?;
 
         Ok(Self {
@@ -83,8 +76,9 @@ where
     }
 }
 
+/// Options for the ndjson importer. `path` is either the directory containing
+/// the event file (located by its `.ndjson` extension) or the file itself.
 #[derive(Debug, Clone)]
-/// Options for the ndjson importer. Reads events from the file at `path`.
 pub struct NdjsonImporterOptions {
     pub path: PathBuf,
 }
@@ -96,7 +90,8 @@ pub struct NdjsonImporter<T> {
 
 impl<T> NdjsonImporter<T> {
     pub fn try_new(options: &NdjsonImporterOptions) -> ImporterResult<Self> {
-        let file = std::fs::File::open(&options.path)?;
+        let path = quent_exporter_types::resolve_import_path(&options.path, "ndjson")?;
+        let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),
