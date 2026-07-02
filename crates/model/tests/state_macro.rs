@@ -3,8 +3,14 @@
 
 //! Integration test for the `state!` proc macro with flat-arg FSM methods.
 
-use quent_model::{EventSender, ModelBuilder, ModelComponent, Ref, StateMetadata};
+use quent_model::build_info::ModelInfo;
+use quent_model::{Context, ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
 use uuid::Uuid;
+
+fn noop_task_observer() -> Observer<TaskEvent> {
+    let ctx = Context::try_new(ModelInfo::unknown(), None).unwrap();
+    ctx.block_on(ctx.observer::<TaskEvent>()).unwrap()
+}
 
 // States defined with state! macro.
 // Inline attributes auto-add `instance_name: String`.
@@ -110,8 +116,7 @@ fn fsm_model_component() {
 
 #[test]
 fn flat_args_observer_entry() {
-    let tx: EventSender<TaskEvent> = EventSender::default();
-    let observer = TaskObserver::new(&tx);
+    let observer = TaskObserver::new(noop_task_observer());
     let id = Uuid::nil();
 
     let mut handle = observer.queued(id, "my_task", 5);
@@ -121,8 +126,7 @@ fn flat_args_observer_entry() {
 
 #[test]
 fn flat_args_handle_transition() {
-    let tx: EventSender<TaskEvent> = EventSender::default();
-    let observer = TaskObserver::new(&tx);
+    let observer = TaskObserver::new(noop_task_observer());
     let id = Uuid::nil();
 
     let mut handle = observer.queued(id, "my_task", 5);

@@ -1,0 +1,11 @@
+[package]
+name = "quent-resource"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-schema = { path = "../schema", features = ["serde"] }
+serde = { workspace = true }
+serde_json.workspace = true
+indexmap = { workspace = true, features = ["serde"] }

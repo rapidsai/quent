@@ -3,7 +3,7 @@
 
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
-use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_analyzer::ui::{QuentViewer, UiAnalyzer, ViewerEventStream};
 use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryEntities, QueryFilter};
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
@@ -36,7 +36,7 @@ use quent_analyzer::{
         ResourceTimelineByKeyBuilder,
     },
 };
-use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_instrumentation::{Simulator, SimulatorEvent};
 use quent_simulator_ui::EntityRef;
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, to_nanosecs, to_secs};
 use uuid::Uuid;
@@ -52,6 +52,21 @@ pub mod view;
 
 pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
+}
+
+/// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
+/// streams with [`SimulatorUiAnalyzer`]. The required `Viewer` path
+/// `quent-open` names when building a viewer for this analyzer's models.
+pub struct Viewer;
+
+impl QuentViewer for Viewer {
+    type Analyzer = SimulatorUiAnalyzer;
+
+    fn import_events(
+        dir: &std::path::Path,
+    ) -> quent_model::exporter::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+        Simulator::import_events(dir)
+    }
 }
 
 struct PlainBuilderSlot<'a> {

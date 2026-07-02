@@ -379,12 +379,12 @@ describe('buildOperatorColorMap', () => {
 
 describe('continuousColor', () => {
   it('returns the neutral color at t=0 (light mode, blue)', () => {
-    // blendToColor(59, 130, 246, 0, [229, 231, 235]) → #e5e7eb
-    expect(continuousColor(0, 'blue')).toBe('#e5e7eb');
+    // blendToColor(59, 130, 246, 0, [255, 255, 255]) → #ffffff
+    expect(continuousColor(0, 'blue')).toBe('#ffffff');
   });
 
   it('returns the full color at t=1 (light mode, blue)', () => {
-    // blendToColor(59, 130, 246, 1, [229,231,235]) → #3b82f6
+    // blendToColor(59, 130, 246, 1, [255, 255, 255]) → #3b82f6
     expect(continuousColor(1, 'blue')).toBe('#3b82f6');
   });
 

@@ -3,17 +3,14 @@
 
 use std::{net::ToSocketAddrs, path::PathBuf};
 
-use uuid::Uuid;
-
 use clap::Parser;
-use quent_collector::server::CollectorServiceOptions;
-use quent_exporter::{
-    ExporterOptions, FileSystemExporterOptions, FileSystemFormat, FileSystemImporterOptions,
-    ImporterOptions, create_importer,
+use quent_exporter::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+use quent_query_engine_server::{
+    analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
+    initialize_tracing,
 };
-use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_instrumentation::{Simulator, SimulatorContext};
 use tokio::net::TcpListener;
 
 mod defaults {
@@ -55,7 +52,7 @@ struct Args {
 
     /// Output directory for collected event data.
     /// Overridden by the QUENT_COLLECTOR_OUTPUT_DIR environment variable if set.
-    #[arg(long, default_value = "data", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
+    #[arg(long, default_value = "events", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
     output_dir: PathBuf,
 
     /// Socket address for the analyzer HTTP server (e.g. `[::]:8080`).
@@ -102,14 +99,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         root: output_dir,
     });
 
-    let collector_options = CollectorServiceOptions {
-        exporter: exporter_kind,
-    };
     let collector = async {
-        collector_service::<SimulatorEvent>(collector_options)?
-            .serve(collector_addr)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+        collector_service::<SimulatorContext, _>(move |id| {
+            SimulatorContext::try_with_id(id, Some(exporter_kind.clone()))
+                .map_err(|e| e.to_string())
+        })?
+        .serve(collector_addr)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
     };
 
     let analyzer_addr = analyzer_address
@@ -117,32 +114,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
 
-    // Each context exports to its own `output_dir/<context-id>/` subdirectory;
-    // list those subdirectories whose name is a uuid.
-    let lister = move || {
-        let mut ids = Vec::new();
-        for entry in std::fs::read_dir(&lister_output_dir)? {
-            let path = entry?.path();
-            if !path.is_dir() {
-                continue;
-            }
-            if let Some(id) = path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .and_then(|s| Uuid::parse_str(s).ok())
-            {
-                ids.push(id);
-            }
-        }
-        Ok(ids)
-    };
+    // Index the exported contexts by engine instance: each engine's telemetry is
+    // the engine's own context plus its workers' contexts.
+    let lister = move || index_query_engines(&lister_output_dir);
 
-    // Hand the importer the per-context directory; it locates the event file by
-    // the configured format's extension.
+    // Reconstruct one context's umbrella event stream from its per-entity
+    // subdirectories; the analyzer cache chains this across all the contexts that
+    // make up an engine instance.
     let importer = move |context_id| {
         let dir = importer_output_dir.join(format!("{context_id}"));
-        let kind = ImporterOptions::FileSystem(FileSystemImporterOptions { format, path: dir });
-        Ok(Box::new(create_importer::<SimulatorEvent>(&kind)?) as Box<dyn Iterator<Item = _>>)
+        Ok(Simulator::import_events(&dir)?)
     };
 
     let analyzer = async {

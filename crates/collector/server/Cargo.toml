@@ -5,12 +5,8 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-ciborium = "0.2.2"
-dashmap = "6.1.0"
 quent-collector-proto = { path = "../proto" }
-quent-exporter-types = { path = "../../exporter/types" }
-quent-exporter = { path = "../../exporter" }
-serde.workspace = true
+quent-collector-client = { path = "../client" }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true

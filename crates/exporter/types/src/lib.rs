@@ -3,20 +3,31 @@
 
 //! Basic traits for exporter / importer implementations
 
-use quent_events::Event;
+use quent_events::{EntityEvent, Event};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ExporterError {
-    #[error("i/o error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("flush error: {0}")]
-    Flush(String),
-    #[error("serde error: {0}")]
-    Serde(String),
-    #[error("collector error: {0}")]
-    Collector(String),
+    /// Push was called after [`Exporter::shutdown`].
+    #[error("exporter has been shut down")]
+    Shutdown,
+    /// Any failure originating in the exporter implementation.
+    #[error(transparent)]
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl ExporterError {
+    /// Wrap an implementation-specific error as [`ExporterError::Other`].
+    pub fn other<E: std::error::Error + Send + Sync + 'static>(error: E) -> Self {
+        Self::Other(Box::new(error))
+    }
+}
+
+impl From<std::io::Error> for ExporterError {
+    fn from(error: std::io::Error) -> Self {
+        Self::other(error)
+    }
 }
 
 #[derive(Error, Debug)]
@@ -54,13 +65,19 @@ pub fn resolve_import_path(
     )))
 }
 
+/// A sink for one entity's event stream.
 #[async_trait::async_trait]
-pub trait Exporter<T>: Send + Sync
+pub trait Exporter<T>: Send
 where
-    T: Serialize + Send,
+    T: Serialize + Send + EntityEvent,
 {
-    async fn push(&self, event: Event<T>) -> ExporterResult<()>;
-    async fn force_flush(&self) -> ExporterResult<()>;
+    /// Export one event.
+    async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
+
+    /// Make a best-effort to flush any buffered events, then release any internal resources.
+    ///
+    /// Calling [`Self::push`] will result in an error after calling this.
+    async fn shutdown(&mut self) -> ExporterResult<()>;
 }
 
 pub trait Importer<T>: Iterator<Item = Event<T>>

@@ -5,4 +5,4 @@ export type PortStatistics = {
 /**
  * Custom statistics
  */
-custom_statistics: { [key in string]?: Value | null }, };
+custom_statistics: { [key in string]: Value | null }, };

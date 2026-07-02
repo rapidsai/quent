@@ -177,10 +177,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_snake = to_snake_case(name);
     let serde_derives = crate::util::serde_derives();
     let serde_crate_attr = crate::util::serde_crate_attr();
-    let serde_bound = crate::util::serde_bound();
 
     let transition_enum = format_ident!("{}Transition", name);
     let event_type = format_ident!("{}Event", name);
+    // The stream name (exporter subdirectory, collector wire tag, ingest key) is
+    // the entity's snake-case name.
+    let event_name = fsm_snake.clone();
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
 
@@ -352,7 +354,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     // Methods are always flat-arg: instance_name + attributes + optional usages.
     let entry_callback = format_ident!("__quent_state_{}", entry_alias.to_string());
     let observer_methods = quote! {
-        #entry_callback!(entry_method pub #handle_name #transition_enum tx);
+        #entry_callback!(entry_method pub #handle_name #transition_enum inner);
     };
 
     let handle_methods = {
@@ -379,12 +381,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let doc_handle_uuid = format!("Returns the UUID of this {name} FSM instance.");
     let doc_handle_exit = format!("Transition the {name} FSM to the exit state.");
     let doc_observer = format!(
-        "Observer for `{name}` FSM instances.\n\n\
-         An observer emits events for a model component. Obtain one from the \
-         instrumentation context via the corresponding observer method. \
-         Call the entry state method to create an FSM handle.\n\n\
-         The type parameter `E` is the model's top-level event enum, allowing \
-         the same component to be reused across different models."
+        "Observer for `{name}` FSM instances. Obtain it from the instrumentation \
+         context via the corresponding observer method; call the entry state \
+         method to create an FSM handle."
     );
 
     let output = quote! {
@@ -442,6 +441,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[doc = #doc_event]
         pub type #event_type = quent_model::FsmEvent<#transition_enum>;
 
+        // The transition enum carries the FSM's event-stream name; a blanket impl
+        // on `FsmEvent<S>` forwards it (the alias is over a foreign type).
+        impl quent_model::EntityEvent for #transition_enum {
+            const NAME: &'static str = #event_name;
+        }
+
         impl quent_model::ModelComponent for #name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
                 {
@@ -462,20 +467,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
         #[doc = #doc_handle]
         #[doc(alias = "handle")]
-        pub struct #handle_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
+        pub struct #handle_name {
             id: quent_model::uuid::Uuid,
             seq: u64,
             exited: bool,
-            tx: quent_model::EventSender<E>,
+            inner: ::std::sync::Arc<quent_model::Observer<#event_type>>,
         }
 
-        impl<E> #handle_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
+        impl #handle_name {
             #[doc = #doc_handle_uuid]
             pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
 
@@ -495,39 +494,41 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 let seq = self.seq;
                 self.seq += 1;
                 let event = quent_model::FsmEvent { seq, state };
-                self.tx.send(quent_model::Event::new(
+                self.inner.send(quent_model::Event::new(
                     self.id,
                     quent_model::timestamp(),
-                    E::from(event),
+                    event,
                 ));
             }
 
             #handle_methods
         }
 
-        impl<E> Drop for #handle_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
+        impl Drop for #handle_name {
             fn drop(&mut self) { self.exit(); }
         }
 
         #[doc = #doc_observer]
         #[doc(alias = "observer")]
-        #[derive(Clone)]
-        pub struct #observer_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
-            tx: quent_model::EventSender<E>,
+        pub struct #observer_name {
+            inner: ::std::sync::Arc<quent_model::Observer<#event_type>>,
         }
 
-        impl<E> #observer_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
-            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                Self { tx: tx.clone() }
+        // Cloning shares the underlying observer.
+        impl Clone for #observer_name {
+            fn clone(&self) -> Self {
+                Self { inner: self.inner.clone() }
+            }
+        }
+
+        impl #observer_name {
+            pub fn new(observer: quent_model::Observer<#event_type>) -> Self {
+                Self { inner: ::std::sync::Arc::new(observer) }
+            }
+
+            /// Forward a pre-built event into this entity's stream.
+            pub fn send(&self, event: quent_model::Event<#event_type>) {
+                self.inner.send(event);
             }
 
             #observer_methods

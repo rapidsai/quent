@@ -16,6 +16,12 @@ profiling / telemetry tool for your application.
 In this experimental stage, the first domain we target is that of query engines,
 but the basic concepts are domain-agnostic and may be applied to other domains.
 
+Here's an example of the in-tree UI for query engines where the goal is to make
+it easy to relate how control structures influence resources and how this all
+relates to query plans:
+
+![Quent overview demo](ui/docs/screenshots/demo.gif)
+
 ## Status
 
 This project is experimental and under heavy development. The modeling concepts,

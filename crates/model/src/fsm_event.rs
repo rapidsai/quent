@@ -20,3 +20,13 @@ pub struct FsmEvent<S> {
     /// The state being entered and its attributes.
     pub state: S,
 }
+
+// An FSM's event stream is named after its transition set. `FsmEvent` is foreign
+// to the crate that defines an FSM, so its transition enum (which is local
+// there) carries the name and this blanket forwards it.
+impl<S> quent_events::EntityEvent for FsmEvent<S>
+where
+    S: quent_events::EntityEvent,
+{
+    const NAME: &'static str = S::NAME;
+}

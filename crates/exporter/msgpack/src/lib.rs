@@ -7,43 +7,49 @@
 //! Each record: `[4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]`
 use std::{io::BufReader, marker::PhantomData, path::PathBuf};
 
-use quent_events::Event;
+use quent_events::{EntityEvent, Event};
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
-    sync::Mutex,
 };
 use tracing::{debug, error};
+use uuid::Uuid;
+
+/// File extension for MessagePack event files.
+const EXTENSION: &str = "msgpack";
 
 /// Options for the MessagePack exporter.
 ///
-/// Writes events in MessagePack binary format to the file at `path`. Compact
-/// and fast to serialize/deserialize.
+/// A compact row-oriented binary format, which is self-describing.
+///
+/// Writes events in MessagePack binary format under `dir`, in a per-entity
+/// subdirectory holding a UUIDv7-named `.msgpack` file.
 #[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
-    pub path: PathBuf,
+    pub dir: PathBuf,
 }
 
 #[derive(Debug)]
 pub struct MsgpackExporter {
-    writer: Mutex<BufWriter<File>>,
+    /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
+    writer: Option<BufWriter<File>>,
 }
 
 impl MsgpackExporter {
-    pub async fn try_new(options: MsgpackExporterOptions) -> ExporterResult<Self> {
-        if let Some(parent) = options.path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-        debug!("exporting to \"{}\"", options.path.display());
+    pub async fn try_new<T: EntityEvent>(options: MsgpackExporterOptions) -> ExporterResult<Self> {
+        let dir = options.dir.join(T::NAME);
+        tokio::fs::create_dir_all(&dir).await?;
+        let path = dir.join(format!("{}.{EXTENSION}", Uuid::now_v7()));
+        debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&options.path)
+            .open(&path)
             .await?;
         Ok(Self {
-            writer: Mutex::new(BufWriter::new(file)),
+            writer: Some(BufWriter::new(file)),
         })
     }
 }
@@ -51,27 +57,23 @@ impl MsgpackExporter {
 #[async_trait::async_trait]
 impl<T> Exporter<T> for MsgpackExporter
 where
-    T: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
-    async fn push(&self, event: Event<T>) -> ExporterResult<()> {
-        let payload =
-            rmp_serde::to_vec(&event).map_err(|e| ExporterError::Serde(format!("{e:?}")))?;
+    async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
+        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
+        let payload = rmp_serde::to_vec(&event).map_err(ExporterError::other)?;
         let len = (payload.len() as u32).to_be_bytes();
-        let mut lock = self.writer.lock().await;
-        lock.write_all(&len).await?;
-        lock.write_all(&payload).await?;
+        writer.write_all(&len).await?;
+        writer.write_all(&payload).await?;
         Ok(())
     }
 
-    async fn force_flush(&self) -> ExporterResult<()> {
-        match self.writer.lock().await.flush().await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let err = format!("unable to flush msgpack exporter: {e}");
-                error!("{err}");
-                Err(ExporterError::Flush(err))
-            }
-        }
+    async fn shutdown(&mut self) -> ExporterResult<()> {
+        let Some(mut writer) = self.writer.take() else {
+            return Ok(());
+        };
+        writer.flush().await?;
+        Ok(())
     }
 }
 

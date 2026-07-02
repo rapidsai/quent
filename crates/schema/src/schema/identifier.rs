@@ -13,8 +13,44 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(try_from = "String"))]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Identifier(String);
+
+#[cfg(feature = "ts")]
+impl ts_rs::TS for Identifier {
+    type WithoutGenerics = Self;
+    type OptionInnerType = Self;
+
+    fn docs() -> Option<String> {
+        Some(
+            concat!(
+                "/**\n",
+                " * An identifier adhering to the grammar `[A-Za-z][A-Za-z0-9_]*`\n",
+                " *\n",
+                " * This grammar is chosen such that a minimal amount of friction is expected\n",
+                " * when interoperating across multiple programming languages and event data\n",
+                " * formats.\n",
+                " */\n",
+            )
+            .to_owned(),
+        )
+    }
+
+    fn name(_: &ts_rs::Config) -> String {
+        "Identifier".to_owned()
+    }
+
+    fn inline(_: &ts_rs::Config) -> String {
+        "string".to_owned()
+    }
+
+    fn decl(_: &ts_rs::Config) -> String {
+        "type Identifier = string;".to_owned()
+    }
+
+    fn output_path() -> Option<std::path::PathBuf> {
+        Some("Identifier.ts".into())
+    }
+}
 
 /// Reason a string failed to parse as an [`Identifier`].
 #[derive(Debug, Clone, PartialEq, Eq, Error)]

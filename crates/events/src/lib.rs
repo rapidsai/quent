@@ -9,6 +9,12 @@ use uuid::Uuid;
 
 pub mod trace;
 
+/// Trait for the event type of an entity.
+pub trait EntityEvent {
+    /// The name of the entity.
+    const NAME: &'static str;
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct Event<T> {
     /// The ID of the entity producing this event.

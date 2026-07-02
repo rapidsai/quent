@@ -82,14 +82,18 @@ pub trait ResourceGroup {
     const IS_ROOT: bool = false;
 }
 
-// Re-export instrumentation types needed by generated code.
+// Re-exports referenced by generated instrumentation code and by model consumers.
+pub use ciborium;
 pub use quent_attributes as attributes;
-pub use quent_events::Event;
+pub use quent_build_info as build_info;
+#[cfg(feature = "collector")]
+pub use quent_collector_client::CollectorSink;
+pub use quent_events::{EntityEvent, Event};
 pub use quent_exporter as exporter;
-pub use quent_instrumentation::Context;
-#[doc(hidden)]
-pub use quent_instrumentation::EventSender;
+pub use quent_instrumentation::{Context, Observer};
 pub use quent_time::timestamp;
 #[cfg(feature = "serde")]
 pub use serde;
+#[doc(hidden)]
+pub use tokio;
 pub use uuid;

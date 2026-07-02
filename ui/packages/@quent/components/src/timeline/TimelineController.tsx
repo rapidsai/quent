@@ -203,7 +203,6 @@ export function TimelineController({
       top: CONTROLLER_GRID_TOP,
       bottom: CONTROLLER_GRID_BOTTOM,
       backgroundColor: controllerGridBackgroundColor,
-      outerBoundsMode: 'none',
     }),
     [controllerGridBackgroundColor]
   );

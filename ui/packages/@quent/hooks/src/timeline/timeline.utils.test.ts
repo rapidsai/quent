@@ -132,7 +132,8 @@ describe('setOperatorOnEntry', () => {
     const result = setOperatorOnEntry(entry, 'op-7');
     expect('ResourceGroup' in result).toBe(true);
     expect(
-      (result as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params.operator_id
+      (result as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params
+        .operator_id
     ).toBe('op-7');
   });
 
@@ -152,7 +153,8 @@ describe('setOperatorOnEntry', () => {
       .app_params.operator_id;
     setOperatorOnEntry(entry, 'op-new');
     expect(
-      (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params.operator_id
+      (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params
+        .operator_id
     ).toBe(original);
   });
 });

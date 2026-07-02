@@ -52,6 +52,12 @@ pub(crate) fn event_type_path(model_name: &str, options: &impl HasInstrumentatio
     format!("{}::{}Event", options.instrumentation_crate(), model_name)
 }
 
+/// Fully qualified model marker path for a generated model. This is the bare
+/// model name (e.g. `Simulator`), the marker `Context` is parameterized by.
+pub(crate) fn model_type_path(model_name: &str, options: &impl HasInstrumentationCrate) -> String {
+    format!("{}::{}", options.instrumentation_crate(), model_name)
+}
+
 /// Remap a `module_path!()` value to be relative to the instrumentation crate.
 ///
 /// `module_path!()` returns paths like `quent_query_engine_model::engine`.

@@ -31,6 +31,11 @@ impl CxxOptions {
     pub fn event_type(&self, model_name: &str) -> String {
         common::event_type_path(model_name, self)
     }
+
+    /// The fully qualified model marker path. Requires the model name.
+    pub fn model_type(&self, model_name: &str) -> String {
+        common::model_type_path(model_name, self)
+    }
 }
 
 impl Default for CxxOptions {
@@ -63,6 +68,11 @@ impl PyO3Options {
     /// The fully qualified event type path. Requires the model name.
     pub fn event_type(&self, model_name: &str) -> String {
         common::event_type_path(model_name, self)
+    }
+
+    /// The fully qualified model marker path. Requires the model name.
+    pub fn model_type(&self, model_name: &str) -> String {
+        common::model_type_path(model_name, self)
     }
 }
 

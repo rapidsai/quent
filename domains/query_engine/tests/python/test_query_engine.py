@@ -105,8 +105,16 @@ def test_engine_definition(tmp_path_factory: pytest.TempPathFactory) -> None:
 
     worker.exit()
     engine.exit()
+    # Each entity's stream flushes only when its last handle is released, so drop
+    # the handles before closing the context.
+    del engine, worker, query, operator, port
     context.close()
 
-    output_path = (path / str(engine_id) / "events.ndjson").resolve()
-    assert output_path.exists(), output_path
-    assert output_path.stat().st_size > 0, output_path
+    # Events are written per entity: <context>/<entity>/<uuid>.<ext>, alongside a
+    # model.qmi provenance sidecar.
+    context_dir = (path / str(engine_id)).resolve()
+    assert context_dir.is_dir(), context_dir
+    assert (context_dir / "model.qmi").exists(), context_dir
+    event_files = list(context_dir.glob("*/*.ndjson"))
+    assert event_files, context_dir
+    assert all(f.stat().st_size > 0 for f in event_files), event_files

@@ -11,10 +11,9 @@ swagger = ["quent-query-engine-server/swagger"]
 axum = { version = "0.8.7" }
 clap = { version = "4.5", features = ["derive", "env"] }
 quent-exporter = { path = "../../../crates/exporter" }
-quent-collector = { path = "../../../crates/collector/server" }
 quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
-quent-simulator-instrumentation = { path = "../instrumentation" }
+quent-simulator-instrumentation = { path = "../instrumentation", features = ["collector"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true

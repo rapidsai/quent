@@ -13,11 +13,12 @@ quent_model::entity! {
 }
 
 quent_model::model! {
-    App {
-        root: Root,
+    name: App,
+    root: Root,
+    entities: {
         Thing,
         Thing,
-    }
+    },
 }
 
 fn main() {}

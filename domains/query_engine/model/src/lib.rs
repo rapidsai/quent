@@ -14,13 +14,14 @@ pub mod query_group;
 pub mod worker;
 
 model! {
-    QueryEngine {
-        root: engine::Engine,
+    name: QueryEngine,
+    root: engine::Engine,
+    entities: {
         query::Query,
         worker::Worker,
         query_group::QueryGroup,
         plan::Plan,
         operator::Operator,
         port::Port,
-    }
+    },
 }

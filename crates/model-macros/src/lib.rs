@@ -61,16 +61,17 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Composes model components into a model type and event enum.
+/// Composes a model's entities into a model type and event enum.
+///
+/// Fields may appear in any order; `name` and `root` are required, `entities` is
+/// optional.
 ///
 /// ```ignore
 /// model! {
-///     App {
-///         root: Cluster,
-///         Worker,
-///         Thread,
-///         Task,
-///     }
+///     name: App,
+///     root: Cluster,
+///     entities: { Worker, Thread, Task },
+///     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
 /// }
 /// ```
 #[proc_macro]
@@ -89,10 +90,9 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// This generates `AppContext`, the entry point for instrumenting your
 /// application. To start emitting events:
 ///
-/// 1. Mint the root entity's id: `let cluster_id = Uuid::now_v7();`
-/// 2. Create a context with it: `let ctx = AppContext::try_new(cluster_id, Some(exporter_options))?;`
-/// 3. Get an observer: `let obs = ctx.cluster_observer();`
-/// 4. Declare the root with the same id: `obs.cluster(cluster_id, "my-cluster");`
+/// 1. Create a context: `let ctx = AppContext::try_new(Some(exporter_options))?;`
+/// 2. Get an observer: `let obs = ctx.cluster_observer();`
+/// 3. Declare the root entity with the context id: `obs.cluster(ctx.id(), "my-cluster");`
 ///
 /// For FSMs: the observer's entry method returns a handle for state transitions.
 /// For resources: the observer's `initializing()` method returns a handle for

@@ -3,15 +3,23 @@ name = "quent-exporter"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+
 [features]
 default = ["ndjson", "msgpack", "postcard", "collector"]
 ndjson = ["dep:quent-exporter-ndjson"]
 msgpack = ["dep:quent-exporter-msgpack"]
 postcard = ["dep:quent-exporter-postcard"]
-collector = ["dep:quent-exporter-collector"]
+collector = ["dep:quent-exporter-collector", "dep:http"]
+clap = ["dep:clap", "dep:http"]
+# Forwards each event to a caller-supplied callback (e.g. in-memory test collection).
+callback = ["dep:quent-exporter-callback"]
 
 [dependencies]
+clap = { version = "4.5.57", features = ["derive", "env"], optional = true }
+http = { workspace = true, optional = true }
+quent-events = { path = "../events" }
 quent-exporter-types = { path = "types" }
+quent-exporter-callback = { path = "callback", optional = true }
 quent-exporter-collector = { path = "collector", optional = true }
 quent-exporter-msgpack = { path = "msgpack", optional = true }
 quent-exporter-ndjson = { path = "ndjson", optional = true }

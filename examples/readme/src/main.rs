@@ -82,13 +82,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     task.computing(Some(usage(&thread)), Some(usage((&mem_pool, 1024))));
     task.exit();
 
-    // Drop context to flush all pending events.
-    drop(context);
+    // Each entity stream flushes when its last handle drops, so drop the handles
+    // along with the context to write all pending events before reading them.
+    drop((context, queue, mem_pool, thread, task, file_stats_handle));
 
-    let output_path = root.join(id.to_string()).join("events.ndjson");
+    // Events are written per entity under the context directory.
+    let output_dir = root.join(id.to_string());
     println!(
         "Events written to: {}",
-        output_path.canonicalize()?.display()
+        output_dir.canonicalize()?.display()
     );
 
     Ok(())

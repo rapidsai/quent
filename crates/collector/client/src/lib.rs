@@ -8,7 +8,6 @@ use std::time::Duration;
 use quent_events::Event;
 use serde::Serialize;
 use tokio::{
-    runtime::Handle,
     select,
     sync::mpsc::{self, Receiver, Sender},
     task::JoinHandle,
@@ -23,6 +22,13 @@ use uuid::Uuid;
 
 use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
 
+/// A sink for serialized per-entity event streams.
+pub trait CollectorSink {
+    /// Ingest a serialized `event` belonging to the entity event stream named
+    /// `entity`.
+    fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
+}
+
 #[derive(Debug, Error)]
 pub enum CollectorError {
     #[error("Unable to connect: {0}")]
@@ -33,6 +39,12 @@ pub enum CollectorError {
     Tonic(#[from] tonic::transport::Error),
     #[error("RPC error: {0}")]
     GRPC(#[from] Status),
+    #[error("invalid `{key}` metadata value: {source}")]
+    Metadata {
+        key: &'static str,
+        #[source]
+        source: tonic::metadata::errors::InvalidMetadataValue,
+    },
 }
 
 pub type CollectorResult<T> = std::result::Result<T, CollectorError>;
@@ -43,16 +55,21 @@ pub struct Client<T> {
     _grpc_client: CollectorClient<Channel>,
     event_sender: Sender<Event<T>>,
     cancellation_token: CancellationToken,
+    // Taken via `Option::take` in `shutdown(&mut self)` so they can be joined
+    // once; a second call finds `None` and is a no-op.
     events_sender_handle: Option<JoinHandle<()>>,
     events_collector_handle: Option<JoinHandle<()>>,
-    runtime_handle: Handle,
 }
 
 impl<T> Client<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub async fn new(application_id: Uuid, address: String) -> CollectorResult<Client<T>> {
+    pub async fn new(
+        source_context_id: Uuid,
+        entity_type: &str,
+        address: http::Uri,
+    ) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -175,14 +192,28 @@ where
 
         debug!("opening stream ...");
 
-        // Identify this stream so the collector groups its events under the id.
+        // Identify this stream so the collector reproduces its events under the
+        // id, and tag it with the entity type so the collector routes the batch
+        // to the matching entity observer.
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
-            "application-id",
-            application_id
+            "source-context-id",
+            source_context_id
                 .to_string()
                 .parse()
-                .expect("valid metadata value"),
+                .map_err(|source| CollectorError::Metadata {
+                    key: "source-context-id",
+                    source,
+                })?,
+        );
+        req.metadata_mut().insert(
+            "entity-type",
+            entity_type
+                .parse()
+                .map_err(|source| CollectorError::Metadata {
+                    key: "entity-type",
+                    source,
+                })?,
         );
 
         let mut cloned_client = client.clone();
@@ -195,8 +226,6 @@ where
             _grpc_client: client,
             event_sender,
             cancellation_token,
-            // Safety: this fn must be called from a tokio runtime.
-            runtime_handle: Handle::current(),
             events_sender_handle: Some(events_sender_handle),
             events_collector_handle: Some(events_collector_handle),
         })
@@ -210,27 +239,32 @@ where
             .await
             .map_err(|e| CollectorError::SendError(e.to_string()))
     }
-}
 
-impl<T> Drop for Client<T> {
-    fn drop(&mut self) {
+    /// Drain and deliver all buffered events, then wait for both background
+    /// tasks to finish. Async so it can be awaited from the forwarder rather
+    /// than blocking in `Drop` (which would run on a runtime worker thread).
+    /// Idempotent; subsequent calls are no-ops.
+    pub async fn shutdown(&mut self) {
         self.cancellation_token.cancel();
-
-        // Wait for the sender to finish sending the remaining events
-        if let Some(join_handle) = self.events_sender_handle.take()
-            && let Err(e) = self.runtime_handle.block_on(join_handle)
+        if let Some(handle) = self.events_sender_handle.take()
+            && let Err(e) = handle.await
         {
             warn!("grpc sender task failed: {e}");
         }
-
-        debug!("events_sender_handle completed");
-
-        // Wait for the collector to finish processing the remaining events
-        if let Some(join_handle) = self.events_collector_handle.take()
-            && let Err(e) = self.runtime_handle.block_on(join_handle)
+        if let Some(handle) = self.events_collector_handle.take()
+            && let Err(e) = handle.await
         {
             warn!("grpc collector task failed: {e}");
         }
         info!("client shut down, all gRPC messages flushed");
+    }
+}
+
+impl<T> Drop for Client<T> {
+    fn drop(&mut self) {
+        // The forwarder awaits `shutdown` before dropping the exporter, so the
+        // tasks are normally already joined. Cancel as a backstop; any handle
+        // still present is detached (no blocking — `Drop` may run on a worker).
+        self.cancellation_token.cancel();
     }
 }

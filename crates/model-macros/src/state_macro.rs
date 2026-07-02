@@ -339,13 +339,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[doc(hidden)]
         #[macro_export]
         macro_rules! #callback_name {
-            (entry_method $vis:vis $handle:ident $transition:ident $observer_tx:ident) => {
+            (entry_method $vis:vis $handle:ident $transition:ident $observer_inner:ident) => {
                 $vis fn #entry_alias(
                     &self,
                     id: quent_model::uuid::Uuid,
                     #(#attrs_params)*
                     #(#usage_params)*
-                ) -> $handle<E> {
+                ) -> $handle {
                     let state = #name {
                         #(#attrs_field_inits)*
                         #(#usage_field_inits)*
@@ -354,7 +354,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         id,
                         seq: 0,
                         exited: false,
-                        tx: self.$observer_tx.clone(),
+                        inner: self.$observer_inner.clone(),
                     };
                     handle.emit_transition($transition::from(state));
                     handle

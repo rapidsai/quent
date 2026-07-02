@@ -280,7 +280,18 @@ impl InMemoryQueryEngineModelBuilder {
             data,
         } = event;
         match data {
-            QueryEngineEvent::Engine(e) => self.engine.push(Event::new(id, timestamp, e)),
+            QueryEngineEvent::Engine(e) => {
+                // One engine instance per model: the imported streams for an
+                // engine must not carry a second, distinct engine id.
+                let engine_id = Entity::id(&self.engine);
+                if id != engine_id {
+                    return Err(AnalyzerError::Validation(format!(
+                        "multiple engine instances in one query engine model: \
+                         expected {engine_id}, found {id}"
+                    )));
+                }
+                self.engine.push(Event::new(id, timestamp, e))
+            }
             QueryEngineEvent::Worker(e) => {
                 if let std::collections::hash_map::Entry::Vacant(e) = self.workers.entry(id) {
                     e.insert(Worker::try_new(id)?);

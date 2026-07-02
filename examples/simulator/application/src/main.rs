@@ -11,16 +11,13 @@ use std::{
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
-use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
-};
+use quent_exporter::clap::ExporterArgs;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
-use quent_simulator_instrumentation::SimulatorEvent;
 use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -49,22 +46,8 @@ struct Args {
     #[arg(long, default_value_t = 2)]
     num_threads: usize,
 
-    /// Exporter format:
-    /// - collector: send events to a collector service over gRPC.
-    /// - postcard: binary format, NOT self-describing, most performant.
-    /// - messagepack: binary self-describing format.
-    /// - ndjson: newline-delimited JSON files (human readable).
-    #[arg(long, default_value = "collector")]
-    exporter: String,
-
-    /// Collector address (when --exporter is collector)
-    /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
-    #[arg(
-        long,
-        default_value = "http://localhost:7836",
-        env = "QUENT_COLLECTOR_ADDRESS"
-    )]
-    collector_address: String,
+    #[command(flatten)]
+    exporter: ExporterArgs,
 }
 
 fn initialize_tracing() {
@@ -503,9 +486,9 @@ struct Worker {
     thread_pool: Uuid,
     threads: Vec<Uuid>,
     // Resource handles — kept alive until shut_down().
-    memory_handles: Vec<quent_stdlib::memory::MemoryHandle<SimulatorEvent>>,
-    channel_handles: Vec<quent_stdlib::channel::ChannelHandle<SimulatorEvent>>,
-    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle<SimulatorEvent>>,
+    memory_handles: Vec<quent_stdlib::memory::MemoryHandle>,
+    channel_handles: Vec<quent_stdlib::channel::ChannelHandle>,
+    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle>,
 }
 
 impl Worker {
@@ -1025,7 +1008,7 @@ struct Engine {
     workers: HashMap<Uuid, Worker>,
     network: Uuid,
     network_links: HashMap<(Uuid, Uuid), Uuid>,
-    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle<SimulatorEvent>>,
+    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle>,
 }
 
 impl Engine {
@@ -1141,33 +1124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = Engine::new();
 
-    let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Postcard,
-            root: "data".into(),
-        })),
-        "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Msgpack,
-            root: "data".into(),
-        })),
-        "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Ndjson,
-            root: "data".into(),
-        })),
-        "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
-            address: args.collector_address,
-            application_id: engine.id,
-        })),
-        "none" => None,
-        _ => {
-            return Err(format!(
-                "invalid exporter '{}': must be postcard, messagepack, ndjson, collector, or none",
-                args.exporter
-            )
-            .into());
-        }
-    };
-    let context = SimulatorContext::try_new(exporter)?;
+    let context = SimulatorContext::try_new(args.exporter.into_options())?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 
@@ -1225,9 +1182,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     engine.shut_down(&context);
 
-    drop(context);
+    // Each entity stream flushes only when its last observer clone is released.
+    // `engine` co-owns those clones through its worker and network-link handles,
+    // so it must drop together with the context to write all pending events.
+    drop((engine, context));
 
-    info!("instrumentation context dropped");
     info!("simulation completed");
     Ok(())
 }

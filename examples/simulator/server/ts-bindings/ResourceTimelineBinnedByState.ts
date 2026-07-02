@@ -11,7 +11,7 @@ config: BinnedSpanSec,
  * Maps a resource capacity name to a map of a state name to a vector where
  * each element holds an aggregated value of a time bin.
  */
-capacities_states_values: { [key in string]?: { [key in string]?: Array<number> } }, 
+capacities_states_values: { [key in string]: { [key in string]: Array<number> } }, 
 /**
  * FSMs that have usage spans exceeding the long_entities_threshold.
  */

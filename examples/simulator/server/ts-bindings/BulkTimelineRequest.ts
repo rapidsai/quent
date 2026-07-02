@@ -8,7 +8,7 @@ export type BulkTimelineRequest<GlobalParams, TimelineParams> = {
 /**
  * The list of timelines requested.
  */
-entries: { [key in string]?: TimelineRequest<TimelineParams> }, 
+entries: { [key in string]: TimelineRequest<TimelineParams> }, 
 /**
  * Global application-specific parameters, e.g. filters.
  */

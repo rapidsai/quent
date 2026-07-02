@@ -14,15 +14,16 @@ use std::fs;
 use std::path::Path;
 
 use quent_schema::Schema;
-use ts_rs::TS;
+use ts_rs::{Config, TS};
 
 const OUT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ts/src/generated");
 
 #[test]
 fn export_bindings() {
     let out = Path::new(OUT_DIR);
+    let cfg = Config::new().with_out_dir(out);
     // Exporting from Schema transitively emits every reachable schema type.
-    Schema::export_all_to(out).expect("export schema bindings");
+    Schema::export_all(&cfg).expect("export schema bindings");
     write_barrel(out);
 }
 

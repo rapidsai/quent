@@ -13,3 +13,16 @@ allowBuilds:
   esbuild: true
   msw: true
   protobufjs: true
+
+# Advisories that `pnpm audit` should drop from its failure list.
+# Each entry MUST be paired with a same-key comment explaining why it is safe
+# to ignore and what the exit criteria for removing it are.
+auditConfig:
+  ignoreGhsas:
+    # GHSA-fgmj-fm8m-jvvx / CVE-2026-45249 — echarts <6.1.0 XSS via the Lines-
+    # series default tooltip. Requires (a) `type: 'lines'`, (b) no custom
+    # `tooltip.formatter`, (c) raw HTML in `series.data[i].name`. Quent uses
+    # `type: 'line'`, `custom`, and `sankey` — no `type: 'lines'` anywhere —
+    # so the vulnerable code path is unreachable. Remove this entry when we
+    # bump to echarts 6.1.0 (pending v5→v6 migration).
+    - GHSA-fgmj-fm8m-jvvx

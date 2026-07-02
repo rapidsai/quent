@@ -6,9 +6,9 @@ syntax = "proto3";
 package quent.collector.v1;
 
 service Collector {
-  // Request to set up an event stream.
-  //
-  // Must include metadata key "engine-id": "<uuid string>".
+  // Opens an event stream for a single entity of a single source. Each stream
+  // must carry two metadata keys: "source-context-id" (the producing context's
+  // UUID) and "entity-type" (the entity event stream's name).
   rpc CollectEvents(stream CollectEventRequest) returns (CollectEventResponse);
 }
 

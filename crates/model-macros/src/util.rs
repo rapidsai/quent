@@ -16,16 +16,6 @@ pub fn serde_derives() -> TokenStream {
     }
 }
 
-/// Returns `+ quent_model::serde::Serialize` trait bound when the `serde`
-/// feature is enabled, or empty tokens otherwise.
-pub fn serde_bound() -> TokenStream {
-    if cfg!(feature = "serde") {
-        quote! { + quent_model::serde::Serialize }
-    } else {
-        quote! {}
-    }
-}
-
 /// Returns `#[serde(crate = "quent_model::serde")]` when the `serde` feature
 /// is enabled. Tells the serde derive macros where to find the serde runtime.
 pub fn serde_crate_attr() -> TokenStream {

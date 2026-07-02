@@ -3,8 +3,14 @@ name = "quent-instrumentation"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+[features]
+default = ["collector"]
+# Build collector-routed observers; forwards to quent-exporter's `collector`
+# feature, which gates the `ExporterOptions::Collector` variant matched here.
+collector = ["quent-exporter/collector"]
 [dependencies]
 quent-attributes = { path = "../attributes" }
+quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-types = { path = "../exporter/types" }
@@ -15,12 +21,15 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+ciborium = "0.2.2"
 criterion = { version = "0.5", features = ["html_reports"] }
+http.workspace = true
 pprof = { version = "0.14", features = ["criterion", "flamegraph"] }
 quent-collector = { path = "../collector/server" }
 quent-collector-proto = { path = "../collector/proto" }
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true
 

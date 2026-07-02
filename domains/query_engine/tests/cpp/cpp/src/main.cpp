@@ -135,6 +135,7 @@ int main() {
   // Engine: exit.
   engine_obs->exit(engine_id);
 
-  // Context destruction flushes all pending events.
+  // At scope end the observers, handles, and context all drop; each stream
+  // flushes when its last clone is released.
   return 0;
 }

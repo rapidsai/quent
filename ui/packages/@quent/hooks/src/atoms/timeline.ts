@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
-import type { ZoomRange, SingleTimelineResponse, TimelineRequest, OperatorFilter } from '@quent/utils';
+import type {
+  ZoomRange,
+  SingleTimelineResponse,
+  TimelineRequest,
+  OperatorFilter,
+} from '@quent/utils';
 
 /**
  * All dimensions that distinguish a cached timeline entry.

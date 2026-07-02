@@ -219,7 +219,6 @@ fn emit_operating_conversions(name: &proc_macro2::Ident, fields: &ResourceFields
 fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> {
     let serde_derives = crate::util::serde_derives();
     let serde_crate_attr = crate::util::serde_crate_attr();
-    let serde_bound = crate::util::serde_bound();
     let vis = &input.vis;
     let name = &input.ident;
     let name_snake = to_snake_case(name);
@@ -233,6 +232,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let resize_state = format_ident!("{}Resizing", name);
     let transition_enum = format_ident!("{}Transition", name);
     let event_type = format_ident!("{}Event", name);
+    // The stream name (exporter subdirectory, collector wire tag, ingest key) is
+    // the entity's snake-case name.
+    let event_name = name_snake.clone();
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
     let resource_marker = format_ident!("{}Resource", name);
@@ -706,12 +708,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let doc_handle_uuid = format!("Returns the UUID of this {name} resource instance.");
     let doc_handle_exit = format!("Transition the {name} resource FSM to the exit state.");
     let doc_observer = format!(
-        "Observer for `{name}` resource lifecycle events.\n\n\
-         An observer emits events for a model component. Obtain one from the \
-         instrumentation context via the corresponding observer method. \
-         Call `initializing()` to create a resource handle.\n\n\
-         The type parameter `E` is the model's top-level event enum, allowing \
-         the same component to be reused across different models."
+        "Observer for `{name}` resource lifecycle events. Obtain it from the \
+         instrumentation context via the corresponding observer method; call \
+         `initializing()` to create a resource handle."
     );
     let doc_observer_init = format!("Create a new `{name}` resource in the initializing state.");
     let doc_resource_marker = format!("Resource marker type for {name}.");
@@ -771,6 +770,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
         #[doc = #doc_event]
         #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
 
+        // The transition enum carries the resource's event-stream name; a blanket
+        // impl on `FsmEvent<S>` forwards it (the alias is over a foreign type).
+        impl quent_model::EntityEvent for #transition_enum {
+            const NAME: &'static str = #event_name;
+        }
+
         impl quent_model::HasEventType for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
@@ -802,31 +807,36 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #[doc = #doc_observer]
         #[doc(alias = "observer")]
-        #[derive(Clone)]
-        #vis struct #observer_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
-            tx: quent_model::EventSender<E>,
+        #vis struct #observer_name {
+            inner: ::std::sync::Arc<quent_model::Observer<#event_type>>,
         }
 
-        impl<E> #observer_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
-            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                Self { tx: tx.clone() }
+        // Cloning shares the underlying observer.
+        impl Clone for #observer_name {
+            fn clone(&self) -> Self {
+                Self { inner: self.inner.clone() }
+            }
+        }
+
+        impl #observer_name {
+            pub fn new(observer: quent_model::Observer<#event_type>) -> Self {
+                Self { inner: ::std::sync::Arc::new(observer) }
+            }
+
+            /// Forward a pre-built event into this entity's stream.
+            pub fn send(&self, event: quent_model::Event<#event_type>) {
+                self.inner.send(event);
             }
 
             #[doc = #doc_observer_init]
-            pub fn initializing(&self, id: quent_model::uuid::Uuid, instance_name: &str, parent_group_id: quent_model::uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name<E> {
+            pub fn initializing(&self, id: quent_model::uuid::Uuid, instance_name: &str, parent_group_id: quent_model::uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name {
                 let state = #init_state {
                     instance_name: instance_name.to_string(),
                     parent_group_id,
                     resource_type_name: #name_snake.to_string(),
                     #(#user_init_field_names,)*
                 };
-                let mut handle = #handle_name { id, seq: 0, exited: false, tx: self.tx.clone() };
+                let mut handle = #handle_name { id, seq: 0, exited: false, inner: self.inner.clone() };
                 handle.emit_transition(#transition_enum::from(state));
                 handle
             }
@@ -834,20 +844,14 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #[doc = #doc_handle]
         #[doc(alias = "handle")]
-        #vis struct #handle_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
+        #vis struct #handle_name {
             id: quent_model::uuid::Uuid,
             seq: u64,
             exited: bool,
-            tx: quent_model::EventSender<E>,
+            inner: ::std::sync::Arc<quent_model::Observer<#event_type>>,
         }
 
-        impl<E> #handle_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
+        impl #handle_name {
             #[doc = #doc_handle_uuid]
             pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
 
@@ -869,35 +873,26 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
                 let seq = self.seq;
                 self.seq += 1;
                 let event = quent_model::FsmEvent { seq, state };
-                self.tx.send(quent_model::Event::new(
+                self.inner.send(quent_model::Event::new(
                     self.id,
                     quent_model::timestamp(),
-                    E::from(event),
+                    event,
                 ));
             }
         }
 
-        impl<E> Drop for #handle_name<E>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
+        impl Drop for #handle_name {
             fn drop(&mut self) { self.exit(); }
         }
 
-        impl<E> From<&#handle_name<E>> for quent_model::Ref<#resource_marker>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
-            fn from(handle: &#handle_name<E>) -> Self {
+        impl From<&#handle_name> for quent_model::Ref<#resource_marker> {
+            fn from(handle: &#handle_name) -> Self {
                 quent_model::Ref::new(handle.uuid())
             }
         }
 
-        impl<E> From<&#handle_name<E>> for quent_model::Ref<#name>
-        where
-            E: From<#event_type> #serde_bound + Send + 'static,
-        {
-            fn from(handle: &#handle_name<E>) -> Self {
+        impl From<&#handle_name> for quent_model::Ref<#name> {
+            fn from(handle: &#handle_name) -> Self {
                 quent_model::Ref::new(handle.uuid())
             }
         }

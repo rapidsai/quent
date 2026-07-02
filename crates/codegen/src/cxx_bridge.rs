@@ -206,7 +206,7 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     }
 
     // Generate context bridge
-    files.push(emit_context_bridge(&model.name, options));
+    files.push(emit_context_bridge(model, &model.name, options));
 
     // Generate entity bridges
     for entity in &model.entities {
@@ -397,28 +397,115 @@ fn emit_uuid_bridge(model: &ModelBuilder, model_name: &str, options: &CxxOptions
     }
 }
 
+/// Deterministic name of the per-entity/per-fsm observer accessor on `Context`,
+/// shared between the context bridge (definition) and the entity/fsm bridges
+/// (call site).
+fn observer_handle_method(name: &str) -> syn::Ident {
+    format_ident!("{}_observer_handle", name)
+}
+
 /// Generate the context bridge module.
 ///
-/// The `Context` owns the inner quent context and exposes a sender accessor.
-/// C++ callers retain the returned `Box<Context>` and pass a reference to
-/// each observer/FSM factory, which extracts the sender from it.
-fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
+/// The cxx `Context` holds one observer per entity/FSM; the inner quent context
+/// is used only to build them and is dropped after construction. C++ callers
+/// retain the returned `Box<Context>` and pass a reference to each observer/FSM
+/// factory, which clones the relevant observer from it. A stream flushes when
+/// its last clone drops — the field stored here, plus any the caller still holds.
+fn emit_context_bridge(
+    model: &ModelBuilder,
+    model_name: &str,
+    options: &CxxOptions,
+) -> GeneratedFile {
     let ns = &options.namespace;
     let q = quent_path(model_name, options);
-    let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
+    let model_type: syn::Type = syn::parse_str(&options.model_type(model_name)).unwrap();
     let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
     let context_type_id = format!("{ns}::Context");
 
+    struct ObserverField {
+        field: syn::Ident,
+        method: syn::Ident,
+        stored_ty: TokenStream,
+        /// The entity event type for `Context::observer::<_>()`.
+        event_ty: TokenStream,
+        /// Constructor applied to the freshly built `Observer` to produce the
+        /// stored value (`Arc::new` or an FSM observer facade's `new`).
+        wrap: TokenStream,
+    }
+
+    let observer_fields: Vec<ObserverField> = model
+        .entities
+        .iter()
+        .map(|entity| {
+            let field = format_ident!("{}", entity.name);
+            let method = observer_handle_method(&entity.name);
+            let component_mod: syn::Path =
+                syn::parse_str(&remap_module_path(&entity.module_path, options)).unwrap();
+            let entity_event_enum = format_ident!("{}Event", to_pascal_case(&entity.name));
+            ObserverField {
+                field,
+                method,
+                stored_ty: quote! { Arc<#q::Observer<#component_mod::#entity_event_enum>> },
+                event_ty: quote! { #component_mod::#entity_event_enum },
+                wrap: quote! { Arc::new },
+            }
+        })
+        .chain(model.fsms.iter().map(|fsm| {
+            let field = format_ident!("{}", fsm.name);
+            let method = observer_handle_method(&fsm.name);
+            let component_mod: syn::Path =
+                syn::parse_str(&remap_module_path(&fsm.module_path, options)).unwrap();
+            let pascal = to_pascal_case(&fsm.name);
+            let facade = format_ident!("{}Observer", pascal);
+            let fsm_event = format_ident!("{}Event", pascal);
+            ObserverField {
+                field,
+                method,
+                stored_ty: quote! { #component_mod::#facade },
+                event_ty: quote! { #component_mod::#fsm_event },
+                wrap: quote! { #component_mod::#facade::new },
+            }
+        }))
+        .collect();
+
+    let struct_fields: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            let stored_ty = &o.stored_ty;
+            quote! { #field: #stored_ty }
+        })
+        .collect();
+
+    let build_fields: Vec<&syn::Ident> = observer_fields.iter().map(|o| &o.field).collect();
+    let build_event_tys: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.event_ty).collect();
+    let build_wraps: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.wrap).collect();
+    let field_inits: Vec<syn::Ident> = observer_fields.iter().map(|o| o.field.clone()).collect();
+
+    let accessors: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            let method = &o.method;
+            let stored_ty = &o.stored_ty;
+            quote! {
+                pub fn #method(&self) -> #stored_ty {
+                    self.#field.clone()
+                }
+            }
+        })
+        .collect();
+
     // Rust impl part — formatted via prettyplease.
     let impl_tokens = quote! {
+        use std::sync::Arc;
+
         pub struct Context {
-            inner: #q::Context<#event_type>,
+            #(#struct_fields,)*
         }
 
         impl Context {
-            pub fn events_sender(&self) -> #q::EventSender<#event_type> {
-                self.inner.events_sender()
-            }
+            #(#accessors)*
         }
 
         // Shared across bridges: other bridge modules declare `type Context;`
@@ -439,9 +526,23 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
                 )),
                 _ => None,
             };
-            let inner = #q::Context::try_new(opts)
+            let inner = #q::Context::try_new(
+                <#model_type as #q::build_info::ModelSource>::model_info(),
+                opts,
+            )
+            .map_err(|e| e.to_string())?;
+            // Single sync/async bridge: build every observer concurrently on the
+            // context's runtime, then block until done.
+            let (#(#build_fields,)*) = inner.block_on(async {
+                let (#(#build_fields,)*) = #q::tokio::try_join!(
+                    #(inner.observer::<#build_event_tys>(),)*
+                )
                 .map_err(|e| e.to_string())?;
-            Ok(Box::new(Context { inner }))
+                Ok::<_, String>((#(#build_wraps(#build_fields),)*))
+            })?;
+            Ok(Box::new(Context {
+                #(#field_inits,)*
+            }))
         }
     };
 
@@ -773,11 +874,11 @@ fn emit_entity_bridge(
     let q = quent_path(model_name, options);
     let remapped = remap_module_path(&entity.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
-    let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
     // Derive the entity event enum name: e.g., "Job" -> "JobEvent"
     let entity_event_enum = format_ident!("{}Event", pascal_name);
+    let observer_accessor = observer_handle_method(entity_name);
 
     // Strings for ffi module (CXX-specific syntax)
     let mut shared_structs_str = String::new();
@@ -801,9 +902,9 @@ fn emit_entity_bridge(
             observer_impl_methods.push(quote! {
                 pub fn #event_method(&self, id: ffi::UUID) {
                     let model_event = #component_mod::#event_pascal;
-                    self.tx.send(#q::Event::new_now(
+                    self.inner.send(#q::Event::new_now(
                         #q::uuid::Uuid::from(id),
-                        #component_mod::#entity_event_enum::from(model_event).into(),
+                        #component_mod::#entity_event_enum::from(model_event),
                     ));
                 }
             });
@@ -832,9 +933,9 @@ fn emit_entity_bridge(
                     let model_event = #component_mod::#event_pascal {
                         #(#field_conversions)*
                     };
-                    self.tx.send(#q::Event::new_now(
+                    self.inner.send(#q::Event::new_now(
                         #q::uuid::Uuid::from(id),
-                        #component_mod::#entity_event_enum::from(model_event).into(),
+                        #component_mod::#entity_event_enum::from(model_event),
                     ));
                 }
             });
@@ -856,8 +957,10 @@ fn emit_entity_bridge(
 
     // Build impl code via quote! + prettyplease
     let impl_tokens = quote! {
+        use std::sync::Arc;
+
         pub struct #observer_name {
-            tx: #q::EventSender<#event_type>,
+            inner: Arc<#q::Observer<#component_mod::#entity_event_enum>>,
         }
 
         impl #observer_name {
@@ -866,7 +969,7 @@ fn emit_entity_bridge(
 
         pub fn create_observer(ctx: &super::context::Context) -> Box<#observer_name> {
             Box::new(#observer_name {
-                tx: ctx.events_sender(),
+                inner: ctx.#observer_accessor(),
             })
         }
     };
@@ -1068,16 +1171,11 @@ fn emit_fsm_bridge(
     let handle_name = format_ident!("{}", handle_name_str);
     let q = quent_path(model_name, options);
     let remapped = remap_module_path(&fsm.module_path, options);
-    let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
     let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
 
+    let observer_accessor = observer_handle_method(fsm_name);
     let model_handle: syn::Type = {
-        let s = format!(
-            "{}::{}Handle<{}>",
-            remapped,
-            pascal_name,
-            options.event_type(model_name),
-        );
+        let s = format!("{remapped}::{pascal_name}Handle");
         syn::parse_str(&s).unwrap()
     };
 
@@ -1209,13 +1307,12 @@ fn emit_fsm_bridge(
         })
         .collect();
 
-    let observer_name = format_ident!("{}Observer", pascal_name);
     let factory_fn = if has_entry_data {
         let (stmts, args) = emit_state_flat_args(model, entry_state, &q, &remapped, options);
         quote! {
             pub fn create(ctx: &super::context::Context, data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #stmts
-                let obs = #component_mod::#observer_name::new(&ctx.events_sender());
+                let obs = ctx.#observer_accessor();
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
                     inner: obs.#entry_name(id, #(#args),*),
@@ -1225,7 +1322,7 @@ fn emit_fsm_bridge(
     } else {
         quote! {
             pub fn create(ctx: &super::context::Context) -> Box<#handle_name> {
-                let obs = #component_mod::#observer_name::new(&ctx.events_sender());
+                let obs = ctx.#observer_accessor();
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
                     inner: obs.#entry_name(id),

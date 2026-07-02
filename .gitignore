@@ -1,4 +1,6 @@
 target/
+/data/
+/events/
 .DS_Store
 .pnpm-store/
 .rumdl_cache
@@ -10,3 +12,4 @@ tarpaulin-report.html
 *.tsbuildinfo
 docs/agents/
 .cursor
+__pycache__/

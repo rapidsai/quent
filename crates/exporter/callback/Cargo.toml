@@ -1,0 +1,15 @@
+[package]
+name = "quent-exporter-callback"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+quent-events = { path = "../../events" }
+quent-exporter-types = { path = "../types" }
+serde.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+uuid.workspace = true

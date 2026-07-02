@@ -210,13 +210,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     </div>
   );
 
-  return (
-    <div
-      className={cn(opacityClass, 'z-10')}
-    >
-      {nodeContent}
-    </div>
-  );
+  return <div className={cn(opacityClass, 'z-10')}>{nodeContent}</div>;
 });
 
 QueryPlanNode.displayName = 'QueryPlanNode';

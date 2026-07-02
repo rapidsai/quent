@@ -23,7 +23,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: 'pnpm start --host 127.0.0.1 --port 5173 --strictPort',
+        command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 5173 --strictPort',
         env: {
           ...process.env,
           VITE_API_TARGET: apiTarget,

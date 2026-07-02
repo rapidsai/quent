@@ -14,8 +14,10 @@ quent-analyzer = { path = "../../../crates/analyzer" }
 quent-collector = { path = "../../../crates/collector/server" }
 quent-collector-proto = { path = "../../../crates/collector/proto" }
 quent-events = { path = "../../../crates/events" }
+quent-exporter = { path = "../../../crates/exporter" }
 quent-exporter-types = { path = "../../../crates/exporter/types" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
+quent-query-engine-model = { path = "../model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
@@ -31,6 +33,3 @@ utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
 uuid.workspace = true
 mime_guess = { version = "2", optional = true }
 rust-embed = { version = "8", optional = true }
-
-[dev-dependencies]
-quent-query-engine-model = { path = "../model" }

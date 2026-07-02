@@ -5,13 +5,13 @@
 
 use crate::{analyzer_cache::AnalyzerCache, state::ServiceState, timeline_cache::TimelineCache};
 use axum::Router as AxumRouter;
-use quent_collector::server::{CollectorService, CollectorServiceOptions};
+use quent_collector::server::CollectorService;
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 
-use serde::{Deserialize, Serialize};
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
+use uuid::Uuid;
 
 pub mod analyzer_cache;
 pub mod error;
@@ -41,14 +41,12 @@ pub fn initialize_tracing(log_level: &str) {
         .init();
 }
 
-pub fn collector_service<E>(
-    options: CollectorServiceOptions,
-) -> Result<Router, Box<dyn std::error::Error>>
+pub fn collector_service<C, F>(make: F) -> Result<Router, Box<dyn std::error::Error>>
 where
-    E: Serialize + Send + Sync + 'static,
-    for<'de> E: Deserialize<'de>,
+    C: quent_collector::CollectorSink + Send + Sync + 'static,
+    F: Fn(Uuid) -> Result<C, String> + Send + Sync + 'static,
 {
-    let collector = CollectorService::<E>::new(options);
+    let collector = CollectorService::<C>::new(make);
     Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))
 }
 

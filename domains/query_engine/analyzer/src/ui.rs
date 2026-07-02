@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
+use quent_model::exporter::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::timeline::{
     request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
@@ -104,4 +106,32 @@ pub trait UiAnalyzer {
 
         Ok(BulkChunkedTimelinesResponse { entries })
     }
+}
+
+/// Boxed owned stream of an analyzer's [`UiAnalyzer::Event`] from
+/// [`QuentViewer::import_events`].
+pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>;
+
+/// Model viewer entry point for `quent-open`: connects the event importer to
+/// the rendering [`UiAnalyzer`].
+///
+/// `quent-open` builds a viewer knowing only the analyzer's *crate name*: it
+/// names `<crate>::Viewer` in the generated wrapper and reaches the analyzer
+/// through the associated [`Analyzer`](Self::Analyzer) type. So the model
+/// records only its analyzer package — never the analyzer's concrete type path,
+/// which the model couldn't name anyway (the marker's instrumentation crate does
+/// not depend on the analyzer crate).
+///
+/// Implement it on a local unit type named `Viewer` at the analyzer crate root
+/// (the path `quent-open` requires). The associated [`Analyzer`](Self::Analyzer)
+/// and the model's `import_events` share an event type, so the wiring is checked
+/// at compile time.
+pub trait QuentViewer {
+    /// The analyzer that renders this model's events.
+    type Analyzer: UiAnalyzer + Send + Sync + 'static;
+
+    /// Reconstruct the model's event stream from one context directory, yielding
+    /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model
+    /// marker's generated `import_events`.
+    fn import_events(dir: &Path) -> ImporterResult<ViewerEventStream<Self::Analyzer>>;
 }

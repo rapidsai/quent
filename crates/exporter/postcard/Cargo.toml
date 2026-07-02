@@ -11,3 +11,4 @@ quent-exporter-types = { path = "../types" }
 serde.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
 tracing.workspace = true
+uuid.workspace = true

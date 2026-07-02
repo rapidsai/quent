@@ -124,11 +124,12 @@ int main() {
     // Task exits.
     task->exit();
 
-  } // Drop context to flush all pending events.
+  } // Scope end drops the observers, handles, and the context together; each
+    // stream flushes when its last clone is released.
 
-  auto output_path = std::filesystem::canonical("./events").string() + "/" +
-                     std::string(uuid::to_string(cluster_id)) + ".ndjson";
-  std::cout << "Events written to: " << output_path << std::endl;
+  // Events are written per entity under a context-id subdirectory of ./events.
+  auto output_path = std::filesystem::canonical("./events").string();
+  std::cout << "Events written under: " << output_path << std::endl;
 
   return 0;
 }

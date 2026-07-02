@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 [dependencies]
 ciborium = "0.2.2"
+http.workspace = true
 quent-collector-proto = { path = "../proto" }
 quent-events = { path = "../../events" }
 serde.workspace = true

@@ -300,7 +300,7 @@ impl RtFsmsBuilder {
             .push(transition);
     }
 
-    pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm, RtFsmTransition>> {
+    pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm>> {
         // Build all FSMs.
         let mut fsms: HashMap<Uuid, RtFsm> =
             HashMap::with_capacity_and_hasher(self.fsms.capacity(), Default::default());
