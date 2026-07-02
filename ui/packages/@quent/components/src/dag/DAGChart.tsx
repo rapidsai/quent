@@ -38,6 +38,7 @@ import {
   useEffectiveHighlightedNodeIds,
   useSetSelectedNodeData,
   useSetDagDisplayedNodeIds,
+  useSelectedDagLayoutDirection,
 } from '@quent/hooks';
 import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
 import type { DAGData } from '../services/query-plan/types';
@@ -276,6 +277,7 @@ const FlowLayout = ({
   const setDagDisplayedNodeIds = useSetDagDisplayedNodeIds();
   const setSelectedNodeData = useSetSelectedNodeData();
   const selectedNodeIds = useSelectedNodeIds();
+  const [layoutDirection] = useSelectedDagLayoutDirection();
   const hasUserInteracted = useRef(false);
 
   // Sync controlled selectedNodeIds into the atom when provided
@@ -404,7 +406,7 @@ const FlowLayout = ({
 
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
-      const layoutResult = await calculateLayout(flowNodes, flowEdges);
+      const layoutResult = await calculateLayout(flowNodes, flowEdges, layoutDirection);
 
       setNodes(layoutResult.nodes);
       setEdges(layoutResult.edges);
@@ -414,7 +416,7 @@ const FlowLayout = ({
     };
 
     applyLayout();
-  }, [data, convertToReactFlow, fitView, setNodes, setEdges]);
+  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection]);
 
   return (
     <ReactFlow
