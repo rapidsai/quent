@@ -54,11 +54,13 @@ enum OpenCommand {
         /// Benchmark run to open: its integer run id, or its `run_id` UUID.
         run: String,
 
-        /// Base URL of the Benchmarking API (e.g. `https://host`).
+        /// Base URL of the Benchmarking API (e.g. `https://host`). Also read from
+        /// `QUENT_OPEN_API_BASE_URL` (a `.env` file is loaded first).
         #[arg(long, env = "QUENT_OPEN_API_BASE_URL")]
         api_base_url: String,
 
-        /// Bearer token for the Benchmarking API.
+        /// Bearer token for the Benchmarking API. Also read from `QUENT_OPEN_TOKEN`
+        /// (a `.env` file is loaded first).
         #[arg(long, env = "QUENT_OPEN_TOKEN", hide_env_values = true)]
         token: String,
     },
@@ -66,6 +68,10 @@ enum OpenCommand {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load `.env` (e.g. `QUENT_OPEN_API_BASE_URL` / `QUENT_OPEN_TOKEN`) before clap
+    // reads the environment; real environment variables still take precedence.
+    #[cfg(feature = "db")]
+    let _ = dotenvy::dotenv();
     let cli = Cli::parse();
     let options = OpenOptions {
         no_browser: cli.no_browser,

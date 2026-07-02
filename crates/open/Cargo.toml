@@ -10,13 +10,14 @@ publish.workspace = true
 [features]
 # Non-local mode: fetch a run's telemetry from the (internal RAPIDS/NVIDIA)
 # Benchmarking API database. Off by default; irrelevant to non-NVIDIA users.
-db = ["dep:reqwest", "dep:serde", "dep:tempfile", "dep:tar", "dep:flate2", "dep:zstd", "dep:zip", "dep:uuid"]
+db = ["dep:reqwest", "dep:serde", "dep:tempfile", "dep:tar", "dep:flate2", "dep:zstd", "dep:zip", "dep:uuid", "dep:dotenvy"]
 
 [dependencies]
 backon = "1"
 cargo-manifest = "0.21"
 clap = { version = "4.5.58", features = ["derive", "env"] }
 dirs = "6"
+dotenvy = { version = "0.15", optional = true }
 flate2 = { version = "1", optional = true }
 gix-url = "0.36"
 open = "5"
