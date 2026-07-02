@@ -48,6 +48,8 @@
 //! }
 //! ```
 
+#[cfg(feature = "archive")]
+mod archive;
 #[cfg(feature = "db")]
 mod db;
 mod error;
@@ -101,13 +103,66 @@ pub trait Loader {
 }
 
 /// The built-in loader: discover context directories under local `paths`.
+///
+/// With the `archive` feature, archive files (tar/zip) among `paths` — passed
+/// directly or found while walking passed directories — are extracted into a
+/// scratch dir and scanned too, so a folder of downloaded run archives opens like
+/// a folder of context directories.
 pub struct LocalLoader {
-    pub paths: Vec<PathBuf>,
+    paths: Vec<PathBuf>,
+    #[cfg(feature = "archive")]
+    scratch: tempfile::TempDir,
+}
+
+impl LocalLoader {
+    /// Open the given local `paths`: context directories, and — with the `archive`
+    /// feature — tar/zip archives to extract and scan.
+    pub fn new(paths: Vec<PathBuf>) -> Result<Self> {
+        Ok(Self {
+            paths,
+            #[cfg(feature = "archive")]
+            scratch: tempfile::tempdir()?,
+        })
+    }
+
+    /// Extract every archive at/under the given paths into the scratch dir, and
+    /// return the discovery roots: the passed paths plus the scratch dir.
+    #[cfg(feature = "archive")]
+    fn extract_and_collect_roots(&self) -> Result<Vec<PathBuf>> {
+        let mut unpacked_remaining = archive::MAX_RUN_UNPACKED_BYTES;
+        let mut entries_remaining = archive::MAX_ENTRIES;
+        let mut staged = 0usize;
+        for path in &self.paths {
+            for file in archive::find_archives(path) {
+                let name = file
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default();
+                let dest = self.scratch.path().join(staged.to_string());
+                std::fs::create_dir_all(&dest)?;
+                archive::extract_archive(
+                    &dest,
+                    name,
+                    &file,
+                    &mut unpacked_remaining,
+                    &mut entries_remaining,
+                )?;
+                staged += 1;
+            }
+        }
+        let mut roots = self.paths.clone();
+        roots.push(self.scratch.path().to_path_buf());
+        Ok(roots)
+    }
 }
 
 impl Loader for LocalLoader {
     async fn load(&self) -> Result<Vec<PathBuf>> {
-        discover_contexts(&self.paths)
+        #[cfg(feature = "archive")]
+        let contexts = discover_contexts(&self.extract_and_collect_roots()?)?;
+        #[cfg(not(feature = "archive"))]
+        let contexts = discover_contexts(&self.paths)?;
+        Ok(contexts)
     }
 }
 
@@ -208,13 +263,12 @@ mod tests {
         std::fs::write(ctx.join(SIDECAR_FILE_NAME), b"{}").unwrap();
 
         let paths = vec![tmp.path().to_path_buf()];
-        let found = LocalLoader {
-            paths: paths.clone(),
-        }
-        .load()
-        .await
-        .unwrap();
-        assert_eq!(found, discover_contexts(&paths).unwrap());
+        let found = LocalLoader::new(paths.clone())
+            .unwrap()
+            .load()
+            .await
+            .unwrap();
         assert_eq!(found.len(), 1);
+        assert_eq!(found[0], discover_contexts(&paths).unwrap()[0]);
     }
 }

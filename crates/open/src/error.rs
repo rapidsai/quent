@@ -90,9 +90,9 @@ pub enum OpenError {
     #[error("benchmark run '{run}' has no Quent telemetry assets")]
     NoTelemetryAssets { run: String },
 
-    /// A fetched telemetry archive is not laid out as `<context-uuid>/…` context
-    /// directories (e.g. the sidecar/streams sit at the archive root).
-    #[cfg(feature = "db")]
+    /// A telemetry archive is malformed or not laid out as `<context-uuid>/…`
+    /// context directories (e.g. too many entries, or sidecar/streams at the root).
+    #[cfg(feature = "archive")]
     #[error("unexpected telemetry layout: {detail}")]
     BadArtifactLayout { detail: String },
 

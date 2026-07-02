@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
     };
     match cli.command {
         OpenCommand::Local { paths } => {
-            serve_until_interrupt(quent_open::run(LocalLoader { paths }, options)).await
+            serve_until_interrupt(quent_open::run(LocalLoader::new(paths)?, options)).await
         }
         #[cfg(feature = "db")]
         OpenCommand::Db {

@@ -8,9 +8,13 @@ edition.workspace = true
 publish.workspace = true
 
 [features]
+# Open archive inputs (tar family or zip) in `local` mode by extracting and
+# scanning them for telemetry. Pulls in the archive/codec crates.
+archive = ["dep:tar", "dep:flate2", "dep:zstd", "dep:zip", "dep:tempfile"]
 # Non-local mode: fetch a run's telemetry from the (internal RAPIDS/NVIDIA)
-# Benchmarking API database. Off by default; irrelevant to non-NVIDIA users.
-db = ["dep:reqwest", "dep:serde", "dep:tempfile", "dep:tar", "dep:flate2", "dep:zstd", "dep:zip", "dep:uuid", "dep:dotenvy"]
+# Benchmarking API database (extracts assets, so it enables `archive`). Off by
+# default; irrelevant to non-NVIDIA users.
+db = ["archive", "dep:reqwest", "dep:serde", "dep:uuid", "dep:dotenvy"]
 
 [dependencies]
 backon = "1"
