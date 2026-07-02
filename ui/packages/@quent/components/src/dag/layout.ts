@@ -3,6 +3,7 @@
 
 import { graph, sugiyama } from 'd3-dag';
 import type { Node, Edge } from '@xyflow/react';
+import { DAG_LAYOUT_DIRECTION, type DagLayoutDirection } from '@quent/utils';
 
 export const NODE_LAYOUT_WIDTH = 200;
 const NODE_LAYOUT_HEIGHT = 60;
@@ -18,18 +19,21 @@ const NODE_SIZE = [NODE_LAYOUT_WIDTH + NODE_SPACING, NODE_LAYOUT_HEIGHT + LAYER_
 
 export async function calculateLayout<TData extends Record<string, unknown>>(
   nodes: Node<TData>[],
-  edges: Edge[]
+  edges: Edge[],
+  direction: DagLayoutDirection = DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP
 ): Promise<{ nodes: Node<TData>[]; edges: Edge[] }> {
   const grf = graph<string, undefined>();
   const nodeById = new Map<string, ReturnType<typeof grf.node>>();
   for (const n of nodes) nodeById.set(n.id, grf.node(n.id));
+  // sugiyama layers link sources above targets, so flip links to put the root on top
+  const flip = direction === DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP;
   for (const e of edges) {
     const src = nodeById.get(e.source);
     const tgt = nodeById.get(e.target);
-    if (src && tgt) grf.link(src, tgt, undefined);
+    if (src && tgt) grf.link(flip ? tgt : src, flip ? src : tgt, undefined);
   }
 
-  // sugiyama is synchronous and top-to-bottom by default
+  // sugiyama is synchronous and layers sources at the shallowest depth by default
   sugiyama().nodeSize(NODE_SIZE)(grf);
 
   // d3-dag reports node centers; ReactFlow expects top-left

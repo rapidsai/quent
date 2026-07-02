@@ -7,11 +7,17 @@ import {
   useSelectedEdgeWidthField,
   useSelectedEdgeColorField,
   useSelectedNodeLabelField,
+  useSelectedDagLayoutDirection,
   useNodeColorPalette,
   useEdgeColorPalette,
 } from '@quent/hooks';
-import { NODE_LABEL_FIELD, type NodeLabelField } from '@quent/utils';
-import { Palette, Spline, Brush, Type } from 'lucide-react';
+import {
+  NODE_LABEL_FIELD,
+  DAG_LAYOUT_DIRECTION,
+  type NodeLabelField,
+  type DagLayoutDirection,
+} from '@quent/utils';
+import { Palette, Spline, Brush, Type, ArrowUpDown } from 'lucide-react';
 import { PalettePicker } from './PalettePicker';
 
 interface DAGControlsProps {
@@ -27,12 +33,18 @@ const NODE_LABEL_OPTIONS: SelectFieldOption[] = [
   { value: NODE_LABEL_FIELD.TYPE, label: 'Type' },
 ];
 
+const LAYOUT_DIRECTION_OPTIONS: SelectFieldOption[] = [
+  { value: DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP, label: 'Bottom to top' },
+  { value: DAG_LAYOUT_DIRECTION.TOP_TO_BOTTOM, label: 'Top to bottom' },
+];
+
 /** DAG visual control toolbar: node color, edge width, edge color, node label field selectors. */
 export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGControlsProps) => {
   const [colorField, setColorField] = useSelectedColorField();
   const [edgeWidthField, setEdgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField, setEdgeColorField] = useSelectedEdgeColorField();
   const [nodeLabelField, setNodeLabelField] = useSelectedNodeLabelField();
+  const [layoutDirection, setLayoutDirection] = useSelectedDagLayoutDirection();
   const [nodePalette, setNodePalette] = useNodeColorPalette();
   const [edgePalette, setEdgePalette] = useEdgeColorPalette();
 
@@ -87,6 +99,16 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
           value={nodeLabelField}
           onValueChange={v => v && setNodeLabelField(v as NodeLabelField)}
           placeholder="Name"
+          clearable={false}
+          triggerClassName="h-6 text-xs"
+        />
+        <SelectField
+          label="Layout direction"
+          icon={ArrowUpDown}
+          options={LAYOUT_DIRECTION_OPTIONS}
+          value={layoutDirection}
+          onValueChange={v => v && setLayoutDirection(v as DagLayoutDirection)}
+          placeholder="Bottom to top"
           clearable={false}
           triggerClassName="h-6 text-xs"
         />
