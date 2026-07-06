@@ -39,7 +39,7 @@ tar = { version = "0.4", optional = true }
 tempfile = { version = "3", optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
-toml = "0.8"
+toml = "1.1"
 uuid = { version = "1", optional = true }
 walkdir = "2"
 zip = { version = "2", default-features = false, features = ["deflate", "deflate64", "zstd"], optional = true }
