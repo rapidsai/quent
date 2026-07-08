@@ -90,8 +90,23 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
     println!("building: {label}");
 
     let crate_dir = build_dir(&spec)?;
-    wrapper::generate(&spec, &crate_dir)?;
-    let bin = cargo_build(&crate_dir).await?;
+    wrapper::generate(&spec, &crate_dir, wrapper::IO_PACKAGE)?;
+    let bin = match cargo_build(&crate_dir).await {
+        // The pinned quent revision predates the `quent-exporter` → `quent-io`
+        // rename (cargo found no `quent-io` package there, failing resolution
+        // before anything compiles); regenerate the wrapper against the legacy
+        // package name and build again.
+        Err(error) if missing_package(&error, wrapper::IO_PACKAGE) => {
+            println!(
+                "note: pinned quent has no `{}` package; retrying with `{}`",
+                wrapper::IO_PACKAGE,
+                wrapper::LEGACY_IO_PACKAGE
+            );
+            wrapper::generate(&spec, &crate_dir, wrapper::LEGACY_IO_PACKAGE)?;
+            cargo_build(&crate_dir).await?
+        }
+        result => result?,
+    };
     Ok(BuiltViewer {
         bin,
         crate_dir,
@@ -113,6 +128,19 @@ async fn serve_one(viewer: BuiltViewer, open_browser: bool, host: IpAddr) -> Res
     // Best-effort cleanup of this run's staged root; keep the cached build.
     let _ = std::fs::remove_dir_all(&output_root);
     result
+}
+
+/// Whether a build failed because the pinned quent revision has no `package` —
+/// i.e. it sits on the other side of the `quent-exporter` → `quent-io` rename.
+/// Matched on cargo's resolution error, which [`cargo_build`] folds into
+/// [`OpenError::Build`].
+fn missing_package(error: &OpenError, package: &str) -> bool {
+    match error {
+        OpenError::Build { status } => {
+            status.contains(&format!("no matching package named `{package}` found"))
+        }
+        _ => false,
+    }
 }
 
 /// Cache dir for this viewer's generated crate/build, keyed by
@@ -349,4 +377,34 @@ async fn wait_until_ready(addr: SocketAddr) -> bool {
         )
         .await
         .is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_package_matches_only_cargo_resolution_errors() {
+        // Cargo's resolution error for a quent revision predating `quent-io`.
+        let missing = OpenError::Build {
+            status: "exit status: 101\n\
+                     error: no matching package named `quent-io` found\n\
+                     location searched: Git repository https://example.com/quent\n\
+                     required by package `quent-open-viewer v0.0.0`"
+                .into(),
+        };
+        assert!(missing_package(&missing, wrapper::IO_PACKAGE));
+        // Only the package the wrapper actually asked for triggers the fallback.
+        assert!(!missing_package(&missing, wrapper::LEGACY_IO_PACKAGE));
+
+        // Other build failures and non-build errors must not trigger the fallback.
+        let compile_error = OpenError::Build {
+            status: "error[E0308]: mismatched types".into(),
+        };
+        assert!(!missing_package(&compile_error, wrapper::IO_PACKAGE));
+        assert!(!missing_package(
+            &OpenError::NoCacheDir,
+            wrapper::IO_PACKAGE
+        ));
+    }
 }
