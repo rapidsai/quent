@@ -31,6 +31,7 @@ describe('TooltipContent active marks', () => {
         stateName: 'computing',
         color: '#ff0000',
         durationMs: 750,
+        processedBytes: 1_500_000_000,
         attributes: [
           { key: 'input_bytes', value: tagged({ U64: 1_500_000_000 }) },
           { key: 'current_operator_id', value: tagged({ U32: 11 }) },
@@ -49,14 +50,14 @@ describe('TooltipContent active marks', () => {
     expect(screen.getByText('2.00 GB/s')).toBeInTheDocument();
   });
 
-  it('renders the resolved pipeline chain', () => {
+  it('renders the resolved operator', () => {
     renderWithMarks([
       {
         label: 'task-21',
         stateName: 'computing',
         color: '#ff0000',
         durationMs: 26,
-        pipeline: {
+        operator: {
           name: 'GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)',
           typeName: 'Pipeline Id 0',
         },
@@ -64,13 +65,13 @@ describe('TooltipContent active marks', () => {
       },
     ]);
 
-    expect(screen.getByText('pipeline (Pipeline Id 0)')).toBeInTheDocument();
+    expect(screen.getByText('Pipeline Id 0')).toBeInTheDocument();
     expect(
       screen.getByText('GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)')
     ).toBeInTheDocument();
   });
 
-  it('omits rate when the mark has no input_bytes', () => {
+  it('omits rate when the mark has no processed bytes', () => {
     renderWithMarks([
       {
         label: 'task',

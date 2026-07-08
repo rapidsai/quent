@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { TimelineSeries, TimelineMark, TimelineMarkPipeline } from '../timeline/types';
-import { unwrapAttributeValue } from '@quent/utils';
+import { TimelineSeries, TimelineMark, TimelineMarkOperator } from '../timeline/types';
 import { TreeTableItem } from '../resource-tree/types';
 import {
   formatQuantity,
@@ -163,32 +162,24 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
 }
 
 /**
- * Resolve the pipeline (fused operator chain) a task FSM executes.
+ * Resolve the operator an FSM executes on behalf of.
  *
- * A task's `created` transition carries a `pipeline_uuid` attribute whose
- * value is an Operator id — the operator's instance_name is the chain
- * (e.g. "GPU_SCAN(11) -> PROJECTION(6) -> …"). Resolved at the FSM level:
- * the carrying transition is usually filtered out of resource lanes (it has
- * no usage there), so every mark of the FSM gets the descriptor.
+ * The FSM's `operator_id` is set by the application's analyzer (e.g. a
+ * Sirius task links to its pipeline operator, whose instance_name is the
+ * fused chain "GPU_SCAN(11) -> PROJECTION(6) -> …"). Every mark of the FSM
+ * gets the descriptor.
  */
-function resolvePipeline(
+function resolveOperator(
   fsm: FiniteStateMachine,
   operators?: QueryEntities['operators']
-): TimelineMarkPipeline | undefined {
-  if (!operators) return undefined;
-  for (const transition of fsm.transitions) {
-    const attr = transition.attributes?.find(a => a.key === 'pipeline_uuid');
-    if (!attr) continue;
-    const uuid = unwrapAttributeValue(attr.value);
-    if (typeof uuid !== 'string') return undefined;
-    const operator = operators[uuid];
-    if (!operator) return undefined;
-    return {
-      name: operator.instance_name ?? uuid,
-      typeName: operator.operator_type_name,
-    };
-  }
-  return undefined;
+): TimelineMarkOperator | undefined {
+  if (!operators || !fsm.operator_id) return undefined;
+  const operator = operators[fsm.operator_id];
+  if (!operator) return undefined;
+  return {
+    name: operator.instance_name ?? fsm.operator_id,
+    typeName: operator.operator_type_name,
+  };
 }
 
 /**
@@ -218,7 +209,7 @@ export function buildTimelineMarks(
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
     const inOverlay = overlayFsmIds ? overlayFsmIds.has(fsm.id) : undefined;
-    const pipeline = resolvePipeline(fsm, operators);
+    const operator = resolveOperator(fsm, operators);
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
@@ -240,7 +231,10 @@ export function buildTimelineMarks(
           xEnd,
           // Optional chaining: tolerate responses from servers predating attributes.
           ...((transition.attributes?.length ?? 0) > 0 && { attributes: transition.attributes }),
-          ...(pipeline && { pipeline }),
+          ...(transition.processed_bytes != null && {
+            processedBytes: Number(transition.processed_bytes),
+          }),
+          ...(operator && { operator }),
           ...(inOverlay !== undefined && {
             isDimmed: !inOverlay,
             operatorName: inOverlay ? overlayLabel : undefined,

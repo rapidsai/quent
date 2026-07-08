@@ -6,12 +6,11 @@ import {
   formatDuration,
   formatAttributeValue,
   formatBytesPerSec,
-  unwrapAttributeValue,
   cn,
   type Attribute,
 } from '@quent/utils';
 import { nanosToMs } from '../lib/timeline.utils';
-import type { TimelineMarkPipeline } from './types';
+import type { TimelineMarkOperator } from './types';
 import { DataText } from '../ui/data-text';
 
 /** A timeline mark under the hover cursor, as shown in the tooltip. */
@@ -21,8 +20,10 @@ export interface ActiveMark {
   color: string;
   /** Attribute key-value pairs carried by the hovered state. */
   attributes?: Attribute[];
-  /** The pipeline (fused operator chain) the task executes. */
-  pipeline?: TimelineMarkPipeline;
+  /** Bytes processed during the hovered state's span. */
+  processedBytes?: number;
+  /** The operator the FSM executes on behalf of. */
+  operator?: TimelineMarkOperator;
   /** Real duration of the hovered state span in milliseconds. */
   durationMs?: number;
 }
@@ -182,15 +183,6 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-/** Read a numeric attribute (e.g. `input_bytes`) from a mark's attributes. */
-function numericAttribute(attributes: Attribute[] | undefined, key: string): number | null {
-  const attr = attributes?.find(a => a.key === key);
-  if (!attr) return null;
-  const v = unwrapAttributeValue(attr.value);
-  if (typeof v === 'number' || typeof v === 'bigint') return Number(v);
-  return null;
-}
-
 function MarkDetailRow({ name, value }: { name: string; value: string }) {
   return (
     <div className="flex items-center gap-1 pl-3">
@@ -205,11 +197,9 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
   return (
     <div className="mt-1 pt-1 border-t border-border">
       {marks.map((m, i) => {
-        const durationSec = m.durationMs !== undefined ? m.durationMs / 1000 : null;
-        const inputBytes = numericAttribute(m.attributes, 'input_bytes');
         const rate =
-          inputBytes !== null && durationSec !== null
-            ? formatBytesPerSec(inputBytes, durationSec)
+          m.processedBytes !== undefined && m.durationMs !== undefined
+            ? formatBytesPerSec(m.processedBytes, m.durationMs / 1000)
             : null;
         return (
           <div key={i}>
@@ -224,13 +214,13 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
               <DataText className="text-muted-foreground">{m.label}</DataText>
               <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
             </div>
-            {m.pipeline && (
+            {m.operator && (
               <div className="pl-3">
                 <DataText className="text-muted-foreground">
-                  {m.pipeline.typeName ? `pipeline (${m.pipeline.typeName})` : 'pipeline'}
+                  {m.operator.typeName ?? 'operator'}
                 </DataText>
                 <DataText as="div" className="text-foreground break-words pl-2">
-                  {m.pipeline.name}
+                  {m.operator.name}
                 </DataText>
               </div>
             )}

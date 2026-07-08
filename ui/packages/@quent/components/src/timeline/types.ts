@@ -28,14 +28,17 @@ export type TimelineMark = {
   operatorName?: string;
   /** Attribute key-value pairs carried by the state this mark represents. */
   attributes?: Attribute[];
-  /** The pipeline (fused operator chain) the task executes, resolved from the
-   *  FSM's pipeline_uuid attribute. Attached to every mark of the FSM. */
-  pipeline?: TimelineMarkPipeline;
+  /** Bytes processed during this state's span — drives the rate display. */
+  processedBytes?: number;
+  /** The operator the FSM executes on behalf of, resolved from the FSM's
+   *  operator_id. Attached to every mark of the FSM. */
+  operator?: TimelineMarkOperator;
 };
 
-/** Pipeline descriptor resolved from a task FSM's pipeline_uuid. */
-export type TimelineMarkPipeline = {
-  /** The fused operator chain, e.g. "GPU_SCAN(11) -> PROJECTION(6) -> …". */
+/** Operator descriptor resolved from an FSM's operator_id. */
+export type TimelineMarkOperator = {
+  /** The operator instance name, e.g. a task's fused pipeline chain
+   *  "GPU_SCAN(11) -> PROJECTION(6) -> …". */
   name: string;
   /** The operator type name, e.g. "Pipeline Id 0". */
   typeName?: string | null;

@@ -51,6 +51,12 @@ impl TaskExt for Task {
             .transitions()
             .iter()
             .map(|t| {
+                // Task-specific semantics live here: the Computing state's
+                // input_bytes is the quantity processed over the span.
+                let processed_bytes = match &t.data {
+                    ModelTaskTransition::Computing(data) => Some(data.input_bytes),
+                    _ => None,
+                };
                 Ok(FsmTransition {
                     name: t.name().to_string(),
                     usages: t
@@ -67,6 +73,7 @@ impl TaskExt for Task {
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
                     attributes: t.attributes.clone(),
+                    processed_bytes,
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;
@@ -75,6 +82,7 @@ impl TaskExt for Task {
             id: self.id(),
             type_name: self.type_name().to_string(),
             instance_name: self.instance_name().to_string(),
+            operator_id: self.operator_id(),
             transitions,
         })
     }
