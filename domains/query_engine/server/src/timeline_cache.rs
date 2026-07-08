@@ -1037,21 +1037,18 @@ mod tests {
                 id,
                 type_name: "task".to_string(),
                 instance_name: format!("operator-{id}"),
-                operator_id: None,
                 transitions: vec![
                     FsmTransition {
                         name: "start".to_string(),
                         usages: vec![],
                         timestamp: config_secs.span.start(),
                         attributes: vec![],
-                        processed_bytes: None,
                     },
                     FsmTransition {
                         name: "end".to_string(),
                         usages: vec![],
                         timestamp: config_secs.span.end(),
                         attributes: vec![],
-                        processed_bytes: None,
                     },
                 ],
             })

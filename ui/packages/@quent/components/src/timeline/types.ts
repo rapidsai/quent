@@ -26,22 +26,10 @@ export type TimelineMark = {
   isDimmed?: boolean;
   /** Operator instance name when this mark belongs to a selected operator's long entities. */
   operatorName?: string;
-  /** Attribute key-value pairs carried by the state this mark represents. */
+  /** Attribute key-value pairs carried by the state this mark represents,
+   *  including any derived attributes the application's analyzer
+   *  synthesized (e.g. a per-span processing rate). */
   attributes?: Attribute[];
-  /** Bytes processed during this state's span — drives the rate display. */
-  processedBytes?: number;
-  /** The operator the FSM executes on behalf of, resolved from the FSM's
-   *  operator_id. Attached to every mark of the FSM. */
-  operator?: TimelineMarkOperator;
-};
-
-/** Operator descriptor resolved from an FSM's operator_id. */
-export type TimelineMarkOperator = {
-  /** The operator instance name, e.g. a task's fused pipeline chain
-   *  "GPU_SCAN(11) -> PROJECTION(6) -> …". */
-  name: string;
-  /** The operator type name, e.g. "Pipeline Id 0". */
-  typeName?: string | null;
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 45;

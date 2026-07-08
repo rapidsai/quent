@@ -37,7 +37,6 @@ export {
   formatDurationForAxisInterval,
   formatQuantity,
   formatBytes,
-  formatBytesPerSec,
   formatNumber,
   formatAttributeValue,
   unwrapAttributeValue,

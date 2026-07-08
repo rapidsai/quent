@@ -369,122 +369,62 @@ const taskFsm: FiniteStateMachine = {
   id: 'bbbbbbbb-0000-0000-0000-000000000001',
   type_name: 'task',
   instance_name: 'task-0',
-  operator_id: null,
   transitions: [
     {
       name: 'queueing',
       usages: [],
       timestamp: 1.0,
       attributes: [{ key: 'operator_id', value: taggedValue({ String: 'op-1' }) }],
-      processed_bytes: null,
     },
     {
       name: 'computing',
       usages: [{ resource: THREAD_ID, capacities: [] }],
       timestamp: 1.25,
-      attributes: [{ key: 'input_bytes', value: taggedValue({ U64: 1_500_000_000 }) }],
-      processed_bytes: 1_500_000_000n,
+      attributes: [
+        { key: 'input_bytes', value: taggedValue({ U64: 1_500_000_000 }) },
+        // Derived attributes synthesized by the application analyzer ride
+        // the same generic path.
+        { key: 'bytes_per_sec', value: taggedValue({ F64: 2_000_000_000 }) },
+      ],
     },
-    { name: 'exit', usages: [], timestamp: 2.0, attributes: [], processed_bytes: null },
+    { name: 'exit', usages: [], timestamp: 2.0, attributes: [] },
   ],
 };
 
 describe('buildTimelineMarks attributes', () => {
-  it('copies transition attributes and processed bytes onto marks', () => {
+  it('copies transition attributes onto marks', () => {
     const marks = buildTimelineMarks([taskFsm], 0n, 'light', new Set([THREAD_ID]));
     expect(marks).toBeDefined();
     // Only the computing transition has a usage on the filtered resource.
     expect(marks).toHaveLength(1);
     const mark = marks![0]!;
     expect(mark.stateName).toBe('computing');
-    expect(mark.attributes).toEqual([{ key: 'input_bytes', value: { U64: 1_500_000_000 } }]);
-    expect(mark.processedBytes).toBe(1_500_000_000);
+    expect(mark.attributes).toEqual([
+      { key: 'input_bytes', value: { U64: 1_500_000_000 } },
+      { key: 'bytes_per_sec', value: { F64: 2_000_000_000 } },
+    ]);
     // 1.25s → 2.0s in chart ms.
     expect(mark.xStart).toBe(1250);
     expect(mark.xEnd).toBe(2000);
   });
 
-  it('omits attributes and processedBytes keys when absent', () => {
+  it('omits the attributes key for attribute-less transitions', () => {
     const marks = buildTimelineMarks([taskFsm], 0n, 'light', null);
     expect(marks).toHaveLength(2);
-    const queueing = marks!.find(m => m.stateName === 'queueing')!;
-    expect(queueing.processedBytes).toBeUndefined();
     const computing = marks!.find(m => m.stateName === 'computing')!;
-    expect(computing.attributes).toHaveLength(1);
+    expect(computing.attributes).toHaveLength(2);
   });
 
   it('tolerates responses from servers predating attributes', () => {
     const legacyFsm = {
       ...taskFsm,
       transitions: taskFsm.transitions.map(t => {
-        const { attributes: _attributes, processed_bytes: _pb, ...rest } = t;
+        const { attributes: _attributes, ...rest } = t;
         return rest;
       }),
     } as unknown as FiniteStateMachine;
     const marks = buildTimelineMarks([legacyFsm], 0n, 'light', new Set([THREAD_ID]));
     expect(marks).toHaveLength(1);
     expect(marks![0]!.attributes).toBeUndefined();
-    expect(marks![0]!.processedBytes).toBeUndefined();
-  });
-});
-
-// ---- operator resolution -----------------------------------------------------
-
-describe('buildTimelineMarks operator resolution', () => {
-  const OPERATOR_UUID = 'cccccccc-0000-0000-0000-000000000001';
-  const fsmWithOperator: FiniteStateMachine = { ...taskFsm, operator_id: OPERATOR_UUID };
-  const operators = {
-    [OPERATOR_UUID]: {
-      id: OPERATOR_UUID,
-      plan_id: null,
-      parent_operator_ids: [],
-      instance_name: 'GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)',
-      operator_type_name: 'Pipeline Id 0',
-      custom_attributes: {},
-      statistics: null,
-      active_span: null,
-    },
-  };
-
-  it('attaches the resolved operator to every mark of the FSM', () => {
-    const marks = buildTimelineMarks(
-      [fsmWithOperator],
-      0n,
-      'light',
-      new Set([THREAD_ID]),
-      undefined,
-      operators
-    );
-    expect(marks).toHaveLength(1);
-    expect(marks![0]!.stateName).toBe('computing');
-    expect(marks![0]!.operator).toEqual({
-      name: 'GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)',
-      typeName: 'Pipeline Id 0',
-    });
-  });
-
-  it('omits operator when unset, unresolvable, or operators are absent', () => {
-    const noOps = buildTimelineMarks([fsmWithOperator], 0n, 'light', new Set([THREAD_ID]));
-    expect(noOps![0]!.operator).toBeUndefined();
-
-    const unknown = buildTimelineMarks(
-      [fsmWithOperator],
-      0n,
-      'light',
-      new Set([THREAD_ID]),
-      undefined,
-      {}
-    );
-    expect(unknown![0]!.operator).toBeUndefined();
-
-    const unlinked = buildTimelineMarks(
-      [taskFsm],
-      0n,
-      'light',
-      new Set([THREAD_ID]),
-      undefined,
-      operators
-    );
-    expect(unlinked![0]!.operator).toBeUndefined();
   });
 });

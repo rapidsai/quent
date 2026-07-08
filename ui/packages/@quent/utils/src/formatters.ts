@@ -222,23 +222,27 @@ export function unwrapAttributeValue(value: unknown): unknown {
   return value;
 }
 
-/** Format an attribute value for display; bytes-like keys get byte formatting. */
+/** Bytes-rate statistic names (e.g. bytes_per_sec) — SI-scaled B/s display. */
+export function isBytesRateStat(name: string): boolean {
+  return name === 'bytes_per_sec' || name.endsWith('_bytes_per_sec');
+}
+
+/**
+ * Format an attribute value for display. Bytes-like keys get byte
+ * formatting; bytes-rate keys get an SI-prefixed B/s (checked first, since
+ * `bytes_per_sec` also matches the bytes heuristic).
+ */
 export function formatAttributeValue(key: string, value: unknown): string {
   const v = unwrapAttributeValue(value);
   if (v == null) return '—';
   if (typeof v === 'number' || typeof v === 'bigint') {
     const n = Number(v);
+    if (isBytesRateStat(key)) return formatWithPrefix(n, 'B/s', 'Si', 2);
     if (isBytesStat(key)) return formatBytes(n, 2);
     return formatNumber(n);
   }
   if (typeof v === 'string') return v;
   return JSON.stringify(v);
-}
-
-/** SI-prefixed processing rate (e.g. "1.25 GB/s") from bytes over elapsed seconds. */
-export function formatBytesPerSec(bytes: number, seconds: number, decimals = 2): string | null {
-  if (!(seconds > 0) || !Number.isFinite(bytes)) return null;
-  return formatWithPrefix(bytes / seconds, 'B/s', 'Si', decimals);
 }
 
 /** Row/batch count statistics — use SI-scaled display (k/M/…). */

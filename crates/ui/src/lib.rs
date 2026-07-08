@@ -210,12 +210,10 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
-    /// Attribute key-value pairs carried by this state.
+    /// Attribute key-value pairs carried by this state. Applications may
+    /// also synthesize derived attributes here (e.g. a per-span processing
+    /// rate) — the UI renders whatever arrives.
     pub attributes: Vec<Attribute>,
-    /// Bytes processed during this state's span, if the application's
-    /// analyzer declares one of the state's quantities as such. Enables the
-    /// UI to display a processing rate (bytes over the span's duration).
-    pub processed_bytes: Option<u64>,
 }
 
 impl FsmTransition {
@@ -228,7 +226,6 @@ impl FsmTransition {
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
             attributes: value.attributes.clone(),
-            processed_bytes: None,
         })
     }
 }
@@ -242,10 +239,6 @@ pub struct FiniteStateMachine {
     pub type_name: String,
     /// The instance name of this FSM.
     pub instance_name: String,
-    /// The Operator this FSM executes on behalf of, if the application's
-    /// analyzer links one. Enables the UI to resolve and display the
-    /// operator (e.g. a task's fused pipeline chain) generically.
-    pub operator_id: Option<Uuid>,
     /// The transitions of this FSM.
     pub transitions: Vec<FsmTransition>,
 }
@@ -259,7 +252,6 @@ impl FiniteStateMachine {
             id: value.id(),
             type_name: value.type_name().to_owned(),
             instance_name: value.instance_name().to_owned(),
-            operator_id: None,
             transitions: value
                 .transitions()
                 .iter()

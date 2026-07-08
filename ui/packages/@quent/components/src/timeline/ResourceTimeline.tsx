@@ -39,7 +39,6 @@ import type {
   CapacityDecl,
   QuantitySpec,
   FsmTypeDecl,
-  QueryEntities,
 } from '@quent/utils';
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
@@ -59,9 +58,6 @@ type ResourceTimelineProps = {
   capacities?: CapacityDecl[];
   quantitySpecs?: { [key in string]?: QuantitySpec };
   fsmTypes?: { [key in string]?: FsmTypeDecl };
-  /** Operator entities, used to resolve task pipeline_uuid attributes into
-   *  the fused operator chain shown in the tooltip. */
-  operators?: QueryEntities['operators'];
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
 };
@@ -89,7 +85,6 @@ export function ResourceTimeline({
   capacities,
   quantitySpecs,
   fsmTypes,
-  operators,
   isDark,
 }: ResourceTimelineProps) {
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
@@ -211,8 +206,7 @@ export function ResourceTimeline({
       startTime,
       paletteTheme,
       filterSet,
-      fsmTypes,
-      operators
+      fsmTypes
     );
 
     if (operatorId && operatorLabel) {
@@ -240,7 +234,6 @@ export function ResourceTimeline({
               paletteTheme,
               filterSet,
               fsmTypes,
-              operators,
               opLongFsmIds,
               operatorLabel
             ),
@@ -268,7 +261,6 @@ export function ResourceTimeline({
     capacities,
     quantitySpecs,
     fsmTypes,
-    operators,
     resourceType,
     resourceId,
     operatorLabel,

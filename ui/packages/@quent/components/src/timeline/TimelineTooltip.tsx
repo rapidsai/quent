@@ -5,12 +5,10 @@ import {
   formatDurationForWindow,
   formatDuration,
   formatAttributeValue,
-  formatBytesPerSec,
   cn,
   type Attribute,
 } from '@quent/utils';
 import { nanosToMs } from '../lib/timeline.utils';
-import type { TimelineMarkOperator } from './types';
 import { DataText } from '../ui/data-text';
 
 /** A timeline mark under the hover cursor, as shown in the tooltip. */
@@ -20,10 +18,6 @@ export interface ActiveMark {
   color: string;
   /** Attribute key-value pairs carried by the hovered state. */
   attributes?: Attribute[];
-  /** Bytes processed during the hovered state's span. */
-  processedBytes?: number;
-  /** The operator the FSM executes on behalf of. */
-  operator?: TimelineMarkOperator;
   /** Real duration of the hovered state span in milliseconds. */
   durationMs?: number;
 }
@@ -183,7 +177,21 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
+/** Values longer than this render as a wrapped block below the key instead
+ *  of inline, so long strings (e.g. an operator chain) stay readable. */
+const INLINE_VALUE_MAX_CHARS = 32;
+
 function MarkDetailRow({ name, value }: { name: string; value: string }) {
+  if (value.length > INLINE_VALUE_MAX_CHARS) {
+    return (
+      <div className="pl-3">
+        <DataText className="text-muted-foreground">{name}</DataText>
+        <DataText as="div" className="text-foreground break-words pl-2">
+          {value}
+        </DataText>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-1 pl-3">
       <DataText className="text-muted-foreground">{name}</DataText>
@@ -196,48 +204,31 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
   if (marks.length === 0) return null;
   return (
     <div className="mt-1 pt-1 border-t border-border">
-      {marks.map((m, i) => {
-        const rate =
-          m.processedBytes !== undefined && m.durationMs !== undefined
-            ? formatBytesPerSec(m.processedBytes, m.durationMs / 1000)
-            : null;
-        return (
-          <div key={i}>
-            <div className="flex items-center gap-1">
-              <span
-                className="w-2 h-2 rounded-xs shrink-0 border"
-                style={{
-                  backgroundColor: m.color + '20',
-                  borderColor: m.color + 'cc',
-                }}
-              />
-              <DataText className="text-muted-foreground">{m.label}</DataText>
-              <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
-            </div>
-            {m.operator && (
-              <div className="pl-3">
-                <DataText className="text-muted-foreground">
-                  {m.operator.typeName ?? 'operator'}
-                </DataText>
-                <DataText as="div" className="text-foreground break-words pl-2">
-                  {m.operator.name}
-                </DataText>
-              </div>
-            )}
-            {m.durationMs !== undefined && (
-              <MarkDetailRow name="duration" value={formatDuration(m.durationMs)} />
-            )}
-            {m.attributes?.map(attr => (
-              <MarkDetailRow
-                key={attr.key}
-                name={attr.key}
-                value={formatAttributeValue(attr.key, attr.value)}
-              />
-            ))}
-            {rate && <MarkDetailRow name="rate" value={rate} />}
+      {marks.map((m, i) => (
+        <div key={i}>
+          <div className="flex items-center gap-1">
+            <span
+              className="w-2 h-2 rounded-xs shrink-0 border"
+              style={{
+                backgroundColor: m.color + '20',
+                borderColor: m.color + 'cc',
+              }}
+            />
+            <DataText className="text-muted-foreground">{m.label}</DataText>
+            <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
           </div>
-        );
-      })}
+          {m.durationMs !== undefined && (
+            <MarkDetailRow name="duration" value={formatDuration(m.durationMs)} />
+          )}
+          {m.attributes?.map(attr => (
+            <MarkDetailRow
+              key={attr.key}
+              name={attr.key}
+              value={formatAttributeValue(attr.key, attr.value)}
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

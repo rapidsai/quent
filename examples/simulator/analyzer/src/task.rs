@@ -47,16 +47,27 @@ impl TaskExt for Task {
     }
 
     fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
-        let transitions = self
-            .transitions()
+        let raw = self.transitions();
+        let transitions = raw
             .iter()
-            .map(|t| {
+            .enumerate()
+            .map(|(i, t)| {
+                let mut attributes = t.attributes.clone();
                 // Task-specific semantics live here: the Computing state's
-                // input_bytes is the quantity processed over the span.
-                let processed_bytes = match &t.data {
-                    ModelTaskTransition::Computing(data) => Some(data.input_bytes),
-                    _ => None,
-                };
+                // input_bytes is the quantity processed over the span, so a
+                // processing rate can be derived and emitted as a plain
+                // attribute for the UI to render.
+                if let ModelTaskTransition::Computing(data) = &t.data
+                    && let Some(next) = raw.get(i + 1)
+                {
+                    let span_secs = (next.timestamp() - t.timestamp()) as f64 / 1e9;
+                    if span_secs > 0.0 {
+                        attributes.push(quent_attributes::Attribute::f64(
+                            "bytes_per_sec",
+                            data.input_bytes as f64 / span_secs,
+                        ));
+                    }
+                }
                 Ok(FsmTransition {
                     name: t.name().to_string(),
                     usages: t
@@ -72,8 +83,7 @@ impl TaskExt for Task {
                         })
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
-                    attributes: t.attributes.clone(),
-                    processed_bytes,
+                    attributes,
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;
@@ -82,7 +92,6 @@ impl TaskExt for Task {
             id: self.id(),
             type_name: self.type_name().to_string(),
             instance_name: self.instance_name().to_string(),
-            operator_id: self.operator_id(),
             transitions,
         })
     }

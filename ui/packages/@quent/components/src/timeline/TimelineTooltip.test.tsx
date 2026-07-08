@@ -24,17 +24,18 @@ describe('TooltipContent active marks', () => {
       />
     );
 
-  it('renders attribute rows with byte formatting and a rate', () => {
+  it('renders attribute rows with byte and rate formatting', () => {
     renderWithMarks([
       {
         label: 'task',
         stateName: 'computing',
         color: '#ff0000',
         durationMs: 750,
-        processedBytes: 1_500_000_000,
         attributes: [
           { key: 'input_bytes', value: tagged({ U64: 1_500_000_000 }) },
           { key: 'current_operator_id', value: tagged({ U32: 11 }) },
+          // Derived attribute synthesized by the application analyzer.
+          { key: 'bytes_per_sec', value: tagged({ F64: 2_000_000_000 }) },
         ],
       },
     ]);
@@ -45,52 +46,35 @@ describe('TooltipContent active marks', () => {
     expect(screen.getByText('11')).toBeInTheDocument();
     expect(screen.getByText('duration')).toBeInTheDocument();
     expect(screen.getByText('750.00ms')).toBeInTheDocument();
-    // 1.5 GB over 0.75 s = 2 GB/s (decimal SI).
-    expect(screen.getByText('rate')).toBeInTheDocument();
+    expect(screen.getByText('bytes_per_sec')).toBeInTheDocument();
     expect(screen.getByText('2.00 GB/s')).toBeInTheDocument();
   });
 
-  it('renders the resolved operator', () => {
+  it('wraps long string attributes (e.g. a synthesized pipeline chain)', () => {
     renderWithMarks([
       {
         label: 'task-21',
         stateName: 'computing',
         color: '#ff0000',
         durationMs: 26,
-        operator: {
-          name: 'GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)',
-          typeName: 'Pipeline Id 0',
-        },
-        attributes: [{ key: 'input_bytes', value: tagged({ U64: 90_956_652 }) }],
+        attributes: [
+          {
+            key: 'pipeline',
+            value: tagged({ String: 'GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)' }),
+          },
+        ],
       },
     ]);
 
-    expect(screen.getByText('Pipeline Id 0')).toBeInTheDocument();
+    expect(screen.getByText('pipeline')).toBeInTheDocument();
     expect(
       screen.getByText('GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)')
     ).toBeInTheDocument();
-  });
-
-  it('omits rate when the mark has no processed bytes', () => {
-    renderWithMarks([
-      {
-        label: 'task',
-        stateName: 'allocating',
-        color: '#00ff00',
-        durationMs: 250,
-        attributes: [{ key: 'target_tier', value: tagged({ String: 'GPU' }) }],
-      },
-    ]);
-
-    expect(screen.getByText('target_tier')).toBeInTheDocument();
-    expect(screen.getByText('GPU')).toBeInTheDocument();
-    expect(screen.queryByText('rate')).toBeNull();
   });
 
   it('renders marks without attributes as before', () => {
     renderWithMarks([{ label: 'task-0', stateName: 'sending', color: '#0000ff' }]);
     expect(screen.getByText('task-0')).toBeInTheDocument();
     expect(screen.getByText('sending')).toBeInTheDocument();
-    expect(screen.queryByText('rate')).toBeNull();
   });
 });

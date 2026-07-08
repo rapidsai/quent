@@ -19,12 +19,8 @@ usages: Array<FsmUsage>,
  */
 timestamp: number, 
 /**
- * Attribute key-value pairs carried by this state.
+ * Attribute key-value pairs carried by this state. Applications may
+ * also synthesize derived attributes here (e.g. a per-span processing
+ * rate) — the UI renders whatever arrives.
  */
-attributes: Array<Attribute>, 
-/**
- * Bytes processed during this state's span, if the application's
- * analyzer declares one of the state's quantities as such. Enables the
- * UI to display a processing rate (bytes over the span's duration).
- */
-processed_bytes: bigint | null, };
+attributes: Array<Attribute>, };

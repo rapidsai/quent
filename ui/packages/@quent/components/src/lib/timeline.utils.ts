@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { TimelineSeries, TimelineMark, TimelineMarkOperator } from '../timeline/types';
+import { TimelineSeries, TimelineMark } from '../timeline/types';
 import { TreeTableItem } from '../resource-tree/types';
 import {
   formatQuantity,
@@ -162,27 +162,6 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
 }
 
 /**
- * Resolve the operator an FSM executes on behalf of.
- *
- * The FSM's `operator_id` is set by the application's analyzer (e.g. a
- * Sirius task links to its pipeline operator, whose instance_name is the
- * fused chain "GPU_SCAN(11) -> PROJECTION(6) -> …"). Every mark of the FSM
- * gets the descriptor.
- */
-function resolveOperator(
-  fsm: FiniteStateMachine,
-  operators?: QueryEntities['operators']
-): TimelineMarkOperator | undefined {
-  if (!operators || !fsm.operator_id) return undefined;
-  const operator = operators[fsm.operator_id];
-  if (!operator) return undefined;
-  return {
-    name: operator.instance_name ?? fsm.operator_id,
-    typeName: operator.operator_type_name,
-  };
-}
-
-/**
  * Convert long_fsms into a flat array of timeline marks.
  * Each pair of consecutive transitions defines a time range for the state
  * entered by the first transition.
@@ -195,8 +174,6 @@ export function buildTimelineMarks(
   theme: PaletteTheme,
   resourceIdsForFilter?: Set<string> | null,
   fsmTypes?: { [key in string]?: FsmTypeDecl },
-  /** When provided, task pipeline descriptors are resolved from pipeline_uuid attributes. */
-  operators?: QueryEntities['operators'],
   /** When provided, marks whose FSM is in this set are highlighted; others are dimmed. */
   overlayFsmIds?: Set<string>,
   overlayLabel?: string
@@ -209,7 +186,6 @@ export function buildTimelineMarks(
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
     const inOverlay = overlayFsmIds ? overlayFsmIds.has(fsm.id) : undefined;
-    const operator = resolveOperator(fsm, operators);
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
@@ -231,10 +207,6 @@ export function buildTimelineMarks(
           xEnd,
           // Optional chaining: tolerate responses from servers predating attributes.
           ...((transition.attributes?.length ?? 0) > 0 && { attributes: transition.attributes }),
-          ...(transition.processed_bytes != null && {
-            processedBytes: Number(transition.processed_bytes),
-          }),
-          ...(operator && { operator }),
           ...(inOverlay !== undefined && {
             isDimmed: !inOverlay,
             operatorName: inOverlay ? overlayLabel : undefined,

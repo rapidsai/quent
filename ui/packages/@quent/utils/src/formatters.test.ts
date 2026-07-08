@@ -16,7 +16,7 @@ import {
   formatQuantity,
   unwrapAttributeValue,
   formatAttributeValue,
-  formatBytesPerSec,
+  isBytesRateStat,
 } from './formatters';
 import type { QuantitySpec } from './types/index';
 
@@ -502,17 +502,15 @@ describe('formatAttributeValue', () => {
   });
 });
 
-describe('formatBytesPerSec', () => {
-  it('formats a decimal GB/s rate', () => {
-    expect(formatBytesPerSec(3_000_000_000, 2)).toBe('1.50 GB/s');
+describe('bytes-rate attribute keys', () => {
+  it('detects bytes-rate statistic names', () => {
+    expect(isBytesRateStat('bytes_per_sec')).toBe(true);
+    expect(isBytesRateStat('input_bytes_per_sec')).toBe(true);
+    expect(isBytesRateStat('input_bytes')).toBe(false);
   });
 
-  it('scales down to MB/s', () => {
-    expect(formatBytesPerSec(50_000_000, 10)).toBe('5.00 MB/s');
-  });
-
-  it('returns null for zero or negative durations', () => {
-    expect(formatBytesPerSec(1000, 0)).toBeNull();
-    expect(formatBytesPerSec(1000, -1)).toBeNull();
+  it('formats bytes-rate keys as SI B/s, taking precedence over the bytes heuristic', () => {
+    expect(formatAttributeValue('bytes_per_sec', { F64: 2_000_000_000 })).toBe('2.00 GB/s');
+    expect(formatAttributeValue('bytes_per_sec', 5_000_000)).toBe('5.00 MB/s');
   });
 });

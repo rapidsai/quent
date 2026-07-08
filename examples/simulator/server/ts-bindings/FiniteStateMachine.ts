@@ -18,12 +18,6 @@ type_name: string,
  */
 instance_name: string, 
 /**
- * The Operator this FSM executes on behalf of, if the application's
- * analyzer links one. Enables the UI to resolve and display the
- * operator (e.g. a task's fused pipeline chain) generically.
- */
-operator_id: string | null, 
-/**
  * The transitions of this FSM.
  */
 transitions: Array<FsmTransition>, };
