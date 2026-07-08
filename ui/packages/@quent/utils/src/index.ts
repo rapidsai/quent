@@ -37,7 +37,10 @@ export {
   formatDurationForAxisInterval,
   formatQuantity,
   formatBytes,
+  formatBytesPerSec,
   formatNumber,
+  formatAttributeValue,
+  unwrapAttributeValue,
   inferFieldFormatter,
 } from './formatters';
 

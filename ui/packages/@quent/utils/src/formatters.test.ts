@@ -14,6 +14,9 @@ import {
   isCountStat,
   inferFieldFormatter,
   formatQuantity,
+  unwrapAttributeValue,
+  formatAttributeValue,
+  formatBytesPerSec,
 } from './formatters';
 import type { QuantitySpec } from './types/index';
 
@@ -457,5 +460,59 @@ describe('formatQuantity', () => {
     };
     expect(formatQuantity(42, countSpec, 'Occupancy', 0)).toBe('42 rows');
     expect(formatQuantity(100, countSpec, 'Rate', 1)).toBe('100.0 rows/s');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Attribute value helpers
+// ---------------------------------------------------------------------------
+
+describe('unwrapAttributeValue', () => {
+  it('unwraps the externally tagged serde encoding', () => {
+    expect(unwrapAttributeValue({ U64: 90968574 })).toBe(90968574);
+    expect(unwrapAttributeValue({ I32: -5 })).toBe(-5);
+    expect(unwrapAttributeValue({ String: 'GPU' })).toBe('GPU');
+  });
+
+  it('passes through untagged primitives', () => {
+    expect(unwrapAttributeValue(42)).toBe(42);
+    expect(unwrapAttributeValue('task-0')).toBe('task-0');
+    expect(unwrapAttributeValue(null)).toBe(null);
+  });
+
+  it('does not unwrap objects that are not tagged values', () => {
+    const struct = { foo: 1, bar: 2 };
+    expect(unwrapAttributeValue(struct)).toBe(struct);
+  });
+});
+
+describe('formatAttributeValue', () => {
+  it('byte-formats bytes-like keys', () => {
+    expect(formatAttributeValue('input_bytes', { U64: 1073741824 })).toBe('1.00 GiB');
+    expect(formatAttributeValue('requested_bytes', 2048)).toBe('2.00 KiB');
+  });
+
+  it('formats plain numbers and strings', () => {
+    expect(formatAttributeValue('current_operator_id', { U32: 11 })).toBe('11');
+    expect(formatAttributeValue('target_tier', { String: 'GPU' })).toBe('GPU');
+  });
+
+  it('renders missing values as a dash', () => {
+    expect(formatAttributeValue('anything', null)).toBe('—');
+  });
+});
+
+describe('formatBytesPerSec', () => {
+  it('formats a decimal GB/s rate', () => {
+    expect(formatBytesPerSec(3_000_000_000, 2)).toBe('1.50 GB/s');
+  });
+
+  it('scales down to MB/s', () => {
+    expect(formatBytesPerSec(50_000_000, 10)).toBe('5.00 MB/s');
+  });
+
+  it('returns null for zero or negative durations', () => {
+    expect(formatBytesPerSec(1000, 0)).toBeNull();
+    expect(formatBytesPerSec(1000, -1)).toBeNull();
   });
 });

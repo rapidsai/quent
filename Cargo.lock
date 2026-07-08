@@ -2685,6 +2685,7 @@ name = "quent-ui"
 version = "0.1.0"
 dependencies = [
  "quent-analyzer",
+ "quent-attributes",
  "quent-time",
  "serde",
  "ts-rs",

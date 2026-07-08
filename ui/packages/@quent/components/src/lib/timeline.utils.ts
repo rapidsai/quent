@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { TimelineSeries, TimelineMark } from '../timeline/types';
+import { TimelineSeries, TimelineMark, TimelineMarkPipeline } from '../timeline/types';
+import { unwrapAttributeValue } from '@quent/utils';
 import { TreeTableItem } from '../resource-tree/types';
 import {
   formatQuantity,
@@ -162,6 +163,35 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
 }
 
 /**
+ * Resolve the pipeline (fused operator chain) a task FSM executes.
+ *
+ * A task's `created` transition carries a `pipeline_uuid` attribute whose
+ * value is an Operator id — the operator's instance_name is the chain
+ * (e.g. "GPU_SCAN(11) -> PROJECTION(6) -> …"). Resolved at the FSM level:
+ * the carrying transition is usually filtered out of resource lanes (it has
+ * no usage there), so every mark of the FSM gets the descriptor.
+ */
+function resolvePipeline(
+  fsm: FiniteStateMachine,
+  operators?: QueryEntities['operators']
+): TimelineMarkPipeline | undefined {
+  if (!operators) return undefined;
+  for (const transition of fsm.transitions) {
+    const attr = transition.attributes?.find(a => a.key === 'pipeline_uuid');
+    if (!attr) continue;
+    const uuid = unwrapAttributeValue(attr.value);
+    if (typeof uuid !== 'string') return undefined;
+    const operator = operators[uuid];
+    if (!operator) return undefined;
+    return {
+      name: operator.instance_name ?? uuid,
+      typeName: operator.operator_type_name,
+    };
+  }
+  return undefined;
+}
+
+/**
  * Convert long_fsms into a flat array of timeline marks.
  * Each pair of consecutive transitions defines a time range for the state
  * entered by the first transition.
@@ -174,6 +204,8 @@ export function buildTimelineMarks(
   theme: PaletteTheme,
   resourceIdsForFilter?: Set<string> | null,
   fsmTypes?: { [key in string]?: FsmTypeDecl },
+  /** When provided, task pipeline descriptors are resolved from pipeline_uuid attributes. */
+  operators?: QueryEntities['operators'],
   /** When provided, marks whose FSM is in this set are highlighted; others are dimmed. */
   overlayFsmIds?: Set<string>,
   overlayLabel?: string
@@ -186,6 +218,7 @@ export function buildTimelineMarks(
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
     const inOverlay = overlayFsmIds ? overlayFsmIds.has(fsm.id) : undefined;
+    const pipeline = resolvePipeline(fsm, operators);
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
@@ -205,6 +238,9 @@ export function buildTimelineMarks(
           color,
           xStart,
           xEnd,
+          // Optional chaining: tolerate responses from servers predating attributes.
+          ...((transition.attributes?.length ?? 0) > 0 && { attributes: transition.attributes }),
+          ...(pipeline && { pipeline }),
           ...(inOverlay !== undefined && {
             isDimmed: !inOverlay,
             operatorName: inOverlay ? overlayLabel : undefined,

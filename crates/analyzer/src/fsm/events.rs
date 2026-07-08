@@ -25,6 +25,8 @@ pub struct TransitionEvent<T> {
     timestamp: TimeUnixNanoSec,
     state_name: &'static str,
     pub usages: SmallVec<[AnalyzedUsage; 1]>,
+    /// Attribute key-value pairs extracted from the state data.
+    pub attributes: Vec<Attribute>,
     /// The original model transition data.
     pub data: T,
 }
@@ -57,7 +59,7 @@ impl<T> Transition for TransitionEvent<T> {
     }
 
     fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        std::iter::empty()
+        self.attributes.iter()
     }
 }
 
@@ -134,6 +136,7 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
             timestamp: event.timestamp,
             state_name,
             usages,
+            attributes: state.attributes(),
             data: state,
         });
     }

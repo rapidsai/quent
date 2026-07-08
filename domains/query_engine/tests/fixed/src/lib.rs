@@ -524,6 +524,8 @@ fn execute_tasks(ctx: &SimulatorContext) {
         ts!(
             t_c,
             task.computing(
+                "",
+                1_500_000_000u64,
                 Some(usage(Ref::new(thread))),
                 Some(usage((Ref::new(memory), 256u64))),
             )

@@ -71,6 +71,7 @@ export function UsageColumn({
         capacities={capacities}
         quantitySpecs={queryBundle.quantity_specs}
         fsmTypes={queryBundle.entities.fsm_types}
+        operators={queryBundle.entities.operators}
         isDark={isDark}
       />
     </div>

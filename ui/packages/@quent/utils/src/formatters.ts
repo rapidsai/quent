@@ -190,6 +190,57 @@ export function isBytesStat(name: string): boolean {
   );
 }
 
+/** Tags of the Rust `Value` enum's externally-tagged serde encoding. */
+const ATTRIBUTE_VALUE_TAGS = new Set([
+  'U8',
+  'U16',
+  'U32',
+  'U64',
+  'I8',
+  'I16',
+  'I32',
+  'I64',
+  'F32',
+  'F64',
+  'String',
+  'Struct',
+  'List',
+]);
+
+/**
+ * Unwrap an attribute `Value` to a plain JS value.
+ * The Rust `Value` enum serializes externally tagged (`{"U64": 5}`) while the
+ * generated TS type is untagged — handle both shapes.
+ */
+export function unwrapAttributeValue(value: unknown): unknown {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 1 && ATTRIBUTE_VALUE_TAGS.has(entries[0]![0])) {
+      return unwrapAttributeValue(entries[0]![1]);
+    }
+  }
+  return value;
+}
+
+/** Format an attribute value for display; bytes-like keys get byte formatting. */
+export function formatAttributeValue(key: string, value: unknown): string {
+  const v = unwrapAttributeValue(value);
+  if (v == null) return '—';
+  if (typeof v === 'number' || typeof v === 'bigint') {
+    const n = Number(v);
+    if (isBytesStat(key)) return formatBytes(n, 2);
+    return formatNumber(n);
+  }
+  if (typeof v === 'string') return v;
+  return JSON.stringify(v);
+}
+
+/** SI-prefixed processing rate (e.g. "1.25 GB/s") from bytes over elapsed seconds. */
+export function formatBytesPerSec(bytes: number, seconds: number, decimals = 2): string | null {
+  if (!(seconds > 0) || !Number.isFinite(bytes)) return null;
+  return formatWithPrefix(bytes / seconds, 'B/s', 'Si', decimals);
+}
+
 /** Row/batch count statistics — use SI-scaled display (k/M/…). */
 export function isCountStat(name: string): boolean {
   return (

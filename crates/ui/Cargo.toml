@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 quent-analyzer = { path = "../analyzer" }
+quent-attributes = { path = "../attributes" }
 quent-time = { path = "../time", features = ["ts"] }
 serde.workspace = true
 ts-rs = { workspace = true, features = ["uuid"] }

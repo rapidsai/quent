@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
+use quent_attributes::Attribute;
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
@@ -209,6 +210,8 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
+    /// Attribute key-value pairs carried by this state.
+    pub attributes: Vec<Attribute>,
 }
 
 impl FsmTransition {
@@ -220,6 +223,7 @@ impl FsmTransition {
             name: value.name.clone(),
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
+            attributes: value.attributes.clone(),
         })
     }
 }

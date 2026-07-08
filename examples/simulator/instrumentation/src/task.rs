@@ -22,6 +22,9 @@ state! {
 
 state! {
     Computing {
+        attributes: {
+            input_bytes: u64,
+        },
         usages: {
             use_thread: quent_stdlib::processor::Processor,
             use_memory: quent_stdlib::memory::Memory,
