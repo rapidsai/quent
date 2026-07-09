@@ -282,6 +282,17 @@ export function OperatorGanttChart({
           filterMode: 'none',
           xAxisIndex: [0],
         },
+        {
+          // Trackpad pinch arrives as ctrl+wheel; plain wheel stays reserved
+          // for scrolling the operator rows (see the wrapper wheel handler).
+          type: 'inside',
+          zoomOnMouseWheel: 'ctrl',
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+          xAxisIndex: [0],
+        },
       ],
     }),
     [gridOptions, startTimeMs, xAxisMax, yAxisCategories, customSeriesData, renderItem]
@@ -351,7 +362,9 @@ export function OperatorGanttChart({
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
     const handleWheel = (e: WheelEvent) => {
-      if (e.shiftKey) return;
+      // shift+wheel and ctrl+wheel (trackpad pinch) are zoom gestures — let
+      // them through to ECharts.
+      if (e.shiftKey || e.ctrlKey) return;
       e.stopPropagation();
     };
     wrapper.addEventListener('wheel', handleWheel, { capture: true, passive: true });

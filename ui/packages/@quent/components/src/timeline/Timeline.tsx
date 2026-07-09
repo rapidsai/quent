@@ -272,7 +272,10 @@ export function Timeline({
         },
         {
           type: 'inside',
-          zoomOnMouseWheel: 'shift',
+          // `true` (no modifier required) covers mouse wheel, trackpad
+          // two-finger scroll, and trackpad pinch (delivered as ctrl+wheel).
+          // ECharts centers the zoom on the pointer's axis position.
+          zoomOnMouseWheel: true,
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
           throttle: 30,
@@ -370,29 +373,20 @@ export function Timeline({
       }
     });
 
-    // Pass non-shift wheel events through to the page for normal scrolling.
-    // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
-    // When at the zoom limit, also block shift+wheel-in before ECharts sees it —
-    // ECharts converts a blocked zoom into a pan, so we must stop it at the source.
+    // All wheel/pinch input over the chart zooms via the inside dataZoom, and
+    // ECharts preventDefaults the events it consumes. The one event it must
+    // never see is wheel-in at the minimum zoom window — ECharts converts a
+    // blocked zoom into a pan — so stop it before it reaches the chart and
+    // suppress the browser fallback (page scroll / pinch page-zoom) ourselves.
     dom.addEventListener(
       'wheel',
       e => {
-        if (!e.shiftKey) {
+        if (e.deltaY < 0 && atZoomLimitRef.current) {
           e.stopPropagation();
-        } else if (e.deltaY < 0 && atZoomLimitRef.current) {
-          e.stopPropagation();
+          e.preventDefault();
         }
       },
-      { capture: true, passive: true }
-    );
-
-    // Prevent the browser from handling shift+wheel-in when ECharts can't zoom further
-    dom.addEventListener(
-      'wheel',
-      e => {
-        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
-      },
-      { passive: false }
+      { capture: true, passive: false }
     );
   }, []);
 
