@@ -210,13 +210,10 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
-    /// Attribute key-value pairs recorded by the application's
-    /// instrumentation on this state.
+    /// Attributes recorded by the application's instrumentation.
     pub attributes: Vec<Attribute>,
-    /// Attribute key-value pairs computed by the application's analyzer
-    /// (e.g. a per-span processing rate, a resolved entity name). Kept
-    /// separate from [`Self::attributes`] so users can tell recorded values
-    /// apart from derived ones. The UI renders both.
+    /// Attributes computed by the application's analyzer (e.g. a per-span
+    /// rate), rendered separately from the recorded ones.
     pub derived_attributes: Vec<Attribute>,
 }
 

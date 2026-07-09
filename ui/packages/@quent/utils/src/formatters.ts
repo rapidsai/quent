@@ -208,9 +208,9 @@ const ATTRIBUTE_VALUE_TAGS = new Set([
 ]);
 
 /**
- * Unwrap an attribute `Value` to a plain JS value.
- * The Rust `Value` enum serializes externally tagged (`{"U64": 5}`) while the
- * generated TS type is untagged — handle both shapes.
+ * Unwrap an attribute `Value` to a plain JS value. The Rust `Value` enum
+ * serializes externally tagged (`{"U64": 5}`) while the generated TS type is
+ * untagged — handle both shapes.
  */
 export function unwrapAttributeValue(value: unknown): unknown {
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
@@ -228,9 +228,8 @@ export function isBytesRateStat(name: string): boolean {
 }
 
 /**
- * Format an attribute value for display. Bytes-like keys get byte
- * formatting; bytes-rate keys get an SI-prefixed B/s (checked first, since
- * `bytes_per_sec` also matches the bytes heuristic).
+ * Format an attribute value for display, inferring units from the key name.
+ * The bytes-rate check precedes the bytes check — `bytes_per_sec` matches both.
  */
 export function formatAttributeValue(key: string, value: unknown): string {
   const v = unwrapAttributeValue(value);

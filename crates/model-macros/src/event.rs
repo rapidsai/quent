@@ -14,11 +14,10 @@ use crate::util::{resolve_value_type, to_snake_case};
 ///   attribute definitions (type-level metadata).
 /// - An `ExtractAttributes` impl yielding one `Attribute` per field
 ///   (value-level extraction).
-/// - A `ToAttributeValue` impl for `Self` so the struct can itself appear
-///   as a field of another attribute struct or an inline `state!` attribute
-///   (a `Vec` of it is handled syntactically via
-///   [`crate::util::attribute_value_expr`], as the orphan rule forbids a
-///   downstream `impl` on `Vec<Self>`).
+/// - A `ToAttributeValue` impl for `Self` so the struct can appear as a
+///   field of another attribute struct (`Vec<Self>` is handled syntactically
+///   in [`crate::util::attribute_value_expr`] — the orphan rule forbids the
+///   impl downstream).
 pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
     let event_snake = to_snake_case(name);

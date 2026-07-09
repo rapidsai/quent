@@ -382,7 +382,6 @@ const taskFsm: FiniteStateMachine = {
       usages: [{ resource: THREAD_ID, capacities: [] }],
       timestamp: 1.25,
       attributes: [{ key: 'input_bytes', value: taggedValue({ U64: 1_500_000_000 }) }],
-      // Derived attributes synthesized by the application analyzer.
       derived_attributes: [{ key: 'bytes_per_sec', value: taggedValue({ F64: 2_000_000_000 }) }],
     },
     { name: 'exit', usages: [], timestamp: 2.0, attributes: [], derived_attributes: [] },

@@ -20,14 +20,10 @@ pub mod runtime;
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-    /// Return the arbitrary key-value attributes associated with this
-    /// transition.
+    /// Return the key-value attributes of this transition.
     ///
-    /// May be computed on demand — implementations backed by statically
-    /// typed state data convert it lazily so that FSM instances that are
-    /// filtered out before display never pay for the conversion. Call this
-    /// only when the attributes will actually be used (e.g. when building a
-    /// UI payload).
+    /// May be computed on demand — call only when the attributes will be
+    /// used.
     fn attributes(&self) -> Vec<Attribute> {
         vec![]
     }

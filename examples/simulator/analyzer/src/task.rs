@@ -52,10 +52,7 @@ impl TaskExt for Task {
             .iter()
             .enumerate()
             .map(|(i, t)| {
-                // Task-specific semantics live here: the Computing state's
-                // input_bytes is the quantity processed over the span, so a
-                // processing rate can be derived and emitted as a derived
-                // attribute for the UI to render.
+                // Derive the processing rate from input_bytes over the span.
                 let mut derived_attributes = vec![];
                 if let ModelTaskTransition::Computing(data) = &t.data
                     && let Some(next) = raw.get(i + 1)
@@ -83,9 +80,6 @@ impl TaskExt for Task {
                         })
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
-                    // The statically typed -> dynamically typed attribute
-                    // conversion happens only here, after long-entity
-                    // filtering — never for FSMs that won't be displayed.
                     attributes: t.attributes(),
                     derived_attributes,
                 })

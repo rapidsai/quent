@@ -16,12 +16,11 @@ export interface ActiveMark {
   label: string;
   stateName: string;
   color: string;
-  /** Attribute key-value pairs recorded by the application's
-   *  instrumentation on the hovered state. */
+  /** Attributes recorded by instrumentation on the hovered state. */
   attributes?: Attribute[];
-  /** Attribute key-value pairs computed by the application's analyzer. */
+  /** Attributes computed by the analyzer. */
   derivedAttributes?: Attribute[];
-  /** Real duration of the hovered state span in milliseconds. */
+  /** Duration of the hovered state span in milliseconds. */
   durationMs?: number;
 }
 
@@ -180,8 +179,7 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-/** Values longer than this render as a wrapped block below the key instead
- *  of inline, so long strings (e.g. an operator chain) stay readable. */
+/** Values longer than this wrap onto their own line. */
 const INLINE_VALUE_MAX_CHARS = 32;
 
 function MarkDetailRow({ name, value }: { name: string; value: string }) {

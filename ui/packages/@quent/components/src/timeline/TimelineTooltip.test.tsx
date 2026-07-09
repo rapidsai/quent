@@ -35,8 +35,6 @@ describe('TooltipContent active marks', () => {
           { key: 'input_bytes', value: tagged({ U64: 1_500_000_000 }) },
           { key: 'current_operator_id', value: tagged({ U32: 11 }) },
         ],
-        // Derived attribute synthesized by the application analyzer —
-        // rendered in its own "derived" subsection.
         derivedAttributes: [{ key: 'bytes_per_sec', value: tagged({ F64: 2_000_000_000 }) }],
       },
     ]);

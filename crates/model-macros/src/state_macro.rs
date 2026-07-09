@@ -458,8 +458,8 @@ fn expand_inline_attrs(
     let extract_instance_name = quote! { Some(&self.instance_name) };
     let extract_parent_group_id = quote! { None };
 
-    // Value-level extraction: one Attribute per inline field. The auto-added
-    // `instance_name` is excluded — it is surfaced via ExtractInstanceName.
+    // The auto-added `instance_name` is excluded — it is surfaced via
+    // ExtractInstanceName.
     let extract_attr_tokens: Vec<TokenStream> = fields
         .iter()
         .map(|f| {
