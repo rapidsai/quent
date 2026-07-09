@@ -26,10 +26,13 @@ export type TimelineMark = {
   isDimmed?: boolean;
   /** Operator instance name when this mark belongs to a selected operator's long entities. */
   operatorName?: string;
-  /** Attribute key-value pairs carried by the state this mark represents,
-   *  including any derived attributes the application's analyzer
-   *  synthesized (e.g. a per-span processing rate). */
+  /** Attribute key-value pairs recorded by the application's
+   *  instrumentation on the state this mark represents. */
   attributes?: Attribute[];
+  /** Attribute key-value pairs computed by the application's analyzer
+   *  (e.g. a per-span processing rate) — rendered separately so recorded
+   *  and derived values are distinguishable. */
+  derivedAttributes?: Attribute[];
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 45;

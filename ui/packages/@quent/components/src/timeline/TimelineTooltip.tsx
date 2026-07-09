@@ -16,8 +16,11 @@ export interface ActiveMark {
   label: string;
   stateName: string;
   color: string;
-  /** Attribute key-value pairs carried by the hovered state. */
+  /** Attribute key-value pairs recorded by the application's
+   *  instrumentation on the hovered state. */
   attributes?: Attribute[];
+  /** Attribute key-value pairs computed by the application's analyzer. */
+  derivedAttributes?: Attribute[];
   /** Real duration of the hovered state span in milliseconds. */
   durationMs?: number;
 }
@@ -227,6 +230,20 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
               value={formatAttributeValue(attr.key, attr.value)}
             />
           ))}
+          {m.derivedAttributes && m.derivedAttributes.length > 0 && (
+            <>
+              <DataText as="div" className="pl-3 pt-0.5 text-muted-foreground italic opacity-70">
+                derived
+              </DataText>
+              {m.derivedAttributes.map(attr => (
+                <MarkDetailRow
+                  key={attr.key}
+                  name={attr.key}
+                  value={formatAttributeValue(attr.key, attr.value)}
+                />
+              ))}
+            </>
+          )}
         </div>
       ))}
     </div>

@@ -20,9 +20,17 @@ pub mod runtime;
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-    /// Return an iterator over arbitrary key-value attributes associated with
-    /// this transition.
-    fn attributes(&self) -> impl Iterator<Item = &Attribute>;
+    /// Return the arbitrary key-value attributes associated with this
+    /// transition.
+    ///
+    /// May be computed on demand — implementations backed by statically
+    /// typed state data convert it lazily so that FSM instances that are
+    /// filtered out before display never pay for the conversion. Call this
+    /// only when the attributes will actually be used (e.g. when building a
+    /// UI payload).
+    fn attributes(&self) -> Vec<Attribute> {
+        vec![]
+    }
 }
 
 /// Trait for types that represent a Finite State Machine (FSM).
@@ -131,7 +139,7 @@ where
         SpanUnixNanoSec::try_new(start, end).unwrap()
     }
 
-    pub fn attributes(&self) -> impl Iterator<Item = &Attribute> {
+    pub fn attributes(&self) -> Vec<Attribute> {
         self.fsm.transition(self.index).unwrap().attributes()
     }
 }

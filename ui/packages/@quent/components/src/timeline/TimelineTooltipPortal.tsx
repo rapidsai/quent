@@ -90,6 +90,7 @@ function PositionedTooltip({
         stateName: m.stateName,
         color: m.color,
         attributes: m.attributes,
+        derivedAttributes: m.derivedAttributes,
         durationMs: m.xEnd - m.xStart,
       }));
     return {

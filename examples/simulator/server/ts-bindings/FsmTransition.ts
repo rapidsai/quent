@@ -19,8 +19,14 @@ usages: Array<FsmUsage>,
  */
 timestamp: number, 
 /**
- * Attribute key-value pairs carried by this state. Applications may
- * also synthesize derived attributes here (e.g. a per-span processing
- * rate) — the UI renders whatever arrives.
+ * Attribute key-value pairs recorded by the application's
+ * instrumentation on this state.
  */
-attributes: Array<Attribute>, };
+attributes: Array<Attribute>, 
+/**
+ * Attribute key-value pairs computed by the application's analyzer
+ * (e.g. a per-span processing rate, a resolved entity name). Kept
+ * separate from [`Self::attributes`] so users can tell recorded values
+ * apart from derived ones. The UI renders both.
+ */
+derived_attributes: Array<Attribute>, };

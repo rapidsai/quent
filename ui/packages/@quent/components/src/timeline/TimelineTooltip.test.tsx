@@ -34,9 +34,10 @@ describe('TooltipContent active marks', () => {
         attributes: [
           { key: 'input_bytes', value: tagged({ U64: 1_500_000_000 }) },
           { key: 'current_operator_id', value: tagged({ U32: 11 }) },
-          // Derived attribute synthesized by the application analyzer.
-          { key: 'bytes_per_sec', value: tagged({ F64: 2_000_000_000 }) },
         ],
+        // Derived attribute synthesized by the application analyzer —
+        // rendered in its own "derived" subsection.
+        derivedAttributes: [{ key: 'bytes_per_sec', value: tagged({ F64: 2_000_000_000 }) }],
       },
     ]);
 
@@ -46,6 +47,7 @@ describe('TooltipContent active marks', () => {
     expect(screen.getByText('11')).toBeInTheDocument();
     expect(screen.getByText('duration')).toBeInTheDocument();
     expect(screen.getByText('750.00ms')).toBeInTheDocument();
+    expect(screen.getByText('derived')).toBeInTheDocument();
     expect(screen.getByText('bytes_per_sec')).toBeInTheDocument();
     expect(screen.getByText('2.00 GB/s')).toBeInTheDocument();
   });
@@ -57,7 +59,7 @@ describe('TooltipContent active marks', () => {
         stateName: 'computing',
         color: '#ff0000',
         durationMs: 26,
-        attributes: [
+        derivedAttributes: [
           {
             key: 'pipeline',
             value: tagged({ String: 'GPU_SCAN(11) -> PROJECTION(6) -> HASH_GROUP_BY(8)' }),

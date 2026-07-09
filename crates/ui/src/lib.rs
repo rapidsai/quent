@@ -210,10 +210,14 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
-    /// Attribute key-value pairs carried by this state. Applications may
-    /// also synthesize derived attributes here (e.g. a per-span processing
-    /// rate) — the UI renders whatever arrives.
+    /// Attribute key-value pairs recorded by the application's
+    /// instrumentation on this state.
     pub attributes: Vec<Attribute>,
+    /// Attribute key-value pairs computed by the application's analyzer
+    /// (e.g. a per-span processing rate, a resolved entity name). Kept
+    /// separate from [`Self::attributes`] so users can tell recorded values
+    /// apart from derived ones. The UI renders both.
+    pub derived_attributes: Vec<Attribute>,
 }
 
 impl FsmTransition {
@@ -226,6 +230,7 @@ impl FsmTransition {
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
             attributes: value.attributes.clone(),
+            derived_attributes: vec![],
         })
     }
 }
