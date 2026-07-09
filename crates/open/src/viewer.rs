@@ -407,4 +407,64 @@ mod tests {
             wrapper::IO_PACKAGE
         ));
     }
+
+    /// Compatibility gate, run explicitly in CI (the `open-compat` job in
+    /// `rust.yml`): the quent-open being built must still open artifacts
+    /// exported by an older quent. A sidecar pins the quent revision it was
+    /// built from, so the generated wrapper must resolve and compile against
+    /// that revision — not against the current tree.
+    ///
+    /// The sidecar is synthesized as an older quent wrote it for the in-repo
+    /// simulator model, pinning `QUENT_OPEN_COMPAT_COMMIT` (in CI: the PR's
+    /// base commit, or the parent of the pushed commit). Everything after that
+    /// is the production path: sidecar → discovery → spec → wrapper generation
+    /// → `cargo build`, including the legacy `quent-exporter` retry.
+    ///
+    /// A failure means this tree breaks `quent open` for existing artifacts
+    /// (e.g. it renames a crate or feature the wrapper depends on, or changes
+    /// an API the generated `main.rs` calls). Ship a compatibility path in the
+    /// same PR — like the [`LEGACY_IO_PACKAGE`](wrapper::LEGACY_IO_PACKAGE)
+    /// retry in [`build_one`] — rather than merging the breakage.
+    #[tokio::test]
+    #[ignore = "fetches pinned git sources and compiles a full viewer; run explicitly (see rust.yml)"]
+    async fn opens_artifacts_built_by_a_previous_quent_commit() {
+        let commit = std::env::var("QUENT_OPEN_COMPAT_COMMIT").expect(
+            "set QUENT_OPEN_COMPAT_COMMIT to the quent commit whose artifacts must still open",
+        );
+        let remote = std::env::var("QUENT_OPEN_COMPAT_REMOTE")
+            .unwrap_or_else(|_| "https://github.com/rapidsai/quent".to_string());
+
+        // The sidecar an older quent wrote for the in-repo simulator model:
+        // quent and the model share the quent repository, pinned to `commit`.
+        let pin = quent_build_info::BuildInfo {
+            commit: Some(commit),
+            remote: Some(remote),
+            ..quent_build_info::BuildInfo::unknown()
+        };
+        let mut model = quent_build_info::ModelInfo::unknown();
+        model.name = "Simulator".into();
+        model.package = "quent-simulator-instrumentation".into();
+        model.type_path = "quent_simulator_instrumentation::SimulatorEvent".into();
+        model.source = pin.clone();
+        model.analyzer_package = Some("quent-simulator-analyzer".into());
+        let info = quent_build_info::ArtifactInfo { quent: pin, model };
+
+        // A context directory as the exporter lays it out (UUID-named).
+        let tmp = tempfile::tempdir().unwrap();
+        let context = tmp.path().join("01980000-0000-7000-8000-000000000000");
+        std::fs::create_dir_all(&context).unwrap();
+        info.write_sidecar(&context).unwrap();
+
+        let contexts = crate::spec::discover_contexts(&[tmp.path().to_path_buf()]).unwrap();
+        assert_eq!(contexts.len(), 1);
+        let spec = ViewerSpec::from_artifact(
+            &quent_build_info::ArtifactInfo::read_sidecar(&contexts[0]).unwrap(),
+        )
+        .unwrap();
+
+        let viewer = build_one(ViewerGroup { spec, contexts })
+            .await
+            .expect("a viewer for artifacts of the previous quent commit must still build");
+        assert!(viewer.bin.is_file());
+    }
 }

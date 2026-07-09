@@ -59,6 +59,42 @@ jobs:
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
       - run: pixi run cargo build --workspace --all-features --locked --release
 
+  # Regression gate for `quent-open` backward compatibility: build a viewer for
+  # a sidecar pinning the previous quent commit (the PR's base commit, or the
+  # parent of the pushed commit), with the quent-open of this tree. A failure
+  # means this change breaks `quent open` for existing artifacts — add a
+  # compatibility path in the same PR instead of merging the breakage.
+  open-compat:
+    name: quent-open compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Picking the previous commit on push builds needs the parent of HEAD.
+          fetch-depth: 2
+      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+        with:
+          cache: true
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Pick the previous quent commit
+        id: previous
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: echo "commit=${BASE_SHA:-$(git rev-parse HEAD~1)}" >> "$GITHUB_OUTPUT"
+      - run: pixi run cargo test --package quent-open --locked -- --ignored opens_artifacts_built_by_a_previous_quent_commit
+        env:
+          QUENT_OPEN_COMPAT_COMMIT: ${{ steps.previous.outputs.commit }}
+          QUENT_OPEN_COMPAT_REMOTE: ${{ github.server_url }}/${{ github.repository }}
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
