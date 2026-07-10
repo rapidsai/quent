@@ -6,6 +6,7 @@
  */
 
 import type { PrefixSystem, QuantitySpec, CapacityKind } from './types/index';
+import type { StatValue } from './dagTypes';
 
 const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60 * MS_PER_SECOND;
@@ -190,36 +191,42 @@ export function isBytesStat(name: string): boolean {
   );
 }
 
-/** Tags of the Rust `Value` enum's externally-tagged serde encoding. */
-const ATTRIBUTE_VALUE_TAGS = new Set([
-  'U8',
-  'U16',
-  'U32',
-  'U64',
-  'I8',
-  'I16',
-  'I32',
-  'I64',
-  'F32',
-  'F64',
-  'String',
-  'Struct',
-  'List',
-]);
+function unwrapToString(val: unknown): string {
+  const result = unwrapTaggedValue(val);
+  return Array.isArray(result) ? result.join('\n') : String(result ?? '');
+}
 
 /**
- * Unwrap an attribute `Value` to a plain JS value. The Rust `Value` enum
+ * Recursively unwrap a `Value` to a plain JS value. The Rust `Value` enum
  * serializes externally tagged (`{"U64": 5}`) while the generated TS type is
- * untagged — handle both shapes.
+ * untagged — handle both shapes, including lists and structs.
  */
-export function unwrapAttributeValue(value: unknown): unknown {
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 1 && ATTRIBUTE_VALUE_TAGS.has(entries[0]![0])) {
-      return unwrapAttributeValue(entries[0]![1]);
+export function unwrapTaggedValue(val: unknown): StatValue {
+  switch (true) {
+    case val === null || val === undefined:
+      return null;
+    case typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean':
+      return val as StatValue;
+    case typeof val === 'bigint':
+      return Number(val);
+    case Array.isArray(val):
+      return (val as unknown[]).map(unwrapToString);
+    case typeof val === 'object': {
+      const obj = val as Record<string, unknown>;
+      const keys = Object.keys(obj);
+      // Attribute shape: { key: string, value: Value }
+      if (keys.length === 2 && 'key' in obj && 'value' in obj) {
+        return `${obj.key}: ${unwrapToString(obj.value)}`;
+      }
+      // Tagged value: { Tag: innerValue }
+      if (keys.length === 1) {
+        return unwrapTaggedValue(Object.values(obj)[0]);
+      }
+      return JSON.stringify(val);
     }
+    default:
+      return String(val);
   }
-  return value;
 }
 
 /** Bytes-rate statistic names (e.g. bytes_per_sec) — SI-scaled B/s display. */
@@ -232,16 +239,15 @@ export function isBytesRateStat(name: string): boolean {
  * The bytes-rate check precedes the bytes check — `bytes_per_sec` matches both.
  */
 export function formatAttributeValue(key: string, value: unknown): string {
-  const v = unwrapAttributeValue(value);
+  const v = unwrapTaggedValue(value);
   if (v == null) return '—';
-  if (typeof v === 'number' || typeof v === 'bigint') {
-    const n = Number(v);
-    if (isBytesRateStat(key)) return formatWithPrefix(n, 'B/s', 'Si', 2);
-    if (isBytesStat(key)) return formatBytes(n, 2);
-    return formatNumber(n);
+  if (typeof v === 'number') {
+    if (isBytesRateStat(key)) return formatWithPrefix(v, 'B/s', 'Si', 2);
+    if (isBytesStat(key)) return formatBytes(v, 2);
+    return formatNumber(v);
   }
-  if (typeof v === 'string') return v;
-  return JSON.stringify(v);
+  if (Array.isArray(v)) return v.join(', ');
+  return String(v);
 }
 
 /** Row/batch count statistics — use SI-scaled display (k/M/…). */

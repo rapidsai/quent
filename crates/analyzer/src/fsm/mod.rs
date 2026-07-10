@@ -20,7 +20,8 @@ pub mod runtime;
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-    /// Return the key-value attributes of this transition.
+    /// Return the key-value attributes of this transition converted to
+    /// dynamically-typed ones.
     ///
     /// May be computed on demand — call only when the attributes will be
     /// used.

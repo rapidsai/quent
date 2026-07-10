@@ -14,7 +14,7 @@ import {
   isCountStat,
   inferFieldFormatter,
   formatQuantity,
-  unwrapAttributeValue,
+  unwrapTaggedValue,
   formatAttributeValue,
   isBytesRateStat,
 } from './formatters';
@@ -467,22 +467,28 @@ describe('formatQuantity', () => {
 // Attribute value helpers
 // ---------------------------------------------------------------------------
 
-describe('unwrapAttributeValue', () => {
+describe('unwrapTaggedValue', () => {
   it('unwraps the externally tagged serde encoding', () => {
-    expect(unwrapAttributeValue({ U64: 90968574 })).toBe(90968574);
-    expect(unwrapAttributeValue({ I32: -5 })).toBe(-5);
-    expect(unwrapAttributeValue({ String: 'GPU' })).toBe('GPU');
+    expect(unwrapTaggedValue({ U64: 90968574 })).toBe(90968574);
+    expect(unwrapTaggedValue({ I32: -5 })).toBe(-5);
+    expect(unwrapTaggedValue({ String: 'GPU' })).toBe('GPU');
   });
 
   it('passes through untagged primitives', () => {
-    expect(unwrapAttributeValue(42)).toBe(42);
-    expect(unwrapAttributeValue('task-0')).toBe('task-0');
-    expect(unwrapAttributeValue(null)).toBe(null);
+    expect(unwrapTaggedValue(42)).toBe(42);
+    expect(unwrapTaggedValue('task-0')).toBe('task-0');
+    expect(unwrapTaggedValue(null)).toBe(null);
   });
 
-  it('does not unwrap objects that are not tagged values', () => {
-    const struct = { foo: 1, bar: 2 };
-    expect(unwrapAttributeValue(struct)).toBe(struct);
+  it('unwraps lists and struct entries', () => {
+    expect(unwrapTaggedValue({ List: { U64: [1, 2] } })).toEqual(['1', '2']);
+    expect(unwrapTaggedValue({ Struct: [{ key: 'tier', value: { String: 'GPU' } }] })).toEqual([
+      'tier: GPU',
+    ]);
+  });
+
+  it('stringifies objects that are not tagged values', () => {
+    expect(unwrapTaggedValue({ foo: 1, bar: 2 })).toBe('{"foo":1,"bar":2}');
   });
 });
 

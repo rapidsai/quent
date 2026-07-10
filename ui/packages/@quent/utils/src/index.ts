@@ -39,7 +39,7 @@ export {
   formatBytes,
   formatNumber,
   formatAttributeValue,
-  unwrapAttributeValue,
+  unwrapTaggedValue,
   inferFieldFormatter,
 } from './formatters';
 
