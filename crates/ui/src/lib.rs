@@ -300,6 +300,8 @@ impl FiniteStateMachine {
                     name: t.name().to_owned(),
                     usages: usages_by_state.remove(t.name()).unwrap_or_default(),
                     timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
+                    attributes: t.attributes(),
+                    derived_attributes: vec![],
                 })
             })
             .collect::<Result<Vec<_>, quent_time::TimeError>>()?;

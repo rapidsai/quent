@@ -2606,6 +2606,7 @@ name = "quent-simulator-analyzer"
 version = "0.1.0"
 dependencies = [
  "quent-analyzer",
+ "quent-attributes",
  "quent-events",
  "quent-model",
  "quent-query-engine-analyzer",
