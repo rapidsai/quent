@@ -295,6 +295,7 @@ dependencies = [
  "async-trait",
  "quent-events",
  "thiserror",
+ "tracing",
  "uuid",
 ]
 
