@@ -19,7 +19,9 @@ updates:
       interval: "weekly"
   - cooldown:
       default-days: 14
-    directory: "/"
+    directories: 
+      - "/"
+      - "/crates/instrumentation-build/example"
     open-pull-requests-limit: 5
     package-ecosystem: "cargo"
     schedule:
