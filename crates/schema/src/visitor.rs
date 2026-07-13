@@ -337,7 +337,7 @@ mod test {
         let entity_ref = DataType::EntityRef {
             data: None,
             annotations: AnnotationsBuilder::new()
-                .constraint("my.constraint.v1", None)
+                .try_with_constraint("my.constraint.v1", None)
                 .unwrap()
                 .build(),
         };

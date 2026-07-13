@@ -13,7 +13,7 @@ fn entity_ref(target: Option<&str>) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .constraint(RefTargetConstraint::NAME, target.map(ToString::to_string))
+            .try_with_constraint(RefTargetConstraint::NAME, target.map(ToString::to_string))
             .unwrap()
             .build(),
     }

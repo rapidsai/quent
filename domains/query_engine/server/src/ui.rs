@@ -10,6 +10,7 @@ use axum::{
 use quent_analyzer::AnalyzerResult;
 use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
 use quent_query_engine_ui as ui;
+use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
@@ -261,6 +262,32 @@ where
     ))
 }
 
+/// List the entities of a resource or resource group, ranked and paged.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/entities",
+    tag = "entities",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Ranked, paged list of entities", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn entities<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<EntityListRequest<ui::QueryFilter, ui::OperatorFilter>>,
+) -> ServerResult<Json<EntityListResponse>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    Ok(Json(analyzer.list_entities(request)?))
+}
+
 #[cfg(feature = "swagger")]
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -272,10 +299,12 @@ where
         query,
         single_timeline,
         bulk_timelines,
+        entities,
     ),
     tags(
         (name = "engines", description = "Engine, query group, and query management"),
         (name = "timelines", description = "Resource timeline data"),
+        (name = "entities", description = "Entity list queries"),
     )
 )]
 pub(crate) struct ApiDoc;
@@ -296,5 +325,6 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route("/{engine_id}/entities", post(entities))
         .with_state(state)
 }

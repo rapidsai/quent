@@ -4,7 +4,7 @@
 use quent_constraints::Constraint as _;
 use quent_fsm::{Fsm, FsmConstraint, FsmError};
 use quent_schema::{
-    Cardinality, Entity, Event, Schema,
+    Annotations, Cardinality, Entity, Event, Schema,
     builder::{AnnotationsBuilder, EntityBuilder},
     test_utils::{entity as bare_entity, event_with, ident, schema},
 };
@@ -28,16 +28,19 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
     .to_string()
 }
 
+/// Annotations carrying the FSM constraint with `data`.
+fn fsm_annotations(data: Option<String>) -> Annotations {
+    AnnotationsBuilder::new()
+        .try_with_constraint(FsmConstraint::NAME, data)
+        .unwrap()
+        .build()
+}
+
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
     EntityBuilder::new(ident(name))
-        .events(events)
+        .try_with_events(events)
         .unwrap()
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint(FsmConstraint::NAME, Some(data.to_string()))
-                .unwrap()
-                .build(),
-        )
+        .with_annotations(fsm_annotations(Some(data.to_string())))
         .build()
 }
 
@@ -82,14 +85,9 @@ fn single_state_fsm_passes() {
 #[test]
 fn missing_data_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .event(event("a", Cardinality::Once))
+        .try_with_event(event("a", Cardinality::Once))
         .unwrap()
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint(FsmConstraint::NAME, None)
-                .unwrap()
-                .build(),
-        )
+        .with_annotations(fsm_annotations(None))
         .build();
     let errors = validate(&schema_with(entity));
     assert!(
@@ -102,14 +100,9 @@ fn missing_data_is_rejected() {
 #[test]
 fn invalid_json_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .event(event("a", Cardinality::Once))
+        .try_with_event(event("a", Cardinality::Once))
         .unwrap()
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint(FsmConstraint::NAME, Some("{ trash".to_string()))
-                .unwrap()
-                .build(),
-        )
+        .with_annotations(fsm_annotations(Some("{ trash".to_string())))
         .build();
     let errors = validate(&schema_with(entity));
     assert!(

@@ -15,7 +15,7 @@ fn tree_ref() -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .constraint(RefTreeConstraint::NAME, None)
+            .try_with_constraint(RefTreeConstraint::NAME, None)
             .unwrap()
             .build(),
     }
@@ -26,9 +26,9 @@ fn tree_ref_to(target: &str) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .constraint(RefTreeConstraint::NAME, None)
+            .try_with_constraint(RefTreeConstraint::NAME, None)
             .unwrap()
-            .constraint(RefTargetConstraint::NAME, Some(ident(target).to_string()))
+            .try_with_constraint(RefTargetConstraint::NAME, Some(ident(target).to_string()))
             .unwrap()
             .build(),
     }

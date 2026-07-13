@@ -3,6 +3,7 @@
 
 use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryFilter};
 use quent_simulator_ui::EntityRef;
+use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
@@ -21,6 +22,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     <SingleTimelineResponse as TS>::export_all(&cfg)?;
     <BulkTimelineRequest<QueryFilter, OperatorFilter> as TS>::export_all(&cfg)?;
     <BulkTimelinesResponse as TS>::export_all(&cfg)?;
+
+    <EntityListRequest<QueryFilter, OperatorFilter> as TS>::export_all(&cfg)?;
+    <EntityListResponse as TS>::export_all(&cfg)?;
 
     Ok(())
 }

@@ -135,20 +135,24 @@ mod tests {
 
     #[test]
     fn docs_annotations_become_doc_attributes() {
-        let docs = |text: &str| AnnotationsBuilder::new().docs(text).build();
+        let docs = |text: &str| {
+            let mut builder = AnnotationsBuilder::new();
+            builder.set_docs(text);
+            builder.build()
+        };
         let field_x = Field::new(ident("x"), DataType::U8, docs("field doc"));
         let ev = EventBuilder::new(ident("ev"), Cardinality::Once)
-            .fields([field_x])
+            .try_with_field(field_x)
             .unwrap()
-            .annotations(docs("event doc"))
+            .with_annotations(docs("event doc"))
             .build();
         let en = EntityBuilder::new(ident("E"))
-            .events([ev])
+            .try_with_event(ev)
             .unwrap()
-            .annotations(docs("entity doc"))
+            .with_annotations(docs("entity doc"))
             .build();
         let s = SchemaBuilder::new(ident("M"))
-            .entities([en])
+            .try_with_entity(en)
             .unwrap()
             .build();
 

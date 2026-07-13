@@ -8,11 +8,14 @@ use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
 use quent_model::io::ImporterResult;
 use quent_query_engine_ui as ui;
-use quent_ui::timeline::{
-    request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
-    response::{
-        BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
-        SingleTimelineResponse,
+use quent_ui::{
+    entities::{request::EntityListRequest, response::EntityListResponse},
+    timeline::{
+        request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
+        response::{
+            BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
+            SingleTimelineResponse,
+        },
     },
 };
 use uuid::Uuid;
@@ -60,6 +63,13 @@ pub trait UiAnalyzer {
         &self,
         request: SingleTimelineRequest<ui::QueryFilter, ui::OperatorFilter>,
     ) -> AnalyzerResult<SingleTimelineResponse>;
+
+    /// List the entities matching a scope, window, and filter, ranked by the
+    /// requested sort key and sliced to the requested page.
+    fn list_entities(
+        &self,
+        request: EntityListRequest<ui::QueryFilter, ui::OperatorFilter>,
+    ) -> AnalyzerResult<EntityListResponse>;
 
     /// Return a set of resource timelines in bulk.
     fn bulk_resource_timeline(
