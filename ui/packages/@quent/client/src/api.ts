@@ -11,10 +11,13 @@ import type {
   SingleTimelineRequest,
   SingleTimelineResponse,
   BulkTimelineRequest,
+  DataFlowTimelineResponse,
+  DistributionTimelineRequest,
   QueryFilter,
   OperatorFilter,
   EntityRef,
   Engine,
+  TimelineConfig,
 } from '@quent/utils';
 
 interface ApiFetchOptions {
@@ -98,6 +101,31 @@ export async function fetchBulkTimelines(
   request: BulkTimelineRequest<QueryFilter, OperatorFilter>
 ): Promise<BulkTimelinesResponse> {
   return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  });
+}
+
+/**
+ * Fetch the data-flow distribution timeline for a query (all operators in one
+ * response). Returns `"Unsupported"` when the engine's analyzer does not
+ * implement the data-flow protocol.
+ * @param measures - Measure names to compute; empty means all declared measures.
+ */
+export async function fetchDataFlow(
+  engineId: string,
+  queryId: string,
+  config: TimelineConfig,
+  measures: string[] = []
+): Promise<DataFlowTimelineResponse> {
+  const request: DistributionTimelineRequest<QueryFilter> = {
+    measures,
+    config,
+    app_params: { query_id: queryId },
+  };
+  return apiFetch<DataFlowTimelineResponse>(`/engines/${engineId}/timeline/data-flow`, {
     fetchOptions: {
       method: 'POST',
       body: JSON.stringify(request),

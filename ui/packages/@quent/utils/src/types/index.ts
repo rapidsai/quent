@@ -8,6 +8,12 @@ export type { BulkTimelinesResponse } from '../../../../../../examples/simulator
 export type { BulkTimelinesResponseEntry } from '../../../../../../examples/simulator/server/ts-bindings/BulkTimelinesResponseEntry';
 export type { CapacityDecl } from '../../../../../../examples/simulator/server/ts-bindings/CapacityDecl';
 export type { CapacityKind } from '../../../../../../examples/simulator/server/ts-bindings/CapacityKind';
+export type { DataFlowTimelineBinned } from '../../../../../../examples/simulator/server/ts-bindings/DataFlowTimelineBinned';
+export type { DataFlowTimelineResponse } from '../../../../../../examples/simulator/server/ts-bindings/DataFlowTimelineResponse';
+export type { DimensionKeyDecl } from '../../../../../../examples/simulator/server/ts-bindings/DimensionKeyDecl';
+export type { DistributionDecl } from '../../../../../../examples/simulator/server/ts-bindings/DistributionDecl';
+export type { DistributionSeries } from '../../../../../../examples/simulator/server/ts-bindings/DistributionSeries';
+export type { DistributionTimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/DistributionTimelineRequest';
 export type { Edge } from '../../../../../../examples/simulator/server/ts-bindings/Edge';
 export type { Engine } from '../../../../../../examples/simulator/server/ts-bindings/Engine';
 export type { EngineImplementationAttributes } from '../../../../../../examples/simulator/server/ts-bindings/EngineImplementationAttributes';

@@ -28,6 +28,7 @@ import {
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { inferFieldFormatter } from '@quent/utils';
 import { DataText } from '../ui/data-text';
+import { NodeFlowBar } from './NodeFlowBar';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -46,6 +47,12 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   isDark?: boolean;
   /** Pre-computed collision-free color for this operator type within the current DAG. */
   baseColor?: string;
+  /**
+   * Whether the data-flow overlay bar is rendered under the node content.
+   * Injected by `DAGChart` when converting nodes so toggling the overlay
+   * relayouts exactly once.
+   */
+  flowBarVisible?: boolean;
 }
 
 const nodeVariants = cva(
@@ -213,6 +220,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           {formattedColorFieldValue}
         </div>
       )}
+
+      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} isDark={isDark} />}
 
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />

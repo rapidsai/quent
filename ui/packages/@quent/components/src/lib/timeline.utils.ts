@@ -426,7 +426,7 @@ interface AxisPointerEntry {
 const axisPointerRegistry = new Set<AxisPointerEntry>();
 let isBroadcasting = false;
 
-function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
+function broadcastShowPointer(source: EChartsInstance | null, timestampMs: number) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
@@ -450,7 +450,7 @@ function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
   }
 }
 
-function broadcastHidePointer(source: EChartsInstance) {
+function broadcastHidePointer(source: EChartsInstance | null) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
@@ -465,6 +465,21 @@ function broadcastHidePointer(source: EChartsInstance) {
   } finally {
     isBroadcasting = false;
   }
+}
+
+/**
+ * Broadcast a synced axis-pointer crosshair at `timestampMs` (epoch ms) to
+ * every registered timeline chart, without a source chart. Used by the DAG
+ * playhead so scrubbing/playing draws a crosshair on the right-panel
+ * timelines with zero React re-renders.
+ */
+export function broadcastSyncedPointer(timestampMs: number) {
+  broadcastShowPointer(null, timestampMs);
+}
+
+/** Hide the crosshair broadcast by {@link broadcastSyncedPointer}. */
+export function hideSyncedPointer() {
+  broadcastHidePointer(null);
 }
 
 export interface AxisPointerSyncOptions {

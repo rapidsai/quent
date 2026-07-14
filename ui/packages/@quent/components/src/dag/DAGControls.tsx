@@ -10,6 +10,12 @@ import {
   useSelectedDagLayoutDirection,
   useNodeColorPalette,
   useEdgeColorPalette,
+  useDataFlowEnabled,
+  useSetDataFlowEnabled,
+  useDataFlowMeta,
+  useSelectedDataFlowMeasure,
+  useSetSelectedDataFlowMeasure,
+  resolveDataFlowMeasure,
 } from '@quent/hooks';
 import {
   NODE_LABEL_FIELD,
@@ -17,7 +23,7 @@ import {
   type NodeLabelField,
   type DagLayoutDirection,
 } from '@quent/utils';
-import { Palette, Spline, Brush, Type, ArrowUpDown } from 'lucide-react';
+import { Palette, Spline, Brush, Type, ArrowUpDown, Activity, Gauge } from 'lucide-react';
 import { PalettePicker } from './PalettePicker';
 
 interface DAGControlsProps {
@@ -47,9 +53,22 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const [layoutDirection, setLayoutDirection] = useSelectedDagLayoutDirection();
   const [nodePalette, setNodePalette] = useNodeColorPalette();
   const [edgePalette, setEdgePalette] = useEdgeColorPalette();
+  const dataFlowEnabled = useDataFlowEnabled();
+  const setDataFlowEnabled = useSetDataFlowEnabled();
+  const dataFlowMeta = useDataFlowMeta();
+  const selectedDataFlowMeasure = useSelectedDataFlowMeasure();
+  const setSelectedDataFlowMeasure = useSetSelectedDataFlowMeasure();
 
   const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({ value: f }));
   const portOptions: SelectFieldOption[] = portStatFields.map(f => ({ value: f }));
+
+  const measureOptions: SelectFieldOption[] = (dataFlowMeta?.decl.measures ?? []).map(m => ({
+    value: m.name,
+    label: m.display_name,
+  }));
+  const effectiveMeasure = dataFlowMeta
+    ? resolveDataFlowMeasure(selectedDataFlowMeasure, dataFlowMeta.decl)
+    : null;
 
   return (
     <div className="bg-card">
@@ -112,6 +131,32 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
           clearable={false}
           triggerClassName="h-6 text-xs"
         />
+        {dataFlowMeta && (
+          <label className="flex h-6 items-center gap-1.5 min-w-0 cursor-pointer select-none">
+            <Activity className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
+              Data flow
+            </span>
+            <input
+              type="checkbox"
+              checked={dataFlowEnabled}
+              onChange={e => setDataFlowEnabled(e.target.checked)}
+              className="h-3 w-3 rounded-sm accent-primary cursor-pointer"
+            />
+          </label>
+        )}
+        {dataFlowMeta && measureOptions.length > 1 && (
+          <SelectField
+            label="Flow measure"
+            icon={Gauge}
+            options={measureOptions}
+            value={effectiveMeasure ?? ''}
+            onValueChange={v => v && setSelectedDataFlowMeasure(v)}
+            placeholder="Measure"
+            clearable={false}
+            triggerClassName="h-6 text-xs"
+          />
+        )}
       </div>
     </div>
   );

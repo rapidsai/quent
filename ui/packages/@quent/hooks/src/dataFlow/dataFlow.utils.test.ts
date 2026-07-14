@@ -1,0 +1,314 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { describe, it, expect } from 'vitest';
+import type { DataFlowTimelineBinned, FsmTypeDecl, QuantitySpec } from '@quent/utils';
+import {
+  buildDataFlowMeta,
+  computeWindowMax,
+  extractBinConfig,
+  extractDataFlowFrame,
+  formatDataFlowValue,
+  isDataFlowAvailable,
+  normalizeDataFlowResponse,
+  resolveDataFlowMeasure,
+  resolveDataFlowStates,
+  resolveDataFlowWindow,
+  timeToBinIndex,
+  type DataFlowBinConfig,
+} from './dataFlow.utils';
+
+const NUM_BINS = 4;
+
+/** 4 bins over [0, 8) seconds; two dimension keys; two measures. */
+function makeBinned(operators: DataFlowTimelineBinned['operators'] = {}): DataFlowTimelineBinned {
+  return {
+    config: {
+      span: { start: 0, end: 8 },
+      bin_duration: 2,
+      num_bins: BigInt(NUM_BINS),
+    },
+    decl: {
+      entity_type_name: 'Task',
+      dimension_name: 'Data location',
+      dimension_keys: [
+        { key: 'memory', display_name: 'Memory' },
+        { key: 'filesystem', display_name: 'Filesystem' },
+      ],
+      measures: [
+        { name: 'tasks', display_name: 'Tasks', quantity: 'unit', kind: 'Occupancy' },
+        { name: 'bytes', display_name: 'Bytes', quantity: 'capacity_bytes', kind: 'Occupancy' },
+      ],
+    },
+    operators,
+  };
+}
+
+const OPERATORS: DataFlowTimelineBinned['operators'] = {
+  'op-1': {
+    values: {
+      tasks: {
+        queueing: {
+          memory: [1, 2, 0, 0],
+          // "filesystem" absent for queueing => zeros
+        },
+        computing: {
+          memory: [0, 1, 3, 0],
+          filesystem: [0, 0, 2, 0],
+        },
+      },
+      bytes: {
+        computing: {
+          memory: [0, 0, 100, 0],
+        },
+      },
+    },
+  },
+  'op-2': {
+    values: {
+      tasks: {
+        queueing: {
+          filesystem: [0, 4, 0, 0],
+        },
+      },
+    },
+  },
+};
+
+const FSM_TYPE: FsmTypeDecl = {
+  name: 'Task',
+  states: [
+    { name: 'queueing', usages: [] },
+    { name: 'allocating', usages: [] },
+    { name: 'computing', usages: [] },
+  ],
+  transitions: [],
+};
+
+const UNIT_SPEC: QuantitySpec = {
+  symbol: '',
+  singular: 'task',
+  plural: 'tasks',
+  occupancy_prefix: 'None',
+  rate_prefix: 'None',
+};
+
+const BIN: DataFlowBinConfig = { startS: 0, endS: 8, binDurationS: 2, numBins: NUM_BINS };
+
+describe('normalizeDataFlowResponse', () => {
+  it('returns null for "Unsupported"', () => {
+    expect(normalizeDataFlowResponse('Unsupported')).toBeNull();
+  });
+
+  it('returns null for null/undefined', () => {
+    expect(normalizeDataFlowResponse(null)).toBeNull();
+    expect(normalizeDataFlowResponse(undefined)).toBeNull();
+  });
+
+  it('unwraps the Binned variant', () => {
+    const binned = makeBinned(OPERATORS);
+    expect(normalizeDataFlowResponse({ Binned: binned })).toBe(binned);
+  });
+});
+
+describe('isDataFlowAvailable', () => {
+  it('is false for "Unsupported"', () => {
+    expect(isDataFlowAvailable('Unsupported')).toBe(false);
+  });
+
+  it('is false for an empty operators map', () => {
+    expect(isDataFlowAvailable({ Binned: makeBinned({}) })).toBe(false);
+  });
+
+  it('is true for a non-empty Binned response', () => {
+    expect(isDataFlowAvailable({ Binned: makeBinned(OPERATORS) })).toBe(true);
+  });
+});
+
+describe('resolveDataFlowWindow', () => {
+  it('uses the zoom range when valid (end > start)', () => {
+    expect(resolveDataFlowWindow({ start: 1, end: 3 }, 10)).toEqual({ start: 1, end: 3 });
+  });
+
+  it('falls back to [0, duration] for an unset zoom range', () => {
+    expect(resolveDataFlowWindow({ start: 0, end: 0 }, 10)).toEqual({ start: 0, end: 10 });
+  });
+
+  it('falls back to [0, duration] for an inverted zoom range', () => {
+    expect(resolveDataFlowWindow({ start: 5, end: 2 }, 10)).toEqual({ start: 0, end: 10 });
+  });
+
+  it('falls back to [0, duration] when zoom is null', () => {
+    expect(resolveDataFlowWindow(null, 7)).toEqual({ start: 0, end: 7 });
+  });
+});
+
+describe('timeToBinIndex', () => {
+  it('maps times inside the window to their bin', () => {
+    expect(timeToBinIndex(0, BIN)).toBe(0);
+    expect(timeToBinIndex(1.9, BIN)).toBe(0);
+    expect(timeToBinIndex(2, BIN)).toBe(1);
+    expect(timeToBinIndex(7.5, BIN)).toBe(3);
+  });
+
+  it('clamps times before the window start to bin 0', () => {
+    expect(timeToBinIndex(-5, BIN)).toBe(0);
+  });
+
+  it('clamps times at/after the window end to the last bin', () => {
+    expect(timeToBinIndex(8, BIN)).toBe(NUM_BINS - 1);
+    expect(timeToBinIndex(100, BIN)).toBe(NUM_BINS - 1);
+  });
+
+  it('returns 0 for degenerate bin configs', () => {
+    expect(timeToBinIndex(3, { startS: 0, endS: 0, binDurationS: 0, numBins: 0 })).toBe(0);
+  });
+});
+
+describe('extractBinConfig', () => {
+  it('converts num_bins (bigint) to a number', () => {
+    const bin = extractBinConfig(makeBinned(OPERATORS));
+    expect(bin).toEqual({ startS: 0, endS: 8, binDurationS: 2, numBins: NUM_BINS });
+    expect(typeof bin.numBins).toBe('number');
+  });
+});
+
+describe('resolveDataFlowStates', () => {
+  it('orders states per the FSM declaration, filtered to states present', () => {
+    // Declared order: queueing, allocating, computing — allocating absent from data.
+    expect(resolveDataFlowStates(makeBinned(OPERATORS), FSM_TYPE)).toEqual([
+      'queueing',
+      'computing',
+    ]);
+  });
+
+  it('falls back to sorted data keys when the declaration is missing', () => {
+    expect(resolveDataFlowStates(makeBinned(OPERATORS), null)).toEqual(['computing', 'queueing']);
+  });
+
+  it('appends undeclared data states after the declared ones, sorted', () => {
+    const withExtra = makeBinned({
+      'op-1': {
+        values: {
+          tasks: {
+            zz_custom: { memory: [1, 0, 0, 0] },
+            queueing: { memory: [1, 0, 0, 0] },
+          },
+        },
+      },
+    });
+    expect(resolveDataFlowStates(withExtra, FSM_TYPE)).toEqual(['queueing', 'zz_custom']);
+  });
+});
+
+describe('computeWindowMax', () => {
+  it('returns the max operator total across all bins', () => {
+    // op-1 totals per bin: [1, 3, 5, 0]; op-2 totals per bin: [0, 4, 0, 0].
+    expect(computeWindowMax(makeBinned(OPERATORS), 'tasks')).toBe(5);
+  });
+
+  it('treats absent measures as zero', () => {
+    expect(computeWindowMax(makeBinned(OPERATORS), 'nope')).toBe(0);
+  });
+
+  it('is per-measure', () => {
+    expect(computeWindowMax(makeBinned(OPERATORS), 'bytes')).toBe(100);
+  });
+});
+
+describe('extractDataFlowFrame', () => {
+  const binned = makeBinned(OPERATORS);
+  const stateNames = ['queueing', 'computing'];
+
+  it('extracts totals, byState, byDimension and matrix at a bin', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5);
+    expect(frame.binIndex).toBe(2);
+    expect(frame.timeS).toBe(4); // bin start: 0 + 2 * 2s
+    expect(frame.measure).toBe('tasks');
+    expect(frame.maxTotal).toBe(5);
+
+    const op1 = frame.perOperator.get('op-1');
+    expect(op1).toBeDefined();
+    expect(op1!.total).toBe(5);
+    expect(op1!.byState).toEqual([0, 5]); // queueing 0, computing 3+2
+    expect(op1!.byDimension).toEqual([3, 2]); // memory, filesystem
+    expect(op1!.matrix).toEqual([
+      [0, 0],
+      [3, 2],
+    ]);
+  });
+
+  it('reads missing states/dimension keys as zero', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 1, 5);
+    const op2 = frame.perOperator.get('op-2');
+    // op-2 only has queueing/filesystem — everything else is zero.
+    expect(op2!.matrix).toEqual([
+      [0, 4],
+      [0, 0],
+    ]);
+    expect(op2!.byDimension).toEqual([0, 4]);
+  });
+
+  it('omits operators with an all-zero distribution at the bin', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 3, 5);
+    expect(frame.perOperator.size).toBe(0);
+  });
+
+  it('omits operators without the requested measure', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'bytes', 2, 100);
+    expect(frame.perOperator.has('op-2')).toBe(false);
+    expect(frame.perOperator.get('op-1')!.total).toBe(100);
+  });
+
+  it('clamps the bin index into range', () => {
+    expect(extractDataFlowFrame(binned, stateNames, 'tasks', -3, 5).binIndex).toBe(0);
+    expect(extractDataFlowFrame(binned, stateNames, 'tasks', 99, 5).binIndex).toBe(NUM_BINS - 1);
+  });
+});
+
+describe('buildDataFlowMeta', () => {
+  it('builds decl-driven meta with per-measure window max', () => {
+    const meta = buildDataFlowMeta(makeBinned(OPERATORS), { Task: FSM_TYPE }, { unit: UNIT_SPEC });
+    expect(meta.fsmType).toBe(FSM_TYPE);
+    expect(meta.stateNames).toEqual(['queueing', 'computing']);
+    expect(meta.bin.numBins).toBe(NUM_BINS);
+    expect(meta.windowMax).toEqual({ tasks: 5, bytes: 100 });
+    expect(meta.quantitySpecs.unit).toBe(UNIT_SPEC);
+  });
+
+  it('tolerates a missing FSM declaration', () => {
+    const meta = buildDataFlowMeta(makeBinned(OPERATORS), {}, undefined);
+    expect(meta.fsmType).toBeNull();
+    expect(meta.stateNames).toEqual(['computing', 'queueing']);
+  });
+});
+
+describe('resolveDataFlowMeasure', () => {
+  const decl = makeBinned().decl;
+
+  it('keeps the selected measure when declared', () => {
+    expect(resolveDataFlowMeasure('bytes', decl)).toBe('bytes');
+  });
+
+  it('falls back to the first declared measure when the selection is unknown', () => {
+    expect(resolveDataFlowMeasure('nope', decl)).toBe('tasks');
+    expect(resolveDataFlowMeasure(null, decl)).toBe('tasks');
+  });
+
+  it('returns null when no measures are declared', () => {
+    expect(resolveDataFlowMeasure(null, { ...decl, measures: [] })).toBeNull();
+  });
+});
+
+describe('formatDataFlowValue', () => {
+  const meta = buildDataFlowMeta(makeBinned(OPERATORS), { Task: FSM_TYPE }, { unit: UNIT_SPEC });
+
+  it('formats via the measure quantity spec with ~1 decimal', () => {
+    expect(formatDataFlowValue(2.5, 'tasks', meta)).toBe('2.5');
+  });
+
+  it('falls back to a plain fixed-point value without a spec', () => {
+    // "bytes" quantity ("capacity_bytes") has no spec in this fixture.
+    expect(formatDataFlowValue(3, 'bytes', meta)).toBe('3.0');
+  });
+});

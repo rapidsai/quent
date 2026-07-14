@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useMemo } from 'react';
 import { Panel } from '@xyflow/react';
 import {
   useNodeColoringValue,
@@ -9,8 +10,15 @@ import {
   useEdgeColorPalette,
   useSelectedColorField,
   useSelectedEdgeColorField,
+  useDataFlowEnabled,
+  useDataFlowMeta,
 } from '@quent/hooks';
-import { getLegendGradientStops } from '@quent/utils';
+import {
+  createCapacitiesColorFn,
+  createFsmTypeColorFn,
+  getLegendGradientStops,
+  type PaletteTheme,
+} from '@quent/utils';
 import { inferFieldFormatter } from '@quent/utils';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -146,11 +154,37 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
   const [edgePalette] = useEdgeColorPalette();
   const [nodeField] = useSelectedColorField();
   const [edgeField] = useSelectedEdgeColorField();
+  const dataFlowEnabled = useDataFlowEnabled();
+  const dataFlowMeta = useDataFlowMeta();
+  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
+
+  // Data-flow overlay legends: FSM states (colored like the timeline view)
+  // and the server-declared dimension keys (colored like capacity series).
+  const dataFlowStateLegend = useMemo(() => {
+    if (!dataFlowMeta) return null;
+    const colorFn = createFsmTypeColorFn(
+      dataFlowMeta.fsmType ? { [dataFlowMeta.fsmType.name]: dataFlowMeta.fsmType } : {},
+      paletteTheme
+    );
+    return new Map(dataFlowMeta.stateNames.map(state => [state, colorFn(state)]));
+  }, [dataFlowMeta, paletteTheme]);
+
+  const dataFlowDimensionLegend = useMemo(() => {
+    if (!dataFlowMeta) return null;
+    const keys = dataFlowMeta.decl.dimension_keys;
+    const colorFn = createCapacitiesColorFn(
+      keys.map(k => k.key),
+      paletteTheme
+    );
+    return new Map(keys.map(k => [k.display_name, colorFn(k.key)]));
+  }, [dataFlowMeta, paletteTheme]);
 
   const hasNode = !!nodeColoring && !!nodeField;
   const hasEdge = !!edgeColoring && !!edgeField;
+  const hasDataFlow =
+    dataFlowEnabled && !!dataFlowMeta && !!dataFlowStateLegend && !!dataFlowDimensionLegend;
 
-  if (!hasNode && !hasEdge) return null;
+  if (!hasNode && !hasEdge && !hasDataFlow) return null;
 
   return (
     <Panel position="bottom-left">
@@ -168,6 +202,19 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
           palette={edgePalette}
           isDark={isDark}
         />
+        {(hasNode || hasEdge) && hasDataFlow && <div className="border-t border-border" />}
+        {hasDataFlow && (
+          <>
+            <CategoricalLegend
+              field={dataFlowMeta.decl.entity_type_name}
+              categoryMap={dataFlowStateLegend}
+            />
+            <CategoricalLegend
+              field={dataFlowMeta.decl.dimension_name}
+              categoryMap={dataFlowDimensionLegend}
+            />
+          </>
+        )}
       </div>
     </Panel>
   );

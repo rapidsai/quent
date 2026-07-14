@@ -93,6 +93,32 @@ export type {
   InspectedNodeData,
 } from './atoms/dagControls';
 
+// Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)
+export {
+  useDataFlowEnabled,
+  useSetDataFlowEnabled,
+  usePlayheadTimeS,
+  useSetPlayheadTimeS,
+  useSelectedDataFlowMeasure,
+  useSetSelectedDataFlowMeasure,
+  useDataFlowMeta,
+  useDataFlowFrame,
+} from './dataFlow/dataFlowSelectors';
+export { useDataFlowSync } from './dataFlow/useDataFlowSync';
+export {
+  normalizeDataFlowResponse,
+  isDataFlowAvailable,
+  resolveDataFlowWindow,
+  resolveDataFlowMeasure,
+  formatDataFlowValue,
+} from './dataFlow/dataFlow.utils';
+export type {
+  DataFlowBinConfig,
+  DataFlowMeta,
+  DataFlowFrame,
+  DataFlowOperatorFrame,
+} from './dataFlow/dataFlow.utils';
+
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';
 

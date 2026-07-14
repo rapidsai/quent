@@ -40,6 +40,8 @@ import {
   useSetSelectedNodeData,
   useSetDagDisplayedNodeIds,
   useSelectedDagLayoutDirection,
+  useDataFlowEnabled,
+  useDataFlowMeta,
 } from '@quent/hooks';
 import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
 import type { DAGData } from '../services/query-plan/types';
@@ -280,6 +282,11 @@ const FlowLayout = ({
   const setSelectedNodeData = useSetSelectedNodeData();
   const selectedNodeIds = useSelectedNodeIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
+  const dataFlowEnabled = useDataFlowEnabled();
+  const dataFlowMeta = useDataFlowMeta();
+  // Stable boolean: only flips on availability/toggle, not on zoom refetches,
+  // so toggling the overlay relayouts exactly once.
+  const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
 
   // Sync controlled selectedNodeIds into the atom when provided
@@ -330,6 +337,7 @@ const FlowLayout = ({
           layoutDirection,
           isDark,
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
+          flowBarVisible,
         },
         style: {
           width: NODE_LAYOUT_WIDTH,
@@ -352,7 +360,7 @@ const FlowLayout = ({
     }));
 
     return { flowNodes, flowEdges };
-  }, [data, isDark, operatorColorMap, layoutDirection]);
+  }, [data, isDark, operatorColorMap, layoutDirection, flowBarVisible]);
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
