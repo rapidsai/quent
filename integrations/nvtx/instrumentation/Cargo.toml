@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "quent-nvtx"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib = the self-configuring NVTX_INJECTION64_PATH capture library that NVTX
+#          loads (contains injection + bridge + ndjson exporter in one image);
+# rlib   = the `install`/ring/drain primitive and in-process unit tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+quent-nvtx-events = { path = "../events" }
+quent-nvtx-injection = { path = "../injection" }
+quent-events = { path = "../../../crates/events" }
+quent-instrumentation = { path = "../../../crates/instrumentation" }
+quent-io = { path = "../../../crates/io", default-features = false, features = [
+    "ndjson",
+] }
+crossbeam-queue = "0.3"
+serde = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+# Both optional and only pulled in by the `e2e` feature: default library/cdylib
+# builds compile no C and need no NVTX client headers (stay hermetic).
+cc = { workspace = true, optional = true }
+cargo_metadata = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+# Compile the deterministic NVTX emitter test-app (a C shim built against the
+# NVTX v3 client headers) and enable its subprocess capture harness. Off by
+# default so the library/cdylib build needs no NVTX client headers.
+e2e = ["dep:cc", "dep:cargo_metadata"]
+
+# Deterministic NVTX emitter for the capture e2e (VAL-01). Links NOTHING from
+# Quent; only the cc-compiled NVTX client shim. Built only under `e2e`.
+[[bin]]
+name = "nvtx_test_app"
+path = "src/bin/nvtx_test_app.rs"
+required-features = ["e2e"]

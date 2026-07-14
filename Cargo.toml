@@ -24,6 +24,10 @@ members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
+    "integrations/nvtx/injection",
+    "integrations/nvtx/instrumentation",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
@@ -93,6 +97,10 @@ default-members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
+    "integrations/nvtx/injection",
+    "integrations/nvtx/instrumentation",
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
     "domains/query_engine/server",
@@ -116,7 +124,10 @@ repository = "https://github.com/rapidsai/quent"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+bindgen = "0.72"
 bitcode = { version = "0.6.9", features = ["serde"] }
+cargo_metadata = "0.23"
+cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
