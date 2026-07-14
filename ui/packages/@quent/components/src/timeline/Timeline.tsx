@@ -376,6 +376,10 @@ export function Timeline({
     dom.addEventListener(
       'wheel',
       e => {
+        // Shift+wheel is reserved for zooming — browsers remap deltaY to
+        // deltaX when shift is held, so without this guard the pan handler
+        // would swallow the zoom gesture.
+        if (e.shiftKey) return;
         if (e.deltaX === 0 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
         if (instance.isDisposed?.()) return;
 
