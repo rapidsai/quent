@@ -371,14 +371,10 @@ export function Timeline({
     });
 
     // Two-finger horizontal trackpad scroll → pan the time window.
-    // Must be a capture-phase, non-passive listener so it fires before ECharts'
-    // child canvas sees the event, and so preventDefault() is permitted.
     dom.addEventListener(
       'wheel',
       e => {
-        // Shift+wheel is reserved for zooming — browsers remap deltaY to
-        // deltaX when shift is held, so without this guard the pan handler
-        // would swallow the zoom gesture.
+        // Shift+wheel is reserved for zoom; browsers remap deltaY to deltaX while shift is held.
         if (e.shiftKey) return;
         if (e.deltaX === 0 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
         if (instance.isDisposed?.()) return;
