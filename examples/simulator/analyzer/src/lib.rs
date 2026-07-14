@@ -7,11 +7,18 @@ use quent_query_engine_analyzer::{
     entities,
     ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
 };
-use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryEntities, QueryFilter};
+use quent_query_engine_ui::{
+    OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
+    data_flow::{DataFlowTimelineBinned, DataFlowTimelineResponse},
+};
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
-    quantity::QuantitySpec,
+    quantity::{CapacityKind, QuantitySpec},
     timeline::{
+        distribution::{
+            DimensionKeyDecl, DistributionDecl, DistributionSeries, DistributionTimelineRequest,
+            MeasureDecl,
+        },
         request::{
             BulkChunkedTimelineRequest, BulkTimelineRequest, EntityFilter, SingleTimelineRequest,
             TimelineRequest,
@@ -30,18 +37,21 @@ use tracing::debug;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, Span,
-    fsm::{FsmTypeDeclaration, FsmUsages},
+    fsm::{FsmTypeDeclaration, FsmUsages, Transition},
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
     },
-    timeline::binned::resource::{
-        ResourceTimeline, ResourceTimelineBuilder, ResourceTimelineByKey,
-        ResourceTimelineByKeyBuilder,
+    timeline::binned::{
+        distribution::{DistributionKey, DistributionTimelineBuilder},
+        resource::{
+            ResourceTimeline, ResourceTimelineBuilder, ResourceTimelineByKey,
+            ResourceTimelineByKeyBuilder,
+        },
     },
 };
 use quent_simulator_instrumentation::{Simulator, SimulatorEvent};
 use quent_simulator_ui::EntityRef;
-use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, to_nanosecs, to_secs};
+use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use uuid::Uuid;
 
 use crate::{
@@ -52,6 +62,15 @@ use crate::{
 pub mod model;
 pub mod task;
 pub mod view;
+
+/// Data-flow measure counting tasks residing in each (state, location) cell.
+const MEASURE_TASKS: &str = "tasks";
+/// Data-flow measure summing memory bytes held in each (state, location) cell.
+const MEASURE_BYTES: &str = "bytes";
+/// Data-flow dimension key for states that hold no memory resource.
+const DIMENSION_NONE: &str = "none";
+/// Type name of stdlib memory resources as recorded by the model.
+const MEMORY_TYPE_NAME: &str = "memory";
 
 pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
@@ -773,6 +792,173 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .collect::<AnalyzerResult<std::collections::HashMap<_, _>>>()?;
 
         Ok(BulkChunkedTimelinesResponse { entries })
+    }
+
+    fn data_flow_timeline(
+        &self,
+        request: DistributionTimelineRequest<QueryFilter>,
+    ) -> AnalyzerResult<DataFlowTimelineResponse> {
+        let query_id = request.app_params.query_id;
+        let epoch = self.query_engine_model().query_epoch(query_id)?;
+        let config = request.config.try_into_binned_span(epoch)?;
+
+        // Which of the declared measures to compute; empty means all.
+        let want =
+            |name: &str| request.measures.is_empty() || request.measures.iter().any(|m| m == name);
+        let want_tasks = want(MEASURE_TASKS);
+        let want_bytes = want(MEASURE_BYTES);
+        if !want_tasks && !want_bytes {
+            return Err(AnalyzerError::InvalidArgument(format!(
+                "unknown measures {:?}; declared measures are '{MEASURE_TASKS}' and '{MEASURE_BYTES}'",
+                request.measures
+            )));
+        }
+
+        let query_operators: HashSet<Uuid> = self
+            .model
+            .query_view(query_id)?
+            .operators()
+            .map(|op| op.id())
+            .collect();
+
+        // The dimension of the distribution is where a task's data resides:
+        // the instance name of the memory-typed resource its state uses, or
+        // `DIMENSION_NONE` for states that hold no memory.
+        let memory_names: HashMap<Uuid, &str> = self
+            .model
+            .arbitrary_resources
+            .resources()
+            .filter(|r| r.type_name() == MEMORY_TYPE_NAME)
+            .map(|r| (r.id(), r.instance_name()))
+            .collect();
+
+        let mut builder = DistributionTimelineBuilder::<Uuid>::new(config);
+        for task in self.model.tasks.values() {
+            let Some(operator_id) = task.operator_id() else {
+                continue;
+            };
+            if !query_operators.contains(&operator_id) {
+                continue;
+            }
+            // Walk state spans: state `i` spans transition `i` to `i + 1`. Use
+            // raw transitions rather than `usages_with_state_names` so states
+            // without usages still count.
+            for pair in task.transitions().windows(2) {
+                let (from, to) = (&pair[0], &pair[1]);
+                let Ok(span) = SpanNanoSec::try_new(from.timestamp(), to.timestamp()) else {
+                    continue;
+                };
+                let state = from.name();
+                let memory_usage = from
+                    .usages
+                    .iter()
+                    .find(|u| memory_names.contains_key(&u.resource_id));
+                let dimension =
+                    memory_usage.map_or(DIMENSION_NONE, |u| memory_names[&u.resource_id]);
+                if want_tasks {
+                    builder.try_push(
+                        DistributionKey {
+                            series: operator_id,
+                            measure: MEASURE_TASKS,
+                            state,
+                            dimension,
+                        },
+                        span,
+                        1.0,
+                    )?;
+                }
+                if want_bytes {
+                    let bytes: u64 = memory_usage
+                        .map(|u| {
+                            u.capacities
+                                .iter()
+                                .filter(|c| c.name == "capacity_bytes")
+                                .filter_map(|c| c.value)
+                                .sum()
+                        })
+                        .unwrap_or(0);
+                    if bytes > 0 {
+                        builder.try_push(
+                            DistributionKey {
+                                series: operator_id,
+                                measure: MEASURE_BYTES,
+                                state,
+                                dimension,
+                            },
+                            span,
+                            bytes as f64,
+                        )?;
+                    }
+                }
+            }
+        }
+
+        // Pivot the flat aggregation into per-operator nested series. All-zero
+        // series (e.g. from zero-duration states) are omitted; the protocol
+        // treats absent entries as all-zero bins.
+        let mut operators: StdHashMap<Uuid, DistributionSeries> = StdHashMap::new();
+        for (key, bins) in builder.build().data {
+            if bins.iter().all(|v| *v == 0.0) {
+                continue;
+            }
+            operators
+                .entry(key.series)
+                .or_default()
+                .values
+                .entry(key.measure.to_owned())
+                .or_default()
+                .entry(key.state.to_owned())
+                .or_default()
+                .insert(key.dimension.to_owned(), bins);
+        }
+
+        let mut memory_instance_names: Vec<&str> = memory_names
+            .values()
+            .copied()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        memory_instance_names.sort_unstable();
+        let mut dimension_keys: Vec<DimensionKeyDecl> = memory_instance_names
+            .into_iter()
+            .map(|name| DimensionKeyDecl {
+                key: name.to_owned(),
+                display_name: name.to_owned(),
+            })
+            .collect();
+        dimension_keys.push(DimensionKeyDecl {
+            key: DIMENSION_NONE.to_owned(),
+            display_name: "No data resident".to_owned(),
+        });
+
+        let mut measures = Vec::new();
+        if want_tasks {
+            measures.push(MeasureDecl {
+                name: MEASURE_TASKS.to_owned(),
+                display_name: "Tasks".to_owned(),
+                quantity: "unit".to_owned(),
+                kind: CapacityKind::Occupancy,
+            });
+        }
+        if want_bytes {
+            measures.push(MeasureDecl {
+                name: MEASURE_BYTES.to_owned(),
+                display_name: "Resident bytes".to_owned(),
+                quantity: "capacity_bytes".to_owned(),
+                kind: CapacityKind::Occupancy,
+            });
+        }
+
+        Ok(DataFlowTimelineResponse::Binned(DataFlowTimelineBinned {
+            config: config.try_to_secs_relative(epoch)?,
+            decl: DistributionDecl {
+                entity_type_name: Task::fsm_type_declaration().name,
+                dimension_name: "Data location".to_owned(),
+                dimension_keys,
+                measures,
+            },
+            operators,
+        }))
     }
 }
 

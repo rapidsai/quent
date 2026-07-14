@@ -189,6 +189,31 @@ act as [Resource Groups][resource-group], forming a hierarchy through which
 resource usages can be aggregated. See [Resource Group][resource-group] for
 details.
 
+## Data-flow distribution timeline
+
+The analyzer trait offers an optional `data_flow_timeline` method (HTTP:
+`POST /api/engines/{engine_id}/timeline/data-flow`) powering the UI's
+data-flow-over-time view of a query plan: for every [Operator][operator] of a
+query, a binned timeline of a distribution over
+(FSM state × application-defined dimension), for one or more
+application-declared measures.
+
+Consistent with Operators having no FSM (see [Operator][operator] notes), all
+semantics live in the application's analyzer:
+
+- **Entity**: which FSM type is distributed (e.g. a task or batch entity that
+  works on behalf of an Operator), referenced by `entity_type_name` into the
+  query bundle's FSM type declarations for state names and ordering.
+- **Dimension**: an opaque, small, enumerable key set declared per response
+  (e.g. where an entity's data resides), with display names and stable order.
+- **Measures**: named weights (e.g. an entity count, resident bytes) with a
+  quantity spec reference for unit formatting.
+
+Bin values are span-weighted (an entity in a state for a fraction of a bin
+contributes that fraction), matching all other timelines. Analyzers that do
+not provide the feature return `Unsupported` — the default implementation —
+and the UI hides the view.
+
 [mutual-exclusion]: ../../modeling/README.md#mutual-exclusion
 [engine]: #engine
 [entity]: ../../modeling/entity.md

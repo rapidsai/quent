@@ -9,6 +9,7 @@ use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
 use crate::AnalyzerResult;
 
+pub mod distribution;
 pub mod resource;
 
 /// A trait for types that can aggregate items into a sequence of time bins.

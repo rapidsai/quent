@@ -2,5 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Requests and responses for timelines.
+pub mod distribution;
 pub mod request;
 pub mod response;
