@@ -54,4 +54,8 @@ unknown-registry = "deny"
 # not in the allow list is encountered.
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+# NVIDIA/NVTX is the pinned header source for `quent-nvtx-injection`'s
+# `regenerate-bindings` feature (D-13). Fetched only when regenerating the
+# committed bindings; the dependency is pinned to a concrete rev in that crate's
+# Cargo.toml, preserving the reproducibility the empty default guards.
+allow-git = ["https://github.com/NVIDIA/NVTX"]

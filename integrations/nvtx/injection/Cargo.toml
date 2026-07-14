@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "quent-nvtx-injection"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib = the NVTX_INJECTION64_PATH runtime attach path (D-15 primary);
+# rlib   = the static/link-time path and in-process unit tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+quent-nvtx-events = { path = "../events" }
+thiserror = { workspace = true }
+
+[build-dependencies]
+# All optional: a default/CI build fetches NO NVTX git source and needs no
+# libclang. The committed `src/bindings.rs` is `include!`d instead (D-14).
+bindgen = { workspace = true, optional = true }
+cargo_metadata = { workspace = true, optional = true }
+cc = { workspace = true, optional = true }
+# Pinned to a concrete rev, NOT a branch, for reproducibility (D-13). The C
+# headers travel with the checkout at `<checkout>/c/include`; `build.rs` locates
+# them via `cargo_metadata` under the `regenerate-bindings` feature only.
+nvidia-nvtx = { git = "https://github.com/NVIDIA/NVTX", rev = "7d113f290f89eeeae9c957011c497101f3948d9e", optional = true }
+
+[features]
+# Regenerate the committed bindings from the pinned NVTX headers (manual, rare).
+# Pulls in bindgen + libclang + the NVTX git-dep; never active on default/CI builds.
+regenerate-bindings = ["dep:bindgen", "dep:cargo_metadata", "dep:nvidia-nvtx"]
+# Link-time strong-symbol attach path (D-15 secondary); off by default.
+static-injection = ["dep:cc"]
