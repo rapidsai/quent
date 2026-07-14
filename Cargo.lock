@@ -2392,6 +2392,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-nvtx-events"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "quent-open"
 version = "0.1.0"
 dependencies = [
