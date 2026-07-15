@@ -145,7 +145,7 @@ describe('data-flow overlay components', () => {
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
     expect(slider).toHaveAttribute('aria-valuenow', '2');
     // Bin 1: tasks queueing 2 + computing 1 = 3; bytes 1500000 -> "1.4MiB".
-    expect(screen.getByTestId('flow-bar-totals').textContent).toBe('3 · 1.4MiB');
+    expect(screen.getByTestId('flow-bar-totals').textContent).toBe('3 | 1.4MiB');
     // Both segments are wide enough (2/5 and 1/5 of ~168px).
     expect(segmentLabels()).toEqual(['2', '1']);
   });

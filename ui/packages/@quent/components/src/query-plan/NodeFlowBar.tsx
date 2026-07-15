@@ -73,13 +73,14 @@ export const NodeFlowBar = memo(
     const filledWidth = hasData ? `max(2px, ${(total / frame.maxTotal) * 100}%)` : '0px';
 
     // One compact total per declared measure with data at this bin, in
-    // declaration order — e.g. "3.2 · 45MiB" (count · bytes).
+    // declaration order — e.g. "3.2 | 45MB" (count | bytes). A pipe, not a
+    // middot: "121 · 5GB" reads like the decimal "121.5GB".
     const operatorTotals = frame.totalsByMeasure.get(operatorId);
     const totalsLabel = operatorTotals
       ? meta.decl.measures
           .filter(m => (operatorTotals[m.name] ?? 0) > 0)
           .map(m => formatDataFlowValueCompact(operatorTotals[m.name]!, m.name, meta))
-          .join(' · ')
+          .join(' | ')
       : '';
 
     return (
