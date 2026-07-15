@@ -44,16 +44,27 @@ export interface DataFlowMeta {
   bin: DataFlowBinConfig;
   /**
    * Per-measure max operator total across ALL bins of the window — keeps the
-   * bar scale stable while scrubbing.
+   * bar scale stable while scrubbing. Computed over
+   * {@link DataFlowMeta.dimensionSelection} only, so bar scaling stays honest
+   * when tiers are filtered out.
    */
   windowMax: Record<string, number>;
+  /**
+   * Effective dimension-key (tier) selection: the user's selection
+   * intersected with the declared keys, falling back to ALL declared keys
+   * when the selection is `null`, empty, or entirely stale.
+   */
+  dimensionSelection: ReadonlySet<string>;
   /** Quantity specs (from the query bundle) keyed by quantity name. */
   quantitySpecs: { [key in string]?: QuantitySpec };
 }
 
-/** Per-operator distribution values at one bin. */
+/**
+ * Per-operator distribution values at one bin. All values cover only the
+ * SELECTED dimension keys — unselected dimension columns read as zero.
+ */
 export interface DataFlowOperatorFrame {
-  /** Sum over all states and dimension keys. */
+  /** Sum over all states and selected dimension keys. */
   total: number;
   /** Totals indexed by `DataFlowMeta.stateNames` order. */
   byState: number[];
@@ -61,6 +72,18 @@ export interface DataFlowOperatorFrame {
   byDimension: number[];
   /** Values indexed `[stateIndex][dimensionIndex]`. */
   matrix: number[][];
+  /**
+   * Per-state totals for {@link DataFlowFrame.labelMeasure} (same shape as
+   * `byState`; the SAME array instance when the label measure equals the bar
+   * measure). Drives in-segment labels while `byState` drives widths.
+   */
+  labelByState: number[];
+  /**
+   * Per-dimension totals for {@link DataFlowFrame.labelMeasure} (same shape
+   * as `byDimension`; the SAME array instance when the label measure equals
+   * the bar measure).
+   */
+  labelByDimension: number[];
 }
 
 /** Snapshot of the data-flow distribution at the playhead's bin. */
@@ -68,17 +91,22 @@ export interface DataFlowFrame {
   binIndex: number;
   /** Start time of the bin, in seconds relative to the query epoch. */
   timeS: number;
-  /** The measure this frame was extracted for. */
+  /** The measure this frame was extracted for (drives segment widths). */
   measure: string;
+  /**
+   * The measure driving in-segment value labels. Equals {@link measure}
+   * unless the user picked an independent label measure.
+   */
+  labelMeasure: string;
   /** Window max for the measure (see {@link DataFlowMeta.windowMax}). */
   maxTotal: number;
   /** Operators with a non-zero total at this bin. */
   perOperator: Map<string, DataFlowOperatorFrame>;
   /**
    * Per-operator totals at this bin for EVERY declared measure (not just the
-   * selected one) — drives the per-node totals label. Only measures with a
-   * non-zero total are present; operators that are zero across all measures
-   * are omitted entirely.
+   * selected one), summed over the SELECTED dimension keys only — drives the
+   * per-node totals label. Only measures with a non-zero total are present;
+   * operators that are zero across all measures are omitted entirely.
    */
   totalsByMeasure: Map<string, Record<string, number>>;
 }
@@ -156,18 +184,46 @@ export function resolveDataFlowStates(
 }
 
 /**
- * Max operator total (summed over states and dimension keys) across all bins
- * of the window for one measure. Missing entries count as zero.
+ * Effective dimension-key (tier) selection against the declared keys.
+ * `null`, empty, and entirely-stale selections (no overlap with the declared
+ * keys, e.g. right after a query/engine switch) all resolve to ALL declared
+ * keys — "nothing selected" is never a valid rendering state.
  */
-export function computeWindowMax(binned: DataFlowTimelineBinned, measure: string): number {
+export function resolveDataFlowDimensions(
+  selected: ReadonlySet<string> | null | undefined,
+  dimensionKeys: string[]
+): ReadonlySet<string> {
+  if (selected && selected.size > 0) {
+    const valid = dimensionKeys.filter(k => selected.has(k));
+    if (valid.length > 0) return new Set(valid);
+  }
+  return new Set(dimensionKeys);
+}
+
+/**
+ * Max operator total (summed over states and the SELECTED dimension keys)
+ * across all bins of the window for one measure. Missing entries count as
+ * zero. `selectedDimensions` follows {@link resolveDataFlowDimensions}
+ * semantics (`null`/empty/stale = all declared keys).
+ */
+export function computeWindowMax(
+  binned: DataFlowTimelineBinned,
+  measure: string,
+  selectedDimensions?: ReadonlySet<string> | null
+): number {
   const numBins = Number(binned.config.num_bins);
+  const selected = resolveDataFlowDimensions(
+    selectedDimensions,
+    binned.decl.dimension_keys.map(k => k.key)
+  );
   let max = 0;
   for (const series of Object.values(binned.operators)) {
     const states = series.values[measure];
     if (!states) continue;
     const totals = new Array<number>(numBins).fill(0);
     for (const dims of Object.values(states)) {
-      for (const values of Object.values(dims)) {
+      for (const [dimension, values] of Object.entries(dims)) {
+        if (!selected.has(dimension)) continue;
         const len = Math.min(values.length, numBins);
         for (let i = 0; i < len; i++) totals[i] += values[i]!;
       }
@@ -179,31 +235,52 @@ export function computeWindowMax(binned: DataFlowTimelineBinned, measure: string
   return max;
 }
 
+/** Optional knobs for {@link extractDataFlowFrame}. */
+export interface ExtractDataFlowFrameOptions {
+  /**
+   * Measure driving in-segment labels (`labelByState`/`labelByDimension`).
+   * Defaults to the bar `measure` — the label arrays then alias
+   * `byState`/`byDimension`, adding zero cost per scrub tick.
+   */
+  labelMeasure?: string;
+  /**
+   * Dimension keys (tiers) to include; follows
+   * {@link resolveDataFlowDimensions} semantics (`null`/empty/stale = all).
+   * Unselected dimension columns read as zero everywhere in the frame.
+   */
+  selectedDimensions?: ReadonlySet<string> | null;
+}
+
 /**
  * Extract the per-operator frame at `binIndex` for `measure`. Operators with
  * an all-zero (or absent) distribution at the bin are omitted from
  * `perOperator`. Missing states/dimension keys read as zero.
  *
  * Also computes {@link DataFlowFrame.totalsByMeasure} — per-operator totals
- * for every declared measure at the bin (a single cheap pass, recomputed per
- * scrub tick).
+ * for every declared measure at the bin — and the per-state/per-dimension
+ * totals of the label measure (a single cheap pass, recomputed per scrub
+ * tick).
  */
 export function extractDataFlowFrame(
   binned: DataFlowTimelineBinned,
   stateNames: string[],
   measure: string,
   binIndex: number,
-  maxTotal: number
+  maxTotal: number,
+  options: ExtractDataFlowFrameOptions = {}
 ): DataFlowFrame {
+  const labelMeasure = options.labelMeasure ?? measure;
   const bin = extractBinConfig(binned);
   const clamped = Math.min(Math.max(binIndex, 0), Math.max(bin.numBins - 1, 0));
   const dimensionKeys = binned.decl.dimension_keys.map(k => k.key);
+  const selected = resolveDataFlowDimensions(options.selectedDimensions, dimensionKeys);
   const measureNames = binned.decl.measures.map(m => m.name);
   const perOperator = new Map<string, DataFlowOperatorFrame>();
   const totalsByMeasure = new Map<string, Record<string, number>>();
 
   for (const [operatorId, series] of Object.entries(binned.operators)) {
-    // Totals at this bin for every declared measure (selected or not).
+    // Totals at this bin for every declared measure (selected or not),
+    // summed over the selected dimension keys only.
     const totals: Record<string, number> = {};
     let hasAnyMeasure = false;
     for (const measureName of measureNames) {
@@ -214,6 +291,7 @@ export function extractDataFlowFrame(
         const dims = measureStates[state];
         if (!dims) continue;
         for (const dimension of dimensionKeys) {
+          if (!selected.has(dimension)) continue;
           measureTotal += dims[dimension]?.[clamped] ?? 0;
         }
       }
@@ -232,6 +310,7 @@ export function extractDataFlowFrame(
       const dims = states[state];
       if (!dims) return;
       dimensionKeys.forEach((dimension, dimensionIndex) => {
+        if (!selected.has(dimension)) return;
         const value = dims[dimension]?.[clamped] ?? 0;
         matrix[stateIndex]![dimensionIndex] = value;
         total += value;
@@ -242,29 +321,70 @@ export function extractDataFlowFrame(
     const byDimension = dimensionKeys.map((_, dimensionIndex) =>
       matrix.reduce((acc, row) => acc + row[dimensionIndex]!, 0)
     );
-    perOperator.set(operatorId, { total, byState, byDimension, matrix });
+
+    // Label-measure sums: alias the bar-measure arrays when the measures
+    // coincide, otherwise one extra states × dims pass (still trivial).
+    let labelByState = byState;
+    let labelByDimension = byDimension;
+    if (labelMeasure !== measure) {
+      labelByState = stateNames.map(() => 0);
+      labelByDimension = dimensionKeys.map(() => 0);
+      const labelStates = series.values[labelMeasure];
+      if (labelStates) {
+        stateNames.forEach((state, stateIndex) => {
+          const dims = labelStates[state];
+          if (!dims) return;
+          dimensionKeys.forEach((dimension, dimensionIndex) => {
+            if (!selected.has(dimension)) return;
+            const value = dims[dimension]?.[clamped] ?? 0;
+            labelByState[stateIndex]! += value;
+            labelByDimension[dimensionIndex]! += value;
+          });
+        });
+      }
+    }
+
+    perOperator.set(operatorId, {
+      total,
+      byState,
+      byDimension,
+      matrix,
+      labelByState,
+      labelByDimension,
+    });
   }
 
   return {
     binIndex: clamped,
     timeS: bin.startS + clamped * bin.binDurationS,
     measure,
+    labelMeasure,
     maxTotal,
     perOperator,
     totalsByMeasure,
   };
 }
 
-/** Build the presentation metadata for one normalized response. */
+/**
+ * Build the presentation metadata for one normalized response.
+ * `selectedDimensions` (the tier selection) shapes `windowMax` and is
+ * exposed resolved as `dimensionSelection` — the meta is rebuilt when the
+ * selection changes, which is rare (a user click), never per scrub tick.
+ */
 export function buildDataFlowMeta(
   binned: DataFlowTimelineBinned,
   fsmTypes: { [key in string]?: FsmTypeDecl } | undefined,
-  quantitySpecs: { [key in string]?: QuantitySpec } | undefined
+  quantitySpecs: { [key in string]?: QuantitySpec } | undefined,
+  selectedDimensions?: ReadonlySet<string> | null
 ): DataFlowMeta {
   const fsmType = fsmTypes?.[binned.decl.entity_type_name] ?? null;
+  const dimensionSelection = resolveDataFlowDimensions(
+    selectedDimensions,
+    binned.decl.dimension_keys.map(k => k.key)
+  );
   const windowMax: Record<string, number> = {};
   for (const measure of binned.decl.measures) {
-    windowMax[measure.name] = computeWindowMax(binned, measure.name);
+    windowMax[measure.name] = computeWindowMax(binned, measure.name, dimensionSelection);
   }
   return {
     decl: binned.decl,
@@ -272,6 +392,7 @@ export function buildDataFlowMeta(
     stateNames: resolveDataFlowStates(binned, fsmType),
     bin: extractBinConfig(binned),
     windowMax,
+    dimensionSelection,
     quantitySpecs: quantitySpecs ?? {},
   };
 }
@@ -286,6 +407,19 @@ export function resolveDataFlowMeasure(
 ): string | null {
   if (selected != null && decl.measures.some(m => m.name === selected)) return selected;
   return decl.measures[0]?.name ?? null;
+}
+
+/**
+ * Resolve the effective label measure: the selected one when it is declared,
+ * otherwise the bar measure (`null` selection = "follow the bar's measure").
+ */
+export function resolveDataFlowLabelMeasure(
+  selected: string | null,
+  decl: DistributionDecl,
+  barMeasure: string
+): string {
+  if (selected != null && decl.measures.some(m => m.name === selected)) return selected;
+  return barMeasure;
 }
 
 /**
@@ -330,26 +464,35 @@ export const DATA_FLOW_LABEL_CHAR_PX = 6;
 export const DATA_FLOW_LABEL_PAD_PX = 4;
 
 /**
- * Width-gated label for one state segment of the node flow bar.
+ * Width-gated label for one segment of the node flow bars.
  *
- * The bar's filled width is `total / maxTotal` of the track and each state
- * segment is flex-sized by `value / total`, so the segment's on-screen width
- * is `(value / maxTotal) * trackPx` — computable purely from frame data, no
- * DOM measurement. Returns the compact label when it fits at
+ * The bar's filled width is `total / maxTotal` of the track and each segment
+ * is flex-sized by `value / total`, so the segment's on-screen width is
+ * `(value / maxTotal) * trackPx` — computable purely from frame data, no DOM
+ * measurement. Returns the compact label when it fits at
  * ~{@link DATA_FLOW_LABEL_CHAR_PX}px per character (plus
  * {@link DATA_FLOW_LABEL_PAD_PX}px of padding), `null` when the segment is
  * too narrow.
+ *
+ * When `label` is given, the rendered TEXT comes from `label.value` in
+ * `label.measure` (the independent label measure) while the segment WIDTH —
+ * and therefore the fit check's available space — stays on `value` in the
+ * bar's measure. A zero/absent label value yields `null` (no "0" clutter in
+ * segments that only have bar-measure data).
  */
 export function fitDataFlowSegmentLabel(
   value: number,
   maxTotal: number,
   measureName: string,
   meta: DataFlowMeta,
-  trackPx: number
+  trackPx: number,
+  label?: { value: number; measure: string }
 ): string | null {
-  if (!(value > 0) || !(maxTotal > 0) || !(trackPx > 0)) return null;
+  const labelValue = label ? label.value : value;
+  const labelMeasure = label ? label.measure : measureName;
+  if (!(value > 0) || !(labelValue > 0) || !(maxTotal > 0) || !(trackPx > 0)) return null;
   const segmentPx = (value / maxTotal) * trackPx;
-  const label = formatDataFlowValueCompact(value, measureName, meta);
-  const requiredPx = label.length * DATA_FLOW_LABEL_CHAR_PX + DATA_FLOW_LABEL_PAD_PX;
-  return segmentPx >= requiredPx ? label : null;
+  const text = formatDataFlowValueCompact(labelValue, labelMeasure, meta);
+  const requiredPx = text.length * DATA_FLOW_LABEL_CHAR_PX + DATA_FLOW_LABEL_PAD_PX;
+  return segmentPx >= requiredPx ? text : null;
 }

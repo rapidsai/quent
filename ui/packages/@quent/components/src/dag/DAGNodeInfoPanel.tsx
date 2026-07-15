@@ -30,7 +30,9 @@ const ColorDot = ({ color }: { color: string }) => (
 /**
  * State × dimension matrix of the data-flow distribution for the selected
  * operator at the playhead's bin. Values are span-weighted per-bin averages
- * ("during this bin"), so fractional counts are expected.
+ * ("during this bin"), so fractional counts are expected. Columns are
+ * filtered to the SELECTED dimension keys (tiers) — deselected tiers are
+ * zero in the frame anyway, so hiding their columns loses nothing.
  */
 const DataFlowMatrix = ({
   meta,
@@ -44,7 +46,16 @@ const DataFlowMatrix = ({
   isDark: boolean;
 }) => {
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
-  const dimensionKeys = meta.decl.dimension_keys;
+  const allDimensionKeys = meta.decl.dimension_keys;
+  // Keep original decl-order indices — the frame's matrix/byDimension are
+  // indexed by declaration order, not by the filtered column order.
+  const dimensionColumns = useMemo(
+    () =>
+      allDimensionKeys
+        .map((key, index) => ({ key, index }))
+        .filter(({ key }) => meta.dimensionSelection.has(key.key)),
+    [allDimensionKeys, meta.dimensionSelection]
+  );
   const stateColor = useMemo(
     () =>
       createFsmTypeColorFn(meta.fsmType ? { [meta.fsmType.name]: meta.fsmType } : {}, paletteTheme),
@@ -53,10 +64,10 @@ const DataFlowMatrix = ({
   const dimensionColor = useMemo(
     () =>
       createCapacitiesColorFn(
-        dimensionKeys.map(k => k.key),
+        allDimensionKeys.map(k => k.key),
         paletteTheme
       ),
-    [dimensionKeys, paletteTheme]
+    [allDimensionKeys, paletteTheme]
   );
 
   const fmt = (value: number) => formatDataFlowValue(value, frame.measure, meta);
@@ -77,7 +88,7 @@ const DataFlowMatrix = ({
             <th className="text-left font-normal text-muted-foreground pr-2">
               {meta.decl.dimension_name}
             </th>
-            {dimensionKeys.map(k => (
+            {dimensionColumns.map(({ key: k }) => (
               <th key={k.key} className="text-right font-normal text-muted-foreground px-1.5">
                 <span className="inline-flex items-center gap-1">
                   <ColorDot color={dimensionColor(k.key)} />
@@ -97,7 +108,7 @@ const DataFlowMatrix = ({
                   <DataText>{state}</DataText>
                 </span>
               </td>
-              {dimensionKeys.map((k, dimensionIndex) => (
+              {dimensionColumns.map(({ key: k, index: dimensionIndex }) => (
                 <td key={k.key} className="text-right px-1.5 text-muted-foreground">
                   <DataText>
                     {fmt(operatorFrame.matrix[stateIndex]?.[dimensionIndex] ?? 0)}
@@ -111,7 +122,7 @@ const DataFlowMatrix = ({
           ))}
           <tr>
             <td className="pr-2 pt-0.5 font-medium">Total</td>
-            {dimensionKeys.map((k, dimensionIndex) => (
+            {dimensionColumns.map(({ key: k, index: dimensionIndex }) => (
               <td key={k.key} className="text-right px-1.5 pt-0.5">
                 <DataText>{fmt(operatorFrame.byDimension[dimensionIndex] ?? 0)}</DataText>
               </td>

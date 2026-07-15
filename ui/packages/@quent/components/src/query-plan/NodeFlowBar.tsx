@@ -31,16 +31,46 @@ function fsmTypesMapOf(fsmType: FsmTypeDecl | null): { [key in string]?: FsmType
   return fsmType ? { [fsmType.name]: fsmType } : {};
 }
 
+/** Width-gated value label centered inside an overflow-hidden segment. */
+const SegmentValueLabel = ({
+  label,
+  segmentColor,
+  testId,
+}: {
+  label: string;
+  segmentColor: string;
+  testId: string;
+}) => (
+  <span
+    data-testid={testId}
+    className="absolute inset-0 flex items-center justify-center text-[8px] leading-none font-medium tabular-nums whitespace-nowrap"
+    style={
+      isLightColor(segmentColor)
+        ? { color: 'rgba(0, 0, 0, 0.78)' }
+        : { color: '#ffffff', textShadow: '0 0 2px rgba(0, 0, 0, 0.45)' }
+    }
+  >
+    {label}
+  </span>
+);
+
 /**
- * Per-node data-flow overlay: a stacked state bar (with width-gated
- * in-segment value labels) over a thin dimension bar, plus a tiny totals
- * label covering every declared measure. CRITICAL PERF: this is the only
- * node-level subscriber to the frame atom — a scrub tick re-renders these
- * tiny bars, not the full `QueryPlanNode`s.
+ * Per-node data-flow overlay: a stacked state bar over a stacked
+ * dimension/tier bar — both 12px with width-gated in-segment value labels —
+ * plus a tiny totals label covering every declared measure. Widths are
+ * driven by the bar measure; in-segment labels by `frame.labelMeasure`
+ * (which follows the bar measure unless the user picked an independent
+ * one). Only the SELECTED tiers contribute (unselected dimension columns
+ * are zero in the frame). CRITICAL PERF: this is the only node-level
+ * subscriber to the frame atom — a scrub tick re-renders these tiny bars,
+ * not the full `QueryPlanNode`s.
  *
- * Constant height whether or not the operator has data at the current bin,
- * so scrubbing never causes layout churn. Labels are absolutely positioned
- * inside overflow-hidden segments, so their appearance never shifts layout.
+ * Constant height whether or not the operator has data at the current bin
+ * (the empty tracks are the placeholders), so scrubbing never causes layout
+ * churn. Labels are absolutely positioned inside overflow-hidden segments,
+ * so their appearance never shifts layout. The two bars stay visually
+ * distinct: FSM state colors on top, capacity/tier colors below, separated
+ * by a 2px gap.
  */
 export const NodeFlowBar = memo(
   ({ operatorId, isDark }: { operatorId: string; isDark: boolean }) => {
@@ -97,7 +127,11 @@ export const NodeFlowBar = memo(
                   frame.maxTotal,
                   frame.measure,
                   meta,
-                  FLOW_TRACK_PX
+                  FLOW_TRACK_PX,
+                  {
+                    value: operatorFrame.labelByState[stateIndex] ?? 0,
+                    measure: frame.labelMeasure,
+                  }
                 );
                 return (
                   <div
@@ -106,34 +140,49 @@ export const NodeFlowBar = memo(
                     style={{ flexGrow: value, backgroundColor: color }}
                   >
                     {label != null && (
-                      <span
-                        data-testid="flow-segment-label"
-                        className="absolute inset-0 flex items-center justify-center text-[8px] leading-none font-medium tabular-nums whitespace-nowrap"
-                        style={
-                          isLightColor(color)
-                            ? { color: 'rgba(0, 0, 0, 0.78)' }
-                            : { color: '#ffffff', textShadow: '0 0 2px rgba(0, 0, 0, 0.45)' }
-                        }
-                      >
-                        {label}
-                      </span>
+                      <SegmentValueLabel
+                        label={label}
+                        segmentColor={color}
+                        testId="flow-segment-label"
+                      />
                     )}
                   </div>
                 );
               })}
           </div>
         </div>
-        <div className="mt-[2px] h-[3px] w-full overflow-hidden rounded-sm bg-muted/40">
+        <div className="mt-[2px] h-[12px] w-full overflow-hidden rounded-sm bg-muted/40">
           <div className="flex h-full" style={{ width: filledWidth, transition: BAR_TRANSITION }}>
             {hasData &&
               meta.decl.dimension_keys.map((dimension, dimensionIndex) => {
                 const value = operatorFrame.byDimension[dimensionIndex] ?? 0;
                 if (value <= 0) return null;
+                const color = dimensionColor(dimension.key);
+                const label = fitDataFlowSegmentLabel(
+                  value,
+                  frame.maxTotal,
+                  frame.measure,
+                  meta,
+                  FLOW_TRACK_PX,
+                  {
+                    value: operatorFrame.labelByDimension[dimensionIndex] ?? 0,
+                    measure: frame.labelMeasure,
+                  }
+                );
                 return (
                   <div
                     key={dimension.key}
-                    style={{ flexGrow: value, backgroundColor: dimensionColor(dimension.key) }}
-                  />
+                    className="relative overflow-hidden"
+                    style={{ flexGrow: value, backgroundColor: color }}
+                  >
+                    {label != null && (
+                      <SegmentValueLabel
+                        label={label}
+                        segmentColor={color}
+                        testId="flow-tier-label"
+                      />
+                    )}
+                  </div>
                 );
               })}
           </div>

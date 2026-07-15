@@ -8,6 +8,8 @@ import {
   dataFlowEnabledAtom,
   playheadTimeSAtom,
   selectedDataFlowMeasureAtom,
+  dataFlowLabelMeasureAtom,
+  dataFlowSelectedDimensionsAtom,
   dataFlowMetaAtom,
   dataFlowFrameAtom,
 } from '../atoms/dataFlow';
@@ -20,6 +22,12 @@ export const useSetPlayheadTimeS = () => useSetAtom(playheadTimeSAtom);
 
 export const useSelectedDataFlowMeasure = () => useAtomValue(selectedDataFlowMeasureAtom);
 export const useSetSelectedDataFlowMeasure = () => useSetAtom(selectedDataFlowMeasureAtom);
+
+export const useDataFlowLabelMeasure = () => useAtomValue(dataFlowLabelMeasureAtom);
+export const useSetDataFlowLabelMeasure = () => useSetAtom(dataFlowLabelMeasureAtom);
+
+export const useDataFlowSelectedDimensions = () => useAtomValue(dataFlowSelectedDimensionsAtom);
+export const useSetDataFlowSelectedDimensions = () => useSetAtom(dataFlowSelectedDimensionsAtom);
 
 export const useDataFlowMeta = () => useAtomValue(dataFlowMetaAtom);
 export const useDataFlowFrame = () => useAtomValue(dataFlowFrameAtom);

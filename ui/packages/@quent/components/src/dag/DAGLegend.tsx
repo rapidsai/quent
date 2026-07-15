@@ -57,9 +57,14 @@ const ContinuousLegend = ({ field, min, max, palette, isDark }: ContinuousLegend
 interface CategoricalLegendProps {
   field: string;
   categoryMap: Map<string, string>;
+  /**
+   * Labels rendered greyed-out (e.g. deselected data-flow tiers) — still
+   * listed so the user sees what is being filtered out.
+   */
+  dimmedLabels?: ReadonlySet<string>;
 }
 
-const CategoricalLegend = ({ field, categoryMap }: CategoricalLegendProps) => {
+const CategoricalLegend = ({ field, categoryMap, dimmedLabels }: CategoricalLegendProps) => {
   const entries = [...categoryMap.entries()].slice(0, MAX_CATEGORICAL_ENTRIES);
   const truncated = categoryMap.size > MAX_CATEGORICAL_ENTRIES;
   return (
@@ -68,17 +73,26 @@ const CategoricalLegend = ({ field, categoryMap }: CategoricalLegendProps) => {
         {field}
       </span>
       <div className="flex flex-col gap-0.5">
-        {entries.map(([label, color]) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-              style={{ backgroundColor: color }}
-            />
-            <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
-              {label}
-            </span>
-          </div>
-        ))}
+        {entries.map(([label, color]) => {
+          const dimmed = dimmedLabels?.has(label) ?? false;
+          return (
+            <div
+              key={label}
+              data-dimmed={dimmed || undefined}
+              className={`flex items-center gap-1.5${dimmed ? ' opacity-40' : ''}`}
+            >
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <span
+                className={`text-[10px] text-muted-foreground truncate max-w-[120px]${dimmed ? ' line-through' : ''}`}
+              >
+                {label}
+              </span>
+            </div>
+          );
+        })}
         {truncated && (
           <span className="text-[10px] text-muted-foreground italic">
             +{categoryMap.size - MAX_CATEGORICAL_ENTRIES} more
@@ -179,6 +193,17 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
     return new Map(keys.map(k => [k.display_name, colorFn(k.key)]));
   }, [dataFlowMeta, paletteTheme]);
 
+  // Deselected tiers stay listed but greyed-out, so the user can see what
+  // the tier filter is currently hiding.
+  const dimmedDimensionLabels = useMemo(() => {
+    if (!dataFlowMeta) return undefined;
+    return new Set(
+      dataFlowMeta.decl.dimension_keys
+        .filter(k => !dataFlowMeta.dimensionSelection.has(k.key))
+        .map(k => k.display_name)
+    );
+  }, [dataFlowMeta]);
+
   const hasNode = !!nodeColoring && !!nodeField;
   const hasEdge = !!edgeColoring && !!edgeField;
   const hasDataFlow =
@@ -212,6 +237,7 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
             <CategoricalLegend
               field={dataFlowMeta.decl.dimension_name}
               categoryMap={dataFlowDimensionLegend}
+              dimmedLabels={dimmedDimensionLabels}
             />
           </>
         )}

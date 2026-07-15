@@ -13,6 +13,8 @@ import {
   formatDataFlowValueCompact,
   isDataFlowAvailable,
   normalizeDataFlowResponse,
+  resolveDataFlowDimensions,
+  resolveDataFlowLabelMeasure,
   resolveDataFlowMeasure,
   resolveDataFlowStates,
   resolveDataFlowWindow,
@@ -211,6 +213,28 @@ describe('resolveDataFlowStates', () => {
   });
 });
 
+describe('resolveDataFlowDimensions', () => {
+  const KEYS = ['memory', 'filesystem'];
+
+  it('resolves null to all declared keys', () => {
+    expect([...resolveDataFlowDimensions(null, KEYS)]).toEqual(KEYS);
+  });
+
+  it('resolves an empty selection to all declared keys', () => {
+    expect([...resolveDataFlowDimensions(new Set(), KEYS)]).toEqual(KEYS);
+  });
+
+  it('resolves a fully-stale selection (no declared keys) to all', () => {
+    expect([...resolveDataFlowDimensions(new Set(['GPU-0', 'HOST']), KEYS)]).toEqual(KEYS);
+  });
+
+  it('keeps a valid subset, dropping unknown keys', () => {
+    expect([...resolveDataFlowDimensions(new Set(['filesystem', 'nope']), KEYS)]).toEqual([
+      'filesystem',
+    ]);
+  });
+});
+
 describe('computeWindowMax', () => {
   it('returns the max operator total across all bins', () => {
     // op-1 totals per bin: [1, 3, 5, 0]; op-2 totals per bin: [0, 4, 0, 0].
@@ -223,6 +247,18 @@ describe('computeWindowMax', () => {
 
   it('is per-measure', () => {
     expect(computeWindowMax(makeBinned(OPERATORS), 'bytes')).toBe(100);
+  });
+
+  it('restricts to the selected dimension keys', () => {
+    // filesystem only — op-1: [0, 0, 2, 0]; op-2: [0, 4, 0, 0].
+    expect(computeWindowMax(makeBinned(OPERATORS), 'tasks', new Set(['filesystem']))).toBe(4);
+    // memory only — op-1: [1, 3, 3, 0]; op-2 has no memory data.
+    expect(computeWindowMax(makeBinned(OPERATORS), 'tasks', new Set(['memory']))).toBe(3);
+  });
+
+  it('treats a null/empty selection as all keys', () => {
+    expect(computeWindowMax(makeBinned(OPERATORS), 'tasks', null)).toBe(5);
+    expect(computeWindowMax(makeBinned(OPERATORS), 'tasks', new Set())).toBe(5);
   });
 });
 
@@ -302,6 +338,71 @@ describe('extractDataFlowFrame', () => {
     const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 3, 5);
     expect(frame.totalsByMeasure.size).toBe(0);
   });
+
+  it('aliases the label arrays to the bar arrays when no label measure is set', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5);
+    const op1 = frame.perOperator.get('op-1')!;
+    expect(frame.labelMeasure).toBe('tasks');
+    expect(op1.labelByState).toBe(op1.byState);
+    expect(op1.labelByDimension).toBe(op1.byDimension);
+  });
+
+  it('computes label sums for an independent label measure, widths untouched', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5, {
+      labelMeasure: 'bytes',
+    });
+    expect(frame.labelMeasure).toBe('bytes');
+    const op1 = frame.perOperator.get('op-1')!;
+    // Bar-measure sums (segment widths) are unchanged...
+    expect(op1.byState).toEqual([0, 5]);
+    expect(op1.byDimension).toEqual([3, 2]);
+    // ...while labels reflect bytes: computing/memory 100 at bin 2.
+    expect(op1.labelByState).toEqual([0, 100]);
+    expect(op1.labelByDimension).toEqual([100, 0]);
+    // op-2 has no bytes data at all: label sums read as zero.
+    const op2 = frame.perOperator.get('op-2');
+    expect(op2).toBeUndefined(); // all-zero tasks at bin 2 — omitted anyway
+  });
+
+  it('reads label sums as zero for operators without the label measure', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 1, 5, {
+      labelMeasure: 'bytes',
+    });
+    const op2 = frame.perOperator.get('op-2')!;
+    expect(op2.byState).toEqual([4, 0]);
+    expect(op2.labelByState).toEqual([0, 0]);
+    expect(op2.labelByDimension).toEqual([0, 0]);
+  });
+
+  it('filters every per-operator value to the selected dimensions', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 3, {
+      selectedDimensions: new Set(['memory']),
+    });
+    const op1 = frame.perOperator.get('op-1')!;
+    // Unselected filesystem column reads as zero everywhere.
+    expect(op1.total).toBe(3);
+    expect(op1.byState).toEqual([0, 3]);
+    expect(op1.byDimension).toEqual([3, 0]);
+    expect(op1.matrix).toEqual([
+      [0, 0],
+      [3, 0],
+    ]);
+    expect(frame.totalsByMeasure.get('op-1')).toEqual({ tasks: 3, bytes: 100 });
+    // op-2 only has filesystem data — omitted entirely under this selection.
+    expect(frame.perOperator.has('op-2')).toBe(false);
+    expect(frame.totalsByMeasure.has('op-2')).toBe(false);
+  });
+
+  it('applies the dimension selection to label sums too', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5, {
+      labelMeasure: 'bytes',
+      selectedDimensions: new Set(['filesystem']),
+    });
+    const op1 = frame.perOperator.get('op-1')!;
+    // tasks/filesystem keeps op-1 visible, but bytes only exist in memory.
+    expect(op1.byState).toEqual([0, 2]);
+    expect(op1.labelByState).toEqual([0, 0]);
+  });
 });
 
 describe('buildDataFlowMeta', () => {
@@ -311,6 +412,7 @@ describe('buildDataFlowMeta', () => {
     expect(meta.stateNames).toEqual(['queueing', 'computing']);
     expect(meta.bin.numBins).toBe(NUM_BINS);
     expect(meta.windowMax).toEqual({ tasks: 5, bytes: 100 });
+    expect([...meta.dimensionSelection]).toEqual(['memory', 'filesystem']);
     expect(meta.quantitySpecs.unit).toBe(UNIT_SPEC);
   });
 
@@ -318,6 +420,18 @@ describe('buildDataFlowMeta', () => {
     const meta = buildDataFlowMeta(makeBinned(OPERATORS), {}, undefined);
     expect(meta.fsmType).toBeNull();
     expect(meta.stateNames).toEqual(['computing', 'queueing']);
+  });
+
+  it('recomputes windowMax over the dimension selection', () => {
+    const meta = buildDataFlowMeta(
+      makeBinned(OPERATORS),
+      { Task: FSM_TYPE },
+      { unit: UNIT_SPEC },
+      new Set(['filesystem'])
+    );
+    expect([...meta.dimensionSelection]).toEqual(['filesystem']);
+    // tasks/filesystem maxes at 4 (op-2, bin 1); bytes live only in memory.
+    expect(meta.windowMax).toEqual({ tasks: 4, bytes: 0 });
   });
 });
 
@@ -335,6 +449,19 @@ describe('resolveDataFlowMeasure', () => {
 
   it('returns null when no measures are declared', () => {
     expect(resolveDataFlowMeasure(null, { ...decl, measures: [] })).toBeNull();
+  });
+});
+
+describe('resolveDataFlowLabelMeasure', () => {
+  const decl = makeBinned().decl;
+
+  it('keeps the selected label measure when declared', () => {
+    expect(resolveDataFlowLabelMeasure('bytes', decl, 'tasks')).toBe('bytes');
+  });
+
+  it('follows the bar measure for null or unknown selections', () => {
+    expect(resolveDataFlowLabelMeasure(null, decl, 'tasks')).toBe('tasks');
+    expect(resolveDataFlowLabelMeasure('nope', decl, 'bytes')).toBe('bytes');
   });
 });
 
@@ -408,5 +535,26 @@ describe('fitDataFlowSegmentLabel', () => {
     expect(fitDataFlowSegmentLabel(0, 5, 'tasks', meta, TRACK)).toBeNull();
     expect(fitDataFlowSegmentLabel(5, 0, 'tasks', meta, TRACK)).toBeNull();
     expect(fitDataFlowSegmentLabel(5, 5, 'tasks', meta, 0)).toBeNull();
+  });
+
+  it('renders the label-measure text while the width stays on the bar measure', () => {
+    expect(
+      fitDataFlowSegmentLabel(5, 5, 'tasks', meta, TRACK, { value: 47185920, measure: 'bytes' })
+    ).toBe('45MiB');
+  });
+
+  it('width-gates using the label text against the bar-measure segment width', () => {
+    // Segment px = (5 / 42) * 168 = 20px: fits "5" (10px) but not the
+    // 5-char "45MiB" (34px) from the label measure.
+    expect(fitDataFlowSegmentLabel(5, 42, 'tasks', meta, TRACK)).toBe('5');
+    expect(
+      fitDataFlowSegmentLabel(5, 42, 'tasks', meta, TRACK, { value: 47185920, measure: 'bytes' })
+    ).toBeNull();
+  });
+
+  it('hides the label when the label-measure value is zero', () => {
+    expect(
+      fitDataFlowSegmentLabel(5, 5, 'tasks', meta, TRACK, { value: 0, measure: 'bytes' })
+    ).toBeNull();
   });
 });

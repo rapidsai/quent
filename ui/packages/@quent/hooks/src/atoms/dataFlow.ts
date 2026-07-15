@@ -23,6 +23,22 @@ export const playheadTimeSAtom = atom<number | null>(null);
 export const selectedDataFlowMeasureAtom = atom<string | null>(null);
 
 /**
+ * Measure used for the in-segment value labels of the node flow bars,
+ * independent of the measure that sizes the bars. `null` follows the bar's
+ * selected measure ({@link selectedDataFlowMeasureAtom}).
+ */
+export const dataFlowLabelMeasureAtom = atom<string | null>(null);
+
+/**
+ * Dimension keys (tiers) included in the data-flow overlay. `null` = all
+ * declared keys. Selections that are empty or reference only unknown keys
+ * are treated as "all" defensively (the DAGControls chips additionally
+ * prevent unchecking the last selected key). `useDataFlowSync` resets this
+ * to `null` whenever the declared key set changes (query/engine switch).
+ */
+export const dataFlowSelectedDimensionsAtom = atom<ReadonlySet<string> | null>(null);
+
+/**
  * Presentation metadata for the current response (decls, bin config,
  * per-measure window max). `null` when the feature is unavailable.
  */

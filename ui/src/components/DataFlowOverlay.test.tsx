@@ -2,10 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
+import { useEffect } from 'react';
 import { Provider } from 'jotai';
+import { ReactFlowProvider } from '@xyflow/react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { useDataFlowSync } from '@quent/hooks';
-import { DagPlayhead, NodeFlowBar } from '@quent/components';
+import {
+  useDataFlowSync,
+  useSetDataFlowLabelMeasure,
+  useSetDataFlowSelectedDimensions,
+  useSetSelectedNodeData,
+} from '@quent/hooks';
+import { DagPlayhead, DAGLegend, DAGNodeInfoPanel, NodeFlowBar } from '@quent/components';
 import type { DataFlowTimelineResponse, EntityRef, QueryBundle } from '@quent/utils';
 
 // 4 bins of 2s over [0, 8): op-1 task totals per bin are [1, 3, 5, 0] and
@@ -59,6 +66,27 @@ const NARROW_RESPONSE: DataFlowTimelineResponse = {
   },
 };
 
+// One dominant queueing segment at bin 0 (4/5 of the bar ≈ 134px) so a byte
+// label ("1.4MiB", 40px) fits inside it — exercises the label-measure toggle.
+const LABEL_RESPONSE: DataFlowTimelineResponse = {
+  Binned: {
+    ...RESPONSE.Binned,
+    operators: {
+      'op-1': {
+        values: {
+          tasks: {
+            queueing: { memory: [4, 0, 0, 0] },
+            computing: { memory: [1, 0, 0, 0] },
+          },
+          bytes: {
+            queueing: { memory: [1500000, 0, 0, 0] },
+          },
+        },
+      },
+    },
+  },
+};
+
 const QUERY_BUNDLE = {
   entities: {
     fsm_types: {
@@ -90,26 +118,63 @@ const QUERY_BUNDLE = {
   },
 } as unknown as QueryBundle<EntityRef>;
 
-function Harness({ response }: { response: DataFlowTimelineResponse }) {
+interface HarnessProps {
+  response: DataFlowTimelineResponse;
+  /** In-segment label measure (null = follow the bar measure). */
+  labelMeasure?: string | null;
+  /** Tier selection (null = all declared dimension keys). */
+  selectedDimensions?: ReadonlySet<string> | null;
+  children?: React.ReactNode;
+}
+
+function Harness({
+  response,
+  labelMeasure = null,
+  selectedDimensions = null,
+  children,
+}: HarnessProps) {
   useDataFlowSync({ response, queryBundle: QUERY_BUNDLE });
+  const setLabelMeasure = useSetDataFlowLabelMeasure();
+  const setSelectedDimensions = useSetDataFlowSelectedDimensions();
+  useEffect(() => {
+    setLabelMeasure(labelMeasure);
+  }, [labelMeasure, setLabelMeasure]);
+  useEffect(() => {
+    setSelectedDimensions(selectedDimensions);
+  }, [selectedDimensions, setSelectedDimensions]);
   return (
-    <>
-      <DagPlayhead startTimeUnixNs={BigInt(0)} />
-      <NodeFlowBar operatorId="op-1" isDark={false} />
-    </>
+    children ?? (
+      <>
+        <DagPlayhead startTimeUnixNs={BigInt(0)} />
+        <NodeFlowBar operatorId="op-1" isDark={false} />
+      </>
+    )
   );
 }
 
-function renderOverlay(response: DataFlowTimelineResponse) {
+function renderOverlay(props: DataFlowTimelineResponse | HarnessProps) {
+  const harnessProps: HarnessProps =
+    typeof props === 'object' && 'response' in props ? props : { response: props };
   return render(
     <Provider>
-      <Harness response={response} />
+      <Harness {...harnessProps} />
     </Provider>
   );
 }
 
 function segmentLabels(): string[] {
   return screen.queryAllByTestId('flow-segment-label').map(el => el.textContent ?? '');
+}
+
+function tierLabels(): string[] {
+  return screen.queryAllByTestId('flow-tier-label').map(el => el.textContent ?? '');
+}
+
+/** flex-grow values (segment width weights) of the state bar's segments. */
+function stateSegmentWidths(): string[] {
+  const bar = screen.getByTestId('node-flow-bar');
+  const fill = (bar.children[0] as HTMLElement).children[0] as HTMLElement;
+  return [...fill.children].map(el => (el as HTMLElement).style.flexGrow);
 }
 
 describe('data-flow overlay components', () => {
@@ -166,7 +231,158 @@ describe('data-flow overlay components', () => {
     // Last bin is all-zero for op-1: labels collapse to a non-breaking space.
     const bar = screen.getByTestId('node-flow-bar');
     expect(segmentLabels()).toEqual([]);
+    expect(tierLabels()).toEqual([]);
     expect(screen.getByTestId('flow-bar-totals').textContent).toBe('\u00A0');
     expect(bar).toBeInTheDocument();
+  });
+
+  it('renders both bars at the same labeled height (constant node height)', () => {
+    renderOverlay(RESPONSE);
+    const bar = screen.getByTestId('node-flow-bar');
+    const stateTrack = bar.children[0] as HTMLElement;
+    const tierTrack = bar.children[1] as HTMLElement;
+    expect(stateTrack.className).toContain('h-[12px]');
+    expect(tierTrack.className).toContain('h-[12px]');
+    expect(tierTrack.className).toContain('mt-[2px]');
+  });
+});
+
+describe('segment-label measure toggle', () => {
+  it('switches in-segment texts to the label measure without changing widths', () => {
+    const { rerender } = renderOverlay(LABEL_RESPONSE);
+    // Bin 0, labels follow the bar measure (tasks): queueing 4, computing 1.
+    expect(segmentLabels()).toEqual(['4', '1']);
+    const widthsBefore = stateSegmentWidths();
+    expect(widthsBefore).toEqual(['4', '1']);
+
+    rerender(
+      <Provider>
+        <Harness response={LABEL_RESPONSE} labelMeasure="bytes" />
+      </Provider>
+    );
+    // Texts now come from bytes: queueing 1500000 -> "1.4MiB"; computing has
+    // zero bytes, so its label disappears instead of showing a stray "0".
+    expect(segmentLabels()).toEqual(['1.4MiB']);
+    // Segment widths still follow the bar measure (tasks).
+    expect(stateSegmentWidths()).toEqual(widthsBefore);
+  });
+
+  it('labels the tier bar with the label measure too', () => {
+    renderOverlay({ response: LABEL_RESPONSE, labelMeasure: 'bytes' });
+    // Single memory tier holding all 1500000 bytes at bin 0.
+    expect(tierLabels()).toEqual(['1.4MiB']);
+  });
+});
+
+describe('tier bar labels', () => {
+  it('shows width-gated per-tier totals inside the tier bar', () => {
+    renderOverlay(RESPONSE);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    // Bin 2: memory 3 (~101px) and filesystem 2 (~67px) both fit.
+    expect(tierLabels()).toEqual(['3', '2']);
+  });
+
+  it('hides tier labels when segments are too narrow', () => {
+    renderOverlay(NARROW_RESPONSE);
+    // op-1's bar is 1/1000 of the track \u2014 nothing fits in either bar.
+    expect(tierLabels()).toEqual([]);
+    expect(segmentLabels()).toEqual([]);
+  });
+});
+
+describe('tier (dimension) selection', () => {
+  it('recomputes widths, labels, totals and windowMax over the selection', () => {
+    const { rerender } = renderOverlay(NARROW_RESPONSE);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    // Bin 2, all tiers: op-2's 1000 (memory, bin 3) dominates the window
+    // max, so op-1's total of 5 is sub-pixel \u2014 no labels anywhere.
+    expect(screen.getByTestId('flow-bar-totals').textContent).toBe('5');
+    expect(segmentLabels()).toEqual([]);
+    expect(tierLabels()).toEqual([]);
+
+    rerender(
+      <Provider>
+        <Harness response={NARROW_RESPONSE} selectedDimensions={new Set(['filesystem'])} />
+      </Provider>
+    );
+    // Filesystem only: op-2 vanishes from the window max (its data lives in
+    // memory), which becomes op-1's filesystem peak of 2 \u2014 the bar now fills
+    // the whole track, so the labels fit again (they could not at 1/1000).
+    expect(screen.getByTestId('flow-bar-totals').textContent).toBe('2');
+    expect(segmentLabels()).toEqual(['2']);
+    expect(tierLabels()).toEqual(['2']);
+  });
+
+  it('treats an all-unknown (stale) selection as all tiers', () => {
+    renderOverlay({ response: RESPONSE, selectedDimensions: new Set(['GPU-0', 'GPU-1']) });
+    // Bin 0 renders exactly like the unfiltered response.
+    expect(segmentLabels()).toEqual(['1']);
+    expect(screen.getByTestId('flow-bar-totals').textContent).toBe('1');
+  });
+});
+
+describe('DAGNodeInfoPanel matrix under tier selection', () => {
+  function renderPanel(selectedDimensions: ReadonlySet<string> | null) {
+    function SelectNode() {
+      const setSelectedNodeData = useSetSelectedNodeData();
+      useEffect(() => {
+        setSelectedNodeData({
+          nodeId: 'op-1',
+          label: 'Op 1',
+          operationType: 'scan',
+          statistics: [],
+        });
+      }, [setSelectedNodeData]);
+      return <DAGNodeInfoPanel />;
+    }
+    return render(
+      <Provider>
+        <Harness response={RESPONSE} selectedDimensions={selectedDimensions}>
+          <SelectNode />
+        </Harness>
+      </Provider>
+    );
+  }
+
+  it('shows all dimension columns when every tier is selected', () => {
+    renderPanel(null);
+    expect(screen.getByText('Memory')).toBeInTheDocument();
+    expect(screen.getByText('Filesystem')).toBeInTheDocument();
+  });
+
+  it('hides deselected dimension columns', () => {
+    renderPanel(new Set(['memory']));
+    expect(screen.getByText('Memory')).toBeInTheDocument();
+    expect(screen.queryByText('Filesystem')).not.toBeInTheDocument();
+  });
+});
+
+describe('DAGLegend under tier selection', () => {
+  function renderLegend(selectedDimensions: ReadonlySet<string> | null) {
+    return render(
+      <Provider>
+        <Harness response={RESPONSE} selectedDimensions={selectedDimensions}>
+          <ReactFlowProvider>
+            <DAGLegend isDark={false} />
+          </ReactFlowProvider>
+        </Harness>
+      </Provider>
+    );
+  }
+
+  it('lists every declared tier undimmed when all are selected', () => {
+    renderLegend(null);
+    expect(screen.getByText('Memory').closest('[data-dimmed]')).toBeNull();
+    expect(screen.getByText('Filesystem').closest('[data-dimmed]')).toBeNull();
+  });
+
+  it('greys out deselected tiers instead of dropping them', () => {
+    renderLegend(new Set(['memory']));
+    expect(screen.getByText('Memory').closest('[data-dimmed]')).toBeNull();
+    expect(screen.getByText('Filesystem').closest('[data-dimmed]')).not.toBeNull();
   });
 });
