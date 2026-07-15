@@ -1,18 +1,26 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { useEffect } from 'react';
 import { Provider } from 'jotai';
 import { ReactFlowProvider } from '@xyflow/react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import {
   useDataFlowSync,
+  useSetDataFlowEnabled,
   useSetDataFlowLabelMeasure,
   useSetDataFlowSelectedDimensions,
   useSetSelectedNodeData,
 } from '@quent/hooks';
-import { DagPlayhead, DAGLegend, DAGNodeInfoPanel, NodeFlowBar } from '@quent/components';
+import {
+  DagPlayhead,
+  DAGLegend,
+  DAGNodeInfoPanel,
+  NodeFlowBar,
+  registerAxisPointerSync,
+  unregisterAxisPointerSync,
+} from '@quent/components';
 import type { DataFlowTimelineResponse, EntityRef, QueryBundle } from '@quent/utils';
 
 // 4 bins of 2s over [0, 8): op-1 task totals per bin are [1, 3, 5, 0] and
@@ -120,6 +128,8 @@ const QUERY_BUNDLE = {
 
 interface HarnessProps {
   response: DataFlowTimelineResponse;
+  /** Whether the data-flow overlay is enabled (defaults to true). */
+  enabled?: boolean;
   /** In-segment label measure (null = follow the bar measure). */
   labelMeasure?: string | null;
   /** Tier selection (null = all declared dimension keys). */
@@ -129,13 +139,18 @@ interface HarnessProps {
 
 function Harness({
   response,
+  enabled = true,
   labelMeasure = null,
   selectedDimensions = null,
   children,
 }: HarnessProps) {
   useDataFlowSync({ response, queryBundle: QUERY_BUNDLE });
+  const setEnabled = useSetDataFlowEnabled();
   const setLabelMeasure = useSetDataFlowLabelMeasure();
   const setSelectedDimensions = useSetDataFlowSelectedDimensions();
+  useEffect(() => {
+    setEnabled(enabled);
+  }, [enabled, setEnabled]);
   useEffect(() => {
     setLabelMeasure(labelMeasure);
   }, [labelMeasure, setLabelMeasure]);
@@ -244,6 +259,65 @@ describe('data-flow overlay components', () => {
     expect(stateTrack.className).toContain('h-[12px]');
     expect(tierTrack.className).toContain('h-[12px]');
     expect(tierTrack.className).toContain('mt-[2px]');
+  });
+});
+
+describe('playback while the overlay is disabled', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('stops the play interval and hides the synced pointer when disabled', () => {
+    vi.useFakeTimers();
+    // Fake timeline chart: receives the showTip/hideTip actions that
+    // broadcastSyncedPointer/hideSyncedPointer dispatch to registered charts.
+    const dispatchAction = vi.fn();
+    const fakeChart = {
+      convertToPixel: () => 42,
+      getHeight: () => 100,
+      dispatchAction,
+      getZr: () => ({ on: vi.fn(), off: vi.fn() }),
+    } as unknown as Parameters<typeof registerAxisPointerSync>[0];
+    registerAxisPointerSync(fakeChart);
+    try {
+      const { rerender } = renderOverlay(RESPONSE);
+      fireEvent.click(screen.getByRole('button', { name: 'Play data flow' }));
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      // One tick advanced one bin (2s) and broadcast the synced crosshair.
+      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
+      expect(dispatchAction).toHaveBeenCalledWith(expect.objectContaining({ type: 'showTip' }));
+      dispatchAction.mockClear();
+
+      // Disable the overlay mid-playback: the component renders null but
+      // stays mounted, so the interval must stop and the crosshair hide.
+      rerender(
+        <Provider>
+          <Harness response={RESPONSE} enabled={false} />
+        </Provider>
+      );
+      expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
+      expect(dispatchAction).toHaveBeenCalledWith({ type: 'hideTip' });
+      dispatchAction.mockClear();
+
+      // No further ticks: nothing is broadcast while disabled...
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(dispatchAction).not.toHaveBeenCalled();
+
+      // ...and re-enabling shows a paused playhead that did not advance.
+      rerender(
+        <Provider>
+          <Harness response={RESPONSE} enabled />
+        </Provider>
+      );
+      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
+      expect(screen.getByRole('button', { name: 'Play data flow' })).toBeInTheDocument();
+    } finally {
+      unregisterAxisPointerSync(fakeChart);
+    }
   });
 });
 

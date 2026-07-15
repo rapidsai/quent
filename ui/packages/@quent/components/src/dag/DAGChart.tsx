@@ -414,10 +414,15 @@ const FlowLayout = ({
   // Calculate and apply layout
   useLayoutEffect(() => {
     hasUserInteracted.current = false;
+    // calculateLayout is async: rapid dependency changes (e.g. flowBarVisible
+    // toggles) can interleave calls, so discard results from stale runs
+    // instead of letting them overwrite a newer layout.
+    let cancelled = false;
 
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
       const layoutResult = await calculateLayout(flowNodes, flowEdges, layoutDirection);
+      if (cancelled) return;
 
       setNodes(layoutResult.nodes);
       setEdges(layoutResult.edges);
@@ -427,6 +432,9 @@ const FlowLayout = ({
     };
 
     applyLayout();
+    return () => {
+      cancelled = true;
+    };
   }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection]);
 
   return (

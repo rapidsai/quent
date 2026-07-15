@@ -154,6 +154,16 @@ export function DagPlayhead({ startTimeUnixNs, className }: DagPlayheadProps) {
     });
   }, [bin, setPlayheadTimeS]);
 
+  // Stop playback when the overlay is disabled or the bin metadata goes
+  // away: the component stays mounted while rendering null, so a live play
+  // interval would otherwise keep advancing the playhead and broadcasting
+  // the synced crosshair invisibly.
+  useEffect(() => {
+    if (enabled && bin) return;
+    setIsPlaying(false);
+    hideSyncedPointer();
+  }, [enabled, bin]);
+
   // Advance one bin per tick while playing; stop at the window end.
   useEffect(() => {
     if (!isPlaying || !bin) return;

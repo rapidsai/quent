@@ -5,7 +5,6 @@ import { memo, useMemo } from 'react';
 import {
   createCapacitiesColorFn,
   createFsmTypeColorFn,
-  isLightColor,
   type FsmTypeDecl,
   type PaletteTheme,
 } from '@quent/utils';
@@ -16,6 +15,7 @@ import {
   formatDataFlowValueCompact,
 } from '@quent/hooks';
 import { NODE_LAYOUT_WIDTH } from '../dag/layout';
+import { SegmentValueLabel } from './SegmentValueLabel';
 
 const BAR_TRANSITION = 'width 120ms linear';
 
@@ -30,29 +30,6 @@ const FLOW_TRACK_PX = NODE_LAYOUT_WIDTH - 32;
 function fsmTypesMapOf(fsmType: FsmTypeDecl | null): { [key in string]?: FsmTypeDecl } {
   return fsmType ? { [fsmType.name]: fsmType } : {};
 }
-
-/** Width-gated value label centered inside an overflow-hidden segment. */
-const SegmentValueLabel = ({
-  label,
-  segmentColor,
-  testId,
-}: {
-  label: string;
-  segmentColor: string;
-  testId: string;
-}) => (
-  <span
-    data-testid={testId}
-    className="absolute inset-0 flex items-center justify-center text-[8px] leading-none font-medium tabular-nums whitespace-nowrap"
-    style={
-      isLightColor(segmentColor)
-        ? { color: 'rgba(0, 0, 0, 0.78)' }
-        : { color: '#ffffff', textShadow: '0 0 2px rgba(0, 0, 0, 0.45)' }
-    }
-  >
-    {label}
-  </span>
-);
 
 /**
  * Per-node data-flow overlay: a stacked state bar over a stacked

@@ -14,6 +14,7 @@ import {
   useDataFlowMeta,
 } from '@quent/hooks';
 import {
+  cn,
   createCapacitiesColorFn,
   createFsmTypeColorFn,
   getLegendGradientStops,
@@ -79,14 +80,17 @@ const CategoricalLegend = ({ field, categoryMap, dimmedLabels }: CategoricalLege
             <div
               key={label}
               data-dimmed={dimmed || undefined}
-              className={`flex items-center gap-1.5${dimmed ? ' opacity-40' : ''}`}
+              className={cn('flex items-center gap-1.5', dimmed && 'opacity-40')}
             >
               <span
                 className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
                 style={{ backgroundColor: color }}
               />
               <span
-                className={`text-[10px] text-muted-foreground truncate max-w-[120px]${dimmed ? ' line-through' : ''}`}
+                className={cn(
+                  'text-[10px] text-muted-foreground truncate max-w-[120px]',
+                  dimmed && 'line-through'
+                )}
               >
                 {label}
               </span>
