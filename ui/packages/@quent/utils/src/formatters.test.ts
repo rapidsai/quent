@@ -7,6 +7,8 @@ import {
   formatDurationForWindow,
   formatDurationForAxisInterval,
   formatWithPrefix,
+  formatCompactWithPrefix,
+  formatQuantityCompact,
   formatNumber,
   formatNumberWithMaxFractionDigits,
   formatBytes,
@@ -460,6 +462,63 @@ describe('formatQuantity', () => {
     };
     expect(formatQuantity(42, countSpec, 'Occupancy', 0)).toBe('42 rows');
     expect(formatQuantity(100, countSpec, 'Rate', 1)).toBe('100.0 rows/s');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatCompactWithPrefix / formatQuantityCompact
+// ---------------------------------------------------------------------------
+
+describe('formatCompactWithPrefix', () => {
+  it('keeps one decimal below 10 and drops trailing .0', () => {
+    expect(formatCompactWithPrefix(3.2, '', 'None')).toBe('3.2');
+    expect(formatCompactWithPrefix(2, '', 'None')).toBe('2');
+    expect(formatCompactWithPrefix(0.4, '', 'None')).toBe('0.4');
+  });
+
+  it('rounds to integers from 10 up (2-3 significant digits)', () => {
+    expect(formatCompactWithPrefix(45.3, '', 'None')).toBe('45');
+    expect(formatCompactWithPrefix(482.4, '', 'None')).toBe('482');
+  });
+
+  it('scales SI values without a space', () => {
+    expect(formatCompactWithPrefix(1234, '', 'Si')).toBe('1.2k');
+    expect(formatCompactWithPrefix(45e6, '', 'Si')).toBe('45M');
+    expect(formatCompactWithPrefix(0.02, 's', 'Si')).toBe('20ms');
+  });
+
+  it('scales IEC values without a space', () => {
+    expect(formatCompactWithPrefix(1536, 'B', 'Iec')).toBe('1.5KiB');
+    expect(formatCompactWithPrefix(47185920, 'B', 'Iec')).toBe('45MiB');
+    expect(formatCompactWithPrefix(100, 'B', 'Iec')).toBe('100B');
+  });
+
+  it('handles zero and negatives', () => {
+    expect(formatCompactWithPrefix(0, 'B', 'Iec')).toBe('0B');
+    expect(formatCompactWithPrefix(0, '', 'None')).toBe('0');
+    expect(formatCompactWithPrefix(-1234, '', 'Si')).toBe('-1.2k');
+  });
+
+  it('keeps sub-prefix values unscaled for Iec', () => {
+    expect(formatCompactWithPrefix(0.5, 'B', 'Iec')).toBe('0.5B');
+  });
+});
+
+describe('formatQuantityCompact', () => {
+  const bytesSpec: QuantitySpec = {
+    symbol: 'B',
+    singular: 'byte',
+    plural: 'bytes',
+    occupancy_prefix: 'Iec',
+    rate_prefix: 'Si',
+  };
+
+  it('formats Occupancy via the occupancy prefix system', () => {
+    expect(formatQuantityCompact(47185920, bytesSpec, 'Occupancy')).toBe('45MiB');
+  });
+
+  it('formats Rate via the rate prefix system with /s', () => {
+    expect(formatQuantityCompact(1500, bytesSpec, 'Rate')).toBe('1.5kB/s');
   });
 });
 

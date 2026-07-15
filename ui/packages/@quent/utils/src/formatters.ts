@@ -151,6 +151,65 @@ export function formatWithPrefix(
 }
 
 /**
+ * 2–3 significant digits: one decimal below 10, integers from 10 up.
+ * Trailing ".0" is dropped ("2", not "2.0").
+ */
+function compactDigits(scaled: number): string {
+  const fixed = scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1);
+  return fixed.endsWith('.0') ? fixed.slice(0, -2) : fixed;
+}
+
+/**
+ * Compact variant of {@link formatWithPrefix} for tight spaces (in-bar labels):
+ * 2–3 significant digits, no space, prefix + symbol only — e.g. "482", "1.2k",
+ * "45MiB".
+ */
+export function formatCompactWithPrefix(
+  value: number,
+  symbol: string,
+  prefixSystem: PrefixSystem
+): string {
+  const abs = value < 0 ? -value : value;
+  const sign = value < 0 ? '-' : '';
+  if (value === 0) return `0${symbol}`;
+
+  if (prefixSystem === 'Si' && abs < 1) {
+    for (let i = 1; i < SI_DOWN.length; i++) {
+      if (abs >= SI_DOWN[i][0]) {
+        return `${sign}${compactDigits(abs / SI_DOWN[i][0])}${SI_DOWN[i][1]}${symbol}`;
+      }
+    }
+    const last = SI_DOWN[SI_DOWN.length - 1];
+    return `${sign}${compactDigits(abs / last[0])}${last[1]}${symbol}`;
+  }
+
+  if (prefixSystem !== 'None') {
+    const table = prefixSystem === 'Iec' ? IEC : SI_UP;
+    for (let i = 0; i < table.length; i++) {
+      if (abs >= table[i][0]) {
+        return `${sign}${compactDigits(abs / table[i][0])}${table[i][1]}${symbol}`;
+      }
+    }
+  }
+
+  return `${sign}${compactDigits(abs)}${symbol}`;
+}
+
+/**
+ * Compact variant of {@link formatQuantity}: same prefix-system/kind
+ * resolution, but formatted via {@link formatCompactWithPrefix}.
+ */
+export function formatQuantityCompact(
+  value: number,
+  spec: QuantitySpec,
+  kind: CapacityKind
+): string {
+  const prefixSystem = kind === 'Occupancy' ? spec.occupancy_prefix : spec.rate_prefix;
+  const symbol = kind === 'Rate' ? `${spec.symbol}/s` : spec.symbol;
+  return formatCompactWithPrefix(value, symbol, prefixSystem);
+}
+
+/**
  * Format a plain number with locale-appropriate grouping separators and sensible decimal places.
  * Integers are formatted with commas (e.g. 1,234,567).
  * Floats are rounded to 3 significant figures (e.g. 0.00123, 1.23, 12,300).

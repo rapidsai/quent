@@ -5,12 +5,26 @@ import { memo, useMemo } from 'react';
 import {
   createCapacitiesColorFn,
   createFsmTypeColorFn,
+  isLightColor,
   type FsmTypeDecl,
   type PaletteTheme,
 } from '@quent/utils';
-import { useDataFlowFrame, useDataFlowMeta, formatDataFlowValue } from '@quent/hooks';
+import {
+  useDataFlowFrame,
+  useDataFlowMeta,
+  fitDataFlowSegmentLabel,
+  formatDataFlowValueCompact,
+} from '@quent/hooks';
+import { NODE_LAYOUT_WIDTH } from '../dag/layout';
 
 const BAR_TRANSITION = 'width 120ms linear';
+
+/**
+ * Usable track width in pixels: the node is laid out at a fixed
+ * {@link NODE_LAYOUT_WIDTH} with `px-4` (16px) padding on each side. Used to
+ * width-gate in-segment labels without DOM measurement.
+ */
+const FLOW_TRACK_PX = NODE_LAYOUT_WIDTH - 32;
 
 /** State colors keyed on the FSM type declaration — matches the timeline view. */
 function fsmTypesMapOf(fsmType: FsmTypeDecl | null): { [key in string]?: FsmTypeDecl } {
@@ -18,13 +32,15 @@ function fsmTypesMapOf(fsmType: FsmTypeDecl | null): { [key in string]?: FsmType
 }
 
 /**
- * Per-node data-flow overlay: a stacked state bar over a thin dimension bar,
- * plus a tiny total label. CRITICAL PERF: this is the only node-level
- * subscriber to the frame atom — a scrub tick re-renders these tiny bars,
- * not the full `QueryPlanNode`s.
+ * Per-node data-flow overlay: a stacked state bar (with width-gated
+ * in-segment value labels) over a thin dimension bar, plus a tiny totals
+ * label covering every declared measure. CRITICAL PERF: this is the only
+ * node-level subscriber to the frame atom — a scrub tick re-renders these
+ * tiny bars, not the full `QueryPlanNode`s.
  *
  * Constant height whether or not the operator has data at the current bin,
- * so scrubbing never causes layout churn.
+ * so scrubbing never causes layout churn. Labels are absolutely positioned
+ * inside overflow-hidden segments, so their appearance never shifts layout.
  */
 export const NodeFlowBar = memo(
   ({ operatorId, isDark }: { operatorId: string; isDark: boolean }) => {
@@ -56,19 +72,52 @@ export const NodeFlowBar = memo(
     // operator total across ALL bins of the window (frame.maxTotal).
     const filledWidth = hasData ? `max(2px, ${(total / frame.maxTotal) * 100}%)` : '0px';
 
+    // One compact total per declared measure with data at this bin, in
+    // declaration order — e.g. "3.2 · 45MiB" (count · bytes).
+    const operatorTotals = frame.totalsByMeasure.get(operatorId);
+    const totalsLabel = operatorTotals
+      ? meta.decl.measures
+          .filter(m => (operatorTotals[m.name] ?? 0) > 0)
+          .map(m => formatDataFlowValueCompact(operatorTotals[m.name]!, m.name, meta))
+          .join(' · ')
+      : '';
+
     return (
       <div className="mt-1.5 w-full" data-testid="node-flow-bar">
-        <div className="h-[6px] w-full overflow-hidden rounded-sm bg-muted/40">
+        <div className="h-[12px] w-full overflow-hidden rounded-sm bg-muted/40">
           <div className="flex h-full" style={{ width: filledWidth, transition: BAR_TRANSITION }}>
             {hasData &&
               meta.stateNames.map((state, stateIndex) => {
                 const value = operatorFrame.byState[stateIndex] ?? 0;
                 if (value <= 0) return null;
+                const color = stateColor(state);
+                const label = fitDataFlowSegmentLabel(
+                  value,
+                  frame.maxTotal,
+                  frame.measure,
+                  meta,
+                  FLOW_TRACK_PX
+                );
                 return (
                   <div
                     key={state}
-                    style={{ flexGrow: value, backgroundColor: stateColor(state) }}
-                  />
+                    className="relative overflow-hidden"
+                    style={{ flexGrow: value, backgroundColor: color }}
+                  >
+                    {label != null && (
+                      <span
+                        data-testid="flow-segment-label"
+                        className="absolute inset-0 flex items-center justify-center text-[8px] leading-none font-medium tabular-nums whitespace-nowrap"
+                        style={
+                          isLightColor(color)
+                            ? { color: 'rgba(0, 0, 0, 0.78)' }
+                            : { color: '#ffffff', textShadow: '0 0 2px rgba(0, 0, 0, 0.45)' }
+                        }
+                      >
+                        {label}
+                      </span>
+                    )}
+                  </div>
                 );
               })}
           </div>
@@ -88,8 +137,11 @@ export const NodeFlowBar = memo(
               })}
           </div>
         </div>
-        <div className="text-right text-[9px] leading-3 text-muted-foreground tabular-nums">
-          {hasData ? formatDataFlowValue(total, frame.measure, meta) : '\u00A0'}
+        <div
+          className="text-right text-[9px] leading-3 text-muted-foreground tabular-nums truncate"
+          data-testid="flow-bar-totals"
+        >
+          {totalsLabel !== '' ? totalsLabel : '\u00A0'}
         </div>
       </div>
     );

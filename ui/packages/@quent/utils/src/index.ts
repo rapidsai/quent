@@ -36,6 +36,8 @@ export {
   formatDurationForWindow,
   formatDurationForAxisInterval,
   formatQuantity,
+  formatQuantityCompact,
+  formatCompactWithPrefix,
   formatBytes,
   formatNumber,
   formatAttributeValue,

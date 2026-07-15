@@ -111,6 +111,8 @@ export {
   resolveDataFlowWindow,
   resolveDataFlowMeasure,
   formatDataFlowValue,
+  formatDataFlowValueCompact,
+  fitDataFlowSegmentLabel,
 } from './dataFlow/dataFlow.utils';
 export type {
   DataFlowBinConfig,

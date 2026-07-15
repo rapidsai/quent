@@ -15,7 +15,7 @@ import type {
   QuantitySpec,
   ZoomRange,
 } from '@quent/utils';
-import { formatQuantity } from '@quent/utils';
+import { formatCompactWithPrefix, formatQuantity, formatQuantityCompact } from '@quent/utils';
 
 /** Bin configuration of the current data-flow window (all values in seconds). */
 export interface DataFlowBinConfig {
@@ -74,6 +74,13 @@ export interface DataFlowFrame {
   maxTotal: number;
   /** Operators with a non-zero total at this bin. */
   perOperator: Map<string, DataFlowOperatorFrame>;
+  /**
+   * Per-operator totals at this bin for EVERY declared measure (not just the
+   * selected one) — drives the per-node totals label. Only measures with a
+   * non-zero total are present; operators that are zero across all measures
+   * are omitted entirely.
+   */
+  totalsByMeasure: Map<string, Record<string, number>>;
 }
 
 /**
@@ -176,6 +183,10 @@ export function computeWindowMax(binned: DataFlowTimelineBinned, measure: string
  * Extract the per-operator frame at `binIndex` for `measure`. Operators with
  * an all-zero (or absent) distribution at the bin are omitted from
  * `perOperator`. Missing states/dimension keys read as zero.
+ *
+ * Also computes {@link DataFlowFrame.totalsByMeasure} — per-operator totals
+ * for every declared measure at the bin (a single cheap pass, recomputed per
+ * scrub tick).
  */
 export function extractDataFlowFrame(
   binned: DataFlowTimelineBinned,
@@ -187,9 +198,32 @@ export function extractDataFlowFrame(
   const bin = extractBinConfig(binned);
   const clamped = Math.min(Math.max(binIndex, 0), Math.max(bin.numBins - 1, 0));
   const dimensionKeys = binned.decl.dimension_keys.map(k => k.key);
+  const measureNames = binned.decl.measures.map(m => m.name);
   const perOperator = new Map<string, DataFlowOperatorFrame>();
+  const totalsByMeasure = new Map<string, Record<string, number>>();
 
   for (const [operatorId, series] of Object.entries(binned.operators)) {
+    // Totals at this bin for every declared measure (selected or not).
+    const totals: Record<string, number> = {};
+    let hasAnyMeasure = false;
+    for (const measureName of measureNames) {
+      const measureStates = series.values[measureName];
+      if (!measureStates) continue;
+      let measureTotal = 0;
+      for (const state of stateNames) {
+        const dims = measureStates[state];
+        if (!dims) continue;
+        for (const dimension of dimensionKeys) {
+          measureTotal += dims[dimension]?.[clamped] ?? 0;
+        }
+      }
+      if (measureTotal > 0) {
+        totals[measureName] = measureTotal;
+        hasAnyMeasure = true;
+      }
+    }
+    if (hasAnyMeasure) totalsByMeasure.set(operatorId, totals);
+
     const states = series.values[measure];
     if (!states) continue;
     const matrix = stateNames.map(() => dimensionKeys.map(() => 0));
@@ -217,6 +251,7 @@ export function extractDataFlowFrame(
     measure,
     maxTotal,
     perOperator,
+    totalsByMeasure,
   };
 }
 
@@ -268,4 +303,53 @@ export function formatDataFlowValue(
   const spec = measure ? meta.quantitySpecs[measure.quantity] : undefined;
   if (measure && spec) return formatQuantity(value, spec, measure.kind, decimals);
   return value.toFixed(decimals);
+}
+
+/**
+ * Compact form of {@link formatDataFlowValue} for tight spaces (in-segment
+ * labels, per-node totals): 2–3 significant digits, prefix + unit symbol
+ * only, no space — e.g. "482", "3.2", "1.2k", "45MiB".
+ */
+export function formatDataFlowValueCompact(
+  value: number,
+  measureName: string,
+  meta: DataFlowMeta
+): string {
+  const measure = meta.decl.measures.find(m => m.name === measureName);
+  const spec = measure ? meta.quantitySpecs[measure.quantity] : undefined;
+  if (measure && spec) return formatQuantityCompact(value, spec, measure.kind);
+  return formatCompactWithPrefix(value, '', 'None');
+}
+
+/**
+ * Estimated pixels per character for in-bar labels (~8px font, tabular
+ * digits) — deliberately conservative so labels never overflow their segment.
+ */
+export const DATA_FLOW_LABEL_CHAR_PX = 6;
+/** Horizontal breathing room required around an in-bar label, in pixels. */
+export const DATA_FLOW_LABEL_PAD_PX = 4;
+
+/**
+ * Width-gated label for one state segment of the node flow bar.
+ *
+ * The bar's filled width is `total / maxTotal` of the track and each state
+ * segment is flex-sized by `value / total`, so the segment's on-screen width
+ * is `(value / maxTotal) * trackPx` — computable purely from frame data, no
+ * DOM measurement. Returns the compact label when it fits at
+ * ~{@link DATA_FLOW_LABEL_CHAR_PX}px per character (plus
+ * {@link DATA_FLOW_LABEL_PAD_PX}px of padding), `null` when the segment is
+ * too narrow.
+ */
+export function fitDataFlowSegmentLabel(
+  value: number,
+  maxTotal: number,
+  measureName: string,
+  meta: DataFlowMeta,
+  trackPx: number
+): string | null {
+  if (!(value > 0) || !(maxTotal > 0) || !(trackPx > 0)) return null;
+  const segmentPx = (value / maxTotal) * trackPx;
+  const label = formatDataFlowValueCompact(value, measureName, meta);
+  const requiredPx = label.length * DATA_FLOW_LABEL_CHAR_PX + DATA_FLOW_LABEL_PAD_PX;
+  return segmentPx >= requiredPx ? label : null;
 }

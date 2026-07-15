@@ -8,7 +8,9 @@ import {
   computeWindowMax,
   extractBinConfig,
   extractDataFlowFrame,
+  fitDataFlowSegmentLabel,
   formatDataFlowValue,
+  formatDataFlowValueCompact,
   isDataFlowAvailable,
   normalizeDataFlowResponse,
   resolveDataFlowMeasure,
@@ -91,6 +93,14 @@ const UNIT_SPEC: QuantitySpec = {
   plural: 'tasks',
   occupancy_prefix: 'None',
   rate_prefix: 'None',
+};
+
+const BYTES_SPEC: QuantitySpec = {
+  symbol: 'B',
+  singular: 'byte',
+  plural: 'bytes',
+  occupancy_prefix: 'Iec',
+  rate_prefix: 'Si',
 };
 
 const BIN: DataFlowBinConfig = { startS: 0, endS: 8, binDurationS: 2, numBins: NUM_BINS };
@@ -264,6 +274,34 @@ describe('extractDataFlowFrame', () => {
     expect(extractDataFlowFrame(binned, stateNames, 'tasks', -3, 5).binIndex).toBe(0);
     expect(extractDataFlowFrame(binned, stateNames, 'tasks', 99, 5).binIndex).toBe(NUM_BINS - 1);
   });
+
+  it('exposes per-operator totals for EVERY declared measure at the bin', () => {
+    // Bin 2: op-1 tasks 3+2, bytes 100; op-2 all-zero (omitted entirely).
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5);
+    expect(frame.totalsByMeasure.get('op-1')).toEqual({ tasks: 5, bytes: 100 });
+    expect(frame.totalsByMeasure.has('op-2')).toBe(false);
+  });
+
+  it('omits zero measures from the totals record', () => {
+    // Bin 1: op-1 bytes are zero — only tasks appears.
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 1, 5);
+    expect(frame.totalsByMeasure.get('op-1')).toEqual({ tasks: 3 });
+    expect(frame.totalsByMeasure.get('op-2')).toEqual({ tasks: 4 });
+  });
+
+  it('computes totalsByMeasure independently of the selected measure', () => {
+    // Selected measure "bytes" has no data at bin 1, so perOperator is empty,
+    // but the tasks totals are still exposed.
+    const frame = extractDataFlowFrame(binned, stateNames, 'bytes', 1, 100);
+    expect(frame.perOperator.size).toBe(0);
+    expect(frame.totalsByMeasure.get('op-1')).toEqual({ tasks: 3 });
+    expect(frame.totalsByMeasure.get('op-2')).toEqual({ tasks: 4 });
+  });
+
+  it('has an empty totalsByMeasure at an all-zero bin', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 3, 5);
+    expect(frame.totalsByMeasure.size).toBe(0);
+  });
 });
 
 describe('buildDataFlowMeta', () => {
@@ -310,5 +348,65 @@ describe('formatDataFlowValue', () => {
   it('falls back to a plain fixed-point value without a spec', () => {
     // "bytes" quantity ("capacity_bytes") has no spec in this fixture.
     expect(formatDataFlowValue(3, 'bytes', meta)).toBe('3.0');
+  });
+});
+
+describe('formatDataFlowValueCompact', () => {
+  const meta = buildDataFlowMeta(
+    makeBinned(OPERATORS),
+    { Task: FSM_TYPE },
+    { unit: UNIT_SPEC, capacity_bytes: BYTES_SPEC }
+  );
+
+  it('keeps one decimal below 10 and drops trailing .0', () => {
+    expect(formatDataFlowValueCompact(3.2, 'tasks', meta)).toBe('3.2');
+    expect(formatDataFlowValueCompact(2, 'tasks', meta)).toBe('2');
+  });
+
+  it('rounds to integers from 10 up (2-3 significant digits)', () => {
+    expect(formatDataFlowValueCompact(45.3, 'tasks', meta)).toBe('45');
+    expect(formatDataFlowValueCompact(482.4, 'tasks', meta)).toBe('482');
+  });
+
+  it('uses the IEC prefix + symbol without a space for bytes', () => {
+    expect(formatDataFlowValueCompact(47185920, 'bytes', meta)).toBe('45MiB');
+    expect(formatDataFlowValueCompact(1536, 'bytes', meta)).toBe('1.5KiB');
+    expect(formatDataFlowValueCompact(100, 'bytes', meta)).toBe('100B');
+  });
+
+  it('falls back to a plain compact number for unknown measures', () => {
+    expect(formatDataFlowValueCompact(7, 'nope', meta)).toBe('7');
+  });
+});
+
+describe('fitDataFlowSegmentLabel', () => {
+  const meta = buildDataFlowMeta(
+    makeBinned(OPERATORS),
+    { Task: FSM_TYPE },
+    { unit: UNIT_SPEC, capacity_bytes: BYTES_SPEC }
+  );
+  const TRACK = 168;
+
+  it('returns the compact label when the segment is wide enough', () => {
+    // Full-width segment: 168px >= 1 char * 6px + 4px.
+    expect(fitDataFlowSegmentLabel(5, 5, 'tasks', meta, TRACK)).toBe('5');
+    expect(fitDataFlowSegmentLabel(100, 100, 'bytes', meta, TRACK)).toBe('100B');
+  });
+
+  it('hides the label when the segment is too narrow', () => {
+    // 1/1000 of the track = 0.168px — far below the 10px needed for "1".
+    expect(fitDataFlowSegmentLabel(1, 1000, 'tasks', meta, TRACK)).toBeNull();
+  });
+
+  it('gates exactly at charPx * length + padding', () => {
+    // Label "5" needs 1 * 6 + 4 = 10px. Segment px = (5 / maxTotal) * 168.
+    expect(fitDataFlowSegmentLabel(5, 84, 'tasks', meta, TRACK)).toBe('5'); // 10px
+    expect(fitDataFlowSegmentLabel(5, 85, 'tasks', meta, TRACK)).toBeNull(); // ~9.88px
+  });
+
+  it('returns null for degenerate inputs', () => {
+    expect(fitDataFlowSegmentLabel(0, 5, 'tasks', meta, TRACK)).toBeNull();
+    expect(fitDataFlowSegmentLabel(5, 0, 'tasks', meta, TRACK)).toBeNull();
+    expect(fitDataFlowSegmentLabel(5, 5, 'tasks', meta, 0)).toBeNull();
   });
 });
