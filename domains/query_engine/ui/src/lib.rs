@@ -3,7 +3,8 @@
 
 //! Types shared with the UI.
 
-pub mod data_flow;
+mod data_flow;
+pub use data_flow::{DataFlowTimelineBinned, DataFlowTimelineResponse};
 
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_attributes::{Attribute, Value};

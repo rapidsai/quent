@@ -285,7 +285,7 @@ async fn data_flow_timeline<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
     Json(request): Json<DistributionTimelineRequest<ui::QueryFilter>>,
-) -> ServerResult<Json<ui::data_flow::DataFlowTimelineResponse>>
+) -> ServerResult<Json<ui::DataFlowTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {

@@ -128,8 +128,8 @@ pub trait UiAnalyzer {
     fn data_flow_timeline(
         &self,
         _request: DistributionTimelineRequest<ui::QueryFilter>,
-    ) -> AnalyzerResult<ui::data_flow::DataFlowTimelineResponse> {
-        Ok(ui::data_flow::DataFlowTimelineResponse::Unsupported)
+    ) -> AnalyzerResult<ui::DataFlowTimelineResponse> {
+        Ok(ui::DataFlowTimelineResponse::Unsupported)
     }
 }
 

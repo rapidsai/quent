@@ -14,7 +14,7 @@ use quent_io::{EventCallback, ExporterOptions};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_fixed as fixed;
 use quent_query_engine_ui::QueryFilter;
-use quent_query_engine_ui::data_flow::{DataFlowTimelineBinned, DataFlowTimelineResponse};
+use quent_query_engine_ui::{DataFlowTimelineBinned, DataFlowTimelineResponse};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_instrumentation::{SimulatorContext, test_utils::events_from_recorded};
 use quent_ui::timeline::{distribution::DistributionTimelineRequest, request::TimelineConfig};

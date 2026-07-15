@@ -9,7 +9,7 @@ use quent_query_engine_analyzer::{
 };
 use quent_query_engine_ui::{
     OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
-    data_flow::{DataFlowTimelineBinned, DataFlowTimelineResponse},
+    DataFlowTimelineBinned, DataFlowTimelineResponse,
 };
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
@@ -832,6 +832,16 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .map(|r| (r.id(), r.instance_name()))
             .collect();
 
+        // The no-memory sentinel must never collide with a real resource
+        // name; grow it until it is unique among memory instance names.
+        let mut none_key = DIMENSION_NONE.to_owned();
+        while memory_names.values().any(|name| *name == none_key) {
+            none_key.push('_');
+        }
+        // Dimension keys actually observed for this query's tasks; the decl
+        // advertises only these (not every memory in the engine model).
+        let mut present_dimensions: HashSet<&str> = HashSet::default();
+
         let mut builder = DistributionTimelineBuilder::<Uuid>::new(config);
         for task in self.model.tasks.values() {
             let Some(operator_id) = task.operator_id() else {
@@ -854,8 +864,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     .iter()
                     .find(|u| memory_names.contains_key(&u.resource_id));
                 let dimension =
-                    memory_usage.map_or(DIMENSION_NONE, |u| memory_names[&u.resource_id]);
+                    memory_usage.map_or(none_key.as_str(), |u| memory_names[&u.resource_id]);
                 if want_tasks {
+                    present_dimensions.insert(dimension);
                     builder.try_push(
                         DistributionKey {
                             series: operator_id,
@@ -878,6 +889,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         })
                         .unwrap_or(0);
                     if bytes > 0 {
+                        present_dimensions.insert(dimension);
                         builder.try_push(
                             DistributionKey {
                                 series: operator_id,
@@ -912,12 +924,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 .insert(key.dimension.to_owned(), bins);
         }
 
-        let mut memory_instance_names: Vec<&str> = memory_names
-            .values()
-            .copied()
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
+        let has_none = present_dimensions.remove(none_key.as_str());
+        let mut memory_instance_names: Vec<&str> = present_dimensions.into_iter().collect();
         memory_instance_names.sort_unstable();
         let mut dimension_keys: Vec<DimensionKeyDecl> = memory_instance_names
             .into_iter()
@@ -926,10 +934,12 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 display_name: name.to_owned(),
             })
             .collect();
-        dimension_keys.push(DimensionKeyDecl {
-            key: DIMENSION_NONE.to_owned(),
-            display_name: "No data resident".to_owned(),
-        });
+        if has_none {
+            dimension_keys.push(DimensionKeyDecl {
+                key: none_key.clone(),
+                display_name: "No data resident".to_owned(),
+            });
+        }
 
         let mut measures = Vec::new();
         if want_tasks {
