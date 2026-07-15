@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
+use quent_attributes::Attribute;
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
@@ -209,6 +210,11 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
+    /// Attributes recorded by the application's instrumentation.
+    pub attributes: Vec<Attribute>,
+    /// Attributes computed by the application's analyzer (e.g. a per-span
+    /// rate), rendered separately from the recorded ones.
+    pub derived_attributes: Vec<Attribute>,
 }
 
 impl FsmTransition {
@@ -220,6 +226,8 @@ impl FsmTransition {
             name: value.name.clone(),
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
+            attributes: value.attributes.clone(),
+            derived_attributes: vec![],
         })
     }
 }
@@ -292,6 +300,8 @@ impl FiniteStateMachine {
                     name: t.name().to_owned(),
                     usages: usages_by_state.remove(t.name()).unwrap_or_default(),
                     timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
+                    attributes: t.attributes(),
+                    derived_attributes: vec![],
                 })
             })
             .collect::<Result<Vec<_>, quent_time::TimeError>>()?;

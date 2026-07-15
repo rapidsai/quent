@@ -17,10 +17,12 @@
 //! asynchronously in the forwarder task, so the numbers reflect what
 //! callers actually pay per event at the API boundary.
 
+use std::fs::File;
+use std::hint::black_box;
 use std::path::Path;
 
-use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
-use pprof::criterion::{Output, PProfProfiler};
+use criterion::{BenchmarkGroup, Criterion, Throughput, measurement::WallTime, profiler::Profiler};
+use pprof::ProfilerGuard;
 use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::EntityEvent;
@@ -34,6 +36,41 @@ use tonic::transport::Server as GrpcServer;
 use uuid::Uuid;
 
 type BenchResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+struct FlamegraphProfiler {
+    frequency: i32,
+    active: Option<ProfilerGuard<'static>>,
+}
+
+impl FlamegraphProfiler {
+    fn new(frequency: i32) -> Self {
+        Self {
+            frequency,
+            active: None,
+        }
+    }
+}
+
+impl Profiler for FlamegraphProfiler {
+    fn start_profiling(&mut self, _benchmark_id: &str, _benchmark_dir: &Path) {
+        self.active = Some(ProfilerGuard::new(self.frequency).expect("failed to start profiler"));
+    }
+
+    fn stop_profiling(&mut self, _benchmark_id: &str, benchmark_dir: &Path) {
+        std::fs::create_dir_all(benchmark_dir).expect("failed to create benchmark directory");
+        let output = File::create(benchmark_dir.join("flamegraph.svg"))
+            .expect("failed to create flamegraph");
+
+        if let Some(profiler) = self.active.take() {
+            profiler
+                .report()
+                .build()
+                .expect("failed to build profiler report")
+                .flamegraph(output)
+                .expect("failed to write flamegraph");
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 struct BenchEvent;
@@ -216,7 +253,7 @@ fn build_criterion() -> Criterion {
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_HZ);
     let criterion = Criterion::default()
-        .with_profiler(PProfProfiler::new(hz, Output::Flamegraph(None)))
+        .with_profiler(FlamegraphProfiler::new(hz))
         .configure_from_args();
     // `configure_from_args` resets mode based on argv, so apply the env-var
     // profile-time override afterwards.

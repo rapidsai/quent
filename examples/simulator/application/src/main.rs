@@ -621,6 +621,8 @@ impl Worker {
         }
 
         task.computing(
+            /* instance_name */ "",
+            /* input_bytes */ num_bytes,
             Some(usage(thread_ref)),
             Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
         );

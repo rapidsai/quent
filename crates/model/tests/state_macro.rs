@@ -173,6 +173,46 @@ fn extract_usages() {
 }
 
 #[test]
+fn extract_attributes_inline_fields() {
+    use quent_model::analyze::ExtractAttributes;
+    use quent_model::attributes::Value;
+
+    let q = Queued {
+        instance_name: "test_task".to_string(),
+        priority: 7,
+    };
+    let attrs = q.extract_attributes();
+    // instance_name is excluded — surfaced via ExtractInstanceName instead.
+    assert_eq!(attrs.len(), 1);
+    assert_eq!(attrs[0].key, "priority");
+    assert_eq!(attrs[0].value, Some(Value::U32(7)));
+
+    // Usage-only states carry no attributes.
+    let c = Computing {
+        thread: None,
+        memory: None,
+    };
+    assert!(c.extract_attributes().is_empty());
+}
+
+#[test]
+fn transition_info_attributes() {
+    use quent_model::analyze::TransitionInfo;
+    use quent_model::attributes::Value;
+
+    let transition = TaskTransition::from(Queued {
+        instance_name: "test_task".to_string(),
+        priority: 3,
+    });
+    let attrs = transition.attributes();
+    assert_eq!(attrs.len(), 1);
+    assert_eq!(attrs[0].key, "priority");
+    assert_eq!(attrs[0].value, Some(Value::U32(3)));
+
+    assert!(TaskTransition::Exit.attributes().is_empty());
+}
+
+#[test]
 fn extract_usages_skips_none() {
     use quent_model::analyze::ExtractUsages;
     let c = Computing {

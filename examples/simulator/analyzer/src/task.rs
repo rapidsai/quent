@@ -47,10 +47,24 @@ impl TaskExt for Task {
     }
 
     fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
-        let transitions = self
-            .transitions()
+        let raw = self.transitions();
+        let transitions = raw
             .iter()
-            .map(|t| {
+            .enumerate()
+            .map(|(i, t)| {
+                // Derive the processing rate from input_bytes over the span.
+                let mut derived_attributes = vec![];
+                if let ModelTaskTransition::Computing(data) = &t.data
+                    && let Some(next) = raw.get(i + 1)
+                {
+                    let span_secs = (next.timestamp() - t.timestamp()) as f64 / 1e9;
+                    if span_secs > 0.0 {
+                        derived_attributes.push(quent_attributes::Attribute::f64(
+                            "bytes_per_sec",
+                            data.input_bytes as f64 / span_secs,
+                        ));
+                    }
+                }
                 Ok(FsmTransition {
                     name: t.name().to_string(),
                     usages: t
@@ -66,6 +80,8 @@ impl TaskExt for Task {
                         })
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
+                    attributes: t.attributes(),
+                    derived_attributes,
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;

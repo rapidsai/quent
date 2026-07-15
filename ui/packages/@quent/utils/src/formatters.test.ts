@@ -14,6 +14,9 @@ import {
   isCountStat,
   inferFieldFormatter,
   formatQuantity,
+  unwrapTaggedValue,
+  formatAttributeValue,
+  isBytesRateStat,
 } from './formatters';
 import type { QuantitySpec } from './types/index';
 
@@ -457,5 +460,63 @@ describe('formatQuantity', () => {
     };
     expect(formatQuantity(42, countSpec, 'Occupancy', 0)).toBe('42 rows');
     expect(formatQuantity(100, countSpec, 'Rate', 1)).toBe('100.0 rows/s');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Attribute value helpers
+// ---------------------------------------------------------------------------
+
+describe('unwrapTaggedValue', () => {
+  it('unwraps the externally tagged serde encoding', () => {
+    expect(unwrapTaggedValue({ U64: 90968574 })).toBe(90968574);
+    expect(unwrapTaggedValue({ I32: -5 })).toBe(-5);
+    expect(unwrapTaggedValue({ String: 'GPU' })).toBe('GPU');
+  });
+
+  it('passes through untagged primitives', () => {
+    expect(unwrapTaggedValue(42)).toBe(42);
+    expect(unwrapTaggedValue('task-0')).toBe('task-0');
+    expect(unwrapTaggedValue(null)).toBe(null);
+  });
+
+  it('unwraps lists and struct entries', () => {
+    expect(unwrapTaggedValue({ List: { U64: [1, 2] } })).toEqual(['1', '2']);
+    expect(unwrapTaggedValue({ Struct: [{ key: 'tier', value: { String: 'GPU' } }] })).toEqual([
+      'tier: GPU',
+    ]);
+  });
+
+  it('stringifies objects that are not tagged values', () => {
+    expect(unwrapTaggedValue({ foo: 1, bar: 2 })).toBe('{"foo":1,"bar":2}');
+  });
+});
+
+describe('formatAttributeValue', () => {
+  it('byte-formats bytes-like keys', () => {
+    expect(formatAttributeValue('input_bytes', { U64: 1073741824 })).toBe('1.00 GiB');
+    expect(formatAttributeValue('requested_bytes', 2048)).toBe('2.00 KiB');
+  });
+
+  it('formats plain numbers and strings', () => {
+    expect(formatAttributeValue('current_operator_id', { U32: 11 })).toBe('11');
+    expect(formatAttributeValue('target_tier', { String: 'GPU' })).toBe('GPU');
+  });
+
+  it('renders missing values as a dash', () => {
+    expect(formatAttributeValue('anything', null)).toBe('—');
+  });
+});
+
+describe('bytes-rate attribute keys', () => {
+  it('detects bytes-rate statistic names', () => {
+    expect(isBytesRateStat('bytes_per_sec')).toBe(true);
+    expect(isBytesRateStat('input_bytes_per_sec')).toBe(true);
+    expect(isBytesRateStat('input_bytes')).toBe(false);
+  });
+
+  it('formats bytes-rate keys as SI B/s, taking precedence over the bytes heuristic', () => {
+    expect(formatAttributeValue('bytes_per_sec', { F64: 2_000_000_000 })).toBe('2.00 GB/s');
+    expect(formatAttributeValue('bytes_per_sec', 5_000_000)).toBe('5.00 MB/s');
   });
 });

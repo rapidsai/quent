@@ -51,13 +51,13 @@ impl<T> Timestamp for TransitionEvent<T> {
     }
 }
 
-impl<T> Transition for TransitionEvent<T> {
+impl<T: TransitionInfo> Transition for TransitionEvent<T> {
     fn name(&self) -> &str {
         self.state_name
     }
 
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        std::iter::empty()
+    fn attributes(&self) -> Vec<Attribute> {
+        self.data.attributes()
     }
 }
 

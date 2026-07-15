@@ -62,8 +62,8 @@ impl Transition for RtFsmTransition {
     fn name(&self) -> &str {
         self.name.as_str()
     }
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        self.attributes.iter()
+    fn attributes(&self) -> Vec<Attribute> {
+        self.attributes.clone()
     }
 }
 

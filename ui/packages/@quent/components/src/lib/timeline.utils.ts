@@ -205,6 +205,11 @@ export function buildTimelineMarks(
           color,
           xStart,
           xEnd,
+          // Tolerate responses from servers predating attributes.
+          ...((transition.attributes?.length ?? 0) > 0 && { attributes: transition.attributes }),
+          ...((transition.derived_attributes?.length ?? 0) > 0 && {
+            derivedAttributes: transition.derived_attributes,
+          }),
           ...(inOverlay !== undefined && {
             isDimmed: !inOverlay,
             operatorName: inOverlay ? overlayLabel : undefined,

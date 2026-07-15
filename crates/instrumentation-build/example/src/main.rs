@@ -26,7 +26,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Uuid::nil(),
     )?;
     conn.data(1234, None)?;
-    conn.data(5678, None)?;
+
+    // `extra` is the schema's `dynamic` field: a runtime-keyed bag of typed
+    // attributes, so callers attach whatever key/values they have on hand.
+    let mut extra = demo::CustomAttributes::new();
+    extra.add_string("peer_agent", "curl/8.4");
+    extra.add_u64("chunk_index", 3);
+    extra.add_bool("compressed", true);
+    conn.data(
+        5678,
+        Some(demo::Meta {
+            tags: vec!["tls".to_string(), "keepalive".to_string()],
+            extra,
+        }),
+    )?;
+
     conn.closed()?;
 
     // Emitting a once-event a second time fails.

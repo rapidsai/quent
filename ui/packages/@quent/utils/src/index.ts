@@ -38,6 +38,8 @@ export {
   formatQuantity,
   formatBytes,
   formatNumber,
+  formatAttributeValue,
+  unwrapTaggedValue,
   inferFieldFormatter,
 } from './formatters';
 

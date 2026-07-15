@@ -139,10 +139,8 @@ export const DAGNodeInfoPanel = ({ isDark = false }: { isDark?: boolean }) => {
       : undefined;
 
   useEffect(() => {
-    if (!selectedNodeData) {
-      setIsExpanded(false);
-    }
-  }, [selectedNodeData]);
+    setIsExpanded(!!selectedNodeData);
+  }, [selectedNodeData?.nodeId]);
 
   return (
     <div className="border-t bg-card flex-shrink-0">

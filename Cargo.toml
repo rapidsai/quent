@@ -24,6 +24,8 @@ members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
@@ -59,6 +61,7 @@ members = [
     "crates/fsm",
     "crates/resource",
     "crates/instrumentation-build",
+    "crates/yaml",
 ]
 
 # The instrumentation-build example is deliberately its own workspace (see its
@@ -93,6 +96,8 @@ default-members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
     "domains/query_engine/server",

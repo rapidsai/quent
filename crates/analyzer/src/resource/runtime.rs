@@ -3,7 +3,6 @@
 
 //! Run-time defined Resources and Resource Groups (in analysis)
 
-use quent_attributes::Attribute;
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
@@ -43,10 +42,6 @@ impl Transition for RtResourceTransition {
             RtResourceTransition::Finalizing(_) => "finalizing",
             RtResourceTransition::Exit(_) => "exit",
         }
-    }
-
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        std::iter::empty()
     }
 }
 

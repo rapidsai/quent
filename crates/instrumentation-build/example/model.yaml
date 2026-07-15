@@ -1,0 +1,31 @@
+# The event model, authored in YAML and compiled to instrumentation at build time.
+
+quent: alpha
+model: demo
+doc: Instrumentation model of the demo connection server.
+
+records:
+  Endpoint:
+    doc: A network endpoint.
+    fields:
+      host: string
+      port: u16
+  Meta:
+    fields:
+      tags: { list: string }
+      extra: dynamic
+
+entities:
+  Connection:
+    doc: A client connection.
+    events:
+      opened:
+        doc: The connection was accepted.
+        once:
+          peer: Endpoint
+          session: uuid
+      data:
+        multi:
+          bytes: u64
+          meta: { option: Meta }
+      closed: once

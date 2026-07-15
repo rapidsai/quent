@@ -32,9 +32,9 @@ tracing.workspace = true
 uuid = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 http.workspace = true
-pprof = { version = "0.14", features = ["criterion", "flamegraph"] }
+pprof = { version = "0.14", features = ["flamegraph"] }
 quent-collector = { path = "../collector/server" }
 quent-collector-proto = { path = "../collector/proto" }
 quent-events = { path = "../events", features = ["serde"] }

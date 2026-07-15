@@ -13,6 +13,5 @@ publish = false
 quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
 
 [build-dependencies]
-quent-constraints = { path = "../../constraints" }
 quent-instrumentation-build = { path = ".." }
-quent-schema = { path = "../../schema", features = ["test-utils"] }
+quent-yaml = { path = "../../yaml" }

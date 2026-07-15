@@ -158,6 +158,53 @@ pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
     (quote! { quent_model::ValueType::String }, false)
 }
 
+/// Generate an expression converting a field (given its declared type) into
+/// an `Option<quent_model::attributes::Value>`.
+///
+/// Most types delegate to the `ToAttributeValue` trait. `Vec<T>` of an
+/// attribute struct is special-cased syntactically because the orphan rule
+/// prevents implementing `ToAttributeValue for Vec<T>` outside the crate
+/// defining the trait.
+pub fn attribute_value_expr(
+    field_expr: &proc_macro2::TokenStream,
+    ty: &syn::Type,
+) -> proc_macro2::TokenStream {
+    use quote::quote;
+
+    // Inner types of Vec<T> with a dedicated ToAttributeValue impl.
+    const KNOWN_VEC_INNER: &[&str] = &[
+        "bool", "u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64", "f32", "f64", "String",
+        "Uuid", "Ref",
+    ];
+
+    if let syn::Type::Path(type_path) = ty
+        && let Some(seg) = type_path.path.segments.last()
+        && seg.ident == "Vec"
+        && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+        && let Some(syn::GenericArgument::Type(syn::Type::Path(inner))) = args.args.first()
+        && let Some(inner_seg) = inner.path.segments.last()
+        && !KNOWN_VEC_INNER.contains(&inner_seg.ident.to_string().as_str())
+    {
+        // Vec of an attribute struct — convert element-wise.
+        return quote! {
+            Some(quent_model::attributes::Value::List(
+                quent_model::attributes::List::Struct(
+                    #field_expr
+                        .iter()
+                        .map(|v| quent_model::attributes::Struct(
+                            quent_model::analyze::ExtractAttributes::extract_attributes(v),
+                        ))
+                        .collect(),
+                ),
+            ))
+        };
+    }
+
+    quote! {
+        quent_model::analyze::ToAttributeValue::to_attribute_value(&#field_expr)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

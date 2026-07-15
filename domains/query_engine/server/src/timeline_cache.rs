@@ -1042,11 +1042,15 @@ mod tests {
                         name: "start".to_string(),
                         usages: vec![],
                         timestamp: config_secs.span.start(),
+                        attributes: vec![],
+                        derived_attributes: vec![],
                     },
                     FsmTransition {
                         name: "end".to_string(),
                         usages: vec![],
                         timestamp: config_secs.span.end(),
+                        attributes: vec![],
+                        derived_attributes: vec![],
                     },
                 ],
             })
