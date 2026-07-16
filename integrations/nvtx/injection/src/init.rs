@@ -175,6 +175,7 @@ type GetModuleTableFn = unsafe extern "C" fn(
 /// Casts each typed subscriber to the ABI's generic function-pointer type. All
 /// NVTX subscribers share the C ABI, so this transmute is the intended
 /// subscription mechanism (mirrors the sample-injection `reinterpret_cast`).
+/// Expands to a `bool`: whether the callback was installed (see [`set_callback`]).
 macro_rules! subscribe {
     ($table:expr, $size:expr, $cbid:expr, $cb:path, $sig:ty) => {{
         // SAFETY: fn pointers are all the same width; the callee's real signature
@@ -182,7 +183,7 @@ macro_rules! subscribe {
         let erased: NvtxFunctionPointer =
             Some(unsafe { transmute::<$sig, unsafe extern "C" fn()>($cb) });
         // SAFETY: `$table` has `$size` slots per the ABI contract.
-        unsafe { set_callback($table, $size, $cbid, erased) };
+        unsafe { set_callback($table, $size, $cbid, erased) }
     }};
 }
 
@@ -261,83 +262,108 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
     };
     use NvtxCallbackIdCore2 as Cb;
 
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainMarkEx,
-        callbacks::on_domain_mark_ex,
-        extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t)
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainRangeStartEx,
-        callbacks::on_domain_range_start_ex,
-        extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t) -> nvtxRangeId_t
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainRangeEnd,
-        callbacks::on_domain_range_end,
-        extern "C" fn(nvtxDomainHandle_t, nvtxRangeId_t)
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainRangePushEx,
-        callbacks::on_domain_range_push_ex,
-        extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t) -> c_int
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainRangePop,
-        callbacks::on_domain_range_pop,
-        extern "C" fn(nvtxDomainHandle_t) -> c_int
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainResourceCreate,
-        callbacks::on_domain_resource_create,
-        extern "C" fn(nvtxDomainHandle_t, *const nvtxResourceAttributes_t) -> nvtxResourceHandle_t
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainResourceDestroy,
-        callbacks::on_domain_resource_destroy,
-        extern "C" fn(nvtxResourceHandle_t)
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainNameCategoryA,
-        callbacks::on_domain_name_category_a,
-        extern "C" fn(nvtxDomainHandle_t, u32, *const c_char)
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainRegisterStringA,
-        callbacks::on_domain_register_string_a,
-        extern "C" fn(nvtxDomainHandle_t, *const c_char) -> nvtxStringHandle_t
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainCreateA,
-        callbacks::on_domain_create_a,
-        extern "C" fn(*const c_char) -> nvtxDomainHandle_t
-    );
-    subscribe!(
-        table,
-        size,
-        Cb::NVTX_CBID_CORE2_DomainDestroy,
-        callbacks::on_domain_destroy,
-        extern "C" fn(nvtxDomainHandle_t)
-    );
+    // Every required CORE2 (domain) callback. `subscribe!` reports whether each
+    // slot installed; a `false` is a cbid the running NVTX's table does not
+    // expose (out of range for `size`, or a null slot).
+    let installed = [
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainMarkEx,
+            callbacks::on_domain_mark_ex,
+            extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t)
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainRangeStartEx,
+            callbacks::on_domain_range_start_ex,
+            extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t) -> nvtxRangeId_t
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainRangeEnd,
+            callbacks::on_domain_range_end,
+            extern "C" fn(nvtxDomainHandle_t, nvtxRangeId_t)
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainRangePushEx,
+            callbacks::on_domain_range_push_ex,
+            extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t) -> c_int
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainRangePop,
+            callbacks::on_domain_range_pop,
+            extern "C" fn(nvtxDomainHandle_t) -> c_int
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainResourceCreate,
+            callbacks::on_domain_resource_create,
+            extern "C" fn(
+                nvtxDomainHandle_t,
+                *const nvtxResourceAttributes_t,
+            ) -> nvtxResourceHandle_t
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainResourceDestroy,
+            callbacks::on_domain_resource_destroy,
+            extern "C" fn(nvtxResourceHandle_t)
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainNameCategoryA,
+            callbacks::on_domain_name_category_a,
+            extern "C" fn(nvtxDomainHandle_t, u32, *const c_char)
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainRegisterStringA,
+            callbacks::on_domain_register_string_a,
+            extern "C" fn(nvtxDomainHandle_t, *const c_char) -> nvtxStringHandle_t
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainCreateA,
+            callbacks::on_domain_create_a,
+            extern "C" fn(*const c_char) -> nvtxDomainHandle_t
+        ),
+        subscribe!(
+            table,
+            size,
+            Cb::NVTX_CBID_CORE2_DomainDestroy,
+            callbacks::on_domain_destroy,
+            extern "C" fn(nvtxDomainHandle_t)
+        ),
+    ];
+
+    let done = installed.iter().filter(|&&ok| ok).count();
+    if done < installed.len() {
+        // The cdylib installs no tracing subscriber, so surface the partial
+        // install rather than capturing a silently incomplete domain surface.
+        eprintln!(
+            "quent-nvtx: installed {done}/{} CORE2 domain callbacks (table reports {size} \
+             slots); the rest are domain calls the running NVTX does not expose and will not \
+             be captured",
+            installed.len()
+        );
+    }
+
+    // The CORE2 table was obtained, so injection is viable. Report success even
+    // on a partial install: un-installed slots are calls the running NVTX lacks,
+    // so there is nothing there to capture, and failing here would make NVTX
+    // discard the injection entirely. The diagnostic above surfaces any gap.
     true
 }
 
@@ -480,6 +506,10 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
 /// Write `func` into `table[cbid]` (the ABI stores an array of pointers-to-
 /// function-pointers, so we set `*table[cbid]`), bounds-checked against `size`.
 ///
+/// Returns `true` if the callback was installed, `false` if the slot is out of
+/// range for the table's reported `size` or the slot pointer is null (a cbid the
+/// running NVTX does not expose).
+///
 /// # Safety
 /// `table` must be a valid `NvtxFunctionTable` with at least `size` slots.
 unsafe fn set_callback(
@@ -487,18 +517,19 @@ unsafe fn set_callback(
     size: c_uint,
     cbid: c_uint,
     func: NvtxFunctionPointer,
-) {
+) -> bool {
     let index = cbid as usize;
     if index >= size as usize {
-        return;
+        return false;
     }
     // SAFETY: `index < size`; `table` holds that many slot pointers.
     let slot = unsafe { *table.add(index) };
     if slot.is_null() {
-        return;
+        return false;
     }
     // SAFETY: `slot` points to a writable `NvtxFunctionPointer` cell owned by NVTX.
     unsafe { *slot = func };
+    true
 }
 
 #[cfg(test)]
