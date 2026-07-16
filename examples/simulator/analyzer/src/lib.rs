@@ -966,6 +966,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 dimension_name: "Data location".to_owned(),
                 dimension_keys,
                 measures,
+                default_measure: None,
             },
             operators,
         }))

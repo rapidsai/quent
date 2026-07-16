@@ -28,4 +28,9 @@ dimension_keys: Array<DimensionKeyDecl>,
 /**
  * The measures present in this response.
  */
-measures: Array<MeasureDecl>, };
+measures: Array<MeasureDecl>, 
+/**
+ * The measure the UI should select by default; must name an entry in
+ * `measures`. `None` means the first declared measure.
+ */
+default_measure: string | null, };

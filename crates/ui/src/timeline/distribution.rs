@@ -68,6 +68,9 @@ pub struct DistributionDecl {
     pub dimension_keys: Vec<DimensionKeyDecl>,
     /// The measures present in this response.
     pub measures: Vec<MeasureDecl>,
+    /// The measure the UI should select by default; must name an entry in
+    /// `measures`. `None` means the first declared measure.
+    pub default_measure: Option<String>,
 }
 
 /// Binned values of one distribution timeline series:
