@@ -109,6 +109,15 @@ export interface DataFlowFrame {
    * operators that are zero across all measures are omitted entirely.
    */
   totalsByMeasure: Map<string, Record<string, number>>;
+  /**
+   * GLOBAL per-tier totals at this bin for EVERY declared measure: the sum
+   * over ALL operators and states per dimension key, indexed by
+   * `decl.dimension_keys` order. Unlike the rest of the frame this ignores
+   * the tier selection — deselected tiers keep their true totals so the
+   * legend can annotate dimmed entries too. Every declared measure has an
+   * entry (possibly all zeros).
+   */
+  dimensionTotalsByMeasure: Record<string, number[]>;
 }
 
 /**
@@ -257,9 +266,10 @@ export interface ExtractDataFlowFrameOptions {
  * `perOperator`. Missing states/dimension keys read as zero.
  *
  * Also computes {@link DataFlowFrame.totalsByMeasure} — per-operator totals
- * for every declared measure at the bin — and the per-state/per-dimension
- * totals of the label measure (a single cheap pass, recomputed per scrub
- * tick).
+ * for every declared measure at the bin — the global
+ * {@link DataFlowFrame.dimensionTotalsByMeasure} per-tier totals, and the
+ * per-state/per-dimension totals of the label measure (a single cheap pass,
+ * recomputed per scrub tick).
  */
 export function extractDataFlowFrame(
   binned: DataFlowTimelineBinned,
@@ -277,22 +287,31 @@ export function extractDataFlowFrame(
   const measureNames = binned.decl.measures.map(m => m.name);
   const perOperator = new Map<string, DataFlowOperatorFrame>();
   const totalsByMeasure = new Map<string, Record<string, number>>();
+  const dimensionTotalsByMeasure: Record<string, number[]> = {};
+  for (const measureName of measureNames) {
+    dimensionTotalsByMeasure[measureName] = dimensionKeys.map(() => 0);
+  }
 
   for (const [operatorId, series] of Object.entries(binned.operators)) {
-    // Totals at this bin for every declared measure (selected or not),
-    // summed over the selected dimension keys only.
+    // Totals at this bin for every declared measure (selected or not):
+    // per-operator sums over the selected dimension keys only, plus the
+    // global per-tier sums over ALL dimension keys (legend totals must
+    // survive tier deselection).
     const totals: Record<string, number> = {};
     let hasAnyMeasure = false;
     for (const measureName of measureNames) {
       const measureStates = series.values[measureName];
       if (!measureStates) continue;
+      const dimensionTotals = dimensionTotalsByMeasure[measureName]!;
       let measureTotal = 0;
       for (const state of stateNames) {
         const dims = measureStates[state];
         if (!dims) continue;
-        for (const dimension of dimensionKeys) {
-          if (!selected.has(dimension)) continue;
-          measureTotal += dims[dimension]?.[clamped] ?? 0;
+        for (let dimensionIndex = 0; dimensionIndex < dimensionKeys.length; dimensionIndex++) {
+          const dimension = dimensionKeys[dimensionIndex]!;
+          const value = dims[dimension]?.[clamped] ?? 0;
+          dimensionTotals[dimensionIndex]! += value;
+          if (selected.has(dimension)) measureTotal += value;
         }
       }
       if (measureTotal > 0) {
@@ -362,6 +381,7 @@ export function extractDataFlowFrame(
     maxTotal,
     perOperator,
     totalsByMeasure,
+    dimensionTotalsByMeasure,
   };
 }
 
@@ -399,13 +419,19 @@ export function buildDataFlowMeta(
 
 /**
  * Resolve the effective measure: the selected one when it is declared,
- * otherwise the first declared measure (or `null` when none exist).
+ * otherwise the analyzer-declared `decl.default_measure` (when it names a
+ * declared measure), otherwise the first declared measure (or `null` when
+ * none exist). An explicit valid selection always wins over the default.
  */
 export function resolveDataFlowMeasure(
   selected: string | null,
   decl: DistributionDecl
 ): string | null {
-  if (selected != null && decl.measures.some(m => m.name === selected)) return selected;
+  const isDeclared = (name: string) => decl.measures.some(m => m.name === name);
+  if (selected != null && isDeclared(selected)) return selected;
+  if (decl.default_measure != null && isDeclared(decl.default_measure)) {
+    return decl.default_measure;
+  }
   return decl.measures[0]?.name ?? null;
 }
 

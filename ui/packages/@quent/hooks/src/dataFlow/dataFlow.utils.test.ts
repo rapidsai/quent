@@ -43,6 +43,7 @@ function makeBinned(operators: DataFlowTimelineBinned['operators'] = {}): DataFl
         { name: 'tasks', display_name: 'Tasks', quantity: 'unit', kind: 'Occupancy' },
         { name: 'bytes', display_name: 'Bytes', quantity: 'capacity_bytes', kind: 'Occupancy' },
       ],
+      default_measure: null,
     },
     operators,
   };
@@ -339,6 +340,47 @@ describe('extractDataFlowFrame', () => {
     expect(frame.totalsByMeasure.size).toBe(0);
   });
 
+  it('accumulates global per-tier totals for every declared measure', () => {
+    // Bin 2 — tasks: memory 3 (op-1 computing), filesystem 2 (op-1
+    // computing); bytes: memory 100, filesystem 0. Zero measures keep a
+    // zero-filled entry (decl-key-indexed).
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5);
+    expect(frame.dimensionTotalsByMeasure).toEqual({
+      tasks: [3, 2],
+      bytes: [100, 0],
+    });
+  });
+
+  it('sums global tier totals across operators', () => {
+    // Bin 1 — tasks memory: op-1 queueing 2 + computing 1; tasks
+    // filesystem: op-2 queueing 4.
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 1, 5);
+    expect(frame.dimensionTotalsByMeasure).toEqual({
+      tasks: [3, 4],
+      bytes: [0, 0],
+    });
+  });
+
+  it('keeps global tier totals unfiltered by the dimension selection', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 3, {
+      selectedDimensions: new Set(['memory']),
+    });
+    // Deselected filesystem keeps its true total — the legend shows dimmed
+    // tiers with their totals.
+    expect(frame.dimensionTotalsByMeasure).toEqual({
+      tasks: [3, 2],
+      bytes: [100, 0],
+    });
+  });
+
+  it('zero-fills global tier totals at an all-zero bin', () => {
+    const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 3, 5);
+    expect(frame.dimensionTotalsByMeasure).toEqual({
+      tasks: [0, 0],
+      bytes: [0, 0],
+    });
+  });
+
   it('aliases the label arrays to the bar arrays when no label measure is set', () => {
     const frame = extractDataFlowFrame(binned, stateNames, 'tasks', 2, 5);
     const op1 = frame.perOperator.get('op-1')!;
@@ -447,8 +489,31 @@ describe('resolveDataFlowMeasure', () => {
     expect(resolveDataFlowMeasure(null, decl)).toBe('tasks');
   });
 
+  it('honors the analyzer-declared default when nothing is selected', () => {
+    const withDefault = { ...decl, default_measure: 'bytes' };
+    expect(resolveDataFlowMeasure(null, withDefault)).toBe('bytes');
+  });
+
+  it('routes unknown selections through the declared default', () => {
+    const withDefault = { ...decl, default_measure: 'bytes' };
+    expect(resolveDataFlowMeasure('nope', withDefault)).toBe('bytes');
+  });
+
+  it('lets an explicit valid selection win over the declared default', () => {
+    const withDefault = { ...decl, default_measure: 'bytes' };
+    expect(resolveDataFlowMeasure('tasks', withDefault)).toBe('tasks');
+  });
+
+  it('ignores a default that does not name a declared measure', () => {
+    const withBadDefault = { ...decl, default_measure: 'nope' };
+    expect(resolveDataFlowMeasure(null, withBadDefault)).toBe('tasks');
+  });
+
   it('returns null when no measures are declared', () => {
     expect(resolveDataFlowMeasure(null, { ...decl, measures: [] })).toBeNull();
+    expect(
+      resolveDataFlowMeasure(null, { ...decl, measures: [], default_measure: 'bytes' })
+    ).toBeNull();
   });
 });
 

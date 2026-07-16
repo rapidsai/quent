@@ -39,6 +39,7 @@ const RESPONSE: DataFlowTimelineResponse = {
         { name: 'tasks', display_name: 'Tasks', quantity: 'unit', kind: 'Occupancy' },
         { name: 'bytes', display_name: 'Bytes', quantity: 'capacity_bytes', kind: 'Occupancy' },
       ],
+      default_measure: null,
     },
     operators: {
       'op-1': {
@@ -321,6 +322,25 @@ describe('playback while the overlay is disabled', () => {
   });
 });
 
+describe('analyzer-declared default measure', () => {
+  // Same data as RESPONSE, but the analyzer declares bytes as the default.
+  const BYTES_DEFAULT_RESPONSE: DataFlowTimelineResponse = {
+    Binned: {
+      ...RESPONSE.Binned,
+      decl: { ...RESPONSE.Binned.decl, default_measure: 'bytes' },
+    },
+  };
+
+  it('starts the flow bars on the declared default measure', () => {
+    renderOverlay(BYTES_DEFAULT_RESPONSE);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    // Bin 1 under bytes: one full-width 1500000-byte segment. Under tasks
+    // (the first declared measure) the labels would read ['2', '1'].
+    expect(segmentLabels()).toEqual(['1.4MiB']);
+  });
+});
+
 describe('segment-label measure toggle', () => {
   it('switches in-segment texts to the label measure without changing widths', () => {
     const { rerender } = renderOverlay(LABEL_RESPONSE);
@@ -436,16 +456,26 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
 });
 
 describe('DAGLegend under tier selection', () => {
-  function renderLegend(selectedDimensions: ReadonlySet<string> | null) {
+  function renderLegend(
+    selectedDimensions: ReadonlySet<string> | null,
+    response: DataFlowTimelineResponse = RESPONSE
+  ) {
     return render(
       <Provider>
-        <Harness response={RESPONSE} selectedDimensions={selectedDimensions}>
+        <Harness response={response} selectedDimensions={selectedDimensions}>
+          <DagPlayhead startTimeUnixNs={BigInt(0)} />
           <ReactFlowProvider>
             <DAGLegend isDark={false} />
           </ReactFlowProvider>
         </Harness>
       </Provider>
     );
+  }
+
+  /** Text of the "· <total>" suffix of one tier entry, `null` when absent. */
+  function tierTotal(label: string): string | null {
+    const entry = screen.getByText(label).parentElement!;
+    return entry.querySelector('[data-testid="legend-entry-total"]')?.textContent ?? null;
   }
 
   it('lists every declared tier undimmed when all are selected', () => {
@@ -458,5 +488,46 @@ describe('DAGLegend under tier selection', () => {
     renderLegend(new Set(['memory']));
     expect(screen.getByText('Memory').closest('[data-dimmed]')).toBeNull();
     expect(screen.getByText('Filesystem').closest('[data-dimmed]')).not.toBeNull();
+  });
+
+  it('appends each tier total at the current bin; zero totals get no suffix', () => {
+    renderLegend(null);
+    // Bin 0 (tasks): memory 1, filesystem 0.
+    expect(tierTotal('Memory')).toBe('· 1');
+    expect(tierTotal('Filesystem')).toBeNull();
+  });
+
+  it('updates the tier totals when the playhead crosses bins', () => {
+    renderLegend(null);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    // Bin 2 (tasks): memory 3, filesystem 2.
+    expect(tierTotal('Memory')).toBe('· 3');
+    expect(tierTotal('Filesystem')).toBe('· 2');
+  });
+
+  it('keeps totals on dimmed (deselected) tiers', () => {
+    renderLegend(new Set(['memory']));
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    // Filesystem is filtered out of the bars but keeps its global total.
+    expect(screen.getByText('Filesystem').closest('[data-dimmed]')).not.toBeNull();
+    expect(tierTotal('Filesystem')).toBe('· 2');
+  });
+
+  it('formats totals in the current flow measure via its quantity spec', () => {
+    renderLegend(null, {
+      Binned: {
+        ...RESPONSE.Binned,
+        decl: { ...RESPONSE.Binned.decl, default_measure: 'bytes' },
+      },
+    });
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    // Bin 1 under the bytes measure: memory holds 1500000 bytes.
+    expect(tierTotal('Memory')).toBe('· 1.4MiB');
+    expect(tierTotal('Filesystem')).toBeNull();
   });
 });
