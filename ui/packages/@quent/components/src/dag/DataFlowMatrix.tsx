@@ -75,29 +75,35 @@ export const DataFlowMatrix = ({
       <table className="mt-1 text-xs w-full border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className="text-left font-normal text-muted-foreground pr-2">
-              {meta.decl.dimension_name}
+            <th scope="col" className="text-left font-normal text-muted-foreground pr-2">
+              State / {meta.decl.dimension_name}
             </th>
             {dimensionColumns.map(({ key: k }) => (
-              <th key={k.key} className="text-right font-normal text-muted-foreground px-1.5">
+              <th
+                scope="col"
+                key={k.key}
+                className="text-right font-normal text-muted-foreground px-1.5"
+              >
                 <span className="inline-flex items-center gap-1">
                   <ColorDot color={dimensionColor(k.key)} />
                   <DataText>{k.display_name}</DataText>
                 </span>
               </th>
             ))}
-            <th className="text-right font-medium text-muted-foreground pl-1.5">Total</th>
+            <th scope="col" className="text-right font-medium text-muted-foreground pl-1.5">
+              Total
+            </th>
           </tr>
         </thead>
         <tbody>
           {meta.stateNames.map((state, stateIndex) => (
             <tr key={state}>
-              <td className="pr-2">
+              <th scope="row" className="pr-2 text-left font-normal">
                 <span className="inline-flex items-center gap-1">
                   <ColorDot color={stateColor(state)} />
                   <DataText>{state}</DataText>
                 </span>
-              </td>
+              </th>
               {dimensionColumns.map(({ key: k, index: dimensionIndex }) => (
                 <td key={k.key} className="text-right px-1.5 text-muted-foreground">
                   <DataText>
@@ -111,7 +117,9 @@ export const DataFlowMatrix = ({
             </tr>
           ))}
           <tr>
-            <td className="pr-2 pt-0.5 font-medium">Total</td>
+            <th scope="row" className="pr-2 pt-0.5 text-left font-medium">
+              Total
+            </th>
             {dimensionColumns.map(({ key: k, index: dimensionIndex }) => (
               <td key={k.key} className="text-right px-1.5 pt-0.5">
                 <DataText>{fmt(operatorFrame.byDimension[dimensionIndex] ?? 0)}</DataText>

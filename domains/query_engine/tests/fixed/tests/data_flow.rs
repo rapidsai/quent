@@ -113,21 +113,51 @@ fn distributes_scan_filter_tasks_over_states_and_locations() {
 
     // Two tasks allocating (no memory) for 0.25s each within bin 1.
     assert_eq!(
-        bins(&result, fixed::PHYS_SCAN_FILTER_W0, "tasks", "allocating", "none").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_SCAN_FILTER_W0,
+            "tasks",
+            "allocating",
+            "none"
+        )
+        .unwrap()[..],
         [0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0]
     );
     // Two tasks computing in memory for 0.75s each within bin 1.
     assert_eq!(
-        bins(&result, fixed::PHYS_SCAN_FILTER_W0, "tasks", "computing", "memory").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_SCAN_FILTER_W0,
+            "tasks",
+            "computing",
+            "memory"
+        )
+        .unwrap()[..],
         [0.0, 1.5, 0.0, 0.0, 0.0, 0.0, 0.0]
     );
     // 2 tasks x 256 bytes x 0.75 bin fraction.
     assert_eq!(
-        bins(&result, fixed::PHYS_SCAN_FILTER_W0, "bytes", "computing", "memory").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_SCAN_FILTER_W0,
+            "bytes",
+            "computing",
+            "memory"
+        )
+        .unwrap()[..],
         [0.0, 384.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     );
     // Queueing is zero-duration in this scenario: filtered out as all-zero.
-    assert!(bins(&result, fixed::PHYS_SCAN_FILTER_W0, "tasks", "queueing", "none").is_none());
+    assert!(
+        bins(
+            &result,
+            fixed::PHYS_SCAN_FILTER_W0,
+            "tasks",
+            "queueing",
+            "none"
+        )
+        .is_none()
+    );
 }
 
 #[test]
@@ -137,20 +167,48 @@ fn sending_state_counts_without_memory_location() {
 
     // TASK_6/TASK_7: allocating 2.0-2.25, computing 2.25-2.5, sending 2.5-3.0.
     assert_eq!(
-        bins(&result, fixed::PHYS_PARTIAL_AGG_W1, "tasks", "allocating", "none").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_PARTIAL_AGG_W1,
+            "tasks",
+            "allocating",
+            "none"
+        )
+        .unwrap()[..],
         [0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0]
     );
     assert_eq!(
-        bins(&result, fixed::PHYS_PARTIAL_AGG_W1, "tasks", "computing", "memory").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_PARTIAL_AGG_W1,
+            "tasks",
+            "computing",
+            "memory"
+        )
+        .unwrap()[..],
         [0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0]
     );
     // The channel usage during sending is not a memory resource: location "none".
     assert_eq!(
-        bins(&result, fixed::PHYS_PARTIAL_AGG_W1, "tasks", "sending", "none").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_PARTIAL_AGG_W1,
+            "tasks",
+            "sending",
+            "none"
+        )
+        .unwrap()[..],
         [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
     );
     assert_eq!(
-        bins(&result, fixed::PHYS_PARTIAL_AGG_W1, "bytes", "computing", "memory").unwrap()[..],
+        bins(
+            &result,
+            fixed::PHYS_PARTIAL_AGG_W1,
+            "bytes",
+            "computing",
+            "memory"
+        )
+        .unwrap()[..],
         [0.0, 0.0, 128.0, 0.0, 0.0, 0.0, 0.0]
     );
 }
@@ -169,8 +227,26 @@ fn measures_filter_restricts_response_and_decl() {
             .collect::<Vec<_>>(),
         ["tasks"]
     );
-    assert!(bins(&result, fixed::PHYS_SCAN_FILTER_W0, "tasks", "computing", "memory").is_some());
-    assert!(bins(&result, fixed::PHYS_SCAN_FILTER_W0, "bytes", "computing", "memory").is_none());
+    assert!(
+        bins(
+            &result,
+            fixed::PHYS_SCAN_FILTER_W0,
+            "tasks",
+            "computing",
+            "memory"
+        )
+        .is_some()
+    );
+    assert!(
+        bins(
+            &result,
+            fixed::PHYS_SCAN_FILTER_W0,
+            "bytes",
+            "computing",
+            "memory"
+        )
+        .is_none()
+    );
 }
 
 #[test]

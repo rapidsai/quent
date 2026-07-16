@@ -8,8 +8,8 @@ use quent_query_engine_analyzer::{
     ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
 };
 use quent_query_engine_ui::{
-    OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
-    DataFlowTimelineBinned, DataFlowTimelineResponse,
+    DataFlowTimelineBinned, DataFlowTimelineResponse, OperatorFilter, QueryBundle, QueryEntities,
+    QueryFilter,
 };
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,

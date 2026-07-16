@@ -121,7 +121,11 @@ mod tests {
         let mut builder = DistributionTimelineBuilder::new(test_config());
 
         // Spans [0, 300) and [250, 450) of weight 1 each.
-        builder.try_push(key(1, "count", "a", "x"), SpanNanoSec::try_new(0, 300).unwrap(), 1.0)?;
+        builder.try_push(
+            key(1, "count", "a", "x"),
+            SpanNanoSec::try_new(0, 300).unwrap(),
+            1.0,
+        )?;
         builder.try_push(
             key(1, "count", "a", "x"),
             SpanNanoSec::try_new(250, 450).unwrap(),
@@ -130,10 +134,7 @@ mod tests {
 
         let timeline = builder.build();
         let bins = timeline.data.get(&key(1, "count", "a", "x")).unwrap();
-        assert_eq!(
-            bins[..],
-            [1.0, 1.0, 1.5, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0]
-        );
+        assert_eq!(bins[..], [1.0, 1.0, 1.5, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0]);
         Ok(())
     }
 
