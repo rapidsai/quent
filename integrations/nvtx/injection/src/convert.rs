@@ -41,7 +41,7 @@ pub(crate) fn range_pop(domain: u64) -> NvtxEvent {
 /// See [`range_push`].
 pub(crate) unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `attr`.
-    let attributes = unsafe { read_attributes(attr) };
+    let attributes = unsafe { read_attributes_or_empty(attr) };
     NvtxEvent::Mark { domain, attributes }
 }
 
@@ -58,7 +58,7 @@ pub(crate) unsafe fn range_start(
     attr: *const nvtxEventAttributes_t,
 ) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `attr`.
-    let attributes = unsafe { read_attributes(attr) };
+    let attributes = unsafe { read_attributes_or_empty(attr) };
     NvtxEvent::RangeStart {
         domain,
         range_id,
@@ -139,8 +139,9 @@ pub(crate) unsafe fn name_thread(thread_id: u32, name: *const c_char) -> NvtxEve
 /// the app. The identifier tag/value are captured verbatim (raw bits, undecoded).
 ///
 /// # Safety
-/// `attr` must be non-null and point to a valid `nvtxResourceAttributes_t` whose
-/// `size` member truthfully describes the readable bytes.
+/// `attr` must be null, or point to a valid `nvtxResourceAttributes_t` whose
+/// `size` member truthfully describes the readable bytes. A null pointer yields
+/// a resource with empty identity so the event is still captured.
 pub(crate) unsafe fn resource_create(
     domain: u64,
     handle: u64,
@@ -166,11 +167,13 @@ pub(crate) fn resource_destroy(handle: u64) -> NvtxEvent {
 /// Convert a `DomainRangePushEx` call to a verbatim [`NvtxEvent::RangePush`].
 ///
 /// # Safety
-/// `attr` must be non-null and point to a valid `nvtxEventAttributes_t` whose
-/// `size` member truthfully describes the number of readable bytes.
+/// `attr` must be null, or point to a valid `nvtxEventAttributes_t` whose `size`
+/// member truthfully describes the number of readable bytes. A null pointer
+/// yields empty attributes so the push is still captured (never dropped),
+/// keeping push/pop pairing balanced.
 pub(crate) unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `attr`.
-    let attributes = unsafe { read_attributes(attr) };
+    let attributes = unsafe { read_attributes_or_empty(attr) };
     NvtxEvent::RangePush { domain, attributes }
 }
 
@@ -237,11 +240,29 @@ pub(crate) unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Nvt
     }
 }
 
+/// Read the captured attributes, or empty attributes if `attr` is null.
+///
+/// A null attribute pointer means "no metadata". The mark/range event still
+/// happened, so we return [`NvtxEventAttributes::default`] and let the caller
+/// emit the event rather than dropping it — dropping a push/start would desync
+/// the captured stream from the nesting level / range id already handed back to
+/// the app (an orphan pop/end later).
+///
+/// # Safety
+/// `attr` must be null, or valid per [`read_attributes`].
+unsafe fn read_attributes_or_empty(attr: *const nvtxEventAttributes_t) -> NvtxEventAttributes {
+    if attr.is_null() {
+        return NvtxEventAttributes::default();
+    }
+    // SAFETY: non-null and valid per the caller's contract.
+    unsafe { read_attributes(attr) }
+}
+
 /// Read the captured subset of an attribute struct, honoring its `size` bound.
 ///
 /// # Safety
-/// See [`range_push`]. Reads go through unaligned raw-pointer loads and never
-/// materialize a reference to the whole struct, so a smaller-than-`v2` app
+/// `attr` must be non-null. Reads go through unaligned raw-pointer loads and
+/// never materialize a reference to the whole struct, so a smaller-than-`v2` app
 /// struct is safe as long as `size` is honest.
 unsafe fn read_attributes(attr: *const nvtxEventAttributes_t) -> NvtxEventAttributes {
     let base = attr.cast::<u8>();
@@ -431,10 +452,16 @@ fn warn_unsupported_message_once() {
 /// all verbatim.
 ///
 /// # Safety
-/// `attr` must be non-null and point to a valid `nvtxResourceAttributes_t` whose
-/// `size` member truthfully describes the readable bytes.
+/// `attr` must be null, or point to a valid `nvtxResourceAttributes_t` whose
+/// `size` member truthfully describes the readable bytes. A null pointer yields
+/// `(0, 0, None)` so the resource is still captured (never dropped), keeping the
+/// synthesized handle paired with a later `ResourceDestroy`.
 unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Option<NvtxMessage>) {
     use crate::bindings::nvtxResourceAttributes_v0 as Res;
+
+    if attr.is_null() {
+        return (0, 0, None);
+    }
 
     let base = attr.cast::<u8>();
     // `size` (u16) sits immediately after `version` (u16) at the struct head.
@@ -524,7 +551,9 @@ mod tests {
     use std::ffi::CString;
     use std::mem::{offset_of, size_of};
 
-    use quent_nvtx_events::{NvtxColor, NvtxEvent, NvtxMessage, NvtxPayload, NvtxPayloadValue};
+    use quent_nvtx_events::{
+        NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
+    };
 
     use crate::bindings::{
         nvtxColorType_t, nvtxEventAttributes_v2, nvtxEventAttributes_v2_payload_t,
@@ -1050,5 +1079,56 @@ mod tests {
             panic!("expected ResourceCreate");
         };
         assert_eq!(message, None);
+    }
+
+    // ---- Null attribute pointer yields an event, never a dropped one ----------
+
+    #[test]
+    fn null_attr_range_push_is_captured_with_empty_attributes() {
+        // A push happened and its nesting level was already handed back to the
+        // app, so a null attr must still yield a RangePush (empty attributes) —
+        // dropping it would leave a later pop unpaired.
+        // SAFETY: a null pointer is an explicitly handled input.
+        let NvtxEvent::RangePush { domain, attributes } =
+            (unsafe { range_push(0x1234, std::ptr::null()) })
+        else {
+            panic!("expected RangePush");
+        };
+        assert_eq!(domain, 0x1234);
+        assert_eq!(attributes, NvtxEventAttributes::default());
+    }
+
+    #[test]
+    fn null_attr_range_start_is_captured_with_empty_attributes() {
+        // SAFETY: a null pointer is an explicitly handled input.
+        let NvtxEvent::RangeStart {
+            range_id,
+            attributes,
+            ..
+        } = (unsafe { range_start(0x1, 0xABCD, std::ptr::null()) })
+        else {
+            panic!("expected RangeStart");
+        };
+        // The synthesized id survives so a later RangeEnd correlates.
+        assert_eq!(range_id, 0xABCD);
+        assert_eq!(attributes, NvtxEventAttributes::default());
+    }
+
+    #[test]
+    fn null_attr_resource_create_is_captured_with_empty_identity() {
+        // SAFETY: a null pointer is an explicitly handled input.
+        let NvtxEvent::ResourceCreate {
+            handle,
+            identifier_type,
+            identifier,
+            message,
+            ..
+        } = (unsafe { resource_create(0x1, 0x99, std::ptr::null()) })
+        else {
+            panic!("expected ResourceCreate");
+        };
+        // The synthesized handle survives so a later ResourceDestroy correlates.
+        assert_eq!(handle, 0x99);
+        assert_eq!((identifier_type, identifier, message), (0, 0, None));
     }
 }

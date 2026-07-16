@@ -37,10 +37,8 @@ pub(crate) extern "C" fn on_domain_range_push_ex(
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(domain);
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::range_push(domain, attr) };
         init::dispatch(event);
     }));
@@ -67,10 +65,8 @@ pub(crate) extern "C" fn on_domain_mark_ex(
     attr: *const nvtxEventAttributes_t,
 ) {
     let _ = std::panic::catch_unwind(|| {
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::mark(domain as usize as u64, attr) };
         init::dispatch(event);
     });
@@ -88,10 +84,8 @@ pub(crate) extern "C" fn on_domain_range_start_ex(
 ) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::range_start(domain as usize as u64, range_id, attr) };
         init::dispatch(event);
     });
@@ -170,10 +164,8 @@ pub(crate) extern "C" fn on_domain_resource_create(
 ) -> nvtxResourceHandle_t {
     let handle = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::resource_create(domain as usize as u64, handle, attr) };
         init::dispatch(event);
     });
@@ -199,10 +191,8 @@ pub(crate) extern "C" fn on_domain_resource_destroy(resource: nvtxResourceHandle
 /// CORE `MarkEx` subscriber (default-domain instantaneous marker).
 pub(crate) extern "C" fn on_mark_ex(attr: *const nvtxEventAttributes_t) {
     let _ = std::panic::catch_unwind(|| {
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::mark(0, attr) };
         init::dispatch(event);
     });
@@ -221,10 +211,8 @@ pub(crate) extern "C" fn on_mark_a(message: *const c_char) {
 pub(crate) extern "C" fn on_range_start_ex(attr: *const nvtxEventAttributes_t) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::range_start(0, range_id, attr) };
         init::dispatch(event);
     });
@@ -255,10 +243,8 @@ pub(crate) extern "C" fn on_range_push_ex(attr: *const nvtxEventAttributes_t) ->
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
-        if attr.is_null() {
-            return;
-        }
-        // SAFETY: NVTX guarantees `attr` is valid for the duration of this call.
+        // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
+        // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::range_push(0, attr) };
         init::dispatch(event);
     }));
