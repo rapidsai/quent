@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "quent-nvtx-injection"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib = the NVTX_INJECTION64_PATH runtime attach path (primary);
+# rlib   = the static/link-time path and in-process unit tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+quent-nvtx-events = { path = "../events" }
+thiserror = { workspace = true }
+
+[build-dependencies]
+# `build.rs` runs bindgen over the NVTX injection ABI into `$OUT_DIR`. The NVTX
+# headers and libclang come from the pixi-pinned `nvtx-c` / `libclang` packages
+# (see `pixi.toml`), so a `pixi run cargo …` build is hermetic.
+bindgen = { workspace = true }
+cc = { workspace = true, optional = true }
+
+[features]
+# Link-time strong-symbol attach path (secondary); off by default.
+static-injection = ["dep:cc"]
