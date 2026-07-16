@@ -359,6 +359,13 @@ unsafe fn read_message(base: *const u8, size: usize) -> Option<NvtxMessage> {
     let message_type = unsafe {
         read_present::<i32>(base, size, offset_of!(nvtxEventAttributes_v2, messageType))
     }?;
+    // Only read the union for a tag that carries a value. `NVTX_MESSAGE_UNKNOWN`
+    // (the "no message" default) says the union is absent, and a caller that
+    // leaves it uninitialized would otherwise have those bytes read. Mirrors the
+    // `read_payload` guard.
+    if message_type as u32 == nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN {
+        return None;
+    }
     // The message union is pointer-sized; capture the raw pointer bits.
     let bits =
         unsafe { read_present::<usize>(base, size, offset_of!(nvtxEventAttributes_v2, message)) }?;
@@ -442,7 +449,10 @@ unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Opt
         unsafe { read_present::<u64>(base, size, offset_of!(Res, identifier)) }.unwrap_or(0);
 
     let message = match unsafe { read_present::<i32>(base, size, offset_of!(Res, messageType)) } {
-        Some(message_type) => {
+        // Only read the union for a tag that carries a value; `UNKNOWN` (the
+        // "no message" default) says it is absent, and a caller may leave the
+        // union uninitialized. Mirrors the event-attribute `read_message` guard.
+        Some(message_type) if message_type as u32 != nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN => {
             // SAFETY: the message union is pointer-sized; guarded by `size`.
             match unsafe { read_present::<usize>(base, size, offset_of!(Res, message)) } {
                 // SAFETY: `bits` is the message union for `message_type`.
@@ -450,7 +460,7 @@ unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Opt
                 None => None,
             }
         }
-        None => None,
+        _ => None,
     };
 
     (identifier_type, identifier, message)
@@ -1003,5 +1013,42 @@ mod tests {
         };
         assert_eq!(domain, 0);
         assert_eq!(attributes.message, Some(NvtxMessage::String(String::new())));
+    }
+
+    #[test]
+    fn unknown_message_type_yields_no_message_at_full_size() {
+        // A full-size attribute struct that declares `NVTX_MESSAGE_UNKNOWN` must
+        // yield no message WITHOUT reading the message union (the tag says it is
+        // absent; a caller may leave it uninitialized). `full_attr` sets the
+        // union to null so an accidental read would still be observable as None,
+        // but the guard means the union is never read.
+        let attr = full_attr();
+        assert_eq!(
+            attr.messageType,
+            nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32
+        );
+        // SAFETY: `attr` is a valid, fully-sized attribute struct.
+        let NvtxEvent::RangePush { attributes, .. } = (unsafe { range_push(0, &attr) }) else {
+            panic!("expected RangePush");
+        };
+        assert_eq!(attributes.message, None);
+    }
+
+    #[test]
+    fn unknown_resource_message_type_yields_no_message_at_full_size() {
+        // Same guard for the resource path: a full-size resource attribute with
+        // `NVTX_MESSAGE_UNKNOWN` yields no message without reading the union.
+        let attr = full_resource_attr();
+        assert_eq!(
+            attr.messageType,
+            nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32
+        );
+        // SAFETY: `attr` is a valid, fully-sized resource-attribute struct.
+        let NvtxEvent::ResourceCreate { message, .. } =
+            (unsafe { resource_create(0x1, 0x2, &attr) })
+        else {
+            panic!("expected ResourceCreate");
+        };
+        assert_eq!(message, None);
     }
 }
