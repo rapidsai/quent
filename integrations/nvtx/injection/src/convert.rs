@@ -174,6 +174,69 @@ pub(crate) unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t)
     NvtxEvent::RangePush { domain, attributes }
 }
 
+/// Build a message-only [`NvtxEventAttributes`] from a caller-owned C string.
+///
+/// The classic default-domain `*A` calls (`nvtxMarkA`, `nvtxRangePushA`,
+/// `nvtxRangeStartA`) carry a bare `const char*` rather than a full attribute
+/// struct, so their only attribute is the immediate message.
+///
+/// # Safety
+/// `message` must be null or a valid NUL-terminated C string readable for this
+/// call; it is copied in before returning.
+unsafe fn message_only_attributes(message: *const c_char) -> NvtxEventAttributes {
+    NvtxEventAttributes {
+        // SAFETY: forwarded from the caller's contract on `message`.
+        message: Some(NvtxMessage::String(unsafe { copy_cstr(message) })),
+        ..Default::default()
+    }
+}
+
+/// Convert a default-domain `nvtxMarkA` call to a verbatim [`NvtxEvent::Mark`]
+/// on the default domain (`0`).
+///
+/// # Safety
+/// See [`message_only_attributes`].
+pub(crate) unsafe fn mark_a(message: *const c_char) -> NvtxEvent {
+    // SAFETY: forwarded from the caller's contract on `message`.
+    let attributes = unsafe { message_only_attributes(message) };
+    NvtxEvent::Mark {
+        domain: 0,
+        attributes,
+    }
+}
+
+/// Convert a default-domain `nvtxRangePushA` call to a verbatim
+/// [`NvtxEvent::RangePush`] on the default domain (`0`).
+///
+/// # Safety
+/// See [`message_only_attributes`].
+pub(crate) unsafe fn range_push_a(message: *const c_char) -> NvtxEvent {
+    // SAFETY: forwarded from the caller's contract on `message`.
+    let attributes = unsafe { message_only_attributes(message) };
+    NvtxEvent::RangePush {
+        domain: 0,
+        attributes,
+    }
+}
+
+/// Convert a default-domain `nvtxRangeStartA` call to a verbatim
+/// [`NvtxEvent::RangeStart`] on the default domain (`0`).
+///
+/// `range_id` is the id the injection layer synthesized and returns to the app,
+/// captured verbatim so a later `nvtxRangeEnd` correlates.
+///
+/// # Safety
+/// See [`message_only_attributes`].
+pub(crate) unsafe fn range_start_a(range_id: u64, message: *const c_char) -> NvtxEvent {
+    // SAFETY: forwarded from the caller's contract on `message`.
+    let attributes = unsafe { message_only_attributes(message) };
+    NvtxEvent::RangeStart {
+        domain: 0,
+        range_id,
+        attributes,
+    }
+}
+
 /// Read the captured subset of an attribute struct, honoring its `size` bound.
 ///
 /// # Safety
@@ -632,8 +695,9 @@ mod tests {
     // ---- The remaining CORE/CORE2 kinds ---------------------------------------
 
     use super::{
-        domain_create, domain_destroy, mark, name_category, name_thread, range_end, range_start,
-        register_string, resource_create, resource_destroy,
+        domain_create, domain_destroy, mark, mark_a, name_category, name_thread, range_end,
+        range_push_a, range_start, range_start_a, register_string, resource_create,
+        resource_destroy,
     };
 
     /// A message-only ASCII attribute struct (for mark/range kinds).
@@ -869,5 +933,75 @@ mod tests {
         assert_eq!(identifier, 0xABCD);
         // messageType/message live at/after the declared `size` → not read.
         assert_eq!(message, None);
+    }
+
+    // ---- Default-domain (CORE) *A conversions ---------------------------------
+
+    #[test]
+    fn mark_a_captures_message_on_default_domain() {
+        let label = CString::new("default-mark").expect("cstring");
+        // SAFETY: `label` is a valid NUL-terminated C string for this call.
+        let NvtxEvent::Mark { domain, attributes } = (unsafe { mark_a(label.as_ptr()) }) else {
+            panic!("expected Mark");
+        };
+        // Default domain is represented as `0`.
+        assert_eq!(domain, 0);
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("default-mark".to_owned()))
+        );
+        // The bare-string form carries only the message.
+        assert_eq!(attributes.category, 0);
+        assert_eq!(attributes.color, None);
+        assert_eq!(attributes.payload, None);
+    }
+
+    #[test]
+    fn range_push_a_captures_message_on_default_domain() {
+        let label = CString::new("default-push").expect("cstring");
+        // SAFETY: `label` is a valid NUL-terminated C string for this call.
+        let NvtxEvent::RangePush { domain, attributes } = (unsafe { range_push_a(label.as_ptr()) })
+        else {
+            panic!("expected RangePush");
+        };
+        assert_eq!(domain, 0);
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("default-push".to_owned()))
+        );
+    }
+
+    #[test]
+    fn range_start_a_captures_id_and_message_on_default_domain() {
+        let label = CString::new("default-start").expect("cstring");
+        let range_id: u64 = 0x0BAD_F00D;
+        // SAFETY: `label` is a valid NUL-terminated C string for this call.
+        let NvtxEvent::RangeStart {
+            domain,
+            range_id: started,
+            attributes,
+        } = (unsafe { range_start_a(range_id, label.as_ptr()) })
+        else {
+            panic!("expected RangeStart");
+        };
+        assert_eq!(domain, 0);
+        // Verbatim id — a later RangeEnd correlates on the same handle.
+        assert_eq!(started, range_id);
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("default-start".to_owned()))
+        );
+    }
+
+    #[test]
+    fn mark_a_null_message_maps_to_empty_string() {
+        // A NULL message is indistinguishable from an empty string (matches
+        // NVTX's own "NULL == no text" treatment); it must not be dereferenced.
+        // SAFETY: a null pointer is an explicitly handled input to `mark_a`.
+        let NvtxEvent::Mark { domain, attributes } = (unsafe { mark_a(std::ptr::null()) }) else {
+            panic!("expected Mark");
+        };
+        assert_eq!(domain, 0);
+        assert_eq!(attributes.message, Some(NvtxMessage::String(String::new())));
     }
 }

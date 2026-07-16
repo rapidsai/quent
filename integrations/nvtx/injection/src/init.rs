@@ -5,7 +5,7 @@
 //! hook installation surface.
 
 use std::mem::transmute;
-use std::os::raw::{c_char, c_int, c_uint};
+use std::os::raw::{c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -188,19 +188,19 @@ macro_rules! subscribe {
 
 /// Retrieve the CORE and CORE2 function tables and install every capture
 /// callback. CORE2 (the domain-scoped surface) is required for success; the CORE
-/// table (only `NameOsThreadA` lives there for our surface) is best-effort.
+/// (default-domain) table is best-effort.
 ///
 /// # Captured surface
-/// This layer subscribes **only** the domain-scoped ASCII CORE2 surface (mark,
-/// range start/end/push/pop, domain/register-string/name-category/resource) plus
-/// CORE `NameOsThreadA`. The classic default-domain API
-/// (`nvtxRangePushA`/`nvtxMarkA`/`nvtxRangeStartA`/`nvtxRangeStartEx`) and every
-/// wide-char (`*W` / Unicode) variant are intentionally **NOT** subscribed yet:
-/// coverage is deferred because the target is Linux-only and the v1 target
-/// libraries (libcudf, cuCascade) are domain-scoped. An app that only uses the
-/// non-domain or wide-char surface will produce an empty/partial capture; a
-/// one-time runtime diagnostic on the unsupported message path (see
-/// [`crate::convert`] `decode_message`) surfaces that gap.
+/// This layer subscribes both the domain-scoped ASCII CORE2 surface (mark,
+/// range start/end/push/pop, domain/register-string/name-category/resource) and
+/// the classic default-domain ASCII CORE surface
+/// (`nvtxMarkA`/`nvtxMarkEx`, `nvtxRangePushA`/`nvtxRangePushEx`, `nvtxRangePop`,
+/// `nvtxRangeStartA`/`nvtxRangeStartEx`/`nvtxRangeEnd`, `nvtxNameCategoryA`,
+/// `nvtxNameOsThreadA`), captured on the default domain (`0`). The wide-char
+/// (`*W` / Unicode) variants are subscribed with warn-once stubs — Unicode
+/// capture is still deferred, but the calls emit a one-time diagnostic (see
+/// [`callbacks`] `warn_wide_surface_once`) and keep range nesting/ids valid
+/// instead of silently becoming no-ops.
 ///
 /// # Safety
 /// `get_export_table` must be the accessor NVTX passes to
@@ -341,8 +341,14 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
     true
 }
 
-/// Install the CORE (non-domain) capture callbacks. Only `NameOsThreadA` is in
-/// our capture surface; best-effort (absence just means no thread names).
+/// Install the CORE (default-domain, non-domain-scoped) capture callbacks.
+///
+/// The classic NVTX API (`nvtxMarkA`, `nvtxRangePushA`, `nvtxRangePop`, …)
+/// dispatches through this table, not the CORE2 domain surface, so we capture it
+/// on the default domain (`0`). The wide-char (`*W`) entries are subscribed with
+/// warn-once stubs so they signal instead of silently becoming no-ops; ASCII is
+/// captured. Best-effort: if the CORE table is unavailable, the default-domain
+/// surface simply isn't hooked (the domain surface is what gates init success).
 ///
 /// # Safety
 /// See [`module_table`].
@@ -350,20 +356,124 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
     let Some((table, size)) =
         (unsafe { module_table(get_module_table, NvtxCallbackModule::NVTX_CB_MODULE_CORE) })
     else {
-        // Silent-disable path: without the CORE table, OS thread naming is
-        // never captured. The cdylib installs no tracing subscriber, so emit
-        // an unconditional diagnostic instead of failing quietly.
+        // The cdylib installs no tracing subscriber, so emit an unconditional
+        // diagnostic instead of failing quietly.
         eprintln!(
-            "quent-nvtx: NVTX CORE callback table unavailable; OS thread names will not be captured"
+            "quent-nvtx: NVTX CORE callback table unavailable; default-domain and OS-thread-name \
+             events will not be captured"
         );
         return;
     };
+    use NvtxCallbackIdCore as Cb;
+
+    // Default-domain ASCII surface, captured verbatim on domain `0`.
     subscribe!(
         table,
         size,
-        NvtxCallbackIdCore::NVTX_CBID_CORE_NameOsThreadA,
+        Cb::NVTX_CBID_CORE_MarkEx,
+        callbacks::on_mark_ex,
+        extern "C" fn(*const nvtxEventAttributes_t)
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_MarkA,
+        callbacks::on_mark_a,
+        extern "C" fn(*const c_char)
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangeStartEx,
+        callbacks::on_range_start_ex,
+        extern "C" fn(*const nvtxEventAttributes_t) -> nvtxRangeId_t
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangeStartA,
+        callbacks::on_range_start_a,
+        extern "C" fn(*const c_char) -> nvtxRangeId_t
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangeEnd,
+        callbacks::on_range_end,
+        extern "C" fn(nvtxRangeId_t)
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangePushEx,
+        callbacks::on_range_push_ex,
+        extern "C" fn(*const nvtxEventAttributes_t) -> c_int
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangePushA,
+        callbacks::on_range_push_a,
+        extern "C" fn(*const c_char) -> c_int
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangePop,
+        callbacks::on_range_pop,
+        extern "C" fn() -> c_int
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_NameCategoryA,
+        callbacks::on_name_category_a,
+        extern "C" fn(u32, *const c_char)
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_NameOsThreadA,
         callbacks::on_name_os_thread_a,
         extern "C" fn(u32, *const c_char)
+    );
+
+    // Wide-char (Unicode) surface: subscribed with warn-once stubs so the calls
+    // signal and keep range nesting/ids valid instead of silently no-op'ing.
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_MarkW,
+        callbacks::on_mark_w,
+        extern "C" fn(*const c_void)
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangeStartW,
+        callbacks::on_range_start_w,
+        extern "C" fn(*const c_void) -> nvtxRangeId_t
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_RangePushW,
+        callbacks::on_range_push_w,
+        extern "C" fn(*const c_void) -> c_int
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_NameCategoryW,
+        callbacks::on_name_category_w,
+        extern "C" fn(u32, *const c_void)
+    );
+    subscribe!(
+        table,
+        size,
+        Cb::NVTX_CBID_CORE_NameOsThreadW,
+        callbacks::on_name_os_thread_w,
+        extern "C" fn(u32, *const c_void)
     );
 }
 
