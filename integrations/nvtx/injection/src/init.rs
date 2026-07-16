@@ -25,10 +25,6 @@ type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
 
 static HOOK: OnceLock<Hook> = OnceLock::new();
 
-/// One-shot guard for [`InitializeInjectionNvtx2`]; caches whether the CORE2
-/// callback tables were installed successfully.
-static INITIALIZED: OnceLock<bool> = OnceLock::new();
-
 /// Monotonic source of the NVTX handles/ids the injection layer synthesizes and
 /// hands back to the application: domain, registered-string, and resource handles
 /// plus range ids. Starts at `1` so `0` stays reserved for the default/NULL
@@ -137,10 +133,15 @@ pub(crate) fn dispatch(event: NvtxEvent) {
 
 /// NVTX injection entry point.
 ///
-/// NVTX loads this cdylib via `NVTX_INJECTION64_PATH` and calls this exactly
-/// once, lazily, before the first NVTX call, passing its export-table accessor.
-/// Returns `1` on success per the NVTX ABI. All state is constructed here under
-/// a [`OnceLock`] — never in a `#[ctor]` — to avoid static-init-order hazards.
+/// NVTX loads this cdylib via `NVTX_INJECTION64_PATH` and calls this **once per
+/// NVTX-using image** in the process — the executable and each instrumented
+/// shared library keep their own NVTX state (per-image `nvtxGlobals`) and
+/// initialize lazily before that image's first NVTX call, each passing its own
+/// export-table accessor. We must therefore install callbacks into *every*
+/// caller's tables, not just the first: a later image left uninstalled has its
+/// NVTX functions turned into silent no-ops by NVTX, dropping its events. All
+/// state is constructed under [`OnceLock`]s — never in a `#[ctor]` — to avoid
+/// static-init-order hazards. Returns `1` on success per the NVTX ABI.
 ///
 /// # Safety
 /// `get_export_table` must be the accessor NVTX supplies; calling this with an
@@ -150,12 +151,13 @@ pub unsafe extern "C" fn InitializeInjectionNvtx2(
     get_export_table: NvtxGetExportTableFunc_t,
 ) -> c_int {
     // Contain any panic in the init path (e.g. a diagnostic write failing) so it
-    // never unwinds across the C ABI and aborts the host application.
+    // never unwinds across the C ABI and aborts the host application. Runs on
+    // every call: `install_callbacks` writes only into the caller-supplied
+    // tables and touches no shared capture state, so per-image (and concurrent,
+    // or repeat) calls are independent and safe.
     let installed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        *INITIALIZED.get_or_init(|| {
-            // SAFETY: `get_export_table` is the NVTX-provided export-table accessor.
-            unsafe { install_callbacks(get_export_table) }
-        })
+        // SAFETY: `get_export_table` is the NVTX-provided export-table accessor.
+        unsafe { install_callbacks(get_export_table) }
     }))
     .unwrap_or(false);
     c_int::from(installed)
