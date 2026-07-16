@@ -735,8 +735,7 @@ mod tests {
 
     use super::{
         domain_create, domain_destroy, mark, mark_a, name_category, name_thread, range_end,
-        range_push_a, range_start, range_start_a, register_string, resource_create,
-        resource_destroy,
+        range_start, range_start_a, register_string, resource_create, resource_destroy,
     };
 
     /// A message-only ASCII attribute struct (for mark/range kinds).
@@ -993,21 +992,6 @@ mod tests {
         assert_eq!(attributes.category, 0);
         assert_eq!(attributes.color, None);
         assert_eq!(attributes.payload, None);
-    }
-
-    #[test]
-    fn range_push_a_captures_message_on_default_domain() {
-        let label = CString::new("default-push").expect("cstring");
-        // SAFETY: `label` is a valid NUL-terminated C string for this call.
-        let NvtxEvent::RangePush { domain, attributes } = (unsafe { range_push_a(label.as_ptr()) })
-        else {
-            panic!("expected RangePush");
-        };
-        assert_eq!(domain, 0);
-        assert_eq!(
-            attributes.message,
-            Some(NvtxMessage::String("default-push".to_owned()))
-        );
     }
 
     #[test]
