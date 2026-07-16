@@ -10,7 +10,7 @@ import {
 } from '@quent/hooks';
 import {
   createCapacitiesColorFn,
-  createFsmTypeColorFn,
+  createDataFlowStateColorFn,
   formatDuration,
   type PaletteTheme,
 } from '@quent/utils';
@@ -47,8 +47,7 @@ export const DataFlowMatrix = ({
     [allDimensionKeys, meta.dimensionSelection]
   );
   const stateColor = useMemo(
-    () =>
-      createFsmTypeColorFn(meta.fsmType ? { [meta.fsmType.name]: meta.fsmType } : {}, paletteTheme),
+    () => createDataFlowStateColorFn(meta.fsmType, meta.stateNames, paletteTheme),
     [meta, paletteTheme]
   );
   const dimensionColor = useMemo(

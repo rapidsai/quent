@@ -4,8 +4,7 @@
 import { memo, useMemo } from 'react';
 import {
   createCapacitiesColorFn,
-  createFsmTypeColorFn,
-  type FsmTypeDecl,
+  createDataFlowStateColorFn,
   type PaletteTheme,
 } from '@quent/utils';
 import {
@@ -27,10 +26,6 @@ const BAR_TRANSITION = 'width 120ms linear';
 const FLOW_TRACK_PX = NODE_LAYOUT_WIDTH - 32;
 
 /** State colors keyed on the FSM type declaration — matches the timeline view. */
-function fsmTypesMapOf(fsmType: FsmTypeDecl | null): { [key in string]?: FsmTypeDecl } {
-  return fsmType ? { [fsmType.name]: fsmType } : {};
-}
-
 /**
  * Per-node data-flow overlay: a stacked state bar over a stacked
  * dimension/tier bar — both 12px with width-gated in-segment value labels —
@@ -56,9 +51,10 @@ export const NodeFlowBar = memo(
     const theme: PaletteTheme = isDark ? 'dark' : 'light';
 
     const fsmType = meta?.fsmType ?? null;
+    const stateNames = meta?.stateNames;
     const stateColor = useMemo(
-      () => createFsmTypeColorFn(fsmTypesMapOf(fsmType), theme),
-      [fsmType, theme]
+      () => createDataFlowStateColorFn(fsmType, stateNames ?? [], theme),
+      [fsmType, stateNames, theme]
     );
     const dimensionKeys = meta?.decl.dimension_keys;
     const dimensionColor = useMemo(

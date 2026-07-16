@@ -12,6 +12,7 @@ import {
   createCapacitiesColorFn,
   getColorByIndex,
   createFsmTypeColorFn,
+  createDataFlowStateColorFn,
   withOpacity,
   resetColorAssignments,
   darkenColor,
@@ -465,5 +466,42 @@ describe('getLegendGradientStops', () => {
     const light = getLegendGradientStops('blue', false);
     const dark = getLegendGradientStops('blue', true);
     expect(light[0]).not.toBe(dark[0]);
+  });
+});
+
+describe('createDataFlowStateColorFn', () => {
+  const fsmType = {
+    name: 'batch',
+    states: [
+      { name: 'batch_registered', usages: [] },
+      { name: 'batch_queued', usages: [] },
+      { name: 'batch_packaged', usages: [] },
+      { name: 'batch_processing', usages: [] },
+      { name: 'batch_consumed', usages: [] },
+    ],
+    transitions: [],
+  } as never;
+
+  it('gives appended synthetic states colors distinct from every declared state', () => {
+    const resolved = ['batch_queued', 'batch_packaged', 'batch_processing', 'task_working_space'];
+    const colorFn = createDataFlowStateColorFn(fsmType, resolved, 'light');
+    const declaredColors = [
+      'batch_registered',
+      'batch_queued',
+      'batch_packaged',
+      'batch_processing',
+      'batch_consumed',
+    ].map(colorFn);
+    expect(declaredColors).not.toContain(colorFn('task_working_space'));
+  });
+
+  it('keeps declared states on their FSM declaration palette indices', () => {
+    const withSynthetic = createDataFlowStateColorFn(
+      fsmType,
+      ['batch_queued', 'task_working_space'],
+      'light'
+    );
+    const withoutSynthetic = createDataFlowStateColorFn(fsmType, ['batch_queued'], 'light');
+    expect(withSynthetic('batch_queued')).toBe(withoutSynthetic('batch_queued'));
   });
 });

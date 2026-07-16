@@ -16,7 +16,7 @@ import {
 import {
   cn,
   createCapacitiesColorFn,
-  createFsmTypeColorFn,
+  createDataFlowStateColorFn,
   getLegendGradientStops,
   type PaletteTheme,
 } from '@quent/utils';
@@ -180,8 +180,9 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
   // and the server-declared dimension keys (colored like capacity series).
   const dataFlowStateLegend = useMemo(() => {
     if (!dataFlowMeta) return null;
-    const colorFn = createFsmTypeColorFn(
-      dataFlowMeta.fsmType ? { [dataFlowMeta.fsmType.name]: dataFlowMeta.fsmType } : {},
+    const colorFn = createDataFlowStateColorFn(
+      dataFlowMeta.fsmType,
+      dataFlowMeta.stateNames,
       paletteTheme
     );
     return new Map(dataFlowMeta.stateNames.map(state => [state, colorFn(state)]));

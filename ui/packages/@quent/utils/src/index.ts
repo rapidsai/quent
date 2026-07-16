@@ -24,6 +24,7 @@ export {
   isLightColor,
   createCapacitiesColorFn,
   createFsmTypeColorFn,
+  createDataFlowStateColorFn,
   CONTINUOUS_PALETTES,
   continuousColor,
   getLegendGradientStops,
