@@ -1,18 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Binned timelines of weighted distributions over (state, dimension) pairs.
+//! Binned timelines of weighted values keyed by categories.
 //!
-//! A distribution timeline describes, per opaque series (e.g. an operator in a
+//! A categorical timeline describes, per opaque series (e.g. an operator in a
 //! query engine), how some weighted quantity (a "measure", e.g. an entity
-//! count) is distributed over the states of a finite state machine and an
+//! count) breaks down over the states of a finite state machine and an
 //! application-defined dimension (e.g. which resource holds the entity's
-//! data), for each time bin of a window.
+//! data), for each time bin of a window. Bin values are absolute,
+//! time-weighted quantities — not normalized shares.
 //!
 //! This module is application-agnostic: series, measures, states, and
-//! dimension keys are all opaque to the aggregation. Downstream analyzers
-//! decide what they mean and are expected to keep dimension keys a small
-//! enumerable set.
+//! dimension keys are opaque to the aggregation. Downstream analyzers decide
+//! what they mean and are expected to keep dimension keys a small enumerable
+//! set.
 
 use std::hash::Hash;
 
@@ -25,39 +26,42 @@ use crate::{
     timeline::binned::{BinnedTimelineAggregator, KeyedAggregator},
 };
 
-/// Identity of one aggregation cell of a distribution timeline.
+/// Identity of one aggregation cell of a categorical timeline.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DistributionKey<'a, S> {
+pub struct CategoricalKey<S, M, St, D> {
     /// Opaque series the sample belongs to (e.g. an operator id downstream).
     pub series: S,
     /// The measure this weight contributes to (e.g. an entity count).
-    pub measure: &'a str,
+    pub measure: M,
     /// The FSM state name during the span.
-    pub state: &'a str,
+    pub state: St,
     /// Application-defined dimension key (opaque to the aggregation).
-    pub dimension: &'a str,
+    pub dimension: D,
 }
 
-/// A binned timeline of weighted (state, dimension) distributions for
-/// multiple series and measures.
+/// A binned timeline of weighted (state, dimension) values for multiple
+/// series and measures.
 #[derive(Clone, Debug)]
-pub struct DistributionTimeline<'a, S> {
+pub struct CategoricalTimeline<S, M, St, D> {
     pub config: BinnedSpan,
-    pub data: HashMap<DistributionKey<'a, S>, Vec<f64>>,
+    pub data: HashMap<CategoricalKey<S, M, St, D>, Vec<f64>>,
 }
 
-/// Builds a [`DistributionTimeline`] from weighted samples.
+/// Builds a [`CategoricalTimeline`] from weighted samples.
 ///
 /// Aggregation is span-weighted: each sample contributes
 /// `weight * overlap_fraction` to every bin its span intersects, so bin values
 /// are time-weighted averages over the bin, not instantaneous snapshots.
-pub struct DistributionTimelineBuilder<'a, S> {
-    aggregator: KeyedAggregator<DistributionKey<'a, S>>,
+pub struct CategoricalTimelineBuilder<S, M, St, D> {
+    aggregator: KeyedAggregator<CategoricalKey<S, M, St, D>>,
 }
 
-impl<'a, S> DistributionTimelineBuilder<'a, S>
+impl<S, M, St, D> CategoricalTimelineBuilder<S, M, St, D>
 where
-    S: Eq + Hash + Clone,
+    S: Eq + Hash,
+    M: Eq + Hash,
+    St: Eq + Hash,
+    D: Eq + Hash,
 {
     pub fn new(config: BinnedSpan) -> Self {
         Self {
@@ -73,15 +77,15 @@ where
     /// Attempt to push one weighted sample spanning `span` into the timeline.
     pub fn try_push(
         &mut self,
-        key: DistributionKey<'a, S>,
+        key: CategoricalKey<S, M, St, D>,
         span: SpanNanoSec,
         weight: f64,
     ) -> AnalyzerResult<()> {
         self.aggregator.try_push(span, (key, weight))
     }
 
-    pub fn build(self) -> DistributionTimeline<'a, S> {
-        DistributionTimeline {
+    pub fn build(self) -> CategoricalTimeline<S, M, St, D> {
+        CategoricalTimeline {
             config: self.aggregator.config(),
             data: self.aggregator.finish(),
         }
@@ -107,8 +111,8 @@ mod tests {
         measure: &'a str,
         state: &'a str,
         dimension: &'a str,
-    ) -> DistributionKey<'a, u32> {
-        DistributionKey {
+    ) -> CategoricalKey<u32, &'a str, &'a str, &'a str> {
+        CategoricalKey {
             series,
             measure,
             state,
@@ -116,31 +120,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn span_weighting_across_bin_boundaries() -> AnalyzerResult<()> {
-        let mut builder = DistributionTimelineBuilder::new(test_config());
-
-        // Spans [0, 300) and [250, 450) of weight 1 each.
-        builder.try_push(
-            key(1, "count", "a", "x"),
-            SpanNanoSec::try_new(0, 300).unwrap(),
-            1.0,
-        )?;
-        builder.try_push(
-            key(1, "count", "a", "x"),
-            SpanNanoSec::try_new(250, 450).unwrap(),
-            1.0,
-        )?;
-
-        let timeline = builder.build();
-        let bins = timeline.data.get(&key(1, "count", "a", "x")).unwrap();
-        assert_eq!(bins[..], [1.0, 1.0, 1.5, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0]);
-        Ok(())
-    }
-
+    /// Samples differing in any key component land in distinct cells; the
+    /// binning math itself is covered by the aggregator's own tests.
     #[test]
     fn distinct_series_measures_states_dimensions() -> AnalyzerResult<()> {
-        let mut builder = DistributionTimelineBuilder::new(test_config());
+        let mut builder = CategoricalTimelineBuilder::new(test_config());
         let span = SpanNanoSec::try_new(0, 1000).unwrap();
 
         builder.try_push(key(1, "count", "a", "x"), span, 1.0)?;
@@ -162,34 +146,26 @@ mod tests {
         Ok(())
     }
 
+    /// Non-string key components only need `Eq + Hash` — no stringification.
     #[test]
-    fn zero_duration_span_is_noop() -> AnalyzerResult<()> {
-        let mut builder = DistributionTimelineBuilder::new(test_config());
-        builder.try_push(
-            key(1, "count", "a", "x"),
-            SpanNanoSec::try_new(500, 500).unwrap(),
-            1.0,
-        )?;
+    fn non_string_key_components() -> AnalyzerResult<()> {
+        #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+        enum Measure {
+            Count,
+        }
+
+        let mut builder: CategoricalTimelineBuilder<u32, Measure, u8, u16> =
+            CategoricalTimelineBuilder::new(test_config());
+        let cell = CategoricalKey {
+            series: 7u32,
+            measure: Measure::Count,
+            state: 3u8,
+            dimension: 9u16,
+        };
+        builder.try_push(cell.clone(), SpanNanoSec::try_new(0, 1000).unwrap(), 2.0)?;
 
         let timeline = builder.build();
-        // The key exists (aggregator was created) but all bins remain zero.
-        let bins = timeline.data.get(&key(1, "count", "a", "x")).unwrap();
-        assert_eq!(bins[..], [0.0; 10]);
-        Ok(())
-    }
-
-    #[test]
-    fn out_of_window_span_contributes_nothing() -> AnalyzerResult<()> {
-        let mut builder = DistributionTimelineBuilder::new(test_config());
-        builder.try_push(
-            key(1, "count", "a", "x"),
-            SpanNanoSec::try_new(2000, 3000).unwrap(),
-            1.0,
-        )?;
-
-        let timeline = builder.build();
-        let bins = timeline.data.get(&key(1, "count", "a", "x")).unwrap();
-        assert_eq!(bins[..], [0.0; 10]);
+        assert_eq!(timeline.data.get(&cell).unwrap()[..], [2.0; 10]);
         Ok(())
     }
 }

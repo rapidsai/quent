@@ -3,15 +3,15 @@ import type { DimensionKeyDecl } from "./DimensionKeyDecl";
 import type { MeasureDecl } from "./MeasureDecl";
 
 /**
- * Presentation metadata for a distribution timeline, declared by the
+ * Presentation metadata for a categorical timeline, declared by the
  * downstream analyzer.
  *
  * Dimension keys are expected to be a small enumerable set; unbounded key
  * cardinality is a downstream misuse.
  */
-export type DistributionDecl = { 
+export type CategoricalDecl = { 
 /**
- * The FSM type whose states are distributed. References an entry in the
+ * The FSM type whose states are broken down. References an entry in the
  * application's FSM type declarations (e.g. `QueryBundle` fsm_types) for
  * the state graph, names, and ordering.
  */

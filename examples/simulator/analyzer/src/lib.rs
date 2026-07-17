@@ -8,15 +8,14 @@ use quent_query_engine_analyzer::{
     ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
 };
 use quent_query_engine_ui::{
-    DataFlowTimelineBinned, DataFlowTimelineResponse, OperatorFilter, QueryBundle, QueryEntities,
-    QueryFilter,
+    DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
 };
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
     quantity::{CapacityKind, QuantitySpec},
     timeline::{
-        distribution::{
-            DimensionKeyDecl, DistributionDecl, DistributionSeries, DistributionTimelineRequest,
+        categorical::{
+            CategoricalDecl, CategoricalSeries, CategoricalTimelineRequest, DimensionKeyDecl,
             MeasureDecl,
         },
         request::{
@@ -42,7 +41,7 @@ use quent_analyzer::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
     },
     timeline::binned::{
-        distribution::{DistributionKey, DistributionTimelineBuilder},
+        categorical::{CategoricalKey, CategoricalTimelineBuilder},
         resource::{
             ResourceTimeline, ResourceTimelineBuilder, ResourceTimelineByKey,
             ResourceTimelineByKeyBuilder,
@@ -796,23 +795,28 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
     fn data_flow_timeline(
         &self,
-        request: DistributionTimelineRequest<QueryFilter>,
-    ) -> AnalyzerResult<DataFlowTimelineResponse> {
+        request: CategoricalTimelineRequest<QueryFilter>,
+    ) -> AnalyzerResult<DataFlowTimelineBinned> {
         let query_id = request.app_params.query_id;
         let epoch = self.query_engine_model().query_epoch(query_id)?;
         let config = request.config.try_into_binned_span(epoch)?;
 
-        // Which of the declared measures to compute; empty means all.
+        // Which of the declared measures to compute; empty means all. Any
+        // unknown name is an error, even alongside valid ones — silently
+        // ignoring it would hide client typos.
+        if let Some(unknown) = request
+            .measures
+            .iter()
+            .find(|m| *m != MEASURE_TASKS && *m != MEASURE_BYTES)
+        {
+            return Err(AnalyzerError::InvalidArgument(format!(
+                "unknown measure '{unknown}'; declared measures are '{MEASURE_TASKS}' and '{MEASURE_BYTES}'"
+            )));
+        }
         let want =
             |name: &str| request.measures.is_empty() || request.measures.iter().any(|m| m == name);
         let want_tasks = want(MEASURE_TASKS);
         let want_bytes = want(MEASURE_BYTES);
-        if !want_tasks && !want_bytes {
-            return Err(AnalyzerError::InvalidArgument(format!(
-                "unknown measures {:?}; declared measures are '{MEASURE_TASKS}' and '{MEASURE_BYTES}'",
-                request.measures
-            )));
-        }
 
         let query_operators: HashSet<Uuid> = self
             .model
@@ -842,7 +846,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // advertises only these (not every memory in the engine model).
         let mut present_dimensions: HashSet<&str> = HashSet::default();
 
-        let mut builder = DistributionTimelineBuilder::<Uuid>::new(config);
+        let mut builder = CategoricalTimelineBuilder::new(config);
         for task in self.model.tasks.values() {
             let Some(operator_id) = task.operator_id() else {
                 continue;
@@ -868,7 +872,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 if want_tasks {
                     present_dimensions.insert(dimension);
                     builder.try_push(
-                        DistributionKey {
+                        CategoricalKey {
                             series: operator_id,
                             measure: MEASURE_TASKS,
                             state,
@@ -891,7 +895,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     if bytes > 0 {
                         present_dimensions.insert(dimension);
                         builder.try_push(
-                            DistributionKey {
+                            CategoricalKey {
                                 series: operator_id,
                                 measure: MEASURE_BYTES,
                                 state,
@@ -908,7 +912,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // Pivot the flat aggregation into per-operator nested series. All-zero
         // series (e.g. from zero-duration states) are omitted; the protocol
         // treats absent entries as all-zero bins.
-        let mut operators: StdHashMap<Uuid, DistributionSeries> = StdHashMap::new();
+        let mut operators: StdHashMap<Uuid, CategoricalSeries> = StdHashMap::new();
         for (key, bins) in builder.build().data {
             if bins.iter().all(|v| *v == 0.0) {
                 continue;
@@ -959,9 +963,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             });
         }
 
-        Ok(DataFlowTimelineResponse::Binned(DataFlowTimelineBinned {
+        Ok(DataFlowTimelineBinned {
             config: config.try_to_secs_relative(epoch)?,
-            decl: DistributionDecl {
+            decl: CategoricalDecl {
                 entity_type_name: Task::fsm_type_declaration().name,
                 dimension_name: "Data location".to_owned(),
                 dimension_keys,
@@ -969,7 +973,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 default_measure: None,
             },
             operators,
-        }))
+        })
     }
 }
 

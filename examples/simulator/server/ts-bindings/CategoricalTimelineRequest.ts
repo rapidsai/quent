@@ -2,9 +2,9 @@
 import type { TimelineConfig } from "./TimelineConfig";
 
 /**
- * Request for a distribution timeline.
+ * Request for a categorical timeline.
  */
-export type DistributionTimelineRequest<GlobalParams> = { 
+export type CategoricalTimelineRequest<GlobalParams> = { 
 /**
  * Names of the measures to compute. Empty means all declared measures.
  */

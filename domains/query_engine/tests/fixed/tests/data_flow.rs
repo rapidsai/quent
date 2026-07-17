@@ -13,11 +13,11 @@
 use quent_io::{EventCallback, ExporterOptions};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_fixed as fixed;
+use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::QueryFilter;
-use quent_query_engine_ui::{DataFlowTimelineBinned, DataFlowTimelineResponse};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_instrumentation::{SimulatorContext, test_utils::events_from_recorded};
-use quent_ui::timeline::{distribution::DistributionTimelineRequest, request::TimelineConfig};
+use quent_ui::timeline::{categorical::CategoricalTimelineRequest, request::TimelineConfig};
 use std::sync::{Arc, Mutex};
 
 /// Emit the fixed scenario into memory via a callback exporter and build an
@@ -39,8 +39,8 @@ fn fixed_analyzer() -> SimulatorUiAnalyzer {
 }
 
 /// A whole-query request: 7 one-second bins over the 0–7s window.
-fn request(measures: &[&str]) -> DistributionTimelineRequest<QueryFilter> {
-    DistributionTimelineRequest {
+fn request(measures: &[&str]) -> CategoricalTimelineRequest<QueryFilter> {
+    CategoricalTimelineRequest {
         measures: measures.iter().map(|m| m.to_string()).collect(),
         config: TimelineConfig {
             num_bins: 7,
@@ -50,13 +50,6 @@ fn request(measures: &[&str]) -> DistributionTimelineRequest<QueryFilter> {
         app_params: QueryFilter {
             query_id: fixed::QUERY,
         },
-    }
-}
-
-fn binned(response: DataFlowTimelineResponse) -> DataFlowTimelineBinned {
-    match response {
-        DataFlowTimelineResponse::Binned(binned) => binned,
-        DataFlowTimelineResponse::Unsupported => panic!("expected Binned, got Unsupported"),
     }
 }
 
@@ -79,7 +72,7 @@ fn bins<'a>(
 #[test]
 fn declares_states_dimensions_and_measures() {
     let analyzer = fixed_analyzer();
-    let result = binned(analyzer.data_flow_timeline(request(&[])).unwrap());
+    let result = analyzer.data_flow_timeline(request(&[])).unwrap();
 
     assert_eq!(result.decl.entity_type_name, "task");
     assert_eq!(result.decl.dimension_name, "Data location");
@@ -109,7 +102,7 @@ fn declares_states_dimensions_and_measures() {
 #[test]
 fn distributes_scan_filter_tasks_over_states_and_locations() {
     let analyzer = fixed_analyzer();
-    let result = binned(analyzer.data_flow_timeline(request(&[])).unwrap());
+    let result = analyzer.data_flow_timeline(request(&[])).unwrap();
 
     // Two tasks allocating (no memory) for 0.25s each within bin 1.
     assert_eq!(
@@ -163,7 +156,7 @@ fn distributes_scan_filter_tasks_over_states_and_locations() {
 #[test]
 fn sending_state_counts_without_memory_location() {
     let analyzer = fixed_analyzer();
-    let result = binned(analyzer.data_flow_timeline(request(&[])).unwrap());
+    let result = analyzer.data_flow_timeline(request(&[])).unwrap();
 
     // TASK_6/TASK_7: allocating 2.0-2.25, computing 2.25-2.5, sending 2.5-3.0.
     assert_eq!(
@@ -216,7 +209,7 @@ fn sending_state_counts_without_memory_location() {
 #[test]
 fn measures_filter_restricts_response_and_decl() {
     let analyzer = fixed_analyzer();
-    let result = binned(analyzer.data_flow_timeline(request(&["tasks"])).unwrap());
+    let result = analyzer.data_flow_timeline(request(&["tasks"])).unwrap();
 
     assert_eq!(
         result
@@ -253,4 +246,10 @@ fn measures_filter_restricts_response_and_decl() {
 fn unknown_measures_are_an_error() {
     let analyzer = fixed_analyzer();
     assert!(analyzer.data_flow_timeline(request(&["bogus"])).is_err());
+    // A typo alongside valid measures must not be silently ignored.
+    assert!(
+        analyzer
+            .data_flow_timeline(request(&["tasks", "bogus"]))
+            .is_err()
+    );
 }

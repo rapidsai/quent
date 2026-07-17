@@ -9,7 +9,7 @@ use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
 use crate::AnalyzerResult;
 
-pub mod distribution;
+pub mod categorical;
 pub mod resource;
 
 /// A trait for types that can aggregate items into a sequence of time bins.
@@ -145,6 +145,52 @@ mod tests {
 
         assert_eq!(aggregator.finish(), [10.0, 15.0, 10.0, 0.0]);
 
+        Ok(())
+    }
+
+    fn ten_bin_config() -> BinnedSpan {
+        BinnedSpan::try_new(
+            SpanNanoSec::try_new(0, 1000).unwrap(),
+            NonZero::new(10).unwrap(),
+        )
+        .unwrap()
+    }
+
+    /// Overlapping spans accumulate span-weighted fractions per bin.
+    #[test]
+    fn keyed_aggregator_span_weighting_across_bin_boundaries() -> AnalyzerResult<()> {
+        let mut aggregator: KeyedAggregator<&str> = KeyedAggregator::new(ten_bin_config());
+
+        aggregator.try_push(SpanNanoSec::try_new(0, 300).unwrap(), ("k", 1.0))?;
+        aggregator.try_push(SpanNanoSec::try_new(250, 450).unwrap(), ("k", 1.0))?;
+
+        let bins = aggregator.finish();
+        assert_eq!(
+            bins.get("k").unwrap()[..],
+            [1.0, 1.0, 1.5, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0]
+        );
+        Ok(())
+    }
+
+    /// Zero-duration spans create the key but contribute nothing.
+    #[test]
+    fn keyed_aggregator_zero_duration_span_is_noop() -> AnalyzerResult<()> {
+        let mut aggregator: KeyedAggregator<&str> = KeyedAggregator::new(ten_bin_config());
+        aggregator.try_push(SpanNanoSec::try_new(500, 500).unwrap(), ("k", 1.0))?;
+
+        let bins = aggregator.finish();
+        assert_eq!(bins.get("k").unwrap()[..], [0.0; 10]);
+        Ok(())
+    }
+
+    /// Spans entirely outside the window contribute nothing.
+    #[test]
+    fn keyed_aggregator_out_of_window_span_contributes_nothing() -> AnalyzerResult<()> {
+        let mut aggregator: KeyedAggregator<&str> = KeyedAggregator::new(ten_bin_config());
+        aggregator.try_push(SpanNanoSec::try_new(2000, 3000).unwrap(), ("k", 1.0))?;
+
+        let bins = aggregator.finish();
+        assert_eq!(bins.get("k").unwrap()[..], [0.0; 10]);
         Ok(())
     }
 }

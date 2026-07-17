@@ -2,12 +2,12 @@
 import type { CapacityKind } from "./CapacityKind";
 
 /**
- * A measure declared by the downstream analyzer for a distribution timeline,
+ * A measure declared by the downstream analyzer for a categorical timeline,
  * e.g. an entity count or a number of bytes.
  */
 export type MeasureDecl = { 
 /**
- * Unique name; key into [`DistributionSeries::values`].
+ * Unique name; key into [`CategoricalSeries::values`].
  */
 name: string, 
 /**

@@ -12,7 +12,7 @@ use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui:
 use quent_query_engine_ui as ui;
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
-    distribution::DistributionTimelineRequest,
+    categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
@@ -277,15 +277,15 @@ where
     ),
     request_body = Object,
     responses(
-        (status = 200, description = "Per-operator distribution timeline, or Unsupported", body = Object)
+        (status = 200, description = "Per-operator categorical data-flow timeline; 501 when the analyzer does not support it", body = Object)
     )
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn data_flow_timeline<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
-    Json(request): Json<DistributionTimelineRequest<ui::QueryFilter>>,
-) -> ServerResult<Json<ui::DataFlowTimelineResponse>>
+    Json(request): Json<CategoricalTimelineRequest<ui::QueryFilter>>,
+) -> ServerResult<Json<ui::DataFlowTimelineBinned>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {

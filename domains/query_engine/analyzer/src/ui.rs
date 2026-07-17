@@ -4,14 +4,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use quent_analyzer::AnalyzerResult;
+use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
 use quent_model::io::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
     entities::{request::EntityListRequest, response::EntityListResponse},
     timeline::{
-        distribution::DistributionTimelineRequest,
+        categorical::CategoricalTimelineRequest,
         request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
         response::{
             BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
@@ -118,18 +118,19 @@ pub trait UiAnalyzer {
         Ok(BulkChunkedTimelinesResponse { entries })
     }
 
-    /// Return, for every operator of a query, a binned timeline of a
-    /// distribution over (entity state, analyzer-defined dimension), for one
-    /// or more analyzer-declared measures. Powers the UI's data-flow-over-time
-    /// view of the query plan.
+    /// Return, for every operator of a query, a binned categorical timeline
+    /// over (entity state, analyzer-defined dimension), for one or more
+    /// analyzer-declared measures. Powers the UI's data-flow-over-time view of
+    /// the query plan.
     ///
-    /// The default implementation reports the feature as unsupported, so
-    /// existing analyzers keep compiling and the UI hides the view.
+    /// The default implementation returns [`AnalyzerError::Unsupported`]
+    /// (served as HTTP 501), so existing analyzers keep compiling and the UI
+    /// hides the view.
     fn data_flow_timeline(
         &self,
-        _request: DistributionTimelineRequest<ui::QueryFilter>,
-    ) -> AnalyzerResult<ui::DataFlowTimelineResponse> {
-        Ok(ui::DataFlowTimelineResponse::Unsupported)
+        _request: CategoricalTimelineRequest<ui::QueryFilter>,
+    ) -> AnalyzerResult<ui::DataFlowTimelineBinned> {
+        Err(AnalyzerError::Unsupported)
     }
 }
 
