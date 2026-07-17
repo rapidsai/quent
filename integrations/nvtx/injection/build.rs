@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Build script for `quent-nvtx-injection`.
+//! Build script for `nvtx-injection`.
 //!
 //! Runs `bindgen` over the NVTX injection ABI and writes the result to
 //! `$OUT_DIR/bindings.rs`, which `lib.rs` `include!`s. The NVTX headers and
@@ -34,7 +34,7 @@ fn generate_bindings() -> Result<(), Box<dyn std::error::Error>> {
 
     let prefix = PathBuf::from(std::env::var("CONDA_PREFIX").map_err(|_| {
         "CONDA_PREFIX is unset — build this crate inside the pixi env (e.g. \
-         `pixi run cargo build -p quent-nvtx-injection`) so the pinned nvtx-c \
+         `pixi run cargo build -p nvtx-injection`) so the pinned nvtx-c \
          headers and libclang are on the path"
     })?);
 
@@ -88,7 +88,5 @@ fn generate_bindings() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(feature = "static-injection")]
 fn compile_symbol_shim() {
     println!("cargo::rerun-if-changed=c/symbol.c");
-    cc::Build::new()
-        .file("c/symbol.c")
-        .compile("quent_nvtx_symbol");
+    cc::Build::new().file("c/symbol.c").compile("nvtx_symbol");
 }

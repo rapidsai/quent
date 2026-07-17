@@ -40,7 +40,7 @@ pub struct NvtxColor {
 
 /// Captured subset of `nvtxEventAttributes_t`.
 ///
-/// Only the members Quent reconstructs from are retained (`category`, `color`,
+/// Only the members a consumer reconstructs from are retained (`category`, `color`,
 /// `message`, `payload`); all are stored verbatim with no capture-time
 /// resolution or decoding.
 #[derive(Debug, Clone, PartialEq, Default)]

@@ -2070,6 +2070,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvtx-events"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "nvtx-injection"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "nvtx-events",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2793,23 +2810,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "quent-nvtx-events"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "quent-nvtx-injection"
-version = "0.1.0"
-dependencies = [
- "bindgen",
- "cc",
- "quent-nvtx-events",
- "thiserror",
 ]
 
 [[package]]

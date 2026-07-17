@@ -1,5 +1,5 @@
 [package]
-name = "quent-nvtx-events"
+name = "nvtx-events"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

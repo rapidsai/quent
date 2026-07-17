@@ -3,17 +3,17 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Quent NVTX integration
+# NVTX integration
 
 Captures NVTX events (ranges, marks, domains, registered strings, categories,
 thread names, resources, and the core payload union) from an instrumented
-application and turns them into Quent events — with **no application code
+application and turns them into structured events — with **no application code
 changes**. NVTX loads the capture library at runtime via the
 `NVTX_INJECTION64_PATH` environment variable.
 
 **Linux 64-bit only.** Injection relies on the ELF weak-symbol /
 `NVTX_INJECTION64_PATH` mechanism, which excludes Windows and 32-bit targets;
-`quent-nvtx-injection` enforces this with a `compile_error!`.
+`nvtx-injection` enforces this with a `compile_error!`.
 
 ## Contents
 
@@ -26,10 +26,10 @@ changes**. NVTX loads the capture library at runtime via the
 
 | Crate | Path | Role |
 |-------|------|------|
-| `quent-nvtx-events` | `events/` | The verbatim, Quent-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust — no C, no NVTX headers, and nothing Quent-internal — so it can be offered upstream to the NVTX Rust crates later. |
-| `quent-nvtx-injection` | `injection/` | The Quent-agnostic injection **cdylib** NVTX loads. Exports `InitializeInjectionNvtx2`, fills the NVTX callback tables, converts each call into a verbatim `NvtxEvent`, and hands it to a sink-agnostic `Fn(NvtxEvent)` hook. This is the only crate bound to the NVTX C ABI. |
+| `nvtx-events` | `events/` | The verbatim, application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust — no C, no NVTX headers, and nothing product-specific — so it can be offered upstream to the NVTX Rust crates later. |
+| `nvtx-injection` | `injection/` | The application-agnostic injection **cdylib** NVTX loads. Exports `InitializeInjectionNvtx2`, fills the NVTX callback tables, converts each call into a verbatim `NvtxEvent`, and hands it to a sink-agnostic `Fn(NvtxEvent)` hook. This is the only crate bound to the NVTX C ABI. |
 
-> A third crate — the bridge that wires captured events into Quent's event
+> A third crate — the bridge that wires captured events into a consumer's event
 > pipeline and provides the self-configuring capture cdylib you actually load —
 > follows in a later change.
 
@@ -48,8 +48,8 @@ changes**. NVTX loads the capture library at runtime via the
    the app are synthesized so the observed application still behaves correctly.
 
 Injection is **sink-agnostic** — it does not know where events go. A downstream
-crate installs the hook (into an ndjson file, Quent's pipeline, an in-memory
-collector for tests, etc.).
+crate installs the hook (into an ndjson file, a consumer's pipeline, an
+in-memory collector for tests, etc.).
 
 ### Captured surface
 
@@ -92,14 +92,14 @@ the pinned `nvtx-c` / `libclang` packages on the path.
 
 ## Upstreaming
 
-`quent-nvtx-events` and `quent-nvtx-injection` are kept deliberately
-Quent-agnostic — the vocabulary depends only on `serde`, and injection depends
-only on the vocabulary — because both are **very likely to be contributed
-upstream to the NVTX Rust crates**: the event vocabulary and a consumer/`tools`
-surface (the injection ABI the current `nvtx-sys` producer-only crate does not
-expose). If and when that lands upstream, Quent would depend on those crates
-instead of vendoring these two here.
+`nvtx-events` and `nvtx-injection` are kept deliberately application-agnostic —
+the vocabulary depends only on `serde`, and injection depends only on the
+vocabulary — because both are **very likely to be contributed upstream to the
+NVTX Rust crates**: the event vocabulary and a consumer/`tools` surface (the
+injection ABI the current `nvtx-sys` producer-only crate does not expose). If
+and when that lands upstream, a consumer would depend on those crates instead
+of vendoring these two here.
 
-This is a parallel effort and **not a blocker** for landing NVTX capture in
-Quent; the crates are structured now so that switching over later is a clean
+This is a parallel effort and **not a blocker** for landing NVTX capture in this
+repo; the crates are structured now so that switching over later is a clean
 dependency swap.

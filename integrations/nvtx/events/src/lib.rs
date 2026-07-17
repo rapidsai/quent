@@ -1,19 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Verbatim, Quent-agnostic NVTX event vocabulary.
+//! Verbatim, application-agnostic NVTX event vocabulary.
 //!
 //! Every downstream NVTX crate speaks this shared contract: the injection cdylib
-//! produces [`NvtxEvent`]s and the bridge forwards them into Quent. Events are
+//! produces [`NvtxEvent`]s and the bridge forwards them to a consumer. Events are
 //! captured **verbatim** — every handle (domain / category / resource /
 //! registered-string id) is a raw integer, and no name resolution or payload
 //! decoding happens at capture time. Handles are resolved from the event stream
 //! by a later analysis stage.
 //!
-//! The crate deliberately depends on nothing Quent-internal (optionally only
+//! The crate deliberately depends on nothing product-specific (optionally only
 //! `serde`, behind the default `serde` feature) so it stays cleanly separable and
 //! could be offered upstream to the NVTX Rust crates later. Adapting these events
-//! into Quent's pipeline — entity naming, the event wrapper — is the bridge
+//! into a consumer's pipeline — entity naming, the event wrapper — is the bridge
 //! crate's responsibility, not this crate's.
 
 mod attributes;
