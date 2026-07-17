@@ -21,36 +21,34 @@ import {
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '@quent/components';
-import type { DataFlowTimelineResponse, EntityRef, QueryBundle } from '@quent/utils';
+import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
 
 // 4 bins of 2s over [0, 8): op-1 task totals per bin are [1, 3, 5, 0] and
 // byte totals are [0, 1500000, 0, 0].
-const RESPONSE: DataFlowTimelineResponse = {
-  Binned: {
-    config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: BigInt(4) },
-    decl: {
-      entity_type_name: 'Task',
-      dimension_name: 'Data location',
-      dimension_keys: [
-        { key: 'memory', display_name: 'Memory' },
-        { key: 'filesystem', display_name: 'Filesystem' },
-      ],
-      measures: [
-        { name: 'tasks', display_name: 'Tasks', quantity: 'unit', kind: 'Occupancy' },
-        { name: 'bytes', display_name: 'Bytes', quantity: 'capacity_bytes', kind: 'Occupancy' },
-      ],
-      default_measure: null,
-    },
-    operators: {
-      'op-1': {
-        values: {
-          tasks: {
-            queueing: { memory: [1, 2, 0, 0] },
-            computing: { memory: [0, 1, 3, 0], filesystem: [0, 0, 2, 0] },
-          },
-          bytes: {
-            computing: { memory: [0, 1500000, 0, 0] },
-          },
+const RESPONSE: DataFlowTimelineBinned = {
+  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: BigInt(4) },
+  decl: {
+    entity_type_name: 'Task',
+    dimension_name: 'Data location',
+    dimension_keys: [
+      { key: 'memory', display_name: 'Memory' },
+      { key: 'filesystem', display_name: 'Filesystem' },
+    ],
+    measures: [
+      { name: 'tasks', display_name: 'Tasks', quantity: 'unit', kind: 'Occupancy' },
+      { name: 'bytes', display_name: 'Bytes', quantity: 'capacity_bytes', kind: 'Occupancy' },
+    ],
+    default_measure: null,
+  },
+  operators: {
+    'op-1': {
+      values: {
+        tasks: {
+          queueing: { memory: [1, 2, 0, 0] },
+          computing: { memory: [0, 1, 3, 0], filesystem: [0, 0, 2, 0] },
+        },
+        bytes: {
+          computing: { memory: [0, 1500000, 0, 0] },
         },
       },
     },
@@ -59,16 +57,14 @@ const RESPONSE: DataFlowTimelineResponse = {
 
 // Same op-1 as RESPONSE plus a huge op-2: the window max (1000) squeezes
 // op-1's segments below label width (1/1000 of the ~168px track).
-const NARROW_RESPONSE: DataFlowTimelineResponse = {
-  Binned: {
-    ...RESPONSE.Binned,
-    operators: {
-      ...RESPONSE.Binned.operators,
-      'op-2': {
-        values: {
-          tasks: {
-            queueing: { memory: [0, 0, 0, 1000] },
-          },
+const NARROW_RESPONSE: DataFlowTimelineBinned = {
+  ...RESPONSE,
+  operators: {
+    ...RESPONSE.operators,
+    'op-2': {
+      values: {
+        tasks: {
+          queueing: { memory: [0, 0, 0, 1000] },
         },
       },
     },
@@ -77,19 +73,17 @@ const NARROW_RESPONSE: DataFlowTimelineResponse = {
 
 // One dominant queueing segment at bin 0 (4/5 of the bar ≈ 134px) so a byte
 // label ("1.4MiB", 40px) fits inside it — exercises the label-measure toggle.
-const LABEL_RESPONSE: DataFlowTimelineResponse = {
-  Binned: {
-    ...RESPONSE.Binned,
-    operators: {
-      'op-1': {
-        values: {
-          tasks: {
-            queueing: { memory: [4, 0, 0, 0] },
-            computing: { memory: [1, 0, 0, 0] },
-          },
-          bytes: {
-            queueing: { memory: [1500000, 0, 0, 0] },
-          },
+const LABEL_RESPONSE: DataFlowTimelineBinned = {
+  ...RESPONSE,
+  operators: {
+    'op-1': {
+      values: {
+        tasks: {
+          queueing: { memory: [4, 0, 0, 0] },
+          computing: { memory: [1, 0, 0, 0] },
+        },
+        bytes: {
+          queueing: { memory: [1500000, 0, 0, 0] },
         },
       },
     },
@@ -128,7 +122,8 @@ const QUERY_BUNDLE = {
 } as unknown as QueryBundle<EntityRef>;
 
 interface HarnessProps {
-  response: DataFlowTimelineResponse;
+  /** Binned timeline; `null` = unsupported analyzer (HTTP 501 sentinel). */
+  response: DataFlowTimelineBinned | null;
   /** Whether the data-flow overlay is enabled (defaults to true). */
   enabled?: boolean;
   /** In-segment label measure (null = follow the bar measure). */
@@ -168,9 +163,9 @@ function Harness({
   );
 }
 
-function renderOverlay(props: DataFlowTimelineResponse | HarnessProps) {
+function renderOverlay(props: DataFlowTimelineBinned | null | HarnessProps) {
   const harnessProps: HarnessProps =
-    typeof props === 'object' && 'response' in props ? props : { response: props };
+    props !== null && 'response' in props ? props : { response: props };
   return render(
     <Provider>
       <Harness {...harnessProps} />
@@ -194,8 +189,8 @@ function stateSegmentWidths(): string[] {
 }
 
 describe('data-flow overlay components', () => {
-  it('renders nothing when the response is "Unsupported"', () => {
-    renderOverlay('Unsupported');
+  it('renders nothing for the null sentinel (unsupported analyzer — HTTP 501)', () => {
+    renderOverlay(null);
     expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
     expect(screen.queryByTestId('node-flow-bar')).not.toBeInTheDocument();
   });
@@ -324,11 +319,9 @@ describe('playback while the overlay is disabled', () => {
 
 describe('analyzer-declared default measure', () => {
   // Same data as RESPONSE, but the analyzer declares bytes as the default.
-  const BYTES_DEFAULT_RESPONSE: DataFlowTimelineResponse = {
-    Binned: {
-      ...RESPONSE.Binned,
-      decl: { ...RESPONSE.Binned.decl, default_measure: 'bytes' },
-    },
+  const BYTES_DEFAULT_RESPONSE: DataFlowTimelineBinned = {
+    ...RESPONSE,
+    decl: { ...RESPONSE.decl, default_measure: 'bytes' },
   };
 
   it('starts the flow bars on the declared default measure', () => {
@@ -458,7 +451,7 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
 describe('DAGLegend under tier selection', () => {
   function renderLegend(
     selectedDimensions: ReadonlySet<string> | null,
-    response: DataFlowTimelineResponse = RESPONSE
+    response: DataFlowTimelineBinned = RESPONSE
   ) {
     return render(
       <Provider>
@@ -519,10 +512,8 @@ describe('DAGLegend under tier selection', () => {
 
   it('formats totals in the current flow measure via its quantity spec', () => {
     renderLegend(null, {
-      Binned: {
-        ...RESPONSE.Binned,
-        decl: { ...RESPONSE.Binned.decl, default_measure: 'bytes' },
-      },
+      ...RESPONSE,
+      decl: { ...RESPONSE.decl, default_measure: 'bytes' },
     });
     const slider = screen.getByRole('slider');
     fireEvent.keyDown(slider, { key: 'ArrowRight' });

@@ -109,32 +109,29 @@ const BYTES_SPEC: QuantitySpec = {
 const BIN: DataFlowBinConfig = { startS: 0, endS: 8, binDurationS: 2, numBins: NUM_BINS };
 
 describe('normalizeDataFlowResponse', () => {
-  it('returns null for "Unsupported"', () => {
-    expect(normalizeDataFlowResponse('Unsupported')).toBeNull();
-  });
-
-  it('returns null for null/undefined', () => {
+  it('returns null for null/undefined (unsupported analyzer or not loaded)', () => {
     expect(normalizeDataFlowResponse(null)).toBeNull();
     expect(normalizeDataFlowResponse(undefined)).toBeNull();
   });
 
-  it('unwraps the Binned variant', () => {
+  it('passes a binned response through unchanged', () => {
     const binned = makeBinned(OPERATORS);
-    expect(normalizeDataFlowResponse({ Binned: binned })).toBe(binned);
+    expect(normalizeDataFlowResponse(binned)).toBe(binned);
   });
 });
 
 describe('isDataFlowAvailable', () => {
-  it('is false for "Unsupported"', () => {
-    expect(isDataFlowAvailable('Unsupported')).toBe(false);
+  it('is false for the null sentinel (unsupported analyzer — HTTP 501)', () => {
+    expect(isDataFlowAvailable(null)).toBe(false);
+    expect(isDataFlowAvailable(undefined)).toBe(false);
   });
 
   it('is false for an empty operators map', () => {
-    expect(isDataFlowAvailable({ Binned: makeBinned({}) })).toBe(false);
+    expect(isDataFlowAvailable(makeBinned({}))).toBe(false);
   });
 
-  it('is true for a non-empty Binned response', () => {
-    expect(isDataFlowAvailable({ Binned: makeBinned(OPERATORS) })).toBe(true);
+  it('is true for a non-empty binned response', () => {
+    expect(isDataFlowAvailable(makeBinned(OPERATORS))).toBe(true);
   });
 });
 

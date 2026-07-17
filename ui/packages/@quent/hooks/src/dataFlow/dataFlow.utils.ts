@@ -5,12 +5,11 @@
 // here so the rest of the UI works with normalized, pre-indexed structures.
 // Everything is server-declared: state names/order come from the query
 // bundle's FSM type declarations, dimension keys and measures from the
-// response's `DistributionDecl` — no hardcoded semantics.
+// response's `CategoricalDecl` — no hardcoded semantics.
 
 import type {
+  CategoricalDecl,
   DataFlowTimelineBinned,
-  DataFlowTimelineResponse,
-  DistributionDecl,
   FsmTypeDecl,
   QuantitySpec,
   ZoomRange,
@@ -29,7 +28,7 @@ export interface DataFlowBinConfig {
  * Presentation metadata for the data-flow overlay, derived once per response.
  */
 export interface DataFlowMeta {
-  decl: DistributionDecl;
+  decl: CategoricalDecl;
   /**
    * FSM type declaration referenced by `decl.entity_type_name` (from the
    * query bundle), when present. Drives state colors so they match the
@@ -121,21 +120,18 @@ export interface DataFlowFrame {
 }
 
 /**
- * Normalize the externally-tagged response. Returns `null` for
- * `"Unsupported"` or malformed values.
+ * Normalize the response sentinel: the endpoint returns the binned timeline
+ * directly, and `null` (unsupported analyzer — HTTP 501) or `undefined` (not
+ * yet loaded) both collapse to `null`.
  */
 export function normalizeDataFlowResponse(
-  response: DataFlowTimelineResponse | null | undefined
+  response: DataFlowTimelineBinned | null | undefined
 ): DataFlowTimelineBinned | null {
-  if (!response || response === 'Unsupported') return null;
-  if (typeof response !== 'object' || !('Binned' in response)) return null;
-  return response.Binned;
+  return response ?? null;
 }
 
 /** Whether the feature should be shown at all: supported and non-empty. */
-export function isDataFlowAvailable(
-  response: DataFlowTimelineResponse | null | undefined
-): boolean {
+export function isDataFlowAvailable(response: DataFlowTimelineBinned | null | undefined): boolean {
   const binned = normalizeDataFlowResponse(response);
   return binned != null && Object.keys(binned.operators).length > 0;
 }
@@ -425,7 +421,7 @@ export function buildDataFlowMeta(
  */
 export function resolveDataFlowMeasure(
   selected: string | null,
-  decl: DistributionDecl
+  decl: CategoricalDecl
 ): string | null {
   const isDeclared = (name: string) => decl.measures.some(m => m.name === name);
   if (selected != null && isDeclared(selected)) return selected;
@@ -441,7 +437,7 @@ export function resolveDataFlowMeasure(
  */
 export function resolveDataFlowLabelMeasure(
   selected: string | null,
-  decl: DistributionDecl,
+  decl: CategoricalDecl,
   barMeasure: string
 ): string {
   if (selected != null && decl.measures.some(m => m.name === selected)) return selected;

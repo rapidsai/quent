@@ -21,6 +21,9 @@ export const dataFlowQueryOptions = (
 ) =>
   queryOptions({
     queryKey: ['dataFlow', engineId, queryId, config.start, config.end, config.num_bins, measures],
+    // `fetchDataFlow` RESOLVES to `null` on HTTP 501 (analyzer without
+    // data-flow support) rather than throwing, so react-query settles the
+    // query as "unavailable" — no retries, no error noise.
     queryFn: () => fetchDataFlow(engineId, queryId, config, measures),
     staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,
     enabled: options?.enabled ?? true,

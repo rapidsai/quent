@@ -53,10 +53,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
 
-  // Data-flow overlay: fetch the distribution for the current zoom window
-  // (fallback: full query duration) and sync it into the data-flow atoms.
-  // The first response doubles as the feature probe — `"Unsupported"` or an
-  // empty result hides the playhead, bars, controls, and legend entries.
+  // Data-flow overlay: fetch the categorical timeline for the current zoom
+  // window (fallback: full query duration) and sync it into the data-flow
+  // atoms. The first response doubles as the feature probe — `null` (HTTP
+  // 501, analyzer without data-flow support) or an empty result hides the
+  // playhead, bars, controls, and legend entries.
   const debouncedZoomRange = useDebouncedZoomRange();
   const dataFlowWindow = resolveDataFlowWindow(debouncedZoomRange, queryBundle?.duration_s ?? 0);
   const { data: dataFlowResponse } = useDataFlow(
