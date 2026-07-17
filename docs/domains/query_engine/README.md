@@ -189,7 +189,6 @@ act as [Resource Groups][resource-group], forming a hierarchy through which
 resource usages can be aggregated. See [Resource Group][resource-group] for
 details.
 
-
 [mutual-exclusion]: ../../modeling/README.md#mutual-exclusion
 [engine]: #engine
 [entity]: ../../modeling/entity.md
