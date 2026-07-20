@@ -18,7 +18,7 @@ use quent_query_engine_model::{
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
-use rand::{Rng, distr::slice::Choose, rng};
+use rand::{RngExt, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
 
