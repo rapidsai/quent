@@ -73,7 +73,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.3",
     "@playwright/test": "^1.60.0",
-    "@tailwindcss/vite": "^4.2.1",
+    "@tailwindcss/vite": "^4.3.2",
     "@tanstack/router-cli": "^1.167.17",
     "@tanstack/router-vite-plugin": "^1.166.57",
     "@testing-library/jest-dom": "^6.9.1",
