@@ -31,12 +31,12 @@ use quent_schema::{Schema, visitor::Visitor};
 pub trait Constraint: Visitor + Default {
     /// A unique name for this constraint.
     ///
-    /// While no restrictions are imposed on constraint names (other than that
-    /// they are valid UTF-8 strings) it is recommended to follow the
-    /// human-readable dot-separated pattern `project.constraint.version`. For
-    /// example: `quent.fsm.v1`. This reduces the probability of name clashes
-    /// between dependencies, and provides a means of easily detecting breaking
-    /// changes to the constraint's own schema.
+    /// While constraint names only need to be valid UTF-8, the recommended
+    /// pattern is `project.constraint.v<SEMVER>`, following [Semantic
+    /// Versioning]. Unstable constraints should use a major version of zero,
+    /// for example `quent.fsm.v0.1.0`.
+    ///
+    /// [Semantic Versioning]: https://semver.org/
     const NAME: &'static str;
 }
 
@@ -56,7 +56,7 @@ impl Display for BaseConstraintsError {
         write!(
             f,
             "base constraints failed to validate:\n{}",
-            &[
+            [
                 utils::bullet_list(&self.invalid_references),
                 utils::bullet_list(&self.recursive_records)
             ]
@@ -104,7 +104,7 @@ pub struct Report<R> {
 /// #     }
 /// # }
 /// # impl Constraint for DocConstraint {
-/// #     const NAME: &'static str = "quent.docs.constraint.v1";
+/// #     const NAME: &'static str = "quent.docs.constraint.v0.1.0";
 /// # }
 /// # type ConstraintA = DocConstraint;
 /// # type ConstraintB = DocConstraint;

@@ -3,20 +3,20 @@ resolver = "3"
 members = [
     # Application-agnostic crates
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
     "crates/events",
-    "crates/exporter",
-    "crates/exporter/callback",
-    "crates/exporter/collector",
-    "crates/exporter/msgpack",
-    "crates/exporter/ndjson",
-    "crates/exporter/postcard",
-    "crates/exporter/types",
+    "crates/io",
+    "crates/io/callback",
+    "crates/io/collector",
+    "crates/io/msgpack",
+    "crates/io/ndjson",
+    "crates/io/postcard",
+    "crates/io/types",
     "crates/instrumentation",
     "crates/model",
     "crates/model-macros",
@@ -24,6 +24,9 @@ members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
+    "integrations/nvtx/injection",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
@@ -59,28 +62,34 @@ members = [
     "crates/fsm",
     "crates/resource",
     "crates/instrumentation-build",
-    "crates/instrumentation-build/example",
+    "crates/yaml",
 ]
+
+# The instrumentation-build example is deliberately its own workspace (see its
+# Cargo.toml). Kept out of this one so `--workspace --all-features` doesn't
+# unify the filesystem/collector exporters (and their `serde` bound) into its
+# callback-only, `Serialize`-free graph.
+exclude = ["crates/instrumentation-build/example"]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
 # `cargo build` and `cargo test` (no -p, no --workspace) skip those crates, preserving
 # the zero-cost guarantee for everything else. Use `cargo build -p <crate>` to opt in.
 default-members = [
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
     "crates/events",
-    "crates/exporter",
-    "crates/exporter/callback",
-    "crates/exporter/collector",
-    "crates/exporter/msgpack",
-    "crates/exporter/ndjson",
-    "crates/exporter/postcard",
-    "crates/exporter/types",
+    "crates/io",
+    "crates/io/callback",
+    "crates/io/collector",
+    "crates/io/msgpack",
+    "crates/io/ndjson",
+    "crates/io/postcard",
+    "crates/io/types",
     "crates/instrumentation",
     "crates/model",
     "crates/model-macros",
@@ -111,11 +120,15 @@ repository = "https://github.com/rapidsai/quent"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+bindgen = "0.72"
+bitcode = { version = "0.6.9", features = ["serde"] }
+cargo_metadata = "0.23"
+cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
-postcard = { version = "1", features = ["alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 prost = "0.14.1"
 pyo3 = "0.29"
 rmp-serde = "1"

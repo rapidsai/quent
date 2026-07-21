@@ -4,8 +4,9 @@ import type { BulkTimelinesResponseEntry } from "./BulkTimelinesResponseEntry";
 /**
  * Response for a bulk timeline request.
  */
-export type BulkTimelinesResponse = { 
-/**
- * The timeline responses, keyed by the same keys as the request entries.
- */
-entries: { [key in string]: BulkTimelinesResponseEntry }, };
+export type BulkTimelinesResponse = {
+  /**
+   * The timeline responses, keyed by the same keys as the request entries.
+   */
+  entries: { [key in string]: BulkTimelinesResponseEntry };
+};

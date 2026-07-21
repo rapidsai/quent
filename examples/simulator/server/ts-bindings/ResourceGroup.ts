@@ -3,23 +3,24 @@
 /**
  * A Group of [`Resource`]s.
  */
-export type ResourceGroup = { 
-/**
- * The ID of this Resource Group.
- */
-id: string, 
-/**
- * The name of the type of Resource Group
- */
-type_name: string, 
-/**
- * The name of the instance of this Resource Group.
- */
-instance_name: string, 
-/**
- * The parent of this Resource Group.
- *
- * If this is None, it is considered the root of the global application's
- * resource tree.
- */
-parent_group_id: string | null, };
+export type ResourceGroup = {
+  /**
+   * The ID of this Resource Group.
+   */
+  id: string;
+  /**
+   * The name of the type of Resource Group
+   */
+  type_name: string;
+  /**
+   * The name of the instance of this Resource Group.
+   */
+  instance_name: string;
+  /**
+   * The parent of this Resource Group.
+   *
+   * If this is None, it is considered the root of the global application's
+   * resource tree.
+   */
+  parent_group_id: string | null;
+};

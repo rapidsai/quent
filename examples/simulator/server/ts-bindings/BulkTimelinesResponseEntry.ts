@@ -5,20 +5,24 @@ import type { ResourceTimeline } from "./ResourceTimeline";
 /**
  * A single entry in a bulk timeline response.
  */
-export type BulkTimelinesResponseEntry = { "status": "ok", 
-/**
- * An informational message about the entry.
- */
-message: string, 
-/**
- * The configuration of the binned timeline for this entry.
- */
-config: BinnedSpanSec, 
-/**
- * The timeline data for this entry.
- */
-data: ResourceTimeline, } | { "status": "error", 
-/**
- * A message describing the error.
- */
-message: string, };
+export type BulkTimelinesResponseEntry = {
+  "status": "ok";
+  /**
+   * An informational message about the entry.
+   */
+  message: string;
+  /**
+   * The configuration of the binned timeline for this entry.
+   */
+  config: BinnedSpanSec;
+  /**
+   * The timeline data for this entry.
+   */
+  data: ResourceTimeline;
+} | {
+  "status": "error";
+  /**
+   * A message describing the error.
+   */
+  message: string;
+};

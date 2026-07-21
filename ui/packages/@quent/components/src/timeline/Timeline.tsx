@@ -370,6 +370,45 @@ export function Timeline({
       }
     });
 
+    // Two-finger horizontal trackpad scroll → pan the time window.
+    dom.addEventListener(
+      'wheel',
+      e => {
+        // Shift+wheel is reserved for zoom; browsers remap deltaY to deltaX while shift is held.
+        if (e.shiftKey) return;
+        if (e.deltaX === 0 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+        if (instance.isDisposed?.()) return;
+
+        e.preventDefault();
+
+        const opt = instance.getOption() as {
+          dataZoom?: Array<{ start?: number; end?: number }>;
+        };
+        const dz = opt.dataZoom?.[0];
+        if (!dz) return;
+
+        const currentStart = dz.start ?? 0;
+        const currentEnd = dz.end ?? 100;
+        const spanPct = currentEnd - currentStart;
+
+        const rect = dom.getBoundingClientRect();
+        const usableWidth = Math.max(
+          1,
+          rect.width - TIMELINE_SPACING.left - TIMELINE_SPACING.right
+        );
+        const deltaPct = (e.deltaX / usableWidth) * spanPct;
+        const newStart = Math.max(0, Math.min(100 - spanPct, currentStart + deltaPct));
+
+        instance.dispatchAction({
+          type: 'dataZoom',
+          dataZoomIndex: 0,
+          start: newStart,
+          end: newStart + spanPct,
+        });
+      },
+      { capture: true, passive: false }
+    );
+
     // Pass non-shift wheel events through to the page for normal scrolling.
     // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
     // When at the zoom limit, also block shift+wheel-in before ECharts sees it —

@@ -4,16 +4,17 @@ import type { CapacityKind } from "./CapacityKind";
 /**
  * A capacity declaration for a resource type, as exposed to the UI.
  */
-export type CapacityDecl = { 
-/**
- * The name of this capacity.
- */
-name: string, 
-/**
- * The kind of capacity.
- */
-kind: CapacityKind, 
-/**
- * The name of the quantity spec (key into the quantity_specs map).
- */
-quantity: string, };
+export type CapacityDecl = {
+  /**
+   * The name of this capacity.
+   */
+  name: string;
+  /**
+   * The kind of capacity.
+   */
+  kind: CapacityKind;
+  /**
+   * The name of the quantity spec (key into the quantity_specs map).
+   */
+  quantity: string;
+};

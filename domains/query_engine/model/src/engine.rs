@@ -14,7 +14,7 @@ pub struct EngineImplementationAttributes {
     /// The version of this Engine implementation, e.g. "13.3.7"
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
-    pub custom_attributes: quent_attributes::CustomAttributes,
+    pub custom_attributes: quent_model::attributes::DynamicAttributes,
 }
 
 #[derive(Debug, Default, Attributes, Deserialize, Serialize)]

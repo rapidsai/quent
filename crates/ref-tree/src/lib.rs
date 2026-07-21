@@ -237,7 +237,7 @@ impl Visitor for RefTreeConstraint {
 }
 
 impl Constraint for RefTreeConstraint {
-    const NAME: &'static str = "quent.ref-tree.v1";
+    const NAME: &'static str = "quent.ref-tree.v0.1.0";
 }
 
 impl RefTreeConstraint {

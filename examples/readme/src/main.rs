@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_model::{Ref, attributes::Attribute, usage, uuid::Uuid};
+use quent_model::{Ref, attributes::DynamicAttribute, usage, uuid::Uuid};
 use quent_readme_example::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::PathBuf::from("./events");
-    let exporter = quent_model::exporter::ExporterOptions::FileSystem(
-        quent_model::exporter::FileSystemExporterOptions {
-            format: quent_model::exporter::FileSystemFormat::Ndjson,
-            root: root.clone(),
-        },
+    let exporter = quent_model::io::ExporterOptions::FileSystem(
+        quent_model::io::filesystem::exporter::Options::new(
+            quent_model::io::filesystem::Format::Ndjson,
+            root.clone(),
+        ),
     );
     let context = AppContext::try_new(Some(exporter))?;
 
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ref::new(cluster),
         Details {
             version: "42.1.2".to_string(),
-            custom: vec![Attribute::u64("threads", 256)].into(),
+            custom: vec![DynamicAttribute::u64("threads", 256)].into(),
         },
     );
 

@@ -7,7 +7,7 @@
 
 #include "quent-bridge/gen/cluster.rs.h"
 #include "quent-bridge/gen/context.rs.h"
-#include "quent-bridge/gen/custom_attributes.rs.h"
+#include "quent-bridge/gen/dynamic_attributes.rs.h"
 #include "quent-bridge/gen/file_stats.rs.h"
 #include "quent-bridge/gen/info.rs.h"
 #include "quent-bridge/gen/memory_pool.rs.h"
@@ -38,7 +38,7 @@ int main() {
     // Spawn a worker.
     auto worker_obs = quent::worker::create_observer(*ctx);
     auto worker_id = uuid::now_v7();
-    quent::CustomAttributes custom;
+    quent::DynamicAttributes custom;
     custom.string_attrs.push_back({"version", "42.1.2"});
     custom.i64_attrs.push_back({"threads", 256});
     worker_obs->worker_declaration(worker_id,

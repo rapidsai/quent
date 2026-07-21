@@ -20,6 +20,12 @@ use crate::spec::ViewerSpec;
 /// Name of the generated wrapper package (also the built binary name).
 pub const WRAPPER_PACKAGE: &str = "quent-open-viewer";
 
+/// Cargo package of quent's I/O crate (export/import formats).
+pub const IO_PACKAGE: &str = "quent-io";
+/// Cargo package of the I/O crate before its rename to [`IO_PACKAGE`], for
+/// artifacts pinned to quent revisions that predate the rename.
+pub const LEGACY_IO_PACKAGE: &str = "quent-exporter";
+
 /// Wrapper env var for the output root: a directory of `<context-uuid>/`
 /// context directories.
 pub const ROOT_ENV: &str = "QUENT_OPEN_ROOT";
@@ -27,9 +33,11 @@ pub const ROOT_ENV: &str = "QUENT_OPEN_ROOT";
 pub const ADDR_ENV: &str = "QUENT_OPEN_ADDR";
 
 /// Write the wrapper crate (`Cargo.toml` + `src/main.rs`) into `crate_dir`.
-pub fn generate(spec: &ViewerSpec, crate_dir: &Path) -> Result<()> {
+/// `io_package` is the name of quent's I/O crate at the pinned revision
+/// ([`IO_PACKAGE`], or [`LEGACY_IO_PACKAGE`] for revisions predating the rename).
+pub fn generate(spec: &ViewerSpec, crate_dir: &Path, io_package: &str) -> Result<()> {
     std::fs::create_dir_all(crate_dir.join("src"))?;
-    std::fs::write(crate_dir.join("Cargo.toml"), cargo_toml(spec))?;
+    std::fs::write(crate_dir.join("Cargo.toml"), cargo_toml(spec, io_package))?;
     std::fs::write(crate_dir.join("src/main.rs"), main_rs(spec))?;
     Ok(())
 }
@@ -47,7 +55,7 @@ fn git_dep(url: String, rev: &str, features: &[&str]) -> Dependency {
 /// Wrapper `Cargo.toml`, built with `cargo-manifest`: pin quent crates to
 /// `quent.{remote,commit}` and the analyzer to `analyzer.{remote,commit}`; the
 /// empty `[workspace]` keeps the generated crate out of any parent workspace.
-fn cargo_toml(spec: &ViewerSpec) -> String {
+fn cargo_toml(spec: &ViewerSpec, io_package: &str) -> String {
     let quent = spec.quent.cargo_url();
     let q_rev = spec.quent.commit.as_str();
     let dependencies = BTreeMap::from([
@@ -61,7 +69,7 @@ fn cargo_toml(spec: &ViewerSpec) -> String {
         ),
         (
             // All formats enabled so the analyzer can detect the artifact's format at runtime.
-            "quent-exporter".to_string(),
+            io_package.to_string(),
             git_dep(quent, q_rev, &["ndjson", "msgpack", "postcard"]),
         ),
         (
@@ -174,7 +182,7 @@ mod tests {
 
     #[test]
     fn cargo_toml_pins_quent_and_analyzer() {
-        let manifest: toml::Value = toml::from_str(&cargo_toml(&spec())).unwrap();
+        let manifest: toml::Value = toml::from_str(&cargo_toml(&spec(), IO_PACKAGE)).unwrap();
         assert!(manifest.get("workspace").is_some(), "standalone workspace");
         let deps = &manifest["dependencies"];
         let server = &deps["quent-query-engine-server"];
@@ -182,7 +190,7 @@ mod tests {
         assert_eq!(server["rev"].as_str().unwrap(), "quentcommit");
         assert_eq!(server["features"][0].as_str().unwrap(), "ui");
         // The exporter enables all formats so the analyzer detects the artifact's format at runtime.
-        let exporter_features = deps["quent-exporter"]["features"].as_array().unwrap();
+        let exporter_features = deps["quent-io"]["features"].as_array().unwrap();
         for format in ["ndjson", "msgpack", "postcard"] {
             assert!(exporter_features.iter().any(|f| f.as_str() == Some(format)));
         }
@@ -192,6 +200,26 @@ mod tests {
             "https://example.com/analyzer"
         );
         assert_eq!(analyzer["rev"].as_str().unwrap(), "analyzercommit");
+    }
+
+    #[test]
+    fn cargo_toml_supports_the_legacy_io_package() {
+        // Artifacts pinned to quent revisions predating the `quent-exporter` →
+        // `quent-io` rename depend on the legacy package instead, same features.
+        let manifest: toml::Value =
+            toml::from_str(&cargo_toml(&spec(), LEGACY_IO_PACKAGE)).unwrap();
+        let deps = &manifest["dependencies"];
+        assert!(deps.get("quent-io").is_none());
+        let exporter = &deps["quent-exporter"];
+        assert_eq!(
+            exporter["git"].as_str().unwrap(),
+            "https://example.com/quent"
+        );
+        assert_eq!(exporter["rev"].as_str().unwrap(), "quentcommit");
+        let features = exporter["features"].as_array().unwrap();
+        for format in ["ndjson", "msgpack", "postcard"] {
+            assert!(features.iter().any(|f| f.as_str() == Some(format)));
+        }
     }
 
     #[test]

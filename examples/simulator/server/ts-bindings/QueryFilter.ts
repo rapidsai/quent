@@ -3,4 +3,4 @@
 /**
  * Global timeline-request parameter identifying the query to report on.
  */
-export type QueryFilter = { query_id: string, };
+export type QueryFilter = { query_id: string };

@@ -4,12 +4,13 @@ import type { TimelineRequest } from "./TimelineRequest";
 /**
  * Request for a single timeline.
  */
-export type SingleTimelineRequest<GlobalParams, TimelineParams> = { 
-/**
- * The timeline requested.
- */
-entry: TimelineRequest<TimelineParams>, 
-/**
- * Global application-specific parameters, e.g. filters.
- */
-app_params: GlobalParams, };
+export type SingleTimelineRequest<GlobalParams, TimelineParams> = {
+  /**
+   * The timeline requested.
+   */
+  entry: TimelineRequest<TimelineParams>;
+  /**
+   * Global application-specific parameters, e.g. filters.
+   */
+  app_params: GlobalParams;
+};

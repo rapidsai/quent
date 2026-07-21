@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use rustc_hash::FxHashMap as HashMap;
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -49,7 +49,7 @@ pub struct RtFsmTransition {
     pub name: String,
     pub usages: Vec<RtFsmStateUsage>,
     pub timestamp: TimeUnixNanoSec,
-    pub attributes: Vec<Attribute>,
+    pub attributes: Vec<DynamicAttribute>,
 }
 
 impl Timestamp for RtFsmTransition {
@@ -62,8 +62,8 @@ impl Transition for RtFsmTransition {
     fn name(&self) -> &str {
         self.name.as_str()
     }
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        self.attributes.iter()
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        self.attributes.clone()
     }
 }
 

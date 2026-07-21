@@ -5,7 +5,7 @@
 //! library for the scenario.
 
 use clap::Parser;
-use quent_exporter::clap::ExporterArgs;
+use quent_io::clap::ExporterArgs;
 use quent_query_engine_fixed::emit;
 use quent_simulator_instrumentation::SimulatorContext;
 

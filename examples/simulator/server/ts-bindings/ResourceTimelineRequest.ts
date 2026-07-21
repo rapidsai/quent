@@ -5,24 +5,25 @@ import type { TimelineConfig } from "./TimelineConfig";
 /**
  * Parameters for requesting a resource timeline.
  */
-export type ResourceTimelineRequest<TimelineParams> = { 
-/**
- * The ID of the resource
- */
-resource_id: string, 
-/**
- * If set, fully include entities that have usages exceeding this amount of time.
- */
-long_entities_threshold_s: number | null, 
-/**
- * Entity filters.
- */
-entity_filter: EntityFilter, 
-/**
- * Application-specific request parameters, e.g. for filtering.
- */
-application: TimelineParams, 
-/**
- * The configuration of the window and number of bins.
- */
-config: TimelineConfig, };
+export type ResourceTimelineRequest<TimelineParams> = {
+  /**
+   * The ID of the resource
+   */
+  resource_id: string;
+  /**
+   * If set, fully include entities that have usages exceeding this amount of time.
+   */
+  long_entities_threshold_s: number | null;
+  /**
+   * Entity filters.
+   */
+  entity_filter: EntityFilter;
+  /**
+   * Application-specific request parameters, e.g. for filtering.
+   */
+  application: TimelineParams;
+  /**
+   * The configuration of the window and number of bins.
+   */
+  config: TimelineConfig;
+};

@@ -13,3 +13,5 @@ tarpaulin-report.html
 docs/agents/
 .cursor
 __pycache__/
+.env
+

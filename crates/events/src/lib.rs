@@ -4,10 +4,9 @@
 //! Type definitions of entity events.
 
 use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-pub mod trace;
 
 /// Trait for the event type of an entity.
 pub trait EntityEvent {
@@ -15,7 +14,8 @@ pub trait EntityEvent {
     const NAME: &'static str;
 }
 
-#[derive(Deserialize, Serialize)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug)]
 pub struct Event<T> {
     /// The ID of the entity producing this event.
     pub id: Uuid,
@@ -23,15 +23,6 @@ pub struct Event<T> {
     pub timestamp: TimeUnixNanoSec,
     /// The payload of the event.
     pub data: T,
-}
-
-impl<T> std::fmt::Debug for Event<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(&format!("Event<{}>", std::any::type_name::<T>()))
-            .field("id", &self.id)
-            .field("timestamp", &self.timestamp)
-            .finish_non_exhaustive()
-    }
 }
 
 impl<T> Event<T> {

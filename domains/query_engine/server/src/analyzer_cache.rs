@@ -7,9 +7,8 @@ use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{
-    FileSystemFormat, FileSystemImporterOptions, ImporterOptions, create_importer,
-};
+use quent_io::filesystem::{self, Format};
+use quent_io::{ImporterOptions, ImporterProvider};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_model::{engine::EngineEvent, worker::WorkerEvent};
 use quent_query_engine_ui as ui;
@@ -100,19 +99,19 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
             continue;
         };
         // Each context's serialization format is detected from its own streams.
-        let Some(format) = FileSystemFormat::detect(&context_dir) else {
+        let Some(format) = Format::detect(&context_dir) else {
             continue;
         };
 
         // Engines living in this context.
         let engine_dir = context_dir.join(<EngineEvent as EntityEvent>::NAME);
         if engine_dir.is_dir() {
-            let importer = create_importer::<EngineEvent>(&ImporterOptions::FileSystem(
-                FileSystemImporterOptions {
+            let importer = <ImporterOptions as ImporterProvider<EngineEvent>>::create_importer(
+                &ImporterOptions::FileSystem(filesystem::importer::Options {
                     format,
                     path: engine_dir,
-                },
-            ))?;
+                }),
+            )?;
             let mut seen = HashSet::new();
             for event in importer {
                 if seen.insert(event.id) {
@@ -124,12 +123,12 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
         // Workers living in this context attribute it to their parent engine.
         let worker_dir = context_dir.join(<WorkerEvent as EntityEvent>::NAME);
         if worker_dir.is_dir() {
-            let importer = create_importer::<WorkerEvent>(&ImporterOptions::FileSystem(
-                FileSystemImporterOptions {
+            let importer = <ImporterOptions as ImporterProvider<WorkerEvent>>::create_importer(
+                &ImporterOptions::FileSystem(filesystem::importer::Options {
                     format,
                     path: worker_dir,
-                },
-            ))?;
+                }),
+            )?;
             let mut seen = HashSet::new();
             for event in importer {
                 if let WorkerEvent::Init(init) = &event.data

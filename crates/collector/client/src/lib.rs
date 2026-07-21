@@ -29,6 +29,15 @@ pub trait CollectorSink {
     fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
 }
 
+/// Decode `bytes` into an [`Event`], inverting the wire encoding this client
+/// produces on send.
+pub fn deserialize_event<T>(bytes: &[u8]) -> Result<Event<T>, bitcode::Error>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    bitcode::deserialize(bytes)
+}
+
 #[derive(Debug, Error)]
 pub enum CollectorError {
     #[error("Unable to connect: {0}")]
@@ -114,8 +123,6 @@ where
             // Max bytes in the buffer.
             // gRPC max default is 4 MiB, reserve 256 KiB for overhead.
             const MAX_BUFFER_BYTES: usize = (4 * 1024 * 1024) - (256 * 1024);
-            // Reusable serialization buffer so we can re-use the allocation.
-            let mut serialized_event = Vec::with_capacity(4096);
 
             /// function to flush the buffer
             async fn flush_buffer(
@@ -136,13 +143,15 @@ where
             loop {
                 select! {
                     Some(event) = event_receiver.recv() => {
-                        serialized_event.clear();
-                        if let Err(e) = ciborium::into_writer(&event, &mut serialized_event) {
-                            error!("unable to serialize event: {e}");
-                            continue;
-                        }
+                        let serialized_event = match bitcode::serialize(&event) {
+                            Ok(bytes) => bytes,
+                            Err(e) => {
+                                error!("unable to serialize event: {e}");
+                                continue;
+                            }
+                        };
                         num_buffer_bytes += serialized_event.len();
-                        buffer.push(serialized_event.clone());
+                        buffer.push(serialized_event);
 
                         if num_buffer_bytes >= MAX_BUFFER_BYTES {
                             if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
@@ -162,12 +171,10 @@ where
                         event_receiver.close();
                         // drain events that are buffered
                         while let Some(event) = event_receiver.recv().await {
-                            serialized_event.clear();
-                            if let Err(e) = ciborium::into_writer(&event, &mut serialized_event) {
-                                error!("unable to serialize event: {e}");
-                                continue;
+                            match bitcode::serialize(&event) {
+                                Ok(bytes) => buffer.push(bytes),
+                                Err(e) => error!("unable to serialize event: {e}"),
                             }
-                            buffer.push(serialized_event.clone());
                         }
 
                         if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {

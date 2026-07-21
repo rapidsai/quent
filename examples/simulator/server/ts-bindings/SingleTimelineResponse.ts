@@ -2,15 +2,16 @@
 import type { BinnedSpanSec } from "./BinnedSpanSec";
 import type { ResourceTimeline } from "./ResourceTimeline";
 
-export type SingleTimelineResponse = { 
-/**
- * The configuration of the binned timeline.
- *
- * This may slightly differ from the requested configuration to ensure
- * bounds are not exceeded and bin sizes are equal.
- */
-config: BinnedSpanSec, 
-/**
- * The data of the response.
- */
-data: ResourceTimeline, };
+export type SingleTimelineResponse = {
+  /**
+   * The configuration of the binned timeline.
+   *
+   * This may slightly differ from the requested configuration to ensure
+   * bounds are not exceeded and bin sizes are equal.
+   */
+  config: BinnedSpanSec;
+  /**
+   * The data of the response.
+   */
+  data: ResourceTimeline;
+};

@@ -3,12 +3,13 @@
 /**
  * A span of time in seconds.
  */
-export type SpanSec = { 
-/**
- * The start time, inclusive.
- */
-start: number, 
-/**
- * The end time, exclusive.
- */
-end: number, };
+export type SpanSec = {
+  /**
+   * The start time, inclusive.
+   */
+  start: number;
+  /**
+   * The end time, exclusive.
+   */
+  end: number;
+};

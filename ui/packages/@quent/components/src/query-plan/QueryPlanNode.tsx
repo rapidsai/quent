@@ -13,7 +13,9 @@ import {
   WHITE,
   BLACK,
   NODE_LABEL_FIELD,
+  DAG_LAYOUT_DIRECTION,
   type Operator,
+  type DagLayoutDirection,
 } from '@quent/utils';
 import {
   useSelectedNodeLabelField,
@@ -26,6 +28,7 @@ import {
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { inferFieldFormatter } from '@quent/utils';
 import { DataText } from '../ui/data-text';
+import { NodeFlowBar } from './NodeFlowBar';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -34,6 +37,8 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   metadata?: { rawNode?: Operator };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
+  /** Which edge of the node incoming/outgoing handles attach to; flips with the DAG layout direction. */
+  layoutDirection?: DagLayoutDirection;
   /**
    * Whether dark mode is active. Forwarded by `DAGChart` via the node's data
    * payload so the renderer can derive heatmap colors without coupling to a
@@ -42,6 +47,12 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   isDark?: boolean;
   /** Pre-computed collision-free color for this operator type within the current DAG. */
   baseColor?: string;
+  /**
+   * Whether the data-flow overlay bar is rendered under the node content.
+   * Injected by `DAGChart` when converting nodes so toggling the overlay
+   * relayouts exactly once.
+   */
+  flowBarVisible?: boolean;
 }
 
 const nodeVariants = cva(
@@ -140,6 +151,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const isActiveHighlight = isHighlighted && !isSelected;
 
+  const isBottomToTop =
+    (data.layoutDirection ?? DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP) ===
+    DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP;
+  const incomingHandlePosition = isBottomToTop ? Position.Bottom : Position.Top;
+  const outgoingHandlePosition = isBottomToTop ? Position.Top : Position.Bottom;
+
   const onMouseEnter = useCallback(() => {
     setIsHoveredLocal(true);
     if (operatorId) {
@@ -178,7 +195,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       }
     >
       {data.hasIncoming && (
-        <Handle type="target" position={Position.Top} className="w-2 h-2 opacity-0" />
+        <Handle type="target" position={incomingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
 
       <DataText
@@ -204,8 +221,10 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         </div>
       )}
 
+      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} isDark={isDark} />}
+
       {data.hasOutgoing && (
-        <Handle type="source" position={Position.Bottom} className="w-2 h-2 opacity-0" />
+        <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
     </div>
   );

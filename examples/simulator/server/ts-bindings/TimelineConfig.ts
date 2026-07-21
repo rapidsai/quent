@@ -3,16 +3,17 @@
 /**
  * Configuration of the window and number of bins of a timeline.
  */
-export type TimelineConfig = { 
-/**
- * The number of bins for binned timelines.
- */
-num_bins: number, 
-/**
- * The start time of the time window applied to all timelines in seconds.
- */
-start: number, 
-/**
- * The end time of the time window applied to all timelines in seconds.
- */
-end: number, };
+export type TimelineConfig = {
+  /**
+   * The number of bins for binned timelines.
+   */
+  num_bins: number;
+  /**
+   * The start time of the time window applied to all timelines in seconds.
+   */
+  start: number;
+  /**
+   * The end time of the time window applied to all timelines in seconds.
+   */
+  end: number;
+};

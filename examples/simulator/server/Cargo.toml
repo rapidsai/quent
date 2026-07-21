@@ -10,7 +10,7 @@ swagger = ["quent-query-engine-server/swagger"]
 [dependencies]
 axum = { version = "0.8.7" }
 clap = { version = "4.5", features = ["derive", "env"] }
-quent-exporter = { path = "../../../crates/exporter" }
+quent-io = { path = "../../../crates/io" }
 quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-instrumentation = { path = "../instrumentation", features = ["collector"] }
@@ -19,7 +19,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [build-dependencies]
-ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl", "format"] }
 quent-ui = { path = "../../../crates/ui" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-simulator-ui = { path = "../ui" }

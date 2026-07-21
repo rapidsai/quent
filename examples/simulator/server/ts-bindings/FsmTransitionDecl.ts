@@ -3,4 +3,6 @@
 /**
  * A declaration of an FSM state transition.
  */
-export type FsmTransitionDecl = { "Entry": string } | { "Transition": [string, string] } | { "Exit": string };
+export type FsmTransitionDecl = { "Entry": string } | {
+  "Transition": [string, string];
+} | { "Exit": string };

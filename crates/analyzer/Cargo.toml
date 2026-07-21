@@ -3,16 +3,16 @@ name = "quent-analyzer"
 version.workspace = true
 edition.workspace =  true
 publish.workspace = true
+
 [features]
 default = []
 ts = ["serde", "ts-rs"]
 
 [dependencies]
-quent-attributes = { path = "../attributes" }
+quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-events = { path = "../events" }
 quent-model = { path = "../model" }
 quent-time = { path = "../time" }
-quent-exporter-types = { path = "../exporter/types" }
 rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
 smallvec = { workspace = true, features = ["serde"] }

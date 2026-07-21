@@ -8,7 +8,6 @@ publish.workspace = true
 collector = ["quent-model/collector"]
 
 [dependencies]
-quent-attributes = { path = "../../crates/attributes" }
 quent-model = { path = "../../crates/model" }
 serde.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }

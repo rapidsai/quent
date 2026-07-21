@@ -4,7 +4,7 @@
 // The code does not need to make semantic sense; it exercises the full API.
 
 #include "quent-qe-bridge/gen/context.rs.h"
-#include "quent-qe-bridge/gen/custom_attributes.rs.h"
+#include "quent-qe-bridge/gen/dynamic_attributes.rs.h"
 #include "quent-qe-bridge/gen/engine.rs.h"
 #include "quent-qe-bridge/gen/operator.rs.h"
 #include "quent-qe-bridge/gen/plan.rs.h"
@@ -25,7 +25,7 @@ int main() {
   // Engine: init with implementation attributes and custom attributes.
   auto engine_obs = quent::engine::create_observer(*ctx);
 
-  quent::CustomAttributes engine_custom;
+  quent::DynamicAttributes engine_custom;
   engine_custom.string_attrs.push_back({"deployment", "test"});
   engine_custom.i64_attrs.push_back({"max_memory_mb", 4096});
 
@@ -92,7 +92,7 @@ int main() {
   auto op_obs = quent::operator_::create_observer(*ctx);
   auto op_id = uuid::now_v7();
 
-  quent::CustomAttributes op_custom;
+  quent::DynamicAttributes op_custom;
   op_custom.string_attrs.push_back({"algo", "hash_join"});
   op_custom.f64_attrs.push_back({"selectivity", 0.75});
 
@@ -105,7 +105,7 @@ int main() {
                              });
 
   // Operator: statistics with custom attributes.
-  quent::CustomAttributes op_stats;
+  quent::DynamicAttributes op_stats;
   op_stats.i64_attrs.push_back({"rows_processed", 10000});
   op_stats.f64_attrs.push_back({"elapsed_ms", 42.5});
 
@@ -122,7 +122,7 @@ int main() {
                                  });
 
   // Port: statistics with custom attributes.
-  quent::CustomAttributes port_stats;
+  quent::DynamicAttributes port_stats;
   port_stats.i64_attrs.push_back({"bytes_transferred", 1048576});
 
   port_obs->statistics(port_id, quent::port::Statistics{

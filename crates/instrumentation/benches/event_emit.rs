@@ -17,18 +17,18 @@
 //! asynchronously in the forwarder task, so the numbers reflect what
 //! callers actually pay per event at the API boundary.
 
+use std::fs::File;
+use std::hint::black_box;
 use std::path::Path;
 
-use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
-use pprof::criterion::{Output, PProfProfiler};
-use quent_build_info::ModelInfo;
-use quent_collector::{CollectorSink, server::CollectorService};
+use criterion::{BenchmarkGroup, Criterion, Throughput, measurement::WallTime, profiler::Profiler};
+use pprof::ProfilerGuard;
+use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
-use quent_events::{EntityEvent, Event};
-use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
-};
+use quent_events::EntityEvent;
 use quent_instrumentation::{Context, Observer};
+use quent_io::filesystem::{self, Format};
+use quent_io::{CollectorExporterOptions, ExporterOptions};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -37,11 +37,60 @@ use uuid::Uuid;
 
 type BenchResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
+struct FlamegraphProfiler {
+    frequency: i32,
+    active: Option<ProfilerGuard<'static>>,
+}
+
+impl FlamegraphProfiler {
+    fn new(frequency: i32) -> Self {
+        Self {
+            frequency,
+            active: None,
+        }
+    }
+}
+
+impl Profiler for FlamegraphProfiler {
+    fn start_profiling(&mut self, _benchmark_id: &str, _benchmark_dir: &Path) {
+        self.active = Some(ProfilerGuard::new(self.frequency).expect("failed to start profiler"));
+    }
+
+    fn stop_profiling(&mut self, _benchmark_id: &str, benchmark_dir: &Path) {
+        std::fs::create_dir_all(benchmark_dir).expect("failed to create benchmark directory");
+        let output = File::create(benchmark_dir.join("flamegraph.svg"))
+            .expect("failed to create flamegraph");
+
+        if let Some(profiler) = self.active.take() {
+            profiler
+                .report()
+                .build()
+                .expect("failed to build profiler report")
+                .flamegraph(output)
+                .expect("failed to write flamegraph");
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct BenchEvent;
 
 impl EntityEvent for BenchEvent {
     const NAME: &'static str = "BenchEvent";
+}
+
+/// Build a context and its `BenchEvent` observer from an optional exporter,
+/// mirroring the generated context's construction. `None` yields a noop.
+fn build_observer(
+    id: Uuid,
+    exporter: Option<ExporterOptions>,
+) -> BenchResult<(Context, Observer<BenchEvent>)> {
+    let Some(options) = exporter else {
+        return Ok((Context::noop(id), Observer::noop()));
+    };
+    let ctx = Context::try_new(id)?;
+    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(options).await })?;
+    Ok((ctx, observer))
 }
 
 // The in-process collector server runs this sink per source: it decodes received
@@ -52,8 +101,7 @@ struct BenchSink {
 
 impl BenchSink {
     fn new(id: Uuid, exporter: Option<ExporterOptions>) -> BenchResult<Self> {
-        let context = Context::try_with_id(id, ModelInfo::unknown(), exporter)?;
-        let observer = context.block_on(context.observer::<BenchEvent>())?;
+        let (_context, observer) = build_observer(id, exporter)?;
         Ok(Self { observer })
     }
 }
@@ -61,8 +109,7 @@ impl BenchSink {
 impl CollectorSink for BenchSink {
     fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         if entity == BenchEvent::NAME {
-            self.observer
-                .send(ciborium::from_reader::<Event<BenchEvent>, _>(event)?);
+            self.observer.send(deserialize_event::<BenchEvent>(event)?);
             Ok(())
         } else {
             Err(format!("unknown entity stream `{entity}`").into())
@@ -86,10 +133,10 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<http::Uri> {
     let address: http::Uri = format!("http://{}", std_listener.local_addr()?).parse()?;
     std_listener.set_nonblocking(true)?;
 
-    let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format: FileSystemFormat::Ndjson,
-        root: backing_dir.to_path_buf(),
-    });
+    let backing = ExporterOptions::FileSystem(filesystem::exporter::Options::new(
+        Format::Ndjson,
+        backing_dir.to_path_buf(),
+    ));
 
     rt.spawn(async move {
         let listener = match tokio::net::TcpListener::from_std(std_listener) {
@@ -118,8 +165,7 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let context = Context::try_new(ModelInfo::unknown(), exporter)?;
-    let observer = context.block_on(context.observer::<BenchEvent>())?;
+    let (_context, observer) = build_observer(Uuid::now_v7(), exporter)?;
     let event_id = Uuid::now_v7();
 
     group.bench_function(label, |b| {
@@ -154,33 +200,30 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
     bench_emit_variant(
         &mut group,
         "ndjson",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Ndjson,
-            root: ndjson_dir.path().to_path_buf(),
-        })),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Ndjson, ndjson_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "msgpack",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Msgpack,
-            root: msgpack_dir.path().to_path_buf(),
-        })),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Msgpack, msgpack_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "postcard",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Postcard,
-            root: postcard_dir.path().to_path_buf(),
-        })),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Postcard, postcard_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "collector",
-        Some(ExporterOptions::Collector(CollectorExporterOptions {
-            address: collector_address,
-        })),
+        Some(ExporterOptions::Collector(CollectorExporterOptions::new(
+            collector_address,
+        ))),
     )?;
 
     group.finish();
@@ -210,7 +253,7 @@ fn build_criterion() -> Criterion {
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_HZ);
     let criterion = Criterion::default()
-        .with_profiler(PProfProfiler::new(hz, Output::Flamegraph(None)))
+        .with_profiler(FlamegraphProfiler::new(hz))
         .configure_from_args();
     // `configure_from_args` resets mode based on argv, so apply the env-var
     // profile-time override afterwards.

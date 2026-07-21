@@ -41,7 +41,11 @@ fn generate_readme_pyo3_bridge() {
     assert!(file.content.contains("pub fn queued"));
     assert!(!file.content.contains("self.inner.queued("));
     assert!(file.content.contains("__usage_arg_item"));
-    assert!(file.content.contains("expected dict for custom attributes"));
+    assert!(
+        file.content
+            .contains("expected dict for dynamic attributes")
+    );
+    assert!(file.content.contains("attributes::DynamicAttribute::null"));
     assert!(file.content.contains("value.cast::<PyBool>()"));
     assert!(
         file.content

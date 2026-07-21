@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+reviews:
+  profile: quiet
+  # Don't edit the PR description, summary in CodeRabbit's own walkthrough comment only:
+  high_level_summary: false
+  high_level_summary_in_walkthrough: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "^main$"
+    ignore_usernames: ["rapids-bot", "copy-pr-bot", "dependabot[bot]"]
+  tools:
+    # Markdown is linted in CI via `rumdl fmt` (.rumdl.toml).
+    markdownlint:
+      enabled: false
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+  sequence_diagrams: false
+  collapse_walkthrough: true
+
+  # Reduce noise from status messages
+  request_changes_workflow: false
+  review_status: false
+
+  # Skip generated and lock files entirely.
+  path_filters:
+    - "!**/routeTree.gen.ts"
+    - "!examples/simulator/server/ts-bindings/**"
+    - "!Cargo.lock"
+    - "!pixi.lock"
+    - "!ui/pnpm-lock.yaml"
+
+  path_instructions:
+    - path: "crates/**/*.rs"
+      instructions: |
+        - Flag unwrap/expect/panic on caller-reachable paths; prefer Result propagation.
+        - Errors: explicitly written out error types or per-crate thiserror enums; never anyhow.
+        - Docstrings state the contract, not the mechanism; do not restate types.
+        - lib.rs curates the public surface via explicit `pub use`; keep internals pub(crate).
+        - Changes to persisted artifact formats must keep `quent open` working for prior-commit artifacts in the same PR.
+        - No unnecessary trait bounds; do not constrain types or implementations more than needed.
+    - path: "crates/**/Cargo.toml"
+      instructions: |
+        - Dependencies come from [workspace.dependencies] via `workspace = true`; no git deps.
+        - New crates: edition 2024, publish = false, SPDX headers.
+    - path: "ui/**/*.{ts,tsx}"
+      instructions: |
+        - Jotai atoms for UI state, TanStack Query for server state; no ad-hoc context stores.
+        - Never hand-edit generated files (routeTree.gen.ts, ts-rs bindings); fix the generator.
+        - Data fetching uses queryOptions wrappers with stable queryKey arrays and enabled guards.
+        - Merge classes via cn(), not string concatenation; use the `@` alias over deep relative imports.
+        - Virtualize large lists/tables (@tanstack/react-virtual); this UI renders big traces.
+        - noUncheckedIndexedAccess is off: watch unguarded indexed access into trace/event arrays.
+        - Large u64 ids/counts must go through parseJsonWithBigInt, not plain JSON.parse.
+        - Check hook dependency arrays and effect cleanup; flag any `any`.
+        - Components PascalCase one-per-file, hooks useXxx.ts; tests colocated as *.test.tsx (Vitest + Testing Library + MSW).
+    - path: "docs/**/*.md"
+      instructions: |
+        - Verify examples match the current API; new pages must be linked in SUMMARY.md.
+        - Modeling spec pages follow the template: capitalized construct names, "Must have" / "May have" / "Mutually exclusive" sections with typed field bullets, plus Notes and Rationale.
+    - path: ".github/workflows/**/*"
+      instructions: |
+        - Actions pinned to full commit SHAs with a version comment; checkout sets persist-credentials: false.
+        - Keep top-level least-privilege permissions blocks; flag shell-injection in run steps.
+
+knowledge_base:
+  opt_out: false
+  code_guidelines:
+    filePatterns:
+      - "CONTRIBUTING.md"

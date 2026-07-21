@@ -355,3 +355,76 @@ describe('findItemById', () => {
     expect(findItemById(leaf, 'other')).toBeUndefined();
   });
 });
+
+// ---- buildTimelineMarks attributes ------------------------------------------
+
+import { buildTimelineMarks } from './timeline.utils';
+import type { DynamicValue, FiniteStateMachine } from '@quent/utils';
+
+const taggedValue = (v: object) => v as unknown as DynamicValue;
+
+const THREAD_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+const taskFsm: FiniteStateMachine = {
+  id: 'bbbbbbbb-0000-0000-0000-000000000001',
+  type_name: 'task',
+  instance_name: 'task-0',
+  transitions: [
+    {
+      name: 'queueing',
+      usages: [],
+      timestamp: 1.0,
+      attributes: [{ key: 'operator_id', value: taggedValue({ String: 'op-1' }) }],
+      derived_attributes: [],
+    },
+    {
+      name: 'computing',
+      usages: [{ resource: THREAD_ID, capacities: [] }],
+      timestamp: 1.25,
+      attributes: [{ key: 'input_bytes', value: taggedValue({ U64: 1_500_000_000 }) }],
+      derived_attributes: [{ key: 'bytes_per_sec', value: taggedValue({ F64: 2_000_000_000 }) }],
+    },
+    { name: 'exit', usages: [], timestamp: 2.0, attributes: [], derived_attributes: [] },
+  ],
+};
+
+describe('buildTimelineMarks attributes', () => {
+  it('copies recorded and derived attributes onto marks', () => {
+    const marks = buildTimelineMarks([taskFsm], 0n, 'light', new Set([THREAD_ID]));
+    expect(marks).toBeDefined();
+    // Only the computing transition has a usage on the filtered resource.
+    expect(marks).toHaveLength(1);
+    const mark = marks![0]!;
+    expect(mark.stateName).toBe('computing');
+    expect(mark.attributes).toEqual([{ key: 'input_bytes', value: { U64: 1_500_000_000 } }]);
+    expect(mark.derivedAttributes).toEqual([
+      { key: 'bytes_per_sec', value: { F64: 2_000_000_000 } },
+    ]);
+    // 1.25s → 2.0s in chart ms.
+    expect(mark.xStart).toBe(1250);
+    expect(mark.xEnd).toBe(2000);
+  });
+
+  it('omits attribute keys for attribute-less transitions', () => {
+    const marks = buildTimelineMarks([taskFsm], 0n, 'light', null);
+    expect(marks).toHaveLength(2);
+    const queueing = marks!.find(m => m.stateName === 'queueing')!;
+    expect(queueing.derivedAttributes).toBeUndefined();
+    const computing = marks!.find(m => m.stateName === 'computing')!;
+    expect(computing.attributes).toHaveLength(1);
+  });
+
+  it('tolerates responses from servers predating attributes', () => {
+    const legacyFsm = {
+      ...taskFsm,
+      transitions: taskFsm.transitions.map(t => {
+        const { attributes: _attributes, derived_attributes: _derived, ...rest } = t;
+        return rest;
+      }),
+    } as unknown as FiniteStateMachine;
+    const marks = buildTimelineMarks([legacyFsm], 0n, 'light', new Set([THREAD_ID]));
+    expect(marks).toHaveLength(1);
+    expect(marks![0]!.attributes).toBeUndefined();
+    expect(marks![0]!.derivedAttributes).toBeUndefined();
+  });
+});

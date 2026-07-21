@@ -14,7 +14,6 @@ pub mod error;
 pub mod fsm;
 pub mod resource;
 pub mod timeline;
-pub mod trace;
 
 pub type AnalyzerResult<T> = std::result::Result<T, AnalyzerError>;
 

@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryFilter};
 use quent_simulator_ui::EntityRef;
+use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
+    categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
@@ -21,6 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     <SingleTimelineResponse as TS>::export_all(&cfg)?;
     <BulkTimelineRequest<QueryFilter, OperatorFilter> as TS>::export_all(&cfg)?;
     <BulkTimelinesResponse as TS>::export_all(&cfg)?;
+    <CategoricalTimelineRequest<QueryFilter> as TS>::export_all(&cfg)?;
+    <DataFlowTimelineBinned as TS>::export_all(&cfg)?;
+
+    <EntityListRequest<QueryFilter, OperatorFilter> as TS>::export_all(&cfg)?;
+    <EntityListResponse as TS>::export_all(&cfg)?;
 
     Ok(())
 }

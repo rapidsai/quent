@@ -4,4 +4,6 @@ import type { ResourceGroupNode } from "./ResourceGroupNode";
 /**
  * A tree of resources.
  */
-export type ResourceTree<T> = { "ResourceGroup": ResourceGroupNode<T> } | { "Resource": T };
+export type ResourceTree<T> = { "ResourceGroup": ResourceGroupNode<T> } | {
+  "Resource": T;
+};

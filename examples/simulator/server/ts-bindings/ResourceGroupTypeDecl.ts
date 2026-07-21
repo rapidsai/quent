@@ -3,16 +3,17 @@
 /**
  * A type of [`ResourceGroup`].
  */
-export type ResourceGroupTypeDecl = { 
-/**
- * The name of the type of Resource Group
- */
-name: string, 
-/**
- * The type names of the entities that used Resource of this group.
- */
-used_by_entity_types: Array<string>, 
-/**
- * The type names of the leaf Resources in this group or its children.
- */
-contains_resource_types: Array<string>, };
+export type ResourceGroupTypeDecl = {
+  /**
+   * The name of the type of Resource Group
+   */
+  name: string;
+  /**
+   * The type names of the entities that used Resource of this group.
+   */
+  used_by_entity_types: Array<string>;
+  /**
+   * The type names of the leaf Resources in this group or its children.
+   */
+  contains_resource_types: Array<string>;
+};

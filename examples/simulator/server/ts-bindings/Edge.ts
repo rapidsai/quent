@@ -3,12 +3,13 @@
 /**
  * An edge between two [`Operator`] [`Port`]s.
  */
-export type Edge = { 
-/**
- * The [`Port`] that produced the data flowing over this edge.
- */
-source: string, 
-/**
- * The [`Port`] that consumed the data flowing over this edge.
- */
-target: string, };
+export type Edge = {
+  /**
+   * The [`Port`] that produced the data flowing over this edge.
+   */
+  source: string;
+  /**
+   * The [`Port`] that consumed the data flowing over this edge.
+   */
+  target: string;
+};

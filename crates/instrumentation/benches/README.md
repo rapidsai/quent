@@ -1,4 +1,4 @@
-# Instrumentation API microbenchmarks
+# Instrumentation runtime microbenchmarks
 
 Measures the caller-side cost of `EventSender::emit` with each provided
 exporter, plus a `noop` baseline.

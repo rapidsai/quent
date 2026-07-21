@@ -14,8 +14,7 @@ quent-analyzer = { path = "../../../crates/analyzer" }
 quent-collector = { path = "../../../crates/collector/server" }
 quent-collector-proto = { path = "../../../crates/collector/proto" }
 quent-events = { path = "../../../crates/events" }
-quent-exporter = { path = "../../../crates/exporter" }
-quent-exporter-types = { path = "../../../crates/exporter/types" }
+quent-io = { path = "../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
 quent-query-engine-model = { path = "../model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
@@ -25,7 +24,7 @@ serde.workspace = true
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tonic.workspace = true
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.7", features = ["cors"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 tracing.workspace = true
 utoipa = { version = "5", features = ["axum_extras", "uuid"], optional = true }

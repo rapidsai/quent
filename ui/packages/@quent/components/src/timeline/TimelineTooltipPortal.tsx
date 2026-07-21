@@ -85,7 +85,14 @@ function PositionedTooltip({
     }));
     const activeMarksAtTs = marks
       ?.filter(m => snapped >= m.xStart && snapped <= m.xEnd)
-      .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
+      .map(m => ({
+        label: m.label,
+        stateName: m.stateName,
+        color: m.color,
+        attributes: m.attributes,
+        derivedAttributes: m.derivedAttributes,
+        durationMs: m.xEnd - m.xStart,
+      }));
     return {
       snappedTimestamp: snapped,
       tooltipSeries: tooltipSeriesValues,

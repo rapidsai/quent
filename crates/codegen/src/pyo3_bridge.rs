@@ -115,7 +115,7 @@ fn value_type_rust_extract(ty: &ValueType) -> TokenStream {
         ValueType::String => quote! { String },
         ValueType::Uuid
         | ValueType::Ref(_)
-        | ValueType::CustomAttributes
+        | ValueType::DynamicAttributes
         | ValueType::List(_)
         | ValueType::Struct(_, _) => quote! {},
     }
@@ -157,7 +157,7 @@ fn emit_pyany_conversion_expr(
         }
         ValueType::Uuid => quote! { __extract_uuid(#obj)? },
         ValueType::Ref(_) => quote! { #q::Ref::new(__extract_uuid(#obj)?) },
-        ValueType::CustomAttributes => quote! { __extract_custom_attributes(#obj)? },
+        ValueType::DynamicAttributes => quote! { __extract_dynamic_attributes(#obj)? },
         ValueType::List(inner) => emit_pyany_list_conversion_expr(inner, obj, q, component_mod),
         ValueType::Struct(type_path, attrs) => {
             emit_pyany_struct_conversion_expr(type_path, attrs, obj, q, component_mod)
@@ -513,27 +513,27 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
             }
         }
 
-        fn __extract_custom_attributes(
+        fn __extract_dynamic_attributes(
             obj: &Bound<'_, PyAny>,
-        ) -> PyResult<#q::attributes::CustomAttributes> {
+        ) -> PyResult<#q::attributes::DynamicAttributes> {
             let dict = obj.cast::<PyDict>().map_err(|_| {
                 pyo3::exceptions::PyTypeError::new_err(
-                    "expected dict for custom attributes",
+                    "expected dict for dynamic attributes",
                 )
             })?;
-            let mut attrs = #q::attributes::CustomAttributes::new();
+            let mut attrs = #q::attributes::DynamicAttributes::new();
             for (key, value) in dict.iter() {
                 let key = key
                     .cast::<PyString>()
                     .map_err(|_| {
                         pyo3::exceptions::PyTypeError::new_err(
-                            "custom attribute keys must be strings",
+                            "dynamic attribute keys must be strings",
                         )
                     })?
                     .to_str()?
                     .to_owned();
                 if value.is_none() {
-                    attrs.add(#q::attributes::Attribute::null(key));
+                    attrs.add(#q::attributes::DynamicAttribute::null(key));
                 } else if let Ok(value) = value.cast::<PyBool>() {
                     attrs.add_bool(key, value.is_true());
                 } else if let Ok(value) = value.cast::<PyInt>() {
@@ -544,7 +544,7 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
                     attrs.add_string(key, value.to_str()?);
                 } else {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                        "unsupported custom attribute value for `{key}`"
+                        "unsupported dynamic attribute value for `{key}`"
                     )));
                 }
             }
@@ -698,13 +698,13 @@ fn emit_context(
                 output_dir: Option<String>,
             ) -> PyResult<Self> {
                 let opts = match exporter.as_deref() {
-                    Some("ndjson") => Some(#q::exporter::ExporterOptions::FileSystem(
-                        #q::exporter::FileSystemExporterOptions {
-                            format: #q::exporter::FileSystemFormat::Ndjson,
-                            root: std::path::PathBuf::from(
+                    Some("ndjson") => Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options::new(
+                            #q::io::filesystem::Format::Ndjson,
+                            std::path::PathBuf::from(
                                 output_dir.unwrap_or_else(|| ".".to_string()),
                             ),
-                        },
+                        ),
                     )),
                     None => None,
                     Some(other) => {
@@ -713,21 +713,32 @@ fn emit_context(
                         )));
                     }
                 };
-                let inner = #q::Context::try_new(
-                    <#model_type as #q::build_info::ModelSource>::model_info(),
-                    opts,
-                )
-                .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
-                let id = inner.id();
-                // Single sync/async bridge: build every observer concurrently on
-                // the context's runtime, then block until done.
-                let (#(#build_fields,)*) = inner.block_on(async {
-                    let (#(#build_fields,)*) = #q::tokio::try_join!(
-                        #(inner.observer::<#build_event_tys>(),)*
-                    )
-                    .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
-                    Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))
-                })?;
+                let id = #q::uuid::Uuid::now_v7();
+                let inner = match &opts {
+                    Some(_) => #q::Context::try_new(id)
+                        .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
+                    None => #q::Context::noop(id),
+                };
+                // Single sync/async bridge: build every entity's observer (each
+                // constructing its exporter from the options, bound to the id)
+                // concurrently on the context's runtime, then block until done.
+                let (#(#build_fields,)*) = match opts {
+                    None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
+                    Some(options) => {
+                        #q::write_sidecar(
+                            &options,
+                            id,
+                            <#model_type as #q::build_info::ModelSource>::model_info(),
+                        );
+                        inner.block_on(async {
+                            let (#(#build_fields,)*) = #q::tokio::try_join!(
+                                #(inner.observer::<#build_event_tys>(options.clone()),)*
+                            )
+                            .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
+                            Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))
+                        })?
+                    }
+                };
                 Ok(Self {
                     inner: Some(inner),
                     #(#field_inits,)*

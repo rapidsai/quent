@@ -5,4 +5,6 @@ import type { ResourceTimelineRequest } from "./ResourceTimelineRequest";
 /**
  * Timeline request parameters unrelated to timing or binning.
  */
-export type TimelineRequest<TimelineParams> = { "Resource": ResourceTimelineRequest<TimelineParams> } | { "ResourceGroup": ResourceGroupTimelineRequest<TimelineParams> };
+export type TimelineRequest<TimelineParams> = {
+  "Resource": ResourceTimelineRequest<TimelineParams>;
+} | { "ResourceGroup": ResourceGroupTimelineRequest<TimelineParams> };

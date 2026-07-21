@@ -5,30 +5,31 @@ import type { TimelineConfig } from "./TimelineConfig";
 /**
  * Parameters for requesting a resource group timeline.
  */
-export type ResourceGroupTimelineRequest<TimelineParams> = { 
-/**
- * The ID of the resource group
- */
-resource_group_id: string, 
-/**
- * The type name of the leaf resources for which to produce the timeline
- * for this group.
- */
-resource_type_name: string, 
-/**
- * If set, fully include entities that have usages exceeding this amount of
- * time in seconds.
- */
-long_entities_threshold_s: number | null, 
-/**
- * Entity filters.
- */
-entity_filter: EntityFilter, 
-/**
- * Application-specific request parameters, e.g. for filtering.
- */
-app_params: TimelineParams, 
-/**
- * The configuration of the window and number of bins.
- */
-config: TimelineConfig, };
+export type ResourceGroupTimelineRequest<TimelineParams> = {
+  /**
+   * The ID of the resource group
+   */
+  resource_group_id: string;
+  /**
+   * The type name of the leaf resources for which to produce the timeline
+   * for this group.
+   */
+  resource_type_name: string;
+  /**
+   * If set, fully include entities that have usages exceeding this amount of
+   * time in seconds.
+   */
+  long_entities_threshold_s: number | null;
+  /**
+   * Entity filters.
+   */
+  entity_filter: EntityFilter;
+  /**
+   * Application-specific request parameters, e.g. for filtering.
+   */
+  app_params: TimelineParams;
+  /**
+   * The configuration of the window and number of bins.
+   */
+  config: TimelineConfig;
+};

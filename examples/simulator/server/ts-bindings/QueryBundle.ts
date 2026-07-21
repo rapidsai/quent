@@ -4,37 +4,38 @@ import type { QuantitySpec } from "./QuantitySpec";
 import type { QueryEntities } from "./QueryEntities";
 import type { ResourceTree } from "./ResourceTree";
 
-export type QueryBundle<E> = { 
-/**
- * The ID of the query.
- */
-query_id: string, 
-/**
- * Maps with entities that are involved in this query.
- */
-entities: QueryEntities, 
-/**
- * A tree of plans involved in the execution of this query.
- */
-plan_tree: PlanTree, 
-/**
- * A tree of resources involved in the execution of this query.
- */
-resource_tree: ResourceTree<E>, 
-/**
- * A list of unique operator type names.
- */
-unique_operator_names: Array<string>, 
-/**
- * Quantity specifications for capacity display, keyed by capacity name.
- */
-quantity_specs: { [key in string]: QuantitySpec }, 
-/**
- * The number of nanoseconds passed since the Unix epoch at which the
- * engine started executing this query.
- */
-start_time_unix_ns: bigint, 
-/**
- * The duration of this query, in seconds.
- */
-duration_s: number, };
+export type QueryBundle<E> = {
+  /**
+   * The ID of the query.
+   */
+  query_id: string;
+  /**
+   * Maps with entities that are involved in this query.
+   */
+  entities: QueryEntities;
+  /**
+   * A tree of plans involved in the execution of this query.
+   */
+  plan_tree: PlanTree;
+  /**
+   * A tree of resources involved in the execution of this query.
+   */
+  resource_tree: ResourceTree<E>;
+  /**
+   * A list of unique operator type names.
+   */
+  unique_operator_names: Array<string>;
+  /**
+   * Quantity specifications for capacity display, keyed by capacity name.
+   */
+  quantity_specs: { [key in string]: QuantitySpec };
+  /**
+   * The number of nanoseconds passed since the Unix epoch at which the
+   * engine started executing this query.
+   */
+  start_time_unix_ns: bigint;
+  /**
+   * The duration of this query, in seconds.
+   */
+  duration_s: number;
+};

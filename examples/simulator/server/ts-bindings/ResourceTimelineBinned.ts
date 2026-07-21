@@ -2,17 +2,18 @@
 import type { BinnedSpanSec } from "./BinnedSpanSec";
 import type { FiniteStateMachine } from "./FiniteStateMachine";
 
-export type ResourceTimelineBinned = { 
-/**
- * The configuration of the binned timeline.
- */
-config: BinnedSpanSec, 
-/**
- * Maps a resource capacity name to a vector where each element holds an
- * aggregated value of a time bin.
- */
-capacities_values: { [key in string]: Array<number> }, 
-/**
- * FSMs that have usage spans exceeding the long_entities_threshold.
- */
-long_fsms: Array<FiniteStateMachine>, };
+export type ResourceTimelineBinned = {
+  /**
+   * The configuration of the binned timeline.
+   */
+  config: BinnedSpanSec;
+  /**
+   * Maps a resource capacity name to a vector where each element holds an
+   * aggregated value of a time bin.
+   */
+  capacities_values: { [key in string]: Array<number> };
+  /**
+   * FSMs that have usage spans exceeding the long_entities_threshold.
+   */
+  long_fsms: Array<FiniteStateMachine>;
+};

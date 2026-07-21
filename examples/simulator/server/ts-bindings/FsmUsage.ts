@@ -3,12 +3,13 @@
 /**
  * A capacity value used by an FSM state.
  */
-export type FsmUsage = { 
-/**
- * The resource ID being used.
- */
-resource: string, 
-/**
- * The capacities being used (name, optional value).
- */
-capacities: Array<[string, bigint | null]>, };
+export type FsmUsage = {
+  /**
+   * The resource ID being used.
+   */
+  resource: string;
+  /**
+   * The capacities being used (name, optional value).
+   */
+  capacities: Array<[string, bigint | null]>;
+};

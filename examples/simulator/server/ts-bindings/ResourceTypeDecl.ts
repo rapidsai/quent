@@ -4,16 +4,17 @@ import type { CapacityDecl } from "./CapacityDecl";
 /**
  * A type of [`Resource`].
  */
-export type ResourceTypeDecl = { 
-/**
- * The unique type name for this type of Resource.
- */
-name: string, 
-/**
- * The capacities of this type of Resource.
- */
-capacities: Array<CapacityDecl>, 
-/**
- * The type names of the entities that used this Resource.
- */
-used_by: Array<string>, };
+export type ResourceTypeDecl = {
+  /**
+   * The unique type name for this type of Resource.
+   */
+  name: string;
+  /**
+   * The capacities of this type of Resource.
+   */
+  capacities: Array<CapacityDecl>;
+  /**
+   * The type names of the entities that used this Resource.
+   */
+  used_by: Array<string>;
+};

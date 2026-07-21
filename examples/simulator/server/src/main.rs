@@ -4,7 +4,8 @@
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
-use quent_exporter::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+use quent_io::ExporterOptions;
+use quent_io::filesystem::{self, Format};
 use quent_query_engine_server::{
     analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
     initialize_tracing,
@@ -89,15 +90,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lister_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
-        "ndjson" => FileSystemFormat::Ndjson,
-        "msgpack" => FileSystemFormat::Msgpack,
-        "postcard" => FileSystemFormat::Postcard,
+        "ndjson" => Format::Ndjson,
+        "msgpack" => Format::Msgpack,
+        "postcard" => Format::Postcard,
         other => return Err(format!("unknown exporter: {other}").into()),
     };
-    let exporter_kind = ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format,
-        root: output_dir,
-    });
+    let exporter_kind =
+        ExporterOptions::FileSystem(filesystem::exporter::Options::new(format, output_dir));
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {

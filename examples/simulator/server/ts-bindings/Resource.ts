@@ -3,20 +3,21 @@
 /**
  * A Resource.
  */
-export type Resource = { 
-/**
- * The ID of this Resource.
- */
-id: string, 
-/**
- * The name of this Resource.
- */
-instance_name: string, 
-/**
- * The unique type name of this Resource.
- */
-type_name: string, 
-/**
- * The id of the parent resource group.
- */
-parent_group_id: string, };
+export type Resource = {
+  /**
+   * The ID of this Resource.
+   */
+  id: string;
+  /**
+   * The name of this Resource.
+   */
+  instance_name: string;
+  /**
+   * The unique type name of this Resource.
+   */
+  type_name: string;
+  /**
+   * The id of the parent resource group.
+   */
+  parent_group_id: string;
+};

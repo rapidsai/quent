@@ -7,7 +7,7 @@
 //! `TransitionInfo`, providing all the analyzer trait impls (`Entity`, `Fsm`,
 //! `FsmUsages`, `Using`, `FsmTypeDeclaration`) without per-FSM boilerplate.
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
 use quent_model::{FsmEvent, ModelBuilder, analyze::TransitionInfo};
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
@@ -51,13 +51,13 @@ impl<T> Timestamp for TransitionEvent<T> {
     }
 }
 
-impl<T> Transition for TransitionEvent<T> {
+impl<T: TransitionInfo> Transition for TransitionEvent<T> {
     fn name(&self) -> &str {
         self.state_name
     }
 
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        std::iter::empty()
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        self.data.attributes()
     }
 }
 

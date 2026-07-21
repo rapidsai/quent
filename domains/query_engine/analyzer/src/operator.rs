@@ -3,7 +3,7 @@
 
 use quent_analyzer::entity::EntityEvents;
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
 use quent_query_engine_model::operator;
 use quent_query_engine_ui as ui;
@@ -63,7 +63,7 @@ impl Operator {
             .map(|decl| {
                 decl.custom_attributes
                     .iter()
-                    .map(|Attribute { key, value }| (key.clone(), value.clone()))
+                    .map(|DynamicAttribute { key, value }| (key.clone(), value.clone()))
                     .collect()
             })
             .unwrap_or_default();
@@ -72,7 +72,7 @@ impl Operator {
             custom_statistics: s
                 .custom_attributes
                 .iter()
-                .map(|Attribute { key, value }| (key.clone(), value.clone()))
+                .map(|DynamicAttribute { key, value }| (key.clone(), value.clone()))
                 .collect(),
         });
 

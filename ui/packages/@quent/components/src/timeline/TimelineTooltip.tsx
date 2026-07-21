@@ -1,9 +1,28 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDurationForWindow, cn } from '@quent/utils';
+import {
+  formatDurationForWindow,
+  formatDuration,
+  formatAttributeValue,
+  cn,
+  type DynamicAttribute,
+} from '@quent/utils';
 import { nanosToMs } from '../lib/timeline.utils';
 import { DataText } from '../ui/data-text';
+
+/** A timeline mark under the hover cursor, as shown in the tooltip. */
+export interface ActiveMark {
+  label: string;
+  stateName: string;
+  color: string;
+  /** Attributes recorded by instrumentation on the hovered state. */
+  attributes?: DynamicAttribute[];
+  /** Attributes computed by the analyzer. */
+  derivedAttributes?: DynamicAttribute[];
+  /** Duration of the hovered state span in milliseconds. */
+  durationMs?: number;
+}
 
 interface TooltipSeries {
   color: string;
@@ -160,25 +179,69 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-function ActiveMarksSection({
-  marks,
-}: {
-  marks: { label: string; stateName: string; color: string }[];
-}) {
+/** Values longer than this wrap onto their own line. */
+const INLINE_VALUE_MAX_CHARS = 32;
+
+function MarkDetailRow({ name, value }: { name: string; value: string }) {
+  if (value.length > INLINE_VALUE_MAX_CHARS) {
+    return (
+      <div className="pl-3">
+        <DataText className="text-muted-foreground">{name}</DataText>
+        <DataText as="div" className="text-foreground break-words pl-2">
+          {value}
+        </DataText>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1 pl-3">
+      <DataText className="text-muted-foreground">{name}</DataText>
+      <DataText className="text-foreground ml-auto">{value}</DataText>
+    </div>
+  );
+}
+
+function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
   if (marks.length === 0) return null;
   return (
     <div className="mt-1 pt-1 border-t border-border">
       {marks.map((m, i) => (
-        <div key={i} className="flex items-center gap-1">
-          <span
-            className="w-2 h-2 rounded-xs shrink-0 border"
-            style={{
-              backgroundColor: m.color + '20',
-              borderColor: m.color + 'cc',
-            }}
-          />
-          <DataText className="text-muted-foreground">{m.label}</DataText>
-          <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
+        <div key={i}>
+          <div className="flex items-center gap-1">
+            <span
+              className="w-2 h-2 rounded-xs shrink-0 border"
+              style={{
+                backgroundColor: m.color + '20',
+                borderColor: m.color + 'cc',
+              }}
+            />
+            <DataText className="text-muted-foreground">{m.label}</DataText>
+            <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
+          </div>
+          {m.durationMs !== undefined && (
+            <MarkDetailRow name="duration" value={formatDuration(m.durationMs)} />
+          )}
+          {m.attributes?.map(attr => (
+            <MarkDetailRow
+              key={attr.key}
+              name={attr.key}
+              value={formatAttributeValue(attr.key, attr.value)}
+            />
+          ))}
+          {m.derivedAttributes && m.derivedAttributes.length > 0 && (
+            <>
+              <DataText as="div" className="pl-3 pt-0.5 text-muted-foreground italic opacity-70">
+                derived
+              </DataText>
+              {m.derivedAttributes.map(attr => (
+                <MarkDetailRow
+                  key={attr.key}
+                  name={attr.key}
+                  value={formatAttributeValue(attr.key, attr.value)}
+                />
+              ))}
+            </>
+          )}
         </div>
       ))}
     </div>
@@ -198,7 +261,7 @@ function OverlayBarTooltip({
   startTime: bigint;
   fmt: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string; color: string }[];
+  activeMarks?: ActiveMark[];
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -295,7 +358,7 @@ export function TooltipContent({
   startTime: bigint;
   fmt?: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string; color: string }[];
+  activeMarks?: ActiveMark[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 

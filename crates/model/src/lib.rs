@@ -83,14 +83,13 @@ pub trait ResourceGroup {
 }
 
 // Re-exports referenced by generated instrumentation code and by model consumers.
-pub use ciborium;
-pub use quent_attributes as attributes;
 pub use quent_build_info as build_info;
 #[cfg(feature = "collector")]
-pub use quent_collector_client::CollectorSink;
+pub use quent_collector_client::{CollectorSink, deserialize_event};
+pub use quent_dynamic_attributes as attributes;
 pub use quent_events::{EntityEvent, Event};
-pub use quent_exporter as exporter;
-pub use quent_instrumentation::{Context, Observer};
+pub use quent_instrumentation::{Context, Observer, write_sidecar};
+pub use quent_io as io;
 pub use quent_time::timestamp;
 #[cfg(feature = "serde")]
 pub use serde;

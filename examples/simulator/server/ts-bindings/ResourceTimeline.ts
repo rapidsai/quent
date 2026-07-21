@@ -2,4 +2,6 @@
 import type { ResourceTimelineBinned } from "./ResourceTimelineBinned";
 import type { ResourceTimelineBinnedByState } from "./ResourceTimelineBinnedByState";
 
-export type ResourceTimeline = { "Binned": ResourceTimelineBinned } | { "BinnedByState": ResourceTimelineBinnedByState };
+export type ResourceTimeline = { "Binned": ResourceTimelineBinned } | {
+  "BinnedByState": ResourceTimelineBinnedByState;
+};

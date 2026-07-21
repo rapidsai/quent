@@ -1,0 +1,21 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+// See https://google.aip.dev/185 for the `v1alpha` versioning convention.
+package quent.collector.v1alpha;
+
+service Collector {
+  // Opens an event stream for a single entity of a single source. Each stream
+  // must carry two metadata keys: "source-context-id" (the producing context's
+  // UUID) and "entity-type" (the entity event stream's name).
+  rpc CollectEvents(stream CollectEventRequest) returns (CollectEventResponse);
+}
+
+message CollectEventRequest {
+  // Fow now, don't bother with laying out the entire model in a Protobuf type definition.
+  // We're mainly just using Tonic to generate a quick client/server implementation for us.
+  repeated bytes event = 1;
+}
+message CollectEventResponse {}

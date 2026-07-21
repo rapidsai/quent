@@ -196,8 +196,8 @@ pub enum ValueType {
     /// A typed reference to another entity, FSM, or resource.
     /// The string is the referenced type's canonical name.
     Ref(std::string::String),
-    /// A collection of custom key-value attributes (opaque in CXX bridge).
-    CustomAttributes,
+    /// A collection of key-value attributes with runtime-defined keys.
+    DynamicAttributes,
 }
 
 // Unit tuple (base case)

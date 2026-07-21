@@ -27,19 +27,19 @@ pub fn event_with(
     payload: impl IntoIterator<Item = Field>,
 ) -> Event {
     EventBuilder::new(ident(name), cardinality)
-        .fields(payload)
+        .try_with_fields(payload)
         .unwrap()
         .build()
 }
 pub fn entity(name: &str, events: impl IntoIterator<Item = Event>) -> Entity {
     EntityBuilder::new(ident(name))
-        .events(events)
+        .try_with_events(events)
         .unwrap()
         .build()
 }
 pub fn record(name: &str, fields: impl IntoIterator<Item = Field>) -> Record {
     RecordBuilder::new(ident(name))
-        .fields(fields)
+        .try_with_fields(fields)
         .unwrap()
         .build()
 }
@@ -49,9 +49,9 @@ pub fn schema(
     records: impl IntoIterator<Item = Record>,
 ) -> Schema {
     SchemaBuilder::new(ident(name))
-        .entities(entities)
+        .try_with_entities(entities)
         .unwrap()
-        .records(records)
+        .try_with_records(records)
         .unwrap()
         .build()
 }

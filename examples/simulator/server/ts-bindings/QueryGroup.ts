@@ -3,16 +3,17 @@
 /**
  * A group of [`Query`]s.
  */
-export type QueryGroup = { 
-/**
- * The ID of this query group.
- */
-id: string, 
-/**
- * The name of this query group.
- */
-instance_name: string | null, 
-/**
- * The id of the engine this query group was executed on.
- */
-engine_id: string | null, };
+export type QueryGroup = {
+  /**
+   * The ID of this query group.
+   */
+  id: string;
+  /**
+   * The name of this query group.
+   */
+  instance_name: string | null;
+  /**
+   * The id of the engine this query group was executed on.
+   */
+  engine_id: string | null;
+};

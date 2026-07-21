@@ -4,12 +4,13 @@ import type { TimelineRequest } from "./TimelineRequest";
 /**
  * Request for a bulk of timelines.
  */
-export type BulkTimelineRequest<GlobalParams, TimelineParams> = { 
-/**
- * The list of timelines requested.
- */
-entries: { [key in string]: TimelineRequest<TimelineParams> }, 
-/**
- * Global application-specific parameters, e.g. filters.
- */
-app_params: GlobalParams, };
+export type BulkTimelineRequest<GlobalParams, TimelineParams> = {
+  /**
+   * The list of timelines requested.
+   */
+  entries: { [key in string]: TimelineRequest<TimelineParams> };
+  /**
+   * Global application-specific parameters, e.g. filters.
+   */
+  app_params: GlobalParams;
+};

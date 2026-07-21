@@ -5,16 +5,17 @@ import type { FsmTransitionDecl } from "./FsmTransitionDecl";
 /**
  * A declaration of an FSM type.
  */
-export type FsmTypeDecl = { 
-/**
- * The name of this FSM type.
- */
-name: string, 
-/**
- * The states of this FSM type.
- */
-states: Array<FsmStateTypeDecl>, 
-/**
- * The possible transitions of this FSM type.
- */
-transitions: Array<FsmTransitionDecl>, };
+export type FsmTypeDecl = {
+  /**
+   * The name of this FSM type.
+   */
+  name: string;
+  /**
+   * The states of this FSM type.
+   */
+  states: Array<FsmStateTypeDecl>;
+  /**
+   * The possible transitions of this FSM type.
+   */
+  transitions: Array<FsmTransitionDecl>;
+};

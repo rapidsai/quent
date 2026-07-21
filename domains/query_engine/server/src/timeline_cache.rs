@@ -950,6 +950,13 @@ mod tests {
             &self.model
         }
 
+        fn list_entities(
+            &self,
+            _request: quent_ui::entities::request::EntityListRequest<QueryFilter, OperatorFilter>,
+        ) -> AnalyzerResult<quent_ui::entities::response::EntityListResponse> {
+            unimplemented!("not needed by timeline cache tests")
+        }
+
         fn single_resource_timeline(
             &self,
             request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
@@ -1035,11 +1042,15 @@ mod tests {
                         name: "start".to_string(),
                         usages: vec![],
                         timestamp: config_secs.span.start(),
+                        attributes: vec![],
+                        derived_attributes: vec![],
                     },
                     FsmTransition {
                         name: "end".to_string(),
                         usages: vec![],
                         timestamp: config_secs.span.end(),
+                        attributes: vec![],
+                        derived_attributes: vec![],
                     },
                 ],
             })

@@ -4,24 +4,25 @@ import type { PrefixSystem } from "./PrefixSystem";
 /**
  * Specification of how to display a quantity with units.
  */
-export type QuantitySpec = { 
-/**
- * Base unit symbol, e.g. "B" for bytes.
- */
-symbol: string, 
-/**
- * Singular form, e.g. "byte".
- */
-singular: string, 
-/**
- * Plural form, e.g. "bytes".
- */
-plural: string, 
-/**
- * Prefix system for occupancy display.
- */
-occupancy_prefix: PrefixSystem, 
-/**
- * Prefix system for rate display.
- */
-rate_prefix: PrefixSystem, };
+export type QuantitySpec = {
+  /**
+   * Base unit symbol, e.g. "B" for bytes.
+   */
+  symbol: string;
+  /**
+   * Singular form, e.g. "byte".
+   */
+  singular: string;
+  /**
+   * Plural form, e.g. "bytes".
+   */
+  plural: string;
+  /**
+   * Prefix system for occupancy display.
+   */
+  occupancy_prefix: PrefixSystem;
+  /**
+   * Prefix system for rate display.
+   */
+  rate_prefix: PrefixSystem;
+};

@@ -222,8 +222,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .map(|(comp_event, field)| {
             quote! {
                 if entity == <#comp_event as quent_model::EntityEvent>::NAME {
-                    let e: quent_model::Event<#comp_event> =
-                        quent_model::ciborium::from_reader(event)?;
+                    let e = quent_model::deserialize_event::<#comp_event>(event)?;
                     self.#field.send(e);
                     return Ok(());
                 }
@@ -293,6 +292,120 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         None => quote! {},
     };
 
+    // The options-driven constructors. In a serde build the exporter provider
+    // impl bounds each event type by `Serialize`; in a callback-only build it
+    // does not, so these are `Serialize`-free there.
+    let constructor_api = quote! {
+        impl #context_type {
+            #[doc = #doc_try_new]
+            pub fn try_new(
+                exporter: Option<quent_model::io::ExporterOptions>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                Self::try_with_id(quent_model::uuid::Uuid::now_v7(), exporter)
+            }
+
+            /// Build a context that adopts an existing `id` instead of
+            /// generating one — e.g. the collector reproducing a remote
+            /// source's output under that source's id. Same blocking and
+            /// runtime restriction as [`Self::try_new`].
+            pub fn try_with_id(
+                id: quent_model::uuid::Uuid,
+                exporter: Option<quent_model::io::ExporterOptions>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                match exporter {
+                    None => Ok(Self::noop(id)),
+                    Some(options) => {
+                        quent_model::write_sidecar(
+                            &options,
+                            id,
+                            <#name as quent_model::build_info::ModelSource>::model_info(),
+                        );
+                        Self::build(id, options)
+                    }
+                }
+            }
+
+            /// A no-op context adopting `id`: every observer discards its events.
+            fn noop(id: quent_model::uuid::Uuid) -> Self {
+                Self {
+                    #(#observer_fields: #observer_types::new(
+                        quent_model::Observer::<#event_types>::noop(),
+                    ),)*
+                    _inner: quent_model::Context::noop(id),
+                }
+            }
+        }
+    };
+
+    let collector_sink = if cfg!(feature = "serde") {
+        quote! {
+            // Collector routing, kept out of the context's own API. A collector
+            // factory awaits the `*_observer()` accessors to build the observers
+            // before any `ingest` call reads them.
+            #[cfg(feature = "collector")]
+            impl quent_model::CollectorSink for #context_type {
+                fn ingest(
+                    &self,
+                    entity: &str,
+                    event: &[u8],
+                ) -> Result<(), Box<dyn std::error::Error>> {
+                    #(#ingest_arms)*
+                    Err(format!("unknown entity stream `{entity}`").into())
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let import_events_impl = if cfg!(feature = "serde") {
+        quote! {
+            impl #name {
+                #[doc = #doc_import]
+                pub fn import_events(
+                    dir: &std::path::Path,
+                ) -> quent_model::io::ImporterResult<
+                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                > {
+                    // Detect the on-disk serialization format from the streams present;
+                    // an empty/unrecognized context yields no events.
+                    let Some(format) = quent_model::io::filesystem::Format::detect(dir) else {
+                        return Ok(Box::new(std::iter::empty()));
+                    };
+                    let mut streams: Vec<
+                        Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                    > = Vec::new();
+                    #(
+                        {
+                            let path =
+                                dir.join(<#event_types as quent_model::EntityEvent>::NAME);
+                            if path.is_dir() {
+                                let importer = <quent_model::io::ImporterOptions as quent_model::io::ImporterProvider<#event_types>>::create_importer(
+                                    &quent_model::io::ImporterOptions::FileSystem(
+                                        quent_model::io::filesystem::importer::Options {
+                                            format,
+                                            path,
+                                        },
+                                    ),
+                                )?;
+                                streams.push(Box::new(importer.map(|e| {
+                                    quent_model::Event::new(
+                                        e.id,
+                                        e.timestamp,
+                                        #event_type::from(e.data),
+                                    )
+                                })));
+                            }
+                        }
+                    )*
+                    Ok(Box::new(streams.into_iter().flatten()))
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let output = quote! {
         #[doc = #doc_model]
         pub type #model_type = quent_model::Model<#model_tuple>;
@@ -337,47 +450,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             #analyzer_package_method
         }
 
-        impl #name {
-            #[doc = #doc_import]
-            pub fn import_events(
-                dir: &std::path::Path,
-            ) -> quent_model::exporter::ImporterResult<
-                Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
-            > {
-                // Detect the on-disk serialization format from the streams present;
-                // an empty/unrecognized context yields no events.
-                let Some(format) = quent_model::exporter::FileSystemFormat::detect(dir) else {
-                    return Ok(Box::new(std::iter::empty()));
-                };
-                let mut streams: Vec<
-                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
-                > = Vec::new();
-                #(
-                    {
-                        let path =
-                            dir.join(<#event_types as quent_model::EntityEvent>::NAME);
-                        if path.is_dir() {
-                            let importer = quent_model::exporter::create_importer::<#event_types>(
-                                &quent_model::exporter::ImporterOptions::FileSystem(
-                                    quent_model::exporter::FileSystemImporterOptions {
-                                        format,
-                                        path,
-                                    },
-                                ),
-                            )?;
-                            streams.push(Box::new(importer.map(|e| {
-                                quent_model::Event::new(
-                                    e.id,
-                                    e.timestamp,
-                                    #event_type::from(e.data),
-                                )
-                            })));
-                        }
-                    }
-                )*
-                Ok(Box::new(streams.into_iter().flatten()))
-            }
-        }
+        #import_events_impl
 
         const _: () = {
             assert!(
@@ -401,45 +474,21 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
 
                 impl #context_type {
-                    #[doc = #doc_try_new]
-                    pub fn try_new(
-                        exporter: Option<quent_model::exporter::ExporterOptions>,
-                    ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_new(
-                            <#name as quent_model::build_info::ModelSource>::model_info(),
-                            exporter,
-                        )?;
-                        Self::assemble(inner)
-                    }
-
-                    /// Build a context that adopts an existing `id` instead of
-                    /// generating one — e.g. the collector reproducing a remote
-                    /// source's output under that source's id. Same blocking and
-                    /// runtime restriction as [`Self::try_new`].
-                    pub fn try_with_id(
+                    // The single sync/async bridge: on an active context, build
+                    // every entity's observer (each constructing its exporter from
+                    // the options, bound to the context id) concurrently on the
+                    // runtime, block until all complete, and assemble.
+                    fn build(
                         id: quent_model::uuid::Uuid,
-                        exporter: Option<quent_model::exporter::ExporterOptions>,
+                        options: quent_model::io::ExporterOptions,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_with_id(
-                            id,
-                            <#name as quent_model::build_info::ModelSource>::model_info(),
-                            exporter,
-                        )?;
-                        Self::assemble(inner)
-                    }
-
-                    // The single sync/async bridge: build every entity observer
-                    // concurrently on the context's runtime, block until all
-                    // complete, then assemble. Everything below this `block_on`
-                    // is plain async.
-                    fn assemble(
-                        inner: quent_model::Context,
-                    ) -> Result<Self, Box<dyn std::error::Error>> {
+                        let inner = quent_model::Context::try_new(id)?;
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
-                            let ( #(#observer_fields,)* ) =
-                                quent_model::tokio::try_join!(
-                                    #(inner.observer::<#event_types>(),)*
-                                )?;
+                            let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
+                                #(
+                                    inner.observer::<#event_types>(options.clone()),
+                                )*
+                            )?;
                             Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))
                         })?;
                         Ok(Self {
@@ -456,20 +505,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     #(#observer_methods)*
                 }
 
-                // Collector routing, kept out of the context's own API. A
-                // collector factory awaits the `*_observer()` accessors to build
-                // the observers before any `ingest` call reads them.
-                #[cfg(feature = "collector")]
-                impl quent_model::CollectorSink for #context_type {
-                    fn ingest(
-                        &self,
-                        entity: &str,
-                        event: &[u8],
-                    ) -> Result<(), Box<dyn std::error::Error>> {
-                        #(#ingest_arms)*
-                        Err(format!("unknown entity stream `{entity}`").into())
-                    }
-                }
+                #constructor_api
+                #collector_sink
             };
         }
     };

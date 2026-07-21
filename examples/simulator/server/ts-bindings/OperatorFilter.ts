@@ -4,4 +4,4 @@
  * Per-entry timeline-request parameter; restricts a resource timeline to a
  * single operator when set.
  */
-export type OperatorFilter = { operator_id: string | null, };
+export type OperatorFilter = { operator_id: string | null };

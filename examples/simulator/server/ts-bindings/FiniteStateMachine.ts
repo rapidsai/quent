@@ -4,20 +4,21 @@ import type { FsmTransition } from "./FsmTransition";
 /**
  * A run-time defined Finite-State-Machine.
  */
-export type FiniteStateMachine = { 
-/**
- * The ID of this FSM.
- */
-id: string, 
-/**
- * The type name of this FSM.
- */
-type_name: string, 
-/**
- * The instance name of this FSM.
- */
-instance_name: string, 
-/**
- * The transitions of this FSM.
- */
-transitions: Array<FsmTransition>, };
+export type FiniteStateMachine = {
+  /**
+   * The ID of this FSM.
+   */
+  id: string;
+  /**
+   * The type name of this FSM.
+   */
+  type_name: string;
+  /**
+   * The instance name of this FSM.
+   */
+  instance_name: string;
+  /**
+   * The transitions of this FSM.
+   */
+  transitions: Array<FsmTransition>;
+};

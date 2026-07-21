@@ -3,35 +3,36 @@
 /**
  * A [`Query`] executed by an [`Engine`].
  */
-export type Query = { 
-/**
- * The ID of this [`Query`].
- */
-id: string, 
-/**
- * The ID of the `QueryGroup` this query is part of.
- */
-query_group_id: string, 
-/**
- * A name for this [`Query`].
- */
-instance_name: string | null, 
-/**
- * The start time of this query, relative to the Unix epoch.
- */
-start_unix_ns: bigint | null, 
-/**
- * The time relative to the start time at which the engine started planning
- * this query.
- */
-planning_s: number | null, 
-/**
- * The time relative to the start time at which the engine started
- * executing this query, after planning.
- */
-executing_s: number | null, 
-/**
- * The time relative to the start time at which the engine started
- * completed executing this query.
- */
-completed_s: number | null, };
+export type Query = {
+  /**
+   * The ID of this [`Query`].
+   */
+  id: string;
+  /**
+   * The ID of the `QueryGroup` this query is part of.
+   */
+  query_group_id: string;
+  /**
+   * A name for this [`Query`].
+   */
+  instance_name: string | null;
+  /**
+   * The start time of this query, relative to the Unix epoch.
+   */
+  start_unix_ns: bigint | null;
+  /**
+   * The time relative to the start time at which the engine started planning
+   * this query.
+   */
+  planning_s: number | null;
+  /**
+   * The time relative to the start time at which the engine started
+   * executing this query, after planning.
+   */
+  executing_s: number | null;
+  /**
+   * The time relative to the start time at which the engine started
+   * completed executing this query.
+   */
+  completed_s: number | null;
+};

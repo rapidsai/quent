@@ -6,27 +6,28 @@ import type { Edge } from "./Edge";
  *
  * The topology of the plan is a Directed Acyclic Graph (DAG).
  */
-export type Plan = { 
-/**
- * The ID of this [`Plan`].
- */
-id: string, 
-/**
- * The name of this [`Plan`].
- */
-instance_name: string | null, 
-/**
- * The ID of the parent [`Plan`], if any.
- */
-parent: string | null, 
-/**
- * The ID of the `Worker` that executed this [`Plan`].
- *
- * If this level of [`Plan`] was not directly executed by a [`Worker`],
- * then this is set to None.
- */
-worker_id: string | null, 
-/**
- * The [`Edge`]s between [`Operator`] [`Port`]s of this [`Plan`].
- */
-edges: Array<Edge>, };
+export type Plan = {
+  /**
+   * The ID of this [`Plan`].
+   */
+  id: string;
+  /**
+   * The name of this [`Plan`].
+   */
+  instance_name: string | null;
+  /**
+   * The ID of the parent [`Plan`], if any.
+   */
+  parent: string | null;
+  /**
+   * The ID of the `Worker` that executed this [`Plan`].
+   *
+   * If this level of [`Plan`] was not directly executed by a [`Worker`],
+   * then this is set to None.
+   */
+  worker_id: string | null;
+  /**
+   * The [`Edge`]s between [`Operator`] [`Port`]s of this [`Plan`].
+   */
+  edges: Array<Edge>;
+};

@@ -12,7 +12,7 @@ default = ["serde"]
 serde = []
 
 [dependencies]
-convert_case = "0.8"
+convert_case = "0.11"
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"

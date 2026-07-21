@@ -4,24 +4,25 @@ import type { EngineImplementationAttributes } from "./EngineImplementationAttri
 /**
  * The engine that executed a [`Query`].
  */
-export type Engine = { 
-/**
- * The ID of this [`Engine`].
- */
-id: string, 
-/**
- * The timestamp at which this [`Engine`] started.
- */
-start_time_unix_ns: bigint | null, 
-/**
- * The duration for which this [`Engine`] was alive.
- */
-duration_s: number | null, 
-/**
- * The name of this [`Engine`] instance.
- */
-instance_name: string | null, 
-/**
- * Details about the Engine implementation.
- */
-implementation: EngineImplementationAttributes | null, };
+export type Engine = {
+  /**
+   * The ID of this [`Engine`].
+   */
+  id: string;
+  /**
+   * The timestamp at which this [`Engine`] started.
+   */
+  start_time_unix_ns: bigint | null;
+  /**
+   * The duration for which this [`Engine`] was alive.
+   */
+  duration_s: number | null;
+  /**
+   * The name of this [`Engine`] instance.
+   */
+  instance_name: string | null;
+  /**
+   * Details about the Engine implementation.
+   */
+  implementation: EngineImplementationAttributes | null;
+};

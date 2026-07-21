@@ -9,6 +9,7 @@ collector = ["quent-model/collector"]
 
 [dependencies]
 quent-model = { path = "../../../crates/model" }
+quent-io-callback = { path = "../../../crates/io/callback" }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-stdlib = { path = "../../../crates/stdlib" }
 serde.workspace = true

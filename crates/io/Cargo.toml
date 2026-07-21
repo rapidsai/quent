@@ -1,0 +1,28 @@
+[package]
+name = "quent-io"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["ndjson", "msgpack", "postcard", "collector"]
+ndjson = ["dep:quent-io-ndjson", "dep:serde"]
+msgpack = ["dep:quent-io-msgpack", "dep:serde"]
+postcard = ["dep:quent-io-postcard", "dep:serde"]
+collector = ["dep:quent-io-collector", "dep:http", "dep:serde"]
+clap = ["dep:clap", "dep:http"]
+callback = ["dep:quent-io-callback"]
+
+[dependencies]
+async-trait.workspace = true
+clap = { version = "4.5.57", features = ["derive", "env"], optional = true }
+http = { workspace = true, optional = true }
+quent-events = { path = "../events" }
+quent-io-types = { path = "types" }
+quent-io-callback = { path = "callback", optional = true }
+quent-io-collector = { path = "collector", optional = true }
+quent-io-msgpack = { path = "msgpack", optional = true }
+quent-io-ndjson = { path = "ndjson", optional = true }
+quent-io-postcard = { path = "postcard", optional = true }
+serde = { workspace = true, optional = true }
+uuid.workspace = true

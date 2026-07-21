@@ -4,16 +4,17 @@ import type { SpanSec } from "./SpanSec";
 /**
  * A UI-friendly representation of [`BinnedSpan`].
  */
-export type BinnedSpanSec = { 
-/**
- * The entire span of time this binned span represents.
- */
-span: SpanSec, 
-/**
- * The duration of one bin.
- */
-bin_duration: number, 
-/**
- * The number of bins.
- */
-num_bins: bigint, };
+export type BinnedSpanSec = {
+  /**
+   * The entire span of time this binned span represents.
+   */
+  span: SpanSec;
+  /**
+   * The duration of one bin.
+   */
+  bin_duration: number;
+  /**
+   * The number of bins.
+   */
+  num_bins: bigint;
+};

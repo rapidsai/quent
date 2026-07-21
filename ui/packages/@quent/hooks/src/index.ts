@@ -76,6 +76,7 @@ export {
   useEdgeColoring,
   useEdgeColorPalette,
   useSelectedNodeLabelField,
+  useSelectedDagLayoutDirection,
   useSelectedNodeData,
   useSetSelectedNodeData,
   useHighlightedNodeIds,
@@ -91,6 +92,40 @@ export type {
   HighlightedNodeIdsState,
   InspectedNodeData,
 } from './atoms/dagControls';
+
+// Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)
+export {
+  useDataFlowEnabled,
+  useSetDataFlowEnabled,
+  usePlayheadTimeS,
+  useSetPlayheadTimeS,
+  useSelectedDataFlowMeasure,
+  useSetSelectedDataFlowMeasure,
+  useDataFlowLabelMeasure,
+  useSetDataFlowLabelMeasure,
+  useDataFlowSelectedDimensions,
+  useSetDataFlowSelectedDimensions,
+  useDataFlowMeta,
+  useDataFlowFrame,
+} from './dataFlow/dataFlowSelectors';
+export { useDataFlowSync } from './dataFlow/useDataFlowSync';
+export {
+  normalizeDataFlowResponse,
+  isDataFlowAvailable,
+  resolveDataFlowWindow,
+  resolveDataFlowMeasure,
+  resolveDataFlowLabelMeasure,
+  resolveDataFlowDimensions,
+  formatDataFlowValue,
+  formatDataFlowValueCompact,
+  fitDataFlowSegmentLabel,
+} from './dataFlow/dataFlow.utils';
+export type {
+  DataFlowBinConfig,
+  DataFlowMeta,
+  DataFlowFrame,
+  DataFlowOperatorFrame,
+} from './dataFlow/dataFlow.utils';
 
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';

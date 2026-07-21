@@ -3,20 +3,32 @@
 
 import { useEffect, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
-import { useSelectedNodeData } from '@quent/hooks';
+import {
+  useSelectedNodeData,
+  useDataFlowEnabled,
+  useDataFlowMeta,
+  useDataFlowFrame,
+} from '@quent/hooks';
 import { DataText } from '../ui/data-text';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { inferFieldFormatter } from '@quent/utils';
+import { DataFlowMatrix } from './DataFlowMatrix';
 
-export const DAGNodeInfoPanel = () => {
+export const DAGNodeInfoPanel = ({ isDark = false }: { isDark?: boolean }) => {
   const selectedNodeData = useSelectedNodeData();
+  const dataFlowEnabled = useDataFlowEnabled();
+  const dataFlowMeta = useDataFlowMeta();
+  const dataFlowFrame = useDataFlowFrame();
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const operatorFrame =
+    dataFlowEnabled && selectedNodeData && dataFlowMeta && dataFlowFrame
+      ? dataFlowFrame.perOperator.get(selectedNodeData.nodeId)
+      : undefined;
+
   useEffect(() => {
-    if (!selectedNodeData) {
-      setIsExpanded(false);
-    }
-  }, [selectedNodeData]);
+    setIsExpanded(!!selectedNodeData);
+  }, [selectedNodeData?.nodeId]);
 
   return (
     <div className="border-t bg-card flex-shrink-0">
@@ -51,6 +63,14 @@ export const DAGNodeInfoPanel = () => {
 
       {isExpanded && selectedNodeData && (
         <div className={`border-t px-4 pb-2 h-48 overflow-y-auto ${thinScrollbarClass}`}>
+          {operatorFrame && dataFlowMeta && dataFlowFrame && (
+            <DataFlowMatrix
+              meta={dataFlowMeta}
+              frame={dataFlowFrame}
+              operatorFrame={operatorFrame}
+              isDark={isDark}
+            />
+          )}
           <div className="flex flex-col gap-1 pr-2 pt-1.5">
             <div className="text-xs flex items-center justify-between">
               <DataText className="capitalize">ID:</DataText>

@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use quent_schema::{Entity, Schema};
 use quote::quote;
 
-use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
+use crate::common::{derive_attr, doc_attr, doc_attr_or, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, Options};
 
@@ -24,14 +24,21 @@ pub(crate) fn generate_event_types(
 }
 
 fn entity_event_enum(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let enum_ident = raw_ident(format!("{}Event", to_case(entity.name(), Case::Pascal)));
-    let docs = doc_attr(entity.annotations().docs());
+    let entity_pascal = to_case(entity.name(), Case::Pascal);
+    let enum_ident = raw_ident(format!("{entity_pascal}Event"));
+    let docs = doc_attr_or(
+        entity.annotations().docs(),
+        &format!("Events emitted by `{entity_pascal}` entities."),
+    );
     let derives = derive_attr(opts.event_derives)?;
     let variants: Vec<TokenStream> = entity
         .events()
         .map(|event| {
             let variant = raw_ident(to_case(event.name(), Case::Pascal));
-            let variant_docs = doc_attr(event.annotations().docs());
+            let variant_docs = doc_attr_or(
+                event.annotations().docs(),
+                &format!("The `{}` event.", event.name()),
+            );
             let fields: Vec<TokenStream> = event
                 .fields()
                 .map(|field| {
@@ -106,18 +113,20 @@ mod tests {
             [],
         );
         let expected = quote! {
+            #[doc = "Events emitted by `E` entities."]
             pub enum EEvent {
+                #[doc = "The `ev` event."]
                 Ev {
                     b: bool,
-                    id: ::uuid::Uuid,
+                    id: ::quent_instrumentation::Uuid,
                     text: String,
                     n: u32,
                     opt: Option<i32>,
                     list: Vec<String>,
                     rec: SomeRecord,
-                    dynrec: ::quent_attributes::CustomAttributes,
-                    eref: ::quent_instrumentation_runtime::EntityRef,
-                    eref_payload: ::quent_instrumentation_runtime::EntityRef<u64>
+                    dynrec: ::quent_instrumentation::DynamicAttributes,
+                    eref: ::quent_instrumentation::EntityRef<AnyEntity>,
+                    eref_payload: ::quent_instrumentation::EntityRef<AnyEntity, u64>
                 }
             }
         };
@@ -126,20 +135,24 @@ mod tests {
 
     #[test]
     fn docs_annotations_become_doc_attributes() {
-        let docs = |text: &str| AnnotationsBuilder::new().docs(text).build();
+        let docs = |text: &str| {
+            let mut builder = AnnotationsBuilder::new();
+            builder.set_docs(text);
+            builder.build()
+        };
         let field_x = Field::new(ident("x"), DataType::U8, docs("field doc"));
         let ev = EventBuilder::new(ident("ev"), Cardinality::Once)
-            .fields([field_x])
+            .try_with_field(field_x)
             .unwrap()
-            .annotations(docs("event doc"))
+            .with_annotations(docs("event doc"))
             .build();
         let en = EntityBuilder::new(ident("E"))
-            .events([ev])
+            .try_with_event(ev)
             .unwrap()
-            .annotations(docs("entity doc"))
+            .with_annotations(docs("entity doc"))
             .build();
         let s = SchemaBuilder::new(ident("M"))
-            .entities([en])
+            .try_with_entity(en)
             .unwrap()
             .build();
 
@@ -167,10 +180,14 @@ mod tests {
             [],
         );
         let expected = quote! {
+            #[doc = "Events emitted by `Alpha` entities."]
             pub enum AlphaEvent {
+                #[doc = "The `started` event."]
                 Started { id: u32 }
             }
+            #[doc = "Events emitted by `Beta` entities."]
             pub enum BetaEvent {
+                #[doc = "The `ended` event."]
                 Ended
             }
         };
@@ -181,6 +198,7 @@ mod tests {
     fn entity_without_events_emits_empty_enum() {
         let s = schema("M", [entity("E", [])], []);
         let expected = quote! {
+            #[doc = "Events emitted by `E` entities."]
             pub enum EEvent {}
         };
         assert_eq!(events_src(&s), pretty(expected));
@@ -214,10 +232,12 @@ mod tests {
             [],
         );
         let expected = quote! {
+            #[doc = "Events emitted by `E` entities."]
             pub enum EEvent {
+                #[doc = "The `ev` event."]
                 Ev {
                     nested: Option<Vec<Option<u8>>>,
-                    eref_list: ::quent_instrumentation_runtime::EntityRef<Vec<String>>
+                    eref_list: ::quent_instrumentation::EntityRef<AnyEntity, Vec<String>>
                 }
             }
         };
@@ -244,7 +264,9 @@ mod tests {
             [],
         );
         let expected = quote! {
+            #[doc = "Events emitted by `Sig` entities."]
             pub enum SigEvent {
+                #[doc = "The `type` event."]
                 Type {
                     u8: u8,
                     r#type: u8,

@@ -146,32 +146,37 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     // Generate struct, metadata, extract impls, and callback based on attribute mode.
     let user_attrs = &input.user_attrs;
-    let (struct_def, attr_defs_tokens, extract_instance_name_body, extract_parent_group_id_body) =
-        match &input.attributes {
-            Some(AttributesDef::Inline(fields)) => expand_inline_attrs(
-                name,
-                fields,
-                &usage_field_defs,
-                &serde_derives,
-                &serde_crate_attr,
-                user_attrs,
-            ),
-            Some(AttributesDef::ExternalStruct(path)) => expand_external_attrs(
-                name,
-                path,
-                &usage_field_defs,
-                &serde_derives,
-                &serde_crate_attr,
-                user_attrs,
-            ),
-            None => expand_no_attrs(
-                name,
-                &usage_field_defs,
-                &serde_derives,
-                &serde_crate_attr,
-                user_attrs,
-            ),
-        };
+    let (
+        struct_def,
+        attr_defs_tokens,
+        extract_instance_name_body,
+        extract_parent_group_id_body,
+        extract_attributes_body,
+    ) = match &input.attributes {
+        Some(AttributesDef::Inline(fields)) => expand_inline_attrs(
+            name,
+            fields,
+            &usage_field_defs,
+            &serde_derives,
+            &serde_crate_attr,
+            user_attrs,
+        ),
+        Some(AttributesDef::ExternalStruct(path)) => expand_external_attrs(
+            name,
+            path,
+            &usage_field_defs,
+            &serde_derives,
+            &serde_crate_attr,
+            user_attrs,
+        ),
+        None => expand_no_attrs(
+            name,
+            &usage_field_defs,
+            &serde_derives,
+            &serde_crate_attr,
+            user_attrs,
+        ),
+    };
 
     // Usage defs for StateMetadata
     let usage_def_tokens: Vec<TokenStream> = input
@@ -290,6 +295,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 #extract_parent_group_id_body
             }
         }
+
+        impl quent_model::analyze::ExtractAttributes for #name {
+            fn extract_attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
+                #extract_attributes_body
+            }
+        }
     };
 
     // Callback macro for fsm! integration.
@@ -394,7 +405,13 @@ fn expand_inline_attrs(
     serde_derives: &TokenStream,
     serde_crate_attr: &TokenStream,
     user_attrs: &[syn::Attribute],
-) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
+) -> (
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+) {
     let inline_field_defs: Vec<TokenStream> = fields
         .iter()
         .map(|f| {
@@ -441,11 +458,30 @@ fn expand_inline_attrs(
     let extract_instance_name = quote! { Some(&self.instance_name) };
     let extract_parent_group_id = quote! { None };
 
+    // The auto-added `instance_name` is excluded — it is surfaced via
+    // ExtractInstanceName.
+    let extract_attr_tokens: Vec<TokenStream> = fields
+        .iter()
+        .map(|f| {
+            let field_name = f.name.to_string();
+            let fname = &f.name;
+            let value_expr = crate::util::attribute_value_expr(&quote! { self.#fname }, &f.ty);
+            quote! {
+                quent_model::attributes::DynamicAttribute {
+                    key: #field_name.to_string(),
+                    value: #value_expr,
+                }
+            }
+        })
+        .collect();
+    let extract_attributes = quote! { vec![#(#extract_attr_tokens,)*] };
+
     (
         struct_def,
         attr_defs,
         extract_instance_name,
         extract_parent_group_id,
+        extract_attributes,
     )
 }
 
@@ -457,7 +493,13 @@ fn expand_external_attrs(
     serde_derives: &TokenStream,
     serde_crate_attr: &TokenStream,
     user_attrs: &[syn::Attribute],
-) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
+) -> (
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+) {
     let serde_flatten = if cfg!(feature = "serde") {
         quote! { #[serde(flatten)] }
     } else {
@@ -486,12 +528,16 @@ fn expand_external_attrs(
     let extract_parent_group_id = quote! {
         quent_model::analyze::ExtractParentGroupId::extract_parent_group_id(&self.attrs)
     };
+    let extract_attributes = quote! {
+        quent_model::analyze::ExtractAttributes::extract_attributes(&self.attrs)
+    };
 
     (
         struct_def,
         attr_defs,
         extract_instance_name,
         extract_parent_group_id,
+        extract_attributes,
     )
 }
 
@@ -502,7 +548,13 @@ fn expand_no_attrs(
     serde_derives: &TokenStream,
     serde_crate_attr: &TokenStream,
     user_attrs: &[syn::Attribute],
-) -> (TokenStream, TokenStream, TokenStream, TokenStream) {
+) -> (
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+) {
     let doc_state = format!("FSM state {name}.");
     let struct_def = quote! {
         #(#user_attrs)*
@@ -517,11 +569,13 @@ fn expand_no_attrs(
     let attr_defs = quote! { vec![] };
     let extract_instance_name = quote! { None };
     let extract_parent_group_id = quote! { None };
+    let extract_attributes = quote! { vec![] };
 
     (
         struct_def,
         attr_defs,
         extract_instance_name,
         extract_parent_group_id,
+        extract_attributes,
     )
 }

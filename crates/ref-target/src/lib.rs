@@ -8,11 +8,10 @@ use quent_schema::{
     Annotations, DataType, Identifier,
     visitor::{Cursor, Element, Visitor},
 };
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// The entity type an entity reference is restricted to point at.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefTarget(Identifier);
 
 impl From<RefTarget> for Identifier {
@@ -31,7 +30,7 @@ impl RefTarget {
     /// Return the reference target entity type declared on `annotations`, if any.
     pub fn from_annotations(annotations: &Annotations) -> Option<Self> {
         let raw = annotations.constraint(RefTargetConstraint::NAME)?.data()?;
-        serde_json::from_str(raw).ok()
+        Identifier::try_from(raw).ok().map(RefTarget)
     }
 }
 
@@ -62,13 +61,11 @@ impl Visitor for RefTargetConstraint {
                 location,
                 message: "constraint data is missing".to_string(),
             }),
-            Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
-                Ok(ref_target) => {
-                    if cursor.root().entity(ref_target.as_ref()).is_none() {
-                        self.errors.push(RefTargetError::UnknownTarget {
-                            location,
-                            target: ref_target.as_ref().clone(),
-                        });
+            Some(raw) => match Identifier::try_from(raw) {
+                Ok(target) => {
+                    if cursor.root().entity(&target).is_none() {
+                        self.errors
+                            .push(RefTargetError::UnknownTarget { location, target });
                     }
                 }
                 Err(e) => self.errors.push(RefTargetError::InvalidData {
@@ -89,7 +86,7 @@ impl Visitor for RefTargetConstraint {
 }
 
 impl Constraint for RefTargetConstraint {
-    const NAME: &'static str = "quent.ref-target.v1";
+    const NAME: &'static str = "quent.ref-target.v0.1.0";
 }
 
 #[derive(Debug, Error)]

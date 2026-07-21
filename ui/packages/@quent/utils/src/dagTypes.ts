@@ -50,6 +50,15 @@ export const NODE_LABEL_FIELD = {
 
 export type NodeLabelField = (typeof NODE_LABEL_FIELD)[keyof typeof NODE_LABEL_FIELD];
 
+export const DAG_LAYOUT_DIRECTION = {
+  /** Sources (e.g. Scan) at the bottom, flowing up toward the result. Conventional for query profiling. */
+  BOTTOM_TO_TOP: 'bottom-to-top',
+  /** Sources at the top, flowing down toward the result. */
+  TOP_TO_BOTTOM: 'top-to-bottom',
+} as const;
+
+export type DagLayoutDirection = (typeof DAG_LAYOUT_DIRECTION)[keyof typeof DAG_LAYOUT_DIRECTION];
+
 export type StatValue = string | number | boolean | null | string[];
 
 export interface DAGNode {

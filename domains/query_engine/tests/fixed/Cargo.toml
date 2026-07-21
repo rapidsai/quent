@@ -8,9 +8,15 @@ publish.workspace = true
 clap = { version = "4.5.57", features = ["derive", "env"] }
 quent-time = { path = "../../../../crates/time", features = ["__test-clock-override"] }
 quent-model = { path = "../../../../crates/model" }
-quent-attributes = { path = "../../../../crates/attributes" }
-quent-exporter = { path = "../../../../crates/exporter", features = ["clap"] }
+quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
+quent-io = { path = "../../../../crates/io", features = ["clap", "callback"] }
 quent-query-engine-model = { path = "../../model" }
 quent-simulator-instrumentation = { path = "../../../../examples/simulator/instrumentation" }
 quent-stdlib = { path = "../../../../crates/stdlib" }
 uuid = { workspace = true }
+
+[dev-dependencies]
+quent-simulator-analyzer = { path = "../../../../examples/simulator/analyzer" }
+quent-query-engine-analyzer = { path = "../../analyzer" }
+quent-query-engine-ui = { path = "../../ui" }
+quent-ui = { path = "../../../../crates/ui" }

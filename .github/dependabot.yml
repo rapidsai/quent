@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - cooldown:
+      default-days: 14
+    directory: "/"
+    open-pull-requests-limit: 5
+    package-ecosystem: "github-actions"
+    schedule:
+      interval: "weekly"
+  - cooldown:
+      default-days: 14
+    directories:
+      - "/ui"
+      - "/ui/examples/quent-pivot-table-panel"
+      - "/crates/schema/ts"
+    open-pull-requests-limit: 5
+    package-ecosystem: "npm"
+    schedule:
+      interval: "weekly"
+  - cooldown:
+      default-days: 14
+    directories: 
+      - "/"
+      - "/crates/instrumentation-build/example"
+    open-pull-requests-limit: 5
+    package-ecosystem: "cargo"
+    schedule:
+      interval: "weekly"

@@ -205,6 +205,32 @@ export function createFsmTypeColorFn(
 }
 
 /**
+ * State colors for the data-flow overlay: states declared in the FSM keep
+ * their declaration-index palette colors (consistent with the timeline
+ * lanes), while synthetic states the analyzer appends (e.g. a working-space
+ * series) continue the palette after the declared block — so they can never
+ * collide with a declared state's color.
+ */
+export function createDataFlowStateColorFn(
+  fsmType: FsmTypeDecl | null | undefined,
+  resolvedStates: readonly string[],
+  theme: PaletteTheme
+): (stateName: string) => ChartColor {
+  const declared = new Map<string, number>();
+  fsmType?.states.forEach((state, index) => declared.set(state.name, index));
+  const appended = new Map<string, number>();
+  for (const state of resolvedStates) {
+    if (!declared.has(state) && !appended.has(state)) {
+      appended.set(state, declared.size + appended.size);
+    }
+  }
+  return (stateName: string) => {
+    const index = declared.get(stateName) ?? appended.get(stateName);
+    return index != null ? getColorByIndex(index, theme) : getColorForKey(stateName, theme);
+  };
+}
+
+/**
  * Build a deterministic state->index lookup from FSM declarations.
  * State index controls palette position so same state names stay consistent.
  */

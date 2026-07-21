@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use quent_schema::{Record, Schema};
 use quote::quote;
 
-use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
+use crate::common::{derive_attr, doc_attr, doc_attr_or, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, Options};
 
@@ -29,8 +29,12 @@ pub(crate) fn generate_record_types(
 }
 
 fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let ident = raw_ident(to_case(record.name(), Case::Pascal));
-    let docs = doc_attr(record.annotations().docs());
+    let record_pascal = to_case(record.name(), Case::Pascal);
+    let ident = raw_ident(record_pascal.clone());
+    let docs = doc_attr_or(
+        record.annotations().docs(),
+        &format!("The `{record_pascal}` record."),
+    );
     let derives = derive_attr(opts.record_derives)?;
     let fields: Vec<TokenStream> = record
         .fields()
@@ -79,13 +83,16 @@ mod tests {
             ],
         );
         let expected = quote! {
+            #[doc = "The `OnePrim` record."]
             pub struct OnePrim {
                 pub a: u8
             }
+            #[doc = "The `Nested` record."]
             pub struct Nested {
                 pub inner: OnePrim,
                 pub list: Vec<String>
             }
+            #[doc = "The `Empty` record."]
             pub struct Empty {}
         };
         assert_eq!(

@@ -3,24 +3,25 @@
 /**
  * A worker that executed a leaf [`Plan`].
  */
-export type Worker = { 
-/**
- * The ID of this [`Worker`].
- */
-id: string, 
-/**
- * The ID of the [`Engine`] to which this [`Worker`] belongs.
- */
-parent_engine_id: string | null, 
-/**
- * The name of this [`Worker`].
- */
-instance_name: string | null, 
-/**
- * The time at which this [`Worker`] started, relative to the engine.
- */
-start_unix_ns: bigint | null, 
-/**
- * The time at which this [`Worker`] exited.
- */
-end_unix_ns: bigint | null, };
+export type Worker = {
+  /**
+   * The ID of this [`Worker`].
+   */
+  id: string;
+  /**
+   * The ID of the [`Engine`] to which this [`Worker`] belongs.
+   */
+  parent_engine_id: string | null;
+  /**
+   * The name of this [`Worker`].
+   */
+  instance_name: string | null;
+  /**
+   * The time at which this [`Worker`] started, relative to the engine.
+   */
+  start_unix_ns: bigint | null;
+  /**
+   * The time at which this [`Worker`] exited.
+   */
+  end_unix_ns: bigint | null;
+};

@@ -3,12 +3,13 @@
 /**
  * A declaration of an FSM state.
  */
-export type FsmStateTypeDecl = { 
-/**
- * The name of this FSM state.
- */
-name: string, 
-/**
- * The names of the resource types this FSM state can use.
- */
-usages: Array<string>, };
+export type FsmStateTypeDecl = {
+  /**
+   * The name of this FSM state.
+   */
+  name: string;
+  /**
+   * The names of the resource types this FSM state can use.
+   */
+  usages: Array<string>;
+};

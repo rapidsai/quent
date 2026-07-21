@@ -1,25 +1,37 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+//! Parses the YAML model and generates the instrumentation library into `OUT_DIR`.
+
+use std::path::Path;
+
 use quent_instrumentation_build::{GenerateInfo, Options, generate};
-use quent_schema::builder::{
-    AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
-};
-use quent_schema::test_utils::{field, ident};
-use quent_schema::{Cardinality, DataType, Schema};
 
-fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("model.yaml");
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed={}", model.display());
 
-    let schema = demo_schema()?;
+    // YAML source -> quent_schema::Schema. Errors carry file:line:column.
+    let parsed = quent_yaml::parse_from_file(&model)?;
+    // Constraints no validator handles (none in this model).
+    for warning in &parsed.warnings {
+        println!("cargo:warning={warning}");
+    }
 
+    // Schema -> generated Rust instrumentation source.
     let opts = Options {
         event_derives: &["Debug"],
         record_derives: &["Debug"],
+        // To just print the events in this example, we'll be using the callback
+        // exporter. This exporter takes a type-erased event, so in order to
+        // simplify downcasting back to a statically-typed event, this features
+        // enables the generation of the "AnyEvent" helper type (see main.rs).
+        // This is typically left false when using "real" exporters.
+        any_event: true,
         ..Default::default()
     };
-
-    let GenerateInfo { path, warnings } = generate(&schema, &opts)?;
+    let GenerateInfo { path, warnings } = generate(&parsed.schema, &opts)?;
 
     if !warnings.is_empty() {
         println!("cargo:warning= {}", warnings.join("\n"));
@@ -30,65 +42,4 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
-}
-
-fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
-    let endpoint = RecordBuilder::new(ident("Endpoint"))
-        .annotations(
-            AnnotationsBuilder::new()
-                .docs("A network endpoint.")
-                .build(),
-        )
-        .fields([
-            field("host", DataType::String),
-            field("port", DataType::U16),
-        ])
-        .unwrap()
-        .build();
-
-    let meta = RecordBuilder::new(ident("Meta"))
-        .fields([
-            field("tags", DataType::List(Box::new(DataType::String))),
-            field("extra", DataType::DynamicRecord),
-        ])
-        .unwrap()
-        .build();
-
-    let connection = EntityBuilder::new(ident("Connection"))
-        .annotations(
-            AnnotationsBuilder::new()
-                .docs("A client connection.")
-                .build(),
-        )
-        .events([
-            EventBuilder::new(ident("opened"), Cardinality::Once)
-                .fields([
-                    field("peer", DataType::Record(ident("Endpoint"))),
-                    field("session", DataType::Uuid),
-                ])
-                .unwrap()
-                .build(),
-            EventBuilder::new(ident("data"), Cardinality::Multi)
-                .fields([
-                    field("bytes", DataType::U64),
-                    field(
-                        "meta",
-                        DataType::Option(Box::new(DataType::Record(ident("Meta")))),
-                    ),
-                ])
-                .unwrap()
-                .build(),
-            EventBuilder::new(ident("closed"), Cardinality::Once).build(),
-        ])
-        .unwrap()
-        .build();
-
-    let schema = SchemaBuilder::new(ident("Demo"))
-        .records([endpoint, meta])
-        .unwrap()
-        .entities([connection])
-        .unwrap()
-        .build();
-
-    Ok(schema)
 }
