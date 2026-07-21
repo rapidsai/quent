@@ -86,7 +86,7 @@ export const SelectField = ({
             ) : (
               options.map(opt => (
                 <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                  {renderOption ? renderOption(opt) : (opt.label ?? opt.value)}
+                  {opt.label ?? opt.value}
                 </SelectItem>
               ))
             )}
