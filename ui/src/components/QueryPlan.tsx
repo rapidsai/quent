@@ -40,8 +40,6 @@ const TABS = {
 } as const;
 
 const MAX_TOP_PANEL_HEIGHT_PX = 300;
-// Approximate height of the TabsList header; used when computing desired panel height.
-const TAB_HEADER_HEIGHT_PX = 42;
 
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const { theme } = useTheme();
@@ -93,6 +91,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   const topPanelRef = useRef<PanelImperativeHandle | null>(null);
   const treeContentRef = useRef<HTMLDivElement>(null);
+  const tabsListRef = useRef<HTMLDivElement>(null);
 
   // Resize the top panel to fit tree content (capped at MAX_TOP_PANEL_HEIGHT_PX).
   // Note: PanelImperativeHandle.resize() treats numbers as pixels.
@@ -101,7 +100,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     const topPanel = topPanelRef.current;
     if (!treeContent || !topPanel) return;
 
-    const desiredPx = treeContent.scrollHeight + TAB_HEADER_HEIGHT_PX;
+    const tabsListHeight = tabsListRef.current?.offsetHeight ?? 0;
+    const desiredPx = treeContent.scrollHeight + tabsListHeight;
     const cappedPx = Math.min(desiredPx, MAX_TOP_PANEL_HEIGHT_PX);
     topPanel.resize(cappedPx);
   }, [treeData, planId]);
@@ -182,7 +182,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel panelRef={topPanelRef} defaultSize="15%" className="flex flex-col">
           <Tabs defaultValue={TABS.PLAN}>
-            <TabsList>
+            <TabsList ref={tabsListRef}>
               <TabsTrigger value={TABS.PLAN}>Query Plan</TabsTrigger>
               <TabsTrigger value={TABS.CONTROLS}>Settings</TabsTrigger>
             </TabsList>
