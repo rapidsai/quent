@@ -78,29 +78,25 @@ drop(observer);
 nvtx-injection = { path = "…/injection", features = ["static-injection"] }
 ```
 
-Run the bundled example (no GPU) and read the ndjson it writes:
+The bundled example uses a **callback exporter** to debug-print each captured
+event (a real app would swap in ndjson, the collector, …). Run it — no GPU:
 
 ```sh
-out=$(mktemp -d)
-pixi run cargo run -p nvtx-example -- "$out"
-cat "$out"/*/NvtxEvent/*.ndjson | jq .
+pixi run cargo run -p nvtx-example
 ```
 
-Each line is an `Event` — `id`, capture `timestamp` (ns), `data`. A
-`mark!("startup")` on the default domain:
+It prints one line per event — entity `id`, capture `timestamp` (ns), and the
+`NvtxEvent`:
 
-```json
-{
-  "id": "019f8972-2074-7e82-a1d0-b6dab4a623f4",
-  "timestamp": 1784542737668366950,
-  "data": { "Mark": { "domain": 0, "attributes": { "message": { "String": "startup" } } } }
-}
+```text
+[019f… @ 1784726504601037528] Mark { domain: 0, attributes: { message: Some(String("startup")), .. } }
 ```
 
-### End-to-end test
+### Test
 
-`example/tests/capture.rs` runs the example against a temp dir and asserts every
-core NVTX kind round-trips through the ndjson:
+`example/tests/capture.rs` reuses the same capture routine in-process with a
+collecting callback exporter and asserts every core NVTX kind is captured — no
+subprocess, no files:
 
 ```sh
 pixi run cargo test -p nvtx-example

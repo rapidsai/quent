@@ -1,15 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Application-agnostic NVTX injection cdylib.
+//! Application-agnostic NVTX injection library.
 //!
-//! NVTX loads this library via `NVTX_INJECTION64_PATH` and calls the exported
-//! [`InitializeInjectionNvtx2`](crate::InitializeInjectionNvtx2) entry, which
+//! On attach, NVTX calls the exported [`InitializeInjectionNvtx2`] entry, which
 //! installs the CORE/CORE2 callback tables one-shot. Push/pop calls are
-//! converted to verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s and handed
-//! to a sink-agnostic `Fn(NvtxEvent)` hook installed via
-//! [`install_hook`](crate::install_hook). This crate depends on nothing
+//! converted to verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s and handed to a
+//! sink-agnostic `Fn(NvtxEvent)` hook installed via [`install_hook`]. This
+//! crate depends on nothing
 //! product-specific except `nvtx-events`, so it stays separable/upstreamable.
+//!
+//! # Attach modes
+//!
+//! - **Runtime (default):** built as a cdylib; NVTX `dlopen`s it via
+//!   `NVTX_INJECTION64_PATH` and calls the injection entry.
+//! - **In-process (`static-injection` feature):** a strong
+//!   `InitializeInjectionNvtx2` symbol is linked into the consuming binary,
+//!   overriding NVTX's weak one, so NVTX initializes injection at its first NVTX
+//!   call — no cdylib to load and no `NVTX_INJECTION64_PATH`.
 
 // Linux 64-bit only. NVTX injection relies on the ELF weak-symbol /
 // NVTX_INJECTION64_PATH mechanism; Windows and 32-bit are out of scope.

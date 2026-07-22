@@ -2102,10 +2102,7 @@ dependencies = [
  "nvtx-bridge",
  "nvtx-events",
  "nvtx-injection",
- "quent-events",
  "quent-instrumentation",
- "quent-io",
- "tempfile",
  "uuid",
 ]
 

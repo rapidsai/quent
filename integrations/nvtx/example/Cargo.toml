@@ -12,21 +12,18 @@ name = "nvtx_capture"
 path = "src/main.rs"
 
 [dependencies]
-# `static-injection` links a strong `InitializeInjectionNvtx2` so NVTX
-# initializes injection in-process at the first NVTX call — no cdylib, no
-# NVTX_INJECTION64_PATH.
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
 nvtx-bridge = { path = "../bridge" }
-nvtx-events = { path = "../events" }
-quent-instrumentation = { path = "../../../crates/instrumentation" }
-quent-io = { path = "../../../crates/io", default-features = false, features = [
-    "ndjson",
+# `io-callback` selects the callback exporter used to print (bin) and collect
+# (test) captured events.
+quent-instrumentation = { path = "../../../crates/instrumentation", features = [
+    "io-callback",
 ] }
-quent-events = { path = "../../../crates/events" }
 uuid = { workspace = true }
 # The NVTX producer: a header-only Rust binding that makes the NVTX calls the
 # injection layer captures. Self-contained (vendors the NVTX v3 headers).
 nvtx = "1.3"
 
 [dev-dependencies]
-tempfile = "3"
+# The test matches on `NvtxEvent` variants to assert coverage.
+nvtx-events = { path = "../events" }
