@@ -27,6 +27,8 @@ members = [
     # NVTX integration crates
     "integrations/nvtx/events",
     "integrations/nvtx/injection",
+    "integrations/nvtx/bridge",
+    "integrations/nvtx/example",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",

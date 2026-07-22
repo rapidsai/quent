@@ -85,8 +85,16 @@ fn generate_bindings() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Compile the strong-symbol C shim for the static-injection attach path.
+///
+/// The shim's *strong* `InitializeInjectionNvtx2_fnptr` overrides NVTX's *weak*
+/// one, but only if its object is linked in. Nothing references it from Rust and
+/// `-u` would bind to NVTX's weak def, so `+whole-archive` forces it in —
+/// otherwise the linker drops the override and injection never initializes.
 #[cfg(feature = "static-injection")]
 fn compile_symbol_shim() {
     println!("cargo::rerun-if-changed=c/symbol.c");
-    cc::Build::new().file("c/symbol.c").compile("nvtx_symbol");
+    cc::Build::new()
+        .file("c/symbol.c")
+        .link_lib_modifier("+whole-archive")
+        .compile("nvtx_symbol");
 }

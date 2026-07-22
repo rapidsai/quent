@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-bridge"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The bridge is a single adapter type. It needs the NVTX event vocabulary, the
+# Quent `EntityEvent` trait it implements, and serde for the transparent derive.
+nvtx-events = { path = "../events" }
+quent-events = { path = "../../../crates/events" }
+serde = { workspace = true }
