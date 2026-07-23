@@ -30,6 +30,27 @@ export {
 } from './ui/dropdown-menu';
 export { HoverCard, HoverCardTrigger, HoverCardContent } from './ui/hover-card';
 export { Input } from './ui/input';
+export { Checkbox } from './ui/checkbox';
+export {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+} from './ui/command';
+export { Combobox } from './ui/combobox';
+export type { ComboboxOption, ComboboxProps } from './ui/combobox';
+export {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from './ui/pagination';
 export {
   navigationMenuTriggerStyle,
   NavigationMenu,

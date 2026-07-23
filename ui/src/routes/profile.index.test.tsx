@@ -4,230 +4,120 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
-import { screen, renderWithRouter, waitFor, fireEvent } from '@/test/test-utils';
+import { screen, renderWithRouter, waitFor, within, fireEvent } from '@/test/test-utils';
 
 const API_BASE = 'http://localhost:8000/api';
 
-describe('EngineSelectionPage', () => {
-  beforeEach(() => {
-    // Set up default handlers for the profile page API endpoints
-    server.use(
-      http.get(`${API_BASE}/engines`, () => {
+function makeQuery(id: string, name: string, groupId: string) {
+  return {
+    id,
+    query_group_id: groupId,
+    instance_name: name,
+    start_unix_ns: null,
+    planning_s: 0.5,
+    executing_s: 1.5,
+    completed_s: 3,
+  };
+}
+
+function installProfileHandlers() {
+  server.use(
+    http.get(`${API_BASE}/engines`, () => {
+      return HttpResponse.json([
+        { id: 'engine-1', instance_name: 'Engine One' },
+        { id: 'engine-2', instance_name: 'Engine Two' },
+      ]);
+    }),
+    http.get(`${API_BASE}/engines/:engineId/query-groups`, ({ params }) => {
+      const { engineId } = params;
+      return HttpResponse.json([
+        { id: `${engineId}-group-1`, instance_name: `Group ${engineId}`, engine_id: engineId },
+      ]);
+    }),
+    http.get(`${API_BASE}/engines/:engineId/query_group/:groupId/queries`, ({ params }) => {
+      const { engineId, groupId } = params;
+      if (engineId === 'engine-1') {
         return HttpResponse.json([
-          { id: 'engine-1', instance_name: 'engine-1' },
-          { id: 'engine-2', instance_name: 'engine-2' },
-          { id: 'engine-3', instance_name: 'engine-3' },
+          makeQuery('q-alpha', 'Alpha Query', String(groupId)),
+          makeQuery('q-beta', 'Beta Query', String(groupId)),
         ]);
-      }),
-      http.get(`${API_BASE}/engines/:engineId/query-groups`, ({ params }) => {
-        const { engineId } = params;
-        return HttpResponse.json([`${engineId}-coordinator-1`, `${engineId}-coordinator-2`]);
-      }),
-      http.get(`${API_BASE}/engines/:engineId/query-groups/:coordinatorId/queries`, () => {
-        return HttpResponse.json(['query-1', 'query-2', 'query-3']);
-      })
-    );
+      }
+      return HttpResponse.json([makeQuery('q-gamma', 'Gamma Query', String(groupId))]);
+    })
+  );
+}
+
+describe('ProfileSearchPage', () => {
+  beforeEach(() => {
+    installProfileHandlers();
   });
 
-  describe('Page rendering', () => {
-    it('renders the page title and description', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+  it('renders the page title and description', async () => {
+    renderWithRouter({ initialPath: '/profile' });
 
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-      expect(screen.getByText(/select an engine, coordinator, and query/i)).toBeInTheDocument();
-    });
-
-    it('renders all three select dropdowns with labels', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Engine')).toBeInTheDocument();
-      });
-      expect(screen.getByText('Query Group')).toBeInTheDocument();
-      expect(screen.getByText('Query')).toBeInTheDocument();
-    });
-
-    it('renders engine select with placeholder', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-    });
-
-    it('renders coordinator select with placeholder', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Query Group')).toBeInTheDocument();
-      });
-    });
-
-    it('renders query select with placeholder', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Query')).toBeInTheDocument();
-      });
-    });
+    expect(await screen.findByRole('heading', { name: /search profiles/i })).toBeInTheDocument();
+    expect(screen.getByText(/search and filter query profiles/i)).toBeInTheDocument();
   });
 
-  describe('Initial visibility state', () => {
-    it('hides coordinator dropdown initially', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+  it('renders the search box and filter controls', async () => {
+    renderWithRouter({ initialPath: '/profile' });
 
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
+    await screen.findByRole('heading', { name: /search profiles/i });
+    expect(screen.getByLabelText(/search profiles/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/filter by engine/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/filter by query group/i)).toBeInTheDocument();
+  });
 
-      // Coordinator section should be invisible
-      const coordinatorLabel = screen.getByText('Query Group');
-      expect(coordinatorLabel.parentElement).toHaveClass('invisible');
+  it('aggregates and lists all profiles across engines', async () => {
+    renderWithRouter({ initialPath: '/profile' });
+
+    await waitFor(() => {
+      expect(screen.getByText('Alpha Query')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Beta Query')).toBeInTheDocument();
+    expect(screen.getByText('Gamma Query')).toBeInTheDocument();
+    expect(screen.getByText(/3 profiles/i)).toBeInTheDocument();
+  });
+
+  it('filters rows by the free-text search box', async () => {
+    renderWithRouter({ initialPath: '/profile' });
+
+    await waitFor(() => {
+      expect(screen.getByText('Alpha Query')).toBeInTheDocument();
     });
 
-    it('hides query dropdown initially', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-
-      // Query section should be invisible
-      const queryLabel = screen.getByText('Query');
-      expect(queryLabel.parentElement).toHaveClass('invisible');
+    fireEvent.change(screen.getByLabelText(/search profiles/i), {
+      target: { value: 'gamma' },
     });
 
-    it('shows engine dropdown initially', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+    await waitFor(() => {
+      expect(screen.queryByText('Alpha Query')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Gamma Query')).toBeInTheDocument();
+  });
 
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
+  it('shows an empty state when no profiles are available', async () => {
+    server.use(http.get(`${API_BASE}/engines`, () => HttpResponse.json([])));
 
-      // Engine section should be visible (no invisible class)
-      const engineLabel = screen.getByText('Engine');
-      expect(engineLabel.parentElement).not.toHaveClass('invisible');
+    renderWithRouter({ initialPath: '/profile' });
+
+    await waitFor(() => {
+      expect(screen.getByText(/no profiles available/i)).toBeInTheDocument();
     });
   });
 
-  describe('API data fetching', () => {
-    it('loads engines from API', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+  it('navigates to a profile when a row is clicked', async () => {
+    const { router } = renderWithRouter({ initialPath: '/profile' });
 
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      // Open the dropdown using fireEvent
-      const trigger = screen.getByText('Select Engine');
-      fireEvent.click(trigger);
-
-      // Verify engines are displayed
-      await waitFor(() => {
-        expect(screen.getByText('engine-1')).toBeInTheDocument();
-      });
-      expect(screen.getByText('engine-2')).toBeInTheDocument();
-      expect(screen.getByText('engine-3')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Alpha Query')).toBeInTheDocument();
     });
 
-    it('shows empty state when no engines are available', async () => {
-      server.use(
-        http.get(`${API_BASE}/engines`, () => {
-          return HttpResponse.json([]);
-        })
-      );
+    const table = screen.getByRole('table');
+    fireEvent.click(within(table).getByText('Alpha Query'));
 
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      const trigger = screen.getByText('Select Engine');
-      fireEvent.click(trigger);
-
-      await waitFor(() => {
-        expect(screen.getByText(/no engines available/i)).toBeInTheDocument();
-      });
-    });
-
-    it('handles API error gracefully when fetching engines fails', async () => {
-      server.use(
-        http.get(`${API_BASE}/engines`, () => {
-          return new HttpResponse(null, { status: 500, statusText: 'Internal Server Error' });
-        })
-      );
-
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      const trigger = screen.getByText('Select Engine');
-      fireEvent.click(trigger);
-
-      // When API fails, data is undefined so no items are rendered in the dropdown
-      // Note: The component currently doesn't display an error message for API failures
-      await waitFor(() => {
-        // The dropdown should be open but have no engine items
-        expect(screen.queryByText('engine-1')).not.toBeInTheDocument();
-        expect(screen.queryByText('engine-2')).not.toBeInTheDocument();
-        expect(screen.queryByText('engine-3')).not.toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('has proper heading hierarchy', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-
-      const heading = screen.getByRole('heading', { name: /query profiler/i });
-      expect(heading.tagName).toBe('H1');
-    });
-
-    it('has labels for each select input', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Engine')).toBeInTheDocument();
-      });
-
-      // Check that labels exist
-      expect(screen.getByText('Engine')).toBeInTheDocument();
-      expect(screen.getByText('Query Group')).toBeInTheDocument();
-      expect(screen.getByText('Query')).toBeInTheDocument();
-
-      // Check labels have proper htmlFor attributes
-      const engineLabel = screen.getByText('Engine');
-      expect(engineLabel.tagName).toBe('LABEL');
-      expect(engineLabel).toHaveAttribute('for', 'engineId');
-
-      const coordinatorLabel = screen.getByText('Query Group');
-      expect(coordinatorLabel.tagName).toBe('LABEL');
-      expect(coordinatorLabel).toHaveAttribute('for', 'coordinatorId');
-
-      const queryLabel = screen.getByText('Query');
-      expect(queryLabel.tagName).toBe('LABEL');
-      expect(queryLabel).toHaveAttribute('for', 'queryId');
-    });
-
-    it('has combobox role on select triggers', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      // Get all comboboxes
-      const comboboxes = screen.getAllByRole('combobox');
-      expect(comboboxes.length).toBe(3);
+    await waitFor(() => {
+      expect(router.state.location.pathname).toContain('/profile/engine/engine-1/query/q-alpha');
     });
   });
 });
