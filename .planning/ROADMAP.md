@@ -12,7 +12,7 @@ The journey delivers one full vertical slice: an application emitting NVTX range
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Capture Foundation** - FFI vocabulary + single-consumer injection + deterministic test app + subprocess harness ([#371](https://github.com/rapidsai/quent/issues/371))
+- [x] **Phase 1: Capture Foundation** - FFI vocabulary + single-consumer injection + deterministic test app + subprocess harness ([#371](https://github.com/rapidsai/quent/issues/371)) (completed 2026-07-14)
 - [ ] **Phase 2: NVTX Model & Tolerant Analyzer** - Model raw events as FSM ranges and reconstruct them tolerantly without panics ([#372](https://github.com/rapidsai/quent/issues/372))
 - [ ] **Phase 3: Server & UI Swim Lanes** - Expose and render reconstructed NVTX ranges in the Quent UI (slice complete) ([#373](https://github.com/rapidsai/quent/issues/373))
 - [ ] **Phase 4: Fan-out Mediator & Passthrough** - Coexist with external NVTX consumers via per-sink shadow tables ([#374](https://github.com/rapidsai/quent/issues/374))
@@ -39,11 +39,16 @@ Parent issue: [#76 Consume NVTX ranges](https://github.com/rapidsai/quent/issues
 **Requirements**: CAP-01, CAP-02, CAP-03, CAP-04, CAP-05, VAL-01, VAL-02
 **Success Criteria** (what must be TRUE):
   1. Running the in-repo NVTX test app with Quent's injection library attached (via `NVTX_INJECTION64_PATH` or link-time, no app code changes) produces a stream of raw NvtxEvents covering push/pop ranges, start/end ranges, marks, domain create/destroy, registered strings, category naming, thread naming, and resource create/destroy.
-  2. Payload-extension events (schema registration, enum registration, binary payload data) appear in the captured stream verbatim (undecoded).
+  2. The CORE `nvtxEventAttributes` payload union is captured verbatim (undecoded) on the events that carry it. The payload-**extension** module (schema registration, enum registration, binary `nvtxPayloadData_t`) is DEFERRED to a later phase — natural home alongside PAY-01 decode (re-scoped per D-12; libcudf emits zero payload-extension events today).
   3. Every captured event carries a capture-time timestamp and reaches a standard exporter through `EventSender`.
   4. Injection and fan-out integration tests run green in subprocesses under CI with no GPU hardware present.
   5. The test app runs to completion under high-frequency emission with no capture-path blocking on locks, I/O, or unbounded allocation (stamp-and-hand-off demonstrated).
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 01-capture-foundation-01-PLAN.md — quent-nvtx-events verbatim vocabulary + workspace registration + D-12 payload re-scope
+- [ ] 01-capture-foundation-02-PLAN.md — quent-nvtx-injection cdylib: bindgen/git-dep headers, InitializeInjectionNvtx2 one-shot, push/pop verbatim callbacks (CAP-01/02/03)
+- [ ] 01-capture-foundation-03-PLAN.md — quent-nvtx bridge (bounded ring + drop-count + drain) + thin end-to-end push/pop subprocess proof (CAP-04/05, VAL-01/02)
+- [ ] 01-capture-foundation-04-PLAN.md — widen to full multi-threaded core NVTX coverage + assertions + bindings-regen README (CAP-02/03, VAL-01, D-14)
 
 ### Phase 2: NVTX Model & Tolerant Analyzer
 **Goal**: Captured raw events reconstruct into labeled NVTX ranges, marks, and statistics — tolerating the malformed and out-of-order telemetry real streams contain, without panicking.
@@ -101,7 +106,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Capture Foundation | 0/TBD | Not started | - |
+| 1. Capture Foundation | 4/4 | Completed | 2026-07-22 |
 | 2. NVTX Model & Tolerant Analyzer | 0/TBD | Not started | - |
 | 3. Server & UI Swim Lanes | 0/TBD | Not started | - |
 | 4. Fan-out Mediator & Passthrough | 0/TBD | Not started | - |

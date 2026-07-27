@@ -21,18 +21,19 @@ An application emitting NVTX ranges can be observed by Quent end-to-end — even
 - ✓ Query-engine domain: Engine/Worker/Query/Plan/Operator model + analyzer + Axum HTTP API (`:8080`) — existing
 - ✓ React UI: engine→query drill-down with ECharts timelines, operator Gantt chart, plan DAGs, ts-rs typed API contract — existing
 - ✓ C++/Python bridges: cxx and PyO3 codegen from models — existing
+- ✓ NVTX capture foundation: `nvtx-events` verbatim vocabulary, `nvtx-injection` (with `static-injection` feature for in-process capture), and `nvtx-bridge` (`NvtxEventEntity` newtype adapter into Quent's `EntityEvent`) — Validated in Phase 1: Capture Foundation (full core NVTX surface: push/pop, start/end, marks, domain lifecycle, registered strings, category/thread naming, resources; CORE payload union captured verbatim). `Observer::sender()` added to `quent-instrumentation` so the `'static` injection hook can emit into an app-owned observer that still flushes on drop.
+- ✓ In-repo deterministic NVTX test application (`nvtx-example`) with GPU-less capture test: app owns its `Context`/`Observer`/exporter, installs injection hook via `static-injection`, emits via the `nvtx` crate, asserts all core NVTX kinds round-trip — Validated in Phase 1: Capture Foundation
 
 ### Active
 
 <!-- v1 scope. Hypotheses until shipped and validated. -->
 
-- [ ] Rust NVTX injection library captures the full NVTX API surface: Push/Pop ranges, RangeStart/End, Marks, domain lifecycle, registered strings, category/thread naming, resources, **and** the payload extension (schemas, enums, binary payloads)
+- [ ] Payload **extension** capture (schemas, enums, binary `nvtxPayloadData_t`) — deferred from Phase 1 per D-12 (libcudf emits none today); core NVTX surface already captured and validated in Phase 1
 - [ ] Fan-out mediator: multiple NVTX consumers can attach to one process via per-sink shadow tables, including passthrough of an external tool supplied via `NVTX_INJECTION64_PATH` (real Quent + NSys coexistence)
 - [ ] NVTX events flow into Quent's standard event pipeline (`EventSender` → exporters/collector) as a Quent model — NVTX ranges modeled as FSMs with a single "range open" state
 - [ ] Analyzer reconstructs NVTX ranges into traces/spans, resolving handles (domains, registered strings, categories) from the event stream
 - [ ] HTTP endpoint(s) expose reconstructed NVTX data through the existing server layer
 - [ ] NVTX data rendered in the Quent UI (exact visualization decided at phase planning / UI-spec time)
-- [ ] In-repo deterministic NVTX test application for CI and development
 - [ ] Manual validation against a real GPU library workload (libcudf-style) before v1 is called done
 
 ### Out of Scope
@@ -74,9 +75,10 @@ The PR predates the exporter/serde-bounds refactors on main (e.g. #324), so it m
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | v1 is a full vertical slice (capture → model → analyzer → endpoint → UI) | Proves the whole pipeline; matches Johan's proposed sequence | — Pending |
-| Evaluate PR #87 by rebasing onto current main early, then decide adopt-vs-reference | It has working bindgen/hook plumbing but is draft, stale, and predates exporter refactors | — Pending |
+| Evaluate PR #87 by rebasing onto current main early, then decide adopt-vs-reference | It has working bindgen/hook plumbing but is draft, stale, and predates exporter refactors | Referenced — Phase 1 shipped fresh `nvtx-events`/`nvtx-injection`/`nvtx-bridge`/`nvtx-example` (no `quent-` prefix, upstreaming-friendly) |
+| App-integrated in-process capture via `static-injection` (not cdylib + `NVTX_INJECTION64_PATH`) | Johan's review of the cdylib bridge design pivoted the approach: app owns its `Context`/`Observer`/exporter; `static-injection` feature links a strong `InitializeInjectionNvtx2` symbol so NVTX initializes injection in-process at the first NVTX call — no cdylib, no env var. The bridge collapses to a single `NvtxEventEntity` newtype. | Phase 1: `nvtx-example` wires this pattern and its test asserts all core NVTX kinds round-trip |
 | Fan-out mediator with external-tool passthrough is IN v1 | Quent is positioned as complementary to NSys/AON; coexistence is the common case, not an edge case | — Pending |
-| Capture full NVTX surface including payload extension in v1 | Payloads carry the structured data that makes ranges analytically useful | — Pending |
+| Capture full NVTX surface including payload extension in v1 | Payloads carry the structured data that makes ranges analytically useful | Core surface + CORE payload union shipped in Phase 1; payload **extension** deferred (D-12) |
 | Model NVTX ranges as single-state Quent FSMs | Johan's suggestion; fits the existing FSM/span analyzer machinery | — Pending |
 | UI visualization shape decided at planning time | Commit to "NVTX data visible in the UI"; pick listing vs range-timeline once analyzer output shape is concrete | — Pending |
 | Validation via both in-repo test app and manual libcudf-style run | CI-friendly determinism plus proof on the real target | — Pending |
@@ -100,4 +102,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-08 after initialization*
+*Last updated: 2026-07-22 after Phase 1 (Capture Foundation) fully merged to upstream (PR #402 — app-integrated in-process capture)*

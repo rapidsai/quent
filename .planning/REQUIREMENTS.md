@@ -11,7 +11,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **CAP-01**: An application emitting NVTX v3 events is captured by the Quent injection library without any code changes to the application (attach via `NVTX_INJECTION64_PATH` or link-time)
 - [ ] **CAP-02**: All core NVTX call types are captured verbatim as raw events: Push/Pop ranges, RangeStart/End, Marks, domain create/destroy, registered strings, category naming, thread naming, resource create/destroy
-- [ ] **CAP-03**: Payload-extension events (schema registration, enum registration, binary payload data) are captured and preserved in the event stream (decode and rendering deferred to v2)
+- [ ] **CAP-03**: The CORE `nvtxEventAttributes` payload union is captured verbatim (undecoded) on the events that carry it. The payload-**extension** module (schema registration, enum registration, binary `nvtxPayloadData_t`) is DEFERRED to a later phase — natural home alongside PAY-01 decode (re-scoped per D-12; libcudf emits zero payload-extension events today)
 - [ ] **CAP-04**: Captured events are timestamped at capture and flow into Quent's standard event pipeline (`EventSender` → exporters/collector)
 - [ ] **CAP-05**: Event capture never blocks the instrumented application's threads on locks, I/O, or unbounded allocation (stamp-and-hand-off hot-path discipline)
 
