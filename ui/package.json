@@ -78,7 +78,7 @@
     "lucide-react": "^1.21.0",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-resizable-panels": "^4.7.1",
+    "react-resizable-panels": "^4.12.2",
     "tailwind-merge": "catalog:"
   },
   "devDependencies": {
