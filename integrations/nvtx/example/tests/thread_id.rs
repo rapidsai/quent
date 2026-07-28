@@ -36,8 +36,7 @@ fn pushpop_four_threads_get_distinct_ids() {
         })
     };
 
-    nvtx_example::run_capture_n_threads(N_THREADS, Uuid::now_v7(), sink)
-        .expect("capture");
+    nvtx_example::run_capture_n_threads(N_THREADS, Uuid::now_v7(), sink).expect("capture");
 
     let events = collected.lock().unwrap();
 
