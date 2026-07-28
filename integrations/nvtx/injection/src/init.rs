@@ -38,6 +38,33 @@ pub(crate) fn next_handle() -> u64 {
     NEXT_HANDLE.fetch_add(1, Ordering::Relaxed)
 }
 
+/// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
+/// (captured as [`NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
+/// resolve against a named thread. Read on the app thread from inside a callback.
+#[cfg(target_os = "linux")]
+pub(crate) fn current_thread_id() -> u32 {
+    // Use the raw `SYS_gettid` syscall rather than the glibc `gettid()` wrapper:
+    // the wrapper symbol is only exported by glibc >= 2.30, whereas the syscall
+    // works against every Linux libc (including the older conda sysroot in CI).
+    // SAFETY: `gettid` takes no arguments and cannot fail; it returns the calling
+    // thread's kernel task id (the Linux `gettid` id space).
+    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
+}
+
+/// Non-Linux fallback. Capture is Linux-primary (NVTX injection targets Linux),
+/// so the kernel `gettid` id space is only defined there. Elsewhere we derive a
+/// stable, nonzero per-thread id from the std [`ThreadId`](std::thread::ThreadId)
+/// so multi-threaded reconstruction still distinguishes threads — it is not the
+/// kernel tid and is not comparable with `NameThread` on those targets.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn current_thread_id() -> u32 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::thread::current().id().hash(&mut hasher);
+    // Force nonzero so downstream `thread_id != 0` invariants still hold.
+    (hasher.finish() as u32).max(1)
+}
+
 thread_local! {
     /// Per-thread, per-domain count of currently-open push/pop ranges.
     ///
@@ -534,7 +561,20 @@ unsafe fn set_callback(
 
 #[cfg(test)]
 mod tests {
-    use super::{range_pop_level, range_push_level};
+    use super::{current_thread_id, range_pop_level, range_push_level};
+
+    #[test]
+    fn current_thread_id_is_stable_and_nonzero() {
+        let first = current_thread_id();
+        let second = current_thread_id();
+        // A real OS thread id is never `0` (the value we use as "unstamped").
+        assert_ne!(first, 0, "current_thread_id must be nonzero");
+        // Two reads on the same thread must observe the same id.
+        assert_eq!(
+            first, second,
+            "current_thread_id must be stable within a thread"
+        );
+    }
 
     #[test]
     fn push_and_pop_report_zero_based_nesting_levels() {

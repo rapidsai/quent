@@ -32,7 +32,10 @@ use crate::bindings::{
 
 /// Convert a `DomainRangePop` call to a verbatim [`NvtxEvent::RangePop`].
 pub(crate) fn range_pop(domain: u64) -> NvtxEvent {
-    NvtxEvent::RangePop { domain }
+    NvtxEvent::RangePop {
+        domain,
+        thread_id: 0,
+    }
 }
 
 /// Convert a `DomainMarkEx` call to a verbatim [`NvtxEvent::Mark`].
@@ -174,7 +177,11 @@ pub(crate) fn resource_destroy(handle: u64) -> NvtxEvent {
 pub(crate) unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
-    NvtxEvent::RangePush { domain, attributes }
+    NvtxEvent::RangePush {
+        domain,
+        thread_id: 0,
+        attributes,
+    }
 }
 
 /// Build a message-only [`NvtxEventAttributes`] from a caller-owned C string.
@@ -218,6 +225,7 @@ pub(crate) unsafe fn range_push_a(message: *const c_char) -> NvtxEvent {
     let attributes = unsafe { message_only_attributes(message) };
     NvtxEvent::RangePush {
         domain: 0,
+        thread_id: 0,
         attributes,
     }
 }
@@ -602,7 +610,10 @@ mod tests {
         // SAFETY: `attr` is a valid, fully-sized attribute struct.
         let event = unsafe { range_push(0x1234, &attr) };
 
-        let NvtxEvent::RangePush { domain, attributes } = event else {
+        let NvtxEvent::RangePush {
+            domain, attributes, ..
+        } = event
+        else {
             panic!("expected RangePush");
         };
         // Raw handle kept verbatim.
@@ -1073,8 +1084,9 @@ mod tests {
         // app, so a null attr must still yield a RangePush (empty attributes) —
         // dropping it would leave a later pop unpaired.
         // SAFETY: a null pointer is an explicitly handled input.
-        let NvtxEvent::RangePush { domain, attributes } =
-            (unsafe { range_push(0x1234, std::ptr::null()) })
+        let NvtxEvent::RangePush {
+            domain, attributes, ..
+        } = (unsafe { range_push(0x1234, std::ptr::null()) })
         else {
             panic!("expected RangePush");
         };
