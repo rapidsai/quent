@@ -1,8 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
+import type { ColumnDef, OnChangeFn, SortingFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
 import { cn } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
@@ -35,6 +35,16 @@ import {
 } from './PivotTableRenderContext';
 
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
+
+const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) => {
+  const a = rowA.getValue<number | bigint | undefined>(columnId);
+  const b = rowB.getValue<number | bigint | undefined>(columnId);
+  if (a === b) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (typeof a === typeof b) return a < b ? -1 : 1;
+  return Number(a) < Number(b) ? -1 : 1;
+};
 
 function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProps) {
   const { dnd, interaction, derived } = usePivotTableRenderContext();
@@ -382,8 +392,10 @@ export function PivotedStatTable<TRow>({
       for (const row of visiblePivotedRows) {
         const v = getSortValue(row, stat, isAggregating, aggMode);
         if (v !== null) {
-          if (v < min) min = v;
-          if (v > max) max = v;
+          // Convert to number for gradient color math — precision loss is acceptable here
+          const n = Number(v);
+          if (n < min) min = n;
+          if (n > max) max = n;
         }
       }
       if (min !== Infinity) ranges.set(stat, { min, max });
@@ -566,6 +578,7 @@ export function PivotedStatTable<TRow>({
       header: stat,
       enableSorting: true,
       sortUndefined: 'last',
+      sortingFn: numericSortingFn,
       accessorFn: (row: PivotedRow) => getSortValue(row, stat, isAggregating, aggMode) ?? undefined,
     }));
     return [...groupCols, ...statCols];
