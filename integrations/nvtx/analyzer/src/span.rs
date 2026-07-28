@@ -57,6 +57,12 @@ pub struct NvtxSpan {
     pub end: TimeUnixNanoSec,
     /// Which NVTX construct this span was reconstructed from.
     pub kind: SpanKind,
+    /// What kind of thing a [`SpanKind::Resource`] span identifies.
+    ///
+    /// `None` for every other kind. A core/generic NVTX resource type gets a
+    /// static label; an unrecognized or CUDA-extension type passes through as
+    /// `"<identifier_type {n}>"` rather than being guessed at.
+    pub identifier_type_label: Option<String>,
     /// The enclosing span, for nested push/pop ranges.
     pub parent: Option<SpanId>,
     /// `true` when the close was never observed and was synthesized at trace end.

@@ -11,6 +11,8 @@
 //! start, nor with a `RegisterString` that arrives after the range using its
 //! handle, because by then neither is possible.
 
+use std::collections::BTreeMap;
+
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::NvtxEvent;
 use quent_events::Event;
@@ -18,7 +20,9 @@ use quent_time::{TimeOrderedCollector, TimeUnixNanoSec};
 
 use crate::error::NvtxModelResult;
 use crate::ranges::{PushPopRanges, StartEndRanges};
-use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId};
+use crate::resource::Resources;
+use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
+use crate::stats::{self, RangeStats, StatsKey};
 use crate::tables::ResolutionTables;
 
 /// An in-memory model reconstructed from a captured NVTX event stream.
@@ -51,6 +55,20 @@ impl NvtxModel {
         &self.marks
     }
 
+    /// Every reconstructed resource lifespan.
+    ///
+    /// A resource is structurally just an [`NvtxSpan`] with
+    /// [`SpanKind::Resource`](crate::SpanKind::Resource) — the interval between
+    /// its create and its destroy — carrying an
+    /// [`identifier_type_label`](NvtxSpan::identifier_type_label). NVTX says only
+    /// that the handle existed and what it was called, so nothing about its size
+    /// or how much of it was in use is inferred.
+    pub fn resources(&self) -> impl Iterator<Item = &NvtxSpan> {
+        self.spans
+            .iter()
+            .filter(|span| span.kind == SpanKind::Resource)
+    }
+
     /// Every domain the stream mentioned, ordered by raw handle.
     pub fn domains(&self) -> &[NvtxDomain] {
         &self.domains
@@ -64,6 +82,16 @@ impl NvtxModel {
     /// Every non-zero category the stream mentioned, ordered by `(domain, id)`.
     pub fn categories(&self) -> &[NvtxCategory] {
         &self.categories
+    }
+
+    /// Aggregated durations per `(name, domain, category)` (ANA-06).
+    ///
+    /// Covers range spans only — push/pop and start/end. Marks have no duration
+    /// and resource lifespans measure existence rather than work, so neither
+    /// participates. Computed on demand rather than cached, because it is a pure
+    /// fold over [`Self::spans`].
+    pub fn range_statistics(&self) -> BTreeMap<StatsKey, RangeStats> {
+        stats::range_statistics(&self.spans)
     }
 
     /// The resolved name of a category *within its domain*.
@@ -130,6 +158,7 @@ impl NvtxModelBuilder {
         // Pass 2 — replay.
         let mut ranges = StartEndRanges::default();
         let mut pushes = PushPopRanges::default();
+        let mut resources = Resources::default();
         let mut marks = Vec::new();
         let mut trace_end: TimeUnixNanoSec = 0;
 
@@ -186,15 +215,42 @@ impl NvtxModelBuilder {
                     payload: attributes.payload,
                     timestamp: event.timestamp,
                 }),
-                // Resources land in a later slice; the registration events were
-                // already consumed by pass 1. Unhandled events still advance the
-                // trace end.
+                NvtxEvent::ResourceCreate {
+                    domain,
+                    handle,
+                    identifier_type,
+                    // The raw identifier bits are captured verbatim but carry no
+                    // reconstruction meaning: their interpretation depends on
+                    // `identifier_type`, and decoding extension classes is
+                    // deliberately out of scope for this core-only slice.
+                    identifier: _,
+                    message,
+                } => {
+                    let name = tables.resolve_message(domain, &message);
+                    resources.create(handle, domain, name, identifier_type, event.timestamp);
+                }
+                // Matched on `handle` alone — the event carries no domain, so
+                // there is nothing else to key on. The domain comes back from
+                // the create.
+                NvtxEvent::ResourceDestroy { handle } => {
+                    if let Some(span) = resources.destroy(handle, event.timestamp) {
+                        slots.push(Some(span));
+                    }
+                }
+                // Registration events were already consumed by pass 1, but they
+                // still advance the trace end.
                 _ => {}
             }
         }
 
         // Anything still open never had its close observed.
         slots.extend(ranges.close_at_trace_end(trace_end).into_iter().map(Some));
+        slots.extend(
+            resources
+                .close_at_trace_end(trace_end)
+                .into_iter()
+                .map(Some),
+        );
         for (id, span) in pushes.close_at_trace_end(trace_end) {
             fill(&mut slots, id, span);
         }

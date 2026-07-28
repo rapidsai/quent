@@ -7,6 +7,22 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+default = []
+# Enables `tests/roundtrip.rs`, which reconstructs a *real* in-process NVTX
+# capture rather than a hand-built stream.
+#
+# Gated because that test links `nvtx-example` -> `nvtx-injection`, whose build
+# script runs bindgen against the pixi-pinned `nvtx-c` headers. Leaving it off by
+# default keeps `cargo test -p nvtx-analyzer` hermetic: the unit tests need
+# neither pixi, nor libclang, nor the NVTX headers. Run the roundtrip with
+# `pixi run cargo test -p nvtx-analyzer --features real-capture-tests`.
+#
+# The two crates are optional *regular* dependencies rather than dev-dependencies
+# because Cargo does not allow `optional` in `[dev-dependencies]`; nothing in
+# `src/` references either, so they contribute no code to a normal build.
+real-capture-tests = ["dep:nvtx-example", "dep:quent-instrumentation"]
+
 [dependencies]
 # The reconstruction core is deliberately framework-free: it speaks the NVTX
 # vocabulary, the Quent event envelope, and the shared time primitives — nothing
@@ -18,6 +34,13 @@ quent-events = { path = "../../../crates/events" }
 quent-time = { path = "../../../crates/time" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+# Roundtrip-test-only, behind `real-capture-tests`. See the feature comment above.
+nvtx-example = { path = "../example", optional = true }
+# `io-callback` selects the callback exporter the roundtrip collects through.
+quent-instrumentation = { path = "../../../crates/instrumentation", features = [
+    "io-callback",
+], optional = true }
 
 [dev-dependencies]
 # Fixtures stamp an explicit `Uuid` and timestamp on every `Event`.
