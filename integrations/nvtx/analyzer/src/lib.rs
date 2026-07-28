@@ -21,15 +21,23 @@
 //! - an orphan close with no matching open is logged and skipped.
 //!
 //! No anomaly in the event stream aborts reconstruction or panics.
+//!
+//! Names work the same way. NVTX captures every label as a raw integer handle,
+//! so reconstruction runs in two passes: the first learns every registration in
+//! the stream, the second resolves against it. Registration order therefore does
+//! not matter, and a handle that is never registered gets a stable placeholder
+//! surfacing its raw value rather than an error. See
+//! [`NvtxModelBuilder::build`].
 
 mod error;
 mod model;
 mod ranges;
 mod span;
+mod tables;
 
 pub use error::{NvtxModelError, NvtxModelResult};
 pub use model::{NvtxModel, NvtxModelBuilder};
-pub use span::{NvtxSpan, SpanId, SpanKind};
+pub use span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
 
 // Re-exported so consumers can read span attributes without depending on the
 // vocabulary crate directly. Carried verbatim, exactly as captured.

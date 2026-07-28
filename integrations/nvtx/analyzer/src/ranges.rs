@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 
-use nvtx_events::{NvtxEventAttributes, NvtxMessage};
+use nvtx_events::NvtxEventAttributes;
 use quent_time::TimeUnixNanoSec;
 use tracing::warn;
 
@@ -23,6 +23,9 @@ use crate::span::{NvtxSpan, SpanKind};
 /// A `RangeStart` awaiting its matching `RangeEnd`.
 struct OpenStartRange {
     domain: u64,
+    /// Resolved at open time against the pass-1 tables, which are already
+    /// complete by the time replay begins.
+    name: String,
     attributes: NvtxEventAttributes,
     start: TimeUnixNanoSec,
 }
@@ -38,7 +41,7 @@ impl OpenStartRange {
             // `RangeStart`/`RangeEnd` are process-wide by definition and carry no
             // thread id; per-thread attribution belongs to push/pop ranges.
             thread_id: None,
-            name: resolve_name(self.attributes.message),
+            name: self.name,
             // Category `0` is NVTX's "no category" sentinel.
             category: (self.attributes.category != 0).then_some(self.attributes.category),
             color: self.attributes.color,
@@ -52,21 +55,6 @@ impl OpenStartRange {
     }
 }
 
-/// Render a captured message as a span name.
-///
-/// Registered handles are not resolved yet — the string table is a later slice —
-/// so they render as a stable placeholder that is a pure function of the raw
-/// handle, never a counter or a timestamp.
-fn resolve_name(message: Option<NvtxMessage>) -> String {
-    match message {
-        Some(NvtxMessage::String(text)) => text,
-        Some(NvtxMessage::RegisteredHandle(handle)) => {
-            format!("<unregistered string 0x{handle:X}>")
-        }
-        None => "<unnamed>".to_owned(),
-    }
-}
-
 /// The set of currently-open process-wide ranges.
 #[derive(Default)]
 pub(crate) struct StartEndRanges {
@@ -74,16 +62,18 @@ pub(crate) struct StartEndRanges {
 }
 
 impl StartEndRanges {
-    /// Record a `RangeStart`.
+    /// Record a `RangeStart` under its already-resolved `name`.
     pub(crate) fn start(
         &mut self,
         range_id: u64,
         domain: u64,
+        name: String,
         attributes: NvtxEventAttributes,
         start: TimeUnixNanoSec,
     ) {
         let open = OpenStartRange {
             domain,
+            name,
             attributes,
             start,
         };
