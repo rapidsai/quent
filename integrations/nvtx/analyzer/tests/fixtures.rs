@@ -90,6 +90,39 @@ pub fn range_pop(
     at(timestamp, NvtxEvent::RangePop { domain, thread_id })
 }
 
+/// A `nvtxDomainResourceCreate` opening the lifespan of resource `handle`.
+///
+/// `identifier_type` is the raw `nvtxResourceAttributes_t::identifierType` tag,
+/// left explicit so a fixture can exercise both a core value and an
+/// unrecognized one.
+pub fn resource_create(
+    timestamp: TimeUnixNanoSec,
+    domain: u64,
+    handle: u64,
+    identifier_type: i32,
+    identifier: u64,
+    text: &str,
+) -> Event<NvtxEventEntity> {
+    at(
+        timestamp,
+        NvtxEvent::ResourceCreate {
+            domain,
+            handle,
+            identifier_type,
+            identifier,
+            message: Some(NvtxMessage::String(text.to_owned())),
+        },
+    )
+}
+
+/// A `nvtxDomainResourceDestroy` closing the lifespan of resource `handle`.
+///
+/// Deliberately takes no domain, because the NVTX event carries none — which is
+/// exactly why the analyzer must match on the handle alone.
+pub fn resource_destroy(timestamp: TimeUnixNanoSec, handle: u64) -> Event<NvtxEventEntity> {
+    at(timestamp, NvtxEvent::ResourceDestroy { handle })
+}
+
 /// A `nvtxDomainMarkEx` instant — a non-range event, used to prove the replay
 /// tolerates events it does not (yet) reconstruct.
 pub fn mark(timestamp: TimeUnixNanoSec, domain: u64, text: &str) -> Event<NvtxEventEntity> {

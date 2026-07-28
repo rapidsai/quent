@@ -58,6 +58,8 @@ impl OpenStartRange {
             start: self.start,
             end: end.max(self.start),
             kind: SpanKind::StartEnd,
+            // Only resource spans identify a thing; a range identifies work.
+            identifier_type_label: None,
             parent: None,
             synthetic_end,
         }
@@ -170,6 +172,8 @@ impl OpenPushSpan {
             start: self.start,
             end: end.max(self.start),
             kind: SpanKind::PushPop,
+            // Only resource spans identify a thing; a range identifies work.
+            identifier_type_label: None,
             parent,
             synthetic_end,
         };

@@ -18,7 +18,7 @@ use quent_time::{TimeOrderedCollector, TimeUnixNanoSec};
 
 use crate::error::NvtxModelResult;
 use crate::ranges::{PushPopRanges, StartEndRanges};
-use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId};
+use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
 use crate::tables::ResolutionTables;
 
 /// An in-memory model reconstructed from a captured NVTX event stream.
@@ -49,6 +49,19 @@ impl NvtxModel {
     /// Every reconstructed mark, in timestamp order.
     pub fn marks(&self) -> &[NvtxMark] {
         &self.marks
+    }
+
+    /// Every reconstructed resource lifespan.
+    ///
+    /// A resource is structurally just an [`NvtxSpan`] with
+    /// [`SpanKind::Resource`](crate::SpanKind::Resource) — the interval between
+    /// its create and its destroy — carrying an
+    /// [`identifier_type_label`](NvtxSpan::identifier_type_label). Nothing about
+    /// capacity or occupancy is inferred; NVTX does not report either.
+    pub fn resources(&self) -> impl Iterator<Item = &NvtxSpan> {
+        self.spans
+            .iter()
+            .filter(|span| span.kind == SpanKind::Resource)
     }
 
     /// Every domain the stream mentioned, ordered by raw handle.
