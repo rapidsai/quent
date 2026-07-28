@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { inferFieldFormatter, isNumericValue } from '@quent/utils';
@@ -56,14 +56,17 @@ export function formatStatValue(value: StatValue, statName: string): string {
 // --- color gradient ---
 
 export function gradientBg(
-  value: number,
-  min: number,
-  max: number,
+  value: number | bigint,
+  min: number | bigint,
+  max: number | bigint,
   palette: ContinuousPaletteName = 'blue',
   darkMode = false
 ): string | undefined {
-  if (min === max) return undefined;
-  const t = (value - min) / (max - min);
+  const vn = Number(value);
+  const mn = Number(min);
+  const mx = Number(max);
+  if (mn === mx) return undefined;
+  const t = (vn - mn) / (mx - mn);
   return continuousColor(t, palette, darkMode);
 }
 
@@ -169,11 +172,11 @@ export function getSortValue(
   stat: string,
   isAgg: boolean,
   aggMode: AggMode
-): number | null {
+): number | bigint | null {
   if (!isAgg) {
     const v = row.values.get(stat);
     if (v === undefined) return null;
-    return isNumericValue(v) ? Number(v) : null;
+    return isNumericValue(v) ? v : null;
   }
   const agg = row.aggs.get(stat);
   if (!agg || !agg.isNumeric) return null;
@@ -274,24 +277,25 @@ export function buildPivotedRows(
           : [...bucket.nums, ...bucket.bigints.map(Number)];
         const hasNum = allNums.length > 0;
 
-        let sum: number | null = null;
-        let min: number | null = null;
-        let max: number | null = null;
+        let sum: number | bigint | null = null;
+        let min: number | bigint | null = null;
+        let max: number | bigint | null = null;
         let mean: number | null = null;
         let stdev: number | null = null;
 
         if (hasNum) {
           if (onlyBigints) {
-            // Use bigint arithmetic for sum/min/max to avoid precision loss
-            sum = Number(bucket.bigints.reduce((a, b) => a + b, 0n));
-            min = Number(bucket.bigints.reduce((a, b) => (a < b ? a : b)));
-            max = Number(bucket.bigints.reduce((a, b) => (a > b ? a : b)));
+            // Use bigint arithmetic for sum/min/max — lossless, no Number() conversion
+            sum = bucket.bigints.reduce((a, b) => a + b, 0n);
+            min = bucket.bigints.reduce((a, b) => (a < b ? a : b));
+            max = bucket.bigints.reduce((a, b) => (a > b ? a : b));
+            mean = Number(sum) / bucket.bigints.length;
           } else {
             sum = allNums.reduce((a, b) => a + b, 0);
             min = Math.min(...allNums);
             max = Math.max(...allNums);
+            mean = sum / allNums.length;
           }
-          mean = sum / allNums.length;
           if (allNums.length > 1) {
             const variance =
               allNums.reduce((acc, v) => acc + (v - mean!) ** 2, 0) / (allNums.length - 1);

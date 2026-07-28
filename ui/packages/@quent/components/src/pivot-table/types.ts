@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import type { StatValue, ContinuousPaletteName } from '@quent/utils';
@@ -137,10 +137,10 @@ export interface GroupKeyEntry {
 }
 
 export interface PivotedRowAgg {
-  sum: number | null;
+  sum: number | bigint | null;
   mean: number | null;
-  min: number | null;
-  max: number | null;
+  min: number | bigint | null;
+  max: number | bigint | null;
   stdev: number | null;
   count: number;
   isNumeric: boolean;
