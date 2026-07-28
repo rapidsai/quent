@@ -12,6 +12,8 @@
 //! `static-injection` feature, so NVTX initializes injection at the first NVTX
 //! call in whatever binary links the crate.
 
+use std::sync::{Arc, Barrier};
+
 use nvtx_bridge::NvtxEventEntity;
 use quent_instrumentation::{Context, EventCallback};
 use uuid::Uuid;
@@ -26,6 +28,19 @@ pub fn run_capture(
     session: Uuid,
     exporter: EventCallback,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    run_capture_n_threads(1, session, exporter)
+}
+
+/// Like [`run_capture`] but spawns `n` threads inside the observer window, each
+/// doing a push/pop range, so callers can assert per-thread identity.
+///
+/// A [`Barrier`] synchronizes all threads before their first NVTX call so their
+/// push/pop events are interleaved in real time rather than serialised.
+pub fn run_capture_n_threads(
+    n: usize,
+    session: Uuid,
+    exporter: EventCallback,
+) -> Result<(), Box<dyn std::error::Error>> {
     let ctx = Context::try_new(session)?;
     let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(exporter).await })?;
 
@@ -33,7 +48,7 @@ pub fn run_capture(
     let sender = observer.sender();
     nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
 
-    annotated_work();
+    annotated_work_n_threads(n);
 
     // Dropping the observer drains and flushes the exporter.
     drop(observer);
@@ -42,13 +57,35 @@ pub fn run_capture(
 
 /// Exercise the core default-domain NVTX kinds the `nvtx` crate exposes: thread
 /// naming, a mark, a push/pop range, and a start/end range guard.
-fn annotated_work() {
-    nvtx::name_thread!("nvtx-example/main");
-    nvtx::mark!("startup");
+///
+/// When `n == 1` this runs on the calling thread. When `n > 1`, the push/pop
+/// work is distributed across `n` threads that synchronise at a barrier so their
+/// events interleave in time.
+fn annotated_work_n_threads(n: usize) {
+    if n == 1 {
+        nvtx::name_thread!("nvtx-example/main");
+        nvtx::mark!("startup");
+        nvtx::range_push!("phase-1");
+        nvtx::range_pop!();
+        let phase2 = nvtx::range!("phase-2");
+        drop(phase2);
+        return;
+    }
 
-    nvtx::range_push!("phase-1");
-    nvtx::range_pop!();
-
-    let phase2 = nvtx::range!("phase-2");
-    drop(phase2);
+    // Barrier ensures all threads reach their first NVTX call before any one
+    // of them begins, so push/pop events from different threads interleave.
+    let barrier = Arc::new(Barrier::new(n));
+    let handles: Vec<_> = (0..n)
+        .map(|i| {
+            let b = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                b.wait();
+                nvtx::range_push!("{}", format!("thread-{i}"));
+                nvtx::range_pop!();
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().expect("worker thread panicked");
+    }
 }

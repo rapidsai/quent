@@ -1,17 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! End-to-end proof that captured Push/Pop ranges carry a real OS thread id.
+//! End-to-end proof that captured Push/Pop ranges carry real, per-thread OS ids.
 //!
-//! Reuses the crate's [`run_capture`](nvtx_example::run_capture) with a
-//! collecting callback exporter and asserts every captured `RangePush`/`RangePop`
-//! carries a nonzero `thread_id`, and that Push/Pop emitted from the single
-//! example thread share one id. No GPU, no subprocess, no files.
+//! Spawns four threads via [`nvtx_example::run_capture_n_threads`], each
+//! emitting one `RangePush`/`RangePop` pair, and asserts:
 //!
-//! This lives in its own test file (hence its own test binary/process) rather
-//! than in `capture.rs`: `nvtx_injection::install_hook` is one-shot per process,
-//! so two `run_capture` calls in the same binary would collide.
+//! 1. Every stamped `thread_id` is nonzero.
+//! 2. Each thread's Push and Pop share the same `thread_id`.
+//! 3. All four threads produce **distinct** `thread_id`s — proving that
+//!    `gettid` returns per-thread values, not a single global constant.
+//!
+//! This lives in its own test file (hence its own binary/process) because
+//! `nvtx_injection::install_hook` is one-shot per process.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use nvtx_bridge::NvtxEventEntity;
@@ -19,9 +22,10 @@ use nvtx_events::NvtxEvent;
 use quent_instrumentation::{Event, EventCallback};
 use uuid::Uuid;
 
+const N_THREADS: usize = 4;
+
 #[test]
-fn pushpop_carry_thread_id() {
-    // Collect every captured event in memory via a callback exporter.
+fn pushpop_four_threads_get_distinct_ids() {
     let collected: Arc<Mutex<Vec<NvtxEvent>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = {
         let collected = Arc::clone(&collected);
@@ -32,43 +36,49 @@ fn pushpop_carry_thread_id() {
         })
     };
 
-    nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
+    nvtx_example::run_capture_n_threads(N_THREADS, Uuid::now_v7(), sink)
+        .expect("capture");
 
     let events = collected.lock().unwrap();
 
-    let mut thread_ids = Vec::new();
-    let mut saw_push = false;
-    let mut saw_pop = false;
+    // Count Push and Pop events keyed by thread_id.
+    let mut pushes: HashMap<u32, usize> = HashMap::new();
+    let mut pops: HashMap<u32, usize> = HashMap::new();
+
     for event in events.iter() {
         match event {
             NvtxEvent::RangePush { thread_id, .. } => {
-                assert_ne!(
-                    *thread_id, 0,
-                    "captured RangePush must carry a real OS thread id, not 0"
-                );
-                thread_ids.push(*thread_id);
-                saw_push = true;
+                assert_ne!(*thread_id, 0, "RangePush must carry a nonzero OS thread id");
+                *pushes.entry(*thread_id).or_insert(0) += 1;
             }
             NvtxEvent::RangePop { thread_id, .. } => {
-                assert_ne!(
-                    *thread_id, 0,
-                    "captured RangePop must carry a real OS thread id, not 0"
-                );
-                thread_ids.push(*thread_id);
-                saw_pop = true;
+                assert_ne!(*thread_id, 0, "RangePop must carry a nonzero OS thread id");
+                *pops.entry(*thread_id).or_insert(0) += 1;
             }
             _ => {}
         }
     }
 
-    assert!(saw_push, "expected at least one captured RangePush");
-    assert!(saw_pop, "expected at least one captured RangePop");
+    // Each of the N threads emits exactly one Push and one Pop.
+    assert_eq!(
+        pushes.len(),
+        N_THREADS,
+        "expected {N_THREADS} distinct thread_ids on RangePush events, got {:?}",
+        pushes.keys().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        pops.len(),
+        N_THREADS,
+        "expected {N_THREADS} distinct thread_ids on RangePop events, got {:?}",
+        pops.keys().collect::<Vec<_>>()
+    );
 
-    // The example drives every Push/Pop from a single thread, so all stamped ids
-    // must match — proving a push and its matching pop carry the same thread_id.
-    let first = thread_ids[0];
-    assert!(
-        thread_ids.iter().all(|&t| t == first),
-        "all Push/Pop from the single example thread must share one thread_id; got {thread_ids:?}"
+    // The set of Push thread_ids must equal the set of Pop thread_ids — each
+    // thread's push and pop carry the same id.
+    let push_ids: HashSet<u32> = pushes.keys().copied().collect();
+    let pop_ids: HashSet<u32> = pops.keys().copied().collect();
+    assert_eq!(
+        push_ids, pop_ids,
+        "Push and Pop thread_ids must come from the same {N_THREADS} threads"
     );
 }
