@@ -14,7 +14,7 @@ The journey delivers one full vertical slice: an application emitting NVTX range
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Capture Foundation** - FFI vocabulary + single-consumer injection + deterministic test app + subprocess harness ([#371](https://github.com/rapidsai/quent/issues/371)) (completed 2026-07-14)
-- [ ] **Phase 2: NVTX Model & Tolerant Analyzer** - Model raw events as FSM ranges and reconstruct them tolerantly without panics ([#372](https://github.com/rapidsai/quent/issues/372))
+- [x] **Phase 2: NVTX Model & Tolerant Analyzer** - Model raw events as FSM ranges and reconstruct them tolerantly without panics ([#372](https://github.com/rapidsai/quent/issues/372)) (completed 2026-07-28)
 - [ ] **Phase 3: Server & UI Swim Lanes** - Expose and render reconstructed NVTX ranges in the Quent UI (slice complete) ([#373](https://github.com/rapidsai/quent/issues/373))
 - [ ] **Phase 4: Fan-out Mediator & Passthrough** - Coexist with external NVTX consumers via per-sink shadow tables ([#374](https://github.com/rapidsai/quent/issues/374))
 - [ ] **Phase 5: Real-Workload Validation** - Prove the pipeline against a libcudf-style GPU workload before v1 is done ([#375](https://github.com/rapidsai/quent/issues/375))
@@ -89,7 +89,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 02-05-PLAN.md — Resources as named lifespans + identifier_type labels + range statistics + real nvtx-example capture roundtrip (ANA-06, MOD-02)
+- [x] 02-05-PLAN.md — Resources as named lifespans + identifier_type labels + range statistics + real nvtx-example capture roundtrip (ANA-06, MOD-02)
 
 ### Phase 3: Server & UI Swim Lanes
 
