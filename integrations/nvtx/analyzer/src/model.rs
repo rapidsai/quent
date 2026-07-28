@@ -11,6 +11,8 @@
 //! start, nor with a `RegisterString` that arrives after the range using its
 //! handle, because by then neither is possible.
 
+use std::collections::BTreeMap;
+
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::NvtxEvent;
 use quent_events::Event;
@@ -20,6 +22,7 @@ use crate::error::NvtxModelResult;
 use crate::ranges::{PushPopRanges, StartEndRanges};
 use crate::resource::Resources;
 use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
+use crate::stats::{self, RangeStats, StatsKey};
 use crate::tables::ResolutionTables;
 
 /// An in-memory model reconstructed from a captured NVTX event stream.
@@ -79,6 +82,16 @@ impl NvtxModel {
     /// Every non-zero category the stream mentioned, ordered by `(domain, id)`.
     pub fn categories(&self) -> &[NvtxCategory] {
         &self.categories
+    }
+
+    /// Aggregated durations per `(name, domain, category)` (ANA-06).
+    ///
+    /// Covers range spans only — push/pop and start/end. Marks have no duration
+    /// and resource lifespans measure existence rather than work, so neither
+    /// participates. Computed on demand rather than cached, because it is a pure
+    /// fold over [`Self::spans`].
+    pub fn range_statistics(&self) -> BTreeMap<StatsKey, RangeStats> {
+        stats::range_statistics(&self.spans)
     }
 
     /// The resolved name of a category *within its domain*.

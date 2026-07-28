@@ -90,6 +90,30 @@ pub fn range_pop(
     at(timestamp, NvtxEvent::RangePop { domain, thread_id })
 }
 
+/// A `nvtxDomainRangePushEx` carrying a non-zero category.
+///
+/// Category is part of the statistics grouping key, so proving that grouping
+/// needs a fixture that can vary it independently of the name and domain.
+pub fn range_push_in_category(
+    timestamp: TimeUnixNanoSec,
+    domain: u64,
+    thread_id: u32,
+    category: u32,
+    text: &str,
+) -> Event<NvtxEventEntity> {
+    at(
+        timestamp,
+        NvtxEvent::RangePush {
+            domain,
+            thread_id,
+            attributes: NvtxEventAttributes {
+                category,
+                ..message(text)
+            },
+        },
+    )
+}
+
 /// A `nvtxDomainResourceCreate` opening the lifespan of resource `handle`.
 ///
 /// `identifier_type` is the raw `nvtxResourceAttributes_t::identifierType` tag,
