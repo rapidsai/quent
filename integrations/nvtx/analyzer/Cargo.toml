@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-analyzer"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The reconstruction core is deliberately framework-free: it speaks the NVTX
+# vocabulary, the Quent event envelope, and the shared time primitives — nothing
+# else. The shared analysis/modelling framework crates are excluded by design, so
+# the panic-prone FSM runtime stays off this crate's path.
+nvtx-events = { path = "../events" }
+nvtx-bridge = { path = "../bridge" }
+quent-events = { path = "../../../crates/events" }
+quent-time = { path = "../../../crates/time" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# Fixtures stamp an explicit `Uuid` and timestamp on every `Event`.
+uuid = { workspace = true }
