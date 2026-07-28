@@ -81,7 +81,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md — Handle resolution: two-pass tables (strings/domains/categories/threads) + stable placeholders + marks/domains/threads/categories in the model (ANA-01, ANA-02, MOD-02)
+- [x] 02-03-PLAN.md — Handle resolution: two-pass tables (strings/domains/categories/threads) + stable placeholders + marks/domains/threads/categories in the model (ANA-01, ANA-02, MOD-02)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
