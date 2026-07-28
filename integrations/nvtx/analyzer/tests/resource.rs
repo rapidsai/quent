@@ -54,7 +54,11 @@ fn resource_lifespan() {
     let model = NvtxModelBuilder::build(events).expect("build");
 
     let resources: Vec<&NvtxSpan> = model.resources().collect();
-    assert_eq!(resources.len(), 1, "one span per matched create/destroy pair");
+    assert_eq!(
+        resources.len(),
+        1,
+        "one span per matched create/destroy pair"
+    );
 
     let buf = resource(&model, "buf");
     assert_eq!(buf.kind, SpanKind::Resource);

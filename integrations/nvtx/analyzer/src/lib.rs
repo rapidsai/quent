@@ -32,6 +32,7 @@
 mod error;
 mod model;
 mod ranges;
+mod resource;
 mod span;
 mod tables;
 
