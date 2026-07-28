@@ -37,9 +37,13 @@ pub(crate) extern "C" fn on_domain_range_push_ex(
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(domain);
+        // The OS thread id is read on the app thread so the push pairs with its
+        // pop on the same thread; only used to build the event, so reading it
+        // inside the guard is enough (it need not survive a panic).
+        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
-        let event = unsafe { convert::range_push(domain, attr) };
+        let event = unsafe { convert::range_push(domain, attr, thread_id) };
         init::dispatch(event);
     }));
     level
@@ -54,7 +58,8 @@ pub(crate) extern "C" fn on_domain_range_pop(domain: nvtxDomainHandle_t) -> c_in
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_pop_level(domain);
-        init::dispatch(convert::range_pop(domain));
+        let thread_id = init::current_thread_id();
+        init::dispatch(convert::range_pop(domain, thread_id));
     }));
     level
 }
@@ -243,9 +248,10 @@ pub(crate) extern "C" fn on_range_push_ex(attr: *const nvtxEventAttributes_t) ->
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
+        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
-        let event = unsafe { convert::range_push(0, attr) };
+        let event = unsafe { convert::range_push(0, attr, thread_id) };
         init::dispatch(event);
     }));
     level
@@ -256,8 +262,9 @@ pub(crate) extern "C" fn on_range_push_a(message: *const c_char) -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
+        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `message` (if non-null) is valid for this call.
-        let event = unsafe { convert::range_push_a(message) };
+        let event = unsafe { convert::range_push_a(message, thread_id) };
         init::dispatch(event);
     }));
     level
@@ -268,7 +275,8 @@ pub(crate) extern "C" fn on_range_pop() -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_pop_level(0);
-        init::dispatch(convert::range_pop(0));
+        let thread_id = init::current_thread_id();
+        init::dispatch(convert::range_pop(0, thread_id));
     }));
     level
 }
