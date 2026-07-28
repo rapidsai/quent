@@ -7,7 +7,7 @@
 mod fixtures;
 
 use fixtures::at;
-use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
+use nvtx_analyzer::{NvtxDomain, NvtxModel, NvtxModelBuilder};
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
@@ -78,7 +78,7 @@ fn name_category(
 }
 
 /// The domain record for `domain`.
-fn domain_record<'a>(model: &'a NvtxModel, domain: u64) -> &'a nvtx_analyzer::NvtxDomain {
+fn domain_record(model: &NvtxModel, domain: u64) -> &NvtxDomain {
     model
         .domains()
         .iter()
