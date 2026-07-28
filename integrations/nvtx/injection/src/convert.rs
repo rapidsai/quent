@@ -31,8 +31,12 @@ use crate::bindings::{
 };
 
 /// Convert a `DomainRangePop` call to a verbatim [`NvtxEvent::RangePop`].
-pub(crate) fn range_pop(domain: u64) -> NvtxEvent {
-    NvtxEvent::RangePop { domain }
+///
+/// `thread_id` is the OS thread id read on the app thread by the callback (this
+/// fn stays pure and does not read it here), so a pop pairs with the push on the
+/// same thread.
+pub(crate) fn range_pop(domain: u64, thread_id: u32) -> NvtxEvent {
+    NvtxEvent::RangePop { domain, thread_id }
 }
 
 /// Convert a `DomainMarkEx` call to a verbatim [`NvtxEvent::Mark`].
@@ -166,15 +170,27 @@ pub(crate) fn resource_destroy(handle: u64) -> NvtxEvent {
 
 /// Convert a `DomainRangePushEx` call to a verbatim [`NvtxEvent::RangePush`].
 ///
+/// `thread_id` is the OS thread id read on the app thread by the callback (this
+/// fn stays pure and does not read it here), so a push pairs with its pop on the
+/// same thread.
+///
 /// # Safety
 /// `attr` must be null, or point to a valid `nvtxEventAttributes_t` whose `size`
 /// member truthfully describes the number of readable bytes. A null pointer
 /// yields empty attributes so the push is still captured (never dropped),
 /// keeping push/pop pairing balanced.
-pub(crate) unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t) -> NvtxEvent {
+pub(crate) unsafe fn range_push(
+    domain: u64,
+    attr: *const nvtxEventAttributes_t,
+    thread_id: u32,
+) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
-    NvtxEvent::RangePush { domain, attributes }
+    NvtxEvent::RangePush {
+        domain,
+        thread_id,
+        attributes,
+    }
 }
 
 /// Build a message-only [`NvtxEventAttributes`] from a caller-owned C string.
@@ -211,13 +227,16 @@ pub(crate) unsafe fn mark_a(message: *const c_char) -> NvtxEvent {
 /// Convert a default-domain `nvtxRangePushA` call to a verbatim
 /// [`NvtxEvent::RangePush`] on the default domain (`0`).
 ///
+/// `thread_id` is the OS thread id read on the app thread by the callback.
+///
 /// # Safety
 /// See [`message_only_attributes`].
-pub(crate) unsafe fn range_push_a(message: *const c_char) -> NvtxEvent {
+pub(crate) unsafe fn range_push_a(message: *const c_char, thread_id: u32) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
     NvtxEvent::RangePush {
         domain: 0,
+        thread_id,
         attributes,
     }
 }
@@ -561,7 +580,7 @@ mod tests {
         nvtxResourceAttributes_v0_identifier_t, nvtxStringHandle_t,
     };
 
-    use super::range_push;
+    use super::{range_pop, range_push};
 
     /// A zeroed v2 attribute struct with `version`/`size` set for the full layout.
     fn full_attr() -> nvtxEventAttributes_v2 {
@@ -600,13 +619,20 @@ mod tests {
         };
 
         // SAFETY: `attr` is a valid, fully-sized attribute struct.
-        let event = unsafe { range_push(0x1234, &attr) };
+        let event = unsafe { range_push(0x1234, &attr, 4242) };
 
-        let NvtxEvent::RangePush { domain, attributes } = event else {
+        let NvtxEvent::RangePush {
+            domain,
+            thread_id,
+            attributes,
+        } = event
+        else {
             panic!("expected RangePush");
         };
         // Raw handle kept verbatim.
         assert_eq!(domain, 0x1234);
+        // The OS thread id is passed through verbatim from the callback.
+        assert_eq!(thread_id, 4242);
         assert_eq!(attributes.category, 7);
         // The message is copied into an OWNED String (no borrowed pointer).
         assert_eq!(
@@ -628,6 +654,17 @@ mod tests {
                 value: 0xFF00_FF00,
             })
         );
+    }
+
+    #[test]
+    fn range_pop_carries_domain_and_thread_id_verbatim() {
+        let NvtxEvent::RangePop { domain, thread_id } = range_pop(0x55, 4242) else {
+            panic!("expected RangePop");
+        };
+        // Both the raw domain and the passed-in OS thread id are kept verbatim,
+        // so a pop pairs with its push on the same thread in the analyzer.
+        assert_eq!(domain, 0x55);
+        assert_eq!(thread_id, 4242);
     }
 
     #[test]
@@ -654,7 +691,7 @@ mod tests {
         // SAFETY: reads are bounded by `attr.size`; the backing allocation is a
         // full struct, so even an accidental over-read would be in-bounds — the
         // assertions prove we honor `size` regardless.
-        let event = unsafe { range_push(1, &attr) };
+        let event = unsafe { range_push(1, &attr, 0) };
 
         let NvtxEvent::RangePush { attributes, .. } = event else {
             panic!("expected RangePush");
@@ -685,7 +722,7 @@ mod tests {
         };
 
         // SAFETY: `attr` is a valid, fully-sized attribute struct.
-        let event = unsafe { range_push(0, &attr) };
+        let event = unsafe { range_push(0, &attr, 0) };
 
         let NvtxEvent::RangePush { attributes, .. } = event else {
             panic!("expected RangePush");
@@ -724,7 +761,8 @@ mod tests {
                 ..full_attr()
             };
             // SAFETY: `attr` is a valid, fully-sized attribute struct.
-            let NvtxEvent::RangePush { attributes, .. } = (unsafe { range_push(0, &attr) }) else {
+            let NvtxEvent::RangePush { attributes, .. } = (unsafe { range_push(0, &attr, 0) })
+            else {
                 panic!("expected RangePush");
             };
             assert_eq!(attributes.payload.expect("payload present").value, expected);
@@ -1041,7 +1079,7 @@ mod tests {
             nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32
         );
         // SAFETY: `attr` is a valid, fully-sized attribute struct.
-        let NvtxEvent::RangePush { attributes, .. } = (unsafe { range_push(0, &attr) }) else {
+        let NvtxEvent::RangePush { attributes, .. } = (unsafe { range_push(0, &attr, 0) }) else {
             panic!("expected RangePush");
         };
         assert_eq!(attributes.message, None);
@@ -1073,12 +1111,17 @@ mod tests {
         // app, so a null attr must still yield a RangePush (empty attributes) —
         // dropping it would leave a later pop unpaired.
         // SAFETY: a null pointer is an explicitly handled input.
-        let NvtxEvent::RangePush { domain, attributes } =
-            (unsafe { range_push(0x1234, std::ptr::null()) })
+        let NvtxEvent::RangePush {
+            domain,
+            thread_id,
+            attributes,
+        } = (unsafe { range_push(0x1234, std::ptr::null(), 99) })
         else {
             panic!("expected RangePush");
         };
         assert_eq!(domain, 0x1234);
+        // The thread id is stamped even when the attribute pointer is null.
+        assert_eq!(thread_id, 99);
         assert_eq!(attributes, NvtxEventAttributes::default());
     }
 
