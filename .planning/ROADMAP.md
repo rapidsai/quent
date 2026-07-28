@@ -77,7 +77,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Analyzer walking skeleton: members-only `nvtx-analyzer` crate + own `NvtxSpan` types + two-pass builder + RangeStart/End by handle + tolerant replay (MOD-01, ANA-04, ANA-05)
+- [x] 02-02-PLAN.md — Analyzer walking skeleton: members-only `nvtx-analyzer` crate + own `NvtxSpan` types + two-pass builder + RangeStart/End by handle + tolerant replay (MOD-01, ANA-04, ANA-05)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
