@@ -26,10 +26,11 @@ mod error;
 mod model;
 mod ranges;
 mod span;
+mod tables;
 
 pub use error::{NvtxModelError, NvtxModelResult};
 pub use model::{NvtxModel, NvtxModelBuilder};
-pub use span::{NvtxSpan, SpanId, SpanKind};
+pub use span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
 
 // Re-exported so consumers can read span attributes without depending on the
 // vocabulary crate directly. Carried verbatim, exactly as captured.

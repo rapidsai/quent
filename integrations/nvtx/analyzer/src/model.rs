@@ -18,12 +18,16 @@ use quent_time::{TimeOrderedCollector, TimeUnixNanoSec};
 
 use crate::error::NvtxModelResult;
 use crate::ranges::StartEndRanges;
-use crate::span::NvtxSpan;
+use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread};
 
 /// An in-memory model reconstructed from a captured NVTX event stream.
 #[derive(Debug, Default)]
 pub struct NvtxModel {
     spans: Vec<NvtxSpan>,
+    marks: Vec<NvtxMark>,
+    domains: Vec<NvtxDomain>,
+    threads: Vec<NvtxThread>,
+    categories: Vec<NvtxCategory>,
 }
 
 impl NvtxModel {
@@ -33,6 +37,40 @@ impl NvtxModel {
     /// order they closed, followed by any synthetically closed at trace end.
     pub fn spans(&self) -> &[NvtxSpan] {
         &self.spans
+    }
+
+    /// Every reconstructed mark, in timestamp order.
+    pub fn marks(&self) -> &[NvtxMark] {
+        &self.marks
+    }
+
+    /// Every domain the stream mentioned, ordered by raw handle.
+    pub fn domains(&self) -> &[NvtxDomain] {
+        &self.domains
+    }
+
+    /// Every OS thread the stream mentioned, ordered by id.
+    pub fn threads(&self) -> &[NvtxThread] {
+        &self.threads
+    }
+
+    /// Every non-zero category the stream mentioned, ordered by `(domain, id)`.
+    pub fn categories(&self) -> &[NvtxCategory] {
+        &self.categories
+    }
+
+    /// The resolved name of a category *within its domain*.
+    ///
+    /// Returns `None` for category `0`, NVTX's "no category" sentinel.
+    pub fn category_name(&self, _domain: u64, _category: u32) -> Option<String> {
+        // Resolution lands with pass 1; today this is unwired.
+        None
+    }
+
+    /// The resolved name of an OS thread, placeholder included.
+    pub fn thread_name(&self, _thread_id: u32) -> String {
+        // Resolution lands with pass 1; today this is unwired.
+        String::new()
     }
 }
 
@@ -93,6 +131,11 @@ impl NvtxModelBuilder {
         // Anything still open never had its close observed.
         spans.extend(ranges.close_at_trace_end(trace_end));
 
-        Ok(NvtxModel { spans })
+        // Marks, domains, threads, and categories are populated once pass 1
+        // exists to resolve them.
+        Ok(NvtxModel {
+            spans,
+            ..Default::default()
+        })
     }
 }
