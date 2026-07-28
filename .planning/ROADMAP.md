@@ -73,7 +73,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Wave 0 capture-side thread identity: add `thread_id` to RangePush/RangePop + stamp OS gettid in injection callbacks (D-17, unblocks ANA-03)
+- [x] 02-01-PLAN.md — Wave 0 capture-side thread identity: add `thread_id` to RangePush/RangePop + stamp OS gettid in injection callbacks (D-17, unblocks ANA-03) (completed 2026-07-28)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -144,7 +144,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Capture Foundation | 4/4 | Completed | 2026-07-22 |
-| 2. NVTX Model & Tolerant Analyzer | 0/5 | Not started | - |
+| 2. NVTX Model & Tolerant Analyzer | 1/5 | In Progress | - |
 | 3. Server & UI Swim Lanes | 0/TBD | Not started | - |
 | 4. Fan-out Mediator & Passthrough | 0/TBD | Not started | - |
 | 5. Real-Workload Validation | 0/TBD | Not started | - |
