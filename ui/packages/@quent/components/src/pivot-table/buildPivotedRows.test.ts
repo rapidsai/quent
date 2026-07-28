@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -163,10 +163,10 @@ describe('buildPivotedRows row clustering', () => {
     ];
     const out = buildPivotedRows(rows, [brandIdx, fuelIdx], true);
     const agg = out[0]?.aggs.get('output_rows');
-    expect(agg?.sum).toBe(4000);
+    expect(agg?.sum).toBe(4000n);
     expect(agg?.mean).toBe(2000);
-    expect(agg?.min).toBe(1000);
-    expect(agg?.max).toBe(3000);
+    expect(agg?.min).toBe(1000n);
+    expect(agg?.max).toBe(3000n);
     expect(agg?.count).toBe(2);
     expect(agg?.isNumeric).toBe(true);
   });
