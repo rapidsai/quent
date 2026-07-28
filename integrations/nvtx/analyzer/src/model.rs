@@ -17,8 +17,8 @@ use quent_events::Event;
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec};
 
 use crate::error::NvtxModelResult;
-use crate::ranges::StartEndRanges;
-use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread};
+use crate::ranges::{PushPopRanges, StartEndRanges};
+use crate::span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId};
 use crate::tables::ResolutionTables;
 
 /// An in-memory model reconstructed from a captured NVTX event stream.
@@ -37,8 +37,11 @@ pub struct NvtxModel {
 impl NvtxModel {
     /// Every reconstructed span.
     ///
-    /// Ordered by completion: spans whose close was observed come first, in the
-    /// order they closed, followed by any synthetically closed at trace end.
+    /// A span's index here *is* its [`SpanId`], which is what makes
+    /// [`NvtxSpan::parent`] resolvable. Ordering is by *opening*: push/pop ranges
+    /// take their slot when pushed, and start/end ranges when they close (they do
+    /// not nest, so nothing refers to them). Both are deterministic functions of
+    /// the timestamp-ordered stream.
     pub fn spans(&self) -> &[NvtxSpan] {
         &self.spans
     }
@@ -81,6 +84,17 @@ impl NvtxModel {
     }
 }
 
+/// Write a closed span into the slot reserved for it when it was pushed.
+///
+/// Bounds-checked rather than indexed: the id always addresses a reserved slot,
+/// but reconstruction of untrusted telemetry does not get to rely on that — a
+/// stray id is dropped, not a panic.
+fn fill(slots: &mut [Option<NvtxSpan>], id: SpanId, span: NvtxSpan) {
+    if let Some(slot) = slots.get_mut(id.0) {
+        *slot = Some(span);
+    }
+}
+
 /// Builds an [`NvtxModel`] from a captured event stream.
 #[derive(Debug, Default)]
 pub struct NvtxModelBuilder;
@@ -115,9 +129,16 @@ impl NvtxModelBuilder {
 
         // Pass 2 — replay.
         let mut ranges = StartEndRanges::default();
-        let mut spans = Vec::new();
+        let mut pushes = PushPopRanges::default();
         let mut marks = Vec::new();
         let mut trace_end: TimeUnixNanoSec = 0;
+
+        // Slots, not a plain span list: a `SpanId` is an index here, and a
+        // nested push needs its *parent's* id at pop time — while the parent is
+        // still open. Reserving the slot at push time is what makes that id
+        // exist before the span does. Every reserved slot is filled, either by
+        // its pop or by the trace-end drain below.
+        let mut slots: Vec<Option<NvtxSpan>> = Vec::new();
 
         for event in ordered {
             trace_end = trace_end.max(event.timestamp);
@@ -135,7 +156,22 @@ impl NvtxModelBuilder {
                 // process-globally unique, so it alone identifies the range.
                 NvtxEvent::RangeEnd { range_id, .. } => {
                     if let Some(span) = ranges.end(range_id, event.timestamp) {
-                        spans.push(span);
+                        slots.push(Some(span));
+                    }
+                }
+                NvtxEvent::RangePush {
+                    domain,
+                    thread_id,
+                    attributes,
+                } => {
+                    let name = tables.resolve_message(domain, &attributes.message);
+                    let id = SpanId(slots.len());
+                    slots.push(None);
+                    pushes.push(id, thread_id, domain, name, attributes, event.timestamp);
+                }
+                NvtxEvent::RangePop { domain, thread_id } => {
+                    if let Some((id, span)) = pushes.pop(thread_id, domain, event.timestamp) {
+                        fill(&mut slots, id, span);
                     }
                 }
                 NvtxEvent::Mark { domain, attributes } => marks.push(NvtxMark {
@@ -150,15 +186,23 @@ impl NvtxModelBuilder {
                     payload: attributes.payload,
                     timestamp: event.timestamp,
                 }),
-                // Push/pop ranges and resources land in later slices; the
-                // registration events were already consumed by pass 1.
-                // Unhandled events still advance the trace end.
+                // Resources land in a later slice; the registration events were
+                // already consumed by pass 1. Unhandled events still advance the
+                // trace end.
                 _ => {}
             }
         }
 
         // Anything still open never had its close observed.
-        spans.extend(ranges.close_at_trace_end(trace_end));
+        slots.extend(ranges.close_at_trace_end(trace_end).into_iter().map(Some));
+        for (id, span) in pushes.close_at_trace_end(trace_end) {
+            fill(&mut slots, id, span);
+        }
+
+        // Every reserved slot is filled by construction — a push is closed
+        // either by its pop or by the drain above — so flattening preserves the
+        // indices the `SpanId`s were handed out against.
+        let spans: Vec<NvtxSpan> = slots.into_iter().flatten().collect();
 
         let domains = tables.domain_records();
         let threads = tables.thread_records();

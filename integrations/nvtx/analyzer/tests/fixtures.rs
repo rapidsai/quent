@@ -60,6 +60,36 @@ pub fn range_end(timestamp: TimeUnixNanoSec, domain: u64, range_id: u64) -> Even
     at(timestamp, NvtxEvent::RangeEnd { domain, range_id })
 }
 
+/// A `nvtxDomainRangePushEx` opening a nested range on `thread_id`.
+///
+/// The `(thread_id, domain)` pair is the nesting key, so both are explicit here:
+/// a fixture that models two threads must vary `thread_id` for the interleaving
+/// to mean anything.
+pub fn range_push(
+    timestamp: TimeUnixNanoSec,
+    domain: u64,
+    thread_id: u32,
+    text: &str,
+) -> Event<NvtxEventEntity> {
+    at(
+        timestamp,
+        NvtxEvent::RangePush {
+            domain,
+            thread_id,
+            attributes: message(text),
+        },
+    )
+}
+
+/// A `nvtxDomainRangePop` closing the innermost push on `thread_id`.
+pub fn range_pop(
+    timestamp: TimeUnixNanoSec,
+    domain: u64,
+    thread_id: u32,
+) -> Event<NvtxEventEntity> {
+    at(timestamp, NvtxEvent::RangePop { domain, thread_id })
+}
+
 /// A `nvtxDomainMarkEx` instant — a non-range event, used to prove the replay
 /// tolerates events it does not (yet) reconstruct.
 pub fn mark(timestamp: TimeUnixNanoSec, domain: u64, text: &str) -> Event<NvtxEventEntity> {
