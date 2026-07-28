@@ -85,7 +85,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-04-PLAN.md — Push/Pop per-(thread_id, domain) nested stacks + push/pop tolerance + full malformed-stream completion proof (ANA-03, ANA-05)
+- [x] 02-04-PLAN.md — Push/Pop per-(thread_id, domain) nested stacks + push/pop tolerance + full malformed-stream completion proof (ANA-03, ANA-05)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
