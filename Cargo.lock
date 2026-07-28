@@ -2079,6 +2079,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvtx-analyzer"
+version = "0.1.0"
+dependencies = [
+ "nvtx-bridge",
+ "nvtx-events",
+ "quent-events",
+ "quent-time",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "nvtx-bridge"
 version = "0.1.0"
 dependencies = [
