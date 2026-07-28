@@ -3,8 +3,9 @@
 
 //! The reconstruction core's own plain span types.
 //!
-//! These are hand-written structs, not framework types: no `RtFsm`, no
-//! `quent-model` entity, no macro DSL. A reconstructed NVTX range *is* a span —
+//! These are hand-written structs, not framework types: no shared runtime
+//! state machine, no shared-model entity, no macro DSL. A reconstructed NVTX
+//! range *is* a span —
 //! an interval on the time axis carrying the attributes captured verbatim with
 //! it. Keeping our own type is what lets the core stay tolerant (zero-duration
 //! and synthetically-closed spans are representable, where the shared framework

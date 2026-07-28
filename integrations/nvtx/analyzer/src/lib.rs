@@ -7,10 +7,11 @@
 //! Quent's [`Event`](quent_events::Event) envelope — into an in-memory
 //! [`NvtxModel`] of plain [`NvtxSpan`]s.
 //!
-//! The core is deliberately **off** the shared analysis framework: it does not
-//! depend on `quent-analyzer` or `quent-model`, builds no `RtFsm`, and uses none
-//! of the `model!` / `fsm!` / `entity!` macro DSL. It defines its own span type
-//! instead. That independence is what makes it **tolerant by construction** —
+//! The core is deliberately **off** the shared analysis framework: it depends on
+//! neither the shared analyzer nor the shared model crate, builds none of their
+//! runtime state-machine types, and uses none of the `model!` / `fsm!` /
+//! `entity!` macro DSL. It defines its own span type instead. That independence
+//! is what makes it **tolerant by construction** —
 //! foreign telemetry is untrusted and frequently malformed, so:
 //!
 //! - out-of-order events are replayed in timestamp order,
@@ -23,6 +24,7 @@
 
 mod error;
 mod model;
+mod ranges;
 mod span;
 
 pub use error::{NvtxModelError, NvtxModelResult};
