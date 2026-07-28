@@ -89,12 +89,12 @@ impl RangeStats {
     }
 
     /// Compute the derived average, once the group is complete.
+    ///
+    /// `checked_div` rather than a bare `/`: an empty group is representable
+    /// (nothing forbids constructing one), and a division by zero here would be
+    /// the single arithmetic panic in an otherwise total reconstruction path.
     fn finish(&mut self) {
-        self.avg_duration = if self.count == 0 {
-            0
-        } else {
-            self.total_duration / self.count
-        };
+        self.avg_duration = self.total_duration.checked_div(self.count).unwrap_or(0);
     }
 }
 
@@ -103,7 +103,28 @@ impl RangeStats {
 /// Push/pop and start/end spans participate; marks never reach here (they are
 /// not spans at all) and resource lifespans are filtered out — see the module
 /// docs for why.
-pub(crate) fn range_statistics(_spans: &[NvtxSpan]) -> BTreeMap<StatsKey, RangeStats> {
-    // Not yet implemented — the fold lands in the GREEN step.
-    BTreeMap::new()
+pub(crate) fn range_statistics(spans: &[NvtxSpan]) -> BTreeMap<StatsKey, RangeStats> {
+    let mut grouped: BTreeMap<StatsKey, RangeStats> = BTreeMap::new();
+
+    for span in spans
+        .iter()
+        .filter(|span| matches!(span.kind, SpanKind::PushPop | SpanKind::StartEnd))
+    {
+        grouped
+            .entry(StatsKey {
+                name: span.name.clone(),
+                domain: span.domain,
+                category: span.category,
+            })
+            .or_default()
+            .accumulate(span);
+    }
+
+    // `avg` is derived, so it is computed once per group after the fold rather
+    // than recomputed on every span.
+    for stats in grouped.values_mut() {
+        stats.finish();
+    }
+
+    grouped
 }
