@@ -11,7 +11,8 @@
 //!
 //! The schema core concepts are:
 //!
-//! - [`Identifier`]: defines the name of things
+//! - [`Identifier`]: defines the name of schema-local elements
+//! - [`Path`]: identifies record and entity types
 //! - [`DataType`]: defines common data types (bool, integer, string, etc.)
 //!   plus Quent-specific types, such as:
 //!     - [`DataType::EntityRef`]
@@ -89,8 +90,17 @@
 //! serializing schemas, this crate has a `serde` feature.
 
 pub use schema::{
-    Schema, annotations::Annotations, constraint::Constraint, data_type::DataType, entity::Entity,
-    event::Cardinality, event::Event, field::Field, identifier::Identifier, metadata::Metadata,
+    Schema,
+    annotations::Annotations,
+    constraint::Constraint,
+    data_type::DataType,
+    entity::Entity,
+    event::Cardinality,
+    event::Event,
+    field::Field,
+    identifier::Identifier,
+    metadata::Metadata,
+    path::{Path, PathError},
     record::Record,
 };
 

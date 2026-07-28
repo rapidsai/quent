@@ -117,6 +117,16 @@ impl<T> Observer<T> {
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
         self.events_sender.emit(id, event);
     }
+
+    /// A cloned [`EventSender`] feeding this observer's pipeline.
+    ///
+    /// Lets a `'static` producer emit into the observer while the caller keeps
+    /// ownership (and still flushes on drop). The sender does not keep the
+    /// observer alive; sends after it is dropped are discarded (the first logs
+    /// an error via `tracing`, then further ones are suppressed).
+    pub fn sender(&self) -> EventSender<T> {
+        self.events_sender.clone()
+    }
 }
 
 impl<T> Drop for Observer<T> {

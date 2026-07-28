@@ -22,25 +22,27 @@ A front end for query profiling instrumentation
 
 ### Prerequisites
 
-- **Node.js 24.11.0** (enforced via `.nvmrc`, `.node-version`, and Volta)
-  - Using nvm: `nvm use` or `nvm install`
-  - Using volta: Automatically switches to correct version
-  - Using asdf/nodenv: Uses `.node-version` file
-- **pnpm 11.5.3** (pinned via `packageManager` and Volta; `>=11.5.3` required)
-  - Install with `npm install -g pnpm@11.5.3` or see
-  [pnpm installation](https://pnpm.io/installation)
+Install [Pixi](https://pixi.sh), then enter the repository environment:
+
+```bash
+pixi shell
+```
+
+Pixi provides the required Rust, Node.js, pnpm, and protoc versions. Run UI
+development and build commands from this environment.
 
 ### Installation
 
 1. Clone the repository (or navigate to the project directory)
 
-2. Install dependencies:
+2. Install the UI dependencies:
 
 ```bash
+cd ui
 pnpm install
 ```
 
-1. (Optional) Configure environment variables:
+3. (Optional) Configure environment variables:
 
 Create a `.env` file in the root directory and add your API endpoint:
 
@@ -55,6 +57,9 @@ Start the development server:
 ```bash
 pnpm dev
 ```
+
+This generates the TypeScript bindings before starting Vite. Run
+`pnpm bindings` after changing Rust types while the dev server remains open.
 
 The app will be available at `http://localhost:5173`
 
@@ -158,7 +163,8 @@ pnpm dlx shadcn@latest add dropdown-menu
 
 - `pnpm dev` - Start development server
 - `pnpm start` - Start development server
-- `pnpm build` - Build for production
+- `pnpm bindings` - Generate TypeScript bindings from Rust types
+- `pnpm build` - Build the `@quent` packages and application for production
 - `pnpm preview` - Preview production build
 - `pnpm lint` - Run ESLint
 - `pnpm lint:fix` - Fix ESLint errors and format code

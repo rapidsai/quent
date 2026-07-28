@@ -35,6 +35,33 @@ fn run(dir: &Path, args: &[&str]) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
 }
 
+fn git_path(dir: &Path, path: &str) -> Option<std::path::PathBuf> {
+    let path = std::path::PathBuf::from(run(dir, &["rev-parse", "--git-path", path])?);
+    Some(if path.is_absolute() {
+        path
+    } else {
+        dir.join(path)
+    })
+}
+
+fn emit_rerun_if_changed(dir: &Path, path: &str) {
+    if let Some(path) = git_path(dir, path)
+        && path.exists()
+    {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+}
+
+fn emit_rerun_if_changed_or_parent(dir: &Path, path: &str) {
+    let Some(path) = git_path(dir, path) else {
+        return;
+    };
+    let Some(path) = path.ancestors().find(|path| path.exists()) else {
+        return;
+    };
+    println!("cargo:rerun-if-changed={}", path.display());
+}
+
 // Strip userinfo (a possible embedded token/password) from http(s) remote URLs
 // so it is never baked into provenance and leaked via an exported sidecar. ssh
 // and scp-style URLs keep their login user, which is not a secret.
@@ -147,17 +174,17 @@ pub fn capture_with_package_repository(dir: &Path, package_repository: Option<&s
 /// resolves to `None` for absent values. Called from build scripts.
 pub fn emit(prefix: &str, dir: &Path) {
     let git = capture(dir);
-    emit_raw(prefix, &git);
+    emit_raw(prefix, dir, &git);
 }
 
 /// Emit provenance, preferring a Cargo package repository when provided.
 #[allow(dead_code)]
 pub fn emit_with_package_repository(prefix: &str, dir: &Path, package_repository: Option<&str>) {
     let git = capture_with_package_repository(dir, package_repository);
-    emit_raw(prefix, &git);
+    emit_raw(prefix, dir, &git);
 }
 
-fn emit_raw(prefix: &str, git: &RawGit) {
+fn emit_raw(prefix: &str, dir: &Path, git: &RawGit) {
     if let Some(commit) = &git.commit {
         println!("cargo:rustc-env={prefix}_COMMIT={commit}");
     }
@@ -173,17 +200,14 @@ fn emit_raw(prefix: &str, git: &RawGit) {
     if let Some(built_at) = &git.built_at {
         println!("cargo:rustc-env={prefix}_BUILT_AT={built_at}");
     }
-    if let Some(git_dir) = &git.git_dir {
+    if git.git_dir.is_some() {
         // Rerun when the checked-out commit / branch changes. `dirty` tracking is
         // best-effort: an unstaged edit to a tracked file touches none of these,
-        // so a stale `dirty=false` is possible until the next ref/index change.
-        println!("cargo:rerun-if-changed={git_dir}/HEAD");
-        println!("cargo:rerun-if-changed={git_dir}/index");
-        println!("cargo:rerun-if-changed={git_dir}/packed-refs");
-        if let Some(branch) = &git.branch
-            && branch != "HEAD"
-        {
-            println!("cargo:rerun-if-changed={git_dir}/refs/heads/{branch}");
+        // so a stale `dirty=false` is possible until the next ref change.
+        emit_rerun_if_changed(dir, "HEAD");
+        emit_rerun_if_changed(dir, "packed-refs");
+        if let Some(branch) = run(dir, &["symbolic-ref", "--short", "--quiet", "HEAD"]) {
+            emit_rerun_if_changed_or_parent(dir, &format!("refs/heads/{branch}"));
         }
     }
 }

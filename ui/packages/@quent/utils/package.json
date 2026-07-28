@@ -9,16 +9,19 @@
   },
   "sideEffects": false,
   "scripts": {
+    "prebuild": "pnpm --workspace-root bindings",
     "build": "tsdown",
+    "build:ci": "tsdown",
+    "pretypecheck": "pnpm --workspace-root bindings",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "tsdown": "^0.22.3",
-    "typescript": "^5.9.3"
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
+    "clsx": "catalog:",
     "json-custom-numbers": "3.1.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "catalog:"
   }
 }

@@ -791,7 +791,6 @@ export function TreeTable<I extends TreeTableDataItem>({
     setTreeData(data);
   }, [data]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
@@ -803,13 +802,14 @@ export function TreeTable<I extends TreeTableDataItem>({
   );
 
   useIsomorphicLayoutEffect(() => {
-    const node = containerRef.current;
+    const node = scrollContainerRef.current;
     if (!node) {
       return;
     }
 
     const updateWidth = () => {
-      const next = node.getBoundingClientRect().width;
+      // clientWidth excludes classic scrollbar gutters from the content budget.
+      const next = node.clientWidth;
       setContainerWidth(next);
       if (!isLayoutReady) {
         setIsLayoutReady(true);
@@ -824,9 +824,8 @@ export function TreeTable<I extends TreeTableDataItem>({
     }
 
     const observer = new ResizeObserver(entries => {
-      const entry = entries[0];
-      if (entry) {
-        setContainerWidth(entry.contentRect.width);
+      if (entries[0]) {
+        setContainerWidth(node.clientWidth);
         if (!isLayoutReady) {
           setIsLayoutReady(true);
         }
@@ -913,7 +912,7 @@ export function TreeTable<I extends TreeTableDataItem>({
             return (
               <div
                 key={column.key}
-                className="flex items-center pr-1"
+                className="flex min-w-0 items-center overflow-hidden pr-1"
                 style={{
                   paddingLeft: `${firstCellPaddingLeft}px`,
                   paddingRight: '6px',
@@ -929,7 +928,7 @@ export function TreeTable<I extends TreeTableDataItem>({
           return (
             <div
               key={column.key}
-              className="text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+              className="min-w-0 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {column.render({ item: extended, level, isSelected })}
             </div>
@@ -967,20 +966,16 @@ export function TreeTable<I extends TreeTableDataItem>({
   };
 
   return (
-    <div className="h-full w-full select-none">
+    <div className="h-full w-full min-w-0 select-none">
       <div
-        ref={containerRef}
         className={cn(
-          'bg-transparent transition-opacity duration-100 ease-out h-full',
+          'h-full min-w-0 bg-transparent transition-opacity duration-100 ease-out',
           isLayoutReady ? 'opacity-100' : 'opacity-0'
         )}
       >
         <div
           ref={scrollContainerRef}
-          className={cn(
-            'w-full overflow-y-auto max-h-full overscroll-none',
-            isLayoutReady ? 'overflow-x-auto' : 'overflow-x-hidden'
-          )}
+          className="w-full min-w-0 max-h-full overflow-x-auto overflow-y-auto overscroll-none"
         >
           <div style={{ minWidth: `${effectiveWidth}px` }}>
             {/* Sticky header container */}

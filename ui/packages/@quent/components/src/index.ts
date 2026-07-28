@@ -101,6 +101,8 @@ export {
   connectChart,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
+  broadcastSyncedPointer,
+  hideSyncedPointer,
   buildBinnedTimelineSeries,
   buildBulkParamsForItem,
   buildTimelineMarks,
@@ -168,9 +170,11 @@ export { DAGChart } from './dag/DAGChart';
 export { DAGControls } from './dag/DAGControls';
 export { DAGLegend } from './dag/DAGLegend';
 export { DAGNodeInfoPanel } from './dag/DAGNodeInfoPanel';
+export { DagPlayhead } from './dag/DagPlayhead';
 
 // ─── Query-plan components ────────────────────────────────────────────────────
 export { QueryPlanNode } from './query-plan/QueryPlanNode';
+export { NodeFlowBar } from './query-plan/NodeFlowBar';
 
 // ─── Resource-tree components ─────────────────────────────────────────────────
 export { InlineSelector } from './resource-tree/InlineSelector';

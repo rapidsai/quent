@@ -1,9 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { inferFieldFormatter } from '@quent/utils';
+import { inferFieldFormatter, isNumericValue } from '@quent/utils';
 import type { StatValue, ContinuousPaletteName } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
+
+// Re-exported for consumers that still import it from here; defined in `@quent/utils`
+export { isNumericValue };
+
 import type {
   StatGroupExpandedRow,
   GroupKeyEntry,
@@ -23,7 +27,7 @@ export interface GroupIndexDef {
   getLabel: (row: StatGroupExpandedRow) => string;
 }
 
-export function formatNumericStat(n: number | null, statName: string): string {
+export function formatNumericStat(n: number | bigint | null, statName: string): string {
   if (n === null) return '-';
   return inferFieldFormatter(statName)(n);
 }
@@ -43,14 +47,10 @@ export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>):
 
 export function formatStatValue(value: StatValue, statName: string): string {
   if (value === null || value === undefined) return '-';
-  if (typeof value === 'number') return formatNumericStat(value, statName);
+  if (isNumericValue(value)) return formatNumericStat(value, statName);
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (Array.isArray(value)) return value.join(', ');
   return String(value);
-}
-
-export function isNumericValue(v: StatValue): v is number {
-  return typeof v === 'number';
 }
 
 // --- color gradient ---
@@ -173,7 +173,7 @@ export function getSortValue(
   if (!isAgg) {
     const v = row.values.get(stat);
     if (v === undefined) return null;
-    return isNumericValue(v) ? v : null;
+    return isNumericValue(v) ? Number(v) : null;
   }
   const agg = row.aggs.get(stat);
   if (!agg || !agg.isNumeric) return null;
@@ -197,7 +197,7 @@ type Accumulator = {
   keys: GroupKeyEntry[];
   rowKey: string;
   values: Map<string, StatValue>;
-  aggBuckets: Map<string, { nums: number[]; count: number }>;
+  aggBuckets: Map<string, { nums: number[]; bigints: bigint[]; count: number }>;
   itemIds: Set<string>;
   itemScopeIds: Map<string, string>;
   itemType: string;
@@ -251,11 +251,13 @@ export function buildPivotedRows(
     } else {
       let bucket = group.aggBuckets.get(row.statisticName);
       if (!bucket) {
-        bucket = { nums: [], count: 0 };
+        bucket = { nums: [], bigints: [], count: 0 };
         group.aggBuckets.set(row.statisticName, bucket);
       }
       bucket.count++;
-      if (isNumericValue(row.value)) {
+      if (typeof row.value === 'bigint') {
+        bucket.bigints.push(row.value);
+      } else if (typeof row.value === 'number') {
         bucket.nums.push(row.value);
       }
     }
@@ -266,17 +268,37 @@ export function buildPivotedRows(
     const aggs = new Map<string, PivotedRowAgg>();
     if (isAggregating) {
       for (const [stat, bucket] of group.aggBuckets) {
-        const hasNum = bucket.nums.length > 0;
-        const sum = hasNum ? bucket.nums.reduce((a, b) => a + b, 0) : null;
-        const mean = hasNum ? sum! / bucket.nums.length : null;
-        const min = hasNum ? Math.min(...bucket.nums) : null;
-        const max = hasNum ? Math.max(...bucket.nums) : null;
+        const onlyBigints = bucket.bigints.length > 0 && bucket.nums.length === 0;
+        const allNums = onlyBigints
+          ? bucket.bigints.map(Number)
+          : [...bucket.nums, ...bucket.bigints.map(Number)];
+        const hasNum = allNums.length > 0;
+
+        let sum: number | null = null;
+        let min: number | null = null;
+        let max: number | null = null;
+        let mean: number | null = null;
         let stdev: number | null = null;
-        if (mean !== null && bucket.nums.length > 1) {
-          const variance =
-            bucket.nums.reduce((acc, v) => acc + (v - mean) ** 2, 0) / (bucket.nums.length - 1);
-          stdev = Math.sqrt(variance);
+
+        if (hasNum) {
+          if (onlyBigints) {
+            // Use bigint arithmetic for sum/min/max to avoid precision loss
+            sum = Number(bucket.bigints.reduce((a, b) => a + b, 0n));
+            min = Number(bucket.bigints.reduce((a, b) => (a < b ? a : b)));
+            max = Number(bucket.bigints.reduce((a, b) => (a > b ? a : b)));
+          } else {
+            sum = allNums.reduce((a, b) => a + b, 0);
+            min = Math.min(...allNums);
+            max = Math.max(...allNums);
+          }
+          mean = sum / allNums.length;
+          if (allNums.length > 1) {
+            const variance =
+              allNums.reduce((acc, v) => acc + (v - mean!) ** 2, 0) / (allNums.length - 1);
+            stdev = Math.sqrt(variance);
+          }
         }
+
         aggs.set(stat, { sum, mean, min, max, stdev, count: bucket.count, isNumeric: hasNum });
       }
     }

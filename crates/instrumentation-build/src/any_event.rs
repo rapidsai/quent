@@ -23,19 +23,21 @@ pub(crate) fn generate_any_event(
     schema: &Schema,
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
-    let derives = derive_attr(opts.event_derives)?;
-
     let variants: Vec<(Ident, Ident)> = schema
         .entities()
         .map(|entity| {
-            let pascal = to_case(entity.name(), Case::Pascal);
+            let pascal = to_case(entity.path().name(), Case::Pascal);
             (
                 raw_ident(pascal.clone()),
                 raw_ident(format!("{pascal}Event")),
             )
         })
         .collect();
+    if variants.is_empty() {
+        return Ok(quote! {});
+    }
 
+    let derives = derive_attr(opts.event_derives)?;
     let decls = variants.iter().map(|(variant, event)| {
         quote! { #variant(&'a ::quent_instrumentation::Event<#event>) }
     });
@@ -70,19 +72,22 @@ mod tests {
 
     fn entity(name: &str, event: &str) -> quent_schema::Entity {
         EntityBuilder::new(ident(name))
-            .try_with_event(EventBuilder::new(ident(event), Cardinality::Once).build())
-            .unwrap()
+            .with_event(
+                EventBuilder::new(ident(event), Cardinality::Once)
+                    .build()
+                    .unwrap(),
+            )
             .build()
+            .unwrap()
     }
 
     #[test]
     fn emits_a_variant_and_arm_per_entity() {
         let schema = SchemaBuilder::new(ident("Demo"))
-            .try_with_entity(entity("Query", "submitted"))
-            .unwrap()
-            .try_with_entity(entity("Server", "booted"))
-            .unwrap()
-            .build();
+            .with_entity(entity("Query", "submitted"))
+            .with_entity(entity("Server", "booted"))
+            .build()
+            .unwrap();
         let opts = Options {
             event_derives: &["Debug"],
             ..Options::default()
@@ -113,6 +118,17 @@ mod tests {
         assert_eq!(
             pretty(generate_any_event(&schema, &opts).unwrap()),
             pretty(expected)
+        );
+    }
+
+    #[test]
+    fn emits_nothing_without_entities() {
+        let schema = SchemaBuilder::new(ident("Demo")).build().unwrap();
+
+        assert!(
+            generate_any_event(&schema, &Options::default())
+                .unwrap()
+                .is_empty()
         );
     }
 }

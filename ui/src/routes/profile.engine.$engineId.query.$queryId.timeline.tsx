@@ -13,7 +13,7 @@ function TimelineTab() {
   const { engineId } = Route.useParams();
   const queryBundle = QueryRoute.useLoaderData();
   return (
-    <div className="flex items-center justify-center w-full h-full min-h-[200px]">
+    <div className="flex min-w-0 w-full h-full min-h-[200px]">
       <QueryResourceTree engineId={engineId} queryBundle={queryBundle} />
     </div>
   );

@@ -40,6 +40,9 @@
 //!
 //! # Restrictions
 //!
+//! Qualified record and entity paths are not supported; generation fails with
+//! [`GenerateError::UnsupportedTypePath`].
+//!
 //! The schema does not limit how many events an entity declares, but this
 //! generator caps once-cardinality
 //! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
@@ -61,7 +64,7 @@ mod runtime;
 use std::path::PathBuf;
 
 use quent_constraints::{BaseConstraintsError, Report, validate};
-use quent_schema::{Identifier, Schema};
+use quent_schema::{Path, Schema};
 use quote::quote;
 
 use events::generate_event_types;
@@ -94,6 +97,8 @@ pub struct Options {
 
     /// Emit `AnyEvent` and `AnyEvent::from_any`, a decoder from a type-erased
     /// `&dyn Any` back to the concrete `Event<T>`. Carries [`Self::event_derives`].
+    ///
+    /// No aggregate is emitted when the schema declares no events.
     pub any_event: bool,
 }
 
@@ -123,13 +128,18 @@ pub enum GenerateError {
     },
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
+    #[error("qualified type path `{path}` is not supported")]
+    UnsupportedTypePath {
+        /// The unsupported record or entity path.
+        path: Path,
+    },
     #[error(
         "entity `{entity}` declares {count} once-events, exceeding the maximum of {max}",
         max = crate::runtime::MAX_ONCE_EVENTS
     )]
     TooManyOnceEvents {
         /// The offending entity.
-        entity: Identifier,
+        entity: Path,
         /// The number of once-cardinality events the entity declares.
         count: usize,
     },
@@ -169,9 +179,12 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, or
-/// if the generated code is not a valid Rust file.
+/// Returns [`GenerateError`] if the schema contains a qualified type path, a
+/// derive entry is not a parseable Rust path, or the generated code is not a
+/// valid Rust file.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    ensure_unqualified_type_paths(schema)?;
+
     // record structs, event enums, then the live instrumentation surface
     let reexports = runtime::reexports();
     let records = generate_record_types(schema, opts)?;
@@ -185,4 +198,17 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #runtime #any_event })
         .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
+}
+
+fn ensure_unqualified_type_paths(schema: &Schema) -> Result<(), GenerateError> {
+    let qualified = schema
+        .records()
+        .map(|record| record.path())
+        .chain(schema.entities().map(|entity| entity.path()))
+        .find(|path| !path.namespace().is_empty());
+
+    match qualified {
+        Some(path) => Err(GenerateError::UnsupportedTypePath { path: path.clone() }),
+        None => Ok(()),
+    }
 }

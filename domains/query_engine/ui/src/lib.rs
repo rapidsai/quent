@@ -3,6 +3,9 @@
 
 //! Types shared with the UI.
 
+mod data_flow;
+pub use data_flow::DataFlowTimelineBinned;
+
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_query_engine_model as qe;

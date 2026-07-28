@@ -24,6 +24,7 @@ export {
   isLightColor,
   createCapacitiesColorFn,
   createFsmTypeColorFn,
+  createDataFlowStateColorFn,
   CONTINUOUS_PALETTES,
   continuousColor,
   getLegendGradientStops,
@@ -36,11 +37,14 @@ export {
   formatDurationForWindow,
   formatDurationForAxisInterval,
   formatQuantity,
+  formatQuantityCompact,
+  formatCompactWithPrefix,
   formatBytes,
   formatNumber,
   formatAttributeValue,
   unwrapTaggedValue,
   inferFieldFormatter,
+  isNumericValue,
 } from './formatters';
 
 // Rust-generated TypeScript types

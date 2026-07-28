@@ -40,6 +40,8 @@ import {
   useSetSelectedNodeData,
   useSetDagDisplayedNodeIds,
   useSelectedDagLayoutDirection,
+  useDataFlowEnabled,
+  useDataFlowMeta,
 } from '@quent/hooks';
 import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
 import type { DAGData } from '../services/query-plan/types';
@@ -280,6 +282,11 @@ const FlowLayout = ({
   const setSelectedNodeData = useSetSelectedNodeData();
   const selectedNodeIds = useSelectedNodeIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
+  const dataFlowEnabled = useDataFlowEnabled();
+  const dataFlowMeta = useDataFlowMeta();
+  // Stable boolean: only flips on availability/toggle, not on zoom refetches,
+  // so toggling the overlay relayouts exactly once.
+  const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
 
   // Sync controlled selectedNodeIds into the atom when provided
@@ -330,6 +337,7 @@ const FlowLayout = ({
           layoutDirection,
           isDark,
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
+          flowBarVisible,
         },
         style: {
           width: NODE_LAYOUT_WIDTH,
@@ -352,7 +360,7 @@ const FlowLayout = ({
     }));
 
     return { flowNodes, flowEdges };
-  }, [data, isDark, operatorColorMap, layoutDirection]);
+  }, [data, isDark, operatorColorMap, layoutDirection, flowBarVisible]);
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
@@ -406,10 +414,15 @@ const FlowLayout = ({
   // Calculate and apply layout
   useLayoutEffect(() => {
     hasUserInteracted.current = false;
+    // calculateLayout is async: rapid dependency changes (e.g. flowBarVisible
+    // toggles) can interleave calls, so discard results from stale runs
+    // instead of letting them overwrite a newer layout.
+    let cancelled = false;
 
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
       const layoutResult = await calculateLayout(flowNodes, flowEdges, layoutDirection);
+      if (cancelled) return;
 
       setNodes(layoutResult.nodes);
       setEdges(layoutResult.edges);
@@ -419,6 +432,9 @@ const FlowLayout = ({
     };
 
     applyLayout();
+    return () => {
+      cancelled = true;
+    };
   }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection]);
 
   return (

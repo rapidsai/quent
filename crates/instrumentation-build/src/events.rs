@@ -24,7 +24,7 @@ pub(crate) fn generate_event_types(
 }
 
 fn entity_event_enum(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let entity_pascal = to_case(entity.name(), Case::Pascal);
+    let entity_pascal = to_case(entity.path().name(), Case::Pascal);
     let enum_ident = raw_ident(format!("{entity_pascal}Event"));
     let docs = doc_attr_or(
         entity.annotations().docs(),
@@ -91,7 +91,7 @@ mod tests {
                         field("n", DataType::U32),
                         field("opt", DataType::Option(Box::new(DataType::I32))),
                         field("list", DataType::List(Box::new(DataType::String))),
-                        field("rec", DataType::Record(ident("SomeRecord"))),
+                        field("rec", DataType::Record(ident("SomeRecord").into())),
                         field("dynrec", DataType::DynamicRecord),
                         field(
                             "eref",
@@ -135,26 +135,22 @@ mod tests {
 
     #[test]
     fn docs_annotations_become_doc_attributes() {
-        let docs = |text: &str| {
-            let mut builder = AnnotationsBuilder::new();
-            builder.set_docs(text);
-            builder.build()
-        };
+        let docs = |text: &str| AnnotationsBuilder::new().with_docs(text).build().unwrap();
         let field_x = Field::new(ident("x"), DataType::U8, docs("field doc"));
         let ev = EventBuilder::new(ident("ev"), Cardinality::Once)
-            .try_with_field(field_x)
-            .unwrap()
+            .with_field(field_x)
             .with_annotations(docs("event doc"))
-            .build();
+            .build()
+            .unwrap();
         let en = EntityBuilder::new(ident("E"))
-            .try_with_event(ev)
-            .unwrap()
+            .with_event(ev)
             .with_annotations(docs("entity doc"))
-            .build();
+            .build()
+            .unwrap();
         let s = SchemaBuilder::new(ident("M"))
-            .try_with_entity(en)
-            .unwrap()
-            .build();
+            .with_entity(en)
+            .build()
+            .unwrap();
 
         let expected = quote! {
             #[doc = "entity doc"]
@@ -190,16 +186,6 @@ mod tests {
                 #[doc = "The `ended` event."]
                 Ended
             }
-        };
-        assert_eq!(events_src(&s), pretty(expected));
-    }
-
-    #[test]
-    fn entity_without_events_emits_empty_enum() {
-        let s = schema("M", [entity("E", [])], []);
-        let expected = quote! {
-            #[doc = "Events emitted by `E` entities."]
-            pub enum EEvent {}
         };
         assert_eq!(events_src(&s), pretty(expected));
     }

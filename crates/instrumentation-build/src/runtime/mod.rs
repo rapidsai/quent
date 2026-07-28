@@ -68,7 +68,7 @@ fn entity_marker(entity: &Entity) -> TokenStream {
     let marker = marker_ident(entity);
     let doc = format!(
         "Marker type for the `{}` entity.",
-        to_case(entity.name(), Case::Pascal)
+        to_case(entity.path().name(), Case::Pascal)
     );
     quote! {
         #[doc = #doc]
@@ -80,7 +80,7 @@ fn entity_marker(entity: &Entity) -> TokenStream {
 /// Tie an entity's event enum to its stream name (the entity's snake-case name).
 fn entity_event_impl(entity: &Entity) -> TokenStream {
     let event_ty = event_ident(entity);
-    let stream_name = to_case(entity.name(), Case::Snake);
+    let stream_name = to_case(entity.path().name(), Case::Snake);
     quote! {
         impl ::quent_instrumentation::EntityEvent for #event_ty {
             const NAME: &'static str = #stream_name;
@@ -90,22 +90,31 @@ fn entity_event_impl(entity: &Entity) -> TokenStream {
 
 /// `{Entity}Event` — the entity's event enum.
 fn event_ident(entity: &Entity) -> Ident {
-    raw_ident(format!("{}Event", to_case(entity.name(), Case::Pascal)))
+    raw_ident(format!(
+        "{}Event",
+        to_case(entity.path().name(), Case::Pascal)
+    ))
 }
 
 /// `{Entity}` — the entity's ref-target marker type.
 fn marker_ident(entity: &Entity) -> Ident {
-    raw_ident(to_case(entity.name(), Case::Pascal))
+    raw_ident(to_case(entity.path().name(), Case::Pascal))
 }
 
 /// `{Entity}Observer`.
 fn observer_ident(entity: &Entity) -> Ident {
-    raw_ident(format!("{}Observer", to_case(entity.name(), Case::Pascal)))
+    raw_ident(format!(
+        "{}Observer",
+        to_case(entity.path().name(), Case::Pascal)
+    ))
 }
 
 /// `{Entity}Handle`.
 fn handle_ident(entity: &Entity) -> Ident {
-    raw_ident(format!("{}Handle", to_case(entity.name(), Case::Pascal)))
+    raw_ident(format!(
+        "{}Handle",
+        to_case(entity.path().name(), Case::Pascal)
+    ))
 }
 
 #[cfg(test)]
@@ -120,18 +129,18 @@ mod tests {
     #[test]
     fn generate_assembles_event_impl_observer_handle_and_context() {
         let connection = EntityBuilder::new(ident("Connection"))
-            .try_with_event(
+            .with_event(
                 EventBuilder::new(ident("data"), Cardinality::Multi)
-                    .try_with_field(field("bytes", DataType::U64))
-                    .unwrap()
-                    .build(),
+                    .with_field(field("bytes", DataType::U64))
+                    .build()
+                    .unwrap(),
             )
-            .unwrap()
-            .build();
+            .build()
+            .unwrap();
         let s = SchemaBuilder::new(ident("Demo"))
-            .try_with_entity(connection)
-            .unwrap()
-            .build();
+            .with_entity(connection)
+            .build()
+            .unwrap();
         let src = pretty(generate_runtime_types(&s).unwrap());
         assert!(src.contains("impl ::quent_instrumentation::EntityEvent for ConnectionEvent"));
         assert!(src.contains(r#"const NAME: &'static str = "connection""#));

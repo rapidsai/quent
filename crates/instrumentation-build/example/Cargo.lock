@@ -461,6 +461,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-resource"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "quent-constraints",
+ "quent-fsm",
+ "quent-schema",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-schema"
 version = "0.1.0"
 dependencies = [
@@ -487,6 +501,7 @@ dependencies = [
  "quent-fsm",
  "quent-ref-target",
  "quent-ref-tree",
+ "quent-resource",
  "quent-schema",
  "serde",
  "serde-saphyr",
@@ -765,9 +780,9 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 
 [[package]]
 name = "uuid"
-version = "1.23.4"
+version = "1.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf80a72845275afea99e7f2b434723d3bc7e38470fcd1c7ed39a599c73319a53"
+checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",

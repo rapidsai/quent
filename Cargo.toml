@@ -27,6 +27,8 @@ members = [
     # NVTX integration crates
     "integrations/nvtx/events",
     "integrations/nvtx/injection",
+    "integrations/nvtx/bridge",
+    "integrations/nvtx/example",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
@@ -50,6 +52,7 @@ members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
@@ -110,6 +113,7 @@ default-members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
 ]
 
 [workspace.package]
@@ -131,6 +135,7 @@ petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prost = "0.14.1"
 pyo3 = "0.29"
+quent-resource = { path = "crates/resource" }
 rmp-serde = "1"
 rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }

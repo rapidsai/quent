@@ -13,7 +13,7 @@ use crate::common::to_case;
 
 /// Generate the declaration of an {Entity}Observer and its impls.
 pub(super) fn entity_observer(entity: &Entity) -> TokenStream {
-    let entity_pascal = to_case(entity.name(), Case::Pascal);
+    let entity_pascal = to_case(entity.path().name(), Case::Pascal);
     let event_ty = event_ident(entity);
     let observer_ty = observer_ident(entity);
     let handle_ty = handle_ident(entity);

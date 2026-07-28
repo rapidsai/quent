@@ -49,27 +49,16 @@ model: m
 }
 
 #[test]
-fn event_cardinality_required() {
+fn event_multi_must_be_boolean() {
     expect_error(
         "\
 entities:
   E:
     events:
       started:
-        doc: x
+        multi: sometimes
 ",
-        &["event must declare a cardinality"],
-    );
-    expect_error(
-        "\
-entities:
-  E:
-    events:
-      started:
-        once: {}
-        multi: {}
-",
-        &["both `once` and `multi`"],
+        &["invalid boolean"],
     );
 }
 
@@ -133,6 +122,18 @@ records:
 }
 
 #[test]
+fn entity_without_events() {
+    expect_error(
+        "\
+entities:
+  E:
+    events: {}
+",
+        &["entity `E` declares no events"],
+    );
+}
+
+#[test]
 fn invalid_sibling_names_do_not_panic() {
     // Two records with invalid names must both surface as diagnostics rather
     // than reaching the builder as a shared placeholder and panicking.
@@ -153,7 +154,7 @@ fn empty_annotation_name() {
 constraints:
   '': x
 ",
-        &["constraint name must not be empty"],
+        &["name must not be empty"],
     );
 }
 

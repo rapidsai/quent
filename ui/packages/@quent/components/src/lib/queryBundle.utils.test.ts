@@ -95,11 +95,6 @@ describe('parseCustomStatistics', () => {
     expect(parseCustomStatistics(op)).toEqual([{ key: 'label', value: 'hello' }]);
   });
 
-  it('unwraps a boolean tagged value', () => {
-    const op = makeOperator({ enabled: makeTagged('Bool', true) });
-    expect(parseCustomStatistics(op)).toEqual([{ key: 'enabled', value: true }]);
-  });
-
   it('produces null for a null-valued tagged entry', () => {
     const op = makeOperator({ missing: null });
     expect(parseCustomStatistics(op)).toEqual([{ key: 'missing', value: null }]);

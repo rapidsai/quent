@@ -7,6 +7,25 @@ packages:
   # `pnpm-workspace.yaml` re-references `../../packages/@quent/*` so its
   # `workspace:*` deps still resolve to source.
 
+catalog:
+  '@tanstack/react-query': ^5.90.21
+  '@tanstack/react-router': ^1.169.9
+  '@tanstack/react-table': ^8.20.5
+  '@tanstack/react-virtual': ^3.14.5
+  '@types/react': ^19.2.14
+  '@types/react-dom': ^19.2.3
+  '@xyflow/react': ^12.10.1
+  clsx: ^2.1.1
+  echarts: ^5.6.0
+  echarts-for-react: ^3.0.6
+  jotai: ^2.20.1
+  jotai-family: ^1.0.2
+  react: ^19.2.7
+  react-dom: ^19.2.7
+  tailwind-merge: ^3.5.0
+  tsdown: ^0.22.12
+  typescript: ^6.0.3
+
 allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true

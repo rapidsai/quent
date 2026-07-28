@@ -13,9 +13,9 @@ fn entity_ref(target: Option<&str>) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .try_with_constraint(RefTargetConstraint::NAME, target.map(ToString::to_string))
-            .unwrap()
-            .build(),
+            .with_constraint(RefTargetConstraint::NAME, target.map(ToString::to_string))
+            .build()
+            .unwrap(),
     }
 }
 
@@ -34,7 +34,7 @@ fn validate(schema: &Schema) -> Vec<RefTargetError> {
 
 #[test]
 fn ref_to_existing_entity_passes() {
-    let worker = entity("Worker", vec![]);
+    let worker = entity("Worker", vec![event("created", vec![])]);
     let task = entity(
         "Task",
         vec![event(
@@ -84,4 +84,18 @@ fn invalid_target_identifier_is_rejected() {
             .iter()
             .any(|e| matches!(e, RefTargetError::InvalidData { .. })),
     );
+}
+
+#[test]
+fn qualified_target_resolves() {
+    let worker = entity("Foo::Worker", [event("created", [])]);
+    let task = entity(
+        "Bar::Task",
+        [event(
+            "created",
+            [field("on", entity_ref(Some("Foo::Worker")))],
+        )],
+    );
+
+    assert!(validate(&schema_with(vec![worker, task])).is_empty());
 }

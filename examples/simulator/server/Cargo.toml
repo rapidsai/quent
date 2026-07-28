@@ -17,9 +17,3 @@ quent-simulator-instrumentation = { path = "../instrumentation", features = ["co
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true
-
-[build-dependencies]
-ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl", "format"] }
-quent-ui = { path = "../../../crates/ui" }
-quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
-quent-simulator-ui = { path = "../ui" }

@@ -41,17 +41,17 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
 /// Annotations carrying the FSM constraint with `data`.
 fn fsm_annotations(data: Option<String>) -> Annotations {
     AnnotationsBuilder::new()
-        .try_with_constraint(FsmConstraint::NAME, data)
-        .unwrap()
+        .with_constraint(FsmConstraint::NAME, data)
         .build()
+        .unwrap()
 }
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
-    EntityBuilder::new(ident(name))
-        .try_with_events(events)
-        .unwrap()
+    EntityBuilder::new(name.parse::<quent_schema::Path>().unwrap())
+        .with_events(events)
         .with_annotations(fsm_annotations(Some(data.to_string())))
         .build()
+        .unwrap()
 }
 
 fn schema_with(entity: Entity) -> Schema {
@@ -79,6 +79,18 @@ fn well_formed_linear_fsm_passes() {
 }
 
 #[test]
+fn diagnostics_include_the_qualified_entity_path() {
+    let fsm = fsm("a", &[("a", "missing")], &["a"]);
+    let entity = entity_with("Foo::E", vec![event("a", Cardinality::Once)], &fsm);
+
+    assert!(
+        validate(&schema_with(entity)).iter().any(
+            |error| matches!(error, FsmError::UnknownState { entity, .. } if entity == "Foo::E")
+        )
+    );
+}
+
+#[test]
 fn well_formed_self_loop_fsm_passes() {
     let fsm = fsm("a", &[("a", "a")], &["a"]);
     let entity = entity_with("E", vec![event("a", Cardinality::Multi)], &fsm);
@@ -95,10 +107,10 @@ fn single_state_fsm_passes() {
 #[test]
 fn missing_data_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .try_with_event(event("a", Cardinality::Once))
-        .unwrap()
+        .with_event(event("a", Cardinality::Once))
         .with_annotations(fsm_annotations(None))
-        .build();
+        .build()
+        .unwrap();
     let errors = validate(&schema_with(entity));
     assert!(
         errors
@@ -110,10 +122,10 @@ fn missing_data_is_rejected() {
 #[test]
 fn invalid_json_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .try_with_event(event("a", Cardinality::Once))
-        .unwrap()
+        .with_event(event("a", Cardinality::Once))
         .with_annotations(fsm_annotations(Some("{ trash".to_string())))
-        .build();
+        .build()
+        .unwrap();
     let errors = validate(&schema_with(entity));
     assert!(
         errors

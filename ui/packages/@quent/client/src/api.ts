@@ -11,10 +11,13 @@ import type {
   SingleTimelineRequest,
   SingleTimelineResponse,
   BulkTimelineRequest,
+  CategoricalTimelineRequest,
+  DataFlowTimelineBinned,
   QueryFilter,
   OperatorFilter,
   EntityRef,
   Engine,
+  TimelineConfig,
 } from '@quent/utils';
 
 interface ApiFetchOptions {
@@ -23,11 +26,12 @@ interface ApiFetchOptions {
 }
 
 /**
- * Generic API fetch helper — internal, not exported from package barrel
+ * Issues the request and returns the raw {@link Response} — internal helper
+ * for fetchers that need to inspect the status code themselves.
  * @param endpoint - API endpoint to call
  * @param options - Optional params and fetch options
  */
-async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise<T> {
+async function apiFetchResponse(endpoint: string, options?: ApiFetchOptions): Promise<Response> {
   const { params, fetchOptions } = options ?? {};
   const searchParams = params
     ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`
@@ -45,7 +49,16 @@ async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise
     };
   }
 
-  const response = await fetch(url, { ...defaultOptions, ...fetchOptions });
+  return fetch(url, { ...defaultOptions, ...fetchOptions });
+}
+
+/**
+ * Generic API fetch helper — internal, not exported from package barrel
+ * @param endpoint - API endpoint to call
+ * @param options - Optional params and fetch options
+ */
+async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise<T> {
+  const response = await apiFetchResponse(endpoint, options);
 
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
@@ -103,4 +116,35 @@ export async function fetchBulkTimelines(
       body: JSON.stringify(request),
     },
   });
+}
+
+/**
+ * Fetch the data-flow categorical timeline for a query (all operators in one
+ * response). Resolves to `null` when the engine's analyzer does not implement
+ * the data-flow protocol (HTTP 501) — an expected "feature unavailable"
+ * outcome, not an error, so react-query settles instead of retrying.
+ * @param measures - Measure names to compute; empty means all declared measures.
+ */
+export async function fetchDataFlow(
+  engineId: string,
+  queryId: string,
+  config: TimelineConfig,
+  measures: string[] = []
+): Promise<DataFlowTimelineBinned | null> {
+  const request: CategoricalTimelineRequest<QueryFilter> = {
+    measures,
+    config,
+    app_params: { query_id: queryId },
+  };
+  const response = await apiFetchResponse(`/engines/${engineId}/timeline/data-flow`, {
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  });
+  if (response.status === 501) return null;
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return parseJsonWithBigInt<DataFlowTimelineBinned>(await response.text());
 }

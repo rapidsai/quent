@@ -9,7 +9,7 @@ use std::os::raw::{c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use quent_nvtx_events::NvtxEvent;
+use nvtx_events::NvtxEvent;
 use thiserror::Error;
 
 use crate::bindings::{
@@ -353,7 +353,7 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
         // The cdylib installs no tracing subscriber, so surface the partial
         // install rather than capturing a silently incomplete domain surface.
         eprintln!(
-            "quent-nvtx: installed {done}/{} CORE2 domain callbacks (table reports {size} \
+            "nvtx-injection: installed {done}/{} CORE2 domain callbacks (table reports {size} \
              slots); the rest are domain calls the running NVTX does not expose and will not \
              be captured",
             installed.len()
@@ -385,7 +385,7 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
         // The cdylib installs no tracing subscriber, so emit an unconditional
         // diagnostic instead of failing quietly.
         eprintln!(
-            "quent-nvtx: NVTX CORE callback table unavailable; default-domain and OS-thread-name \
+            "nvtx-injection: NVTX CORE callback table unavailable; default-domain and OS-thread-name \
              events will not be captured"
         );
         return;

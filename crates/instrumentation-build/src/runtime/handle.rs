@@ -24,7 +24,7 @@ pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;
 /// Returns [`GenerateError::TooManyOnceEvents`] if the entity declares more
 /// once-cardinality events than fit the once-flag word.
 pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
-    let entity_pascal = to_case(entity.name(), Case::Pascal);
+    let entity_pascal = to_case(entity.path().name(), Case::Pascal);
     let event_ty = event_ident(entity);
     let handle_ty = handle_ident(entity);
     let marker_ty = marker_ident(entity);
@@ -35,7 +35,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
         .count();
     if once_count > MAX_ONCE_EVENTS {
         return Err(GenerateError::TooManyOnceEvents {
-            entity: entity.name().clone(),
+            entity: entity.path().clone(),
             count: once_count,
         });
     }

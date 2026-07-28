@@ -21,7 +21,7 @@ use std::mem::{offset_of, size_of};
 use std::os::raw::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use quent_nvtx_events::{
+use nvtx_events::{
     NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
 };
 
@@ -440,7 +440,7 @@ fn warn_unsupported_message_once() {
     static WARNED: AtomicBool = AtomicBool::new(false);
     if !WARNED.swap(true, Ordering::Relaxed) {
         eprintln!(
-            "quent-nvtx: an unsupported NVTX message encoding (e.g. wide-char/Unicode) was \
+            "nvtx-injection: an unsupported NVTX message encoding (e.g. wide-char/Unicode) was \
              dropped; only the domain-scoped ASCII surface is captured. This warning \
              fires once."
         );
@@ -506,7 +506,7 @@ unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Opt
 ///   one-time process-global diagnostic is emitted (see [`warn_lossy_once`]) so
 ///   the fidelity loss is observable. True byte-verbatim capture (raw
 ///   `Vec<u8>`) is deferred to avoid a breaking change to the public
-///   `quent-nvtx-events` vocabulary.
+///   `nvtx-events` vocabulary.
 ///
 /// # Safety
 /// `ptr` must be null or a valid NUL-terminated C string readable for this call.
@@ -540,7 +540,7 @@ fn warn_lossy_once() {
     static WARNED: AtomicBool = AtomicBool::new(false);
     if !WARNED.swap(true, Ordering::Relaxed) {
         eprintln!(
-            "quent-nvtx: a non-UTF-8 NVTX string was captured lossily (invalid bytes replaced \
+            "nvtx-injection: a non-UTF-8 NVTX string was captured lossily (invalid bytes replaced \
              with U+FFFD); byte-verbatim capture is deferred. This warning fires once."
         );
     }
@@ -551,7 +551,7 @@ mod tests {
     use std::ffi::CString;
     use std::mem::{offset_of, size_of};
 
-    use quent_nvtx_events::{
+    use nvtx_events::{
         NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
     };
 

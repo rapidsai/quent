@@ -23,26 +23,27 @@ entities:
   Server:
     doc: A server that accepts connections.
     events:
-      booted: once
+      booted: {}
 
   Connection:
     doc: A client connection.
     events:
       opened:
         doc: The connection was accepted.
-        once:
+        attributes:
           peer: Endpoint
           session: uuid
           host: { scope-ref: Server }
       data:
-        multi:
+        multi: true
+        attributes:
           bytes: u64
           meta: { option: Meta }
       routed:
         doc: Forwarded to an upstream server.
-        once:
+        attributes:
           upstream: { ref: Server, data: Route }
-      closed: once
+      closed: {}
 
 fsms:
   Query:

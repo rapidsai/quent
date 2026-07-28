@@ -3,10 +3,9 @@
 
 //! Mapping from schema [`DataType`]s to Rust type tokens.
 
-use convert_case::{Case, Casing};
+use convert_case::Case;
 use proc_macro2::TokenStream;
-use quent_constraints::Constraint;
-use quent_ref_target::RefTargetConstraint;
+use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, DataType};
 use quote::quote;
 
@@ -52,7 +51,7 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
             quote! { Vec<#inner> }
         }
         DataType::Record(name) => {
-            let ident = raw_ident(to_case(name, Case::Pascal));
+            let ident = raw_ident(to_case(name.name(), Case::Pascal));
             quote! { #ident }
         }
         DataType::DynamicRecord => quote! { ::quent_instrumentation::DynamicAttributes },
@@ -73,12 +72,9 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
 /// ref-target constraint, or the `AnyEntity` marker when it is not restricted
 /// to a target entity.
 fn ref_target_marker(annotations: &Annotations) -> TokenStream {
-    match annotations
-        .constraint(RefTargetConstraint::NAME)
-        .and_then(|c| c.data())
-    {
+    match RefTarget::from_annotations(annotations) {
         Some(entity) => {
-            let marker = raw_ident(entity.to_case(Case::Pascal));
+            let marker = raw_ident(to_case(entity.as_ref().name(), Case::Pascal));
             quote! { #marker }
         }
         None => quote! { AnyEntity },
@@ -88,6 +84,8 @@ fn ref_target_marker(annotations: &Annotations) -> TokenStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quent_constraints::Constraint;
+    use quent_ref_target::RefTargetConstraint;
     use quent_schema::DataType;
 
     #[test]
@@ -104,11 +102,11 @@ mod tests {
     fn entity_ref_uses_its_ref_target_marker() {
         use quent_schema::builder::AnnotationsBuilder;
 
-        let mut annotations = AnnotationsBuilder::new();
-        annotations.set_constraint(RefTargetConstraint::NAME, Some("Cluster".to_string()));
+        let annotations = AnnotationsBuilder::new()
+            .with_constraint(RefTargetConstraint::NAME, Some("Cluster".to_string()));
         let ty = DataType::EntityRef {
             data: Some(Box::new(DataType::U64)),
-            annotations: annotations.build(),
+            annotations: annotations.build().unwrap(),
         };
         let tokens = map_data_type(&ty, 0).to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");

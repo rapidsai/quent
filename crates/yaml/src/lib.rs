@@ -13,6 +13,7 @@ use quent_constraints::validate;
 use quent_fsm::FsmConstraint;
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
+use quent_resource::ResourceConstraint;
 use quent_schema::Schema;
 use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 
@@ -62,13 +63,33 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         }
     };
 
-    let schema = lower::lower(&model, &mut sink);
+    let schema = match lower::lower(&model, &mut sink) {
+        Some(schema) => schema,
+        None => {
+            if !sink.has_errors() {
+                sink.error("", "schema could not be built", None);
+            }
+            return Err(Error::Invalid(sink));
+        }
+    };
     if sink.has_errors() {
         return Err(Error::Invalid(sink));
     }
 
-    let report = validate::<(RefTargetConstraint, RefTreeConstraint, FsmConstraint)>(&schema);
+    let report = validate::<(
+        RefTargetConstraint,
+        RefTreeConstraint,
+        FsmConstraint,
+        ResourceConstraint,
+    )>(&schema);
     if let Err(e) = report.base_constraints {
+        for entity in e.entities_without_events {
+            sink.error(
+                &format!("entities.{entity}"),
+                format!("entity `{entity}` declares no events"),
+                Some("entities must declare at least one event".to_string()),
+            );
+        }
         for record in e.recursive_records {
             sink.error(
                 &format!("records.{record}"),
@@ -83,7 +104,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
             sink.error("", format!("unresolved reference: {reference}"), None);
         }
     }
-    let (ref_target, ref_tree, fsm) = report.results;
+    let (ref_target, ref_tree, fsm, resource) = report.results;
     if let Err(e) = ref_target {
         sink.error("", e.to_string(), None);
     }
@@ -91,6 +112,9 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         sink.error("", e.to_string(), None);
     }
     if let Err(e) = fsm {
+        sink.error("", e.to_string(), None);
+    }
+    if let Err(e) = resource {
         sink.error("", e.to_string(), None);
     }
     if sink.has_errors() {

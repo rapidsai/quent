@@ -4,10 +4,10 @@
 # License-header enforcement via pre-commit + rapidsai/pre-commit-hooks.
 #
 # Install locally with:
-#     pip install pre-commit && pre-commit install
+#     pixi run pre-commit install
 #
 # Run on all files (bulk update):
-#     PRE_COMMIT_HOME=$TMPDIR/pre-commit-cache pre-commit run verify-copyright --all-files
+#     pixi run pre-commit run verify-copyright --all-files
 
 exclude: |
   (?x)

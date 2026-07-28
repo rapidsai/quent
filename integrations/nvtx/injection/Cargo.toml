@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [package]
-name = "quent-nvtx-injection"
+name = "nvtx-injection"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -13,7 +13,7 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-quent-nvtx-events = { path = "../events" }
+nvtx-events = { path = "../events" }
 thiserror = { workspace = true }
 
 [build-dependencies]
@@ -24,5 +24,10 @@ bindgen = { workspace = true }
 cc = { workspace = true, optional = true }
 
 [features]
-# Link-time strong-symbol attach path (secondary); off by default.
+# static-injection: attach the injection in-process at link time instead of at
+# runtime. The default attach path is the cdylib NVTX `dlopen`s via
+# `NVTX_INJECTION64_PATH`; with this feature a strong `InitializeInjectionNvtx2`
+# symbol is linked into the consuming binary, so NVTX initializes injection at
+# its first NVTX call — no separate library to deploy. Linux-only. See the crate
+# docs ("Attach modes").
 static-injection = ["dep:cc"]

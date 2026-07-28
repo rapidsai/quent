@@ -20,20 +20,25 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
 
     let fields: Vec<_> = schema
         .entities()
-        .map(|e| raw_ident(to_case(e.name(), Case::Snake)))
+        .map(|e| raw_ident(to_case(e.path().name(), Case::Snake)))
         .collect();
     let observer_tys: Vec<_> = schema.entities().map(observer_ident).collect();
     let event_tys: Vec<_> = schema.entities().map(event_ident).collect();
     let accessors: Vec<_> = schema
         .entities()
-        .map(|e| raw_ident(format!("{}_observer", to_case(e.name(), Case::Snake))))
+        .map(|e| {
+            raw_ident(format!(
+                "{}_observer",
+                to_case(e.path().name(), Case::Snake)
+            ))
+        })
         .collect();
     let accessor_docs: Vec<String> = schema
         .entities()
         .map(|e| {
             format!(
                 "Observer for `{}` entities.",
-                to_case(e.name(), Case::Pascal)
+                to_case(e.path().name(), Case::Pascal)
             )
         })
         .collect();

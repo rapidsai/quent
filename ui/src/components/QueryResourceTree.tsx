@@ -312,9 +312,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   ]);
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex min-w-0 flex-col h-full w-full">
       <TimelineToolbar durationSeconds={durationSeconds} />
-      <div className="flex-1 min-h-0">
+      <div className="min-w-0 flex-1 min-h-0">
         <TreeTable<TreeTableItem>
           data={treeData}
           columns={columns}

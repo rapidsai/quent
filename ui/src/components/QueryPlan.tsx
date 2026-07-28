@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, lazy, Suspense } from 'react';
-import { useQueryBundle } from '@quent/client';
+import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@quent/components';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
 import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
-import { DAGControls, DAGNodeInfoPanel } from '@quent/components';
+import { DAGControls, DAGNodeInfoPanel, DagPlayhead } from '@quent/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
 import {
   useDagNodeColoring,
@@ -16,7 +16,11 @@ import {
   useDagEdgeColoring,
   useOperatorStatFields,
   usePortStatFields,
+  useDataFlowSync,
+  useDebouncedZoomRange,
+  resolveDataFlowWindow,
 } from '@quent/hooks';
+import { MAX_TIMELINE_BINS } from '@quent/utils';
 import {
   computeNodeColoring,
   computeEdgeWidthConfig,
@@ -48,6 +52,27 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
+
+  // Data-flow overlay: fetch the categorical timeline for the current zoom
+  // window (fallback: full query duration) and sync it into the data-flow
+  // atoms. The first response doubles as the feature probe — `null` (HTTP
+  // 501, analyzer without data-flow support) or an empty result hides the
+  // playhead, bars, controls, and legend entries.
+  const debouncedZoomRange = useDebouncedZoomRange();
+  const dataFlowWindow = resolveDataFlowWindow(debouncedZoomRange, queryBundle?.duration_s ?? 0);
+  const { data: dataFlowResponse } = useDataFlow(
+    {
+      engineId,
+      queryId,
+      config: {
+        num_bins: MAX_TIMELINE_BINS,
+        start: dataFlowWindow.start,
+        end: dataFlowWindow.end,
+      },
+    },
+    { enabled: !!queryBundle && dataFlowWindow.end > dataFlowWindow.start }
+  );
+  useDataFlowSync({ response: dataFlowResponse, queryBundle });
 
   useDagNodeColoring(dagData.nodes, computeNodeColoring, isDark);
   useDagEdgeWidthConfig(dagData.edges, computeEdgeWidthConfig);
@@ -188,7 +213,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
                 <DAGChart data={dagData} height="100%" isDark={isDark} />
               </Suspense>
             </div>
-            <DAGNodeInfoPanel />
+            <DagPlayhead startTimeUnixNs={queryBundle.start_time_unix_ns} />
+            <DAGNodeInfoPanel isDark={isDark} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

@@ -12,7 +12,7 @@ use petgraph::{
 };
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
-    Cardinality, Entity, Identifier,
+    Cardinality, Entity, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use serde::{Deserialize, Serialize};
@@ -209,7 +209,7 @@ impl Visitor for FsmConstraint {
             Some(s) => s,
             None => {
                 self.errors.push(FsmError::InvalidData {
-                    entity: entity.name().clone(),
+                    entity: entity.path().clone(),
                     message: "constraint data is missing".to_string(),
                 });
                 return;
@@ -219,7 +219,7 @@ impl Visitor for FsmConstraint {
             Ok(f) => f,
             Err(e) => {
                 self.errors.push(FsmError::InvalidData {
-                    entity: entity.name().clone(),
+                    entity: entity.path().clone(),
                     message: format!("failed to decode fsm: {e}"),
                 });
                 return;
@@ -246,7 +246,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     for event in entity.events() {
         if event.name().to_ascii_lowercase() == "exit" {
             errors.push(FsmError::ReservedStateName {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 name: "exit",
             });
         }
@@ -264,7 +264,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     // Requirement 2: every state name corresponds to an entity event name.
     for &state in states.difference(&event_names) {
         errors.push(FsmError::UnknownState {
-            entity: entity.name().clone(),
+            entity: entity.path().clone(),
             state: state.clone(),
         });
     }
@@ -272,7 +272,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     // Requirement 3: every entity event appears as a state.
     for &event in event_names.difference(&states) {
         errors.push(FsmError::UncoveredEvent {
-            entity: entity.name().clone(),
+            entity: entity.path().clone(),
             event: event.clone(),
         });
     }
@@ -286,7 +286,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     for &name in &states {
         if !reachable_from_init.contains(&GraphNode::Named(name)) {
             errors.push(FsmError::UnreachableFromInit {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 state: name.clone(),
             });
         }
@@ -299,7 +299,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     for &name in &states {
         if !reaches_exit.contains(&GraphNode::Named(name)) {
             errors.push(FsmError::CannotReachExit {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 state: name.clone(),
             });
         }
@@ -318,7 +318,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         };
         if *actual != expected_cardinality {
             errors.push(FsmError::CardinalityMismatch {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 state: name.clone(),
                 expected: expected_cardinality,
                 found: *actual,
@@ -361,37 +361,22 @@ enum GraphNode<'a> {
 #[derive(Debug, Error)]
 pub enum FsmError {
     #[error("entity \"{entity}\" fsm: {message}")]
-    InvalidData { entity: Identifier, message: String },
+    InvalidData { entity: Path, message: String },
     #[error("entity \"{entity}\" fsm: \"{name}\" is a reserved state name")]
-    ReservedStateName {
-        entity: Identifier,
-        name: &'static str,
-    },
+    ReservedStateName { entity: Path, name: &'static str },
     #[error("entity \"{entity}\" fsm: state \"{state}\" is unreachable from the initial state")]
-    UnreachableFromInit {
-        entity: Identifier,
-        state: Identifier,
-    },
+    UnreachableFromInit { entity: Path, state: Identifier },
     #[error("entity \"{entity}\" fsm: state \"{state}\" cannot reach any exit transition")]
-    CannotReachExit {
-        entity: Identifier,
-        state: Identifier,
-    },
+    CannotReachExit { entity: Path, state: Identifier },
     #[error("entity \"{entity}\" fsm: state \"{state}\" does not match any event")]
-    UnknownState {
-        entity: Identifier,
-        state: Identifier,
-    },
+    UnknownState { entity: Path, state: Identifier },
     #[error("entity \"{entity}\" fsm: event \"{event}\" does not appear as a state")]
-    UncoveredEvent {
-        entity: Identifier,
-        event: Identifier,
-    },
+    UncoveredEvent { entity: Path, event: Identifier },
     #[error(
         "entity \"{entity}\" fsm: state \"{state}\" expects cardinality {expected:?}, but event has {found:?}"
     )]
     CardinalityMismatch {
-        entity: Identifier,
+        entity: Path,
         state: Identifier,
         expected: Cardinality,
         found: Cardinality,

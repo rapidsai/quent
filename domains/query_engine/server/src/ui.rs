@@ -12,6 +12,7 @@ use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui:
 use quent_query_engine_ui as ui;
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
+    categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
@@ -262,6 +263,38 @@ where
     ))
 }
 
+/// Fetch the per-operator data-flow distribution timeline for a query.
+///
+/// Not cached in v1; the response shape is `combine_chunks`-compatible
+/// (`BinnedSpanSec` config with `Vec<f64>` leaves), so chunked caching à la
+/// `timeline_cache` can be added later without a protocol change.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/timeline/data-flow",
+    tag = "timelines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Per-operator categorical data-flow timeline; 501 when the analyzer does not support it", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn data_flow_timeline<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<CategoricalTimelineRequest<ui::QueryFilter>>,
+) -> ServerResult<Json<ui::DataFlowTimelineBinned>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    Ok(Json(
+        tokio::task::spawn_blocking(move || analyzer.data_flow_timeline(request)).await??,
+    ))
+}
+
 /// List the entities of a resource or resource group, ranked and paged.
 #[cfg_attr(feature = "swagger", utoipa::path(
     post,
@@ -299,6 +332,7 @@ where
         query,
         single_timeline,
         bulk_timelines,
+        data_flow_timeline,
         entities,
     ),
     tags(
@@ -325,6 +359,7 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route("/{engine_id}/timeline/data-flow", post(data_flow_timeline))
         .route("/{engine_id}/entities", post(entities))
         .with_state(state)
 }

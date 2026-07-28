@@ -3,6 +3,7 @@
 
 //! Plain schema data types
 
+use crate::Path;
 use crate::schema::{
     annotations::Annotations, entity::Entity, identifier::Identifier, record::Record,
 };
@@ -15,6 +16,7 @@ pub mod event;
 pub mod field;
 pub mod identifier;
 pub mod metadata;
+pub mod path;
 pub mod record;
 
 /// Container type for named elements.
@@ -27,12 +29,13 @@ pub struct Schema {
     /// The name of the model.
     name: Identifier,
     /// The [`Entity`]s of the model.
-    // The FxBuildHasher has no ts_rs::TS impl, hence these attributes:
-    #[cfg_attr(feature = "ts", ts(as = "indexmap::IndexMap<Identifier, Entity>"))]
-    entities: Map<Identifier, Entity>,
+    #[cfg_attr(feature = "serde", serde(with = "indexmap::map::serde_seq"))]
+    #[cfg_attr(feature = "ts", ts(as = "Vec<(Path, Entity)>"))]
+    entities: Map<Path, Entity>,
     /// The [`Record`]s of the model.
-    #[cfg_attr(feature = "ts", ts(as = "indexmap::IndexMap<Identifier, Record>"))]
-    records: Map<Identifier, Record>,
+    #[cfg_attr(feature = "serde", serde(with = "indexmap::map::serde_seq"))]
+    #[cfg_attr(feature = "ts", ts(as = "Vec<(Path, Record)>"))]
+    records: Map<Path, Record>,
     /// Annotations of this schema.
     annotations: Annotations,
 }
@@ -40,8 +43,8 @@ pub struct Schema {
 impl Schema {
     pub(crate) fn from_parts(
         name: Identifier,
-        entities: Map<Identifier, Entity>,
-        records: Map<Identifier, Record>,
+        entities: Map<Path, Entity>,
+        records: Map<Path, Record>,
         annotations: Annotations,
     ) -> Self {
         Self {
@@ -62,9 +65,9 @@ impl Schema {
         &self.annotations
     }
 
-    /// The entity declared under `name`, if any.
-    pub fn entity(&self, name: &Identifier) -> Option<&Entity> {
-        self.entities.get(name)
+    /// Returns the entity declared at `path`, if any.
+    pub fn entity(&self, path: &Path) -> Option<&Entity> {
+        self.entities.get(path)
     }
 
     /// The declared entities, in declaration order.
@@ -72,9 +75,9 @@ impl Schema {
         self.entities.values()
     }
 
-    /// The record declared under `name`, if any.
-    pub fn record(&self, name: &Identifier) -> Option<&Record> {
-        self.records.get(name)
+    /// Returns the record declared at `path`, if any.
+    pub fn record(&self, path: &Path) -> Option<&Record> {
+        self.records.get(path)
     }
 
     /// The declared records, in declaration order.

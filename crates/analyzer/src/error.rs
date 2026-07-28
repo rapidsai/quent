@@ -28,4 +28,6 @@ pub enum AnalyzerError {
     FsmExitTransitionConversion,
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("this analyzer does not support the requested capability")]
+    Unsupported,
 }

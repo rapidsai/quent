@@ -296,7 +296,7 @@ fn warn_wide_surface_once() {
     static WARNED: AtomicBool = AtomicBool::new(false);
     if !WARNED.swap(true, Ordering::Relaxed) {
         eprintln!(
-            "quent-nvtx: a wide-char (Unicode) NVTX call was seen but not captured; only the \
+            "nvtx-injection: a wide-char (Unicode) NVTX call was seen but not captured; only the \
              ASCII surface is decoded. This warning fires once."
         );
     }

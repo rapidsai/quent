@@ -4,7 +4,7 @@
 //! FSM tests: an `fsms:` block declares an entity whose events are its states,
 //! deriving their cardinality from the topology and validating it.
 
-use quent_schema::test_utils::ident;
+use quent_schema::test_utils::{ident, path};
 use quent_schema::{Cardinality, Schema};
 use quent_yaml::{Error, parse_from_str};
 
@@ -43,7 +43,7 @@ fsms:
 #[test]
 fn fsm_builds_events_and_derives_cardinality() {
     let schema = schema_of(QUERY);
-    let query = schema.entity(&ident("Query")).unwrap();
+    let query = schema.entity(&path("Query")).unwrap();
     assert!(query.annotations().has_constraint(FSM));
     assert_eq!(query.events().count(), 3);
     // `progress` self-loops, so it is Multi; the others are Once.
@@ -62,7 +62,7 @@ model: m
 entities:
   E:
     events:
-      a: once
+      a: {}
 fsms:
   E:
     states:
