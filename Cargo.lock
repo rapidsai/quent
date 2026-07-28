@@ -2084,7 +2084,9 @@ version = "0.1.0"
 dependencies = [
  "nvtx-bridge",
  "nvtx-events",
+ "nvtx-example",
  "quent-events",
+ "quent-instrumentation",
  "quent-time",
  "thiserror",
  "tracing",
