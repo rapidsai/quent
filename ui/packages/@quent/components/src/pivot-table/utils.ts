@@ -4,6 +4,7 @@
 import { inferFieldFormatter, isNumericValue } from '@quent/utils';
 import type { StatValue, ContinuousPaletteName } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
+import type { SortingFn } from '@tanstack/react-table';
 
 // Re-exported for consumers that still import it from here; defined in `@quent/utils`
 export { isNumericValue };
