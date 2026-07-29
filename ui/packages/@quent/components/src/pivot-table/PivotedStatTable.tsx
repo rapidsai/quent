@@ -43,7 +43,7 @@ const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) => {
   if (a == null) return 1;
   if (b == null) return -1;
   if (typeof a === typeof b) return a < b ? -1 : 1;
-  return Number(a) < Number(b) ? -1 : 1;
+  return (a as number) < (b as number) ? -1 : 1;
 };
 
 function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProps) {
