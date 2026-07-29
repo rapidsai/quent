@@ -43,7 +43,9 @@ pub(crate) fn next_handle() -> u64 {
 /// resolve against a named thread. Read on the app thread from inside a callback.
 ///
 /// The value is computed once per thread and cached in a thread-local so the
-/// syscall (or hash) is not repeated on every push/pop.
+/// syscall is not repeated on every push/pop. Works on all Linux architectures
+/// (x86-64, aarch64, …) — this crate is Linux-64-only per the `compile_error!`
+/// in `lib.rs`.
 pub(crate) fn current_thread_id() -> u32 {
     thread_local! {
         static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
@@ -51,29 +53,14 @@ pub(crate) fn current_thread_id() -> u32 {
     CACHED_TID.with(|cell| *cell.get_or_init(compute_thread_id))
 }
 
-/// Compute the raw OS thread id once; result is cached by [`current_thread_id`].
-#[cfg(target_os = "linux")]
 fn compute_thread_id() -> u32 {
     // Use the raw `SYS_gettid` syscall rather than the glibc `gettid()` wrapper:
     // the wrapper symbol is only exported by glibc >= 2.30, whereas the syscall
     // works against every Linux libc (including the older conda sysroot in CI).
+    // Available on all Linux architectures including aarch64.
     // SAFETY: `gettid` takes no arguments and cannot fail; it returns the calling
     // thread's kernel task id (the Linux `gettid` id space).
     unsafe { libc::syscall(libc::SYS_gettid) as u32 }
-}
-
-/// Non-Linux fallback. Capture is Linux-primary (NVTX injection targets Linux),
-/// so the kernel `gettid` id space is only defined there. Elsewhere we derive a
-/// stable, nonzero per-thread id from the std [`ThreadId`](std::thread::ThreadId)
-/// so multi-threaded reconstruction still distinguishes threads — it is not the
-/// kernel tid and is not comparable with `NameThread` on those targets.
-#[cfg(not(target_os = "linux"))]
-fn compute_thread_id() -> u32 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::thread::current().id().hash(&mut hasher);
-    // Force nonzero so downstream `thread_id != 0` invariants still hold.
-    (hasher.finish() as u32).max(1)
 }
 
 thread_local! {
