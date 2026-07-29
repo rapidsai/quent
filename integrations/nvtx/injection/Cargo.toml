@@ -13,7 +13,7 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-libc = { workspace = true }
+libc = "0.2"
 nvtx-events = { path = "../events" }
 thiserror = { workspace = true }
 

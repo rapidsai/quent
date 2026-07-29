@@ -41,8 +41,19 @@ pub(crate) fn next_handle() -> u64 {
 /// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
 /// (captured as [`NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
 /// resolve against a named thread. Read on the app thread from inside a callback.
-#[cfg(target_os = "linux")]
+///
+/// The value is computed once per thread and cached in a thread-local so the
+/// syscall (or hash) is not repeated on every push/pop.
 pub(crate) fn current_thread_id() -> u32 {
+    thread_local! {
+        static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
+    }
+    CACHED_TID.with(|cell| *cell.get_or_init(compute_thread_id))
+}
+
+/// Compute the raw OS thread id once; result is cached by [`current_thread_id`].
+#[cfg(target_os = "linux")]
+fn compute_thread_id() -> u32 {
     // Use the raw `SYS_gettid` syscall rather than the glibc `gettid()` wrapper:
     // the wrapper symbol is only exported by glibc >= 2.30, whereas the syscall
     // works against every Linux libc (including the older conda sysroot in CI).
@@ -57,7 +68,7 @@ pub(crate) fn current_thread_id() -> u32 {
 /// so multi-threaded reconstruction still distinguishes threads — it is not the
 /// kernel tid and is not comparable with `NameThread` on those targets.
 #[cfg(not(target_os = "linux"))]
-pub(crate) fn current_thread_id() -> u32 {
+fn compute_thread_id() -> u32 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     std::thread::current().id().hash(&mut hasher);
