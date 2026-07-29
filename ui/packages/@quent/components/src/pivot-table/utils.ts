@@ -41,7 +41,7 @@ export const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) =>
   if (b == null) return -1;
   if (typeof a === typeof b) return a < b ? -1 : 1;
   return (a as number) < (b as number) ? -1 : 1;
-}
+};
 
 /**
  * Returns true when any id in `items` is present in `target`. Equivalent to
