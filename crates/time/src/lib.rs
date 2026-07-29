@@ -123,6 +123,11 @@ pub trait Timestamp {
 /// Optimized for when the common case is that items arrive in timestamp order,
 /// in which case [`Self::push`] is O(1). Out-of-order items are inserted via
 /// binary search (O(log n) search + O(n) insertion).
+///
+/// The ordering is **stable**: items sharing a timestamp keep their arrival
+/// order regardless of which insertion path they took. This matters when equal
+/// timestamps mean the clock lost the ordering, leaving arrival order as the
+/// only remaining signal for which item came first.
 pub struct TimeOrderedCollector<T>(Vec<T>);
 
 impl<T> Default for TimeOrderedCollector<T> {
@@ -141,9 +146,13 @@ where
         {
             self.0.push(state);
         } else {
+            // `<=`, not `<`: this must be the *upper* bound so a late arrival
+            // lands after items it ties with, matching the fast path above.
+            // A `<` here is the lower bound, which would insert it *before*
+            // them and silently reverse the arrival order of equal timestamps.
             let pos = self
                 .0
-                .partition_point(|s| s.timestamp() < state.timestamp());
+                .partition_point(|s| s.timestamp() <= state.timestamp());
             self.0.insert(pos, state);
         }
     }
@@ -161,6 +170,92 @@ where
         for transition in iter {
             self.push(transition)
         }
+    }
+}
+
+#[cfg(test)]
+mod collector_tests {
+    use super::*;
+
+    /// Carries its timestamp plus a tag, so equal-timestamp ordering is visible.
+    #[derive(Debug, PartialEq, Eq)]
+    struct Tagged(TimeUnixNanoSec, &'static str);
+
+    impl Timestamp for Tagged {
+        fn timestamp(&self) -> TimeUnixNanoSec {
+            self.0
+        }
+    }
+
+    fn collect(items: impl IntoIterator<Item = Tagged>) -> Vec<(TimeUnixNanoSec, &'static str)> {
+        let mut collector = TimeOrderedCollector::default();
+        collector.extend(items);
+        collector
+            .into_inner()
+            .into_iter()
+            .map(|Tagged(ts, tag)| (ts, tag))
+            .collect()
+    }
+
+    #[test]
+    fn in_order_arrivals_are_sorted() {
+        assert_eq!(
+            collect([Tagged(10, "a"), Tagged(20, "b"), Tagged(30, "c")]),
+            [(10, "a"), (20, "b"), (30, "c")]
+        );
+    }
+
+    #[test]
+    fn late_arrivals_are_sorted_into_place() {
+        assert_eq!(
+            collect([Tagged(30, "c"), Tagged(10, "a"), Tagged(20, "b")]),
+            [(10, "a"), (20, "b"), (30, "c")]
+        );
+    }
+
+    /// A tie reached via the fast path (monotonically non-decreasing arrivals)
+    /// keeps arrival order.
+    #[test]
+    fn equal_timestamps_keep_arrival_order_on_the_fast_path() {
+        assert_eq!(
+            collect([Tagged(10, "first"), Tagged(10, "second")]),
+            [(10, "first"), (10, "second")]
+        );
+    }
+
+    /// The same tie reached via the *slow* path must also keep arrival order.
+    ///
+    /// Regression: the binary search used a `<` predicate (lower bound), which
+    /// inserted a late arrival *before* every item it tied with — reversing the
+    /// two. Only the slow path was affected, so a stream that never went
+    /// backwards in time hid the bug entirely.
+    #[test]
+    fn equal_timestamps_keep_arrival_order_on_the_slow_path() {
+        // "later" forces the next push off the fast path; "second" then ties
+        // with "first", which is no longer the last element.
+        assert_eq!(
+            collect([
+                Tagged(10, "first"),
+                Tagged(20, "later"),
+                Tagged(10, "second"),
+            ]),
+            [(10, "first"), (10, "second"), (20, "later")]
+        );
+    }
+
+    /// Stability holds across a run of equals inserted out of order.
+    #[test]
+    fn equal_timestamps_keep_arrival_order_across_a_run() {
+        assert_eq!(
+            collect([
+                Tagged(10, "a"),
+                Tagged(10, "b"),
+                Tagged(20, "later"),
+                Tagged(10, "c"),
+                Tagged(10, "d"),
+            ]),
+            [(10, "a"), (10, "b"), (10, "c"), (10, "d"), (20, "later")]
+        );
     }
 }
 
