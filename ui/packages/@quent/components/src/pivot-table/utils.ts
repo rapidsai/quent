@@ -32,6 +32,16 @@ export function formatNumericStat(n: number | bigint | null, statName: string): 
   return inferFieldFormatter(statName)(n);
 }
 
+export function numericSortingFn(rowA, rowB, columnId): SortingFn<PivotedRow> {
+  const a = rowA.getValue<number | bigint | undefined>(columnId);
+  const b = rowB.getValue<number | bigint | undefined>(columnId);
+  if (a === b) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (typeof a === typeof b) return a < b ? -1 : 1;
+  return (a as number) < (b as number) ? -1 : 1;
+};
+
 /**
  * Returns true when any id in `items` is present in `target`. Equivalent to
  * `[...items].some(id => target.has(id))` but without allocating an

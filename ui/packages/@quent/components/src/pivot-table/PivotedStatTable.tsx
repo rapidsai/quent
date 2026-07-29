@@ -22,6 +22,7 @@ import {
   getSortValue,
   gradientBg,
   itemHasId,
+  numericSortingFn,
 } from './utils';
 import type {
   GroupedDataTableGroupRenderMode,
@@ -35,16 +36,6 @@ import {
 } from './PivotTableRenderContext';
 
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
-
-const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) => {
-  const a = rowA.getValue<number | bigint | undefined>(columnId);
-  const b = rowB.getValue<number | bigint | undefined>(columnId);
-  if (a === b) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-  if (typeof a === typeof b) return a < b ? -1 : 1;
-  return (a as number) < (b as number) ? -1 : 1;
-};
 
 function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProps) {
   const { dnd, interaction, derived } = usePivotTableRenderContext();
