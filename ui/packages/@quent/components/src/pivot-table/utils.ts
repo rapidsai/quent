@@ -33,7 +33,7 @@ export function formatNumericStat(n: number | bigint | null, statName: string): 
   return inferFieldFormatter(statName)(n);
 }
 
-export function numericSortingFn(rowA, rowB, columnId): SortingFn<PivotedRow> {
+export const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) => {
   const a = rowA.getValue<number | bigint | undefined>(columnId);
   const b = rowB.getValue<number | bigint | undefined>(columnId);
   if (a === b) return 0;
