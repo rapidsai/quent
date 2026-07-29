@@ -285,7 +285,7 @@ export function buildPivotedRows(
 
         if (hasNum) {
           if (onlyBigints) {
-            // Use bigint arithmetic for sum/min/max — lossless, no Number() conversion
+            // Use bigint arithmetic for sum/min/max
             sum = bucket.bigints.reduce((a, b) => a + b, 0n);
             min = bucket.bigints.reduce((a, b) => (a < b ? a : b));
             max = bucket.bigints.reduce((a, b) => (a > b ? a : b));
