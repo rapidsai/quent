@@ -124,10 +124,7 @@ pub trait Timestamp {
 /// in which case [`Self::push`] is O(1). Out-of-order items are inserted via
 /// binary search (O(log n) search + O(n) insertion).
 ///
-/// The ordering is **stable**: items sharing a timestamp keep their arrival
-/// order regardless of which insertion path they took. This matters when equal
-/// timestamps mean the clock lost the ordering, leaving arrival order as the
-/// only remaining signal for which item came first.
+/// Stable: items with equal timestamps keep their arrival order.
 pub struct TimeOrderedCollector<T>(Vec<T>);
 
 impl<T> Default for TimeOrderedCollector<T> {
@@ -146,10 +143,8 @@ where
         {
             self.0.push(state);
         } else {
-            // `<=`, not `<`: this must be the *upper* bound so a late arrival
-            // lands after items it ties with, matching the fast path above.
-            // A `<` here is the lower bound, which would insert it *before*
-            // them and silently reverse the arrival order of equal timestamps.
+            // `<=` (upper bound): late arrivals land after ties, matching the fast path.
+            // `<` (lower bound) would insert before ties, reversing arrival order.
             let pos = self
                 .0
                 .partition_point(|s| s.timestamp() <= state.timestamp());
@@ -213,8 +208,6 @@ mod collector_tests {
         );
     }
 
-    /// A tie reached via the fast path (monotonically non-decreasing arrivals)
-    /// keeps arrival order.
     #[test]
     fn equal_timestamps_keep_arrival_order_on_the_fast_path() {
         assert_eq!(
@@ -223,16 +216,10 @@ mod collector_tests {
         );
     }
 
-    /// The same tie reached via the *slow* path must also keep arrival order.
-    ///
-    /// Regression: the binary search used a `<` predicate (lower bound), which
-    /// inserted a late arrival *before* every item it tied with — reversing the
-    /// two. Only the slow path was affected, so a stream that never went
-    /// backwards in time hid the bug entirely.
+    /// Regression: `<` predicate (lower bound) reversed arrival order on the slow path.
     #[test]
     fn equal_timestamps_keep_arrival_order_on_the_slow_path() {
-        // "later" forces the next push off the fast path; "second" then ties
-        // with "first", which is no longer the last element.
+        // t=20 "later" triggers the slow path for the subsequent t=10 "second".
         assert_eq!(
             collect([
                 Tagged(10, "first"),
@@ -243,7 +230,6 @@ mod collector_tests {
         );
     }
 
-    /// Stability holds across a run of equals inserted out of order.
     #[test]
     fn equal_timestamps_keep_arrival_order_across_a_run() {
         assert_eq!(
