@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import type { ColumnDef, OnChangeFn, SortingFn, SortingState } from '@tanstack/react-table';
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
 import { cn } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
