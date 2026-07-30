@@ -180,7 +180,13 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <ResizablePanelGroup orientation="vertical" className="flex-1">
-        <ResizablePanel panelRef={topPanelRef} defaultSize="15%" maxSize={MAX_TOP_PANEL_HEIGHT_PX} className="flex flex-col">
+        <ResizablePanel
+          panelRef={topPanelRef}
+          defaultSize="15%"
+          minSize={80}
+          maxSize={MAX_TOP_PANEL_HEIGHT_PX}
+          className="flex flex-col"
+        >
           <Tabs defaultValue={TABS.PLAN}>
             <TabsList ref={tabsListRef}>
               <TabsTrigger value={TABS.PLAN}>Query Plan</TabsTrigger>
