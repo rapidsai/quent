@@ -23,3 +23,11 @@ pre-commit = ">=4"
 [target.linux-64.dependencies]
 nvtx-c = ">=3.5.0"
 libclang = ">=18"
+
+[target.linux-aarch64.dependencies]
+nvtx-c = ">=3.5.0"
+libclang = ">=18"
+# `libclang` ships no compiler resource headers (`lib/clang/<ver>/include`), and
+# on aarch64 clang does not fall back to the conda GCC ones, so bindgen fails to
+# find `stddef.h`. `clang` pulls `clang-<major>`, which provides them.
+clang = ">=18"

@@ -38,8 +38,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///
 /// Headers resolve from the active pixi environment (`$CONDA_PREFIX/include`,
 /// populated by the `nvtx-c` package); `libclang` is located under
-/// `$CONDA_PREFIX/lib`. Both are pinned in `pixi.toml` for `linux-64`, the only
-/// target this crate supports.
+/// `$CONDA_PREFIX/lib`. Both are pinned in `pixi.toml` for `linux-64` and
+/// `linux-aarch64`, the targets this crate supports.
 fn generate_bindings() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rerun-if-changed=wrapper.h");
     println!("cargo::rerun-if-env-changed=CONDA_PREFIX");
