@@ -133,6 +133,9 @@ indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
+# `prettyplease` and `syn` are a matched pair: prettyplease exposes `syn::File`
+# in its public API, so both must move to a new `syn` major version together.
+prettyplease = "0.3.0"
 prost = "0.14.1"
 pyo3 = "0.29"
 quent-resource = { path = "crates/resource" }
@@ -141,6 +144,7 @@ rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 smallvec = {version = "1.15.1", features = ["serde"] }
+syn = { version = "3.0.3", features = ["full", "parsing"] }
 thiserror = "2.0.17"
 tokio = "1.48.0"
 tokio-stream = "0.1.17"
