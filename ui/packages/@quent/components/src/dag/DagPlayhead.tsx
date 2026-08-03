@@ -10,7 +10,7 @@ import {
   usePlayheadTimeS,
   useSetPlayheadTimeS,
 } from '@quent/hooks';
-import { broadcastSyncedPointer, hideSyncedPointer } from '../lib/timeline.utils';
+import { broadcastPlayheadLine, hidePlayheadLine } from '../lib/timeline.utils';
 
 /** Interval between play ticks; each tick advances the playhead by one bin. */
 const PLAY_INTERVAL_MS = 100;
@@ -65,7 +65,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       const t = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
       const timeS = bin.startS + t * (bin.endS - bin.startS);
       setPlayheadTimeS(timeS);
-      broadcastSyncedPointer(timeS * 1000);
+      broadcastPlayheadLine(timeS * 1000);
     },
     [bin, setPlayheadTimeS]
   );
@@ -96,7 +96,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    hideSyncedPointer();
+    hidePlayheadLine();
   }, []);
 
   const stepBy = useCallback(
@@ -154,7 +154,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   useEffect(() => {
     if (enabled && bin) return;
     setIsPlaying(false);
-    hideSyncedPointer();
+    hidePlayheadLine();
   }, [enabled, bin]);
 
   // Advance one bin per tick while playing; stop at the window end.
@@ -165,7 +165,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       const current = playheadRef.current ?? startS;
       const next = Math.min(current + binDurationS, endS);
       setPlayheadTimeS(next);
-      broadcastSyncedPointer(next * 1000);
+      broadcastPlayheadLine(next * 1000);
       if (next >= endS) setIsPlaying(false);
     }, PLAY_INTERVAL_MS);
     return () => window.clearInterval(id);
@@ -173,14 +173,14 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   // Clear the synced crosshair when playback stops.
   useEffect(() => {
-    if (!isPlaying) hideSyncedPointer();
+    if (!isPlaying) hidePlayheadLine();
   }, [isPlaying]);
 
   // Cleanup on unmount: pending rAF and any lingering crosshair.
   useEffect(() => {
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      hideSyncedPointer();
+      hidePlayheadLine();
     };
   }, []);
 
