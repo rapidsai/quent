@@ -12,7 +12,7 @@ quent-constraints = { path = "../constraints" }
 quent-ref-target = { path = "../ref-target" }
 quent-schema = { path = "../schema" }
 quote = "1"
-syn = { version = "2", features = ["full", "parsing"] }
+syn = { version = "3", features = ["full", "parsing"] }
 thiserror.workspace = true
 
 [dev-dependencies]

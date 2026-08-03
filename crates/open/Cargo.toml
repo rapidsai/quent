@@ -34,7 +34,7 @@ quote = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "json"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json.workspace = true
-syn = { version = "2", features = ["full", "parsing"] }
+syn = { version = "3", features = ["full", "parsing"] }
 tar = { version = "0.4", optional = true }
 tempfile = { version = "3", optional = true }
 thiserror.workspace = true

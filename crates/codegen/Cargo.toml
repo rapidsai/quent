@@ -10,11 +10,11 @@ prettyplease = "0.2"
 proc-macro2 = "1"
 quent-model = { path = "../model" }
 quote = "1"
-syn = { version = "2", features = ["full", "parsing"] }
+syn = { version = "3", features = ["full", "parsing"] }
 
 [dev-dependencies]
 quent-query-engine-model = { path = "../../domains/query_engine/model" }
 quent-readme-example = { path = "../../examples/readme" }
 quent-simulator-instrumentation = { path = "../../examples/simulator/instrumentation" }
 serde = { workspace = true, features = ["derive"] }
-syn = { version = "2", features = ["full", "parsing"] }
+syn = { version = "3", features = ["full", "parsing"] }
