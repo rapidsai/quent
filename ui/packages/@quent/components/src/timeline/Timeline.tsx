@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import EChartsReactCore from 'echarts-for-react/lib/core';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
@@ -278,6 +278,7 @@ export function Timeline({
   }, [gridOptions, minZoomSpanPct, xAxisOptions, yAxisOptions, seriesOptions]);
 
   const isDraggingRef = useRef(false);
+  const [readyTick, setReadyTick] = useState(0);
 
   // `onChartReady` runs exactly once per chart instance, so its closures
   // capture the initial values of `showTooltip` / `onHoverChange`. Refs let
@@ -354,6 +355,7 @@ export function Timeline({
     });
 
     attachWheelNavigation(instance);
+    setReadyTick(t => t + 1);
   };
 
   // If this Timeline is unmounted while the pointer is over it (e.g. a tree
@@ -375,7 +377,7 @@ export function Timeline({
     onReady: onChartReady,
   });
 
-  const playheadPixelX = usePlayheadLinePixel(instanceRef);
+  const playheadPixelX = usePlayheadLinePixel(instanceRef, 0, readyTick);
 
   return (
     <div className="relative w-full h-full">

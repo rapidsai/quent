@@ -369,7 +369,7 @@ export function TimelineController({
     };
   }, [instanceRef]);
 
-  const playheadPixelX = usePlayheadLinePixel(instanceRef);
+  const playheadPixelX = usePlayheadLinePixel(instanceRef, 0, readyTick);
 
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
   const containerDims = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
