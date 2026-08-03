@@ -23,6 +23,7 @@ import { useVisibleMaxValue } from './useVisibleMaxValue';
 import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
+import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import { Opts } from 'echarts-for-react/lib/types';
 
 export const CHART_GROUP = 'timeline-sync-group';
@@ -368,11 +369,13 @@ export function Timeline({
   const style = useMemo(() => ({ width: '100%', height: '100%' }), []);
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
 
-  const { handleChartReady } = useChartConnect({
+  const { handleChartReady, instanceRef } = useChartConnect({
     durationSeconds,
     chartGroup: CHART_GROUP,
     onReady: onChartReady,
   });
+
+  const playheadPixelX = usePlayheadLinePixel(instanceRef);
 
   return (
     <div className="relative w-full h-full">
@@ -414,6 +417,12 @@ export function Timeline({
         replaceMerge={['series']}
         autoResize={false}
       />
+      {playheadPixelX != null && (
+        <div
+          className="absolute top-0 bottom-0 w-px pointer-events-none z-[10] bg-primary/70"
+          style={{ left: playheadPixelX }}
+        />
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '../lib/timeline.utils';
+import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
@@ -368,11 +369,13 @@ export function TimelineController({
     };
   }, [instanceRef]);
 
+  const playheadPixelX = usePlayheadLinePixel(instanceRef);
+
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
   const containerDims = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
 
   return (
-    <div ref={containerRef} style={containerDims}>
+    <div ref={containerRef} style={containerDims} className="relative">
       <EChartsReactCore
         echarts={echarts}
         theme={themeName}
@@ -385,6 +388,12 @@ export function TimelineController({
         opts={opts}
         autoResize={false}
       />
+      {playheadPixelX != null && (
+        <div
+          className="absolute top-0 bottom-0 w-px pointer-events-none z-[10] bg-primary/70"
+          style={{ left: playheadPixelX }}
+        />
+      )}
     </div>
   );
 }
