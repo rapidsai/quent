@@ -315,7 +315,7 @@ dependencies = [
  "clang-sys",
  "itertools",
  "log",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "regex",
@@ -2396,6 +2396,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
+dependencies = [
+ "proc-macro2",
+ "syn 3.0.3",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2425,7 +2435,7 @@ dependencies = [
  "log",
  "multimap",
  "petgraph",
- "prettyplease",
+ "prettyplease 0.2.37",
  "prost",
  "prost-types",
  "pulldown-cmark",
@@ -2583,7 +2593,7 @@ name = "quent-codegen"
 version = "0.1.0"
 dependencies = [
  "convert_case",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro2",
  "quent-model",
  "quent-query-engine-model",
@@ -2591,7 +2601,7 @@ dependencies = [
  "quent-simulator-instrumentation",
  "quote",
  "serde",
- "syn 2.0.118",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -2703,13 +2713,13 @@ name = "quent-instrumentation-build"
 version = "0.1.0"
 dependencies = [
  "convert_case",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro2",
  "quent-constraints",
  "quent-ref-target",
  "quent-schema",
  "quote",
- "syn 2.0.118",
+ "syn 3.0.3",
  "thiserror",
 ]
 
@@ -2837,7 +2847,7 @@ dependencies = [
  "convert_case",
  "proc-macro2",
  "quote",
- "syn 2.0.118",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -2852,13 +2862,13 @@ dependencies = [
  "flate2",
  "gix-url",
  "open",
- "prettyplease",
+ "prettyplease 0.3.0",
  "quent-build-info",
  "quote",
  "reqwest",
  "serde",
  "serde_json",
- "syn 2.0.118",
+ "syn 3.0.3",
  "tar",
  "tempfile",
  "thiserror",
@@ -4396,7 +4406,7 @@ version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c68f61875ac5293cf72e6c8cf0158086428c82c37229e98c840878f1706b0322"
 dependencies = [
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "syn 2.0.118",
@@ -4419,7 +4429,7 @@ version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "654e5643eff75d7f8c99197ce1440ed19a3474eada74c12bbac488b2cafdae27"
 dependencies = [
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "prost-build",
  "prost-types",
@@ -5136,7 +5146,7 @@ dependencies = [
  "anyhow",
  "heck",
  "indexmap",
- "prettyplease",
+ "prettyplease 0.2.37",
  "syn 2.0.118",
  "wasm-metadata",
  "wit-bindgen-core",
@@ -5150,7 +5160,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c0f9bfd77e6a48eccf51359e3ae77140a7f50b1e2ebfe62422d8afdaffab17a"
 dependencies = [
  "anyhow",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "syn 2.0.118",
