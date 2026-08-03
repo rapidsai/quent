@@ -110,6 +110,7 @@ export {
   unregisterAxisPointerSync,
   broadcastSyncedPointer,
   hideSyncedPointer,
+  subscribePlayheadLine,
   buildBinnedTimelineSeries,
   buildBulkParamsForItem,
   buildTimelineMarks,

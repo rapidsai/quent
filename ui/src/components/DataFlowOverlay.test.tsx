@@ -18,8 +18,7 @@ import {
   DAGLegend,
   DAGNodeInfoPanel,
   NodeFlowBar,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
+  subscribePlayheadLine,
 } from '@quent/components';
 import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
 
@@ -265,43 +264,35 @@ describe('playback while the overlay is disabled', () => {
 
   it('stops the play interval and hides the synced pointer when disabled', () => {
     vi.useFakeTimers();
-    // Fake timeline chart: receives the showTip/hideTip actions that
-    // broadcastSyncedPointer/hideSyncedPointer dispatch to registered charts.
-    const dispatchAction = vi.fn();
-    const fakeChart = {
-      convertToPixel: () => 42,
-      getHeight: () => 100,
-      dispatchAction,
-      getZr: () => ({ on: vi.fn(), off: vi.fn() }),
-    } as unknown as Parameters<typeof registerAxisPointerSync>[0];
-    registerAxisPointerSync(fakeChart);
+    const broadcasts: (number | null)[] = [];
+    const unsub = subscribePlayheadLine(ts => broadcasts.push(ts));
     try {
       const { rerender } = renderOverlay(RESPONSE);
       fireEvent.click(screen.getByRole('button', { name: 'Play data flow' }));
       act(() => {
         vi.advanceTimersByTime(100);
       });
-      // One tick advanced one bin (2s) and broadcast the synced crosshair.
+      // One tick advanced one bin (2s) and broadcast the playhead position.
       expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
-      expect(dispatchAction).toHaveBeenCalledWith(expect.objectContaining({ type: 'showTip' }));
-      dispatchAction.mockClear();
+      expect(broadcasts.some(ts => ts !== null && ts > 0)).toBe(true);
+      broadcasts.length = 0;
 
       // Disable the overlay mid-playback: the component renders null but
-      // stays mounted, so the interval must stop and the crosshair hide.
+      // stays mounted, so the interval must stop and the playhead hide.
       rerender(
         <Provider>
           <Harness response={RESPONSE} enabled={false} />
         </Provider>
       );
       expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
-      expect(dispatchAction).toHaveBeenCalledWith({ type: 'hideTip' });
-      dispatchAction.mockClear();
+      expect(broadcasts).toContain(null);
+      broadcasts.length = 0;
 
       // No further ticks: nothing is broadcast while disabled...
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(dispatchAction).not.toHaveBeenCalled();
+      expect(broadcasts).toHaveLength(0);
 
       // ...and re-enabling shows a paused playhead that did not advance.
       rerender(
@@ -312,7 +303,7 @@ describe('playback while the overlay is disabled', () => {
       expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
       expect(screen.getByRole('button', { name: 'Play data flow' })).toBeInTheDocument();
     } finally {
-      unregisterAxisPointerSync(fakeChart);
+      unsub();
     }
   });
 });
