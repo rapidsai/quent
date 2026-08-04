@@ -339,6 +339,7 @@ dependencies = [
  "petgraph",
  "quent-schema",
  "rustc-hash",
+ "thiserror",
 ]
 
 [[package]]
@@ -441,6 +442,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-os"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-ref-tree",
+ "quent-schema",
+ "rustc-hash",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-ref-target"
 version = "0.1.0"
 dependencies = [
@@ -500,6 +513,7 @@ dependencies = [
  "indexmap",
  "quent-constraints",
  "quent-fsm",
+ "quent-os",
  "quent-ref-target",
  "quent-ref-tree",
  "quent-resource",

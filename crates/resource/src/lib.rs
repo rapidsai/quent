@@ -6,7 +6,7 @@
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_fsm::{Fsm, FsmConstraint};
 use quent_schema::{
-    Annotations, DataType, Entity, Identifier, Path,
+    Annotations, DataType, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use rustc_hash::{FxHashMap as Map, FxHashSet};
@@ -17,7 +17,7 @@ mod builder;
 
 pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 
-/// A resource is an [`Entity`] with [`Capacity`] values that other entities may
+/// A resource is an [`quent_schema::Entity`] with [`Capacity`] values that other entities may
 /// claim through a usage over a span of time.
 ///
 /// Every usage must end. This constraint can currently enforce that only for
@@ -265,13 +265,13 @@ impl Visitor for ResourceConstraint {
                             .iter()
                             .any(|element| matches!(element, Element::DataType(DataType::List(_))))
                     }),
-                    entity: enclosing_entity(cursor).map(|entity| {
+                    entity: cursor.enclosing_entity().map(|entity| {
                         (
                             entity.path().clone(),
                             entity.annotations().has_constraint(FsmConstraint::NAME),
                         )
                     }),
-                    event: enclosing_event(cursor).map(|event| event.name().clone()),
+                    event: cursor.enclosing_event().map(|event| event.name().clone()),
                     location: cursor.to_string(),
                 });
             }
@@ -498,30 +498,6 @@ fn parse_resource_annotation(annotations: &Annotations) -> Option<Result<Resourc
 fn parse_fsm_annotation(annotations: &Annotations) -> Option<Fsm> {
     let raw = annotations.constraint(FsmConstraint::NAME)?.data()?;
     serde_json::from_str(raw).ok()
-}
-
-/// Return the nearest entity enclosing `cursor`.
-fn enclosing_entity<'s>(cursor: &Cursor<'s>) -> Option<&'s Entity> {
-    cursor
-        .elements()
-        .iter()
-        .rev()
-        .find_map(|element| match *element {
-            Element::Entity(entity) => Some(entity),
-            _ => None,
-        })
-}
-
-/// Return the nearest event enclosing `cursor`.
-fn enclosing_event<'s>(cursor: &Cursor<'s>) -> Option<&'s quent_schema::Event> {
-    cursor
-        .elements()
-        .iter()
-        .rev()
-        .find_map(|element| match *element {
-            Element::Event(event) => Some(event),
-            _ => None,
-        })
 }
 
 /// Return a diagnostic name for the annotated element.

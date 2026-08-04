@@ -2652,6 +2652,7 @@ dependencies = [
  "petgraph",
  "quent-schema",
  "rustc-hash",
+ "thiserror",
 ]
 
 [[package]]
@@ -2879,6 +2880,18 @@ dependencies = [
  "walkdir",
  "zip",
  "zstd",
+]
+
+[[package]]
+name = "quent-os"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-ref-tree",
+ "quent-schema",
+ "rustc-hash",
+ "thiserror",
 ]
 
 [[package]]
@@ -3197,6 +3210,7 @@ dependencies = [
  "indexmap",
  "quent-constraints",
  "quent-fsm",
+ "quent-os",
  "quent-ref-target",
  "quent-ref-tree",
  "quent-resource",

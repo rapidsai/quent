@@ -64,6 +64,7 @@ members = [
     "crates/ref-tree",
     "crates/fsm",
     "crates/resource",
+    "crates/os",
     "crates/instrumentation-build",
     "crates/yaml",
 ]

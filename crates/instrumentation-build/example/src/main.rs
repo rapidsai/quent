@@ -3,7 +3,10 @@
 
 use quent_instrumentation::{EventCallback, ExporterOptions};
 
-use crate::demo::{Connection, Context, Demo, Handle, Observer, Query, Server, Uuid};
+use crate::demo::{
+    Connection, Context, Demo, Handle, Observer, Query, Server, Thread, ThreadPool, ThreadUsage,
+    Uuid,
+};
 
 #[allow(unused)]
 mod demo {
@@ -16,7 +19,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // `observer.handle()` creates a fresh entity instance to events emit for.
     let mut server = context.observer::<Server>().handle();
-    server.booted()?;
+    server.booted(demo::quent::os::Process {
+        native_id: std::process::id(),
+    })?;
+
+    let mut pool = context.observer::<ThreadPool>().handle();
+    pool.created(server.as_entity_ref())?;
+
+    let mut thread = context.observer::<Thread>().handle();
+    thread.started(
+        demo::quent::os::Thread {
+            // Obtaining the native thread ID is left as an exercise to the reader.
+            native_id: 42,
+        },
+        pool.as_entity_ref(),
+    )?;
 
     let observer: Observer<Connection> = context.observer::<Connection>();
     // Once-cardinality events take `&mut self` and may fire only once, tracked
@@ -59,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // https://github.com/rapidsai/quent/issues/416
     let mut query = context.observer::<Query>().handle();
     query.submitted("select 1".to_owned(), conn.as_entity_ref())?;
-    query.running(10)?;
+    query.running(10, thread.as_entity_ref_with(ThreadUsage))?;
     query.ready(true)?;
 
     conn.closed()?;

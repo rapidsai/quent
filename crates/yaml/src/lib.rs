@@ -5,12 +5,14 @@
 //!
 //! [`parse_from_file`] takes a path, [`parse_from_str`] a string; both return
 //! the schema plus any warnings, or the diagnostics explaining why it could not
-//! be parsed.
+//! be parsed. Referencing a canonical `quent::os` record automatically adds its
+//! definition to the schema.
 
 use std::path::Path;
 
 use quent_constraints::validate;
 use quent_fsm::FsmConstraint;
+use quent_os::OsConstraint;
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_resource::ResourceConstraint;
@@ -81,6 +83,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         RefTreeConstraint,
         FsmConstraint,
         ResourceConstraint,
+        OsConstraint,
     )>(&schema);
     if let Err(e) = report.base_constraints {
         for entity in e.entities_without_events {
@@ -104,7 +107,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
             sink.error("", format!("unresolved reference: {reference}"), None);
         }
     }
-    let (ref_target, ref_tree, fsm, resource) = report.results;
+    let (ref_target, ref_tree, fsm, resource, os) = report.results;
     if let Err(e) = ref_target {
         sink.error("", e.to_string(), None);
     }
@@ -115,6 +118,9 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         sink.error("", e.to_string(), None);
     }
     if let Err(e) = resource {
+        sink.error("", e.to_string(), None);
+    }
+    if let Err(e) = os {
         sink.error("", e.to_string(), None);
     }
     if sink.has_errors() {

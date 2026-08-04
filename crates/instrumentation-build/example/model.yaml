@@ -23,7 +23,25 @@ entities:
   Server:
     doc: A server that accepts connections.
     events:
-      booted: {}
+      booted:
+        attributes:
+          process: quent::os::Process
+
+  ThreadPool:
+    doc: A pool of threads owned by the server process.
+    events:
+      created:
+        attributes:
+          process: { scope-ref: Server }
+
+  Thread:
+    doc: An operating-system thread on which queries can run.
+    resource: true
+    events:
+      started:
+        attributes:
+          thread: quent::os::Thread
+          pool: { scope-ref: ThreadPool }
 
   Connection:
     doc: A client connection.
@@ -56,7 +74,9 @@ fsms:
           connection: { scope-ref: Connection }
         to: [running]
       running:
-        attributes: { rows: u64 }
+        attributes:
+          rows: u64
+          thread: { uses: Thread }
         to: [running, ready]
       ready:
         attributes: { ok: bool }

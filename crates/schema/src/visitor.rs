@@ -95,6 +95,20 @@ impl<'s> Cursor<'s> {
     pub fn elements(&self) -> &[Element<'s>] {
         &self.0
     }
+    /// The nearest entity enclosing the current element.
+    pub fn enclosing_entity(&self) -> Option<&'s Entity> {
+        self.0.iter().rev().find_map(|element| match *element {
+            Element::Entity(entity) => Some(entity),
+            _ => None,
+        })
+    }
+    /// The nearest event enclosing the current element.
+    pub fn enclosing_event(&self) -> Option<&'s Event> {
+        self.0.iter().rev().find_map(|element| match *element {
+            Element::Event(event) => Some(event),
+            _ => None,
+        })
+    }
     fn enter(&mut self, element: Element<'s>) {
         self.0.push(element);
     }
@@ -396,6 +410,17 @@ mod test {
                         cursor.previous(),
                         Some(Element::Event(_) | Element::Record(_))
                     ));
+                }
+                match cursor.current() {
+                    Element::Event(_) => {
+                        assert_eq!(cursor.enclosing_entity().unwrap().path(), &path("E"));
+                        assert_eq!(cursor.enclosing_event().unwrap().name(), &ident("Ev"));
+                    }
+                    Element::Record(_) => {
+                        assert!(cursor.enclosing_entity().is_none());
+                        assert!(cursor.enclosing_event().is_none());
+                    }
+                    _ => {}
                 }
                 // Declared names resolve through the root mid-walk.
                 if let Element::Schema(_) = cursor.current() {

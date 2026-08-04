@@ -16,6 +16,7 @@
 use indexmap::IndexMap;
 use quent_constraints::Constraint;
 use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
+use quent_os::{process_path, process_record, thread_path, thread_record};
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_resource::{Capacity, Resource, ResourceBuilder};
@@ -89,6 +90,8 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
             records.extend(generated);
         }
     }
+
+    add_referenced_os_records(&mut records, &entities);
 
     let schema = SchemaBuilder::new(name?)
         .with_records(records)
@@ -461,12 +464,53 @@ fn entity_ref_type(
 
 /// A bare name that is not a [`BuiltinType`], lowered as a record reference.
 fn record_ref(name: &str, path: &str, sink: &mut Diagnostics) -> Option<DataType> {
-    match Identifier::try_new(name) {
-        Ok(id) => Some(DataType::Record(id.into())),
+    match name.parse::<Path>() {
+        Ok(record) => Some(DataType::Record(record)),
         Err(e) => {
             sink.error(path, format!("invalid type `{name}`: {e}"), None);
             None
         }
+    }
+}
+
+fn add_referenced_os_records(records: &mut Vec<Record>, entities: &[Entity]) {
+    let mut process = false;
+    let mut thread = false;
+    for ty in records
+        .iter()
+        .flat_map(|record| record.fields().map(Field::ty))
+        .chain(entities.iter().flat_map(|entity| {
+            entity
+                .events()
+                .flat_map(|event| event.fields().map(Field::ty))
+        }))
+    {
+        find_os_record_references(ty, &mut process, &mut thread);
+    }
+
+    if process
+        && records
+            .iter()
+            .all(|record| record.path() != &process_path())
+    {
+        records.push(process_record());
+    }
+    if thread && records.iter().all(|record| record.path() != &thread_path()) {
+        records.push(thread_record());
+    }
+}
+
+fn find_os_record_references(ty: &DataType, process: &mut bool, thread: &mut bool) {
+    match ty {
+        DataType::Record(path) if path == &process_path() => *process = true,
+        DataType::Record(path) if path == &thread_path() => *thread = true,
+        DataType::Option(inner) | DataType::List(inner) => {
+            find_os_record_references(inner, process, thread);
+        }
+        DataType::EntityRef {
+            data: Some(data), ..
+        } => find_os_record_references(data, process, thread),
+        _ => {}
     }
 }
 
