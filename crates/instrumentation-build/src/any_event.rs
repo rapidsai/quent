@@ -15,8 +15,7 @@ use crate::common::{
 use crate::namespace::Namespace;
 use crate::{GenerateError, Options};
 
-/// Generate `AnyEvent` and its `from_any` decoder, carrying the event enums'
-/// derives ([`Options::event_derives`]).
+/// Generate `AnyEvent` and its `from_any` decoder.
 ///
 /// # Errors
 ///
@@ -51,16 +50,17 @@ pub(crate) fn generate_any_event(
         return Ok(quote! {});
     }
 
-    let derives = derive_attr(opts.event_derives)?;
+    let derives = derive_attr(opts.event_derives, opts.debug, opts.serde, false)?;
+    let runtime = opts.event_runtime();
     let decls = variants.iter().map(|(variant, event)| {
-        quote! { #variant(&'a ::quent_instrumentation::Event<#event>) }
+        quote! { #variant(&'a #runtime::Event<#event>) }
     });
     let child_decls = children.iter().map(|(variant, module)| {
         quote! { #variant(#module::AnyEvent<'a>) }
     });
     let direct_arms = variants.iter().map(|(variant, event)| {
         quote! {
-            if let Some(event) = any.downcast_ref::<::quent_instrumentation::Event<#event>>() {
+            if let Some(event) = any.downcast_ref::<#runtime::Event<#event>>() {
                 return Some(Self::#variant(event));
             }
         }
@@ -103,10 +103,7 @@ mod tests {
             .with_entity(entity("Server", [event("booted", [])]))
             .build()
             .unwrap();
-        let opts = Options {
-            event_derives: &["Debug"],
-            ..Options::default()
-        };
+        let opts = Options::default();
         let namespaces = Namespace::root(&schema);
         let expected = quote! {
             #[derive(Debug)]

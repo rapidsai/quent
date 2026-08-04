@@ -33,6 +33,7 @@ export type TimelineMark = {
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 45;
+export const CHART_GROUP = 'timeline-sync-group';
 
 // left/right spacing needs to be consistent across all timelines
 // so axes line up. top/bottom spacing can be overridden, but defaults still

@@ -31,7 +31,7 @@ import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@quent/utils';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect } from './echarts';
-import { CHART_GROUP } from '../timeline/Timeline';
+import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 
 // Suppress unused import warning — getColorForKey is used by consumers of this module

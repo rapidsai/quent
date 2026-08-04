@@ -318,7 +318,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         quent_model::write_sidecar(
                             &options,
                             id,
-                            <#name as quent_model::build_info::ModelSource>::model_info(),
+                            <#name as quent_model::events::Model>::model_info(),
                         );
                         Self::build(id, options)
                     }
@@ -432,7 +432,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         // artifact back to the crate that defines it — including out-of-repo
         // crates, whose own `build.rs` populates `QUENT_SOURCE_*` (in-repo it
         // falls back to quent's git). `env!`/`option_env!` resolve in the crate
-        // that invokes `model!`. The type path and name come from `type_name`.
+        // that invokes `model!`.
         impl quent_model::build_info::ModelSource for #name {
             fn package() -> &'static str {
                 env!("CARGO_PKG_NAME")
@@ -448,6 +448,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 )
             }
             #analyzer_package_method
+        }
+
+        impl quent_model::events::Model for #name {
+            const NAME: &'static str = stringify!(#name);
+        }
+
+        impl quent_model::events::ModelEvents for #name {
+            type UmbrellaEvent = #event_type;
         }
 
         #import_events_impl

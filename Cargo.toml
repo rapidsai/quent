@@ -136,6 +136,7 @@ postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"
 prost = "0.14.1"
 pyo3 = "0.29"
+quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
 quent-resource = { path = "crates/resource" }
 rmp-serde = "1"
 rustc-hash = "2"

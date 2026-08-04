@@ -9,9 +9,9 @@ use quent_schema::{Cardinality, Entity};
 use quote::quote;
 
 use super::{event_ident, marker_ident};
-use crate::GenerateError;
 use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::data_type::map_data_type;
+use crate::{GenerateError, Options};
 
 /// The maximum once-events an entity may declare: one bit per event in the
 /// handle's `u64` once-flag word.
@@ -23,7 +23,7 @@ pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;
 ///
 /// Returns [`GenerateError::TooManyOnceEvents`] if the entity declares more
 /// once-cardinality events than fit the once-flag word.
-pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
+pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
@@ -42,7 +42,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
     // Once-events claim successive bits of the handle's flag word, in
     // declaration order; multi-events route straight through `emit`.
     let mut once_bit = 0u32;
-    let methods: Vec<TokenStream> = entity
+    let methods = entity
         .events()
         .map(|event| {
             let method = raw_ident(to_case(event.name(), Case::Snake));
@@ -58,14 +58,14 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
             };
             let docs = doc_attr_or(event.annotations().docs(), &fallback);
 
-            let params: Vec<TokenStream> = event
+            let params = event
                 .fields()
                 .map(|f| {
                     let name = raw_ident(to_case(f.name(), Case::Snake));
-                    let ty = map_data_type(f.ty(), 0, entity.path().namespace());
-                    quote! { #name: #ty }
+                    let ty = map_data_type(f.ty(), 0, entity.path().namespace(), opts)?;
+                    Ok::<_, GenerateError>(quote! { #name: #ty })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
             let field_names: Vec<TokenStream> = event
                 .fields()
                 .map(|f| {
@@ -79,7 +79,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                 quote! { #event_ty::#variant { #(#field_names),* } }
             };
 
-            match event.cardinality() {
+            Ok(match event.cardinality() {
                 Cardinality::Once => {
                     let bit = Literal::u32_unsuffixed(once_bit);
                     once_bit += 1;
@@ -116,9 +116,9 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                         ::core::result::Result::Ok(())
                     }
                 },
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, GenerateError>>()?;
 
     Ok(quote! {
         impl #handle_ty<#marker_ty> {

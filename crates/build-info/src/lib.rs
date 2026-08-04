@@ -12,17 +12,17 @@
 //!   by this crate's `build.rs`; a downstream crate captures its own by calling
 //!   [`emit_source`] from its `build.rs`. Each field is optional so absent
 //!   provenance stays distinguishable from a real value.
-//! * [`ModelInfo`] — the model's identity. The Rust type path and name come from
-//!   [`std::any::type_name`]; the cargo package and source git come from a
-//!   per-model [`ModelSource`] impl that `model!` generates (so out-of-repo
-//!   crates record their own package and git without any provenance threading).
+//! * [`ModelInfo`] — the model's identity and source provenance. A per-model
+//!   [`ModelSource`] impl records the defining package and git source.
 //!
 //! Keeping the provenance in a sidecar (rather than embedded in the artifacts)
 //! means a single, format-agnostic implementation for all exporters and clean
 //! event streams that third-party importers can read as a single object type.
 
+#[cfg(feature = "sidecar")]
 use std::path::Path;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 mod git;
@@ -33,44 +33,61 @@ pub const SIDECAR_FILE_NAME: &str = "model.qmi";
 /// Git provenance of a repository, captured at build time. Every field except
 /// [`version`](Self::version) is optional and omitted from the serialized
 /// sidecar when unknown.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildInfo {
     /// Cargo package version.
     pub version: String,
     /// Full commit hash.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub commit: Option<String>,
     /// Branch name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub branch: Option<String>,
     /// Whether the working tree had uncommitted changes at build time.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub dirty: Option<bool>,
     /// `origin` remote URL, with any embedded userinfo stripped.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub remote: Option<String>,
     /// Commit timestamp (RFC 3339).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub built_at: Option<String>,
 }
 
 /// Identity of the model that produced an artifact. The Rust type to build a
 /// viewer from (an analyzer entry point) is supplied by `quent-open`; this only
 /// records provenance to locate & check out the producing crate.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelInfo {
     /// Model name (e.g. `"Simulator"`).
     pub name: String,
     /// Cargo package defining the model (e.g. `"quent-simulator-instrumentation"`).
     pub package: String,
-    /// Rust type path of the model's event enum
-    /// (e.g. `"quent_simulator_instrumentation::SimulatorEvent"`).
-    pub type_path: String,
     /// Git provenance of the crate defining the model.
     pub source: BuildInfo,
     /// Cargo package providing this model's `QuentViewer` entry (shares the
     /// model's [`source`](Self::source) git); `None` if the model didn't declare one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub analyzer_package: Option<String>,
 }
 
@@ -122,7 +139,6 @@ impl ModelInfo {
         Self {
             name: "unknown".to_string(),
             package: "unknown".to_string(),
-            type_path: "unknown".to_string(),
             source: BuildInfo::unknown(),
             analyzer_package: None,
         }
@@ -130,7 +146,8 @@ impl ModelInfo {
 }
 
 /// The provenance written into the `model.qmi` sidecar of each context directory.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArtifactInfo {
     /// Build info of the quent framework.
     pub quent: BuildInfo,
@@ -155,6 +172,7 @@ impl ArtifactInfo {
     /// The write is atomic: the JSON goes to a temp file in `dir` that is then
     /// renamed over the final name, so a reader never observes a partial or
     /// torn sidecar.
+    #[cfg(feature = "sidecar")]
     pub fn write_sidecar(&self, dir: &Path) -> std::io::Result<()> {
         let json = serde_json::to_vec_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
@@ -167,6 +185,7 @@ impl ArtifactInfo {
     /// inverse of [`write_sidecar`](Self::write_sidecar): a missing sidecar
     /// surfaces as [`std::io::ErrorKind::NotFound`], a malformed one as
     /// [`std::io::ErrorKind::InvalidData`].
+    #[cfg(feature = "sidecar")]
     pub fn read_sidecar(dir: &Path) -> std::io::Result<Self> {
         let bytes = std::fs::read(dir.join(SIDECAR_FILE_NAME))?;
         serde_json::from_slice(&bytes)
@@ -226,26 +245,20 @@ pub trait ModelSource {
     fn package() -> &'static str;
     /// Git provenance of the crate defining the model.
     fn source() -> BuildInfo;
-    /// Cargo package providing this model's `QuentViewer` entry, if declared via
-    /// `analyzer_package` in `model!` (shares the model's [`source`](Self::source) git).
+    /// Cargo package providing this model's `QuentViewer` entry, if any.
+    /// It shares the model's [`source`](Self::source) git provenance.
     fn analyzer_package() -> Option<&'static str> {
         None
     }
+}
 
-    /// Assemble the [`ModelInfo`] for this model: the Rust type path and name
-    /// from [`std::any::type_name`], the cargo package and source git from the
-    /// [`package`](Self::package) / [`source`](Self::source) impls above.
-    fn model_info() -> ModelInfo {
-        let type_path = std::any::type_name::<Self>();
-        let event_name = type_path.rsplit("::").next().unwrap_or(type_path);
-        let name = event_name.strip_suffix("Event").unwrap_or(event_name);
-        ModelInfo {
-            name: name.to_string(),
-            package: Self::package().to_string(),
-            type_path: type_path.to_string(),
-            source: Self::source(),
-            analyzer_package: Self::analyzer_package().map(str::to_string),
-        }
+/// Assemble model identity and source provenance.
+pub fn model_info<M: ModelSource + ?Sized>(name: &str) -> ModelInfo {
+    ModelInfo {
+        name: name.to_string(),
+        package: M::package().to_string(),
+        source: M::source(),
+        analyzer_package: M::analyzer_package().map(str::to_string),
     }
 }
 
@@ -262,7 +275,7 @@ pub fn emit_source() {
     git::emit("QUENT_SOURCE", &manifest_dir);
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod tests {
     use super::*;
 
@@ -287,10 +300,23 @@ mod tests {
 
     #[test]
     fn artifact_info_roundtrips() {
-        let info = ArtifactInfo::new(TestModel::model_info());
+        let info = ArtifactInfo::new(model_info::<TestModel>("Test"));
         let bytes = serde_json::to_vec(&info).unwrap();
         let back: ArtifactInfo = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(info, back);
+    }
+
+    #[test]
+    fn model_info_accepts_legacy_type_path() {
+        let info: ModelInfo = serde_json::from_value(serde_json::json!({
+            "name": "Test",
+            "package": "quent-test",
+            "type_path": "quent_test::TestEvent",
+            "source": { "version": "0.1.0" }
+        }))
+        .unwrap();
+        assert_eq!(info.name, "Test");
+        assert_eq!(info.package, "quent-test");
     }
 
     #[test]
@@ -309,7 +335,7 @@ mod tests {
         }
 
         // `model_info()` carries the declared analyzer package...
-        let info = WithAnalyzer::model_info();
+        let info = model_info::<WithAnalyzer>("WithAnalyzer");
         assert_eq!(
             info.analyzer_package.as_deref(),
             Some("quent-simulator-analyzer")
@@ -318,7 +344,7 @@ mod tests {
         assert_eq!(info, back);
 
         // ...and absent by default, omitted from the serialized form.
-        let none = TestModel::model_info();
+        let none = model_info::<TestModel>("Test");
         assert_eq!(none.analyzer_package, None);
         assert!(
             !serde_json::to_string(&none)
@@ -328,12 +354,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "sidecar")]
     fn write_sidecar_is_atomic_and_named() {
         let dir = std::env::temp_dir().join("quent_build_info_sidecar_test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        let info = ArtifactInfo::new(TestModel::model_info());
+        let info = ArtifactInfo::new(model_info::<TestModel>("Test"));
         info.write_sidecar(&dir).unwrap();
 
         assert!(dir.join(SIDECAR_FILE_NAME).is_file());

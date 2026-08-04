@@ -2667,6 +2667,8 @@ dependencies = [
 name = "quent-events"
 version = "0.1.0"
 dependencies = [
+ "quent-build-info",
+ "quent-dynamic-attributes",
  "quent-time",
  "serde",
  "uuid",

@@ -687,7 +687,7 @@ fn expand_self_event(
 
         impl quent_model::Entity for #name {}
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = #event_enum;
         }
 
@@ -768,7 +768,7 @@ fn expand_multi_event(
 
         impl quent_model::Entity for #name {}
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = #event_enum;
         }
 
@@ -957,7 +957,7 @@ fn expand_rg_attrs(
             const IS_ROOT: bool = #is_root;
         }
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = #event_enum;
         }
 
@@ -1064,7 +1064,7 @@ fn expand_rg_events(
             const IS_ROOT: bool = #is_root;
         }
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = #event_enum;
         }
 

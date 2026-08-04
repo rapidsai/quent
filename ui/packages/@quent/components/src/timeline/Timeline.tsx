@@ -9,7 +9,13 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { withOpacity } from '@quent/utils';
 import type { TimelineSeriesEntry } from './types';
-import { TimelineSeries, TimelineMark, TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from './types';
+import {
+  CHART_GROUP,
+  TimelineSeries,
+  TimelineMark,
+  TIMELINE_SPACING,
+  TIMELINE_X_AXIS_ANIMATION,
+} from './types';
 import {
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
@@ -26,7 +32,6 @@ import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
 import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import { Opts } from 'echarts-for-react/lib/types';
 
-export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
 
 /**

@@ -762,7 +762,7 @@ fn emit_context(
                         #q::write_sidecar(
                             &options,
                             id,
-                            <#model_type as #q::build_info::ModelSource>::model_info(),
+                            <#model_type as #q::events::Model>::model_info(),
                         );
                         inner.block_on(async {
                             let (#(#build_fields,)*) = #q::tokio::try_join!(

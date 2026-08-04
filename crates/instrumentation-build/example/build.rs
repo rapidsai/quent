@@ -21,8 +21,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Schema -> generated Rust instrumentation source.
     let opts = Options {
-        event_derives: &["Debug"],
-        record_derives: &["Debug"],
         // To just print the events in this example, we'll be using the callback
         // exporter. This exporter takes a type-erased event, so in order to
         // simplify downcasting back to a statically-typed event, this features

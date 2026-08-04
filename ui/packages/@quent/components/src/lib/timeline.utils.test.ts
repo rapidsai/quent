@@ -9,7 +9,6 @@ vi.mock('../lib/echarts', () => ({
   disconnect: vi.fn(),
   getInstanceByDom: vi.fn(),
 }));
-vi.mock('../timeline/Timeline', () => ({ CHART_GROUP: 'timeline-sync-group' }));
 
 import {
   nanosToMs,

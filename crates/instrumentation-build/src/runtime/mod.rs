@@ -11,6 +11,7 @@ use quote::quote;
 use syn::Ident;
 
 use crate::GenerateError;
+use crate::Options;
 use crate::common::{path_name_pascal, raw_ident, relative_root_type, to_case};
 
 mod context;
@@ -21,14 +22,11 @@ pub(crate) use handle::MAX_ONCE_EVENTS;
 pub(crate) fn entity_runtime_types(
     schema: &Schema,
     entity: &Entity,
+    opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
-    let marker = entity_marker(entity);
-    let event_impl = entity_event_impl(entity);
-    let handle = handle::entity_handle(entity)?;
+    let handle = handle::entity_handle(entity, opts)?;
     let entity_impl = entity_impl(schema, entity);
     Ok(quote! {
-        #marker
-        #event_impl
         #handle
         #entity_impl
     })
@@ -55,11 +53,11 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
         format!("Handle to one entity instance in the `{model_name}` instrumentation model.");
     quote! {
         #[doc = #handle_docs]
-        pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<#model>>> {
+        pub struct Handle<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> {
             inner: ::quent_instrumentation::HandleInner<E>,
         }
 
-        impl<E: ::quent_instrumentation::Entity<Context = Context<#model>>>
+        impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>>
             ::core::convert::From<::quent_instrumentation::HandleInner<E>> for Handle<E>
         {
             fn from(inner: ::quent_instrumentation::HandleInner<E>) -> Self {
@@ -67,7 +65,7 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
             }
         }
 
-        impl<E: ::quent_instrumentation::Entity<Context = Context<#model>>> ::core::ops::Deref
+        impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> ::core::ops::Deref
             for Handle<E>
         {
             type Target = ::quent_instrumentation::HandleInner<E>;
@@ -91,29 +89,6 @@ pub(crate) fn reexports() -> TokenStream {
     }
 }
 
-/// `{Entity}` — the zero-size marker naming the entity, used as the target
-/// type of [`EntityRef`](quent_instrumentation::EntityRef) fields that point at it.
-fn entity_marker(entity: &Entity) -> TokenStream {
-    let marker = marker_ident(entity);
-    let doc = format!("Marker type for the `{}` entity.", entity.path());
-    quote! {
-        #[doc = #doc]
-        #[derive(Debug, Clone, Copy)]
-        pub struct #marker;
-    }
-}
-
-/// Tie an entity's event enum to its canonical schema path.
-fn entity_event_impl(entity: &Entity) -> TokenStream {
-    let event_ty = event_ident(entity);
-    let stream_name = entity.path().to_string();
-    quote! {
-        impl ::quent_instrumentation::EntityEvent for #event_ty {
-            const NAME: &'static str = #stream_name;
-        }
-    }
-}
-
 /// `{Entity}Event` — the entity's event enum.
 fn event_ident(entity: &Entity) -> Ident {
     raw_ident(format!("{}Event", path_name_pascal(entity.path())))
@@ -131,14 +106,12 @@ pub(super) fn model_ident(schema: &Schema) -> Ident {
 fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
     let namespace = entity.path().namespace();
     let marker = marker_ident(entity);
-    let event = event_ident(entity);
     let context = relative_root_type("Context", namespace);
     let model_name = model_ident(schema).to_string();
     let model = relative_root_type(&model_name, namespace);
     let handle = relative_root_type("Handle", namespace);
     quote! {
-        impl ::quent_instrumentation::Entity for #marker {
-            type Event = #event;
+        impl ::quent_instrumentation::InstrumentedEntity for #marker {
             type Context = #context<#model>;
             type Handle = #handle<Self>;
         }
@@ -170,15 +143,17 @@ mod tests {
             .build()
             .unwrap();
         let entity = s.entities().next().unwrap();
-        let entity_types = entity_runtime_types(&s, entity).unwrap();
+        let event_types = crate::events::entity_types(entity, &Options::default());
+        let entity_types = entity_runtime_types(&s, entity, &Options::default()).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
+        let generated_model = crate::model::generate(&s, &namespaces, &Options::default()).unwrap();
         let model = generate_model(&s, &namespaces);
         let src = pretty(quote! {
+            #event_types
             #entity_types
+            #generated_model
             #model
         });
-        assert!(src.contains("impl ::quent_instrumentation::EntityEvent for ConnectionEvent"));
-        assert!(src.contains(r#"const NAME: &'static str = "Connection""#));
         assert!(src.contains("type Event = ConnectionEvent"));
         assert!(src.contains("impl Handle<Connection>"));
         assert!(src.contains("pub struct Demo"));

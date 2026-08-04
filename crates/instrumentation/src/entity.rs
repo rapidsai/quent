@@ -1,19 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Entity markers used by generated instrumentation libraries.
+//! Instrumented entity markers used by generated instrumentation libraries.
 
 use std::sync::Arc;
 
-use quent_events::EntityEvent;
-
 use crate::{HandleInner, ObserverInner};
 
-/// Associates a generated entity marker with its event type and context.
-pub trait Entity: Sized {
-    /// Events emitted for this entity.
-    type Event: EntityEvent;
-
+/// Adds instrumentation context and handle types to an entity marker.
+pub trait InstrumentedEntity: quent_events::Entity + Sized {
     /// Instrumentation context containing this entity.
     type Context;
 
@@ -22,11 +17,11 @@ pub trait Entity: Sized {
 }
 
 /// Provides handles for an entity type through its shared event observer.
-pub struct Observer<E: Entity> {
+pub struct Observer<E: InstrumentedEntity> {
     inner: Arc<ObserverInner<E::Event>>,
 }
 
-impl<E: Entity> Clone for Observer<E> {
+impl<E: InstrumentedEntity> Clone for Observer<E> {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
@@ -34,7 +29,7 @@ impl<E: Entity> Clone for Observer<E> {
     }
 }
 
-impl<E: Entity> Observer<E> {
+impl<E: InstrumentedEntity> Observer<E> {
     /// Creates an observer backed by `inner`.
     ///
     /// Hidden because generated models construct observers; callers obtain them

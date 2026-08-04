@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use crate::{Entity, ObserverInner};
+use crate::{InstrumentedEntity, ObserverInner};
 
 /// An error from emitting through a generated entity handle.
 #[derive(Debug, thiserror::Error)]
@@ -26,14 +26,14 @@ pub enum HandleError {
 ///
 /// Hidden because generated handle newtypes are the application-facing API.
 #[doc(hidden)]
-pub struct HandleInner<E: Entity> {
+pub struct HandleInner<E: InstrumentedEntity> {
     id: crate::Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
     once_flags: u64,
     observer: Arc<ObserverInner<E::Event>>,
 }
 
-impl<E: Entity> HandleInner<E> {
+impl<E: InstrumentedEntity> HandleInner<E> {
     pub(crate) fn new(observer: Arc<ObserverInner<E::Event>>) -> Self {
         Self::with_id(crate::Uuid::now_v7(), observer)
     }

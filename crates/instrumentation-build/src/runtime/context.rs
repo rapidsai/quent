@@ -88,10 +88,9 @@ pub(super) fn observer_storage(
     })
 }
 
-/// Generate the model marker and its runtime integration.
+/// Generate the model's observer integration.
 pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> TokenStream {
     let model = model_ident(schema);
-    let model_name = schema.name().to_string();
     let observers = observers_ident(schema, namespaces);
     let active_observers = observer_storage_initializer(schema, namespaces, true);
     let noop_observers = observer_storage_initializer(schema, namespaces, false);
@@ -104,15 +103,10 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
         .entities()
         .map(|entity| observer_storage_impl(schema, entity));
 
-    let model_doc = format!("The `{model_name}` instrumentation model.");
-
     quote! {
-        #[doc = #model_doc]
-        pub struct #model;
-
         #(#observer_impls)*
 
-        impl ::quent_instrumentation::Model for #model {
+        impl ::quent_instrumentation::InstrumentedModel for #model {
             type Observers = #observers;
 
             fn build_observers(
@@ -137,25 +131,6 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
                 }
             }
 
-            fn model_info() -> ::quent_instrumentation::build_info::ModelInfo {
-                ::quent_instrumentation::build_info::ModelInfo {
-                    name: #model_name.to_string(),
-                    package: env!("CARGO_PKG_NAME").to_string(),
-                    // No umbrella event enum on the schema-driven path; record
-                    // the module the generated library is included into.
-                    type_path: module_path!().to_string(),
-                    source: ::quent_instrumentation::build_info::source_or_quent(
-                        env!("CARGO_PKG_VERSION"),
-                        option_env!("QUENT_SOURCE_REMOTE"),
-                        option_env!("QUENT_SOURCE_COMMIT"),
-                        option_env!("QUENT_SOURCE_BRANCH"),
-                        option_env!("QUENT_SOURCE_DIRTY"),
-                        option_env!("QUENT_SOURCE_BUILT_AT"),
-                    ),
-                    // The schema declares no analyzer entry.
-                    analyzer_package: ::core::option::Option::None,
-                }
-            }
         }
     }
 }

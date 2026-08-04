@@ -549,7 +549,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             #observer_methods
         }
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
     };

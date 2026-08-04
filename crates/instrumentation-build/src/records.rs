@@ -19,16 +19,16 @@ pub(crate) fn record_struct(record: &Record, opts: &Options) -> Result<TokenStre
         record.annotations().docs(),
         &format!("The `{}` record.", record.path()),
     );
-    let derives = derive_attr(opts.record_derives)?;
-    let fields: Vec<TokenStream> = record
+    let derives = derive_attr(opts.record_derives, opts.debug, opts.serde, opts.serde)?;
+    let fields = record
         .fields()
         .map(|field| {
             let name = raw_ident(to_case(field.name(), Case::Snake));
-            let ty = map_data_type(field.ty(), 0, record.path().namespace());
+            let ty = map_data_type(field.ty(), 0, record.path().namespace(), opts)?;
             let field_docs = doc_attr(field.annotations().docs());
-            quote! { #field_docs pub #name: #ty }
+            Ok::<_, GenerateError>(quote! { #field_docs pub #name: #ty })
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     if fields.is_empty() {
         Ok(quote! { #docs #derives pub struct #ident; })
     } else {
@@ -66,7 +66,16 @@ mod tests {
             }
         };
         assert_eq!(
-            pretty(record_struct(&record, &Options::default()).unwrap()),
+            pretty(
+                record_struct(
+                    &record,
+                    &Options {
+                        debug: false,
+                        ..Options::default()
+                    },
+                )
+                .unwrap(),
+            ),
             pretty(expected)
         );
     }

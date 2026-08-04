@@ -145,8 +145,6 @@ export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/q
 // DAGNode, DAGEdge, StatValue re-exported via services/query-plan/types (avoid direct @quent/utils re-export here)
 
 // ─── Timeline components ──────────────────────────────────────────────────────
-export { CHART_GROUP } from './timeline/Timeline';
-export { Timeline } from './timeline/Timeline';
 export { TimelineController } from './timeline/TimelineController';
 export { TimelineRuler } from './timeline/TimelineRuler';
 export { TimelineSkeleton } from './timeline/TimelineSkeleton';
@@ -166,6 +164,7 @@ export {
   ROLLUP_TIMELINE_COLOR_DARK,
 } from './timeline/timelineEchartsTheme';
 export {
+  CHART_GROUP,
   DEFAULT_TIMELINE_HEIGHT,
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,

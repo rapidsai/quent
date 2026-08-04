@@ -9,31 +9,31 @@ use quent_schema::{Annotations, DataType};
 use quote::quote;
 
 use crate::common::{relative_root_type, relative_type_path};
+use crate::{GenerateError, Options};
 
 /// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers a single field
 /// type may have, far above any realistic schema. Self-referential records are
-/// already ruled out by base validation, but even if somehow schemas are
-/// produced with great nesting depth, this will produce a friendlier panic
-/// instead of a stack overflow.
+/// already ruled out by base validation.
 pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 
 /// Map a [`DataType`] to its Rust type tokens.
-///
-/// # Panics
-///
-/// Panics if `ty` nests deeper than [`MAX_TYPE_DEPTH`].
 pub(crate) fn map_data_type(
     ty: &DataType,
     depth: usize,
     source_namespace: &[quent_schema::Identifier],
-) -> TokenStream {
-    assert!(
-        depth <= MAX_TYPE_DEPTH,
-        "field type nesting exceeds the maximum depth of {MAX_TYPE_DEPTH}"
-    );
-    match ty {
+    opts: &Options,
+) -> Result<TokenStream, GenerateError> {
+    if depth > MAX_TYPE_DEPTH {
+        return Err(GenerateError::TypeNestingTooDeep {
+            max: MAX_TYPE_DEPTH,
+        });
+    }
+    Ok(match ty {
         DataType::Bool => quote! { bool },
-        DataType::Uuid => quote! { ::quent_instrumentation::Uuid },
+        DataType::Uuid => {
+            let runtime = opts.event_runtime();
+            quote! { #runtime::Uuid }
+        }
         DataType::String => quote! { String },
         DataType::U8 => quote! { u8 },
         DataType::U16 => quote! { u16 },
@@ -46,26 +46,30 @@ pub(crate) fn map_data_type(
         DataType::F32 => quote! { f32 },
         DataType::F64 => quote! { f64 },
         DataType::Option(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace);
+            let inner = map_data_type(inner, depth + 1, source_namespace, opts)?;
             quote! { Option<#inner> }
         }
         DataType::List(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace);
+            let inner = map_data_type(inner, depth + 1, source_namespace, opts)?;
             quote! { Vec<#inner> }
         }
         DataType::Record(path) => relative_type_path(path, source_namespace, ""),
-        DataType::DynamicRecord => quote! { ::quent_instrumentation::DynamicAttributes },
+        DataType::DynamicRecord => {
+            let runtime = opts.event_runtime();
+            quote! { #runtime::DynamicAttributes }
+        }
         DataType::EntityRef { data, annotations } => {
             let target = ref_target_marker(annotations, source_namespace);
+            let runtime = opts.event_runtime();
             match data {
                 Some(inner) => {
-                    let inner = map_data_type(inner, depth + 1, source_namespace);
-                    quote! { ::quent_instrumentation::EntityRef<#target, #inner> }
+                    let inner = map_data_type(inner, depth + 1, source_namespace, opts)?;
+                    quote! { #runtime::EntityRef<#target, #inner> }
                 }
-                None => quote! { ::quent_instrumentation::EntityRef<#target> },
+                None => quote! { #runtime::EntityRef<#target> },
             }
         }
-    }
+    })
 }
 
 /// The target-entity marker type for an entity reference, taken from its
@@ -89,13 +93,17 @@ mod tests {
     use quent_schema::DataType;
 
     #[test]
-    #[should_panic(expected = "maximum depth")]
-    fn excessive_type_nesting_panics() {
+    fn excessive_type_nesting_returns_error() {
         let mut ty = DataType::U8;
         for _ in 0..(MAX_TYPE_DEPTH + 5) {
             ty = DataType::Option(Box::new(ty));
         }
-        let _ = map_data_type(&ty, 0, &[]);
+        assert!(matches!(
+            map_data_type(&ty, 0, &[], &Options::default()),
+            Err(GenerateError::TypeNestingTooDeep {
+                max: MAX_TYPE_DEPTH
+            })
+        ));
     }
 
     #[test]
@@ -108,7 +116,9 @@ mod tests {
             data: Some(Box::new(DataType::U64)),
             annotations: annotations.build().unwrap(),
         };
-        let tokens = map_data_type(&ty, 0, &[]).to_string();
+        let tokens = map_data_type(&ty, 0, &[], &Options::default())
+            .unwrap()
+            .to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");
     }
 }

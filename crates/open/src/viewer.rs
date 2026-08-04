@@ -444,7 +444,6 @@ mod tests {
         let mut model = quent_build_info::ModelInfo::unknown();
         model.name = "Simulator".into();
         model.package = "quent-simulator-instrumentation".into();
-        model.type_path = "quent_simulator_instrumentation::SimulatorEvent".into();
         model.source = pin.clone();
         model.analyzer_package = Some("quent-simulator-analyzer".into());
         let info = quent_build_info::ArtifactInfo { quent: pin, model };

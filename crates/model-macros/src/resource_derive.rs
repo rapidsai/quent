@@ -776,7 +776,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             const NAME: &'static str = #event_name;
         }
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
 
