@@ -29,7 +29,7 @@ export function usePlayheadLinePixel(
     }
     try {
       const pixel = instance.convertToPixel({ xAxisIndex }, ts);
-      setPixelX(pixel != null && isFinite(pixel) ? pixel : null);
+      setPixelX(typeof pixel === 'number' && Number.isFinite(pixel) ? pixel : null);
     } catch {
       setPixelX(null);
     }
