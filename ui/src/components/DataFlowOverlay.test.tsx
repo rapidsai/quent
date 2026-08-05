@@ -13,12 +13,7 @@ import {
   useSetDataFlowSelectedDimensions,
   useSetSelectedNodeData,
 } from '@quent/hooks';
-import {
-  DagPlayhead,
-  DAGLegend,
-  DAGNodeInfoPanel,
-  NodeFlowBar,
-} from '@quent/components';
+import { DagPlayhead, DAGLegend, DAGNodeInfoPanel, NodeFlowBar } from '@quent/components';
 import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
 
 // 4 bins of 2s over [0, 8): op-1 task totals per bin are [1, 3, 5, 0] and

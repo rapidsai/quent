@@ -93,12 +93,15 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
     [applyClientX]
   );
 
-  const handlePointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    setPlayheadLineTimeMs(null);
-  }, [setPlayheadLineTimeMs]);
+  const handlePointerEnd = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setPlayheadLineTimeMs(null);
+    },
+    [setPlayheadLineTimeMs]
+  );
 
   const stepBy = useCallback(
     (bins: number) => {

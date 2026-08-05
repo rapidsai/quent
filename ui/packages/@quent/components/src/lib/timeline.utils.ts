@@ -512,7 +512,6 @@ export function hideSyncedPointer() {
   broadcastHidePointer(null);
 }
 
-
 export interface AxisPointerSyncOptions {
   /** If false, this chart will not receive showTip when the pointer is synced from another chart (default true). */
   receiveShowTip?: boolean;
