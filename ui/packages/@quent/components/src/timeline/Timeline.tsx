@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import EChartsReactCore from 'echarts-for-react/lib/core';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
@@ -29,7 +29,6 @@ import { useVisibleMaxValue } from './useVisibleMaxValue';
 import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
-import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import { Opts } from 'echarts-for-react/lib/types';
 
 const DIMMED_OPACITY = 0.25;
@@ -55,6 +54,7 @@ export function Timeline({
   isDark,
   yAxisLabel,
   onHoverChange,
+  onReady,
 }: {
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
   durationSeconds: number;
@@ -69,6 +69,8 @@ export function Timeline({
   yAxisLabel?: string;
   /** Pointer-state callback. */
   onHoverChange?: (position: TimelineHoverPosition | null) => void;
+  /** Called when the underlying ECharts instance is ready or recreated. */
+  onReady?: (instance: EChartsInstance) => void;
 }) {
   const { themeName, textColor, labelBackgroundColor } = useTimelineEchartsTheme(isDark);
   const maxMarkCountRef = useRef(0);
@@ -283,7 +285,8 @@ export function Timeline({
   }, [gridOptions, minZoomSpanPct, xAxisOptions, yAxisOptions, seriesOptions]);
 
   const isDraggingRef = useRef(false);
-  const [readyTick, setReadyTick] = useState(0);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   // `onChartReady` runs exactly once per chart instance, so its closures
   // capture the initial values of `showTooltip` / `onHoverChange`. Refs let
@@ -360,7 +363,7 @@ export function Timeline({
     });
 
     attachWheelNavigation(instance);
-    setReadyTick(t => t + 1);
+    onReadyRef.current?.(instance);
   };
 
   // If this Timeline is unmounted while the pointer is over it (e.g. a tree
@@ -376,13 +379,11 @@ export function Timeline({
   const style = useMemo(() => ({ width: '100%', height: '100%' }), []);
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
 
-  const { handleChartReady, instanceRef } = useChartConnect({
+  const { handleChartReady } = useChartConnect({
     durationSeconds,
     chartGroup: CHART_GROUP,
     onReady: onChartReady,
   });
-
-  const playheadPixelX = usePlayheadLinePixel(instanceRef, 0, readyTick);
 
   return (
     <div className="relative w-full h-full">
@@ -424,12 +425,6 @@ export function Timeline({
         replaceMerge={['series']}
         autoResize={false}
       />
-      {playheadPixelX != null && (
-        <div
-          className="absolute top-0 bottom-0 w-px pointer-events-none z-[10] bg-primary/70"
-          style={{ left: playheadPixelX }}
-        />
-      )}
     </div>
   );
 }

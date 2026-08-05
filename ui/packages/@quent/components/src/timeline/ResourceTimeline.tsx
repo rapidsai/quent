@@ -17,7 +17,9 @@ import {
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineTooltipPortal } from './TimelineTooltipPortal';
 import type { TimelineHoverPosition } from './Timeline';
-import { useCallback, useEffect, useId, useMemo, useRef, lazy, Suspense } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import type { EChartsInstance } from 'echarts-for-react';
+import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import {
   buildBinnedTimelineSeries,
   buildTimelineMarks,
@@ -269,6 +271,13 @@ export function ResourceTimeline({
   // across the loading / error / data render branches.
   const ownerId = useId();
   const setTimelineHover = useSetTimelineHover();
+  const chartInstanceRef = useRef<EChartsInstance | null>(null);
+  const [chartReadyTick, setChartReadyTick] = useState(0);
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    chartInstanceRef.current = instance;
+    setChartReadyTick(t => t + 1);
+  }, []);
+  const playheadPixelX = usePlayheadLinePixel(chartInstanceRef, 0, chartReadyTick);
   const handleHoverChange = useCallback(
     (position: TimelineHoverPosition | null) => {
       if (position == null) {
@@ -301,7 +310,7 @@ export function ResourceTimeline({
   const effectiveYAxisLabel = yAxisLabel ?? fsmTypeName;
 
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
       <Suspense fallback={<TimelineSkeleton />}>
         <Timeline
           series={series}
@@ -312,6 +321,7 @@ export function ResourceTimeline({
           isDark={isDark}
           yAxisLabel={effectiveYAxisLabel}
           onHoverChange={handleHoverChange}
+          onReady={handleChartReady}
         />
         {showTooltip && (
           <TimelineTooltipPortal
@@ -322,6 +332,12 @@ export function ResourceTimeline({
           />
         )}
       </Suspense>
+      {playheadPixelX != null && (
+        <div
+          className="absolute top-0 bottom-0 w-px pointer-events-none z-[10] bg-primary/70"
+          style={{ left: playheadPixelX }}
+        />
+      )}
     </div>
   );
 }
