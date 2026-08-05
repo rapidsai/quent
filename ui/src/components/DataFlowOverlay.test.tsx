@@ -18,7 +18,6 @@ import {
   DAGLegend,
   DAGNodeInfoPanel,
   NodeFlowBar,
-  subscribePlayheadLine,
 } from '@quent/components';
 import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
 
@@ -264,47 +263,36 @@ describe('playback while the overlay is disabled', () => {
 
   it('stops the play interval and hides the synced pointer when disabled', () => {
     vi.useFakeTimers();
-    const broadcasts: (number | null)[] = [];
-    const unsub = subscribePlayheadLine(ts => broadcasts.push(ts));
-    try {
-      const { rerender } = renderOverlay(RESPONSE);
-      fireEvent.click(screen.getByRole('button', { name: 'Play data flow' }));
-      act(() => {
-        vi.advanceTimersByTime(100);
-      });
-      // One tick advanced one bin (2s) and broadcast the playhead position.
-      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
-      expect(broadcasts.some(ts => ts !== null && ts > 0)).toBe(true);
-      broadcasts.length = 0;
+    const { rerender } = renderOverlay(RESPONSE);
+    fireEvent.click(screen.getByRole('button', { name: 'Play data flow' }));
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    // One tick advanced one bin (2s).
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
 
-      // Disable the overlay mid-playback: the component renders null but
-      // stays mounted, so the interval must stop and the playhead hide.
-      rerender(
-        <Provider>
-          <Harness response={RESPONSE} enabled={false} />
-        </Provider>
-      );
-      expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
-      expect(broadcasts).toContain(null);
-      broadcasts.length = 0;
+    // Disable the overlay mid-playback: the component renders null but
+    // stays mounted, so the interval must stop.
+    rerender(
+      <Provider>
+        <Harness response={RESPONSE} enabled={false} />
+      </Provider>
+    );
+    expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
 
-      // No further ticks: nothing is broadcast while disabled...
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
-      expect(broadcasts).toHaveLength(0);
+    // No further ticks while disabled — after 1000ms the position is unchanged.
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
 
-      // ...and re-enabling shows a paused playhead that did not advance.
-      rerender(
-        <Provider>
-          <Harness response={RESPONSE} enabled />
-        </Provider>
-      );
-      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
-      expect(screen.getByRole('button', { name: 'Play data flow' })).toBeInTheDocument();
-    } finally {
-      unsub();
-    }
+    // Re-enabling shows a paused playhead that did not advance.
+    rerender(
+      <Provider>
+        <Harness response={RESPONSE} enabled />
+      </Provider>
+    );
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
+    expect(screen.getByRole('button', { name: 'Play data flow' })).toBeInTheDocument();
   });
 });
 

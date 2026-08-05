@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
-import { subscribePlayheadLine } from './timeline.utils';
+import { usePlayheadLineTimeMs } from '@quent/hooks';
 
 /**
  * @param readySignal - Bump when the chart instance is recreated (e.g. theme
@@ -16,40 +16,41 @@ export function usePlayheadLinePixel(
   readySignal = 0
 ): number | null {
   const [pixelX, setPixelX] = useState<number | null>(null);
-  const latestTimestampMsRef = useRef<number | null>(null);
+  const timestampMs = usePlayheadLineTimeMs();
+  const timestampMsRef = useRef(timestampMs);
+  timestampMsRef.current = timestampMs;
 
+  const recompute = useCallback(() => {
+    const instance = instanceRef.current;
+    const ts = timestampMsRef.current;
+    if (!instance || ts === null) {
+      setPixelX(null);
+      return;
+    }
+    try {
+      const pixel = instance.convertToPixel({ xAxisIndex }, ts);
+      setPixelX(pixel != null && isFinite(pixel) ? pixel : null);
+    } catch {
+      setPixelX(null);
+    }
+  }, [instanceRef, xAxisIndex]);
+
+  // Recompute when the timestamp atom changes.
   useEffect(() => {
-    const recompute = () => {
-      const instance = instanceRef.current;
-      const ts = latestTimestampMsRef.current;
-      if (!instance || ts === null) {
-        setPixelX(null);
-        return;
-      }
-      try {
-        const pixel = instance.convertToPixel({ xAxisIndex }, ts);
-        setPixelX(pixel != null && isFinite(pixel) ? pixel : null);
-      } catch {
-        setPixelX(null);
-      }
-    };
+    recompute();
+  }, [timestampMs, recompute]);
 
-    const unsubPlayhead = subscribePlayheadLine(timestampMs => {
-      latestTimestampMsRef.current = timestampMs;
-      recompute();
-    });
-
-    // dataZoom covers zoom/pan; finished fires after resize.
+  // Re-attach ECharts listeners when the instance changes; recompute on
+  // zoom/resize so the overlay stays aligned with the x-axis.
+  // dataZoom covers zoom/pan; finished fires after resize.
+  useEffect(() => {
     const instance = instanceRef.current;
     if (instance) {
       instance.on('dataZoom', recompute);
       instance.on('finished', recompute);
     }
-
     recompute();
-
     return () => {
-      unsubPlayhead();
       if (instance) {
         try {
           instance.off('dataZoom', recompute);
@@ -59,7 +60,7 @@ export function usePlayheadLinePixel(
         }
       }
     };
-  }, [instanceRef, xAxisIndex, readySignal]);
+  }, [instanceRef, xAxisIndex, readySignal, recompute]);
 
   return pixelX;
 }

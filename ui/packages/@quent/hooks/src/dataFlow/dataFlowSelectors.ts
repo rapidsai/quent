@@ -7,6 +7,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import {
   dataFlowEnabledAtom,
   playheadTimeSAtom,
+  playheadLineTimeMsAtom,
   selectedDataFlowMeasureAtom,
   dataFlowLabelMeasureAtom,
   dataFlowSelectedDimensionsAtom,
@@ -31,3 +32,6 @@ export const useSetDataFlowSelectedDimensions = () => useSetAtom(dataFlowSelecte
 
 export const useDataFlowMeta = () => useAtomValue(dataFlowMetaAtom);
 export const useDataFlowFrame = () => useAtomValue(dataFlowFrameAtom);
+
+export const usePlayheadLineTimeMs = () => useAtomValue(playheadLineTimeMsAtom);
+export const useSetPlayheadLineTimeMs = () => useSetAtom(playheadLineTimeMsAtom);

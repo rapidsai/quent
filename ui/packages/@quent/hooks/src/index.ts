@@ -107,6 +107,8 @@ export {
   useSetDataFlowSelectedDimensions,
   useDataFlowMeta,
   useDataFlowFrame,
+  usePlayheadLineTimeMs,
+  useSetPlayheadLineTimeMs,
 } from './dataFlow/dataFlowSelectors';
 export { useDataFlowSync } from './dataFlow/useDataFlowSync';
 export {

@@ -512,27 +512,6 @@ export function hideSyncedPointer() {
   broadcastHidePointer(null);
 }
 
-type PlayheadListener = (timestampMs: number | null) => void;
-const playheadListeners = new Set<PlayheadListener>();
-
-/**
- * Unlike the hover crosshair (ECharts axisPointer), the playhead line is a
- * separate CSS overlay so both can coexist without conflict.
- */
-export function subscribePlayheadLine(listener: PlayheadListener): () => void {
-  playheadListeners.add(listener);
-  return () => {
-    playheadListeners.delete(listener);
-  };
-}
-
-export function broadcastPlayheadLine(timestampMs: number): void {
-  playheadListeners.forEach(fn => fn(timestampMs));
-}
-
-export function hidePlayheadLine(): void {
-  playheadListeners.forEach(fn => fn(null));
-}
 
 export interface AxisPointerSyncOptions {
   /** If false, this chart will not receive showTip when the pointer is synced from another chart (default true). */
