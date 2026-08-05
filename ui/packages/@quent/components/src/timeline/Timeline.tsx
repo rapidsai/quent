@@ -285,8 +285,6 @@ export function Timeline({
   }, [gridOptions, minZoomSpanPct, xAxisOptions, yAxisOptions, seriesOptions]);
 
   const isDraggingRef = useRef(false);
-  const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
 
   // `onChartReady` runs exactly once per chart instance, so its closures
   // capture the initial values of `showTooltip` / `onHoverChange`. Refs let
@@ -363,7 +361,7 @@ export function Timeline({
     });
 
     attachWheelNavigation(instance);
-    onReadyRef.current?.(instance);
+    onReady?.(instance);
   };
 
   // If this Timeline is unmounted while the pointer is over it (e.g. a tree
