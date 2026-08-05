@@ -2,18 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MutableRefObject } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import { usePlayheadLineTimeMs } from '@quent/hooks';
 
-/**
- * @param readySignal - Bump when the chart instance is recreated (e.g. theme
- *   switch) so the hook re-attaches its ECharts listeners to the new instance.
- */
 export function usePlayheadLinePixel(
-  instanceRef: MutableRefObject<EChartsInstance | null>,
-  xAxisIndex = 0,
-  readySignal = 0
+  instance: EChartsInstance | null,
+  xAxisIndex = 0
 ): number | null {
   const [pixelX, setPixelX] = useState<number | null>(null);
   const timestampMs = usePlayheadLineTimeMs();
@@ -21,7 +15,6 @@ export function usePlayheadLinePixel(
   timestampMsRef.current = timestampMs;
 
   const recompute = useCallback(() => {
-    const instance = instanceRef.current;
     const ts = timestampMsRef.current;
     if (!instance || ts === null) {
       setPixelX(null);
@@ -33,7 +26,7 @@ export function usePlayheadLinePixel(
     } catch {
       setPixelX(null);
     }
-  }, [instanceRef, xAxisIndex]);
+  }, [instance, xAxisIndex]);
 
   // Recompute when the timestamp atom changes.
   useEffect(() => {
@@ -44,7 +37,6 @@ export function usePlayheadLinePixel(
   // zoom/resize so the overlay stays aligned with the x-axis.
   // dataZoom covers zoom/pan; finished fires after resize.
   useEffect(() => {
-    const instance = instanceRef.current;
     if (instance) {
       instance.on('dataZoom', recompute);
       instance.on('finished', recompute);
@@ -60,7 +52,7 @@ export function usePlayheadLinePixel(
         }
       }
     };
-  }, [instanceRef, xAxisIndex, readySignal, recompute]);
+  }, [instance, recompute]);
 
   return pixelX;
 }

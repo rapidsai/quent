@@ -16,7 +16,6 @@ import {
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '../lib/timeline.utils';
-import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
@@ -24,6 +23,7 @@ import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineEchartsTheme } from './timelineEchartsTheme';
 import type { PaletteTheme } from '@quent/utils';
 import { Opts } from 'echarts-for-react/lib/types';
+import { PlayheadLine } from './PlayheadLine';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
@@ -320,18 +320,16 @@ export function TimelineController({
   }, [onZoomChange, durationSeconds]);
 
   const selfTriggeredRef = useRef(false);
-  // Bumped on chart-ready so the restore effect re-runs when the instance is
-  // recreated (e.g. theme change disposes and rebuilds the chart at 0–100%).
-  const [readyTick, setReadyTick] = useState(0);
+  const [chartInstance, setChartInstance] = useState<EChartsInstance | null>(null);
 
   const zoomRange = useZoomRange();
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
     registerAxisPointerSync(instance);
-    setReadyTick(t => t + 1);
+    setChartInstance(instance);
   }, []);
 
-  const { handleChartReady, instanceRef } = useChartConnect({
+  const { handleChartReady } = useChartConnect({
     durationSeconds,
     activateBrushSelect: true,
     onReady: onChartReady,
@@ -339,37 +337,30 @@ export function TimelineController({
 
   // Restore the persisted zoom on range change or instance (re)creation.
   useEffect(() => {
-    if (readyTick === 0) return;
     if (selfTriggeredRef.current) {
       selfTriggeredRef.current = false;
       return;
     }
-    const instance = instanceRef.current;
-    if (!instance || durationSeconds === 0) return;
+    if (!chartInstance || durationSeconds === 0) return;
 
     const startPct = (zoomRange.start / durationSeconds) * 100;
     const endPct = (zoomRange.end / durationSeconds) * 100;
 
     // Mute our own dispatch so the echoed dataZoom event doesn't overwrite the atom.
     selfTriggeredRef.current = true;
-    instance.dispatchAction({
+    chartInstance.dispatchAction({
       type: 'dataZoom',
       dataZoomIndex: 0,
       start: startPct,
       end: endPct,
     });
-  }, [readyTick, zoomRange, durationSeconds, instanceRef]);
+  }, [chartInstance, zoomRange, durationSeconds]);
 
   useEffect(() => {
     return () => {
-      if (instanceRef.current) {
-        unregisterAxisPointerSync(instanceRef.current);
-        instanceRef.current = null;
-      }
+      if (chartInstance) unregisterAxisPointerSync(chartInstance);
     };
-  }, [instanceRef]);
-
-  const playheadPixelX = usePlayheadLinePixel(instanceRef, 0, readyTick);
+  }, [chartInstance]);
 
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
   const containerDims = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
@@ -388,12 +379,7 @@ export function TimelineController({
         opts={opts}
         autoResize={false}
       />
-      {playheadPixelX != null && (
-        <div
-          className="absolute top-0 bottom-0 w-px pointer-events-none z-[10] bg-primary/70"
-          style={{ left: playheadPixelX }}
-        />
-      )}
+      <PlayheadLine instance={chartInstance} />
     </div>
   );
 }
