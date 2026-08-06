@@ -247,8 +247,6 @@ impl NvtxModelBuilder {
                 }
                 NvtxEvent::Mark { domain, attributes } => marks.push(NvtxMark {
                     domain,
-                    // `nvtxDomainMarkEx` carries no thread id.
-                    thread_id: None,
                     name: tables.resolve_message(domain, &attributes.message),
                     category: category_id(attributes.category),
                     color: attributes.color,

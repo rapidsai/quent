@@ -165,12 +165,13 @@ impl NvtxSpan {
 }
 
 /// A reconstructed `nvtxDomainMarkEx` instant: a timestamp with no duration.
+///
+/// No thread: `nvtxDomainMarkEx` does not report one, so a mark says when
+/// something happened but never where.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NvtxMark {
     /// Raw domain handle (`0` = default domain).
     pub domain: u64,
-    /// Raw OS thread id, when the originating event carried one.
-    pub thread_id: Option<u32>,
     /// Resolved message, or a placeholder when the handle was never registered.
     pub name: String,
     /// Raw category id (`None` when the event carried category `0` = none).
