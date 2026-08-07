@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useState } from 'react';
 import { ChevronFirst, ChevronLast } from 'lucide-react';
 import {
   Button,
+  Input,
   Table,
   TableBody,
   TableCell,
@@ -66,8 +68,8 @@ export function EntityResults({
             Failed to load entities: {error instanceof Error ? error.message : 'unknown error'}
           </div>
         ) : (
-          <Table>
-            <TableHeader>
+          <Table containerClassName="relative w-full overflow-x-visible">
+            <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
                 <TableHead>Instance</TableHead>
                 <TableHead>Type</TableHead>
@@ -119,9 +121,12 @@ export function EntityResults({
           >
             Previous
           </Button>
-          <span>
-            Page {page + 1} / {pageCount}
-          </span>
+          <PageJump
+            page={page}
+            pageCount={pageCount}
+            disabled={paginationDisabled}
+            onPageChange={onPageChange}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -142,6 +147,57 @@ export function EntityResults({
         </div>
       </div>
     </>
+  );
+}
+
+function PageJump({
+  page,
+  pageCount,
+  disabled,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  disabled: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const displayValue = draft ?? String(page + 1);
+
+  function commit() {
+    if (draft === null) return;
+    const parsed = parseInt(draft, 10);
+    if (Number.isFinite(parsed)) {
+      onPageChange(Math.min(pageCount - 1, Math.max(0, parsed - 1)));
+    }
+    setDraft(null);
+  }
+
+  return (
+    <span className="flex items-center gap-1.5">
+      Page
+      <Input
+        type="number"
+        min={1}
+        max={pageCount}
+        aria-label="Page number"
+        disabled={disabled}
+        className="h-7 w-14 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        value={displayValue}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            commit();
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            setDraft(null);
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      / {pageCount}
+    </span>
   );
 }
 
