@@ -171,8 +171,20 @@ pub(crate) fn dispatch(event: NvtxEvent) {
 /// # Safety
 /// `get_export_table` must be the accessor NVTX supplies; calling this with an
 /// arbitrary pointer is undefined behavior. NVTX itself upholds this contract.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn InitializeInjectionNvtx2(
+// Static consumers may need to expose the NVTX-standard entry from a normal
+// object file (rather than from this archive, whose symbols are commonly
+// localized with `--exclude-libs`). Give that build an internal ABI name so a
+// consumer-owned exported trampoline can forward into this exact hook state.
+// The runtime-loaded library keeps exporting NVTX's required public name.
+#[cfg_attr(
+    feature = "static-injection",
+    unsafe(export_name = "quent_InitializeInjectionNvtx2")
+)]
+#[cfg_attr(
+    not(feature = "static-injection"),
+    unsafe(export_name = "InitializeInjectionNvtx2")
+)]
+pub unsafe extern "C" fn initialize_injection_nvtx2(
     get_export_table: NvtxGetExportTableFunc_t,
 ) -> c_int {
     // Contain any panic in the init path (e.g. a diagnostic write failing) so it
@@ -230,7 +242,7 @@ macro_rules! subscribe {
 ///
 /// # Safety
 /// `get_export_table` must be the accessor NVTX passes to
-/// [`InitializeInjectionNvtx2`].
+/// [`initialize_injection_nvtx2`].
 unsafe fn install_callbacks(get_export_table: NvtxGetExportTableFunc_t) -> bool {
     let Some(get_export_table) = get_export_table else {
         return false;

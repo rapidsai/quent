@@ -15,9 +15,9 @@
 //! - **Runtime (default):** built as a cdylib; NVTX `dlopen`s it via
 //!   `NVTX_INJECTION64_PATH` and calls the injection entry.
 //! - **In-process (`static-injection` feature):** a strong
-//!   `InitializeInjectionNvtx2` symbol is linked into the consuming binary,
-//!   overriding NVTX's weak one, so NVTX initializes injection at its first NVTX
-//!   call — no cdylib to load and no `NVTX_INJECTION64_PATH`.
+//!   `InitializeInjectionNvtx2_fnptr` is linked into the consuming image and
+//!   points at Quent's internal initializer, overriding NVTX's weak pointer so
+//!   that image initializes injection at its first NVTX call.
 
 // Linux 64-bit only. NVTX injection relies on the ELF weak-symbol /
 // NVTX_INJECTION64_PATH mechanism; Windows and 32-bit are out of scope.
@@ -34,4 +34,6 @@ mod callbacks;
 mod convert;
 mod init;
 
-pub use init::{InitializeInjectionNvtx2, InstallHookError, install_hook};
+pub use init::{
+    InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2, install_hook,
+};
