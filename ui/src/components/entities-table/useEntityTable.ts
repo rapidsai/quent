@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -111,6 +111,15 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     },
     [entities.resources]
   );
+  const operatorLabel = useCallback(
+    (id: string) => {
+      const operator = entities.operators[id];
+      return operator
+        ? (operator.instance_name ?? operator.operator_type_name ?? id)
+        : id;
+    },
+    [entities.operators]
+  );
 
   const validationErrors = useMemo(() => validateEntityFilters(filters), [filters]);
   const request = useMemo(
@@ -146,6 +155,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     paginationDisabled: requestPending || validationErrors.length > 0,
     requestPending,
     resetFilters,
+    operatorLabel,
     resourceLabel,
     resourceOptions,
     rows,
