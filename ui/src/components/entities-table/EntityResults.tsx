@@ -223,6 +223,14 @@ function EntityRow({
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           select();
+        } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          const rows = Array.from(
+            event.currentTarget.closest('tbody')?.querySelectorAll<HTMLElement>('tr') ?? []
+          );
+          const currentIndex = rows.indexOf(event.currentTarget);
+          const next = rows[currentIndex + (event.key === 'ArrowDown' ? 1 : -1)];
+          next?.focus();
         }
       }}
     >
