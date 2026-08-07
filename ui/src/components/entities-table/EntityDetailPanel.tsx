@@ -31,7 +31,7 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
         {fsm.transitions.map((transition, index) => {
           const nextTransition = fsm.transitions[index + 1];
           return (
-            <li key={index} className="rounded border bg-card p-2">
+            <li key={`${index}-${transition.name}`} className="rounded border bg-card p-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium">
                   <span className="text-muted-foreground">{index + 1}.</span> {transition.name}

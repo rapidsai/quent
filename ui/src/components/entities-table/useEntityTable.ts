@@ -122,16 +122,33 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   );
 
   const validationErrors = useMemo(() => validateEntityFilters(filters), [filters]);
-  const request = useMemo(
-    () => buildEntityRequest({ filters, operatorId, page, queryId, durationS }),
-    [durationS, filters, operatorId, page, queryId]
+
+  // Only text inputs need debouncing. Dropdowns, page, and sort fire immediately.
+  const debouncedMinUsageS = useDebouncedValue(filters.minUsageS, FILTER_DEBOUNCE_MS);
+  const debouncedWindowStart = useDebouncedValue(filters.windowStart, FILTER_DEBOUNCE_MS);
+  const debouncedWindowEnd = useDebouncedValue(filters.windowEnd, FILTER_DEBOUNCE_MS);
+  const effectiveFilters = useMemo(
+    () => ({
+      ...filters,
+      minUsageS: debouncedMinUsageS,
+      windowStart: debouncedWindowStart,
+      windowEnd: debouncedWindowEnd,
+    }),
+    [filters, debouncedMinUsageS, debouncedWindowStart, debouncedWindowEnd]
   );
-  const debouncedRequest = useDebouncedValue(request, FILTER_DEBOUNCE_MS);
+  const request = useMemo(
+    () => buildEntityRequest({ filters: effectiveFilters, operatorId, page, queryId, durationS }),
+    [durationS, effectiveFilters, operatorId, page, queryId]
+  );
   const query = useEntities(
-    { engineId, request: debouncedRequest },
+    { engineId, request },
     { enabled: validationErrors.length === 0 }
   );
-  const requestPending = query.isFetching || request !== debouncedRequest;
+  const isDebouncing =
+    filters.minUsageS !== debouncedMinUsageS ||
+    filters.windowStart !== debouncedWindowStart ||
+    filters.windowEnd !== debouncedWindowEnd;
+  const requestPending = query.isFetching || isDebouncing;
   const rows = useMemo(() => entityRows(query.data), [query.data]);
   const pageSize = normalizePageSize(filters.pageSize);
   const total = query.data?.total ?? 0;
