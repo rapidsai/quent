@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useInfiniteEntityList } from '@quent/client';
 import { useDebouncedZoomRange, useSelectedNodeIds } from '@quent/hooks';
-import type { FsmTypeDecl } from '@quent/utils';
+import type { FsmTypeDecl, FiniteStateMachine } from '@quent/utils';
 import {
   Button,
   LONG_ENTITIES_TIMELINE_HEIGHT,
@@ -12,6 +12,7 @@ import {
   Skeleton,
   buildLongEntityEntries,
   getLongEntitiesThreshold,
+  type LongEntityEntry,
 } from '@quent/components';
 
 const ENTITIES_PER_PAGE = 100;
@@ -26,6 +27,7 @@ type LongEntitiesRowProps = {
   isDark: boolean;
   /** Defaults to all states; resource scope keeps states used on this row's resource. */
   fsmStateScope?: 'all' | 'resource';
+  onEntitySelect?: (fsm: FiniteStateMachine) => void;
 };
 
 /**
@@ -41,6 +43,7 @@ export function LongEntitiesRow({
   fsmTypes,
   isDark,
   fsmStateScope = 'all',
+  onEntitySelect,
 }: LongEntitiesRowProps) {
   const selectedNodeIds = useSelectedNodeIds();
   const debouncedZoomRange = useDebouncedZoomRange();
@@ -77,6 +80,15 @@ export function LongEntitiesRow({
   );
   const totalEntities = data?.pages[data.pages.length - 1]?.total ?? entities.length;
 
+  const handleEntityClick = useCallback(
+    (entry: LongEntityEntry) => {
+      if (!onEntitySelect) return;
+      const fsm = entities.find(e => e.entity.id === entry.entityId)?.entity;
+      if (fsm) onEntitySelect(fsm);
+    },
+    [entities, onEntitySelect]
+  );
+
   if (!data && isFetching) {
     return (
       <div
@@ -99,6 +111,7 @@ export function LongEntitiesRow({
         durationSeconds={durationSeconds}
         height={LONG_ENTITIES_TIMELINE_HEIGHT}
         isDark={isDark}
+        onEntityClick={onEntitySelect ? handleEntityClick : undefined}
       />
 
       {hasNextPage && !isPlaceholderData && (

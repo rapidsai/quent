@@ -41,6 +41,7 @@ export interface LongEntitiesGanttProps {
   height?: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
+  onEntityClick?: (entry: LongEntityEntry) => void;
 }
 
 export function LongEntitiesGantt({
@@ -48,6 +49,7 @@ export function LongEntitiesGantt({
   durationSeconds,
   height = LONG_ENTITIES_TIMELINE_HEIGHT,
   isDark,
+  onEntityClick,
 }: LongEntitiesGanttProps) {
   const { textColor } = useTimelineEchartsTheme(isDark);
   const zoomRange = useZoomRange();
@@ -168,6 +170,19 @@ export function LongEntitiesGantt({
     [entries, customSeriesData, textColor]
   );
 
+  const onEvents = useMemo(() => {
+    if (!onEntityClick) return undefined;
+    return {
+      click: (params: { dataIndex: number; seriesName?: string }) => {
+        if (params.seriesName !== SERIES_NAME) return;
+        const datum = customSeriesData[params.dataIndex];
+        if (!datum) return;
+        const entry = entries[datum.entryIndex];
+        if (entry) onEntityClick(entry);
+      },
+    };
+  }, [onEntityClick, customSeriesData, entries]);
+
   return (
     <GanttChart
       data={customSeriesData}
@@ -180,6 +195,8 @@ export function LongEntitiesGantt({
       renderItem={renderItem}
       emptyMessage="No entities"
       renderTooltip={renderTooltip}
+      cursor={onEntityClick ? 'pointer' : undefined}
+      onEvents={onEvents}
     />
   );
 }

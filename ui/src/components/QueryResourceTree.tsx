@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Column, TreeTable } from '@quent/components';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
@@ -46,6 +46,8 @@ import {
   resourceIdFromLongEntitiesRowId,
 } from '@quent/components';
 import { LongEntitiesRow } from '@/components/LongEntitiesRow';
+import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
+import type { FiniteStateMachine } from '@quent/utils';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -132,6 +134,24 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useAtom(selectedTypesAtom);
   const [selectedFsmTypes, setSelectedFsmTypes] = useAtom(selectedFsmTypesAtom);
+
+  const [drawerFsm, setDrawerFsm] = useState<FiniteStateMachine | null>(null);
+  const closeDrawer = useCallback(() => setDrawerFsm(null), []);
+
+  const resourceLabel = useCallback(
+    (id: string) => {
+      const r = entities.resources[id];
+      return r ? `${r.instance_name} (${r.type_name})` : id;
+    },
+    [entities.resources]
+  );
+  const operatorLabel = useCallback(
+    (id: string) => {
+      const op = entities.operators[id];
+      return op ? (op.instance_name ?? op.operator_type_name ?? id) : id;
+    },
+    [entities.operators]
+  );
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
@@ -329,6 +349,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   durationSeconds={durationSeconds}
                   fsmTypes={entities.fsm_types}
                   isDark={isDark}
+                  onEntitySelect={setDrawerFsm}
                 />
               );
             }
@@ -364,6 +385,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     queryBundle,
     handleZoomChange,
     operatorEntriesByWorker,
+    setDrawerFsm,
   ]);
 
   return (
@@ -383,6 +405,12 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           rowHeight={DEFAULT_TIMELINE_HEIGHT}
         />
       </div>
+      <EntityDetailDrawer
+        fsm={drawerFsm}
+        resourceLabel={resourceLabel}
+        operatorLabel={operatorLabel}
+        onClose={closeDrawer}
+      />
     </div>
   );
 }
