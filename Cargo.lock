@@ -3184,6 +3184,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
+ "nvtx-server",
  "quent-io",
  "quent-query-engine-server",
  "quent-simulator-analyzer",
@@ -3207,6 +3208,7 @@ dependencies = [
 name = "quent-simulator-ui-bindings"
 version = "0.1.0"
 dependencies = [
+ "nvtx-ui",
  "quent-query-engine-ui",
  "quent-simulator-ui",
  "quent-ui",

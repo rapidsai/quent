@@ -15,6 +15,7 @@ export type { DataFlowTimelineBinned } from '../../../../../generated/ts-binding
 export type { DimensionKeyDecl } from '../../../../../generated/ts-bindings/DimensionKeyDecl';
 export type { Edge } from '../../../../../generated/ts-bindings/Edge';
 export type { Engine } from '../../../../../generated/ts-bindings/Engine';
+export type { EngineContexts } from '../../../../../generated/ts-bindings/EngineContexts';
 export type { EngineImplementationAttributes } from '../../../../../generated/ts-bindings/EngineImplementationAttributes';
 export type { EntityFilter } from '../../../../../generated/ts-bindings/EntityFilter';
 export type { EntityListEntry } from '../../../../../generated/ts-bindings/EntityListEntry';
@@ -69,3 +70,19 @@ export type { TimelineRequest } from '../../../../../generated/ts-bindings/Timel
 export type { TimeWindow } from '../../../../../generated/ts-bindings/TimeWindow';
 export type { DynamicValue } from '../../../../../generated/ts-bindings/DynamicValue';
 export type { Worker } from '../../../../../generated/ts-bindings/Worker';
+export type { NvtxCatalog } from '../../../../../generated/ts-bindings/NvtxCatalog';
+export type { NvtxCatalogAnomalies } from '../../../../../generated/ts-bindings/NvtxCatalogAnomalies';
+export type { NvtxCatalogCategory } from '../../../../../generated/ts-bindings/NvtxCatalogCategory';
+export type { NvtxCatalogDomain } from '../../../../../generated/ts-bindings/NvtxCatalogDomain';
+export type { NvtxCatalogThread } from '../../../../../generated/ts-bindings/NvtxCatalogThread';
+export type { NvtxDomainLaneGroup } from '../../../../../generated/ts-bindings/NvtxDomainLaneGroup';
+export type { NvtxDomainSelection } from '../../../../../generated/ts-bindings/NvtxDomainSelection';
+export type { NvtxLane } from '../../../../../generated/ts-bindings/NvtxLane';
+export type { NvtxLaneIdentity } from '../../../../../generated/ts-bindings/NvtxLaneIdentity';
+export type { NvtxMarkItem } from '../../../../../generated/ts-bindings/NvtxMarkItem';
+export type { NvtxRangeItem } from '../../../../../generated/ts-bindings/NvtxRangeItem';
+export type { NvtxRangeKind } from '../../../../../generated/ts-bindings/NvtxRangeKind';
+export type { NvtxRangeStatistics } from '../../../../../generated/ts-bindings/NvtxRangeStatistics';
+export type { NvtxViewportRequest } from '../../../../../generated/ts-bindings/NvtxViewportRequest';
+export type { NvtxViewportResponse } from '../../../../../generated/ts-bindings/NvtxViewportResponse';
+export type { NvtxViewportWindow } from '../../../../../generated/ts-bindings/NvtxViewportWindow';

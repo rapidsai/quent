@@ -4,10 +4,11 @@
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
+use nvtx_server::{import_context_events, routes as nvtx_routes};
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_query_engine_server::{
-    analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
+    analyzer_cache::index_query_engines, analyzer_service_router_with_routes, collector_service,
     initialize_tracing,
 };
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
@@ -88,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
+    let nvtx_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
         "ndjson" => Format::Ndjson,
@@ -131,10 +133,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router::<SimulatorUiAnalyzer>(
+            analyzer_service_router_with_routes::<SimulatorUiAnalyzer>(
                 Box::new(importer),
                 Box::new(lister),
                 cors_address,
+                nvtx_routes(Box::new(move |context_id| {
+                    import_context_events(&nvtx_output_dir, context_id)
+                })),
             )?
             .into_make_service(),
         )
