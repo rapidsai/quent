@@ -63,8 +63,8 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 
 /// Composes a model's entities into a model type and event enum.
 ///
-/// Fields may appear in any order; `name` and `root` are required, `entities` is
-/// optional.
+/// Fields may appear in any order; `name` and `root` are required. `entities`
+/// and `analyzer` are optional. `nvtx` is optional and defaults to `true`.
 ///
 /// ```ignore
 /// model! {
@@ -72,6 +72,7 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 ///     root: Cluster,
 ///     entities: { Worker, Thread, Task },
 ///     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
+///     nvtx: false,              // optional: disable CXX NVTX capture
 /// }
 /// ```
 #[proc_macro]

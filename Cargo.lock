@@ -2642,6 +2642,8 @@ version = "0.1.0"
 dependencies = [
  "cxx",
  "cxx-build",
+ "nvtx-bridge",
+ "nvtx-injection",
  "quent-codegen",
  "quent-legacy-readme-example",
 ]
@@ -2974,6 +2976,8 @@ version = "0.1.0"
 dependencies = [
  "cxx",
  "cxx-build",
+ "nvtx-bridge",
+ "nvtx-injection",
  "quent-codegen",
  "quent-qe-cpp-instrumentation",
  "quent-stdlib",
