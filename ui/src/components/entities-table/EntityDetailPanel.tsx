@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { thinScrollbarClass } from '@quent/components';
 import { formatAttributeValue, formatDuration } from '@quent/utils';
 import type { DynamicAttribute, FiniteStateMachine } from '@quent/utils';
 
@@ -25,7 +26,7 @@ export function EntityDetailPanel({ fsm, resourceLabel }: EntityDetailPanelProps
         <div className="text-xs text-muted-foreground">{fsm.type_name}</div>
         <div className="mt-1 break-all font-mono text-xs text-muted-foreground">{fsm.id}</div>
       </div>
-      <ol className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+      <ol className={`min-h-0 flex-1 space-y-2 overflow-auto p-3 ${thinScrollbarClass}`}>
         {fsm.transitions.map((transition, index) => {
           const nextTransition = fsm.transitions[index + 1];
           return (

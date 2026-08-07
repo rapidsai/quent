@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { ChevronFirst, ChevronLast } from 'lucide-react';
@@ -10,6 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  thinScrollbarClass,
 } from '@quent/components';
 import { cn, formatDuration } from '@quent/utils';
 import type { FiniteStateMachine } from '@quent/utils';
@@ -56,6 +57,7 @@ export function EntityResults({
         aria-busy={requestPending}
         className={cn(
           'flex-1 min-h-0 overflow-auto transition-opacity duration-150',
+          thinScrollbarClass,
           requestPending && rows.length > 0 ? 'opacity-60' : 'opacity-100'
         )}
       >
