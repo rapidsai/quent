@@ -2,11 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Maximize2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useSetZoomRange, useSetDebouncedZoomRange } from '@quent/hooks';
 import { QueryToolbar } from './QueryToolbar';
 
-/** Toolbar for the timeline view: shows the active operator filter and zoom reset. */
-export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
+/** Toolbar for the timeline view: shows the active operator filter, zoom reset, and extensions. */
+export function TimelineToolbar({
+  durationSeconds,
+  children,
+}: {
+  durationSeconds: number;
+  children?: ReactNode;
+}) {
   const setZoomRange = useSetZoomRange();
   const setDebouncedZoomRange = useSetDebouncedZoomRange();
 
@@ -26,6 +33,8 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
         <Maximize2 className="h-3 w-3" />
         <span>Reset zoom</span>
       </button>
+      {children && <div className="h-3 w-px bg-border" />}
+      {children}
     </QueryToolbar>
   );
 }

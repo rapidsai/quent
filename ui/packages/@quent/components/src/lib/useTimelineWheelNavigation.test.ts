@@ -85,28 +85,39 @@ describe('useTimelineWheelNavigation', () => {
     );
   });
 
-  it('allows shifted vertical wheel input to reach ECharts', () => {
+  it('zooms on shifted vertical wheel input even when an overlay sits above the chart', () => {
     const chart = createChart({ start: 25, end: 75 });
     const wheelTarget = document.createElement('div');
     wheelTarget.appendChild(chart.dom);
+    const overlay = document.createElement('button');
+    wheelTarget.appendChild(overlay);
     const echartsWheel = vi.fn();
     chart.dom.addEventListener('wheel', echartsWheel);
     const { result } = renderHook(() => useTimelineWheelNavigation(10));
     act(() => result.current(chart.instance, wheelTarget));
 
-    act(() => {
-      chart.dom.dispatchEvent(
-        new WheelEvent('wheel', {
-          deltaY: 100,
-          shiftKey: true,
-          bubbles: true,
-          cancelable: true,
-        })
-      );
+    const event = new WheelEvent('wheel', {
+      deltaY: -100,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+      clientX: CHART_WIDTH / 2,
     });
+    act(() => overlay.dispatchEvent(event));
 
-    expect(echartsWheel).toHaveBeenCalledOnce();
-    expect(chart.dispatchAction).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+    expect(echartsWheel).not.toHaveBeenCalled();
+    expect(chart.dispatchAction).toHaveBeenCalledOnce();
+    expect(chart.dispatchAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'dataZoom',
+        dataZoomIndex: 0,
+        start: expect.any(Number),
+        end: expect.any(Number),
+      })
+    );
+    const action = chart.dispatchAction.mock.calls[0][0];
+    expect(action.end - action.start).toBeLessThan(50);
   });
 
   it('leaves vertical wheel input to native scrolling', () => {
@@ -158,8 +169,9 @@ describe('useTimelineWheelNavigation', () => {
     });
     act(() => chart.dom.dispatchEvent(zoomOut));
 
-    expect(zoomOut.defaultPrevented).toBe(false);
-    expect(parentWheel).toHaveBeenCalledOnce();
+    expect(zoomOut.defaultPrevented).toBe(true);
+    expect(parentWheel).not.toHaveBeenCalled();
+    expect(chart.dispatchAction).toHaveBeenCalledOnce();
   });
 
   it.each([

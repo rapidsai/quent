@@ -7,6 +7,7 @@ import type { DataZoomComponentOption } from 'echarts/components';
 import { TIMELINE_SPACING } from '../timeline/types';
 
 const ZOOM_LIMIT_FLOAT_TOLERANCE = 1.01;
+const WHEEL_ZOOM_FACTOR = 1.1;
 
 function getDataZoomState(instance: EChartsType): DataZoomComponentOption | undefined {
   const dataZoom = (instance.getOption() as EChartsOption).dataZoom;
@@ -39,10 +40,42 @@ export function useTimelineWheelNavigation(minZoomSpanPct: number) {
           event.deltaX !== 0 && Math.abs(event.deltaX) > Math.abs(event.deltaY);
 
         if (event.shiftKey && !isHorizontalScroll) {
-          if (event.deltaY < 0 && isAtZoomLimit()) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
+          if (instance.isDisposed?.()) return;
+          const dataZoom = getDataZoomState(instance);
+          if (!dataZoom) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const currentStart = dataZoom.start ?? 0;
+          const currentEnd = dataZoom.end ?? 100;
+          const currentSpan = currentEnd - currentStart;
+          const zoomingIn = event.deltaY < 0;
+          const unclampedNextSpan = zoomingIn
+            ? currentSpan / WHEEL_ZOOM_FACTOR
+            : currentSpan * WHEEL_ZOOM_FACTOR;
+          const nextSpan = Math.max(minZoomSpanPctRef.current, Math.min(100, unclampedNextSpan));
+
+          if (zoomingIn && isAtZoomLimit()) return;
+
+          const rect = instance.getDom().getBoundingClientRect();
+          const usableWidth = Math.max(
+            1,
+            rect.width - TIMELINE_SPACING.left - TIMELINE_SPACING.right
+          );
+          const localX =
+            event.clientX > 0 ? event.clientX - rect.left - TIMELINE_SPACING.left : usableWidth / 2;
+          const anchorPct = Math.max(0, Math.min(1, localX / usableWidth));
+          const anchorValue = currentStart + currentSpan * anchorPct;
+          const unclampedStart = anchorValue - nextSpan * anchorPct;
+          const newStart = Math.max(0, Math.min(100 - nextSpan, unclampedStart));
+
+          instance.dispatchAction({
+            type: 'dataZoom',
+            dataZoomIndex: 0,
+            start: newStart,
+            end: newStart + nextSpan,
+          });
           return;
         }
 

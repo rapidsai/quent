@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Column, TreeTable } from '@quent/components';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
@@ -24,6 +24,12 @@ import {
   buildBulkParamsForItem,
   findItemById,
 } from '@quent/components';
+import { NvtxTreeLabel, NvtxTreeUsage } from '@/components/nvtx/NvtxTreeRows';
+import { useNvtxTimeline } from '@/components/nvtx/useNvtxTimeline';
+import type {
+  NvtxTimelinePlacement,
+  NvtxTimelineTreeItem,
+} from '@/components/nvtx/nvtxTimeline.types';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import {
   selectedTypesAtom,
@@ -117,6 +123,26 @@ function injectLongEntitiesRows(item: TreeTableItem): TreeTableItem {
   return { ...item, children };
 }
 
+function collectTreeItemIds(item: TreeTableItem, ids = new Set<string>()): Set<string> {
+  ids.add(item.id);
+  item.children?.forEach(child => collectTreeItemIds(child, ids));
+  return ids;
+}
+
+/** Nest each context-wide NVTX group beneath the resource owned by that process. */
+function injectNvtxTimelineRows(
+  item: NvtxTimelineTreeItem,
+  placements: NvtxTimelinePlacement[]
+): NvtxTimelineTreeItem {
+  const children = item.children?.map(child => injectNvtxTimelineRows(child, placements)) ?? [];
+  const nvtxChildren = placements
+    .filter(placement => placement.parentId === item.id)
+    .map(placement => placement.item);
+  return children.length > 0 || nvtxChildren.length > 0
+    ? { ...item, children: [...children, ...nvtxChildren] }
+    : { ...item };
+}
+
 interface QueryResourceTreeProps {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
@@ -147,6 +173,14 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     () => transformResourceTree(entities, resourceTree),
     [resourceTree, entities]
   );
+  const resourceIds = useMemo(() => collectTreeItemIds(rootItem), [rootItem]);
+
+  const nvtx = useNvtxTimeline({
+    engineId,
+    queryStartUnixNs: BigInt(startTime),
+    resourceIds,
+    rootResourceId: rootItem.id,
+  });
 
   const highlightedItemIds = useHighlightedItemIds(rootItem);
 
@@ -165,6 +199,14 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
   const controlledExpandedIds = expandedIds;
+  const seededNvtxIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const itemId of nvtx.initiallyExpandedIds) {
+      if (seededNvtxIds.current.has(itemId)) continue;
+      seededNvtxIds.current.add(itemId);
+      handleExpandChange(itemId, true);
+    }
+  }, [handleExpandChange, nvtx.initiallyExpandedIds]);
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
@@ -182,7 +224,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const onExpandChange = useCallback(
     (itemId: string, isExpanded: boolean) => {
       handleExpandChange(itemId, isExpanded);
-      handleExpand(itemId, isExpanded);
+      if (!itemId.startsWith('nvtx:')) handleExpand(itemId, isExpanded);
     },
     [handleExpandChange, handleExpand]
   );
@@ -228,8 +270,15 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   );
 
   const treeData = useMemo(
-    () => [injectLongEntitiesRows(injectOperatorTimelineRows(rootItem, workerIdsFromPlanTree))],
-    [rootItem, workerIdsFromPlanTree]
+    () => [
+      injectNvtxTimelineRows(
+        injectLongEntitiesRows(
+          injectOperatorTimelineRows(rootItem, workerIdsFromPlanTree)
+        ) as NvtxTimelineTreeItem,
+        nvtx.placements
+      ),
+    ],
+    [rootItem, workerIdsFromPlanTree, nvtx.placements]
   );
 
   /** Operator entries per worker id (for expandable gantt under each worker resource). */
@@ -253,7 +302,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             Resource
           </div>
         ),
-        render: ({ item }: { item: TreeTableItem; level: number }) => {
+        render: ({ item }: { item: NvtxTimelineTreeItem; level: number }) => {
+          if (item.nvtx) return <NvtxTreeLabel item={item} />;
           switch (item.type) {
             case OPERATOR_TIMELINE_ROW_TYPE: {
               return <GanttRowLabel>Operators</GanttRowLabel>;
@@ -303,7 +353,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           </div>
         ),
         subHeaderContent: <TimelineRuler isDark={isDark} />,
-        render: ({ item }: { item: TreeTableItem }) => {
+        render: ({ item }: { item: NvtxTimelineTreeItem }) => {
+          if (item.nvtx) {
+            return <NvtxTreeUsage item={item} durationSeconds={durationSeconds} isDark={isDark} />;
+          }
           switch (item.type) {
             case OPERATOR_TIMELINE_ROW_TYPE: {
               const workerId = workerIdFromOperatorTimelineRowId(item.id);
@@ -348,7 +401,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           }
         },
       },
-    ] satisfies Column<TreeTableItem>[];
+    ] satisfies Column<NvtxTimelineTreeItem>[];
   }, [
     durationSeconds,
     fetchedRootTimeline,
@@ -368,9 +421,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   return (
     <div className="flex min-w-0 flex-col h-full w-full">
-      <TimelineToolbar durationSeconds={durationSeconds} />
+      <TimelineToolbar durationSeconds={durationSeconds}>{nvtx.controls}</TimelineToolbar>
       <div className="min-w-0 flex-1 min-h-0">
-        <TreeTable<TreeTableItem>
+        <TreeTable<NvtxTimelineTreeItem>
           data={treeData}
           columns={columns}
           initialSelectedItemId={rootItem.id}

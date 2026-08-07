@@ -173,6 +173,15 @@ export {
 } from './timeline/types';
 export type { TimelineMark, TimelineSeries, TimelineSeriesEntry } from './timeline/types';
 export { ResourceTimeline } from './timeline/ResourceTimeline';
+export { NvtxLaneChart } from './nvtx/NvtxLaneChart';
+export type { NvtxLaneChartProps } from './nvtx/NvtxLaneChart';
+export { formatNvtxDuration, nvtxRelativeSecondsToMs } from './nvtx/NvtxLaneChart.utils';
+export { NvtxTimelineControls } from './nvtx/NvtxTimelineControls';
+export type {
+  NvtxCatalogControlEntry,
+  NvtxStatisticsControlEntry,
+  NvtxTimelineControlsProps,
+} from './nvtx/NvtxTimelineControls';
 
 // ─── DAG components ───────────────────────────────────────────────────────────
 export { DAGChart } from './dag/DAGChart';

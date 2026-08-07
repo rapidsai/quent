@@ -13,6 +13,14 @@ export const handlers = [
     return HttpResponse.json(['engine-1', 'engine-2', 'engine-3']);
   }),
 
+  // NVTX is optional; most component tests have no backing contexts.
+  http.get('http://localhost:8000/api/engines/:engineId/contexts', ({ params }) => {
+    return HttpResponse.json({
+      engine_id: params.engineId,
+      context_resources: {},
+    });
+  }),
+
   // Example: List coordinators for an engine
   http.get('/api/engines/:engineId/coordinators', ({ params }) => {
     const { engineId } = params;
