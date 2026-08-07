@@ -2129,6 +2129,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvtx-ui"
+version = "0.1.0"
+dependencies = [
+ "nvtx-analyzer",
+ "nvtx-bridge",
+ "nvtx-events",
+ "quent-events",
+ "serde",
+ "serde_json",
+ "ts-rs",
+ "uuid",
+]
+
+[[package]]
 name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

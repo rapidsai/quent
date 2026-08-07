@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+nvtx-analyzer = { path = "../analyzer" }
+serde.workspace = true
+ts-rs.workspace = true
+
+[dev-dependencies]
+nvtx-bridge = { path = "../bridge" }
+nvtx-events = { path = "../events" }
+quent-events = { path = "../../../crates/events" }
+serde_json.workspace = true
+uuid.workspace = true
