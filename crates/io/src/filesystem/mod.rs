@@ -31,10 +31,10 @@ impl TryFrom<&str> for Format {
 }
 
 impl Format {
-    /// Detect the format of a context directory from the first recognized
-    /// `*.<ext>` event stream in any of its per-entity subdirectories. Returns
-    /// `None` if no readable stream with a known extension is present.
+    /// Detect the common format of a context's event streams. Returns `None` if
+    /// no recognized stream is present or streams use different formats.
     pub fn detect(context_dir: &std::path::Path) -> Option<Self> {
+        let mut detected = None;
         for entry in std::fs::read_dir(context_dir).ok()?.flatten() {
             if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                 continue;
@@ -48,10 +48,53 @@ impl Format {
                     .and_then(|ext| ext.to_str())
                     .and_then(|ext| Self::try_from(ext).ok())
                 {
-                    return Some(format);
+                    match detected {
+                        Some(existing) if existing != format => return None,
+                        None => detected = Some(format),
+                        _ => {}
+                    }
                 }
             }
         }
-        None
+        detected
+    }
+}
+
+#[cfg(all(test, feature = "ndjson"))]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use uuid::Uuid;
+
+    fn context_with_streams(streams: &[(&str, &str)]) -> PathBuf {
+        let context = std::env::temp_dir().join(format!("quent-format-{}", Uuid::now_v7()));
+        for &(entity, extension) in streams {
+            let stream_dir = context.join(entity);
+            std::fs::create_dir_all(&stream_dir).unwrap();
+            std::fs::write(stream_dir.join(format!("events.{extension}")), []).unwrap();
+        }
+        context
+    }
+
+    #[test]
+    fn detects_one_context_wide_format() {
+        let context =
+            context_with_streams(&[("EngineEvent", "ndjson"), ("NvtxEventEntity", "ndjson")]);
+        let detected = Format::detect(&context);
+        std::fs::remove_dir_all(context).unwrap();
+
+        assert_eq!(detected, Some(Format::Ndjson));
+    }
+
+    #[test]
+    #[cfg(feature = "msgpack")]
+    fn rejects_mixed_context_formats() {
+        let context =
+            context_with_streams(&[("EngineEvent", "ndjson"), ("NvtxEventEntity", "msgpack")]);
+        let detected = Format::detect(&context);
+        std::fs::remove_dir_all(context).unwrap();
+
+        assert_eq!(detected, None);
     }
 }

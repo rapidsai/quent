@@ -31,6 +31,7 @@ members = [
     "integrations/nvtx/example",
     "integrations/nvtx/analyzer",
     "integrations/nvtx/ui",
+    "integrations/nvtx/server",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",

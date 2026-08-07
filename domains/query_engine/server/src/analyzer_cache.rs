@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
@@ -42,6 +42,8 @@ pub struct EngineIndex {
     contexts: HashMap<Uuid, BTreeSet<Uuid>>,
     /// Engine id to its workers and the context each was found in.
     workers: HashMap<Uuid, Vec<(Uuid, Uuid)>>,
+    /// Resource-group entities observed in each context, by engine ID.
+    context_resources: HashMap<Uuid, BTreeMap<Uuid, BTreeSet<Uuid>>>,
 }
 
 impl EngineIndex {
@@ -53,11 +55,21 @@ impl EngineIndex {
     }
 
     fn add_worker(&mut self, engine_id: Uuid, worker_id: Uuid, context_id: Uuid) {
-        self.attribute_context(engine_id, context_id);
+        self.attribute_resource(engine_id, context_id, worker_id);
         self.workers
             .entry(engine_id)
             .or_default()
             .push((worker_id, context_id));
+    }
+
+    fn attribute_resource(&mut self, engine_id: Uuid, context_id: Uuid, resource_id: Uuid) {
+        self.attribute_context(engine_id, context_id);
+        self.context_resources
+            .entry(engine_id)
+            .or_default()
+            .entry(context_id)
+            .or_default()
+            .insert(resource_id);
     }
 
     /// All known engine ids.
@@ -77,6 +89,21 @@ impl EngineIndex {
     /// `engine_id`'s workers as `(worker_id, context_id)` pairs.
     pub fn workers_of(&self, engine_id: Uuid) -> &[(Uuid, Uuid)] {
         self.workers.get(&engine_id).map_or(&[], Vec::as_slice)
+    }
+
+    /// Resource-group entity IDs observed in each context of `engine_id`.
+    pub fn context_resources_of(&self, engine_id: Uuid) -> BTreeMap<Uuid, Vec<Uuid>> {
+        let mut resources: BTreeMap<Uuid, Vec<Uuid>> = self
+            .contexts_of(engine_id)
+            .into_iter()
+            .map(|context_id| (context_id, Vec::new()))
+            .collect();
+        if let Some(by_context) = self.context_resources.get(&engine_id) {
+            for (&context_id, resource_ids) in by_context {
+                resources.insert(context_id, resource_ids.iter().copied().collect());
+            }
+        }
+        resources
     }
 }
 
@@ -116,7 +143,7 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
             for event in importer {
                 let event = event?;
                 if seen.insert(event.id) {
-                    index.attribute_context(event.id, context_id);
+                    index.attribute_resource(event.id, context_id, event.id);
                 }
             }
         }
@@ -202,6 +229,20 @@ where
         Ok((self.lister)()?.engine_ids().collect())
     }
 
+    /// List an engine's contributing contexts without blocking the async executor.
+    pub(crate) async fn contexts(&self, engine_id: Uuid) -> ServerResult<ui::EngineContexts> {
+        let lister = Arc::clone(&self.lister);
+        tokio::task::spawn_blocking(move || {
+            let index = lister()?;
+            Ok(ui::EngineContexts {
+                engine_id,
+                context_resources: index.context_resources_of(engine_id),
+            })
+        })
+        .await
+        .map_err(|error| ServerError::Cache(format!("blocking task panicked: {error}")))?
+    }
+
     pub(crate) async fn list_with_metadata(&self) -> ServerResult<Vec<ui::Engine>> {
         let lister = Arc::clone(&self.lister);
         let importer = Arc::clone(&self.importer);
@@ -239,5 +280,43 @@ where
             .await
             .map(|v| v.into_value())
             .map_err(|e: Arc<ServerError>| ServerError::Cache(format!("{e:?}")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn engine_context_inventory_is_deduplicated_and_sorted() {
+        let engine_id = Uuid::from_u128(1);
+        let earlier = Uuid::from_u128(2);
+        let later = Uuid::from_u128(3);
+        let mut index = EngineIndex::default();
+        index.attribute_context(engine_id, later);
+        index.attribute_context(engine_id, earlier);
+        index.attribute_context(engine_id, later);
+
+        assert_eq!(index.contexts_of(engine_id), vec![earlier, later]);
+        assert!(index.contexts_of(Uuid::from_u128(4)).is_empty());
+    }
+
+    #[test]
+    fn context_inventory_retains_resource_ownership() {
+        let engine_id = Uuid::from_u128(1);
+        let engine_context = Uuid::from_u128(2);
+        let worker_context = Uuid::from_u128(3);
+        let worker_id = Uuid::from_u128(4);
+        let mut index = EngineIndex::default();
+        index.attribute_resource(engine_id, engine_context, engine_id);
+        index.add_worker(engine_id, worker_id, worker_context);
+
+        assert_eq!(
+            index.context_resources_of(engine_id),
+            BTreeMap::from([
+                (engine_context, vec![engine_id]),
+                (worker_context, vec![worker_id]),
+            ])
+        );
     }
 }

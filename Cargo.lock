@@ -2129,6 +2129,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvtx-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "moka",
+ "nvtx-analyzer",
+ "nvtx-bridge",
+ "nvtx-events",
+ "nvtx-ui",
+ "quent-events",
+ "quent-io",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "nvtx-ui"
 version = "0.1.0"
 dependencies = [

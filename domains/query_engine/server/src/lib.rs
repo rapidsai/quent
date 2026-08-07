@@ -59,12 +59,29 @@ where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
 {
+    analyzer_service_router_with_routes::<A>(importer, lister, cors, AxumRouter::new())
+}
+
+/// Build the analyzer router and merge integration-owned routes before common
+/// CORS and embedded-UI fallback layers are installed.
+pub fn analyzer_service_router_with_routes<A>(
+    importer: Box<analyzer_cache::ImporterFn<A>>,
+    lister: Box<analyzer_cache::ListerFn>,
+    cors: Option<String>,
+    additional_routes: AxumRouter,
+) -> Result<AxumRouter, Box<dyn std::error::Error>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+    <A as UiAnalyzer>::EntityRef: serde::Serialize,
+{
     let state = ServiceState {
         analyzers: AnalyzerCache::<A>::new(importer, lister),
         timelines: TimelineCache::new(),
     };
 
-    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(state));
+    let mut http_routes = axum::Router::new()
+        .nest("/api/engines", ui::routes(state))
+        .merge(additional_routes);
 
     #[cfg(feature = "swagger")]
     {
