@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
@@ -37,7 +37,7 @@ export const useQueryPlanVisualization = (
     try {
       const dag = getPlanDAG(queryBundle, planId);
       return {
-        dagData: { ...dag, queryData: treeData },
+        dagData: { ...dag, queryData: treeData, quantitySpecs: queryBundle.quantity_specs },
         treeData,
         error: null,
       };

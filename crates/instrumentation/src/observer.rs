@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The per-entity event pipeline that forwards events to an exporter.
+//! Shared event forwarding state for entity observers.
 
-use crate::context::{BackendRuntime, drive};
+use crate::context::{Runtime, drive};
 use quent_events::{EntityEvent, Event};
 use quent_io::Exporter;
 use std::sync::{
@@ -71,34 +71,30 @@ impl<T> EventSender<T> {
     }
 }
 
-/// Provides an event pipeline to "observe" events of one *type* of entity `T`
-/// and export them.
+/// Backs an entity observer with event forwarding and exporter lifecycle management.
 ///
-/// Instrumented application code should not interact with this type directly
-/// unless they have a very special reason. Instead, it interacts with the
-/// generated observer only.
+/// A context creates one instance per entity type and shares it among that
+/// entity's observer and handles. Dropping the final shared owner cancels the
+/// forwarder and flushes the exporter.
 ///
-/// Generated code constructs and shares this type. Instrumented application
-/// code uses the generated observer and its per-instance entity handles
-/// instead. Those manage the shared ownership and flush-on-last-drop this type
-/// relies on, so holding or dropping it directly can lose or prematurely flush
-/// events.
+/// Hidden because generated `Observer<E>` and `Handle<E>` types expose this
+/// lifecycle.
 #[doc(hidden)]
-pub struct Observer<T> {
+pub struct ObserverInner<T> {
     events_sender: EventSender<T>,
     cancellation_token: CancellationToken,
     forwarder_handle: Option<JoinHandle<()>>,
-    /// The runtime this observer's forwarder runs on; `None` for a no-op
-    /// observer. An `Owned` runtime is kept alive here for the observer's
+    /// The runtime this pipeline's forwarder runs on; `None` for a no-op
+    /// pipeline. An `Owned` runtime is kept alive here for the pipeline's
     /// lifetime, so its drop flush is valid even after the [`Context`] is gone.
     ///
     /// [`Context`]: crate::Context
-    runtime: Option<BackendRuntime>,
+    runtime: Option<Runtime>,
 }
 
-impl<T> Observer<T> {
-    /// Construct a no-op observer that discards events and holds no runtime
-    /// resources whatesoever.
+impl<T> ObserverInner<T> {
+    /// Construct a no-op pipeline that discards events and holds no runtime
+    /// resources whatsoever.
     pub fn noop() -> Self {
         Self {
             events_sender: EventSender::noop(),
@@ -117,9 +113,19 @@ impl<T> Observer<T> {
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
         self.events_sender.emit(id, event);
     }
+
+    /// A cloned [`EventSender`] feeding this pipeline.
+    ///
+    /// Lets a `'static` producer emit into the pipeline while the caller keeps
+    /// ownership (and still flushes on drop). The sender does not keep the
+    /// pipeline alive; sends after it is dropped are discarded (the first logs
+    /// an error via `tracing`, then further ones are suppressed).
+    pub fn sender(&self) -> EventSender<T> {
+        self.events_sender.clone()
+    }
 }
 
-impl<T> Drop for Observer<T> {
+impl<T> Drop for ObserverInner<T> {
     fn drop(&mut self) {
         self.cancellation_token.cancel();
 
@@ -138,11 +144,11 @@ impl<T> Drop for Observer<T> {
 }
 
 /// Spawn the forwarder task for `exporter` on `runtime` and wrap it in an
-/// [`Observer`]. The task drains and flushes the exporter on cancellation.
+/// [`ObserverInner`]. The task drains and flushes the exporter on cancellation.
 pub(crate) fn spawn_forwarder<T>(
-    runtime: &BackendRuntime,
+    runtime: &Runtime,
     mut exporter: Box<dyn Exporter<T>>,
-) -> Observer<T>
+) -> ObserverInner<T>
 where
     T: Send + EntityEvent + 'static,
 {
@@ -194,7 +200,7 @@ where
         }
     });
 
-    Observer {
+    ObserverInner {
         events_sender: EventSender {
             tx: Some(events_sender),
             disable_error_log: Arc::new(AtomicBool::new(false)),
@@ -216,7 +222,7 @@ mod tests {
 
     #[test]
     fn noop_observer_holds_no_sender_and_discards_events() {
-        let observer = Observer::<TestEvent>::noop();
+        let observer = ObserverInner::<TestEvent>::noop();
         assert!(observer.events_sender.tx.is_none());
         // Emitting is a silent no-op.
         observer.emit(Uuid::now_v7(), TestEvent);

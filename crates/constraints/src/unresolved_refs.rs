@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_schema::{
@@ -33,7 +33,7 @@ impl Visitor for UnresolvedReferences {
 mod tests {
     use super::*;
     use quent_schema::Schema;
-    use quent_schema::test_utils::{entity, event, field, ident, record, schema};
+    use quent_schema::test_utils::{entity, event, field, record, record_type, schema};
 
     fn unresolved(schema: &Schema) -> Vec<String> {
         schema.walk(UnresolvedReferences::default())
@@ -47,7 +47,7 @@ mod tests {
                 "E",
                 vec![event("Ev", vec![field("f", DataType::U64)])],
             )],
-            vec![record("R", vec![field("rf", DataType::Record(ident("R")))])],
+            vec![record("R", vec![field("rf", record_type("R"))])],
         );
         assert!(unresolved(&s).is_empty());
     }
@@ -58,10 +58,7 @@ mod tests {
             "S",
             vec![entity(
                 "E",
-                vec![event(
-                    "Ev",
-                    vec![field("f", DataType::Record(ident("ghost")))],
-                )],
+                vec![event("Ev", vec![field("f", record_type("ghost"))])],
             )],
             vec![],
         );
@@ -77,7 +74,7 @@ mod tests {
             "S",
             vec![entity(
                 "E",
-                vec![event("Ev", vec![field("f", DataType::Record(ident("R")))])],
+                vec![event("Ev", vec![field("f", record_type("R"))])],
             )],
             vec![record("R", vec![])],
         );
@@ -86,14 +83,26 @@ mod tests {
 
     #[test]
     fn references_into_nested_data_types_are_checked() {
-        let ty = DataType::Option(Box::new(DataType::List(Box::new(DataType::Record(ident(
-            "ghost",
-        ))))));
+        let ty = DataType::Option(Box::new(DataType::List(Box::new(record_type("ghost")))));
         let s = schema(
             "S",
             vec![entity("E", vec![event("Ev", vec![field("f", ty)])])],
             vec![],
         );
         assert!(unresolved(&s).iter().any(|r| r.contains("ghost")));
+    }
+
+    #[test]
+    fn qualified_record_reference_resolves() {
+        let s = schema(
+            "S",
+            [entity(
+                "Bar::E",
+                [event("Ev", [field("f", record_type("Foo::R"))])],
+            )],
+            [record("Foo::R", [])],
+        );
+
+        assert!(unresolved(&s).is_empty());
     }
 }

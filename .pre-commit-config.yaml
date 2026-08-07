@@ -1,7 +1,40 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+#
+# License-header enforcement via pre-commit + rapidsai/pre-commit-hooks.
+#
+# Install locally with:
+#     pixi run pre-commit install
+#
+# Run on all files (bulk update):
+#     pixi run pre-commit run verify-copyright --all-files
+#
+# CI uses .pre-commit-config.ci.yaml (check-only, --force-spdx).
+
+exclude: |
+  (?x)
+    ^target/
+    ^ui/node_modules/
+    ^ui/.pnpm-store/
+    ^docs/
+
 repos:
-  - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.24.1
-    hooks:
-      - id: zizmor
+
+# Insert/maintain the NVIDIA SPDX header. --spdx emits the two-line
+# SPDX-FileCopyrightText / SPDX-License-Identifier block; the year range is
+# derived from git history and auto-bumped on edit.
+- repo: https://github.com/rapidsai/pre-commit-hooks
+  rev: v1.5.1
+  hooks:
+    - id: verify-copyright
+      args: [--fix, --spdx]
+      exclude: |
+        (?x)
+          bridge/include/rust/cxx\.h$|
+          bridge/include/quent-bridge/gen/|
+          examples/simulator/server/ts-bindings/
+      # When adding a new source file type to the repo, add its extension here.
+      files: |
+        (?x)
+          CMakeLists\.txt$|
+          [.](rs|js|ts|tsx|jsx|mjs|cjs|py|sh|cpp|h|proto|css)$

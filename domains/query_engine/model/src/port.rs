@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Port entity: input or output of an operator.
@@ -16,7 +16,7 @@ pub struct Declaration {
 
 #[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Statistics {
-    pub custom_attributes: quent_model::attributes::CustomAttributes,
+    pub custom_attributes: quent_model::attributes::DynamicAttributes,
 }
 
 entity! {

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
@@ -7,7 +7,7 @@ import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import { useZoomRange } from '@quent/hooks';
 import { formatDurationForAxisInterval } from '@quent/utils';
-import { nanosToMs, getTimelineXAxisIntervalMs, MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
+import { getTimelineXAxisIntervalMs, MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
 import { useChartResize } from '../lib/useChartResize';
 import {
   useTimelineEchartsTheme,
@@ -28,21 +28,19 @@ const RULER_GRID_TOP = 20;
 export type TimelineRulerMode = 'absolute' | 'relative';
 
 type TimelineRulerProps = {
-  startTime: bigint;
   isDark: boolean;
   mode?: TimelineRulerMode;
 };
 
 /** Sticky axis ruler showing elapsed time for the current zoom window. */
-export function TimelineRuler({ startTime, isDark, mode = 'relative' }: TimelineRulerProps) {
+export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps) {
   const { themeName, axisTickColor, axisLabelColor, solidLabelBackgroundColor } =
     useTimelineEchartsTheme(isDark);
   const { handleChartReady } = useChartResize();
-  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
   const zoomRange = useZoomRange();
 
-  const zoomedStartMs = startTimeMs + zoomRange.start * 1000;
-  const zoomedEndMs = startTimeMs + zoomRange.end * 1000;
+  const zoomedStartMs = zoomRange.start * 1000;
+  const zoomedEndMs = zoomRange.end * 1000;
   const zoomedSpanMs = Math.max(zoomedEndMs - zoomedStartMs, MIN_ZOOM_WINDOW_S * 1000);
 
   const interval = useMemo(
@@ -52,7 +50,7 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
 
   const option: EChartsOption = useMemo(() => {
     const formatLabel = (value: number): string => {
-      const absoluteMs = value - startTimeMs;
+      const absoluteMs = value;
       const relativeMs = value - zoomedStartMs;
       const isMinMax = value === zoomedStartMs || value === zoomedEndMs;
 
@@ -135,7 +133,6 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
     zoomedStartMs,
     zoomedEndMs,
     interval,
-    startTimeMs,
     axisTickColor,
     axisLabelColor,
     solidLabelBackgroundColor,

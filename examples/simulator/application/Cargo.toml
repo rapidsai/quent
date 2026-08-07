@@ -6,13 +6,13 @@ publish.workspace = true
 [dependencies]
 clap = {version = "4.5.57", features = ["derive", "env"] }
 petgraph.workspace = true
-quent-attributes = { path = "../../../crates/attributes" }
+quent-dynamic-attributes = { path = "../../../crates/dynamic-attributes" }
 quent-io = { path = "../../../crates/io", features = ["clap"] }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-simulator-instrumentation = { path = "../instrumentation" }
 quent-model = { path = "../../../crates/model" }
 quent-stdlib = { path = "../../../crates/stdlib" }
-rand = "0.9.3"
+rand = "0.10.2"
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 tracing.workspace = true
 uuid.workspace = true

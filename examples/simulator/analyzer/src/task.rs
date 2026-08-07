@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Task FSM analysis types.
@@ -59,7 +59,7 @@ impl TaskExt for Task {
                 {
                     let span_secs = (next.timestamp() - t.timestamp()) as f64 / 1e9;
                     if span_secs > 0.0 {
-                        derived_attributes.push(quent_attributes::Attribute::f64(
+                        derived_attributes.push(quent_dynamic_attributes::DynamicAttribute::f64(
                             "bytes_per_sec",
                             data.input_bytes as f64 / span_secs,
                         ));

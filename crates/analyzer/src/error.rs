@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use thiserror::Error;
@@ -28,4 +28,6 @@ pub enum AnalyzerError {
     FsmExitTransitionConversion,
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("this analyzer does not support the requested capability")]
+    Unsupported,
 }

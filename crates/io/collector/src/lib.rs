@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Exporter sending events to a Collector service
@@ -17,9 +17,25 @@ pub struct Options {
     address: http::Uri,
 }
 
+/// Error returned when a collector address is not a valid URI.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid collector address: {source}")]
+pub struct CollectorAddressError {
+    #[source]
+    source: http::uri::InvalidUri,
+}
+
 impl Options {
     pub fn new(address: http::Uri) -> Self {
         Self { address }
+    }
+
+    /// Parses a collector address into exporter options.
+    pub fn try_new(address: &str) -> Result<Self, CollectorAddressError> {
+        let address = address
+            .parse()
+            .map_err(|source| CollectorAddressError { source })?;
+        Ok(Self::new(address))
     }
 }
 

@@ -5,10 +5,11 @@ platforms = ["linux-64", "linux-aarch64", "osx-arm64", "osx-64"]
 requires-pixi = ">=0.68"
 
 [dependencies]
-rust = ">=1.96"
-rust-src = ">=1.96"
+rust = "=1.97.0"
+rust-src = "=1.97.0"
+cargo-deny = "=0.20.2"
 nodejs = ">=24.11.0"
-pnpm = "=11.9.0"
+pnpm = ">=11.19.0"
 libprotobuf = ">=7"
 cmake = ">=3.24"
 cxx-compiler = ">=1"
@@ -17,3 +18,19 @@ maturin = ">=1.14,<2"
 pytest = ">=8,<10"
 ty = ">=0.0.55"
 uv = ">=0.11.25"
+pre-commit = ">=4"
+
+[pypi-dependencies]
+rumdl = "*"
+
+[target.linux-64.dependencies]
+nvtx-c = ">=3.5.0"
+libclang = ">=18"
+
+[target.linux-aarch64.dependencies]
+nvtx-c = ">=3.5.0"
+libclang = ">=18"
+# `libclang` ships no compiler resource headers (`lib/clang/<ver>/include`), and
+# on aarch64 clang does not fall back to the conda GCC ones, so bindgen fails to
+# find `stddef.h`. `clang` pulls `clang-<major>`, which provides them.
+clang = ">=18"

@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_model::{Ref, attributes::Attribute, usage, uuid::Uuid};
+use quent_model::{Ref, attributes::DynamicAttribute, usage, uuid::Uuid};
 use quent_readme_example::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             root.clone(),
         ),
     );
-    let context = AppContext::try_new(Some(exporter))?;
+    let context = AppContext::try_new(exporter)?;
 
     // The context generates its own id and writes events under `root/<id>/`.
     // Reuse it as the root resource group id.
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ref::new(cluster),
         Details {
             version: "42.1.2".to_string(),
-            custom: vec![Attribute::u64("threads", 256)].into(),
+            custom: vec![DynamicAttribute::u64("threads", 256)].into(),
         },
     );
 

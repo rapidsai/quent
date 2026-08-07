@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::{Constraint, validate as run_constraints};
@@ -7,7 +7,7 @@ use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::{
     Annotations, DataType, Entity, Record, Schema,
     builder::AnnotationsBuilder,
-    test_utils::{entity, event, field, ident, record, schema},
+    test_utils::{entity, event, field, record, record_type, schema},
 };
 
 /// A type-erased tree-forming reference (no target).
@@ -15,9 +15,9 @@ fn tree_ref() -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .try_with_constraint(RefTreeConstraint::NAME, None)
-            .unwrap()
-            .build(),
+            .with_constraint(RefTreeConstraint::NAME, None)
+            .build()
+            .unwrap(),
     }
 }
 
@@ -26,11 +26,10 @@ fn tree_ref_to(target: &str) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .try_with_constraint(RefTreeConstraint::NAME, None)
-            .unwrap()
-            .try_with_constraint(RefTargetConstraint::NAME, Some(ident(target).to_string()))
-            .unwrap()
-            .build(),
+            .with_constraint(RefTreeConstraint::NAME, None)
+            .with_constraint(RefTargetConstraint::NAME, Some(target.to_string()))
+            .build()
+            .unwrap(),
     }
 }
 
@@ -95,6 +94,16 @@ fn target_chain_to_root_passes() {
 }
 
 #[test]
+fn qualified_target_chain_to_root_passes() {
+    let schema = schema_with(vec![
+        root("Domain::Cluster"),
+        child("Worker::Node", tree_ref_to("Domain::Cluster")),
+        child("Task::Job", tree_ref_to("Worker::Node")),
+    ]);
+    assert_valid(&schema);
+}
+
+#[test]
 fn single_child_under_root_passes() {
     let schema = schema_with(vec![
         root("Cluster"),
@@ -135,7 +144,7 @@ fn tree_ref_in_reference_payload_is_found() {
 fn tree_ref_via_record_field_resolves_parent() {
     // A parent reference reached through a record-typed event field counts.
     let meta = record("Meta", vec![field("owner", tree_ref_to("Cluster"))]);
-    let worker = child("Worker", DataType::Record(ident("Meta")));
+    let worker = child("Worker", record_type("Meta"));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
     assert_valid(&schema);
 }
@@ -150,7 +159,7 @@ fn multiple_refs_in_record_is_rejected() {
             field("b", tree_ref_to("Cluster")),
         ],
     );
-    let worker = child("Worker", DataType::Record(ident("Meta")));
+    let worker = child("Worker", record_type("Meta"));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
     assert!(matches!(
         single_error(&schema),
@@ -166,13 +175,10 @@ fn recursive_record_does_not_loop() {
         "Meta",
         vec![
             field("owner", tree_ref_to("Cluster")),
-            field(
-                "nested",
-                DataType::Option(Box::new(DataType::Record(ident("Meta")))),
-            ),
+            field("nested", DataType::Option(Box::new(record_type("Meta")))),
         ],
     );
-    let worker = child("Worker", DataType::Record(ident("Meta")));
+    let worker = child("Worker", record_type("Meta"));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
     assert_valid(&schema);
 }
@@ -205,7 +211,7 @@ fn type_erased_tree_ref_is_rejected() {
 fn type_erased_tree_ref_via_record_is_rejected() {
     // Req. 3 also reaches references hidden behind a record-typed field.
     let meta = record("Meta", vec![field("owner", tree_ref())]);
-    let worker = child("Worker", DataType::Record(ident("Meta")));
+    let worker = child("Worker", record_type("Meta"));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
     assert!(matches!(
         single_error(&schema),
@@ -262,7 +268,7 @@ fn direct_and_record_refs_in_one_event_is_rejected() {
             "created",
             vec![
                 field("direct", tree_ref_to("Cluster")),
-                field("meta", DataType::Record(ident("Meta"))),
+                field("meta", record_type("Meta")),
             ],
         )],
     );

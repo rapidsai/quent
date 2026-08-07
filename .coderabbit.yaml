@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 reviews:
@@ -32,7 +32,6 @@ reviews:
   # Skip generated and lock files entirely.
   path_filters:
     - "!**/routeTree.gen.ts"
-    - "!examples/simulator/server/ts-bindings/**"
     - "!Cargo.lock"
     - "!pixi.lock"
     - "!ui/pnpm-lock.yaml"
@@ -44,27 +43,107 @@ reviews:
         - Errors: explicitly written out error types or per-crate thiserror enums; never anyhow.
         - Docstrings state the contract, not the mechanism; do not restate types.
         - lib.rs curates the public surface via explicit `pub use`; keep internals pub(crate).
+        - New `pub` items need a doc comment and justified visibility; prefer `pub(crate)` or `doc(hidden)` when not part of the curated public API.
+        - Prefer encoding invariants in types/builders over runtime-only validation of easy-to-misuse public structs.
+        - Do not add custom methods that duplicate standard traits (`AsRef`, `From`, …); prefer the std traits.
+        - Extract shared validation/test helpers duplicated across sibling crates instead of copy-pasting.
+        - Integration tests should build fixtures through real setup paths (Context, exporter, etc.), not hand-crafted inputs that hardcode the property under test.
         - Changes to persisted artifact formats must keep `quent open` working for prior-commit artifacts in the same PR.
         - No unnecessary trait bounds; do not constrain types or implementations more than needed.
+        - Optimized/batch paths must preserve the single-item path's failure, drop, and logging semantics unless the behavior change is explicit and tested; one bad item must not accidentally discard the remaining batch.
+        - Tests belong at the layer that owns the behavior. Cover new public contracts and error/edge paths without duplicating tests for an inner implementation.
+        - Builder APIs: infallible setters, fallible `build()`/`try_build()`; do not drop `Self` on setter `Err`.
+        - Do not eagerly convert bulky static attributes to dynamic form for every instance; convert at the UI/analyzer boundary only when needed.
+        - Comments: no opaque internal IDs (`D-01`, `CORE`, …) without explaining meaning; one or two terse why-lines, not narration.
+        - Comments: do not introduce context from coding agent threads that is opaque to other developers. It must be possible to reason and understand commentary based purely on what is in the source tree.
+        - Avoid magic sentinel strings that can collide with real identifiers; use typed variants, opaque IDs, or prove collision freedom.
     - path: "crates/**/Cargo.toml"
       instructions: |
         - Dependencies come from [workspace.dependencies] via `workspace = true`; no git deps.
         - New crates: edition 2024, publish = false, SPDX headers.
+    - path: "domains/**/server/**/*.rs"
+      instructions: |
+        - UI HTTP routes (especially under `/api/engines`) must stay in sync with `@quent/client` fetchers.
+        - Reject unknown requested enum/filter values rather than silently accepting them. Use typed unsupported errors for unsupported capabilities.
+        - Unsupported analyzer capabilities should use typed `AnalyzerError::Unsupported` (or equivalent) and map to HTTP 501, not ad-hoc response variants.
     - path: "ui/**/*.{ts,tsx}"
       instructions: |
-        - Jotai atoms for UI state, TanStack Query for server state; no ad-hoc context stores.
-        - Never hand-edit generated files (routeTree.gen.ts, ts-rs bindings); fix the generator.
-        - Data fetching uses queryOptions wrappers with stable queryKey arrays and enabled guards.
-        - Merge classes via cn(), not string concatenation; use the `@` alias over deep relative imports.
-        - Virtualize large lists/tables (@tanstack/react-virtual); this UI renders big traces.
+        ## Foundation (see ui/REVIEW.md)
+        - Prefer the existing stack before new libs or in-house reinvention: React, Tailwind 4, shadcn/ui (Radix) in `@quent/components/src/ui/`, TanStack Router/Query/Table/Virtual, Jotai, ECharts via `@quent/components`.
+        - Flag new UI/state/data-fetching libraries that duplicate what the stack already provides (e.g. another router, CSS-in-JS, Redux/Zustand, ad-hoc fetch wrappers).
+        - Jotai for UI/interaction state; TanStack Query for server state; no ad-hoc Context stores for either.
+        - Data fetching uses `@quent/client` `queryOptions` with stable `queryKey` arrays and `enabled` guards — not raw `useEffect` + `fetch` in components.
+        - Jotai atoms only from React components/hooks/providers — never from plain utils.
+        - Merge classes via `cn()` from `@quent/utils`, not string concatenation; Tailwind tokens over one-off inline styles.
+        - Use valid Tailwind utilities from the theme scale, or explicit arbitrary values (`w-[1px]`, `z-[8]`); flag non-standard classes like `w-0.25` unless the theme defines them.
+        - Virtualize large lists/tables (`@tanstack/react-virtual`); this UI renders big traces.
+        - Large u64 ids/counts/nanosecond timestamps must go through `parseJsonWithBigInt`, not plain `JSON.parse`.
+        - Keep large integers as `bigint` through formatting and calculations; do not convert to `number` unless range safety is proved.
+        - Server-serialized types must come from `@quent/utils` (ts-bindings re-exports). Flag hand-written interfaces that duplicate request/response shapes.
+        - Never hand-edit generated files (`routeTree.gen.ts`, ts-rs bindings); fix the generator or Rust source.
+        - Prefer package-root imports (`@quent/components`, `@quent/client`, …) across package boundaries; use the `@/` alias only in app-shell `ui/src/` (not inside `@quent/*` packages).
         - noUncheckedIndexedAccess is off: watch unguarded indexed access into trace/event arrays.
-        - Large u64 ids/counts must go through parseJsonWithBigInt, not plain JSON.parse.
-        - Check hook dependency arrays and effect cleanup; flag any `any`.
-        - Components PascalCase one-per-file, hooks useXxx.ts; tests colocated as *.test.tsx (Vitest + Testing Library + MSW).
+        - Effects with async work, timers, subscriptions, or DOM/chart listeners must discard stale results and fully clean up on dependency changes, disablement, and unmount. Rendering `null` does not unmount a component.
+        - Check hook dependency arrays; flag any `any`.
+        - Components PascalCase one-per-file, hooks `useXxx.ts`; tests colocated as `*.test.tsx` (Vitest + Testing Library + MSW).
+        - Preserve accessibility semantics: use native interactive elements, label controls, provide keyboard behavior, and use scoped row/column headers for data tables.
+        - `cursor-pointer` and other interactive affordances must match the actual clickable/keyboard-operable target.
+        - Keep comments terse and contract-focused; remove narration and verbose explanations of implementation mechanics.
+        - New source files need SPDX Apache-2.0 headers.
+    - path: "ui/packages/@quent/**/*.{ts,tsx}"
+      instructions: |
+        ## Package modularity
+        - Packages are meant to be reusable outside this app. Prefer putting shared logic here over `ui/src/`.
+        - Respect dependency direction: `@quent/utils` → `@quent/client` → `@quent/hooks` → `@quent/components`. Flag inverted imports.
+        - Public API only via each package's `src/index.ts` barrel; flag deep imports into package internals.
+        - Cross-package deps must use `workspace:*`. Consumer-provided libraries use `catalog:` in dependencies/devDependencies and declared peer ranges that stay in major lockstep with `ui/pnpm-workspace.yaml` `catalog:` (react, jotai, tanstack, echarts, etc.).
+        - App-shell-only concerns (route chrome, theme toggle wiring, page composition) belong in `ui/src/`, not in `@quent/*`.
+        - Search for an existing helper before adding one; consolidate overlapping utilities and tests into the lowest reusable package (usually `@quent/utils`).
+        - Inside `@quent/*`, use relative sibling imports; do not use the app-shell `@/` alias (it is not configured in package tsconfigs).
+    - path: "ui/packages/@quent/components/**/*.{ts,tsx}"
+      instructions: |
+        ## Shared component practices
+        - Prefer existing shadcn/Radix primitives. Put reusable default styling and variants in the shared primitive rather than repeating structural Tailwind classes at feature call sites.
+        - Async chart/layout computations must prevent older invocations from committing after newer inputs have started.
+        - When a visualization is disabled or its data disappears, stop timers/animation and clear synchronized hover/crosshair state even if the component remains mounted.
+    - path: "ui/**/*.test.{ts,tsx}"
+      instructions: |
+        ## Tests
+        - Cover observable behavior, fallback/unknown inputs, empty/error states, and precision-sensitive `number`/`bigint` paths; when code accepts both, mirror tests for each.
+        - Avoid duplicate or trivially repetitive cases; consolidate equivalent assertions while retaining meaningful boundary coverage.
+        - Build fixtures from canonical production or ts-binding types (`Pick`, `Partial`, builders/factories) instead of brittle hand-written lookalike interfaces.
+    - path: "ui/packages/@quent/client/**/*.{ts,tsx}"
+      instructions: |
+        ## Client ↔ server API parity
+        - Every `fetch*` path/method/body must match the corresponding Rust UI route (typically `domains/query_engine/server/src/ui.rs`, mounted under `/api/engines`).
+        - New endpoints need `fetch*` in `api.ts` plus `queryOptions` (and a thin hook only if widely reused).
+        - Types for request/response payloads must be imported from `@quent/utils` (ts-bindings), not redefined locally.
+        - Prefer bulk timeline APIs over loops of single-timeline fetches.
+        - Handle documented non-success cases explicitly (e.g. 501 → null for unsupported features) when that is the product contract.
+    - path: "ui/src/**/*.{ts,tsx}"
+      instructions: |
+        ## App shell
+        - `ui/src/` is routing, layout, and glue. Flag reusable visualizations, hooks, atoms, or API helpers that should live in `@quent/*` instead.
+        - Prefer composing `@quent/components` / `@quent/hooks` / `@quent/client` over growing app-local duplicates.
+    - path: "ui/pnpm-workspace.yaml"
+      instructions: |
+        ## Workspace catalog
+        - Shared dependency versions live in the top-level `catalog:` block. Prefer `"catalog:"` in package deps/devDeps over duplicating version ranges.
+        - When bumping a catalog entry's major version, require matching major bumps (at least `^<major>.0.0`) for that package in every `@quent/*` `peerDependencies` declaration that lists it.
+        - Flag peer ranges whose major lags the catalog major (e.g. catalog `react: ^20.x` with peer `react: ^19.0.0`).
+    - path: "ui/**/package.json"
+      instructions: |
+        ## Dependency updates
+        - Shared versions come from `ui/pnpm-workspace.yaml` `catalog:`; use `"catalog:"` for catalogued deps/devDeps instead of inlining versions.
+        - Prefer resolving in-range bumps by updating the lockfile (`pnpm-lock.yaml`) only when the catalog range already allows the target.
+        - Flag new `overrides` / `pnpm.overrides` when the target version is already allowed by the catalog/range — refresh the lockfile instead.
+        - Only change catalog ranges, package.json ranges, or overrides when the needed version is outside the existing range, or when an override is the only viable fix (document why).
+        - When a catalogued package's major changes, keep every package's `peerDependencies` for that package in major lockstep with the catalog (at least `^<major>.0.0`).
     - path: "docs/**/*.md"
       instructions: |
         - Verify examples match the current API; new pages must be linked in SUMMARY.md.
         - Modeling spec pages follow the template: capitalized construct names, "Must have" / "May have" / "Mutually exclusive" sections with typed field bullets, plus Notes and Rationale.
+        - Domain event-model docs (`docs/domains/**`) specify the model, not UI/analyzer protocol or implementation details; put those elsewhere or link an issue.
     - path: ".github/workflows/**/*"
       instructions: |
         - Actions pinned to full commit SHAs with a version comment; checkout sets persist-credentials: false.
@@ -75,3 +154,5 @@ knowledge_base:
   code_guidelines:
     filePatterns:
       - "CONTRIBUTING.md"
+      - "ui/REVIEW.md"
+      - "ui/examples/AGENTS.md"

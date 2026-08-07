@@ -1,10 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
 
 use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
@@ -211,10 +211,10 @@ pub struct FsmTransition {
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
     /// Attributes recorded by the application's instrumentation.
-    pub attributes: Vec<Attribute>,
+    pub attributes: Vec<DynamicAttribute>,
     /// Attributes computed by the application's analyzer (e.g. a per-span
     /// rate), rendered separately from the recorded ones.
-    pub derived_attributes: Vec<Attribute>,
+    pub derived_attributes: Vec<DynamicAttribute>,
 }
 
 impl FsmTransition {

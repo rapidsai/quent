@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Proc macros for defining Quent application models.
@@ -90,7 +90,7 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// This generates `AppContext`, the entry point for instrumenting your
 /// application. To start emitting events:
 ///
-/// 1. Create a context: `let ctx = AppContext::try_new(Some(exporter_options))?;`
+/// 1. Create a context: `let ctx = AppContext::try_new(exporter_options)?;`
 /// 2. Get an observer: `let obs = ctx.cluster_observer();`
 /// 3. Declare the root entity with the context id: `obs.cluster(ctx.id(), "my-cluster");`
 ///

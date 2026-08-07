@@ -1,20 +1,20 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! The runtime host that observers of a model instance run on.
 
-use crate::observer::{Observer, spawn_forwarder};
+use crate::observer::{ObserverInner, spawn_forwarder};
 use quent_events::EntityEvent;
 use quent_io::ExporterProvider;
 use std::future::Future;
 use std::sync::Arc;
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::{Handle, Runtime as TokioRuntime};
 use tracing::debug;
 use uuid::Uuid;
 
 /// The runtime an active context's observers run on.
 #[derive(Clone)]
-pub(crate) enum BackendRuntime {
+pub(crate) enum Runtime {
     /// A handle to a runtime owned elsewhere (`#[tokio::main]`, a caller-managed
     /// one) and kept alive by that owner.
     Borrowed(Handle),
@@ -24,11 +24,11 @@ pub(crate) enum BackendRuntime {
         handle: Handle,
         /// `Option` only so `Drop` can move the `Arc` out of `&mut self`; `Some`
         /// for the value's whole life until then.
-        runtime: Option<Arc<Runtime>>,
+        runtime: Option<Arc<TokioRuntime>>,
     },
 }
 
-impl BackendRuntime {
+impl Runtime {
     /// The handle observers spawn and block on.
     pub(crate) fn handle(&self) -> Handle {
         match self {
@@ -37,11 +37,11 @@ impl BackendRuntime {
     }
 }
 
-impl Drop for BackendRuntime {
+impl Drop for Runtime {
     fn drop(&mut self) {
         // On the last holder of a spawned runtime, shut it down without blocking,
         // since a blocking `Runtime` drop panics on a runtime worker thread.
-        // `into_inner` yields the `Runtime` only when this was the final `Arc`.
+        // `into_inner` yields the Tokio runtime only when this was the final `Arc`.
         // Safe to abandon tasks here: the observers' forwarders have already
         // flushed by the time the last holder drops.
         if let Self::Owned { runtime, .. } = self
@@ -52,23 +52,18 @@ impl Drop for BackendRuntime {
     }
 }
 
-/// What a context does with events. `Noop` drops them; `Active` runs its
-/// observers' forwarders on the carried runtime.
-enum Backend {
-    Noop,
-    Active { runtime: BackendRuntime },
-}
-
-/// A context responsible for providing an asynchronous back-end to a
-/// synchronous context generated from an application event model.
+/// The runtime host for a synchronous context generated from an application
+/// event model.
 ///
 /// Instrumented application code should not interact with this type directly
 /// unless there is a very special reason. Instead, it should interact with the
 /// generated context only through a fully synchronous API.
 ///
+/// Hidden because [`crate::Context`] provides the model-level API.
+///
 /// What it is responsible for:
 /// - Resolving the runtime its observers run on. It borrows an ambient one if
-///   present, otherwise spawns its own (see [`BackendRuntime`]).
+///   present, otherwise spawns its own (see [`Runtime`]).
 /// - Being the single sync→async bridge for async observer construction and
 ///   the drop-time flush.
 ///
@@ -77,33 +72,27 @@ enum Backend {
 /// The blocking sync/async crossings work off a runtime or on a multi-threaded
 /// one, but panic on a current-thread runtime.
 #[doc(hidden)]
-pub struct Context {
+pub struct ContextInner {
     /// Unique identifier of this context.
     id: Uuid,
-    /// The asynchronous run-time the observers produced by this context operate
-    /// on.
-    backend: Backend,
+    /// The asynchronous runtime used by active observers.
+    runtime: Option<Runtime>,
 }
 
-impl Context {
+impl ContextInner {
     /// Construct an active context adopting `id`, with a runtime for its
     /// observers' forwarders.
     pub fn try_new(id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Context {
+        Ok(Self {
             id,
-            backend: Backend::Active {
-                runtime: resolve_runtime()?,
-            },
+            runtime: Some(resolve_runtime()?),
         })
     }
 
     /// Construct a no-op context: observers built from it discard events.
     pub fn noop(id: Uuid) -> Self {
         debug!("using noop context");
-        Context {
-            id,
-            backend: Backend::Noop,
-        }
+        Self { id, runtime: None }
     }
 
     /// Return the universally unique identifier of this context.
@@ -137,14 +126,11 @@ impl Context {
     }
 
     /// The runtime backing an active context; `None` for noop.
-    fn runtime(&self) -> Option<&BackendRuntime> {
-        match &self.backend {
-            Backend::Active { runtime } => Some(runtime),
-            Backend::Noop => None,
-        }
+    fn runtime(&self) -> Option<&Runtime> {
+        self.runtime.as_ref()
     }
 
-    /// Create an [`Observer`] of events of one *type* of entity `T`, building its
+    /// Creates an [`ObserverInner`] for one entity event type `T`, building its
     /// exporter from `provider` bound to this context's id.
     ///
     /// The exporter is constructed here (so construction errors surface through
@@ -152,13 +138,13 @@ impl Context {
     /// context builds no exporter.
     pub async fn observer<T>(
         &self,
-        provider: impl ExporterProvider<T>,
-    ) -> Result<Observer<T>, Box<dyn std::error::Error>>
+        provider: &impl ExporterProvider<T>,
+    ) -> Result<ObserverInner<T>, Box<dyn std::error::Error>>
     where
         T: Send + EntityEvent + 'static,
     {
         let Some(runtime) = self.runtime() else {
-            return Ok(Observer::noop());
+            return Ok(ObserverInner::noop());
         };
         let exporter = provider.create_exporter(self.id).await?;
         Ok(spawn_forwarder(runtime, exporter))
@@ -167,14 +153,15 @@ impl Context {
 
 /// Resolve the runtime observers run on: borrow an ambient one if present,
 /// otherwise spawn a fresh owned runtime.
-fn resolve_runtime() -> Result<BackendRuntime, Box<dyn std::error::Error>> {
+fn resolve_runtime() -> Result<Runtime, Box<dyn std::error::Error>> {
     if let Ok(handle) = Handle::try_current() {
         debug!("using existing async runtime");
-        Ok(BackendRuntime::Borrowed(handle))
+        Ok(Runtime::Borrowed(handle))
     } else {
         debug!("spawning new async runtime");
-        let runtime = Runtime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
-        Ok(BackendRuntime::Owned {
+        let runtime =
+            TokioRuntime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
+        Ok(Runtime::Owned {
             handle: runtime.handle().clone(),
             runtime: Some(Arc::new(runtime)),
         })
@@ -201,8 +188,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn noop_context_has_noop_backend() {
-        let ctx = Context::noop(Uuid::now_v7());
-        assert!(matches!(ctx.backend, Backend::Noop));
+    fn noop_context_has_no_runtime() {
+        let ctx = ContextInner::noop(Uuid::now_v7());
+        assert!(ctx.runtime.is_none());
     }
 }

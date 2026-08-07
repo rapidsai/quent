@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! `fsm!` proc macro implementation.
@@ -439,7 +439,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
             }
 
-            fn attributes(&self) -> Vec<quent_model::attributes::Attribute> {
+            fn attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
                 match self {
                     #(#attributes_arms,)*
                     #transition_enum::Exit => vec![],
@@ -549,7 +549,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             #observer_methods
         }
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
     };

@@ -54,4 +54,3 @@ unknown-registry = "deny"
 # not in the allow list is encountered.
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []

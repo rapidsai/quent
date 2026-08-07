@@ -1,22 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import EChartsReactCore from 'echarts-for-react/lib/core';
+import { useCallback, useMemo } from 'react';
 
-import type { EChartsOption } from '../lib/echarts';
-import type { EChartsInstance } from 'echarts-for-react';
-import type { CustomSeriesOption } from 'echarts/charts';
-import {
-  nanosToMs,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
-} from '../lib/timeline.utils';
-import { useChartConnect } from '../lib/useChartConnect';
-import { echarts } from '../lib/echarts';
-import { CHART_GROUP } from '../timeline/Timeline';
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
-import { HiddenScroll } from '../ui/thin-scroll';
 import {
   useSelectedNodeIds,
   useSetSelectedNodeIds,
@@ -28,8 +15,11 @@ import {
 } from '@quent/hooks';
 import { continuousColor, withOpacity, getOperationTypeColor } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
-import { clipRectByRect } from './utils';
-import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '../timeline/types';
+import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
+import type { GanttHover } from '../gantt-chart/hover';
+import { clipRectByRect } from '../gantt-chart/utils';
+import { getOperatorsAtTimestamp } from './utils';
+import { GanttTooltipPortal, type GanttTooltipItem } from '../ui/gantt-tooltip';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_HEIGHT = 200;
@@ -45,7 +35,6 @@ function getOperatorBarColors(typeName: string | undefined): { fill: string; str
 
 export interface OperatorGanttChartProps {
   operators: OperatorActiveSpanEntry[];
-  startTime: bigint;
   durationSeconds: number;
   height?: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
@@ -54,7 +43,6 @@ export interface OperatorGanttChartProps {
 
 export function OperatorGanttChart({
   operators,
-  startTime,
   durationSeconds,
   height = DEFAULT_HEIGHT,
   isDark,
@@ -63,30 +51,11 @@ export function OperatorGanttChart({
   const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
   const setSelectedPlanId = useSetSelectedPlanId();
   const setSelectedNodeData = useSetSelectedNodeData();
-  const { themeName, textColor } = useTimelineEchartsTheme(isDark);
+  const { textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
   const barLabelTextColor = textColor;
   const selectedNodeIds = useSelectedNodeIds();
-  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
-  const xAxisMax = useMemo(
-    () => startTimeMs + durationSeconds * 1_000,
-    [startTimeMs, durationSeconds]
-  );
-
-  const { yAxisCategories, rowCount } = useMemo(() => {
-    if (operators.length === 0) return { yAxisCategories: [] as number[], rowCount: 0 };
-    const maxRow = Math.max(...operators.map(op => op.rowIndex));
-    return {
-      yAxisCategories: Array.from({ length: maxRow + 1 }, (_, i) => i),
-      rowCount: maxRow + 1,
-    };
-  }, [operators]);
-  // Chart paints every operator row; wrapper caps at MAX_HEIGHT and scrolls overflow.
-  const contentHeight = rowCount * BAR_HEIGHT;
-  const chartHeight = Math.max(height, contentHeight);
-  // Explicit (not max-) height so the virtualizer measures the row correctly on first commit.
-  const wrapperHeight = Math.min(chartHeight, MAX_HEIGHT);
 
   const customSeriesData = useMemo(
     () =>
@@ -94,6 +63,19 @@ export function OperatorGanttChart({
         value: [op.startMs, op.endMs, op.rowIndex] as [number, number, number],
         name: op.label,
       })),
+    [operators]
+  );
+  const renderTooltip = useCallback(
+    (hover: GanttHover | null) => {
+      const items: GanttTooltipItem[] = hover
+        ? getOperatorsAtTimestamp(operators, hover.timestampMs).map(operator => ({
+            id: operator.operatorId,
+            color: getOperatorBarColors(operator.typeName).stroke,
+            name: operator.label,
+          }))
+        : [];
+      return <GanttTooltipPortal hover={hover} items={items} />;
+    },
     [operators]
   );
   const operatorFieldStyles = useMemo(() => {
@@ -122,9 +104,7 @@ export function OperatorGanttChart({
     }
     return styles;
   }, [operators, nodeColoring, nodePalette, isDark]);
-  type RenderItem = NonNullable<CustomSeriesOption['renderItem']>;
-
-  const renderItem: RenderItem = useCallback(
+  const renderItem: GanttRenderItem = useCallback(
     (params, api) => {
       const startMs = api.value(0) as number;
       const endMs = api.value(1) as number;
@@ -206,87 +186,6 @@ export function OperatorGanttChart({
     [operators, operatorFieldStyles, barLabelTextColor, selectedNodeIds]
   );
 
-  const gridOptions = useMemo(
-    () => ({
-      ...TIMELINE_SPACING,
-      width: undefined as number | undefined,
-      height: undefined as number | undefined,
-    }),
-    []
-  );
-
-  const option: EChartsOption = useMemo(
-    () => ({
-      animation: false,
-      tooltip: { show: false },
-      axisPointer: {
-        link: [{ xAxisIndex: 'all' }],
-      },
-      grid: gridOptions,
-      xAxis: {
-        type: 'time',
-        min: startTimeMs,
-        max: xAxisMax,
-        show: true,
-        axisLabel: { show: false },
-        axisPointer: {
-          show: true,
-          type: 'line',
-          animation: false,
-          label: { show: false },
-        },
-        ...TIMELINE_X_AXIS_ANIMATION,
-      },
-      yAxis: {
-        type: 'category',
-        data: yAxisCategories,
-        inverse: true,
-        axisLine: { show: false },
-        axisLabel: { show: false },
-        axisPointer: { show: false },
-      },
-      series: [
-        {
-          type: 'custom',
-          name: 'operator-span',
-          animation: false,
-          cursor: 'pointer',
-          data: customSeriesData,
-          renderItem: renderItem as never,
-          coordinateSystem: 'cartesian2d',
-        },
-      ],
-      dataZoom: [
-        {
-          type: 'slider',
-          show: false,
-          realtime: true,
-          filterMode: 'none',
-          xAxisIndex: [0],
-        },
-        {
-          type: 'inside',
-          zoomLock: true,
-          zoomOnMouseWheel: false,
-          moveOnMouseWheel: false,
-          throttle: 30,
-          filterMode: 'none',
-          xAxisIndex: [0],
-        },
-        {
-          type: 'inside',
-          zoomOnMouseWheel: 'shift',
-          moveOnMouseMove: false,
-          moveOnMouseWheel: false,
-          throttle: 30,
-          filterMode: 'none',
-          xAxisIndex: [0],
-        },
-      ],
-    }),
-    [gridOptions, startTimeMs, xAxisMax, yAxisCategories, customSeriesData, renderItem]
-  );
-
   const handleClick = useMemo(
     () => ({
       click: (params: { dataIndex: number; seriesName?: string }) => {
@@ -322,69 +221,20 @@ export function OperatorGanttChart({
     ]
   );
 
-  // Join timeline-sync-group for frame-rate-level x-axis zoom sync via ECharts connect().
-  // The y-axis dataZoom (index 3, when present) has a unique component ID and does not
-  // propagate to resource timelines that have no matching component.
-  const onChartReady = useCallback((instance: EChartsInstance) => {
-    registerAxisPointerSync(instance, 0, { receiveShowTip: false });
-  }, []);
-
-  const { handleChartReady, instanceRef } = useChartConnect({
-    durationSeconds,
-    chartGroup: CHART_GROUP,
-    onReady: onChartReady,
-  });
-
-  useEffect(() => {
-    return () => {
-      if (instanceRef.current) {
-        unregisterAxisPointerSync(instanceRef.current);
-        instanceRef.current = null;
-      }
-    };
-  }, []);
-
-  // Handle scrolling from the container, echarts captures wheel events and prevents the container
-  // from receiving.
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    const handleWheel = (e: WheelEvent) => {
-      if (e.shiftKey) return;
-      e.stopPropagation();
-    };
-    wrapper.addEventListener('wheel', handleWheel, { capture: true, passive: true });
-    return () => {
-      wrapper.removeEventListener('wheel', handleWheel, { capture: true });
-    };
-  }, []);
-
-  if (operators.length === 0) {
-    return (
-      <div
-        className="flex items-center justify-center text-muted-foreground text-sm"
-        style={{ height }}
-      >
-        No operator active spans
-      </div>
-    );
-  }
-
   return (
-    <HiddenScroll ref={wrapperRef} style={{ height: wrapperHeight }}>
-      <EChartsReactCore
-        echarts={echarts}
-        theme={themeName}
-        option={option}
-        style={{ height: chartHeight }}
-        onChartReady={handleChartReady}
-        onEvents={handleClick}
-        notMerge={false}
-        lazyUpdate={false}
-        replaceMerge={['series']}
-        autoResize={false}
-      />
-    </HiddenScroll>
+    <GanttChart
+      data={customSeriesData}
+      durationSeconds={durationSeconds}
+      height={height}
+      maxHeight={MAX_HEIGHT}
+      rowHeight={BAR_HEIGHT}
+      isDark={isDark}
+      seriesName="operator-span"
+      renderItem={renderItem}
+      emptyMessage="No operator active spans"
+      cursor="pointer"
+      onEvents={handleClick}
+      renderTooltip={renderTooltip}
+    />
   );
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Umbrella crate providing unified exporter/importer creation.
@@ -6,16 +6,6 @@
 use quent_events::EntityEvent;
 
 use uuid::Uuid;
-
-// Error out compilation if no exporter is selected at all.
-#[cfg(not(any(
-    feature = "ndjson",
-    feature = "msgpack",
-    feature = "postcard",
-    feature = "collector",
-    feature = "callback"
-)))]
-compile_error!("at least one exporter feature must be enabled");
 
 // Re-exports.
 pub use quent_io_types::{
@@ -27,10 +17,8 @@ pub use quent_io_types::{
 pub use crate::filesystem::{
     Format as FileSystemFormat, exporter::Options as FileSystemExporterOptions,
 };
-#[cfg(feature = "callback")]
-pub use quent_io_callback::EventCallback;
 #[cfg(feature = "collector")]
-pub use quent_io_collector::Options as CollectorExporterOptions;
+pub use quent_io_collector::{CollectorAddressError, Options as CollectorExporterOptions};
 
 // Featue-gated mods.
 #[cfg(feature = "clap")]
@@ -38,16 +26,13 @@ pub mod clap;
 #[cfg(filesystem)]
 pub mod filesystem;
 
-/// Where events go: local files (filesystem), a collector service, or a
-/// caller-supplied callback (e.g. an in-memory collector for tests).
+/// Where events go: local files or a collector service.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     #[cfg(filesystem)]
     FileSystem(FileSystemExporterOptions),
     #[cfg(feature = "collector")]
     Collector(CollectorExporterOptions),
-    #[cfg(feature = "callback")]
-    Callback(EventCallback),
 }
 
 impl ExporterOptions {
@@ -60,8 +45,8 @@ impl ExporterOptions {
             ExporterOptions::FileSystem(options) => Some(options.dir(context_id)),
             #[cfg(feature = "collector")]
             ExporterOptions::Collector(_) => None,
-            #[cfg(feature = "callback")]
-            ExporterOptions::Callback(_) => None,
+            #[cfg(not(any(filesystem, feature = "collector")))]
+            _ => None,
         }
     }
 }
@@ -78,8 +63,6 @@ where
             ExporterOptions::FileSystem(options) => options.create_exporter(context_id).await,
             #[cfg(feature = "collector")]
             ExporterOptions::Collector(options) => options.create_exporter(context_id).await,
-            #[cfg(feature = "callback")]
-            ExporterOptions::Callback(callback) => callback.create_exporter(context_id).await,
         }
     }
 }
@@ -90,11 +73,8 @@ impl<T> ExporterProvider<T> for ExporterOptions
 where
     T: Send + EntityEvent + 'static,
 {
-    async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
-        match self {
-            #[cfg(feature = "callback")]
-            ExporterOptions::Callback(callback) => callback.create_exporter(context_id).await,
-        }
+    async fn create_exporter(&self, _context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
+        unreachable!("ExporterOptions has no enabled variants")
     }
 }
 

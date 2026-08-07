@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Generic analyzed FSM reconstructed from model-generated events.
@@ -7,7 +7,7 @@
 //! `TransitionInfo`, providing all the analyzer trait impls (`Entity`, `Fsm`,
 //! `FsmUsages`, `Using`, `FsmTypeDeclaration`) without per-FSM boilerplate.
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
 use quent_model::{FsmEvent, ModelBuilder, analyze::TransitionInfo};
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
@@ -56,7 +56,7 @@ impl<T: TransitionInfo> Transition for TransitionEvent<T> {
         self.state_name
     }
 
-    fn attributes(&self) -> Vec<Attribute> {
+    fn attributes(&self) -> Vec<DynamicAttribute> {
         self.data.attributes()
     }
 }

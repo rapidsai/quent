@@ -1,28 +1,20 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TooltipContent, type ActiveMark } from './TimelineTooltip';
-import type { Value } from '@quent/utils';
+import { EntityTooltipContent, TooltipContent, type ActiveMark } from './TimelineTooltip';
+import type { DynamicValue } from '@quent/utils';
 
-// The Rust `Value` enum serializes externally tagged — this is the shape the
+// The Rust `DynamicValue` enum serializes externally tagged. This is the shape the
 // server actually sends, even though the generated TS type is untagged.
-const tagged = (v: object) => v as unknown as Value;
+const tagged = (v: object) => v as unknown as DynamicValue;
 
 describe('TooltipContent active marks', () => {
   const series = [{ color: '#8884d8', name: 'computing', value: 1 }];
 
   const renderWithMarks = (marks: ActiveMark[]) =>
-    render(
-      <TooltipContent
-        timestamp={3360}
-        series={series}
-        startTime={0n}
-        windowMs={5300}
-        activeMarks={marks}
-      />
-    );
+    render(<TooltipContent timestamp={3360} series={series} windowMs={5300} activeMarks={marks} />);
 
   it('renders attribute rows with byte and rate formatting', () => {
     renderWithMarks([
@@ -76,5 +68,25 @@ describe('TooltipContent active marks', () => {
     renderWithMarks([{ label: 'task-0', stateName: 'sending', color: '#0000ff' }]);
     expect(screen.getByText('task-0')).toBeInTheDocument();
     expect(screen.getByText('sending')).toBeInTheDocument();
+  });
+
+  it('renders entity-only content without a timeline total', () => {
+    render(
+      <EntityTooltipContent
+        timestamp={1_000}
+        windowMs={5_000}
+        activeMarks={[
+          {
+            label: 'task-0',
+            stateName: 'loading',
+            color: '#0000ff',
+            durationMs: 500,
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText('task-0')).toBeInTheDocument();
+    expect(screen.getByText('loading')).toBeInTheDocument();
+    expect(screen.queryByText('Total')).not.toBeInTheDocument();
   });
 });

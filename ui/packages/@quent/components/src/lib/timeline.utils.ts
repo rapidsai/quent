@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { TimelineSeries, TimelineMark } from '../timeline/types';
@@ -16,7 +16,6 @@ import type {
   ResourceTimeline,
   EntityRef,
   QuantitySpec,
-  CapacityDecl,
   BinnedSpanSec,
   SingleTimelineResponse,
   FiniteStateMachine,
@@ -24,6 +23,7 @@ import type {
   TimelineRequest,
   OperatorFilter,
   TimelineConfig,
+  ResourceTypeDecl,
 } from '@quent/utils';
 import { QueryEntities, ResourceTree } from '@quent/utils';
 import { entityRefToEntitiesKey } from './queryBundle.utils';
@@ -31,20 +31,19 @@ import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@quent/utils';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect } from './echarts';
-import { CHART_GROUP } from '../timeline/Timeline';
+import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 
 // Suppress unused import warning — getColorForKey is used by consumers of this module
 void getColorForKey;
-const LONG_ENTITIES_BIN_MULTIPLIER = 30;
+const LONG_ENTITIES_BIN_MULTIPLIER = 2;
 
-/** Minimum bin duration in nanoseconds — prevents ECharts from stacking bins when zoomed too far. */
-export const MIN_BIN_DURATION_NS = 250;
+/** Minimum bin duration in nanoseconds — the backend cannot produce sub-1ns bins. */
+export const MIN_BIN_DURATION_NS = 10;
 
 /**
- * Minimum visible zoom window in seconds.
- * Below this, each bin would cover less than MIN_BIN_DURATION_NS nanoseconds.
- * 10 ns/bin × 400 bins = 4 μs
+ * Minimum visible zoom window in seconds: the smallest window the backend can
+ * bin at 1 ns/bin. 1 ns/bin × MAX_TIMELINE_BINS bins.
  */
 export const MIN_ZOOM_WINDOW_S = (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000;
 
@@ -62,7 +61,7 @@ export function getAdaptiveNumBins(): number {
   return MAX_TIMELINE_BINS;
 }
 
-/** Threshold for "long" entities: 10x the current bin duration in seconds. */
+/** Threshold for "long" entities as a fraction of the current bin duration. */
 export function getLongEntitiesThreshold(windowSeconds: number): number {
   const numBins = getAdaptiveNumBins();
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
@@ -71,25 +70,29 @@ export function getLongEntitiesThreshold(windowSeconds: number): number {
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  startTime: bigint,
   theme: PaletteTheme,
-  capacities?: CapacityDecl[],
+  resourceTypeDecl?: ResourceTypeDecl,
   quantitySpecs?: { [key in string]?: QuantitySpec },
   fsmTypes?: { [key in string]?: FsmTypeDecl }
 ): {
   timestamps: number[];
   series: TimelineSeries;
+  yAxisLabel: string | undefined;
 } {
   const { bin_duration, num_bins, span } = config;
 
   const numBinsNumber = Number(num_bins);
-  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
+  // x-domain is relative to query start (ms); span.start is already relative
+  // seconds, so no absolute epoch base is added — keeps values float64-exact.
+  const firstBinMs = span.start * 1_000;
   const binDurationMs = bin_duration * 1_000;
 
   const timestamps = new Array<number>(numBinsNumber);
   for (let i = 0; i < numBinsNumber; i++) {
     timestamps[i] = firstBinMs + i * binDurationMs;
   }
+
+  const capacities = resourceTypeDecl?.capacities;
 
   const getFormatter = (capacityName: string): ((value: number) => string) => {
     const capDecl = capacities?.find(c => c.name === capacityName);
@@ -146,7 +149,31 @@ export function buildBinnedTimelineSeries(
       values: [],
     };
   }
-  return { timestamps, series };
+
+  return { timestamps, series, yAxisLabel: deriveCapacityLabel(resourceTypeDecl, quantitySpecs) };
+}
+
+/**
+ * Derive a display label for the y-axis from a resource type's capacity metadata.
+ * Considers all non-unit capacities declared on the type. Returns undefined when
+ * no meaningful capacity exists (missing decl or unit-only).
+ */
+export function deriveCapacityLabel(
+  resourceTypeDecl: ResourceTypeDecl | undefined,
+  quantitySpecs: { [key in string]?: QuantitySpec } | undefined
+): string | undefined {
+  const meaningful = resourceTypeDecl?.capacities.filter(c => c.name !== 'unit') ?? [];
+  if (meaningful.length === 0) return undefined;
+  if (meaningful.length === 1) {
+    const cap = meaningful[0]!;
+    const spec = quantitySpecs?.[cap.quantity];
+    return spec ? `${cap.name} (${spec.symbol})` : cap.name;
+  }
+  // Multiple capacities: use a shared unit symbol when all agree, otherwise names only.
+  const symbols = new Set(meaningful.map(c => quantitySpecs?.[c.quantity]?.symbol));
+  const names = meaningful.map(c => c.name).join(' + ');
+  const commonSymbol = symbols.size === 1 ? [...symbols][0] : undefined;
+  return commonSymbol ? `${names} (${commonSymbol})` : names;
 }
 
 /** Extract the config from a SingleTimelineResponse */
@@ -170,7 +197,6 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  startTime: bigint,
   theme: PaletteTheme,
   resourceIdsForFilter?: Set<string> | null,
   fsmTypes?: { [key in string]?: FsmTypeDecl },
@@ -180,7 +206,6 @@ export function buildTimelineMarks(
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
-  const startTimeMs = nanosToMs(startTime);
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
 
   const marks = longFsms.flatMap(fsm => {
@@ -196,8 +221,8 @@ export function buildTimelineMarks(
           return null;
         }
         const next = fsm.transitions[i + 1];
-        const xStart = startTimeMs + transition.timestamp * 1000;
-        const xEnd = startTimeMs + next.timestamp * 1000;
+        const xStart = transition.timestamp * 1000;
+        const xEnd = next.timestamp * 1000;
         const color = colorFsm(transition.name);
         return {
           label,
@@ -283,14 +308,14 @@ export function setOperatorOnEntry(
     return {
       ResourceGroup: {
         ...entry.ResourceGroup,
-        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+        app_params: { ...entry.ResourceGroup.app_params, operator_ids: [operatorId] },
       },
     };
   }
   return {
     Resource: {
       ...entry.Resource,
-      application: { ...entry.Resource.application, operator_id: operatorId },
+      application: { ...entry.Resource.application, operator_ids: [operatorId] },
     },
   };
 }
@@ -431,7 +456,7 @@ interface AxisPointerEntry {
 const axisPointerRegistry = new Set<AxisPointerEntry>();
 let isBroadcasting = false;
 
-function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
+function broadcastShowPointer(source: EChartsInstance | null, timestampMs: number) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
@@ -455,7 +480,7 @@ function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
   }
 }
 
-function broadcastHidePointer(source: EChartsInstance) {
+function broadcastHidePointer(source: EChartsInstance | null) {
   if (isBroadcasting) return;
   isBroadcasting = true;
   try {
@@ -470,6 +495,21 @@ function broadcastHidePointer(source: EChartsInstance) {
   } finally {
     isBroadcasting = false;
   }
+}
+
+/**
+ * Broadcast a synced axis-pointer crosshair at `timestampMs` (ms relative to
+ * query start) to every registered timeline chart, without a source chart. Used by the DAG
+ * playhead so scrubbing/playing draws a crosshair on the right-panel
+ * timelines with zero React re-renders.
+ */
+export function broadcastSyncedPointer(timestampMs: number) {
+  broadcastShowPointer(null, timestampMs);
+}
+
+/** Hide the crosshair broadcast by {@link broadcastSyncedPointer}. */
+export function hideSyncedPointer() {
+  broadcastHidePointer(null);
 }
 
 export interface AxisPointerSyncOptions {
@@ -636,8 +676,6 @@ export function buildBulkParamsForItem(
   } else {
     fsmTypeName = lookupFsmTypeName(item, entities);
   }
-  const threshold = getLongEntitiesThreshold(config.end - config.start);
-
   if (isGroup) {
     return {
       ResourceGroup: {
@@ -645,7 +683,7 @@ export function buildBulkParamsForItem(
         resource_type_name: resourceTypeName || '',
         long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
-        app_params: { operator_id: operatorId },
+        app_params: { operator_ids: operatorId ? [operatorId] : [] },
         config,
       },
     };
@@ -654,9 +692,9 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: threshold,
+      long_entities_threshold_s: null,
       entity_filter: { entity_type_name: fsmTypeName },
-      application: { operator_id: operatorId },
+      application: { operator_ids: operatorId ? [operatorId] : [] },
       config,
     },
   };
@@ -710,9 +748,10 @@ export function computeVisibleMaxValue(
   const entries = Object.values(series).filter(e => !e.isDimmed && !e.isOverlay);
   if (!entries.length || !entries[0]?.values.length) return null;
   let max = 0;
+  const binDurationMs = (entries[0]?.binDuration ?? 0) * 1_000;
   for (let i = 0; i < entries[0].values.length; i++) {
     const t = timestamps[i];
-    if (t === undefined || t < zoomStartMs || t > zoomEndMs) continue;
+    if (t === undefined || t + binDurationMs <= zoomStartMs || t >= zoomEndMs) continue;
     const sum = entries.reduce((acc, e) => acc + (e.values[i] ?? 0), 0);
     if (sum > max) max = sum;
   }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -10,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
-use quent_attributes::{Attribute, List, Struct};
+use quent_dynamic_attributes::{DynamicAttribute, DynamicList, DynamicStruct};
 use quent_io::clap::ExporterArgs;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -18,7 +18,7 @@ use quent_query_engine_model::{
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
-use rand::{Rng, distr::slice::Choose, rng};
+use rand::{RngExt, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -747,12 +747,12 @@ impl Worker {
 
         // Set some stats
         macro_rules! attr {
-            (u64 $name:expr, $range:expr) => { Attribute::u64($name, rng().random_range($range)) };
-            (u32 $name:expr, $val:expr) => { Attribute::u32($name, $val) };
-            (f64 $name:expr, $range:expr) => { Attribute::f64($name, rng().random_range($range)) };
-            (str $name:expr, $val:expr) => { Attribute::string($name, $val) };
+            (u64 $name:expr, $range:expr) => { DynamicAttribute::u64($name, rng().random_range($range)) };
+            (u32 $name:expr, $val:expr) => { DynamicAttribute::u32($name, $val) };
+            (f64 $name:expr, $range:expr) => { DynamicAttribute::f64($name, rng().random_range($range)) };
+            (str $name:expr, $val:expr) => { DynamicAttribute::string($name, $val) };
             (pick $name:expr, $($choice:expr),+) => {
-                Attribute::string($name, *rng().sample(Choose::new(&[$($choice),+]).unwrap()))
+                DynamicAttribute::string($name, *rng().sample(Choose::new(&[$($choice),+]).unwrap()))
             };
         }
 
@@ -764,7 +764,7 @@ impl Worker {
 
             // Common metrics for all operators
             let mut attributes = vec![
-                Attribute::u64("tasks_processed", tasks_processed),
+                DynamicAttribute::u64("tasks_processed", tasks_processed),
                 attr!(u64 "wall_time_ns",       100_000..5_000_000_000),
                 attr!(u64 "cpu_time_ns",        50_000..4_000_000_000),
                 attr!(u64 "peak_memory_bytes",  1024..512 * 1024 * 1024),
@@ -781,7 +781,7 @@ impl Worker {
                     let num_files: u64 = rng().random_range(1..256);
                     attributes.extend([
                         attr!(str "file_name",              "/dev/null"),
-                        Attribute::u64("files_scanned", num_files),
+                        DynamicAttribute::u64("files_scanned", num_files),
                         attr!(u64 "bytes_read",             1024..8u64 * 1024 * 1024 * 1024),
                         attr!(u64 "row_groups_read",        1..1024),
                         attr!(u64 "row_groups_skipped",     0..512),
@@ -795,18 +795,18 @@ impl Worker {
                         attr!(u64 "null_count",             0..100_000),
                         attr!(u64 "columns_projected",      1..64),
                         // Per-file byte counts
-                        Attribute::list(
+                        DynamicAttribute::list(
                             "per_file_bytes_read",
-                            List::U64(
+                            DynamicList::U64(
                                 (0..num_files)
                                     .map(|_| rng().random_range(1024..1024 * 1024 * 1024))
                                     .collect(),
                             ),
                         ),
                         // Column projection info
-                        Attribute::list(
+                        DynamicAttribute::list(
                             "projected_column_names",
-                            List::String(
+                            DynamicList::String(
                                 [
                                     "id", "name", "ts", "amount", "region", "status", "category",
                                     "score",
@@ -824,7 +824,7 @@ impl Worker {
                     attributes.extend([
                         attr!(u64  "average_partition_size_bytes", 1..1024 * 1024 * 1024),
                         attr!(pick "join_strategy",          "broadcast", "hash partition"),
-                        Attribute::u64("num_partitions", num_partitions),
+                        DynamicAttribute::u64("num_partitions", num_partitions),
                         attr!(u64  "partition_time_ns",      100_000..1_000_000_000),
                         attr!(u64  "hash_time_ns",           50_000..500_000_000),
                         attr!(f64  "partition_skew",         0.0..5.0),
@@ -835,9 +835,9 @@ impl Worker {
                         attr!(u64  "network_bytes_sent",     0..2u64 * 1024 * 1024 * 1024),
                         attr!(u64  "network_time_ns",        0..2_000_000_000),
                         // Row count per partition
-                        Attribute::list(
+                        DynamicAttribute::list(
                             "partition_row_counts",
-                            List::U64(
+                            DynamicList::U64(
                                 (0..num_partitions)
                                     .map(|_| rng().random_range(0..1_000_000))
                                     .collect(),
@@ -859,9 +859,9 @@ impl Worker {
                     attr!(u64 "bloom_filter_size_bytes", 0..64 * 1024 * 1024),
                     attr!(f64 "bloom_filter_fpr",        0.001..0.1),
                     // Join key columns
-                    Attribute::list(
+                    DynamicAttribute::list(
                         "join_keys",
-                        List::String(
+                        DynamicList::String(
                             vec!["id", "region_id", "ts"]
                                 .into_iter()
                                 .take(rng().random_range(1..4))
@@ -870,21 +870,24 @@ impl Worker {
                         ),
                     ),
                     // Per-spill detail: list of structs with bytes + time
-                    Attribute::list(
+                    DynamicAttribute::list(
                         "spill_events",
-                        List::Struct(
+                        DynamicList::Struct(
                             (0..rng().random_range(0u64..4))
                                 .map(|_| {
-                                    Struct(vec![
-                                        Attribute::u64(
+                                    DynamicStruct(vec![
+                                        DynamicAttribute::u64(
                                             "bytes",
                                             rng().random_range(1024..1024 * 1024 * 1024),
                                         ),
-                                        Attribute::u64(
+                                        DynamicAttribute::u64(
                                             "time_ns",
                                             rng().random_range(10_000..500_000_000),
                                         ),
-                                        Attribute::u64("rows", rng().random_range(1000..1_000_000)),
+                                        DynamicAttribute::u64(
+                                            "rows",
+                                            rng().random_range(1000..1_000_000),
+                                        ),
                                     ])
                                 })
                                 .collect(),
@@ -895,7 +898,7 @@ impl Worker {
                     let num_keys: usize = rng().random_range(1..8);
                     attributes.extend([
                         attr!(pick "direction",              "asc", "desc"),
-                        Attribute::u64("sort_keys", num_keys as u64),
+                        DynamicAttribute::u64("sort_keys", num_keys as u64),
                         attr!(u64  "comparison_count",       1000..500_000_000),
                         attr!(u64  "merge_passes",           1..16),
                         attr!(u64  "run_count",              1..512),
@@ -905,9 +908,9 @@ impl Worker {
                         attr!(f64  "avg_key_length_bytes",   4.0..256.0),
                         attr!(f64  "presorted_fraction",     0.0..1.0),
                         // Per sort-key specification
-                        Attribute::list(
+                        DynamicAttribute::list(
                             "key_specs",
-                            List::Struct(
+                            DynamicList::Struct(
                                 [
                                     "ts", "amount", "id", "score", "name", "region", "category",
                                     "status",
@@ -915,13 +918,13 @@ impl Worker {
                                 .iter()
                                 .take(num_keys)
                                 .map(|col| {
-                                    Struct(vec![
-                                        Attribute::string("column", *col),
-                                        Attribute::string(
+                                    DynamicStruct(vec![
+                                        DynamicAttribute::string("column", *col),
+                                        DynamicAttribute::string(
                                             "direction",
                                             *rng().sample(Choose::new(&["asc", "desc"]).unwrap()),
                                         ),
-                                        Attribute::string(
+                                        DynamicAttribute::string(
                                             "nulls",
                                             *rng().sample(Choose::new(&["first", "last"]).unwrap()),
                                         ),
@@ -944,14 +947,14 @@ impl Worker {
                         attr!(pick "sink",                   "file", "memory"),
                         attr!(u64  "rows_written",           0..10_000_000),
                         attr!(u64  "bytes_written",          0..4u64 * 1024 * 1024 * 1024),
-                        Attribute::u64("flush_count", flush_count),
+                        DynamicAttribute::u64("flush_count", flush_count),
                         attr!(u64  "flush_time_ns",          10_000..500_000_000),
                         attr!(f64  "compression_ratio",      0.1..0.9),
                         attr!(u64  "serialization_time_ns",  10_000..1_000_000_000),
                         // Per-flush durations
-                        Attribute::list(
+                        DynamicAttribute::list(
                             "per_flush_time_ns",
-                            List::U64(
+                            DynamicList::U64(
                                 (0..flush_count)
                                     .map(|_| rng().random_range(1000..10_000_000))
                                     .collect(),
@@ -973,8 +976,8 @@ impl Worker {
                 let port_handle = port_obs.create(port.id);
                 port_handle.statistics(port::Statistics {
                     custom_attributes: vec![
-                        Attribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
-                        Attribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
+                        DynamicAttribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
+                        DynamicAttribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
                     ]
                     .into(),
                 });
@@ -1126,7 +1129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = Engine::new();
 
-    let context = SimulatorContext::try_new(args.exporter.into_options())?;
+    let context = match args.exporter.into_options() {
+        Some(provider) => SimulatorContext::try_new(provider)?,
+        None => SimulatorContext::try_new(quent_model::Noop)?,
+    };
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 

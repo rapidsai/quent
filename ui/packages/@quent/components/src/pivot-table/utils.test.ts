@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -161,6 +161,11 @@ describe('formatStatValue', () => {
   it('converts a string value using String()', () => {
     expect(formatStatValue('hello', 'label')).toBe('hello');
   });
+
+  it('formats a bigint value (large U64/I64 stat) via the field formatter', () => {
+    expect(formatStatValue(1073741824n, 'spill_bytes')).toBe('1.00 GiB');
+    expect(formatStatValue(1500n, 'output_rows')).toBe('1.50 k');
+  });
 });
 
 // ---- isNumericValue --------------------------------------------------------
@@ -168,6 +173,10 @@ describe('formatStatValue', () => {
 describe('isNumericValue', () => {
   it('returns true for a number', () => {
     expect(isNumericValue(42)).toBe(true);
+  });
+
+  it('returns true for a bigint', () => {
+    expect(isNumericValue(42n)).toBe(true);
   });
 
   it('returns false for null', () => {

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! PyO3 bridge code generator.
@@ -115,7 +115,7 @@ fn value_type_rust_extract(ty: &ValueType) -> TokenStream {
         ValueType::String => quote! { String },
         ValueType::Uuid
         | ValueType::Ref(_)
-        | ValueType::CustomAttributes
+        | ValueType::DynamicAttributes
         | ValueType::List(_)
         | ValueType::Struct(_, _) => quote! {},
     }
@@ -157,7 +157,7 @@ fn emit_pyany_conversion_expr(
         }
         ValueType::Uuid => quote! { __extract_uuid(#obj)? },
         ValueType::Ref(_) => quote! { #q::Ref::new(__extract_uuid(#obj)?) },
-        ValueType::CustomAttributes => quote! { __extract_custom_attributes(#obj)? },
+        ValueType::DynamicAttributes => quote! { __extract_dynamic_attributes(#obj)? },
         ValueType::List(inner) => emit_pyany_list_conversion_expr(inner, obj, q, component_mod),
         ValueType::Struct(type_path, attrs) => {
             emit_pyany_struct_conversion_expr(type_path, attrs, obj, q, component_mod)
@@ -513,27 +513,27 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
             }
         }
 
-        fn __extract_custom_attributes(
+        fn __extract_dynamic_attributes(
             obj: &Bound<'_, PyAny>,
-        ) -> PyResult<#q::attributes::CustomAttributes> {
+        ) -> PyResult<#q::attributes::DynamicAttributes> {
             let dict = obj.cast::<PyDict>().map_err(|_| {
                 pyo3::exceptions::PyTypeError::new_err(
-                    "expected dict for custom attributes",
+                    "expected dict for dynamic attributes",
                 )
             })?;
-            let mut attrs = #q::attributes::CustomAttributes::new();
+            let mut attrs = #q::attributes::DynamicAttributes::new();
             for (key, value) in dict.iter() {
                 let key = key
                     .cast::<PyString>()
                     .map_err(|_| {
                         pyo3::exceptions::PyTypeError::new_err(
-                            "custom attribute keys must be strings",
+                            "dynamic attribute keys must be strings",
                         )
                     })?
                     .to_str()?
                     .to_owned();
                 if value.is_none() {
-                    attrs.add(#q::attributes::Attribute::null(key));
+                    attrs.add(#q::attributes::DynamicAttribute::null(key));
                 } else if let Ok(value) = value.cast::<PyBool>() {
                     attrs.add_bool(key, value.is_true());
                 } else if let Ok(value) = value.cast::<PyInt>() {
@@ -544,7 +544,7 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
                     attrs.add_string(key, value.to_str()?);
                 } else {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                        "unsupported custom attribute value for `{key}`"
+                        "unsupported dynamic attribute value for `{key}`"
                     )));
                 }
             }
@@ -683,9 +683,61 @@ fn emit_context(
         .collect();
 
     quote! {
+        #[pyclass(name = "ExporterOptions", frozen)]
+        pub struct PyExporterOptions {
+            inner: Option<#q::io::ExporterOptions>,
+        }
+
+        impl PyExporterOptions {
+            fn filesystem(
+                format: #q::io::filesystem::Format,
+                output_dir: std::path::PathBuf,
+            ) -> Self {
+                Self {
+                    inner: Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options::new(format, output_dir),
+                    )),
+                }
+            }
+        }
+
+        #[pymethods]
+        impl PyExporterOptions {
+            #[staticmethod]
+            pub fn none() -> Self {
+                Self { inner: None }
+            }
+
+            #[staticmethod]
+            pub fn ndjson(output_dir: std::path::PathBuf) -> Self {
+                Self::filesystem(#q::io::filesystem::Format::Ndjson, output_dir)
+            }
+
+            #[staticmethod]
+            pub fn msgpack(output_dir: std::path::PathBuf) -> Self {
+                Self::filesystem(#q::io::filesystem::Format::Msgpack, output_dir)
+            }
+
+            #[staticmethod]
+            pub fn postcard(output_dir: std::path::PathBuf) -> Self {
+                Self::filesystem(#q::io::filesystem::Format::Postcard, output_dir)
+            }
+
+            #[staticmethod]
+            pub fn collector(address: String) -> PyResult<Self> {
+                Ok(Self {
+                    inner: Some(#q::io::ExporterOptions::Collector(
+                        #q::io::CollectorExporterOptions::try_new(&address).map_err(|err| {
+                            pyo3::exceptions::PyValueError::new_err(err.to_string())
+                        })?,
+                    )),
+                })
+            }
+        }
+
         #[pyclass(name = "Context")]
         pub struct PyContext {
-            inner: Option<#q::Context>,
+            inner: Option<#q::ContextInner>,
             #(#struct_fields,)*
             id: #q::uuid::Uuid,
         }
@@ -693,31 +745,13 @@ fn emit_context(
         #[pymethods]
         impl PyContext {
             #[new]
-            pub fn new(
-                exporter: Option<String>,
-                output_dir: Option<String>,
-            ) -> PyResult<Self> {
-                let opts = match exporter.as_deref() {
-                    Some("ndjson") => Some(#q::io::ExporterOptions::FileSystem(
-                        #q::io::filesystem::exporter::Options::new(
-                            #q::io::filesystem::Format::Ndjson,
-                            std::path::PathBuf::from(
-                                output_dir.unwrap_or_else(|| ".".to_string()),
-                            ),
-                        ),
-                    )),
-                    None => None,
-                    Some(other) => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "unsupported exporter `{other}` for generated PyO3 bridge; supported values: `'ndjson'`, `None`"
-                        )));
-                    }
-                };
+            pub fn new(options: Option<PyRef<'_, PyExporterOptions>>) -> PyResult<Self> {
+                let opts = options.and_then(|options| options.inner.clone());
                 let id = #q::uuid::Uuid::now_v7();
                 let inner = match &opts {
-                    Some(_) => #q::Context::try_new(id)
+                    Some(_) => #q::ContextInner::try_new(id)
                         .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
-                    None => #q::Context::noop(id),
+                    None => #q::ContextInner::noop(id),
                 };
                 // Single sync/async bridge: build every entity's observer (each
                 // constructing its exporter from the options, bound to the id)
@@ -728,11 +762,11 @@ fn emit_context(
                         #q::write_sidecar(
                             &options,
                             id,
-                            <#model_type as #q::build_info::ModelSource>::model_info(),
+                            <#model_type as #q::events::Model>::model_info(),
                         );
                         inner.block_on(async {
                             let (#(#build_fields,)*) = #q::tokio::try_join!(
-                                #(inner.observer::<#build_event_tys>(options.clone()),)*
+                                #(inner.observer::<#build_event_tys>(&options),)*
                             )
                             .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                             Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))
@@ -1087,6 +1121,7 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
                 m.add_function(wrap_pyfunction!(now_v7, m)?)?;
                 m.add_function(wrap_pyfunction!(nil_uuid, m)?)?;
                 m.add_class::<PyUuid>()?;
+                m.add_class::<PyExporterOptions>()?;
                 m.add_class::<PyContext>()?;
                 #(
                     m.add_class::<#observer_classes>()?;

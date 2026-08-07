@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-injection"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib = the NVTX_INJECTION64_PATH runtime attach path (primary);
+# rlib   = the static/link-time path and in-process unit tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+libc = "0.2"
+nvtx-events = { path = "../events" }
+thiserror = { workspace = true }
+
+[build-dependencies]
+# `build.rs` runs bindgen over the NVTX injection ABI into `$OUT_DIR`. The NVTX
+# headers and libclang come from the pixi-pinned `nvtx-c` / `libclang` packages
+# (see `pixi.toml`), so a `pixi run cargo …` build is hermetic.
+bindgen = { workspace = true }
+cc = { workspace = true, optional = true }
+
+[features]
+# static-injection: attach the injection in-process at link time instead of at
+# runtime. The default attach path is the cdylib NVTX `dlopen`s via
+# `NVTX_INJECTION64_PATH`; with this feature a strong `InitializeInjectionNvtx2`
+# symbol is linked into the consuming binary, so NVTX initializes injection at
+# its first NVTX call — no separate library to deploy. Linux-only. See the crate
+# docs ("Attach modes").
+static-injection = ["dep:cc"]

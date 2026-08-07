@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // Example: C++ application using quent model-generated instrumentation API.
 //
 // This exercises the same model as the Rust README example:
@@ -7,7 +12,7 @@
 
 #include "quent-bridge/gen/cluster.rs.h"
 #include "quent-bridge/gen/context.rs.h"
-#include "quent-bridge/gen/custom_attributes.rs.h"
+#include "quent-bridge/gen/dynamic_attributes.rs.h"
 #include "quent-bridge/gen/file_stats.rs.h"
 #include "quent-bridge/gen/info.rs.h"
 #include "quent-bridge/gen/memory_pool.rs.h"
@@ -26,8 +31,9 @@ int main() {
   // resource group uses an independent id here.
   auto cluster_id = uuid::now_v7();
   {
-    // Create instrumentation context — events exported to ndjson.
-    auto ctx = quent::create_context("ndjson", "./events");
+    // Create instrumentation context — events exported to NDJSON.
+    auto ctx = quent::create_context(
+        quent::ExporterOptions::ndjson("./events/ndjson"));
 
     auto cluster_obs = quent::cluster::create_observer(*ctx);
     cluster_obs->cluster_declaration(cluster_id,
@@ -38,7 +44,7 @@ int main() {
     // Spawn a worker.
     auto worker_obs = quent::worker::create_observer(*ctx);
     auto worker_id = uuid::now_v7();
-    quent::CustomAttributes custom;
+    quent::DynamicAttributes custom;
     custom.string_attrs.push_back({"version", "42.1.2"});
     custom.i64_attrs.push_back({"threads", 256});
     worker_obs->worker_declaration(worker_id,

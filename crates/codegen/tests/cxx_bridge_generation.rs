@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for CXX bridge code generation.
@@ -141,11 +141,43 @@ fn generate_query_engine_cxx_bridge() {
         "operator.rs should have parent_operator_ids"
     );
 
-    // Verify CustomAttributes bridge is generated
+    // Verify DynamicAttributes bridge is generated
     assert!(
-        files.iter().any(|f| f.name == "custom_attributes.rs"),
-        "custom_attributes.rs should be generated"
+        files.iter().any(|f| f.name == "dynamic_attributes.rs"),
+        "dynamic_attributes.rs should be generated"
     );
+
+    let context_file = files.iter().find(|f| f.name == "context.rs").unwrap();
+    for factory in ["none", "ndjson", "msgpack", "postcard", "collector"] {
+        assert!(
+            context_file.content.contains(&format!("fn {factory}(")),
+            "context.rs should contain the {factory} exporter factory"
+        );
+    }
+    assert!(
+        context_file
+            .content
+            .contains("#[Self = \"ExporterOptions\"]")
+    );
+    assert!(
+        context_file
+            .content
+            .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;")
+    );
+    assert!(context_file.content.contains("pub struct ExporterOptions"));
+    assert!(context_file.content.contains("filesystem::Format::Msgpack"));
+    assert!(
+        context_file
+            .content
+            .contains("filesystem::Format::Postcard")
+    );
+    assert!(context_file.content.contains("CollectorExporterOptions"));
+    assert!(
+        context_file
+            .content
+            .contains("io::ExporterOptions::Collector")
+    );
+    assert!(!context_file.content.contains("exporter: String"));
 }
 
 #[test]

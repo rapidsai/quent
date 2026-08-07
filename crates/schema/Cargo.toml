@@ -17,7 +17,7 @@ rustc-hash = { workspace = true }
 serde = { workspace = true, optional = true }
 smallvec = { workspace = true, optional = true }
 thiserror = { workspace = true }
-ts-rs = { workspace = true, optional = true, features = ["indexmap-impl"] }
+ts-rs = { workspace = true, optional = true, features = ["format", "indexmap-impl"] }
 
 [dev-dependencies]
 serde_json = { workspace = true }

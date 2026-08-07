@@ -13,6 +13,6 @@ serde = []
 
 [dependencies]
 convert_case = "0.11"
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { workspace = true, features = ["extra-traits"] }
 quote = "1"
 proc-macro2 = "1"

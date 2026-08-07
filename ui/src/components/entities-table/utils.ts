@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
@@ -77,7 +77,7 @@ export function buildEntityRequest({
       },
       sort: { key: 'UsageDuration', dir: filters.sortDir },
       page: { max: normalizePageSize(filters.pageSize), page },
-      application: { operator_id: operatorId },
+      application: { operator_ids: operatorId != null ? [operatorId] : [] },
     },
     app_params: { query_id: queryId },
   };

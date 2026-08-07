@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { X } from 'lucide-react';
@@ -23,6 +23,8 @@ export interface SelectFieldProps {
   icon?: React.ElementType;
   /** Optional label rendered before the trigger */
   label?: string;
+  /** Accessible label when the visible label is rendered externally. */
+  ariaLabel?: string;
   options: SelectFieldOption[];
   value: string;
   onValueChange: (value: string | null) => void;
@@ -41,6 +43,7 @@ export interface SelectFieldProps {
 export const SelectField = ({
   icon: Icon,
   label,
+  ariaLabel,
   options,
   value,
   onValueChange,
@@ -56,13 +59,18 @@ export const SelectField = ({
       <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{label}</span>
     )}
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className={cn('flex-1 min-w-0', triggerClassName)}>
-        <SelectValue placeholder={placeholder} />
+      <SelectTrigger
+        aria-label={ariaLabel ?? label}
+        className={cn('min-w-0 flex-1 pr-1.5 text-left [&>svg]:shrink-0', triggerClassName)}
+      >
+        <span className="min-w-0 flex-1 truncate text-left">
+          <SelectValue placeholder={placeholder} />
+        </span>
         {clearable && value && (
           <span
             role="button"
-            aria-label={`Clear ${label ?? 'selection'}`}
-            className="ml-auto mr-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            aria-label={`Clear ${ariaLabel ?? label ?? 'selection'}`}
+            className="ml-1 mr-1 shrink-0 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
             onPointerDown={e => {
               e.stopPropagation();
               e.preventDefault();

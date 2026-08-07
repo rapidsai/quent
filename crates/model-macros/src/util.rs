@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use convert_case::{Case, Casing};
@@ -123,7 +123,7 @@ pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
 
         // Primitive and well-known types
         let vt = match ident_str.as_str() {
-            "CustomAttributes" => quote! { quent_model::ValueType::CustomAttributes },
+            "DynamicAttributes" => quote! { quent_model::ValueType::DynamicAttributes },
             "bool" => quote! { quent_model::ValueType::Bool },
             "u8" => quote! { quent_model::ValueType::U8 },
             "u16" => quote! { quent_model::ValueType::U16 },
@@ -159,7 +159,7 @@ pub fn resolve_value_type(ty: &syn::Type) -> (proc_macro2::TokenStream, bool) {
 }
 
 /// Generate an expression converting a field (given its declared type) into
-/// an `Option<quent_model::attributes::Value>`.
+/// an `Option<quent_model::attributes::DynamicValue>`.
 ///
 /// Most types delegate to the `ToAttributeValue` trait. `Vec<T>` of an
 /// attribute struct is special-cased syntactically because the orphan rule
@@ -187,11 +187,11 @@ pub fn attribute_value_expr(
     {
         // Vec of an attribute struct — convert element-wise.
         return quote! {
-            Some(quent_model::attributes::Value::List(
-                quent_model::attributes::List::Struct(
+            Some(quent_model::attributes::DynamicValue::List(
+                quent_model::attributes::DynamicList::Struct(
                     #field_expr
                         .iter()
-                        .map(|v| quent_model::attributes::Struct(
+                        .map(|v| quent_model::attributes::DynamicStruct(
                             quent_model::analyze::ExtractAttributes::extract_attributes(v),
                         ))
                         .collect(),

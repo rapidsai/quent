@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Utilities
@@ -24,6 +24,7 @@ export {
   isLightColor,
   createCapacitiesColorFn,
   createFsmTypeColorFn,
+  createDataFlowStateColorFn,
   CONTINUOUS_PALETTES,
   continuousColor,
   getLegendGradientStops,
@@ -36,11 +37,15 @@ export {
   formatDurationForWindow,
   formatDurationForAxisInterval,
   formatQuantity,
+  formatQuantityCompact,
+  formatCompactWithPrefix,
   formatBytes,
   formatNumber,
   formatAttributeValue,
   unwrapTaggedValue,
   inferFieldFormatter,
+  formatStatWithQuantity,
+  isNumericValue,
 } from './formatters';
 
 // Rust-generated TypeScript types

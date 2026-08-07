@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -9,7 +9,7 @@ function expanded(
   groups: Record<string, { id: string; label?: string }>,
   itemId: string,
   statisticName: string,
-  value: number | string | null
+  value: number | bigint | string | null
 ): StatGroupExpandedRow {
   const normalized: Record<string, { id: string; label: string }> = {};
   for (const [k, v] of Object.entries(groups)) {
@@ -154,6 +154,21 @@ describe('buildPivotedRows row clustering', () => {
     );
     expect(fordHybrid?.aggs.get('price')?.sum).toBe(80000);
     expect(fordHybrid?.aggs.get('price')?.count).toBe(2);
+  });
+
+  it('aggregates bigint stat values (large U64/I64) without throwing', () => {
+    const rows: StatGroupExpandedRow[] = [
+      expanded({ brand: { id: 'Ford' }, fuel: { id: 'Hybrid' } }, 'car-1', 'output_rows', 1000n),
+      expanded({ brand: { id: 'Ford' }, fuel: { id: 'Hybrid' } }, 'car-2', 'output_rows', 3000n),
+    ];
+    const out = buildPivotedRows(rows, [brandIdx, fuelIdx], true);
+    const agg = out[0]?.aggs.get('output_rows');
+    expect(agg?.sum).toBe(4000n);
+    expect(agg?.mean).toBe(2000);
+    expect(agg?.min).toBe(1000n);
+    expect(agg?.max).toBe(3000n);
+    expect(agg?.count).toBe(2);
+    expect(agg?.isNumeric).toBe(true);
   });
 
   it('preserves first-appearance order across both columns of the hierarchy', () => {

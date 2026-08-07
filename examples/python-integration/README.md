@@ -16,3 +16,14 @@ Rust `model!` / `entity!` / `fsm!` definitions in `examples/readme`; the bridge
 crate only asks `quent-codegen` to emit PyO3 wrappers from
 `AppModel::build`. As well as generating python bindings, the build script
 also emits type stubs in the generated wheel.
+
+Contexts accept typed exporter options. Filesystem exporters require an output
+path:
+
+```python
+from pathlib import Path
+
+import quent_readme as quent
+
+context = quent.Context(quent.ExporterOptions.ndjson(Path("./events")))
+```

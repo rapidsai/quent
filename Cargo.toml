@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     # Application-agnostic crates
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
@@ -24,6 +24,11 @@ members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
+    "integrations/nvtx/injection",
+    "integrations/nvtx/bridge",
+    "integrations/nvtx/example",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
@@ -47,6 +52,7 @@ members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
@@ -59,6 +65,7 @@ members = [
     "crates/fsm",
     "crates/resource",
     "crates/instrumentation-build",
+    "crates/yaml",
 ]
 
 # The instrumentation-build example is deliberately its own workspace (see its
@@ -72,7 +79,7 @@ exclude = ["crates/instrumentation-build/example"]
 # the zero-cost guarantee for everything else. Use `cargo build -p <crate>` to opt in.
 default-members = [
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
@@ -106,6 +113,7 @@ default-members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
 ]
 
 [workspace.package]
@@ -116,19 +124,26 @@ repository = "https://github.com/rapidsai/quent"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+bindgen = "0.72"
 bitcode = { version = "0.6.9", features = ["serde"] }
+cargo_metadata = "0.23"
+cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
-postcard = { version = "1", features = ["alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
+prettyplease = "0.3.0"
 prost = "0.14.1"
 pyo3 = "0.29"
+quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
+quent-resource = { path = "crates/resource" }
 rmp-serde = "1"
 rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 smallvec = {version = "1.15.1", features = ["serde"] }
+syn = { version = "3.0.3", features = ["full", "parsing"] }
 thiserror = "2.0.17"
 tokio = "1.48.0"
 tokio-stream = "0.1.17"

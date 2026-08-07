@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import type { EntityListRequest, QueryFilter, OperatorFilter } from '@quent/utils';
-import { fetchEntities } from './api';
+import { fetchEntityList } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 
 interface EntitiesParams {
@@ -22,7 +22,7 @@ export const entitiesQueryOptions = (
 ) =>
   queryOptions({
     queryKey: ['entities', engineId, request],
-    queryFn: () => fetchEntities(engineId, request),
+    queryFn: () => fetchEntityList(engineId, request),
     staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,
     enabled: options?.enabled,
     // Keep the current page visible while the next page/filter result loads.

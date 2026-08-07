@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi } from 'vitest';
@@ -9,7 +9,6 @@ vi.mock('../lib/echarts', () => ({
   disconnect: vi.fn(),
   getInstanceByDom: vi.fn(),
 }));
-vi.mock('../timeline/Timeline', () => ({ CHART_GROUP: 'timeline-sync-group' }));
 
 import {
   nanosToMs,
@@ -55,7 +54,7 @@ function makeResourceEntry(): TimelineRequest<OperatorFilter> {
       resource_id: 'r1',
       long_entities_threshold_s: null,
       entity_filter: baseFilter,
-      application: { operator_id: null },
+      application: { operator_ids: [] },
       config: baseConfig,
     },
   };
@@ -68,7 +67,7 @@ function makeGroupEntry(): TimelineRequest<OperatorFilter> {
       resource_type_name: 'disk',
       long_entities_threshold_s: null,
       entity_filter: baseFilter,
-      app_params: { operator_id: null },
+      app_params: { operator_ids: [] },
       config: baseConfig,
     },
   };
@@ -120,15 +119,13 @@ describe('nanosToMs', () => {
 // ---- getLongEntitiesThreshold ----------------------------------------------
 
 describe('getLongEntitiesThreshold', () => {
-  // Formula: 30 * (windowSeconds / MAX_TIMELINE_BINS) = 30 * (windowSeconds / 200)
-
-  it('returns the correct threshold for a 200-second window', () => {
-    expect(getLongEntitiesThreshold(200)).toBe(30);
+  it('returns the bin-scaled threshold for a 200-second window', () => {
+    expect(getLongEntitiesThreshold(200)).toBe(2);
   });
 
-  it('scales linearly with window size', () => {
-    expect(getLongEntitiesThreshold(100)).toBe(15);
-    expect(getLongEntitiesThreshold(400)).toBe(60);
+  it('scales linearly with the visible window', () => {
+    expect(getLongEntitiesThreshold(100)).toBe(1);
+    expect(getLongEntitiesThreshold(400)).toBe(4);
   });
 
   it('returns 0 for a zero-second window', () => {
@@ -252,33 +249,33 @@ describe('mergeOverlaySeries', () => {
 // ---- setOperatorOnEntry ----------------------------------------------------
 
 describe('setOperatorOnEntry', () => {
-  it('sets operator_id on a Resource entry', () => {
+  it('sets operator_ids on a Resource entry', () => {
     const entry = makeResourceEntry();
     const updated = setOperatorOnEntry(entry, 'op-42');
-    const opId = 'Resource' in updated ? updated.Resource.application.operator_id : null;
-    expect(opId).toBe('op-42');
+    const opIds = 'Resource' in updated ? updated.Resource.application.operator_ids : [];
+    expect(opIds).toEqual(['op-42']);
   });
 
-  it('sets operator_id on a ResourceGroup entry', () => {
+  it('sets operator_ids on a ResourceGroup entry', () => {
     const entry = makeGroupEntry();
     const updated = setOperatorOnEntry(entry, 'op-42');
-    const opId = 'ResourceGroup' in updated ? updated.ResourceGroup.app_params.operator_id : null;
-    expect(opId).toBe('op-42');
+    const opIds = 'ResourceGroup' in updated ? updated.ResourceGroup.app_params.operator_ids : [];
+    expect(opIds).toEqual(['op-42']);
   });
 
   it('does not mutate the original Resource entry', () => {
     const entry = makeResourceEntry();
     setOperatorOnEntry(entry, 'op-42');
-    const origOpId = 'Resource' in entry ? entry.Resource.application.operator_id : 'mutated';
-    expect(origOpId).toBeNull();
+    const origOpIds = 'Resource' in entry ? entry.Resource.application.operator_ids : ['mutated'];
+    expect(origOpIds).toEqual([]);
   });
 
   it('does not mutate the original ResourceGroup entry', () => {
     const entry = makeGroupEntry();
     setOperatorOnEntry(entry, 'op-42');
-    const origOpId =
-      'ResourceGroup' in entry ? entry.ResourceGroup.app_params.operator_id : 'mutated';
-    expect(origOpId).toBeNull();
+    const origOpIds =
+      'ResourceGroup' in entry ? entry.ResourceGroup.app_params.operator_ids : ['mutated'];
+    expect(origOpIds).toEqual([]);
   });
 
   it('preserves other fields on a Resource entry', () => {
@@ -302,19 +299,19 @@ describe('setOperatorOnEntries', () => {
   it('applies the operator to all entries in the record', () => {
     const entries = { r1: makeResourceEntry(), g1: makeGroupEntry() };
     const updated = setOperatorOnEntries(entries, 'op-99');
-    const r1OpId = 'Resource' in updated.r1 ? updated.r1.Resource.application.operator_id : null;
-    const g1OpId =
-      'ResourceGroup' in updated.g1 ? updated.g1.ResourceGroup.app_params.operator_id : null;
-    expect(r1OpId).toBe('op-99');
-    expect(g1OpId).toBe('op-99');
+    const r1OpIds = 'Resource' in updated.r1 ? updated.r1.Resource.application.operator_ids : [];
+    const g1OpIds =
+      'ResourceGroup' in updated.g1 ? updated.g1.ResourceGroup.app_params.operator_ids : [];
+    expect(r1OpIds).toEqual(['op-99']);
+    expect(g1OpIds).toEqual(['op-99']);
   });
 
   it('returns a new record without mutating the input', () => {
     const entries = { r1: makeResourceEntry() };
     setOperatorOnEntries(entries, 'op-99');
-    const origOpId =
-      'Resource' in entries.r1 ? entries.r1.Resource.application.operator_id : 'mutated';
-    expect(origOpId).toBeNull();
+    const origOpIds =
+      'Resource' in entries.r1 ? entries.r1.Resource.application.operator_ids : ['mutated'];
+    expect(origOpIds).toEqual([]);
   });
 
   it('returns an empty record for an empty input', () => {
@@ -359,9 +356,9 @@ describe('findItemById', () => {
 // ---- buildTimelineMarks attributes ------------------------------------------
 
 import { buildTimelineMarks } from './timeline.utils';
-import type { FiniteStateMachine, Value } from '@quent/utils';
+import type { DynamicValue, FiniteStateMachine } from '@quent/utils';
 
-const taggedValue = (v: object) => v as unknown as Value;
+const taggedValue = (v: object) => v as unknown as DynamicValue;
 
 const THREAD_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 
@@ -390,7 +387,7 @@ const taskFsm: FiniteStateMachine = {
 
 describe('buildTimelineMarks attributes', () => {
   it('copies recorded and derived attributes onto marks', () => {
-    const marks = buildTimelineMarks([taskFsm], 0n, 'light', new Set([THREAD_ID]));
+    const marks = buildTimelineMarks([taskFsm], 'light', new Set([THREAD_ID]));
     expect(marks).toBeDefined();
     // Only the computing transition has a usage on the filtered resource.
     expect(marks).toHaveLength(1);
@@ -406,7 +403,7 @@ describe('buildTimelineMarks attributes', () => {
   });
 
   it('omits attribute keys for attribute-less transitions', () => {
-    const marks = buildTimelineMarks([taskFsm], 0n, 'light', null);
+    const marks = buildTimelineMarks([taskFsm], 'light', null);
     expect(marks).toHaveLength(2);
     const queueing = marks!.find(m => m.stateName === 'queueing')!;
     expect(queueing.derivedAttributes).toBeUndefined();
@@ -422,7 +419,7 @@ describe('buildTimelineMarks attributes', () => {
         return rest;
       }),
     } as unknown as FiniteStateMachine;
-    const marks = buildTimelineMarks([legacyFsm], 0n, 'light', new Set([THREAD_ID]));
+    const marks = buildTimelineMarks([legacyFsm], 'light', new Set([THREAD_ID]));
     expect(marks).toHaveLength(1);
     expect(marks![0]!.attributes).toBeUndefined();
     expect(marks![0]!.derivedAttributes).toBeUndefined();

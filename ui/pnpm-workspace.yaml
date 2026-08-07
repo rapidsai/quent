@@ -7,22 +7,28 @@ packages:
   # `pnpm-workspace.yaml` re-references `../../packages/@quent/*` so its
   # `workspace:*` deps still resolve to source.
 
+catalog:
+  '@tanstack/react-query': ^5.90.21
+  '@tanstack/react-router': ^1.169.9
+  '@tanstack/react-table': ^8.20.5
+  '@tanstack/react-virtual': ^3.14.5
+  '@types/react': ^19.2.14
+  '@types/react-dom': ^19.2.3
+  '@xyflow/react': ^12.11.2
+  clsx: ^2.1.1
+  echarts: ^6.1.0
+  echarts-for-react: ^3.0.6
+  jotai: ^2.20.1
+  jotai-family: ^1.0.2
+  react: ^19.2.7
+  react-dom: ^19.2.7
+  tailwind-merge: ^3.5.0
+  tsdown: ^0.22.12
+  typescript: ^6.0.3
+
 allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true
   esbuild: true
   msw: true
   protobufjs: true
-
-# Advisories that `pnpm audit` should drop from its failure list.
-# Each entry MUST be paired with a same-key comment explaining why it is safe
-# to ignore and what the exit criteria for removing it are.
-auditConfig:
-  ignoreGhsas:
-    # GHSA-fgmj-fm8m-jvvx / CVE-2026-45249 — echarts <6.1.0 XSS via the Lines-
-    # series default tooltip. Requires (a) `type: 'lines'`, (b) no custom
-    # `tooltip.formatter`, (c) raw HTML in `series.data[i].name`. Quent uses
-    # `type: 'line'`, `custom`, and `sankey` — no `type: 'lines'` anywhere —
-    # so the vulnerable code path is unreachable. Remove this entry when we
-    # bump to echarts 6.1.0 (pending v5→v6 migration).
-    - GHSA-fgmj-fm8m-jvvx

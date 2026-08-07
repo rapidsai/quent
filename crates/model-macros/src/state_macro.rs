@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! `state!` proc macro implementation.
@@ -297,7 +297,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         }
 
         impl quent_model::analyze::ExtractAttributes for #name {
-            fn extract_attributes(&self) -> Vec<quent_model::attributes::Attribute> {
+            fn extract_attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
                 #extract_attributes_body
             }
         }
@@ -467,7 +467,7 @@ fn expand_inline_attrs(
             let fname = &f.name;
             let value_expr = crate::util::attribute_value_expr(&quote! { self.#fname }, &f.ty);
             quote! {
-                quent_model::attributes::Attribute {
+                quent_model::attributes::DynamicAttribute {
                     key: #field_name.to_string(),
                     value: #value_expr,
                 }

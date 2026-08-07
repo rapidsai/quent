@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import type { StatValue } from '@quent/utils';
@@ -15,4 +15,6 @@ export interface OperatorTableRow {
   itemName: string;
   itemId: string;
   stats: Record<string, StatValue>;
+  /** Maps stat key → quantity name (key into QueryBundle.quantity_specs) for stats that have one. */
+  statQuantities: Record<string, string>;
 }

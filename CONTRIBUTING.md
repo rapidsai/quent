@@ -202,6 +202,6 @@ under the [Apache License, Version 2.0](LICENSE).
 Each source file should include the following SPDX header:
 
 ```text
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 ```

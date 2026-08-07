@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { memo, useState, useMemo, useCallback } from 'react';
@@ -25,9 +25,10 @@ import {
   useEffectiveHoveredStat,
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
+import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { inferFieldFormatter } from '@quent/utils';
 import { DataText } from '../ui/data-text';
+import { NodeFlowBar } from './NodeFlowBar';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -46,6 +47,13 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   isDark?: boolean;
   /** Pre-computed collision-free color for this operator type within the current DAG. */
   baseColor?: string;
+  /**
+   * Whether the data-flow overlay bar is rendered under the node content.
+   * Injected by `DAGChart` when converting nodes so toggling the overlay
+   * relayouts exactly once.
+   */
+  flowBarVisible?: boolean;
+  quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }
 
 const nodeVariants = cva(
@@ -101,6 +109,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+  const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId, isDark);
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
@@ -111,14 +120,19 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return data.label;
   }, [nodeLabelField, data]);
 
-  const colorFieldValue = colorField
-    ? (statistics.find(s => s.key === colorField)?.value ?? null)
-    : null;
+  const colorFieldStat = colorField ? statistics.find(s => s.key === colorField) : null;
+  const colorFieldValue = colorFieldStat?.value ?? null;
   const formattedColorFieldValue =
     colorFieldValue === null
       ? null
       : typeof colorFieldValue === 'number'
-        ? inferFieldFormatter(colorField!)(colorFieldValue)
+        ? formatStatWithQuantity(
+            colorFieldValue,
+            colorField!,
+            colorFieldStat?.quantity && quantitySpecs
+              ? quantitySpecs[colorFieldStat.quantity]
+              : undefined
+          )
         : String(colorFieldValue);
 
   const baseColor = data.baseColor ?? getOperationTypeColor(data.operationType);
@@ -213,6 +227,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           {formattedColorFieldValue}
         </div>
       )}
+
+      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} isDark={isDark} />}
 
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />

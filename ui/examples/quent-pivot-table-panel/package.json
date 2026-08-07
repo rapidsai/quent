@@ -15,7 +15,7 @@
     "@quent/hooks": "link:../../packages/@quent/hooks",
     "@quent/utils": "link:../../packages/@quent/utils",
     "@tanstack/react-query": "^5.90.21",
-    "@xyflow/react": "^12.10.1",
+    "@xyflow/react": "^12.11.2",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.6",
     "jotai": "^2.18.0",

@@ -1,0 +1,26 @@
+[package]
+name = "quent-yaml"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+indexmap = { workspace = true, features = ["serde"] }
+quent-constraints = { path = "../constraints" }
+quent-fsm = { path = "../fsm" }
+quent-ref-target = { path = "../ref-target" }
+quent-ref-tree = { path = "../ref-tree" }
+quent-resource = { workspace = true }
+quent-schema = { path = "../schema" }
+serde = { workspace = true }
+serde-saphyr = "0.0.29"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }
+
+[[bin]]
+name = "quent-yaml-check"
+path = "src/bin/check.rs"

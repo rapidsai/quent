@@ -5,10 +5,22 @@ on:
     branches: [main]
     paths:
       - "ui/**"
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.proto"
+      - "pixi.toml"
+      - "pixi.lock"
       - ".github/workflows/ui.yml"
   pull_request:
     paths:
       - "ui/**"
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.proto"
+      - "pixi.toml"
+      - "pixi.lock"
       - ".github/workflows/ui.yml"
 
 permissions:
@@ -19,10 +31,10 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
@@ -32,10 +44,10 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
@@ -46,10 +58,10 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
@@ -59,13 +71,14 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
+      - run: pixi run pnpm --dir ui bindings
       - run: pixi run pnpm --dir ui routes:generate
       - run: pixi run pnpm --dir ui test:coverage
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -80,10 +93,10 @@ jobs:
     name: UI E2E
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
@@ -105,24 +118,108 @@ jobs:
     name: Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
       - run: pixi run pnpm --dir ui audit --audit-level=high
+
+  detect-binding-changes:
+    name: Detect TS Binding Changes
+    if: github.event_name == 'pull_request'
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - run: pixi run cargo run -p quent-simulator-ui-bindings --locked
+      - name: Generate base bindings
+        run: |
+          if [ -d base/examples/simulator/ui-bindings ]; then
+            pixi run cargo run \
+              --manifest-path base/Cargo.toml \
+              -p quent-simulator-ui-bindings \
+              --locked
+          else
+            pixi run cargo build \
+              --manifest-path base/Cargo.toml \
+              -p quent-simulator-server \
+              --locked
+          fi
+      - name: Compare generated bindings
+        id: compare
+        run: |
+          diff_status=0
+          if [ -d base/ui/generated/ts-bindings ]; then
+            base_bindings=base/ui/generated/ts-bindings
+          else
+            base_bindings=base/examples/simulator/server/ts-bindings
+          fi
+          diff --recursive --unified=3 "$base_bindings" \
+            ui/generated/ts-bindings > ts-bindings.diff || diff_status=$?
+          if [ "$diff_status" -gt 1 ]; then
+            exit "$diff_status"
+          elif [ "$diff_status" -eq 1 ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.compare.outputs.changed == 'true'
+        with:
+          name: ts-bindings-diff
+          path: |
+            ts-bindings.diff
+            ui/generated/ts-bindings/
+          retention-days: 7
+
+  diff-bindings:
+    name: TS Binding Diff
+    if: needs.detect-binding-changes.outputs.changed == 'true'
+    needs: [detect-binding-changes]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ts-bindings-diff
+          path: .
+      - name: Post binding diff to step summary
+        run: |
+          echo "## TS Binding Changes" >> "$GITHUB_STEP_SUMMARY"
+          echo '```diff' >> "$GITHUB_STEP_SUMMARY"
+          cat ts-bindings.diff >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
   build:
     name: Build
     needs: [fmt, lint, typecheck, test, e2e]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile

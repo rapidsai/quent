@@ -7,11 +7,15 @@ on:
       - "**/*.md"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
+      - "pixi.toml"
+      - "pixi.lock"
   pull_request:
     paths:
       - "**/*.md"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
+      - "pixi.toml"
+      - "pixi.lock"
 
 permissions:
   contents: read
@@ -21,7 +25,10 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: pipx run rumdl==0.1.67 check --diff
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - run: pixi run --frozen rumdl check --diff

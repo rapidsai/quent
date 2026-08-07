@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Attribute } from '@quent/utils';
+import type { DynamicAttribute } from '@quent/utils';
 
 export type TimelineSeriesEntry = {
   binDuration: number;
@@ -27,12 +27,13 @@ export type TimelineMark = {
   /** Operator instance name when this mark belongs to a selected operator's long entities. */
   operatorName?: string;
   /** Attributes recorded by instrumentation on this state. */
-  attributes?: Attribute[];
+  attributes?: DynamicAttribute[];
   /** Attributes computed by the analyzer, rendered under a "derived" section. */
-  derivedAttributes?: Attribute[];
+  derivedAttributes?: DynamicAttribute[];
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 45;
+export const CHART_GROUP = 'timeline-sync-group';
 
 // left/right spacing needs to be consistent across all timelines
 // so axes line up. top/bottom spacing can be overridden, but defaults still

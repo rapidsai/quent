@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for `model!` macro.
@@ -79,4 +79,16 @@ fn define_model_from_impls() {
     // SimpleEntityEvent should convert into TestEvent
     let entity_event: SimpleEntityEvent = SimpleEntityEvent::Ping(Ping { value: 42 });
     let _: TestEvent = entity_event.into();
+}
+
+#[test]
+fn model_marker_implements_core_model_traits() {
+    fn assert_model<M: quent_model::events::Model>() {}
+    fn assert_umbrella<M: quent_model::events::ModelEvents<UmbrellaEvent = TestEvent>>() {}
+
+    assert_model::<Test>();
+    assert_umbrella::<Test>();
+
+    let info = <Test as quent_model::events::Model>::model_info();
+    assert_eq!(info.name, "Test");
 }

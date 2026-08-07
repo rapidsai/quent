@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Integration test for the `state!` proc macro with flat-arg FSM methods.
@@ -175,7 +175,7 @@ fn extract_usages() {
 #[test]
 fn extract_attributes_inline_fields() {
     use quent_model::analyze::ExtractAttributes;
-    use quent_model::attributes::Value;
+    use quent_model::attributes::DynamicValue;
 
     let q = Queued {
         instance_name: "test_task".to_string(),
@@ -185,7 +185,7 @@ fn extract_attributes_inline_fields() {
     // instance_name is excluded — surfaced via ExtractInstanceName instead.
     assert_eq!(attrs.len(), 1);
     assert_eq!(attrs[0].key, "priority");
-    assert_eq!(attrs[0].value, Some(Value::U32(7)));
+    assert_eq!(attrs[0].value, Some(DynamicValue::U32(7)));
 
     // Usage-only states carry no attributes.
     let c = Computing {
@@ -198,7 +198,7 @@ fn extract_attributes_inline_fields() {
 #[test]
 fn transition_info_attributes() {
     use quent_model::analyze::TransitionInfo;
-    use quent_model::attributes::Value;
+    use quent_model::attributes::DynamicValue;
 
     let transition = TaskTransition::from(Queued {
         instance_name: "test_task".to_string(),
@@ -207,7 +207,7 @@ fn transition_info_attributes() {
     let attrs = transition.attributes();
     assert_eq!(attrs.len(), 1);
     assert_eq!(attrs[0].key, "priority");
-    assert_eq!(attrs[0].value, Some(Value::U32(3)));
+    assert_eq!(attrs[0].value, Some(DynamicValue::U32(3)));
 
     assert!(TaskTransition::Exit.attributes().is_empty());
 }

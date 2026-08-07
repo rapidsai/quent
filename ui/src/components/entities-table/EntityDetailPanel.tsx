@@ -1,8 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatAttributeValue, formatDuration } from '@quent/utils';
-import type { Attribute, FiniteStateMachine } from '@quent/utils';
+import type { DynamicAttribute, FiniteStateMachine } from '@quent/utils';
 
 interface EntityDetailPanelProps {
   fsm: FiniteStateMachine | null;
@@ -74,7 +74,7 @@ export function EntityDetailPanel({ fsm, resourceLabel }: EntityDetailPanelProps
   );
 }
 
-function AttributeRows({ attributes, derived }: { attributes: Attribute[]; derived?: boolean }) {
+function AttributeRows({ attributes, derived }: { attributes: DynamicAttribute[]; derived?: boolean }) {
   return (
     <ul className={`mt-1 space-y-0.5 text-xs ${derived ? 'italic text-muted-foreground' : ''}`}>
       {attributes.map((attribute, index) => (

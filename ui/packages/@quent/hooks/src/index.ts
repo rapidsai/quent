@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Provider — wraps QueryClientProvider + JotaiProvider in one component
@@ -29,8 +29,6 @@ export {
   useSetBulkInitialized,
   useVisibleEntries,
   useSetVisibleEntries,
-  useHideTasks,
-  useSetHideTasks,
   useHydrateTimelineAtoms,
 } from './timeline/useTimelineAtoms';
 
@@ -92,6 +90,40 @@ export type {
   HighlightedNodeIdsState,
   InspectedNodeData,
 } from './atoms/dagControls';
+
+// Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)
+export {
+  useDataFlowEnabled,
+  useSetDataFlowEnabled,
+  usePlayheadTimeS,
+  useSetPlayheadTimeS,
+  useSelectedDataFlowMeasure,
+  useSetSelectedDataFlowMeasure,
+  useDataFlowLabelMeasure,
+  useSetDataFlowLabelMeasure,
+  useDataFlowSelectedDimensions,
+  useSetDataFlowSelectedDimensions,
+  useDataFlowMeta,
+  useDataFlowFrame,
+} from './dataFlow/dataFlowSelectors';
+export { useDataFlowSync } from './dataFlow/useDataFlowSync';
+export {
+  normalizeDataFlowResponse,
+  isDataFlowAvailable,
+  resolveDataFlowWindow,
+  resolveDataFlowMeasure,
+  resolveDataFlowLabelMeasure,
+  resolveDataFlowDimensions,
+  formatDataFlowValue,
+  formatDataFlowValueCompact,
+  fitDataFlowSegmentLabel,
+} from './dataFlow/dataFlow.utils';
+export type {
+  DataFlowBinConfig,
+  DataFlowMeta,
+  DataFlowFrame,
+  DataFlowOperatorFrame,
+} from './dataFlow/dataFlow.utils';
 
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';

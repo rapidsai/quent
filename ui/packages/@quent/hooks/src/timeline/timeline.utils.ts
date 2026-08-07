@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import type { TimelineRequest, OperatorFilter } from '@quent/utils';
@@ -30,14 +30,14 @@ export function setOperatorOnEntry(
     return {
       ResourceGroup: {
         ...entry.ResourceGroup,
-        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+        app_params: { ...entry.ResourceGroup.app_params, operator_ids: [operatorId] },
       },
     };
   }
   return {
     Resource: {
       ...entry.Resource,
-      application: { ...entry.Resource.application, operator_id: operatorId },
+      application: { ...entry.Resource.application, operator_ids: [operatorId] },
     },
   };
 }

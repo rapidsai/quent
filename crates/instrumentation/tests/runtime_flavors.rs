@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! The sync/async bridge across the runtime setups a client application can have:
@@ -10,7 +10,7 @@ mod common;
 use std::path::Path;
 
 use common::TestEvent;
-use quent_instrumentation::{Context, Observer};
+use quent_instrumentation::{ContextInner, ObserverInner};
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use uuid::Uuid;
@@ -24,17 +24,17 @@ fn fs_opts(root: &Path) -> ExporterOptions {
 
 /// Build an active context for `root`, mirroring what a generated
 /// `{App}Context::try_new` does (minus sidecar write).
-fn active(root: &Path) -> (Context, ExporterOptions, Uuid) {
+fn active(root: &Path) -> (ContextInner, ExporterOptions, Uuid) {
     let id = Uuid::now_v7();
-    let ctx = Context::try_new(id).unwrap();
+    let ctx = ContextInner::try_new(id).unwrap();
     let exporter_opts = fs_opts(root);
     (ctx, exporter_opts, id)
 }
 
 /// Build an observer through the one bridge: the context builds the exporter
 /// from the options (bound to its id) and hosts it on its runtime.
-fn build(ctx: &Context, exporter_opts: &ExporterOptions) -> Observer<TestEvent> {
-    ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts.clone()).await })
+fn build(ctx: &ContextInner, exporter_opts: &ExporterOptions) -> ObserverInner<TestEvent> {
+    ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts).await })
         .unwrap()
 }
 

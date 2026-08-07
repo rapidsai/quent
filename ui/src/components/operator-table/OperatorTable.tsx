@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
@@ -8,7 +8,7 @@ import {
   PivotTableToolbar,
   getSchemaStatNames,
 } from '@quent/components';
-import { getOperationTypeColor } from '@quent/utils';
+import { getOperationTypeColor, formatStatWithQuantity } from '@quent/utils';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -97,7 +97,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [hoveredStat, setHoveredStat] = useHoveredStat();
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
-  const { entities } = queryBundle;
+  const { entities, quantity_specs: quantitySpecs } = queryBundle;
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
 
@@ -127,6 +127,25 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const allRows = useMemo(
     () => buildOperatorRows(entities, includedPlanIds),
     [entities, includedPlanIds]
+  );
+
+  const statQuantityNames = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const row of allRows) {
+      for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
+        if (!(statKey in result)) result[statKey] = quantityName;
+      }
+    }
+    return result;
+  }, [allRows]);
+
+  const formatNumericValue = useCallback(
+    (value: number, statName: string) => {
+      const quantityName = statQuantityNames[statName];
+      const spec = quantityName ? quantitySpecs?.[quantityName] : undefined;
+      return formatStatWithQuantity(value, statName, spec);
+    },
+    [statQuantityNames, quantitySpecs]
   );
 
   // When the DAG has a selection, narrow the table to just the matching
@@ -359,6 +378,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
+          formatNumericValue={formatNumericValue}
         />
       </div>
     </div>

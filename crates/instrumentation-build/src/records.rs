@@ -1,52 +1,36 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Generation of record structs.
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
-use quent_schema::{Record, Schema};
+use quent_schema::Record;
 use quote::quote;
 
-use crate::common::{derive_attr, doc_attr, doc_attr_or, raw_ident, to_case};
+use crate::common::{derive_attr, doc_attr, doc_attr_or, path_name_pascal, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, Options};
 
-/// Record structs, as tokens, in declaration order.
-///
-/// # Panics
-///
-/// Panics if a field type nests deeper than [`crate::data_type::MAX_TYPE_DEPTH`].
-pub(crate) fn generate_record_types(
-    schema: &Schema,
-    opts: &Options,
-) -> Result<TokenStream, GenerateError> {
-    let records: Vec<TokenStream> = schema
-        .records()
-        .map(|record| record_struct(record, opts))
-        .collect::<Result<_, _>>()?;
-    Ok(quote! { #(#records)* })
-}
-
-fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let record_pascal = to_case(record.name(), Case::Pascal);
+pub(crate) fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, GenerateError> {
+    let record_pascal = path_name_pascal(record.path());
     let ident = raw_ident(record_pascal.clone());
     let docs = doc_attr_or(
         record.annotations().docs(),
-        &format!("The `{record_pascal}` record."),
+        &format!("The `{}` record.", record.path()),
     );
-    let derives = derive_attr(opts.record_derives)?;
-    let fields: Vec<TokenStream> = record
+    let derives = derive_attr(opts.record_derives, opts.debug, opts.serde, opts.serde)?;
+    let fields = record
         .fields()
         .map(|field| {
             let name = raw_ident(to_case(field.name(), Case::Snake));
-            let ty = map_data_type(field.ty(), 0);
+            let ty = map_data_type(field.ty(), 0, record.path().namespace(), opts)?;
             let field_docs = doc_attr(field.annotations().docs());
-            quote! { #field_docs pub #name: #ty }
+            Ok::<_, GenerateError>(quote! { #field_docs pub #name: #ty })
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     if fields.is_empty() {
-        Ok(quote! { #docs #derives pub struct #ident {} })
+        Ok(quote! { #docs #derives pub struct #ident; })
     } else {
         Ok(quote! {
             #docs
@@ -63,40 +47,35 @@ mod tests {
     use super::*;
     use crate::common::pretty;
     use quent_schema::DataType;
-    use quent_schema::test_utils::{field, ident, record, schema};
+    use quent_schema::test_utils::{field, record, record_type};
 
     #[test]
-    fn test_generate_record_types() {
-        let s = schema(
-            "M",
-            [],
+    fn generates_record_struct() {
+        let record = record(
+            "Nested",
             [
-                record("OnePrim", [field("a", DataType::U8)]),
-                record(
-                    "Nested",
-                    [
-                        field("inner", DataType::Record(ident("OnePrim"))),
-                        field("list", DataType::List(Box::new(DataType::String))),
-                    ],
-                ),
-                record("Empty", []),
+                field("inner", record_type("OnePrim")),
+                field("list", DataType::List(Box::new(DataType::String))),
             ],
         );
         let expected = quote! {
-            #[doc = "The `OnePrim` record."]
-            pub struct OnePrim {
-                pub a: u8
-            }
             #[doc = "The `Nested` record."]
             pub struct Nested {
                 pub inner: OnePrim,
                 pub list: Vec<String>
             }
-            #[doc = "The `Empty` record."]
-            pub struct Empty {}
         };
         assert_eq!(
-            pretty(generate_record_types(&s, &Options::default()).unwrap()),
+            pretty(
+                record_struct(
+                    &record,
+                    &Options {
+                        debug: false,
+                        ..Options::default()
+                    },
+                )
+                .unwrap(),
+            ),
             pretty(expected)
         );
     }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Engine entity: top-level entry point and root resource group.
@@ -14,7 +14,7 @@ pub struct EngineImplementationAttributes {
     /// The version of this Engine implementation, e.g. "13.3.7"
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
-    pub custom_attributes: quent_model::attributes::CustomAttributes,
+    pub custom_attributes: quent_model::attributes::DynamicAttributes,
 }
 
 #[derive(Debug, Default, Attributes, Deserialize, Serialize)]

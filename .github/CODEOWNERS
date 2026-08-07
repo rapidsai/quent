@@ -1,0 +1,13 @@
+# Default owners for everything outside /ui
+* @9prady9 @cmatzenbach @dhruv9vats @felipeblazing @johallar @johanpel @joosthooz @mbrobbel
+
+# UI
+/ui/ @cmatzenbach @johallar
+
+# UI dependencies
+/ui/**/package.json @cmatzenbach @johallar @johanpel @mbrobbel
+/ui/**/pnpm-lock.yaml @cmatzenbach @johallar @johanpel @mbrobbel
+/ui/**/pnpm-workspace.yaml @cmatzenbach @johallar @johanpel @mbrobbel
+
+# GitHub configuration
+/.github/ @cmatzenbach @dhruv9vats @johallar @johanpel @mbrobbel

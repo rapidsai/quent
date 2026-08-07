@@ -1,10 +1,13 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types shared with the UI.
 
+mod data_flow;
+pub use data_flow::DataFlowTimelineBinned;
+
 use quent_analyzer::fsm::FsmTypeDecl;
-use quent_attributes::{Attribute, Value};
+use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_query_engine_model as qe;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
@@ -22,11 +25,11 @@ pub struct QueryFilter {
     pub query_id: Uuid,
 }
 
-/// Per-entry timeline-request parameter; restricts a resource timeline to a
-/// single operator when set.
+/// Per-entry timeline-request parameter; restricts a resource timeline to the
+/// given operators, or all operators when empty.
 #[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OperatorFilter {
-    pub operator_id: Option<Uuid>,
+    pub operator_ids: Vec<Uuid>,
 }
 
 /// Attributes describing details about the implementation of this Engine
@@ -37,7 +40,7 @@ pub struct EngineImplementationAttributes {
     /// The version of this Engine implementation, e.g. "13.3.7"
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: Vec<DynamicAttribute>,
 }
 
 impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationAttributes {
@@ -162,9 +165,18 @@ pub struct Plan {
 }
 
 #[derive(TS, Debug, Serialize)]
+pub struct OperatorStatistic {
+    /// The value of this statistic.
+    pub value: Option<DynamicValue>,
+    /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
+    /// to display this statistic.
+    pub quantity: Option<String>,
+}
+
+#[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistics {
-    /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
+    /// Custom statistics.
+    pub custom_statistics: HashMap<String, OperatorStatistic>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -181,8 +193,8 @@ pub struct Operator {
     /// The name of this type of [`Operator`].
     pub operator_type_name: Option<String>,
 
-    /// The custom attributes of this [`Operator`].
-    pub custom_attributes: HashMap<String, Option<Value>>,
+    /// The dynamic attributes of this [`Operator`].
+    pub custom_attributes: HashMap<String, Option<DynamicValue>>,
     /// The statistics of this [`Operator`].
     ///
     /// These are attributes that are typically gathered after the work
@@ -202,7 +214,7 @@ pub struct Operator {
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
     /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
+    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -295,7 +307,7 @@ pub struct QueryBundle<E> {
     /// A list of unique operator type names.
     pub unique_operator_names: Vec<String>,
 
-    /// Quantity specifications for capacity display, keyed by capacity name.
+    /// Quantity specifications for displaying values, keyed by quantity name.
     pub quantity_specs: HashMap<String, QuantitySpec>,
 
     /// The number of nanoseconds passed since the Unix epoch at which the

@@ -1,16 +1,13 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A per-entity instance handle forwarding events to the observer's event
-//! pipeline.
+//! Backing handle types used by generated instrumentation libraries.
 
 use std::sync::Arc;
 
-use uuid::Uuid;
+use crate::{InstrumentedEntity, ObserverInner};
 
-use crate::observer::Observer;
-
-/// An error from emitting through a [`Handle`].
+/// An error from emitting through a generated entity handle.
 #[derive(Debug, thiserror::Error)]
 pub enum HandleError {
     /// A once-cardinality event was emitted more than once for one entity
@@ -22,27 +19,26 @@ pub enum HandleError {
     },
 }
 
-/// A handle to one entity instance.
+/// Common operations for generated handles.
 ///
-/// Exports this instance's events through an [`Observer`] shared with other
-/// handles.
-/// Enforces once-cardinality events are sent at most once.
+/// Generated local newtypes wrap this type so they can add inherent
+/// entity-specific event methods.
+///
+/// Hidden because generated handle newtypes are the application-facing API.
 #[doc(hidden)]
-pub struct Handle<E> {
-    id: Uuid,
+pub struct HandleInner<E: InstrumentedEntity> {
+    id: crate::Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
     once_flags: u64,
-    observer: Arc<Observer<E>>,
+    observer: Arc<ObserverInner<E::Event>>,
 }
 
-impl<E> Handle<E> {
-    /// Create a handle for a new entity instance, with a generated id.
-    pub fn new(observer: Arc<Observer<E>>) -> Self {
-        Self::with_id(Uuid::now_v7(), observer)
+impl<E: InstrumentedEntity> HandleInner<E> {
+    pub(crate) fn new(observer: Arc<ObserverInner<E::Event>>) -> Self {
+        Self::with_id(crate::Uuid::now_v7(), observer)
     }
 
-    /// Create a handle for the entity instance identified by `id`.
-    pub fn with_id(id: Uuid, observer: Arc<Observer<E>>) -> Self {
+    pub(crate) fn with_id(id: crate::Uuid, observer: Arc<ObserverInner<E::Event>>) -> Self {
         Self {
             id,
             once_flags: 0,
@@ -50,24 +46,51 @@ impl<E> Handle<E> {
         }
     }
 
-    /// The entity instance id this handle emits for.
-    pub fn id(&self) -> Uuid {
+    /// Returns the entity instance ID.
+    pub fn uuid(&self) -> crate::Uuid {
         self.id
     }
 
-    /// Emit a multi-cardinality event for this instance.
-    pub fn emit(&self, event: E) {
+    /// Returns a typed reference to this instance carrying no data.
+    pub fn as_entity_ref(&self) -> crate::EntityRef<E> {
+        crate::EntityRef::new(self.uuid(), ())
+    }
+
+    /// Returns a typed reference to this instance carrying `data`.
+    pub fn as_entity_ref_with<T>(&self, data: T) -> crate::EntityRef<E, T> {
+        crate::EntityRef::new(self.uuid(), data)
+    }
+
+    /// Returns an untyped reference to this instance carrying no data.
+    pub fn as_any_entity_ref(&self) -> crate::EntityRef<crate::AnyEntity> {
+        crate::EntityRef::new(self.uuid(), ())
+    }
+
+    /// Returns an untyped reference to this instance carrying `data`.
+    pub fn as_any_entity_ref_with<T>(&self, data: T) -> crate::EntityRef<crate::AnyEntity, T> {
+        crate::EntityRef::new(self.uuid(), data)
+    }
+
+    /// Emits an event without cardinality tracking.
+    ///
+    /// Hidden because generated event methods provide the typed API.
+    #[doc(hidden)]
+    pub fn emit(&self, event: E::Event) {
         self.observer.emit(self.id, event);
     }
 
-    /// Emit a once-cardinality event.
+    /// Emits an event unless the bit at `INDEX` was previously set.
     ///
-    /// Returns [`HandleError::OnceAlreadyEmitted`] if this handle previously
-    /// emitted an event with the same `INDEX`.
+    /// Hidden because generated once-event methods provide the typed API.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HandleError`](crate::HandleError) when the event was already emitted.
+    #[doc(hidden)]
     pub fn emit_once<const INDEX: u32>(
         &mut self,
         event_name: &'static str,
-        event: E,
+        event: E::Event,
     ) -> Result<(), HandleError> {
         const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
         let mask = 1u64 << INDEX;
@@ -79,8 +102,10 @@ impl<E> Handle<E> {
         Ok(())
     }
 
-    /// Whether the once-cardinality event tracked by `INDEX` has already been
-    /// emitted for this instance.
+    /// Returns whether the bit at `INDEX` has been set.
+    ///
+    /// Hidden because generated once-event methods expose named checks.
+    #[doc(hidden)]
     pub fn is_emitted<const INDEX: u32>(&self) -> bool {
         const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
         self.once_flags & (1u64 << INDEX) != 0

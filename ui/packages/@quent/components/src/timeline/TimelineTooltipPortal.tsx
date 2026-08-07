@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -21,14 +21,12 @@ export function TimelineTooltipPortal({
   series,
   timestamps,
   marks,
-  startTime,
 }: {
   /** Stable id of the Timeline that owns this portal. */
   ownerId: string;
   series: TimelineSeries;
   timestamps: number[];
   marks?: TimelineMark[];
-  startTime: bigint;
 }) {
   const hover = useTimelineHover();
   const zoomRange = useZoomRange();
@@ -49,7 +47,6 @@ export function TimelineTooltipPortal({
       series={series}
       timestamps={timestamps}
       marks={marks}
-      startTime={startTime}
       windowMs={(zoomRange.end - zoomRange.start) * 1000}
     />
   );
@@ -62,7 +59,6 @@ function PositionedTooltip({
   series,
   timestamps,
   marks,
-  startTime,
   windowMs,
 }: {
   clientX: number;
@@ -71,7 +67,6 @@ function PositionedTooltip({
   series: TimelineSeries;
   timestamps: number[];
   marks?: TimelineMark[];
-  startTime: bigint;
   windowMs: number;
 }) {
   const { snappedTimestamp, tooltipSeries, activeMarks } = useMemo(() => {
@@ -141,7 +136,6 @@ function PositionedTooltip({
       <TooltipContent
         timestamp={snappedTimestamp}
         series={tooltipSeries}
-        startTime={startTime}
         fmt={fmt}
         windowMs={windowMs}
         activeMarks={activeMarks}

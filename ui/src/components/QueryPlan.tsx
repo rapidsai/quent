@@ -1,14 +1,15 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, lazy, Suspense } from 'react';
-import { useQueryBundle } from '@quent/client';
+import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
+import type { PanelImperativeHandle } from 'react-resizable-panels';
+import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@quent/components';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
 import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
-import { DAGControls, DAGNodeInfoPanel } from '@quent/components';
+import { DAGControls, DAGNodeInfoPanel, DagPlayhead } from '@quent/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
 import {
   useDagNodeColoring,
@@ -16,7 +17,11 @@ import {
   useDagEdgeColoring,
   useOperatorStatFields,
   usePortStatFields,
+  useDataFlowSync,
+  useDebouncedZoomRange,
+  resolveDataFlowWindow,
 } from '@quent/hooks';
+import { MAX_TIMELINE_BINS } from '@quent/utils';
 import {
   computeNodeColoring,
   computeEdgeWidthConfig,
@@ -34,13 +39,14 @@ const TABS = {
   CONTROLS: 'controls',
 } as const;
 
+const MAX_TOP_PANEL_HEIGHT_PX = 300;
+
 export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: string }) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const planId = useSelectedPlanId();
   const setPlanId = useSetSelectedPlanId();
   const setHoveredWorkerId = useSetHoveredWorkerId();
-
   const {
     data: queryBundle,
     isLoading: queryBundleLoading,
@@ -48,6 +54,27 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
+
+  // Data-flow overlay: fetch the categorical timeline for the current zoom
+  // window (fallback: full query duration) and sync it into the data-flow
+  // atoms. The first response doubles as the feature probe — `null` (HTTP
+  // 501, analyzer without data-flow support) or an empty result hides the
+  // playhead, bars, controls, and legend entries.
+  const debouncedZoomRange = useDebouncedZoomRange();
+  const dataFlowWindow = resolveDataFlowWindow(debouncedZoomRange, queryBundle?.duration_s ?? 0);
+  const { data: dataFlowResponse } = useDataFlow(
+    {
+      engineId,
+      queryId,
+      config: {
+        num_bins: MAX_TIMELINE_BINS,
+        start: dataFlowWindow.start,
+        end: dataFlowWindow.end,
+      },
+    },
+    { enabled: !!queryBundle && dataFlowWindow.end > dataFlowWindow.start }
+  );
+  useDataFlowSync({ response: dataFlowResponse, queryBundle });
 
   useDagNodeColoring(dagData.nodes, computeNodeColoring, isDark);
   useDagEdgeWidthConfig(dagData.edges, computeEdgeWidthConfig);
@@ -60,6 +87,23 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
       setPlanId(item.id);
     }
   };
+
+  const topPanelRef = useRef<PanelImperativeHandle | null>(null);
+  const treeContentRef = useRef<HTMLDivElement>(null);
+  const tabsListRef = useRef<HTMLDivElement>(null);
+
+  // Resize the top panel to fit tree content (capped at MAX_TOP_PANEL_HEIGHT_PX).
+  // Note: PanelImperativeHandle.resize() treats numbers as pixels.
+  useLayoutEffect(() => {
+    const treeContent = treeContentRef.current;
+    const topPanel = topPanelRef.current;
+    if (!treeContent || !topPanel) return;
+
+    const tabsListHeight = tabsListRef.current?.offsetHeight ?? 0;
+    const desiredPx = treeContent.scrollHeight + tabsListHeight;
+    const cappedPx = Math.min(desiredPx, MAX_TOP_PANEL_HEIGHT_PX);
+    topPanel.resize(cappedPx);
+  }, [treeData, planId]);
 
   // TODO: Currently fetching root plan when bundle loads - is this correct?
   useEffect(() => {
@@ -135,9 +179,15 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   return (
     <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
       <ResizablePanelGroup orientation="vertical" className="flex-1">
-        <ResizablePanel defaultSize="15%" className="flex flex-col">
+        <ResizablePanel
+          panelRef={topPanelRef}
+          defaultSize="15%"
+          minSize={80}
+          maxSize={MAX_TOP_PANEL_HEIGHT_PX}
+          className="flex flex-col"
+        >
           <Tabs defaultValue={TABS.PLAN}>
-            <TabsList>
+            <TabsList ref={tabsListRef}>
               <TabsTrigger value={TABS.PLAN}>Query Plan</TabsTrigger>
               <TabsTrigger value={TABS.CONTROLS}>Settings</TabsTrigger>
             </TabsList>
@@ -145,14 +195,16 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               value={TABS.PLAN}
               className={`flex-1 overflow-y-auto ${thinScrollbarClass}`}
             >
-              <TreeView<QueryPlanDataItem>
-                data={treeData}
-                initialSelectedItemId={planId}
-                selectedItemId={planId}
-                onSelectChange={handlePlanSelect}
-                onItemHover={item => setHoveredWorkerId(item?.workerId ?? null)}
-                renderItem={renderItem}
-              />
+              <div ref={treeContentRef}>
+                <TreeView<QueryPlanDataItem>
+                  data={treeData}
+                  initialSelectedItemId={planId}
+                  selectedItemId={planId}
+                  onSelectChange={handlePlanSelect}
+                  onItemHover={item => setHoveredWorkerId(item?.workerId ?? null)}
+                  renderItem={renderItem}
+                />
+              </div>
             </TabsContent>
             <TabsContent
               value={TABS.CONTROLS}
@@ -188,7 +240,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
                 <DAGChart data={dagData} height="100%" isDark={isDark} />
               </Suspense>
             </div>
-            <DAGNodeInfoPanel />
+            <DagPlayhead />
+            <DAGNodeInfoPanel isDark={isDark} quantitySpecs={queryBundle.quantity_specs} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

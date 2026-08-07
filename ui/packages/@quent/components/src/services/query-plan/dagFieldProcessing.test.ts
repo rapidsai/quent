@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -14,12 +14,15 @@ import {
 
 /** Build a DAGNode whose rawNode carries the given custom_statistics map. */
 function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
+  const customStatistics = Object.fromEntries(
+    Object.entries(stats).map(([key, value]) => [key, { value, quantity: null }])
+  );
   return {
     id,
     label: id,
     type: 'operator',
     metadata: {
-      rawNode: { statistics: { custom_statistics: stats } },
+      rawNode: { statistics: { custom_statistics: customStatistics } },
     },
   };
 }
@@ -156,6 +159,22 @@ describe('computeEdgeColoring', () => {
     expect(result.values.get('e2')).toBe(40);
   });
 
+  it('returns continuous coloring for bigint values (coerced to number)', () => {
+    // Bigint stats stay continuous (coerced to number), not categorical.
+    const edges = [
+      makeEdge('e1', [{ key: 'rows', value: 10n }]),
+      makeEdge('e2', [{ key: 'rows', value: 40n }]),
+    ];
+    const result = computeEdgeColoring(edges, 'rows', 'light');
+    expect(result?.type).toBe('continuous');
+    if (result?.type !== 'continuous') return;
+    expect(result.min).toBe(10);
+    expect(result.max).toBe(40);
+    expect(result.values.get('e1')).toBe(10);
+    expect(result.values.get('e2')).toBe(40);
+    expect(typeof result.values.get('e1')).toBe('number');
+  });
+
   it('returns categorical coloring for string values', () => {
     const edges = [
       makeEdge('e1', [{ key: 'type', value: 'hash' }]),
@@ -229,6 +248,19 @@ describe('computeEdgeWidthConfig', () => {
     expect(result!.values.get('e1')).toBe(5);
     expect(result!.values.get('e2')).toBe(20);
     expect(result!.values.get('e3')).toBe(12);
+  });
+
+  it('coerces bigint values (large U64/I64) into the number width scale', () => {
+    const edges = [
+      makeEdge('e1', [{ key: 'rows', value: 5n }]),
+      makeEdge('e2', [{ key: 'rows', value: 20n }]),
+    ];
+    const result = computeEdgeWidthConfig(edges, 'rows');
+    expect(result).not.toBeNull();
+    expect(result!.min).toBe(5);
+    expect(result!.max).toBe(20);
+    expect(result!.values.get('e1')).toBe(5);
+    expect(typeof result!.values.get('e1')).toBe('number');
   });
 
   it('returns equal min/max for a single edge', () => {

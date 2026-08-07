@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro2::TokenStream;
@@ -24,9 +24,9 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
 
     let value_impls = quote! {
         impl quent_model::analyze::ToAttributeValue for #name {
-            fn to_attribute_value(&self) -> Option<quent_model::attributes::Value> {
-                Some(quent_model::attributes::Value::Struct(
-                    quent_model::attributes::Struct(
+            fn to_attribute_value(&self) -> Option<quent_model::attributes::DynamicValue> {
+                Some(quent_model::attributes::DynamicValue::Struct(
+                    quent_model::attributes::DynamicStruct(
                         quent_model::analyze::ExtractAttributes::extract_attributes(self),
                     ),
                 ))
@@ -49,7 +49,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
                     }
 
                     impl quent_model::analyze::ExtractAttributes for #name {
-                        fn extract_attributes(&self) -> Vec<quent_model::attributes::Attribute> {
+                        fn extract_attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
                             vec![]
                         }
                     }
@@ -94,7 +94,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             let field_name = fname.to_string();
             let value_expr = crate::util::attribute_value_expr(&quote! { self.#fname }, &field.ty);
             quote! {
-                quent_model::attributes::Attribute {
+                quent_model::attributes::DynamicAttribute {
                     key: #field_name.to_string(),
                     value: #value_expr,
                 }
@@ -113,7 +113,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
         }
 
         impl quent_model::analyze::ExtractAttributes for #name {
-            fn extract_attributes(&self) -> Vec<quent_model::attributes::Attribute> {
+            fn extract_attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
                 vec![#(#extract_attr_tokens,)*]
             }
         }

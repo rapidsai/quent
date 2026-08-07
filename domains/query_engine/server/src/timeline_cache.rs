@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -49,46 +49,53 @@ impl From<f64> for HashableF64 {
 /// separate field in `ChunkCacheKey`. Only the query-identity fields determine
 /// whether two requests map to the same cached chunks.
 #[derive(Hash, PartialEq, Eq)]
-enum EntryParamsKey<'a, EntryParams> {
+enum EntryParamsKey<'a> {
     Resource {
         resource_id: Uuid,
         long_entities_threshold_s: Option<HashableF64>,
         entity_type_name: Option<&'a str>,
-        application: &'a EntryParams,
+        operator_ids: Vec<Uuid>,
     },
     ResourceGroup {
         resource_group_id: Uuid,
         resource_type_name: &'a str,
         long_entities_threshold_s: Option<HashableF64>,
         entity_type_name: Option<&'a str>,
-        app_params: &'a EntryParams,
+        operator_ids: Vec<Uuid>,
     },
 }
 
-impl<'a, EntryParams> EntryParamsKey<'a, EntryParams> {
-    fn from_request(entry: &'a TimelineRequest<EntryParams>) -> Self {
+impl<'a> EntryParamsKey<'a> {
+    fn from_request(entry: &'a TimelineRequest<OperatorFilter>) -> Self {
         match entry {
             TimelineRequest::Resource(r) => Self::Resource {
                 resource_id: r.resource_id,
                 long_entities_threshold_s: r.long_entities_threshold_s.map(HashableF64::from),
                 entity_type_name: r.entity_filter.entity_type_name.as_deref(),
-                application: &r.application,
+                operator_ids: canonical_operator_ids(&r.application),
             },
             TimelineRequest::ResourceGroup(rg) => Self::ResourceGroup {
                 resource_group_id: rg.resource_group_id,
                 resource_type_name: &rg.resource_type_name,
                 long_entities_threshold_s: rg.long_entities_threshold_s.map(HashableF64::from),
                 entity_type_name: rg.entity_filter.entity_type_name.as_deref(),
-                app_params: &rg.app_params,
+                operator_ids: canonical_operator_ids(&rg.app_params),
             },
         }
     }
 }
 
+fn canonical_operator_ids(filter: &OperatorFilter) -> Vec<Uuid> {
+    let mut operator_ids = filter.operator_ids.clone();
+    operator_ids.sort_unstable();
+    operator_ids.dedup();
+    operator_ids
+}
+
 /// Pairs an entry key with global app params for stable cache key hashing.
 #[derive(Hash, PartialEq, Eq)]
-struct CacheParamsKey<'a, AppParams, EntryParams> {
-    entry: EntryParamsKey<'a, EntryParams>,
+struct CacheParamsKey<'a, AppParams> {
+    entry: EntryParamsKey<'a>,
     app_params: &'a AppParams,
 }
 
@@ -561,13 +568,12 @@ where
 }
 
 /// Hash each entry's identity fields (excluding viewport config) into a stable `u64`.
-fn compute_entry_hashes<GP, EP>(
-    entries: &HashMap<String, TimelineRequest<EP>>,
+fn compute_entry_hashes<GP>(
+    entries: &HashMap<String, TimelineRequest<OperatorFilter>>,
     app_params: &GP,
 ) -> HashMap<String, u64>
 where
     GP: Hash,
-    EP: Hash,
 {
     entries
         .iter()
@@ -806,7 +812,9 @@ mod tests {
     use quent_analyzer::AnalyzerResult;
     use quent_events::Event;
     use quent_query_engine_analyzer::{
-        QueryEngineModel, engine::Engine, model::InMemoryQueryEngineModel, ui::UiAnalyzer,
+        QueryEngineModel,
+        plain::legacy::{Engine, InMemoryQueryEngineModel},
+        ui::UiAnalyzer,
     };
     use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
     use quent_ui::{
@@ -831,7 +839,7 @@ mod tests {
         key: String,
         start: f64,
         end: f64,
-        operator_id: Option<Uuid>,
+        operator_ids: Vec<Uuid>,
     }
 
     struct TestAnalyzer {
@@ -982,7 +990,7 @@ mod tests {
                     key: key.clone(),
                     start: entry.config().start,
                     end: entry.config().end,
-                    operator_id: entry_params(entry).operator_id,
+                    operator_ids: entry_params(entry).operator_ids.clone(),
                 })
                 .collect::<Vec<_>>();
             call.sort_by(|a, b| a.key.cmp(&b.key));
@@ -1032,8 +1040,9 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let long_fsms = params
-            .operator_id
-            .map(|id| FiniteStateMachine {
+            .operator_ids
+            .iter()
+            .map(|&id| FiniteStateMachine {
                 id,
                 type_name: "task".to_string(),
                 instance_name: format!("operator-{id}"),
@@ -1054,7 +1063,6 @@ mod tests {
                     },
                 ],
             })
-            .into_iter()
             .collect();
         let data = ResourceTimeline::Binned(ResourceTimelineBinned {
             config: config_secs,
@@ -1083,10 +1091,23 @@ mod tests {
     fn request(
         entries: Vec<(&str, f64, f64, Option<Uuid>)>,
     ) -> BulkTimelineRequest<QueryFilter, OperatorFilter> {
+        request_with_operator_ids(
+            entries
+                .into_iter()
+                .map(|(key, start, end, operator_id)| {
+                    (key, start, end, operator_id.into_iter().collect())
+                })
+                .collect(),
+        )
+    }
+
+    fn request_with_operator_ids(
+        entries: Vec<(&str, f64, f64, Vec<Uuid>)>,
+    ) -> BulkTimelineRequest<QueryFilter, OperatorFilter> {
         BulkTimelineRequest {
             entries: entries
                 .into_iter()
-                .map(|(key, start, end, operator_id)| {
+                .map(|(key, start, end, operator_ids)| {
                     (
                         key.to_string(),
                         TimelineRequest::Resource(ResourceTimelineRequest {
@@ -1095,7 +1116,7 @@ mod tests {
                             entity_filter: EntityFilter {
                                 entity_type_name: None,
                             },
-                            application: OperatorFilter { operator_id },
+                            application: OperatorFilter { operator_ids },
                             config: TimelineConfig {
                                 num_bins: 4,
                                 start,
@@ -1119,7 +1140,9 @@ mod tests {
                 entity_filter: EntityFilter {
                     entity_type_name: None,
                 },
-                application: OperatorFilter { operator_id: None },
+                application: OperatorFilter {
+                    operator_ids: Vec::new(),
+                },
                 config: TimelineConfig {
                     num_bins: 4,
                     start,
@@ -1398,23 +1421,68 @@ mod tests {
             let operator_ids = analyzer
                 .call_entries()
                 .into_iter()
-                .map(|call| call.operator_id)
+                .map(|call| call.operator_ids)
                 .collect::<Vec<_>>();
             assert_eq!(
                 operator_ids
                     .iter()
-                    .filter(|id| **id == Some(first_operator))
+                    .filter(|ids| ids.as_slice() == [first_operator])
                     .count(),
                 2
             );
             assert_eq!(
                 operator_ids
                     .iter()
-                    .filter(|id| **id == Some(second_operator))
+                    .filter(|ids| ids.as_slice() == [second_operator])
                     .count(),
                 2
             );
             assert_eq!(fsm_ids(&response, "a"), vec![second_operator]);
+        });
+    }
+
+    #[test]
+    fn operator_filter_order_and_duplicates_do_not_change_chunk_cache_key() {
+        block_on(async {
+            let analyzer = Arc::new(TestAnalyzer::new());
+            let cache = TimelineCache::new();
+            let first_operator = Uuid::from_u128(6);
+            let second_operator = Uuid::from_u128(7);
+
+            cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request_with_operator_ids(vec![(
+                        "a",
+                        25.0,
+                        75.0,
+                        vec![first_operator, second_operator],
+                    )]),
+                )
+                .await
+                .unwrap();
+            let calls_after_first_request = analyzer.call_entries().len();
+
+            let response = cache
+                .cached_bulk_timeline(
+                    Arc::clone(&analyzer),
+                    analyzer.engine_id,
+                    request_with_operator_ids(vec![(
+                        "a",
+                        25.0,
+                        75.0,
+                        vec![second_operator, first_operator, second_operator],
+                    )]),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(analyzer.call_entries().len(), calls_after_first_request);
+            assert_eq!(
+                fsm_ids(&response, "a"),
+                vec![first_operator, second_operator]
+            );
         });
     }
 

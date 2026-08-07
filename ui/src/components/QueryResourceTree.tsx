@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { Column, TreeTable } from '@quent/components';
@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
 import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
-import { ResourceTree, QueryBundle } from '@quent/utils';
+import { ResourceTree, QueryBundle, EntityTypeKey } from '@quent/utils';
 import type { EntityRef, SingleTimelineRequest, QueryFilter, OperatorFilter } from '@quent/utils';
 import { TimelineController, TimelineRuler } from '@quent/components';
 import { collectResourceTypesFromTree } from '@quent/components';
@@ -40,6 +40,12 @@ import {
   operatorsWithActiveSpansForWorker,
   workerIdFromOperatorTimelineRowId,
 } from '@quent/components';
+import {
+  LONG_ENTITIES_ROW_TYPE,
+  longEntitiesRowId,
+  resourceIdFromLongEntitiesRowId,
+} from '@quent/components';
+import { LongEntitiesRow } from '@/components/LongEntitiesRow';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -72,6 +78,42 @@ function injectOperatorTimelineRows(item: TreeTableItem, workerIds: Set<string>)
   }
   const operatorTimelineRow = createOperatorTimelineRow(item.id);
   const children = [operatorTimelineRow, ...(transformedChildren ?? [])];
+  return { ...item, children };
+}
+
+/** Create the synthetic long-entities row for a leaf resource. */
+function createLongEntitiesRow(resourceId: string): TreeTableItem {
+  return {
+    id: longEntitiesRowId(resourceId),
+    type: LONG_ENTITIES_ROW_TYPE,
+    entity: {} as TreeTableItem['entity'],
+  };
+}
+
+function GanttRowLabel({ children }: { children: string }) {
+  return (
+    <span className="flex items-center">
+      <span aria-hidden className="mr-4 h-4 w-4 shrink-0" />
+      <span className="text-xs leading-none text-muted-foreground">{children}</span>
+    </span>
+  );
+}
+
+/**
+ * Insert a long-entities row as a sibling immediately after each leaf resource,
+ * so its compact Gantt is always shown below the resource (whenever in view)
+ * rather than gated behind expansion. Leaf resources keep no synthetic children,
+ * so they stay non-expandable. Groups (which aggregate resources) are untouched.
+ */
+function injectLongEntitiesRows(item: TreeTableItem): TreeTableItem {
+  if (!item.children?.length) return { ...item };
+  const children: TreeTableItem[] = [];
+  for (const child of item.children) {
+    children.push(injectLongEntitiesRows(child));
+    if (child.type === EntityTypeKey.Resource) {
+      children.push(createLongEntitiesRow(child.id));
+    }
+  }
   return { ...item, children };
 }
 
@@ -163,7 +205,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             resource_type_name: rootResourceType ?? '',
             long_entities_threshold_s: null,
             entity_filter: { entity_type_name: null },
-            app_params: { operator_id: null },
+            app_params: { operator_ids: [] },
             config: {
               num_bins: getAdaptiveNumBins(),
               start: 0,
@@ -186,7 +228,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   );
 
   const treeData = useMemo(
-    () => [injectOperatorTimelineRows(rootItem, workerIdsFromPlanTree)],
+    () => [injectLongEntitiesRows(injectOperatorTimelineRows(rootItem, workerIdsFromPlanTree))],
     [rootItem, workerIdsFromPlanTree]
   );
 
@@ -194,10 +236,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const operatorEntriesByWorker = useMemo(() => {
     const map = new Map<string, ReturnType<typeof operatorsWithActiveSpansForWorker>>();
     for (const workerId of workerIdsFromPlanTree) {
-      map.set(workerId, operatorsWithActiveSpansForWorker(queryBundle, startTime, workerId));
+      map.set(workerId, operatorsWithActiveSpansForWorker(queryBundle, workerId));
     }
     return map;
-  }, [queryBundle, startTime, workerIdsFromPlanTree]);
+  }, [queryBundle, workerIdsFromPlanTree]);
 
   const columns = useMemo(() => {
     return [
@@ -214,7 +256,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         render: ({ item }: { item: TreeTableItem; level: number }) => {
           switch (item.type) {
             case OPERATOR_TIMELINE_ROW_TYPE: {
-              return null;
+              return <GanttRowLabel>Operators</GanttRowLabel>;
+            }
+            case LONG_ENTITIES_ROW_TYPE: {
+              return <GanttRowLabel>Entities</GanttRowLabel>;
             }
             default: {
               const selectedType =
@@ -250,7 +295,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         headerContent: (
           <div className="h-full overflow-hidden flex items-center py-1">
             <TimelineController
-              startTime={startTime}
               durationSeconds={durationSeconds}
               timelineData={fetchedRootTimeline}
               onZoomChange={handleZoomChange}
@@ -258,7 +302,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             />
           </div>
         ),
-        subHeaderContent: <TimelineRuler startTime={startTime} isDark={isDark} />,
+        subHeaderContent: <TimelineRuler isDark={isDark} />,
         render: ({ item }: { item: TreeTableItem }) => {
           switch (item.type) {
             case OPERATOR_TIMELINE_ROW_TYPE: {
@@ -268,9 +312,22 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
               return (
                 <OperatorGanttChart
                   operators={operators}
-                  startTime={startTime}
                   durationSeconds={durationSeconds}
                   height={DEFAULT_TIMELINE_HEIGHT}
+                  isDark={isDark}
+                />
+              );
+            }
+            case LONG_ENTITIES_ROW_TYPE: {
+              const resourceId = resourceIdFromLongEntitiesRowId(item.id);
+              if (resourceId == null) return null;
+              return (
+                <LongEntitiesRow
+                  engineId={engineId}
+                  queryId={queryBundle.query_id}
+                  resourceId={resourceId}
+                  durationSeconds={durationSeconds}
+                  fsmTypes={entities.fsm_types}
                   isDark={isDark}
                 />
               );
@@ -283,7 +340,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   queryBundle={queryBundle}
                   selectedTypes={selectedTypes}
                   selectedFsmTypes={selectedFsmTypes}
-                  startTime={startTime}
                   durationSeconds={durationSeconds}
                   isDark={isDark}
                 />
@@ -294,7 +350,6 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
       },
     ] satisfies Column<TreeTableItem>[];
   }, [
-    startTime,
     durationSeconds,
     fetchedRootTimeline,
     isDark,
@@ -312,9 +367,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   ]);
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex min-w-0 flex-col h-full w-full">
       <TimelineToolbar durationSeconds={durationSeconds} />
-      <div className="flex-1 min-h-0">
+      <div className="min-w-0 flex-1 min-h-0">
         <TreeTable<TreeTableItem>
           data={treeData}
           columns={columns}

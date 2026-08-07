@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from pathlib import Path
@@ -8,7 +8,7 @@ import quent_readme as quent
 
 def main() -> None:
     output_dir = Path("./events")
-    context = quent.Context("ndjson", str(output_dir))
+    context = quent.Context(quent.ExporterOptions.ndjson(output_dir))
 
     # The context generates its own id and writes events under
     # `output_dir/<id>/`. Reuse it as the root resource group id.

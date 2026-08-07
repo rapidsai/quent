@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '../../lib/queryBundle.utils';
-import { getActivePalette, type PaletteTheme } from '@quent/utils';
+import { getActivePalette, isNumericValue, type PaletteTheme } from '@quent/utils';
 
 export function computeNodeColoring(
   nodes: DAGNode[],
@@ -19,11 +19,12 @@ export function computeNodeColoring(
   });
   if (!entries.length) return null;
 
-  if (entries.every(e => typeof e.value === 'number')) {
-    const nums = entries.map(e => e.value as number);
+  // handle potential bigints
+  if (entries.every(e => isNumericValue(e.value))) {
+    const nums = entries.map(e => Number(e.value));
     return {
       type: 'continuous',
-      values: new Map(entries.map(e => [e.id, e.value as number])),
+      values: new Map(entries.map(e => [e.id, Number(e.value)])),
       min: Math.min(...nums),
       max: Math.max(...nums),
     };
@@ -53,11 +54,12 @@ export function computeEdgeColoring(
   });
   if (!entries.length) return null;
 
-  if (entries.every(e => typeof e.value === 'number')) {
-    const nums = entries.map(e => e.value as number);
+  // handle potential bigints
+  if (entries.every(e => isNumericValue(e.value))) {
+    const nums = entries.map(e => Number(e.value));
     return {
       type: 'continuous',
-      values: new Map(entries.map(e => [e.id, e.value as number])),
+      values: new Map(entries.map(e => [e.id, Number(e.value)])),
       min: Math.min(...nums),
       max: Math.max(...nums),
     };
@@ -79,8 +81,8 @@ export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): 
 
   const entries = edges.flatMap(edge => {
     const stat = (edge.portStats ?? []).find(s => s.key === field);
-    if (typeof stat?.value !== 'number') return [];
-    return [{ id: edge.id, value: stat.value }];
+    if (stat?.value == null || !isNumericValue(stat.value)) return [];
+    return [{ id: edge.id, value: Number(stat.value) }];
   });
   if (!entries.length) return null;
 

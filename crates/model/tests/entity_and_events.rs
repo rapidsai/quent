@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for entity and event macros.
@@ -37,7 +37,9 @@ quent_model::entity! {
 #[test]
 fn entity_trait_impl() {
     fn assert_entity<T: quent_model::Entity>() {}
+    fn assert_event_entity<T: quent_model::events::Entity<Event = OperatorEvent>>() {}
     assert_entity::<Operator>();
+    assert_event_entity::<Operator>();
 }
 
 #[test]

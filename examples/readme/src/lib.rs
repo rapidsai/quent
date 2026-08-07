@@ -1,8 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_model::{
-    Attributes, Ref, attributes::CustomAttributes, entity, fsm, instrumentation, model, resource,
+    Attributes, Ref, attributes::DynamicAttributes, entity, fsm, instrumentation, model, resource,
     state,
 };
 use serde::{Deserialize, Serialize};
@@ -126,8 +126,8 @@ entity! {
 // Structs with key-value attributes
 #[derive(Attributes, Serialize, Deserialize)]
 pub struct Details {
-    pub version: String,          // key known at compile-time
-    pub custom: CustomAttributes, // for keys known at run-time only
+    pub version: String,           // key known at compile-time
+    pub custom: DynamicAttributes, // for keys known at run-time only
 }
 
 // An entity can be marked as a Resource Group.

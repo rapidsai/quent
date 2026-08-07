@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI-only config for verify-copyright: check-only (no --fix), and --force-spdx
+# so --all-files actually inspects every matched file (hook otherwise only
+# diffs against the target branch).
+
+exclude: |
+  (?x)
+    ^target/
+    ^ui/node_modules/
+    ^ui/.pnpm-store/
+    ^docs/
+
+repos:
+
+- repo: https://github.com/rapidsai/pre-commit-hooks
+  rev: v1.5.1
+  hooks:
+    - id: verify-copyright
+      args: [--force-spdx]
+      exclude: |
+        (?x)
+          bridge/include/rust/cxx\.h$|
+          bridge/include/quent-bridge/gen/|
+          examples/simulator/server/ts-bindings/
+      files: |
+        (?x)
+          CMakeLists\.txt$|
+          [.](rs|js|ts|tsx|jsx|mjs|cjs|py|sh|cpp|h|proto|css)$

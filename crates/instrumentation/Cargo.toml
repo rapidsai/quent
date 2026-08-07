@@ -9,21 +9,23 @@ default = []
 serde = [
     "dep:serde",
     "quent-events/serde",
-    "quent-attributes/serde",
+    "quent-dynamic-attributes/serde",
     "uuid/serde",
 ]
-# Exporter backends, forwarded to the matching `quent-io` feature.
-io-callback = ["quent-io/callback"]
+# Optional I/O integrations.
+io-callback = ["dep:quent-io-callback"]
 io-ndjson = ["quent-io/ndjson", "serde"]
 io-msgpack = ["quent-io/msgpack", "serde"]
 io-postcard = ["quent-io/postcard", "serde"]
 io-collector = ["quent-io/collector", "serde"]
 
 [dependencies]
-quent-attributes = { path = "../attributes" }
+async-trait.workspace = true
+quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
+quent-io-callback = { path = "../io/callback", optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "macros"]}
@@ -34,11 +36,11 @@ uuid = { workspace = true, features = ["serde"] }
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 http.workspace = true
-pprof = { version = "0.14", features = ["flamegraph"] }
+pprof = { version = "0.15", features = ["flamegraph"] }
 quent-collector = { path = "../collector/server" }
 quent-collector-proto = { path = "../collector/proto" }
 quent-events = { path = "../events", features = ["serde"] }
-quent-io = { path = "../io", features = ["callback", "ndjson"] }
+quent-io = { path = "../io", features = ["ndjson"] }
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

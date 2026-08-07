@@ -1,9 +1,51 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
 
 import quent_qe as quent
+
+
+@pytest.mark.parametrize(
+    ("factory_name", "extension"),
+    [
+        ("ndjson", "ndjson"),
+        ("msgpack", "msgpack"),
+        ("postcard", "postcard"),
+    ],
+)
+def test_filesystem_exporters(
+    tmp_path_factory: pytest.TempPathFactory,
+    factory_name: str,
+    extension: str,
+) -> None:
+    path = tmp_path_factory.mktemp(factory_name)
+    factory = getattr(quent.ExporterOptions, factory_name)
+    context = quent.Context(factory(path))
+    context.query_group_observer().declaration(
+        quent.now_v7(),
+        "exporter-test",
+        quent.now_v7(),
+    )
+    context.close()
+
+    event_files = list(path.glob(f"*/*/*.{extension}"))
+    assert event_files, path
+    assert any(file.stat().st_size > 0 for file in event_files), event_files
+
+
+def test_noop_and_collector_options() -> None:
+    context = quent.Context(quent.ExporterOptions.none())
+    context.query_group_observer().declaration(
+        quent.now_v7(),
+        "noop-test",
+        quent.now_v7(),
+    )
+    context.close()
+
+    quent.ExporterOptions.collector("http://127.0.0.1:7836")
+    with pytest.raises(ValueError):
+        quent.ExporterOptions.collector("not a valid uri")
 
 
 def test_uuid_ordering() -> None:
@@ -21,7 +63,7 @@ def test_uuid_ordering() -> None:
 def test_engine_definition(tmp_path_factory: pytest.TempPathFactory) -> None:
     path = tmp_path_factory.mktemp("events")
 
-    context = quent.Context("ndjson", str(path))
+    context = quent.Context(quent.ExporterOptions.ndjson(path))
     # The context generates its own id; use it as the root engine id.
     engine_id = context.id
 

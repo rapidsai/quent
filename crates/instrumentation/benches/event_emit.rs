@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Microbenchmarks for the instrumentation API from the perspective of a
 //! client emitting events.
 //!
 //! Single `emit` group with one entry per exporter backing (plus `noop`):
-//! - `noop` — `Context::try_new(None)`; the cost a caller pays when
+//! - `noop` — `ContextInner::noop`; the cost a caller pays when
 //!   instrumentation is compiled in but not active.
 //! - `ndjson` / `msgpack` / `postcard` — write to a temp dir that is cleaned
 //!   up when the bench function returns.
@@ -26,7 +26,7 @@ use pprof::ProfilerGuard;
 use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::EntityEvent;
-use quent_instrumentation::{Context, Observer};
+use quent_instrumentation::{ContextInner, ObserverInner};
 use quent_io::filesystem::{self, Format};
 use quent_io::{CollectorExporterOptions, ExporterOptions};
 use serde::{Deserialize, Serialize};
@@ -84,19 +84,19 @@ impl EntityEvent for BenchEvent {
 fn build_observer(
     id: Uuid,
     exporter: Option<ExporterOptions>,
-) -> BenchResult<(Context, Observer<BenchEvent>)> {
+) -> BenchResult<(ContextInner, ObserverInner<BenchEvent>)> {
     let Some(options) = exporter else {
-        return Ok((Context::noop(id), Observer::noop()));
+        return Ok((ContextInner::noop(id), ObserverInner::noop()));
     };
-    let ctx = Context::try_new(id)?;
-    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(options).await })?;
+    let ctx = ContextInner::try_new(id)?;
+    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(&options).await })?;
     Ok((ctx, observer))
 }
 
 // The in-process collector server runs this sink per source: it decodes received
 // `BenchEvent`s and records them through a local ndjson observer, built up front.
 struct BenchSink {
-    observer: Observer<BenchEvent>,
+    observer: ObserverInner<BenchEvent>,
 }
 
 impl BenchSink {

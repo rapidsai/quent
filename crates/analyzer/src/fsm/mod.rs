@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! FSM-related functionality
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{Timestamp, span::SpanUnixNanoSec};
 #[cfg(feature = "ts")]
 use serde::Serialize;
@@ -25,7 +25,7 @@ pub trait Transition: Timestamp {
     ///
     /// May be computed on demand — call only when the attributes will be
     /// used.
-    fn attributes(&self) -> Vec<Attribute> {
+    fn attributes(&self) -> Vec<DynamicAttribute> {
         vec![]
     }
 }
@@ -136,7 +136,7 @@ where
         SpanUnixNanoSec::try_new(start, end).unwrap()
     }
 
-    pub fn attributes(&self) -> Vec<Attribute> {
+    pub fn attributes(&self) -> Vec<DynamicAttribute> {
         self.fsm.transition(self.index).unwrap().attributes()
     }
 }
@@ -154,7 +154,7 @@ pub struct FsmStateTypeDecl {
     pub name: String,
     // TODO(johanpel): figure out how to best do this
     // The attributes this FSM state can have.
-    // pub attributes: Vec<Attribute>,
+    // pub attributes: Vec<DynamicAttribute>,
     /// The names of the resource types this FSM state can use.
     pub usages: Vec<String>,
 }

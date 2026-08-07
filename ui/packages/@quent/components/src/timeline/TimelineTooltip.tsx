@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -6,9 +6,9 @@ import {
   formatDuration,
   formatAttributeValue,
   cn,
-  type Attribute,
+  type DynamicAttribute,
 } from '@quent/utils';
-import { nanosToMs } from '../lib/timeline.utils';
+import { ColorSwatch } from '../ui/color-swatch';
 import { DataText } from '../ui/data-text';
 
 /** A timeline mark under the hover cursor, as shown in the tooltip. */
@@ -17,9 +17,9 @@ export interface ActiveMark {
   stateName: string;
   color: string;
   /** Attributes recorded by instrumentation on the hovered state. */
-  attributes?: Attribute[];
+  attributes?: DynamicAttribute[];
   /** Attributes computed by the analyzer. */
-  derivedAttributes?: Attribute[];
+  derivedAttributes?: DynamicAttribute[];
   /** Duration of the hovered state span in milliseconds. */
   durationMs?: number;
 }
@@ -44,9 +44,7 @@ const TooltipSeriesStat = ({
 }) => {
   return (
     <li className="flex items-center gap-1">
-      {series.color && (
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
-      )}
+      {series.color && <ColorSwatch color={series.color} />}
       <DataText className="text-foreground">{series.name}</DataText>
       <DataText className="font-semibold ml-auto text-foreground">
         {fmt(series.value ?? 0)}
@@ -208,13 +206,7 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
       {marks.map((m, i) => (
         <div key={i}>
           <div className="flex items-center gap-1">
-            <span
-              className="w-2 h-2 rounded-xs shrink-0 border"
-              style={{
-                backgroundColor: m.color + '20',
-                borderColor: m.color + 'cc',
-              }}
-            />
+            <ColorSwatch color={m.color} />
             <DataText className="text-muted-foreground">{m.label}</DataText>
             <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
           </div>
@@ -251,14 +243,12 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
 function OverlayBarTooltip({
   timestamp,
   bars,
-  startTime,
   fmt,
   windowMs,
   activeMarks,
 }: {
   timestamp: number;
   bars: StateBar[];
-  startTime: bigint;
   fmt: ValueFormatter;
   windowMs: number;
   activeMarks?: ActiveMark[];
@@ -275,7 +265,7 @@ function OverlayBarTooltip({
       )}
     >
       <DataText as="div" className="font-semibold mb-1.5 text-muted-foreground">
-        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
+        {formatDurationForWindow(timestamp, windowMs)}
       </DataText>
       <div
         className="grid items-center gap-x-1.5 gap-y-1"
@@ -345,17 +335,36 @@ function OverlayBarTooltip({
   );
 }
 
+/** ResourceTimeline entity-mark tooltip, reusable by entity Gantt charts. */
+export function EntityTooltipContent({
+  timestamp,
+  windowMs,
+  activeMarks,
+}: {
+  /** Elapsed ms from query start. */
+  timestamp: number;
+  windowMs: number;
+  activeMarks: ActiveMark[];
+}) {
+  return (
+    <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
+      <DataText as="div" className="font-semibold mb-1 text-muted-foreground">
+        {formatDurationForWindow(timestamp, windowMs)}
+      </DataText>
+      <ActiveMarksSection marks={activeMarks} />
+    </div>
+  );
+}
+
 export function TooltipContent({
   timestamp,
   series,
-  startTime,
   fmt = defaultFormatter,
   windowMs,
   activeMarks,
 }: {
   timestamp: number;
   series: TooltipSeries[];
-  startTime: bigint;
   fmt?: ValueFormatter;
   windowMs: number;
   activeMarks?: ActiveMark[];
@@ -385,7 +394,6 @@ export function TooltipContent({
       <OverlayBarTooltip
         timestamp={timestamp}
         bars={bars}
-        startTime={startTime}
         fmt={fmt}
         windowMs={windowMs}
         activeMarks={activeMarks}
@@ -396,7 +404,7 @@ export function TooltipContent({
   return (
     <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
       <DataText as="div" className="font-semibold mb-1 text-muted-foreground">
-        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
+        {formatDurationForWindow(timestamp, windowMs)}
       </DataText>
       <ul>
         {series

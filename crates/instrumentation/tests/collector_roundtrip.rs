@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! A client whose exporter is the collector: events must survive the full
@@ -16,7 +16,7 @@ use common::TestEvent;
 use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_instrumentation::Context;
+use quent_instrumentation::ContextInner;
 use quent_io::{CollectorExporterOptions, ExporterOptions};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as GrpcServer;
@@ -81,11 +81,11 @@ fn collector_client_flushes_all_events_on_drop() {
 
     // A plain sync client (no ambient runtime); the context spawns its own.
     let id = Uuid::now_v7();
-    let ctx = Context::try_new(id).unwrap();
+    let ctx = ContextInner::try_new(id).unwrap();
     let options = ExporterOptions::Collector(CollectorExporterOptions::new(address));
     {
         let observer = ctx
-            .block_on(async { ctx.observer::<TestEvent>(options).await })
+            .block_on(async { ctx.observer::<TestEvent>(&options).await })
             .unwrap();
         for _ in 0..EVENTS {
             observer.emit(Uuid::now_v7(), TestEvent);

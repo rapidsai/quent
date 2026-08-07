@@ -1,27 +1,27 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Constraint for entity reference restricting the type of entity it can point to.
 
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
-    Annotations, DataType, Identifier,
+    Annotations, DataType, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use thiserror::Error;
 
 /// The entity type an entity reference is restricted to point at.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RefTarget(Identifier);
+pub struct RefTarget(Path);
 
-impl From<RefTarget> for Identifier {
+impl From<RefTarget> for Path {
     fn from(ref_target: RefTarget) -> Self {
         ref_target.0
     }
 }
 
-impl AsRef<Identifier> for RefTarget {
-    fn as_ref(&self) -> &Identifier {
+impl AsRef<Path> for RefTarget {
+    fn as_ref(&self) -> &Path {
         &self.0
     }
 }
@@ -30,7 +30,7 @@ impl RefTarget {
     /// Return the reference target entity type declared on `annotations`, if any.
     pub fn from_annotations(annotations: &Annotations) -> Option<Self> {
         let raw = annotations.constraint(RefTargetConstraint::NAME)?.data()?;
-        Identifier::try_from(raw).ok().map(RefTarget)
+        raw.parse().ok().map(RefTarget)
     }
 }
 
@@ -61,7 +61,7 @@ impl Visitor for RefTargetConstraint {
                 location,
                 message: "constraint data is missing".to_string(),
             }),
-            Some(raw) => match Identifier::try_from(raw) {
+            Some(raw) => match raw.parse::<Path>() {
                 Ok(target) => {
                     if cursor.root().entity(&target).is_none() {
                         self.errors
@@ -86,7 +86,7 @@ impl Visitor for RefTargetConstraint {
 }
 
 impl Constraint for RefTargetConstraint {
-    const NAME: &'static str = "quent.ref-target.v1";
+    const NAME: &'static str = "quent.ref-target.v0.1.0";
 }
 
 #[derive(Debug, Error)]
@@ -94,10 +94,7 @@ pub enum RefTargetError {
     #[error("{location}: invalid ref-target data: {message}")]
     InvalidData { location: String, message: String },
     #[error("{location}: ref-target points at unknown entity \"{target}\"")]
-    UnknownTarget {
-        location: String,
-        target: Identifier,
-    },
+    UnknownTarget { location: String, target: Path },
     #[error("multiple ref-target violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTargetError>),
 }

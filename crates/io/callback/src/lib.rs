@@ -1,60 +1,54 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! An exporter that hands each event to a caller-supplied callback. Intended
 //! for tests that collect emitted events in memory.
 
-use std::any::Any;
 use std::sync::Arc;
 
-use quent_events::{EntityEvent, Event};
+use quent_events::Event;
 use quent_io_types::{Exporter, ExporterProvider, ExporterResult};
 
-/// One exported event, type-erased so a single callback can receive events of
-/// any entity type. `event` is a boxed `Event<T>` for the entity named by
-/// `entity`; downcast it with `event.downcast::<Event<T>>()`.
-pub struct RecordedEvent {
-    pub entity: &'static str,
-    pub event: Box<dyn Any + Send>,
+/// A thread-safe callback invoked once per exported event.
+pub struct EventCallback<T>(Arc<dyn Fn(Event<T>) + Send + Sync>);
+
+impl<T> Clone for EventCallback<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
 }
 
-/// A thread-safe callback invoked once per exported event.
-#[derive(Clone)]
-pub struct EventCallback(Arc<dyn Fn(RecordedEvent) + Send + Sync>);
-
-impl EventCallback {
-    pub fn new(callback: impl Fn(RecordedEvent) + Send + Sync + 'static) -> Self {
+impl<T> EventCallback<T> {
+    pub fn new(callback: impl Fn(Event<T>) + Send + Sync + 'static) -> Self {
         Self(Arc::new(callback))
     }
 }
 
-impl std::fmt::Debug for EventCallback {
+impl<T> std::fmt::Debug for EventCallback<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EventCallback").finish_non_exhaustive()
     }
 }
 
-/// Type-erases each pushed event and forwards it to an [`EventCallback`].
-pub struct CallbackExporter {
-    callback: EventCallback,
+/// Converts each pushed event and forwards it to an [`EventCallback`].
+pub struct CallbackExporter<T> {
+    callback: EventCallback<T>,
 }
 
-impl CallbackExporter {
-    pub fn new(callback: EventCallback) -> Self {
+impl<T> CallbackExporter<T> {
+    pub fn new(callback: EventCallback<T>) -> Self {
         Self { callback }
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Exporter<T> for CallbackExporter
+impl<S, T> Exporter<S> for CallbackExporter<T>
 where
-    T: Send + EntityEvent + 'static,
+    S: Into<T> + Send + 'static,
+    T: Send + 'static,
 {
-    async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
-        (self.callback.0)(RecordedEvent {
-            entity: T::NAME,
-            event: Box::new(event),
-        });
+    async fn push(&mut self, event: Event<S>) -> ExporterResult<()> {
+        (self.callback.0)(Event::new(event.id, event.timestamp, event.data.into()));
         Ok(())
     }
 
@@ -64,15 +58,16 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> ExporterProvider<T> for EventCallback
+impl<S, T> ExporterProvider<S> for EventCallback<T>
 where
-    T: Send + EntityEvent + 'static,
+    S: Into<T> + Send + 'static,
+    T: Send + 'static,
 {
     async fn create_exporter(
         &self,
         _context_id: uuid::Uuid,
-    ) -> ExporterResult<Box<dyn Exporter<T>>> {
-        Ok(Box::new(CallbackExporter::new(self.clone())))
+    ) -> ExporterResult<Box<dyn Exporter<S>>> {
+        Ok(Box::new(CallbackExporter::<T>::new(self.clone())))
     }
 }
 
@@ -84,32 +79,41 @@ mod tests {
 
     use super::*;
 
+    enum ModelEvent {
+        Alpha(Alpha),
+        Beta(Beta),
+    }
+
     struct Alpha {
         a: u32,
     }
-    impl EntityEvent for Alpha {
-        const NAME: &'static str = "alpha";
+    impl From<Alpha> for ModelEvent {
+        fn from(value: Alpha) -> Self {
+            Self::Alpha(value)
+        }
     }
 
     struct Beta {
         b: String,
     }
-    impl EntityEvent for Beta {
-        const NAME: &'static str = "beta";
+    impl From<Beta> for ModelEvent {
+        fn from(value: Beta) -> Self {
+            Self::Beta(value)
+        }
     }
 
-    // One shared callback receives events from exporters of two distinct entity
-    // types; each erased event must downcast back to its concrete `Event<T>`.
     #[tokio::test]
-    async fn forwards_multiple_event_types_erased() {
-        let recorded = Arc::new(Mutex::new(Vec::<RecordedEvent>::new()));
+    async fn forwards_multiple_event_types_as_model_events() {
+        let recorded = Arc::new(Mutex::new(Vec::<Event<ModelEvent>>::new()));
         let callback = {
             let recorded = recorded.clone();
             EventCallback::new(move |rec| recorded.lock().unwrap().push(rec))
         };
 
-        let mut alpha: Box<dyn Exporter<Alpha>> = Box::new(CallbackExporter::new(callback.clone()));
-        let mut beta: Box<dyn Exporter<Beta>> = Box::new(CallbackExporter::new(callback.clone()));
+        let mut alpha: Box<dyn Exporter<Alpha>> =
+            callback.create_exporter(Uuid::from_u128(10)).await.unwrap();
+        let mut beta: Box<dyn Exporter<Beta>> =
+            callback.create_exporter(Uuid::from_u128(10)).await.unwrap();
 
         let (id0, id1, id2) = (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3));
         alpha
@@ -127,22 +131,17 @@ mod tests {
         let recorded = recorded.lock().unwrap();
         assert_eq!(recorded.len(), 3);
 
-        // Entity names are preserved in emission order.
-        assert_eq!(
-            recorded.iter().map(|r| r.entity).collect::<Vec<_>>(),
-            [Alpha::NAME, Beta::NAME, Alpha::NAME],
-        );
-
-        let a0 = recorded[0].event.downcast_ref::<Event<Alpha>>().unwrap();
-        assert_eq!((a0.id, a0.timestamp, a0.data.a), (id0, 10, 7));
-
-        let b1 = recorded[1].event.downcast_ref::<Event<Beta>>().unwrap();
-        assert_eq!((b1.id, b1.timestamp, b1.data.b.as_str()), (id1, 20, "x"));
-
-        let a2 = recorded[2].event.downcast_ref::<Event<Alpha>>().unwrap();
-        assert_eq!((a2.id, a2.data.a), (id2, 9));
-
-        // A mismatched concrete type does not downcast.
-        assert!(recorded[1].event.downcast_ref::<Event<Alpha>>().is_none());
+        assert_eq!((recorded[0].id, recorded[0].timestamp), (id0, 10));
+        assert!(matches!(
+            recorded[0].data,
+            ModelEvent::Alpha(Alpha { a: 7 })
+        ));
+        assert_eq!((recorded[1].id, recorded[1].timestamp), (id1, 20));
+        assert!(matches!(&recorded[1].data, ModelEvent::Beta(Beta { b }) if b == "x"));
+        assert_eq!(recorded[2].id, id2);
+        assert!(matches!(
+            recorded[2].data,
+            ModelEvent::Alpha(Alpha { a: 9 })
+        ));
     }
 }

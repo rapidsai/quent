@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { createFileRoute } from '@tanstack/react-router';
@@ -13,7 +13,7 @@ function TimelineTab() {
   const { engineId } = Route.useParams();
   const queryBundle = QueryRoute.useLoaderData();
   return (
-    <div className="flex items-center justify-center w-full h-full min-h-[200px]">
+    <div className="flex min-w-0 w-full h-full min-h-[200px]">
       <QueryResourceTree engineId={engineId} queryBundle={queryBundle} />
     </div>
   );
