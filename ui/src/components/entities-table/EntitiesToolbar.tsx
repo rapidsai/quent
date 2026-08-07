@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { LoaderCircle, RotateCcw } from 'lucide-react';
@@ -15,8 +15,8 @@ import type { EntityFilters } from './types';
 import { MAX_PAGE_SIZE, normalizePageSize } from './utils';
 
 const SORT_DIR_OPTIONS: SelectFieldOption[] = [
-  { value: 'Desc', label: 'Longest resource usage first' },
-  { value: 'Asc', label: 'Shortest resource usage first' },
+  { value: 'Desc', label: 'Longest first' },
+  { value: 'Asc', label: 'Shortest first' },
 ];
 
 interface EntitiesToolbarProps {

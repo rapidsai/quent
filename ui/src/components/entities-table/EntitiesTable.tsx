@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
@@ -56,7 +56,11 @@ export function EntitiesTable(props: EntitiesTableProps) {
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize="35%" minSize="20%" collapsible collapsedSize="0%">
-        <EntityDetailPanel fsm={table.selected} resourceLabel={table.resourceLabel} />
+        <EntityDetailPanel
+          fsm={table.selected}
+          resourceLabel={table.resourceLabel}
+          operatorLabel={table.operatorLabel}
+        />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

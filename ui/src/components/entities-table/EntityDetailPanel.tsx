@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { thinScrollbarClass } from '@quent/components';
-import { formatAttributeValue, formatDuration } from '@quent/utils';
+import { formatAttributeValue, formatDuration, unwrapTaggedValue } from '@quent/utils';
 import type { DynamicAttribute, FiniteStateMachine } from '@quent/utils';
 
 interface EntityDetailPanelProps {
   fsm: FiniteStateMachine | null;
   resourceLabel: (id: string) => string;
+  operatorLabel: (id: string) => string;
 }
 
-export function EntityDetailPanel({ fsm, resourceLabel }: EntityDetailPanelProps) {
+export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityDetailPanelProps) {
   if (!fsm) {
     return (
       <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
@@ -24,7 +25,7 @@ export function EntityDetailPanel({ fsm, resourceLabel }: EntityDetailPanelProps
       <div className="shrink-0 border-b bg-card p-3">
         <div className="text-sm font-medium">{fsm.instance_name}</div>
         <div className="text-xs text-muted-foreground">{fsm.type_name}</div>
-        <div className="mt-1 break-all font-mono text-xs text-muted-foreground">{fsm.id}</div>
+        <div className="mt-1 font-mono text-xs text-muted-foreground">{fsm.id}</div>
       </div>
       <ol className={`min-h-0 flex-1 space-y-2 overflow-auto p-3 ${thinScrollbarClass}`}>
         {fsm.transitions.map((transition, index) => {
@@ -62,10 +63,17 @@ export function EntityDetailPanel({ fsm, resourceLabel }: EntityDetailPanelProps
                 </ul>
               )}
               {transition.attributes.length > 0 && (
-                <AttributeRows attributes={transition.attributes} />
+                <AttributeRows
+                  attributes={transition.attributes}
+                  operatorLabel={operatorLabel}
+                />
               )}
               {transition.derived_attributes.length > 0 && (
-                <AttributeRows attributes={transition.derived_attributes} derived />
+                <AttributeRows
+                  attributes={transition.derived_attributes}
+                  derived
+                  operatorLabel={operatorLabel}
+                />
               )}
             </li>
           );
@@ -75,17 +83,40 @@ export function EntityDetailPanel({ fsm, resourceLabel }: EntityDetailPanelProps
   );
 }
 
-function AttributeRows({ attributes, derived }: { attributes: DynamicAttribute[]; derived?: boolean }) {
+
+function AttributeRows({
+  attributes,
+  derived,
+  operatorLabel,
+}: {
+  attributes: DynamicAttribute[];
+  derived?: boolean;
+  operatorLabel: (id: string) => string;
+}) {
   return (
     <ul className={`mt-1 space-y-0.5 text-xs ${derived ? 'italic text-muted-foreground' : ''}`}>
-      {attributes.map((attribute, index) => (
-        <li key={index} className="flex justify-between gap-3">
-          <span className={derived ? '' : 'text-muted-foreground'}>{attribute.key}</span>
-          <span className="tabular-nums">
-            {formatAttributeValue(attribute.key, attribute.value)}
-          </span>
-        </li>
-      ))}
+      {attributes.map((attribute, index) => {
+        const { label, value } = resolveAttributeDisplay(attribute, operatorLabel);
+        return (
+          <li key={index} className="flex justify-between gap-3">
+            <span className={derived ? '' : 'text-muted-foreground'}>{label}</span>
+            <span className="tabular-nums text-right">{value}</span>
+          </li>
+        );
+      })}
     </ul>
   );
+}
+
+function resolveAttributeDisplay(
+  attribute: DynamicAttribute,
+  operatorLabel: (id: string) => string
+): { label: string; value: string } {
+  if (attribute.key === 'operator_id') {
+    const raw = unwrapTaggedValue(attribute.value);
+    if (typeof raw === 'string') {
+      return { label: 'operator', value: operatorLabel(raw) };
+    }
+  }
+  return { label: attribute.key, value: formatAttributeValue(attribute.key, attribute.value) };
 }
