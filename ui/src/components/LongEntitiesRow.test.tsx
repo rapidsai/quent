@@ -124,8 +124,8 @@ describe('LongEntitiesRow', () => {
   });
 
   it('loads the next page and appends its entities', () => {
-    const firstEntity = { id: 'entity-1' };
-    const secondEntity = { id: 'entity-2' };
+    const firstEntity = { entity: { id: 'entity-1' }, usage_duration_s: 0 };
+    const secondEntity = { entity: { id: 'entity-2' }, usage_duration_s: 0 };
     mocks.useInfiniteEntityList.mockReturnValue({
       data: { pages: [{ items: [firstEntity], total: 2 }] },
       fetchNextPage: mocks.fetchNextPage,
@@ -166,7 +166,7 @@ describe('LongEntitiesRow', () => {
     rerender(<LongEntitiesRow {...props} />);
 
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
-      [firstEntity, secondEntity],
+      [firstEntity.entity, secondEntity.entity],
       {},
       'light',
       null
@@ -175,7 +175,7 @@ describe('LongEntitiesRow', () => {
   });
 
   it('keeps the previous entities visible while a changed request loads', () => {
-    const previousEntity = { id: 'entity-1' };
+    const previousEntity = { entity: { id: 'entity-1' }, usage_duration_s: 0 };
     mocks.useInfiniteEntityList.mockReturnValue({
       data: { pages: [{ items: [previousEntity], total: 2 }] },
       fetchNextPage: mocks.fetchNextPage,
@@ -198,7 +198,7 @@ describe('LongEntitiesRow', () => {
 
     expect(screen.queryByText('Loading entities…')).not.toBeInTheDocument();
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
-      [previousEntity],
+      [previousEntity.entity],
       {},
       'light',
       null

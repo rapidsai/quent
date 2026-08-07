@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
@@ -147,7 +147,7 @@ describe('EntitiesTable', () => {
     act(() => vi.advanceTimersByTime(300));
 
     const params = useEntities.mock.lastCall?.[0];
-    expect(params.request.entry.application.operator_id).toBeNull();
+    expect(params.request.entry.application.operator_ids).toEqual([]);
   });
 
   it('dims existing rows while replacement data is pending', () => {
@@ -180,7 +180,7 @@ describe('EntitiesTable', () => {
     act(() => vi.advanceTimersByTime(300));
 
     const params = useEntities.mock.lastCall?.[0];
-    expect(params.request.entry.application.operator_id).toBe('operator-1');
+    expect(params.request.entry.application.operator_ids).toEqual(['operator-1']);
     expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent('Operator One');
   });
 });
