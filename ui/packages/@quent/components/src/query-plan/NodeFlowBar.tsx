@@ -94,9 +94,16 @@ export const NodeFlowBar = memo(
       : '';
 
     return (
-      <div className="w-full" style={{ marginTop: FLOW_BAR_TOP_MARGIN }} data-testid="node-flow-bar">
+      <div
+        className="w-full"
+        style={{ marginTop: FLOW_BAR_TOP_MARGIN }}
+        data-testid="node-flow-bar"
+      >
         <div
-          className={cn('w-full overflow-hidden rounded-sm', hasData ? 'bg-muted/40' : 'bg-transparent')}
+          className={cn(
+            'w-full overflow-hidden rounded-sm',
+            hasData ? 'bg-muted/40' : 'bg-transparent'
+          )}
           style={{ height: FLOW_BAR_TRACK_HEIGHT }}
         >
           <div className="flex h-full" style={{ width: filledWidth, transition: BAR_TRANSITION }}>
@@ -135,7 +142,10 @@ export const NodeFlowBar = memo(
           </div>
         </div>
         <div
-          className={cn('w-full overflow-hidden rounded-sm', hasData ? 'bg-muted/40' : 'bg-transparent')}
+          className={cn(
+            'w-full overflow-hidden rounded-sm',
+            hasData ? 'bg-muted/40' : 'bg-transparent'
+          )}
           style={{ marginTop: FLOW_BAR_TRACK_GAP, height: FLOW_BAR_TRACK_HEIGHT }}
         >
           <div className="flex h-full" style={{ width: filledWidth, transition: BAR_TRANSITION }}>
