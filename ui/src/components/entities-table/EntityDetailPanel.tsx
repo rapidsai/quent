@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { thinScrollbarClass } from '@quent/components';
+import { thinScrollbarClass, FsmCapacityChart } from '@quent/components';
 import {
   formatAttributeValue,
   formatDuration,
@@ -139,6 +139,12 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
           </div>
         )}
       </div>
+
+      <FsmCapacityChart
+        transitions={fsm.transitions}
+        isDark={theme === THEME_DARK}
+        resourceLabel={resourceLabel}
+      />
 
       <ol className={`min-h-0 flex-1 space-y-2 overflow-auto p-3 ${thinScrollbarClass}`}>
         {fsm.transitions.map((transition, index) => {

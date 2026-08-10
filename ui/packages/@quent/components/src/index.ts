@@ -244,6 +244,10 @@ export {
 } from './pivot-table/utils';
 export type { GroupIndexDef, RowWithGroupKeys } from './pivot-table/utils';
 
+// ─── FSM chart components ─────────────────────────────────────────────────────
+export { FsmCapacityChart } from './fsm-chart/FsmCapacityChart';
+export type { FsmCapacityChartProps } from './fsm-chart/FsmCapacityChart';
+
 // ─── Long-entities components ─────────────────────────────────────────────────
 export {
   LongEntitiesGantt,
