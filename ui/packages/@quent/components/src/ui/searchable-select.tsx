@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState } from 'react';
@@ -10,7 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import type { SelectFieldOption } from './select-field';
 
 export interface SearchableSelectProps {
-  label: string;
+  label?: string;
+  ariaLabel?: string;
   options: SelectFieldOption[];
   value: string | null;
   onValueChange: (value: string | null) => void;
@@ -23,11 +24,12 @@ export interface SearchableSelectProps {
 
 export function SearchableSelect({
   label,
+  ariaLabel,
   options,
   value,
   onValueChange,
   placeholder,
-  searchPlaceholder = `Search ${label.toLowerCase()}…`,
+  searchPlaceholder = `Search ${(ariaLabel ?? label ?? placeholder).toLowerCase()}…`,
   emptyMessage = 'No matches.',
   className,
   triggerClassName,
@@ -49,9 +51,13 @@ export function SearchableSelect({
     setSearch('');
   };
 
+  const accessibleLabel = ariaLabel ?? label;
+
   return (
-    <div className={cn('flex items-center gap-1.5 min-w-0', className)}>
-      <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{label}</span>
+    <div className={cn('flex min-w-0', label ? 'items-center gap-1.5' : 'flex-1', className)}>
+      {label && (
+        <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{label}</span>
+      )}
       <Popover
         open={open}
         onOpenChange={nextOpen => {
@@ -64,7 +70,7 @@ export function SearchableSelect({
             variant="outline"
             size="sm"
             role="combobox"
-            aria-label={label}
+            aria-label={accessibleLabel}
             aria-expanded={open}
             className={cn(
               'h-8 min-w-0 flex-1 justify-between gap-2 px-2 font-normal',
@@ -86,11 +92,11 @@ export function SearchableSelect({
               value={search}
               onChange={event => setSearch(event.target.value)}
               placeholder={searchPlaceholder}
-              aria-label={`Search ${label.toLowerCase()}`}
+              aria-label={`Search ${(accessibleLabel ?? placeholder).toLowerCase()}`}
               className="h-7 pl-7 pr-2 text-xs md:text-xs"
             />
           </div>
-          <div className="max-h-56 space-y-0.5 overflow-auto" role="listbox" aria-label={label}>
+          <div className="max-h-56 space-y-0.5 overflow-auto" role="listbox" aria-label={accessibleLabel}>
             <Option label={placeholder} selected={value === null} onSelect={() => select(null)} />
             {filteredOptions.map(option => (
               <Option

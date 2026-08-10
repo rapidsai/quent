@@ -52,90 +52,136 @@ export function EntitiesToolbar({
   onReset,
 }: EntitiesToolbarProps) {
   return (
-    <div className="shrink-0 border-b bg-card p-3 flex flex-wrap items-end gap-3">
-      <SearchableSelect
-        label="Operator"
-        className="w-72"
-        placeholder="All operators"
-        options={operatorOptions}
-        value={operatorId}
-        onValueChange={onOperatorChange}
-      />
-      <SelectField
-        label="Type"
-        className="w-40"
-        placeholder="All types"
-        options={entityTypeOptions}
-        value={filters.entityType ?? ''}
-        onValueChange={value => onFiltersChange({ entityType: value })}
-      />
-      <SearchableSelect
-        label="Resource"
-        className="w-72"
-        placeholder="All resources"
-        options={resourceOptions}
-        value={filters.resourceId}
-        onValueChange={value => onFiltersChange({ resourceId: value })}
-      />
-      <NumberField
-        label="Min usage (s)"
-        className="w-28"
-        value={filters.minUsageS}
-        onChange={value => onFiltersChange({ minUsageS: value })}
-      />
-      <NumberField
-        label="Window start (s)"
-        className="w-28"
-        value={filters.windowStart}
-        onChange={value => onFiltersChange({ windowStart: value })}
-      />
-      <NumberField
-        label="Window end (s)"
-        className="w-28"
-        value={filters.windowEnd}
-        onChange={value => onFiltersChange({ windowEnd: value })}
-      />
-      <SelectField
-        label="Sort"
-        className="w-60"
-        clearable={false}
-        options={SORT_DIR_OPTIONS}
-        value={filters.sortDir}
-        onValueChange={value =>
-          onFiltersChange(
-            { sortDir: (value as SortDir | null) ?? 'Desc' },
-            { preserveSelection: true }
-          )
-        }
-      />
-      <PageSizeField
-        value={filters.pageSize}
-        onChange={value => onFiltersChange({ pageSize: value }, { preserveSelection: true })}
-      />
-      <Button variant="outline" size="sm" disabled={!hasNonDefaultSettings} onClick={onReset}>
-        <RotateCcw className="mr-1.5 size-3.5" />
-        Reset filters
-      </Button>
-      {activeFilterCount > 0 && (
-        <span className="pb-1 text-xs text-muted-foreground">
-          {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
-        </span>
-      )}
-      {requestPending && validationErrors.length === 0 && (
-        <span
-          role="status"
-          aria-live="polite"
-          className="flex items-center gap-1 pb-1 text-xs text-muted-foreground"
-        >
-          <LoaderCircle className="size-3.5 animate-spin" />
-          Updating…
-        </span>
-      )}
+    <div className="shrink-0 border-b bg-card px-3 py-2.5">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
+        {/* Entity filters */}
+        <div className="flex items-end gap-2.5">
+          <FieldWrapper label="Operator" className="w-64">
+            <SearchableSelect
+              ariaLabel="Operator"
+              placeholder="All operators"
+              options={operatorOptions}
+              value={operatorId}
+              onValueChange={onOperatorChange}
+            />
+          </FieldWrapper>
+          <FieldWrapper label="Type" className="w-36">
+            <SelectField
+              ariaLabel="Type"
+              placeholder="All types"
+              options={entityTypeOptions}
+              value={filters.entityType ?? ''}
+              onValueChange={value => onFiltersChange({ entityType: value })}
+              triggerClassName="h-8"
+            />
+          </FieldWrapper>
+          <FieldWrapper label="Resource" className="w-64">
+            <SearchableSelect
+              ariaLabel="Resource"
+              placeholder="All resources"
+              options={resourceOptions}
+              value={filters.resourceId}
+              onValueChange={value => onFiltersChange({ resourceId: value })}
+            />
+          </FieldWrapper>
+        </div>
+
+        {/* Time filters */}
+        <div className="flex items-end gap-2.5">
+          <NumberField
+            label="Min usage (s)"
+            className="w-28"
+            value={filters.minUsageS}
+            onChange={value => onFiltersChange({ minUsageS: value })}
+          />
+          <NumberField
+            label="Window start (s)"
+            className="w-28"
+            value={filters.windowStart}
+            onChange={value => onFiltersChange({ windowStart: value })}
+          />
+          <NumberField
+            label="Window end (s)"
+            className="w-28"
+            value={filters.windowEnd}
+            onChange={value => onFiltersChange({ windowEnd: value })}
+          />
+        </div>
+
+        {/* Display settings */}
+        <div className="flex items-end gap-2.5">
+          <FieldWrapper label="Sort" className="w-44">
+            <SelectField
+              ariaLabel="Sort"
+              clearable={false}
+              options={SORT_DIR_OPTIONS}
+              value={filters.sortDir}
+              onValueChange={value =>
+                onFiltersChange(
+                  { sortDir: (value as SortDir | null) ?? 'Desc' },
+                  { preserveSelection: true }
+                )
+              }
+              triggerClassName="h-8"
+            />
+          </FieldWrapper>
+          <PageSizeField
+            value={filters.pageSize}
+            onChange={value => onFiltersChange({ pageSize: value }, { preserveSelection: true })}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="ml-auto flex items-end gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasNonDefaultSettings}
+            onClick={onReset}
+          >
+            <RotateCcw className="mr-1.5 size-3.5" />
+            Reset
+          </Button>
+          {activeFilterCount > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
+            </span>
+          )}
+          {requestPending && validationErrors.length === 0 && (
+            <span
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <LoaderCircle className="size-3.5 animate-spin" />
+              Updating…
+            </span>
+          )}
+        </div>
+      </div>
+
       {validationErrors.length > 0 && (
-        <div role="alert" className="basis-full text-xs text-destructive">
+        <div role="alert" className="mt-2 text-xs text-destructive">
           {validationErrors.join(' ')}
         </div>
       )}
+    </div>
+  );
+}
+
+function FieldWrapper({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex flex-col gap-1', className)}>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {children}
     </div>
   );
 }
@@ -152,13 +198,13 @@ function NumberField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+    <label className={cn('flex flex-col gap-1 text-xs text-muted-foreground', className)}>
       {label}
       <Input
         type="number"
         min={0}
         step="any"
-        className={cn('h-8', className)}
+        className="h-8"
         value={value}
         onChange={event => onChange(event.target.value)}
       />
