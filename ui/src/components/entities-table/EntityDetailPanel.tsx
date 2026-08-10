@@ -46,6 +46,48 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
   const lastTs = fsm.transitions[fsm.transitions.length - 1]?.timestamp ?? firstTs;
   const totalSpanMs = (lastTs - firstTs) * 1000;
 
+  // Precompute per-transition durations (null for the final state)
+  const durations = fsm.transitions.map((t, i) => {
+    const next = fsm.transitions[i + 1];
+    return next ? (next.timestamp - t.timestamp) * 1000 : null;
+  });
+
+  // Find the state that consumed the most time
+  let dominantState: { name: string; pct: number; color: string } | null = null;
+  if (totalSpanMs > 0) {
+    let maxMs = 0;
+    let maxIdx = -1;
+    durations.forEach((d, i) => {
+      if (d != null && d > maxMs) {
+        maxMs = d;
+        maxIdx = i;
+      }
+    });
+    if (maxIdx >= 0) {
+      const name = fsm.transitions[maxIdx]!.name;
+      dominantState = {
+        name,
+        pct: (maxMs / totalSpanMs) * 100,
+        color: getColorForKey(name, paletteTheme),
+      };
+    }
+  }
+
+  // Find data volume from derived attributes (last bytes-stat with a numeric value)
+  let dataVolume: string | null = null;
+  for (let i = fsm.transitions.length - 1; i >= 0; i--) {
+    for (const attr of fsm.transitions[i]!.derived_attributes) {
+      if (isBytesStat(attr.key) && attr.value != null) {
+        const raw = unwrapTaggedValue(attr.value);
+        if (typeof raw === 'number' || typeof raw === 'bigint') {
+          dataVolume = formatBytes(raw);
+          break;
+        }
+      }
+    }
+    if (dataVolume) break;
+  }
+
   function copyId() {
     void navigator.clipboard.writeText(fsm!.id);
     setCopied(true);
@@ -76,15 +118,37 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
         </div>
       </div>
 
+      {/* Summary strip */}
+      <div className="shrink-0 border-b bg-muted/30 px-3 py-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Total span</span>
+          <span className="tabular-nums font-medium">{formatDuration(totalSpanMs)}</span>
+        </div>
+        {dominantState && (
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">Dominant state</span>
+            <span className="font-medium" style={{ color: dominantState.color }}>
+              {dominantState.name} · {dominantState.pct.toFixed(1)}%
+            </span>
+          </div>
+        )}
+        {dataVolume && (
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">Data volume</span>
+            <span className="tabular-nums font-medium">{dataVolume}</span>
+          </div>
+        )}
+      </div>
+
       <ol className={`min-h-0 flex-1 space-y-2 overflow-auto p-3 ${thinScrollbarClass}`}>
         {fsm.transitions.map((transition, index) => {
-          const nextTransition = fsm.transitions[index + 1];
-          const durationMs = nextTransition
-            ? (nextTransition.timestamp - transition.timestamp) * 1000
-            : null;
+          const durationMs = durations[index] ?? null;
           const isBottleneck =
             durationMs != null && totalSpanMs > 0 && durationMs / totalSpanMs > 0.5;
           const stateColor = getColorForKey(transition.name, paletteTheme);
+          const pct = durationMs != null && totalSpanMs > 0
+            ? Math.min(100, (durationMs / totalSpanMs) * 100)
+            : null;
 
           return (
             <li
@@ -112,6 +176,16 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
                   </span>
                 </div>
               </div>
+
+              {/* Proportional duration bar */}
+              {pct != null && (
+                <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${pct}%`, backgroundColor: stateColor }}
+                  />
+                </div>
+              )}
 
               {transition.usages.length > 0 && (
                 <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
