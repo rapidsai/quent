@@ -1,9 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import { thinScrollbarClass } from '@quent/components';
-import { formatAttributeValue, formatDuration, unwrapTaggedValue } from '@quent/utils';
+import {
+  formatAttributeValue,
+  formatDuration,
+  formatBytes,
+  getColorForKey,
+  unwrapTaggedValue,
+} from '@quent/utils';
 import type { DynamicAttribute, FiniteStateMachine } from '@quent/utils';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
 interface EntityDetailPanelProps {
   fsm: FiniteStateMachine | null;
@@ -11,7 +20,20 @@ interface EntityDetailPanelProps {
   operatorLabel: (id: string) => string;
 }
 
+function isBytesStat(name: string): boolean {
+  return (
+    name.includes('_bytes') ||
+    name.endsWith('_byte') ||
+    name.startsWith('bytes_') ||
+    name === 'bytes'
+  );
+}
+
 export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityDetailPanelProps) {
+  const { theme } = useTheme();
+  const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
+  const [copied, setCopied] = useState(false);
+
   if (!fsm) {
     return (
       <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
@@ -20,33 +42,77 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
     );
   }
 
+  const firstTs = fsm.transitions[0]?.timestamp ?? 0;
+  const lastTs = fsm.transitions[fsm.transitions.length - 1]?.timestamp ?? firstTs;
+  const totalSpanMs = (lastTs - firstTs) * 1000;
+
+  function copyId() {
+    void navigator.clipboard.writeText(fsm!.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b bg-card p-3">
-        <div className="text-sm font-medium">{fsm.instance_name}</div>
-        <div className="text-xs text-muted-foreground">{fsm.type_name}</div>
-        <div className="mt-1 font-mono text-xs text-muted-foreground">{fsm.id}</div>
+      {/* Compact header: name + type badge on one line, UUID + copy on second */}
+      <div className="shrink-0 border-b bg-card px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{fsm.instance_name}</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+            {fsm.type_name}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center gap-1">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+            {fsm.id}
+          </span>
+          <button
+            onClick={copyId}
+            aria-label="Copy ID"
+            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          </button>
+        </div>
       </div>
+
       <ol className={`min-h-0 flex-1 space-y-2 overflow-auto p-3 ${thinScrollbarClass}`}>
         {fsm.transitions.map((transition, index) => {
           const nextTransition = fsm.transitions[index + 1];
+          const durationMs = nextTransition
+            ? (nextTransition.timestamp - transition.timestamp) * 1000
+            : null;
+          const isBottleneck =
+            durationMs != null && totalSpanMs > 0 && durationMs / totalSpanMs > 0.5;
+          const stateColor = getColorForKey(transition.name, paletteTheme);
+
           return (
-            <li key={`${index}-${transition.name}`} className="rounded border bg-card p-2">
-              <div className="flex items-baseline justify-between gap-2">
+            <li
+              key={`${index}-${transition.name}`}
+              className="rounded border bg-card p-2"
+              style={{ borderLeftColor: stateColor, borderLeftWidth: 3 }}
+            >
+              {/* State name + duration (prominent) + absolute timestamp (secondary) */}
+              <div className="flex items-start justify-between gap-2">
                 <span className="text-sm font-medium">
                   <span className="text-muted-foreground">{index + 1}.</span> {transition.name}
                 </span>
-                <span className="tabular-nums text-xs text-muted-foreground">
-                  {transition.timestamp.toFixed(3)}s
-                  {nextTransition && (
-                    <>
-                      {' '}
-                      · for{' '}
-                      {formatDuration((nextTransition.timestamp - transition.timestamp) * 1000)}
-                    </>
+                <div className="flex shrink-0 flex-col items-end">
+                  {durationMs != null && (
+                    <span
+                      className={`tabular-nums text-sm font-medium ${
+                        isBottleneck ? 'text-orange-500 dark:text-orange-400' : ''
+                      }`}
+                    >
+                      {formatDuration(durationMs)}
+                    </span>
                   )}
-                </span>
+                  <span className="tabular-nums text-xs text-muted-foreground">
+                    @{transition.timestamp.toFixed(3)}s
+                  </span>
+                </div>
               </div>
+
               {transition.usages.length > 0 && (
                 <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                   {transition.usages.map((usage, usageIndex) => (
@@ -55,7 +121,9 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
                       {usage.capacities.map(([name, capacity], capacityIndex) => (
                         <span key={capacityIndex} className="tabular-nums">
                           {name}
-                          {capacity != null ? `=${capacity}` : ''}
+                          {capacity != null
+                            ? `=${isBytesStat(name) ? formatBytes(capacity) : String(capacity)}`
+                            : ''}
                         </span>
                       ))}
                     </li>
@@ -82,7 +150,6 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
     </div>
   );
 }
-
 
 function AttributeRows({
   attributes,
