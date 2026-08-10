@@ -18,6 +18,7 @@ interface EntityDetailPanelProps {
   fsm: FiniteStateMachine | null;
   resourceLabel: (id: string) => string;
   operatorLabel: (id: string) => string;
+  stateColorFn?: (name: string) => string;
 }
 
 function isBytesStat(name: string): boolean {
@@ -29,7 +30,7 @@ function isBytesStat(name: string): boolean {
   );
 }
 
-export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityDetailPanelProps) {
+export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColorFn }: EntityDetailPanelProps) {
   const { theme } = useTheme();
   const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
   const [copied, setCopied] = useState(false);
@@ -151,7 +152,9 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel }: EntityD
           const durationMs = durations[index] ?? null;
           const isBottleneck =
             durationMs != null && totalSpanMs > 0 && durationMs / totalSpanMs > 0.5;
-          const stateColor = getColorForKey(transition.name, paletteTheme);
+          const stateColor = stateColorFn
+            ? stateColorFn(transition.name)
+            : getColorForKey(transition.name, paletteTheme);
           const pct = durationMs != null && totalSpanMs > 0
             ? Math.min(100, (durationMs / totalSpanMs) * 100)
             : null;

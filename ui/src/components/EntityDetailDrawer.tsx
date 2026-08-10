@@ -13,6 +13,7 @@ interface EntityDetailDrawerProps {
   resourceLabel: (id: string) => string;
   operatorLabel: (id: string) => string;
   onClose: () => void;
+  stateColorFn?: (name: string) => string;
 }
 
 export function EntityDetailDrawer({
@@ -20,6 +21,7 @@ export function EntityDetailDrawer({
   resourceLabel,
   operatorLabel,
   onClose,
+  stateColorFn,
 }: EntityDetailDrawerProps) {
   useEffect(() => {
     if (!fsm) return;
@@ -49,6 +51,7 @@ export function EntityDetailDrawer({
           fsm={fsm}
           resourceLabel={resourceLabel}
           operatorLabel={operatorLabel}
+          stateColorFn={stateColorFn}
         />
       </div>
     </div>,

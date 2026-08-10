@@ -28,6 +28,8 @@ type LongEntitiesRowProps = {
   /** Defaults to all states; resource scope keeps states used on this row's resource. */
   fsmStateScope?: 'all' | 'resource';
   onEntitySelect?: (fsm: FiniteStateMachine) => void;
+  selectedEntityId?: string;
+  onBackgroundClick?: () => void;
 };
 
 /**
@@ -44,6 +46,8 @@ export function LongEntitiesRow({
   isDark,
   fsmStateScope = 'all',
   onEntitySelect,
+  selectedEntityId,
+  onBackgroundClick,
 }: LongEntitiesRowProps) {
   const selectedNodeIds = useSelectedNodeIds();
   const debouncedZoomRange = useDebouncedZoomRange();
@@ -112,6 +116,8 @@ export function LongEntitiesRow({
         height={LONG_ENTITIES_TIMELINE_HEIGHT}
         isDark={isDark}
         onEntityClick={onEntitySelect ? handleEntityClick : undefined}
+        selectedEntityId={selectedEntityId}
+        onBackgroundClick={onBackgroundClick}
       />
 
       {hasNextPage && !isPlaceholderData && (

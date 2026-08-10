@@ -160,6 +160,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   return {
     activeFilterCount,
     entityTypeOptions,
+    fsmTypes: entities.fsm_types,
     error: query.error,
     filters,
     hasNonDefaultSettings: hasNonDefaultEntitySettings(filters, defaults, activeFilterCount),

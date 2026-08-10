@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
+import { createFsmTypeColorFn } from '@quent/utils';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { EntityDetailPanel } from './EntityDetailPanel';
 import { EntityResults } from './EntityResults';
 import { EntitiesToolbar } from './EntitiesToolbar';
@@ -16,6 +19,12 @@ interface EntitiesTableProps {
 
 export function EntitiesTable(props: EntitiesTableProps) {
   const table = useEntityTable(props);
+  const { theme } = useTheme();
+  const isDark = theme === THEME_DARK;
+  const stateColorFn = useMemo(
+    () => createFsmTypeColorFn(table.fsmTypes, isDark ? 'dark' : 'light'),
+    [table.fsmTypes, isDark]
+  );
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
@@ -60,6 +69,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
           fsm={table.selected}
           resourceLabel={table.resourceLabel}
           operatorLabel={table.operatorLabel}
+          stateColorFn={stateColorFn}
         />
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -48,6 +48,7 @@ import {
 import { LongEntitiesRow } from '@/components/LongEntitiesRow';
 import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
 import type { FiniteStateMachine } from '@quent/utils';
+import { createFsmTypeColorFn } from '@quent/utils';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -137,6 +138,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const [drawerFsm, setDrawerFsm] = useState<FiniteStateMachine | null>(null);
   const closeDrawer = useCallback(() => setDrawerFsm(null), []);
+
+  const stateColorFn = useMemo(
+    () => createFsmTypeColorFn(entities.fsm_types, isDark ? 'dark' : 'light'),
+    [entities.fsm_types, isDark]
+  );
 
   const resourceLabel = useCallback(
     (id: string) => {
@@ -350,6 +356,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   fsmTypes={entities.fsm_types}
                   isDark={isDark}
                   onEntitySelect={setDrawerFsm}
+                  selectedEntityId={drawerFsm?.id}
+                  onBackgroundClick={closeDrawer}
                 />
               );
             }
@@ -386,6 +394,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     handleZoomChange,
     operatorEntriesByWorker,
     setDrawerFsm,
+    drawerFsm,
   ]);
 
   return (
@@ -410,6 +419,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         resourceLabel={resourceLabel}
         operatorLabel={operatorLabel}
         onClose={closeDrawer}
+        stateColorFn={stateColorFn}
       />
     </div>
   );
