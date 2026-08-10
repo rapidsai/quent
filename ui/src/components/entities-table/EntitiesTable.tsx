@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup, QueryToolbar } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { createFsmTypeColorFn } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -30,6 +30,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
     <ResizablePanelGroup orientation="horizontal" className="h-full">
       <ResizablePanel defaultSize="65%" minSize="40%">
         <div className="flex h-full min-h-0 flex-col">
+          <QueryToolbar />
           <EntitiesToolbar
             filters={table.filters}
             operatorId={table.operatorId}
