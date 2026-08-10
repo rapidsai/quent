@@ -7,6 +7,9 @@ packages:
   # `pnpm-workspace.yaml` re-references `../../packages/@quent/*` so its
   # `workspace:*` deps still resolve to source.
 
+overrides:
+  nanoid: 3.3.17
+
 catalog:
   '@tanstack/react-query': ^5.90.21
   '@tanstack/react-router': ^1.169.9
