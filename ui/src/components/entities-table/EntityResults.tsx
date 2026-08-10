@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
-import { ChevronFirst, ChevronLast } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import {
   Button,
   Input,
@@ -17,6 +17,9 @@ import {
 import { cn, formatDuration } from '@quent/utils';
 import type { FiniteStateMachine } from '@quent/utils';
 import type { EntityTableRow } from './types';
+
+type SortColumn = 'instance' | 'type' | 'states' | 'start' | 'end' | 'span' | 'usage' | 'id';
+type LocalSortDir = 'asc' | 'desc';
 
 interface EntityResultsProps {
   rows: EntityTableRow[];
@@ -53,6 +56,54 @@ export function EntityResults({
   onSelect,
   onPageChange,
 }: EntityResultsProps) {
+  const [sortCol, setSortCol] = useState<SortColumn | null>(null);
+  const [localSortDir, setLocalSortDir] = useState<LocalSortDir>('asc');
+
+  function handleHeaderClick(col: SortColumn) {
+    if (sortCol === col) {
+      setLocalSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setLocalSortDir('asc');
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortCol) return rows;
+    return [...rows].sort((a, b) => {
+      let cmp = 0;
+      switch (sortCol) {
+        case 'instance':
+          cmp = a.fsm.instance_name.localeCompare(b.fsm.instance_name);
+          break;
+        case 'type':
+          cmp = a.fsm.type_name.localeCompare(b.fsm.type_name);
+          break;
+        case 'states':
+          cmp = a.fsm.transitions.length - b.fsm.transitions.length;
+          break;
+        case 'start':
+          cmp = a.start - b.start;
+          break;
+        case 'end':
+          cmp = a.end - b.end;
+          break;
+        case 'span':
+          cmp = a.end - a.start - (b.end - b.start);
+          break;
+        case 'usage':
+          cmp = a.usageDurationS - b.usageDurationS;
+          break;
+        case 'id':
+          cmp = a.fsm.id.localeCompare(b.fsm.id);
+          break;
+      }
+      return localSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [rows, sortCol, localSortDir]);
+
+  const headProps = { sortCol, localSortDir, onSort: handleHeaderClick };
+
   return (
     <>
       <div
@@ -71,18 +122,23 @@ export function EntityResults({
           <Table containerClassName="relative w-full overflow-x-visible">
             <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
-                <TableHead>Instance</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">States</TableHead>
-                <TableHead className="text-right">Start</TableHead>
-                <TableHead className="text-right">End</TableHead>
-                <TableHead className="text-right">FSM span</TableHead>
-                <TableHead className="text-right">Longest usage</TableHead>
-                <TableHead>ID</TableHead>
+                <SortableHead col="instance" label="Instance" {...headProps} />
+                <SortableHead col="type" label="Type" {...headProps} />
+                <SortableHead col="states" label="States" className="text-right" {...headProps} />
+                <SortableHead col="start" label="Start" className="text-right" {...headProps} />
+                <SortableHead col="end" label="End" className="text-right" {...headProps} />
+                <SortableHead col="span" label="FSM span" className="text-right" {...headProps} />
+                <SortableHead
+                  col="usage"
+                  label="Longest usage"
+                  className="text-right"
+                  {...headProps}
+                />
+                <SortableHead col="id" label="ID" {...headProps} />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(row => (
+              {sortedRows.map(row => (
                 <EntityRow
                   key={row.fsm.id}
                   row={row}
@@ -147,6 +203,44 @@ export function EntityResults({
         </div>
       </div>
     </>
+  );
+}
+
+function SortableHead({
+  col,
+  label,
+  className,
+  sortCol,
+  localSortDir,
+  onSort,
+}: {
+  col: SortColumn;
+  label: string;
+  className?: string;
+  sortCol: SortColumn | null;
+  localSortDir: LocalSortDir;
+  onSort: (col: SortColumn) => void;
+}) {
+  const isActive = sortCol === col;
+  const isRight = className?.includes('text-right');
+  return (
+    <TableHead
+      className={cn('cursor-pointer select-none', className)}
+      onClick={() => onSort(col)}
+    >
+      <span className={cn('flex items-center gap-1', isRight && 'justify-end')}>
+        {label}
+        {isActive ? (
+          localSortDir === 'asc' ? (
+            <ChevronUp className="size-3.5 shrink-0" />
+          ) : (
+            <ChevronDown className="size-3.5 shrink-0" />
+          )
+        ) : (
+          <ChevronsUpDown className="size-3.5 shrink-0 opacity-30" />
+        )}
+      </span>
+    </TableHead>
   );
 }
 

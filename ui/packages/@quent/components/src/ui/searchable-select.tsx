@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@quent/utils';
 import { Button } from './button';
 import { Input } from './input';
@@ -87,14 +87,24 @@ export function SearchableSelect({
           <div className="relative mb-2">
             <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
-              type="search"
+              type="text"
               autoFocus
               value={search}
               onChange={event => setSearch(event.target.value)}
               placeholder={searchPlaceholder}
               aria-label={`Search ${(accessibleLabel ?? placeholder).toLowerCase()}`}
-              className="h-7 pl-7 pr-2 text-xs md:text-xs"
+              className="h-7 pl-7 pr-6 text-xs md:text-xs"
             />
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            )}
           </div>
           <div className="max-h-56 space-y-0.5 overflow-auto" role="listbox" aria-label={accessibleLabel}>
             <Option label={placeholder} selected={value === null} onSelect={() => select(null)} />
