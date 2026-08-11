@@ -3,11 +3,11 @@
 
 import type {
   EntityListRequest,
-  EntityListResponse,
   FiniteStateMachine,
   OperatorFilter,
   QueryFilter,
 } from '@quent/utils';
+import type { EntityListResult } from '@quent/client';
 import type { EntityFilters, EntityTableRow } from './types';
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -83,12 +83,11 @@ export function buildEntityRequest({
   };
 }
 
-export function entityRows(data: EntityListResponse | undefined): EntityTableRow[] {
-  return (data?.items ?? []).map(item => ({
-    fsm: item.entity,
-    usageDurationS: item.usage_duration_s,
-    ...fsmSpan(item.entity),
-  }));
+export function entityRows(data: EntityListResult | undefined): EntityTableRow[] {
+  return (data?.items ?? []).map(item => {
+    const span = fsmSpan(item);
+    return { fsm: item, usageDurationS: span.end - span.start, ...span };
+  });
 }
 
 export function activeEntityFilterCount(

@@ -75,7 +75,7 @@ export function LongEntitiesRow({
   const entries = useMemo(
     () =>
       buildLongEntityEntries(
-        entities.map(e => e.entity),
+        entities,
         fsmTypes,
         isDark ? 'dark' : 'light',
         fsmStateScope === 'resource' ? new Set([resourceId]) : null
@@ -87,7 +87,7 @@ export function LongEntitiesRow({
   const handleEntityClick = useCallback(
     (entry: LongEntityEntry) => {
       if (!onEntitySelect) return;
-      const fsm = entities.find(e => e.entity.id === entry.entityId)?.entity;
+      const fsm = entities.find(e => e.id === entry.entityId);
       if (fsm) onEntitySelect(fsm);
     },
     [entities, onEntitySelect]

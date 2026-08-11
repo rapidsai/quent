@@ -82,7 +82,7 @@ describe('EntitiesTable', () => {
     vi.useFakeTimers();
     useEntities.mockReset();
     useEntities.mockReturnValue({
-      data: { items: [{ entity: fsm, usage_duration_s: 0.75 }], total: 1 },
+      data: { items: [fsm], total: 1 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -138,7 +138,7 @@ describe('EntitiesTable', () => {
     renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     expect(screen.getByText('Longest usage')).toBeInTheDocument();
-    expect(screen.getByText('750.00ms')).toBeInTheDocument();
+    expect(screen.getAllByText('1.00s').length).toBeGreaterThan(0);
 
     fireEvent.keyDown(screen.getByRole('row', { name: /Entity 1/ }), { key: 'Enter' });
 
@@ -162,7 +162,7 @@ describe('EntitiesTable', () => {
 
   it('dims existing rows while replacement data is pending', () => {
     useEntities.mockReturnValue({
-      data: { items: [{ entity: fsm, usage_duration_s: 0.75 }], total: 1 },
+      data: { items: [fsm], total: 1 },
       isLoading: false,
       isFetching: true,
       isError: false,

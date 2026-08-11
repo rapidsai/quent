@@ -30,6 +30,7 @@ export {
   entityListInfiniteQueryOptions,
   entityListQueryOptions,
 } from './entityList';
+export type { EntityListResult } from './api';
 
 // Hooks
 export { useQueryBundle } from './queryBundle';
