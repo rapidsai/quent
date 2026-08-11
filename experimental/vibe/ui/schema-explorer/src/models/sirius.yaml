@@ -1,0 +1,268 @@
+# Generated entirely by coding agents from prompts without human review or refinement.
+quent: alpha
+model: SiriusQueryEngine
+doc: Extended Sirius telemetry model with GPU topology and batch lifecycles.
+
+records:
+  WorkerConfig:
+    fields:
+      threads: u16
+      labels: { list: string }
+      attributes: dynamic
+  PortEdge:
+    fields:
+      source: { ref: Port }
+      target: { ref: Port }
+      kind: string
+  BatchOrigin:
+    fields:
+      kind: string
+      upstream_port: { option: { ref: Port } }
+      source_uri: { option: string }
+
+entities:
+  Engine:
+    events:
+      initialized:
+        attributes:
+          engine_id: uuid
+          implementation: string
+      exited: {}
+
+  Worker:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          worker_id: uuid
+          config: WorkerConfig
+
+  QueryGroup:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          group_id: uuid
+          label: string
+
+  Plan:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Query }
+          plan_id: uuid
+          kind: string
+          logical_parent: { option: { ref: Plan } }
+          worker: { option: { ref: Worker } }
+          edges: { list: PortEdge }
+
+  Operator:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Plan }
+          operator_id: uuid
+          parents: { list: { ref: Operator } }
+          implementation: dynamic
+      statistics_updated:
+        multi: true
+        attributes:
+          rows: u64
+          elapsed_ns: u64
+
+  Port:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Operator }
+          port_id: uuid
+          direction: string
+          peer: { option: { ref: Port } }
+      statistics_updated:
+        multi: true
+        attributes:
+          rows: u64
+          bytes: u64
+
+  Pipeline:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Operator }
+          pipeline_id: uuid
+          worker: { ref: Worker }
+          ports: { list: { ref: Port } }
+
+  GpuDevice:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Worker }
+          device_ordinal: u16
+          name: string
+
+  ThreadGroup:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: GpuDevice }
+          group_id: uuid
+          thread_count: u16
+
+  MemoryTier:
+    doc: GPU, host, or disk memory tier.
+    resource:
+      bytes: { kind: occupancy, known-bounds: true }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: GpuDevice }
+          resource_id: uuid
+          tier: string
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+  Compute:
+    resource:
+      threads: { kind: occupancy, known-bounds: true }
+      flops: { kind: rate }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: ThreadGroup }
+          resource_id: uuid
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+  TransferChannel:
+    resource:
+      bytes_per_second: { kind: rate, known-bounds: true }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: GpuDevice }
+          resource_id: uuid
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+fsms:
+  Query:
+    states:
+      registered:
+        initial: true
+        attributes:
+          parent: { scope-ref: QueryGroup }
+          query_id: uuid
+          sql: string
+        to: [planning, cancelled]
+      planning:
+        attributes:
+          worker: { ref: Worker }
+        to: [executing, cancelled]
+      executing:
+        attributes:
+          plan: { ref: Plan }
+        to: [finished, cancelled]
+      finished:
+        attributes: { rows: u64 }
+        to: [exit]
+      cancelled:
+        attributes: { reason: { option: string } }
+        to: [exit]
+      exit: {}
+
+  Task:
+    states:
+      created:
+        initial: true
+        attributes:
+          parent: { scope-ref: Pipeline }
+          task_id: uuid
+        to: [queued]
+      queued:
+        to: [reserving]
+      reserving:
+        attributes:
+          reservation: { uses: MemoryTier }
+        to: [preparing, queued]
+      preparing:
+        attributes:
+          memory: { uses: MemoryTier }
+          peak_allocation_bytes: u64
+        to: [computing, failed]
+      computing:
+        attributes:
+          memory: { uses: MemoryTier }
+          compute: { uses: Compute }
+          peak_allocation_bytes: u64
+        to: [finalizing, failed]
+      finalizing:
+        to: [completed, failed]
+      completed:
+        attributes: { rows: u64 }
+        to: [exit]
+      failed:
+        attributes: { reason: string }
+        to: [exit]
+      exit: {}
+
+  BatchPlacement:
+    doc: Lifecycle of one batch placement for one consuming pipeline.
+    states:
+      batch_registered:
+        initial: true
+        attributes:
+          parent: { scope-ref: Pipeline }
+          batch_id: uuid
+          port: { ref: Port }
+          origin: BatchOrigin
+          memory_tier: { uses: MemoryTier }
+        to: [batch_registered, batch_queued]
+      batch_queued:
+        attributes:
+          memory_tier: { uses: MemoryTier }
+        to: [batch_queued, batch_packaged]
+      batch_packaged:
+        attributes:
+          task: { ref: Task }
+          memory_tier: { uses: MemoryTier }
+        to: [batch_packaged, batch_processing]
+      batch_processing:
+        attributes:
+          task: { ref: Task }
+          memory_tier: { uses: MemoryTier }
+        to: [batch_processing, batch_consumed]
+      batch_consumed:
+        attributes: { reason: string }
+        to: [exit]
+      exit: {}
+
+  DataBatch:
+    doc: Physical data-batch residency and transfer lifecycle.
+    states:
+      constructed:
+        initial: true
+        attributes:
+          parent: { scope-ref: Port }
+          batch_id: uuid
+          producer: { ref: Pipeline }
+          bytes: u64
+        to: [stationary]
+      stationary:
+        attributes:
+          memory_tier: { uses: MemoryTier }
+        to: [in_transit, destructed]
+      in_transit:
+        attributes:
+          channel: { uses: TransferChannel }
+          destination: { ref: MemoryTier }
+        to: [stationary]
+      destructed:
+        to: [exit]
+      exit: {}

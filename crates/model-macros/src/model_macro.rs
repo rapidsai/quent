@@ -353,7 +353,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 pub fn import_events(
                     dir: &std::path::Path,
                 ) -> quent_model::io::ImporterResult<
-                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                    Box<
+                        dyn Iterator<
+                            Item = quent_model::io::ImporterResult<
+                                quent_model::Event<#event_type>
+                            >,
+                        >,
+                    >,
                 > {
                     // Detect the on-disk serialization format from the streams present;
                     // an empty/unrecognized context yields no events.
@@ -361,7 +367,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         return Ok(Box::new(std::iter::empty()));
                     };
                     let mut streams: Vec<
-                        Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                        Box<
+                            dyn Iterator<
+                                Item = quent_model::io::ImporterResult<
+                                    quent_model::Event<#event_type>
+                                >,
+                            >,
+                        >,
                     > = Vec::new();
                     #(
                         {
@@ -376,12 +388,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                                         },
                                     ),
                                 )?;
-                                streams.push(Box::new(importer.map(|e| {
-                                    quent_model::Event::new(
-                                        e.id,
-                                        e.timestamp,
-                                        #event_type::from(e.data),
-                                    )
+                                streams.push(Box::new(importer.map(|event| {
+                                    event.map(|event| {
+                                        quent_model::Event::new(
+                                            event.id,
+                                            event.timestamp,
+                                            #event_type::from(event.data),
+                                        )
+                                    })
                                 })));
                             }
                         }

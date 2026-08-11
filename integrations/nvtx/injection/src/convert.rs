@@ -9,9 +9,9 @@
 //! process-global one-shot. Two safety disciplines live
 //! here:
 //!
-//! * **String copy-in:** immediate `const char*` messages are copied
-//!   into an owned `String` before returning — the caller's pointer is valid
-//!   only for the call's duration, so nothing may outlive it.
+//! * **String copy-in:** immediate `const char*` / `const wchar_t*` messages
+//!   are copied into an owned `String` before returning — the caller's pointer
+//!   is valid only for the call's duration, so nothing may outlive it.
 //! * **Bounded reads:** `nvtxEventAttributes_t` carries an explicit
 //!   `size`; we read only the members `size` declares present, so an app built
 //!   against an older/smaller NVTX layout never triggers an over-read.
@@ -421,7 +421,8 @@ unsafe fn read_message(base: *const u8, size: usize) -> Option<NvtxMessage> {
 ///
 /// # Safety
 /// If `message_type` is `NVTX_MESSAGE_TYPE_ASCII`, `bits` must be a `const char*`
-/// valid for this call; the bytes are copied before returning.
+/// valid for this call. If `NVTX_MESSAGE_TYPE_UNICODE`, `bits` must be a
+/// `const wchar_t*` valid for this call. Both are copied before returning.
 unsafe fn decode_message(message_type: i32, bits: usize) -> Option<NvtxMessage> {
     match message_type as u32 {
         nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII => {
@@ -431,38 +432,19 @@ unsafe fn decode_message(message_type: i32, bits: usize) -> Option<NvtxMessage> 
                 copy_cstr(bits as *const c_char)
             }))
         }
+        nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE => {
+            // SAFETY: NVTX guarantees the const wchar_t* is valid for the call;
+            // the code points are copied into an owned String before returning.
+            Some(NvtxMessage::String(unsafe {
+                copy_wchar(bits as *const libc::wchar_t)
+            }))
+        }
         nvtxMessageType_t::NVTX_MESSAGE_TYPE_REGISTERED => {
             Some(NvtxMessage::RegisteredHandle(bits as u64))
         }
         // The default "no message" sentinel — silently absent, not an
-        // unsupported encoding, so it must not warn.
-        nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN => None,
-        // UNICODE (wide-char) and any other message encoding have no
-        // vocabulary representation; they are dropped (undecoded). Surface the
-        // gap once so an app using an unsupported/wide-char message
-        // surface gets a visible signal instead of a silent drop.
-        _ => {
-            warn_unsupported_message_once();
-            None
-        }
-    }
-}
-
-/// Emit a one-time, process-global diagnostic that an unsupported (e.g.
-/// wide-char / Unicode) NVTX message encoding was dropped.
-///
-/// This capture layer handles only the ASCII and registered-string message
-/// surfaces; the classic default-domain and wide-char APIs stay deferred. The cdylib installs
-/// no tracing subscriber, so this uses `eprintln!`; an [`AtomicBool`] guard
-/// fires it at most once per process to avoid spamming the hot capture path.
-fn warn_unsupported_message_once() {
-    static WARNED: AtomicBool = AtomicBool::new(false);
-    if !WARNED.swap(true, Ordering::Relaxed) {
-        eprintln!(
-            "nvtx-injection: an unsupported NVTX message encoding (e.g. wide-char/Unicode) was \
-             dropped; only the domain-scoped ASCII surface is captured. This warning \
-             fires once."
-        );
+        // unsupported encoding.
+        _ => None,
     }
 }
 
@@ -546,6 +528,109 @@ unsafe fn copy_cstr(ptr: *const c_char) -> String {
             warn_lossy_once();
             cstr.to_string_lossy().into_owned()
         }
+    }
+}
+
+/// Public (crate-visible) wrapper around [`copy_wchar`] for callers that need
+/// the conversion but have no surrounding `NvtxEvent` to build (e.g. the
+/// naming callbacks in [`crate::callbacks`]).
+///
+/// # Safety
+/// See [`copy_wchar`].
+pub(crate) unsafe fn copy_wchar_pub(ptr: *const libc::wchar_t) -> String {
+    // SAFETY: forwarded from the caller's contract on `ptr`.
+    unsafe { copy_wchar(ptr) }
+}
+
+/// Copy a caller-owned NUL-terminated wide string (`const wchar_t*`) into an
+/// owned UTF-8 `String`.
+///
+/// On Linux `wchar_t` is 32-bit (UTF-32), so each code unit maps directly to a
+/// Unicode scalar value via [`char::from_u32`]. Unrecognised code points (those
+/// that are not valid Unicode scalar values) are replaced with U+FFFD.
+///
+/// A NULL pointer maps to an empty `String`, matching [`copy_cstr`] semantics
+/// (NVTX treats NULL as "no text").
+///
+/// # Safety
+/// `ptr` must be null or a valid NUL-terminated `wchar_t` array readable for
+/// this call; the code points are copied into an owned `String` before returning.
+unsafe fn copy_wchar(ptr: *const libc::wchar_t) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    let mut s = String::new();
+    let mut p = ptr;
+    // SAFETY: caller guarantees a NUL-terminated sequence readable for this call.
+    while unsafe { *p } != 0 {
+        let cp = unsafe { *p } as u32;
+        s.push(char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER));
+        // SAFETY: still within the caller-guaranteed readable range.
+        p = unsafe { p.add(1) };
+    }
+    s
+}
+
+/// Build a message-only [`NvtxEventAttributes`] from a caller-owned wide string.
+///
+/// The wide-char default-domain `*W` calls (`nvtxMarkW`, `nvtxRangePushW`,
+/// `nvtxRangeStartW`) carry a bare `const wchar_t*`; the only attribute is the
+/// immediate message, converted to UTF-8.
+///
+/// # Safety
+/// `message` must be null or a valid NUL-terminated `wchar_t` array readable
+/// for this call; the code points are copied before returning.
+pub(crate) unsafe fn message_only_attributes_w(
+    message: *const libc::wchar_t,
+) -> NvtxEventAttributes {
+    NvtxEventAttributes {
+        // SAFETY: forwarded from the caller's contract on `message`.
+        message: Some(NvtxMessage::String(unsafe { copy_wchar(message) })),
+        ..Default::default()
+    }
+}
+
+/// Convert a default-domain `nvtxMarkW` call to a verbatim [`NvtxEvent::Mark`]
+/// on the default domain (`0`).
+///
+/// # Safety
+/// See [`message_only_attributes_w`].
+pub(crate) unsafe fn mark_w(message: *const libc::wchar_t) -> NvtxEvent {
+    // SAFETY: forwarded from the caller's contract on `message`.
+    let attributes = unsafe { message_only_attributes_w(message) };
+    NvtxEvent::Mark {
+        domain: 0,
+        attributes,
+    }
+}
+
+/// Convert a default-domain `nvtxRangePushW` call to a verbatim
+/// [`NvtxEvent::RangePush`] on the default domain (`0`).
+///
+/// # Safety
+/// See [`message_only_attributes_w`].
+pub(crate) unsafe fn range_push_w(message: *const libc::wchar_t, thread_id: u32) -> NvtxEvent {
+    // SAFETY: forwarded from the caller's contract on `message`.
+    let attributes = unsafe { message_only_attributes_w(message) };
+    NvtxEvent::RangePush {
+        domain: 0,
+        thread_id,
+        attributes,
+    }
+}
+
+/// Convert a default-domain `nvtxRangeStartW` call to a verbatim
+/// [`NvtxEvent::RangeStart`] on the default domain (`0`).
+///
+/// # Safety
+/// See [`message_only_attributes_w`].
+pub(crate) unsafe fn range_start_w(range_id: u64, message: *const libc::wchar_t) -> NvtxEvent {
+    // SAFETY: forwarded from the caller's contract on `message`.
+    let attributes = unsafe { message_only_attributes_w(message) };
+    NvtxEvent::RangeStart {
+        domain: 0,
+        range_id,
+        attributes,
     }
 }
 
@@ -1157,5 +1242,122 @@ mod tests {
         // The synthesized handle survives so a later ResourceDestroy correlates.
         assert_eq!(handle, 0x99);
         assert_eq!((identifier_type, identifier, message), (0, 0, None));
+    }
+
+    // ---- Wide-char (`*W`) conversions ----------------------------------------
+
+    use super::{copy_wchar_pub, mark_w, range_push_w, range_start_w};
+
+    /// Build a NUL-terminated `wchar_t` array from a Rust string slice.
+    ///
+    /// On Linux `wchar_t` is `i32` (UTF-32); each `char` maps to one code unit.
+    fn wchar_literal(s: &str) -> Vec<libc::wchar_t> {
+        let mut v: Vec<libc::wchar_t> = s.chars().map(|c| c as libc::wchar_t).collect();
+        v.push(0);
+        v
+    }
+
+    #[test]
+    fn copy_wchar_converts_ascii_wide_string_to_utf8() {
+        let wide = wchar_literal("hello");
+        // SAFETY: `wide` is a valid NUL-terminated wchar_t array.
+        let s = unsafe { copy_wchar_pub(wide.as_ptr()) };
+        assert_eq!(s, "hello");
+    }
+
+    #[test]
+    fn copy_wchar_converts_unicode_code_points() {
+        // U+1F600 GRINNING FACE — outside the BMP, confirms 32-bit code unit handling.
+        let wide = wchar_literal("café \u{1F600}");
+        // SAFETY: `wide` is a valid NUL-terminated wchar_t array.
+        let s = unsafe { copy_wchar_pub(wide.as_ptr()) };
+        assert_eq!(s, "café \u{1F600}");
+    }
+
+    #[test]
+    fn copy_wchar_null_maps_to_empty_string() {
+        // SAFETY: null is an explicitly handled input.
+        let s = unsafe { copy_wchar_pub(std::ptr::null()) };
+        assert_eq!(s, "");
+    }
+
+    #[test]
+    fn mark_w_captures_wide_message_on_default_domain() {
+        let wide = wchar_literal("wide-mark");
+        // SAFETY: `wide` is a valid NUL-terminated wchar_t array.
+        let NvtxEvent::Mark { domain, attributes } = (unsafe { mark_w(wide.as_ptr()) }) else {
+            panic!("expected Mark");
+        };
+        assert_eq!(domain, 0);
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("wide-mark".to_owned()))
+        );
+    }
+
+    #[test]
+    fn range_push_w_captures_wide_label_with_thread_id() {
+        let wide = wchar_literal("wide-push");
+        // SAFETY: `wide` is a valid NUL-terminated wchar_t array.
+        let NvtxEvent::RangePush {
+            domain,
+            thread_id,
+            attributes,
+        } = (unsafe { range_push_w(wide.as_ptr(), 9999) })
+        else {
+            panic!("expected RangePush");
+        };
+        assert_eq!(domain, 0);
+        assert_eq!(thread_id, 9999);
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("wide-push".to_owned()))
+        );
+    }
+
+    #[test]
+    fn range_start_w_captures_wide_label_and_id() {
+        let wide = wchar_literal("wide-start");
+        let range_id: u64 = 0xCAFE;
+        // SAFETY: `wide` is a valid NUL-terminated wchar_t array.
+        let NvtxEvent::RangeStart {
+            domain,
+            range_id: rid,
+            attributes,
+        } = (unsafe { range_start_w(range_id, wide.as_ptr()) })
+        else {
+            panic!("expected RangeStart");
+        };
+        assert_eq!(domain, 0);
+        assert_eq!(rid, range_id);
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("wide-start".to_owned()))
+        );
+    }
+
+    #[test]
+    fn unicode_message_type_in_event_attributes_is_decoded() {
+        // An app that uses nvtxDomainRangePushEx with messageType=UNICODE should
+        // have its wide label captured, not dropped.
+        let wide = wchar_literal("domain-wide");
+        let attr = nvtxEventAttributes_v2 {
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE as i32,
+            message: nvtxMessageValue_t {
+                // The unicode union member is a *const wchar_t; store as ascii
+                // field (same union, pointer width) since bindgen aliases them.
+                ascii: wide.as_ptr().cast(),
+            },
+            ..full_attr()
+        };
+        // SAFETY: `attr` is a valid, fully-sized attribute struct; `wide` lives
+        // for the duration of the call.
+        let NvtxEvent::RangePush { attributes, .. } = (unsafe { range_push(0, &attr, 0) }) else {
+            panic!("expected RangePush");
+        };
+        assert_eq!(
+            attributes.message,
+            Some(NvtxMessage::String("domain-wide".to_owned()))
+        );
     }
 }

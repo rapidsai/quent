@@ -82,17 +82,34 @@ impl From<std::io::Error> for ExporterError {
 /// Result of exporters.
 pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
 
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum ImporterError {
-    #[error("i/o error: {0}")]
-    IoError(#[from] std::io::Error),
+    /// Any failure originating in the importer implementation.
+    #[error(transparent)]
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
+
+impl ImporterError {
+    /// Wrap an implementation-specific error as [`ImporterError::Other`].
+    pub fn other<E: std::error::Error + Send + Sync + 'static>(error: E) -> Self {
+        Self::Other(Box::new(error))
+    }
+}
+
+impl From<std::io::Error> for ImporterError {
+    fn from(error: std::io::Error) -> Self {
+        Self::other(error)
+    }
+}
+
+/// Maximum supported payload size for length-prefixed importer frames.
+pub const MAX_FRAME_SIZE_BYTES: usize = 64 * 1024 * 1024;
 
 /// Result type for importers.
 pub type ImporterResult<T> = std::result::Result<T, ImporterError>;
 
 /// A source of one entity's events.
-pub trait Importer<T>: Iterator<Item = Event<T>> {}
+pub trait Importer<T>: Iterator<Item = ImporterResult<Event<T>>> {}
 
 /// Provides an importer instance for `T`.
 pub trait ImporterProvider<T> {
@@ -104,8 +121,9 @@ pub trait ImporterProvider<T> {
 /// unchanged.
 ///
 /// # Errors
-/// Returns [`ImporterError::IoError`] if the directory cannot be read or
-/// contains no file with extension `ext`.
+///
+/// Returns an error if the directory cannot be read or contains no file with
+/// extension `ext`.
 pub fn resolve_import_path(
     path: &std::path::Path,
     ext: &str,
@@ -119,10 +137,11 @@ pub fn resolve_import_path(
             return Ok(candidate);
         }
     }
-    Err(ImporterError::IoError(std::io::Error::new(
+    Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         format!("no .{ext} file found in directory {}", path.display()),
-    )))
+    )
+    .into())
 }
 
 #[cfg(test)]

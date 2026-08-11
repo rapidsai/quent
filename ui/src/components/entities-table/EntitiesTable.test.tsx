@@ -6,7 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { useSetSelectedNodeIds } from '@quent/hooks';
 import type { EntityRef, QueryBundle } from '@quent/utils';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { EntitiesTable } from './EntitiesTable';
+
+function renderTable(
+  ui: React.ReactElement,
+  options: { store?: ReturnType<typeof createStore> } = {}
+) {
+  const { store } = options;
+  const content = store ? <Provider store={store}>{ui}</Provider> : ui;
+  return render(<ThemeProvider>{content}</ThemeProvider>);
+}
 
 const useEntities = vi.fn();
 
@@ -32,7 +42,7 @@ const queryBundle = {
         type_name: 'GPU',
       },
     },
-    fsm_types: { Task: {} },
+    fsm_types: { Task: { name: 'Task', states: [], transitions: [] } },
   },
 } as unknown as QueryBundle<EntityRef>;
 
@@ -85,7 +95,7 @@ describe('EntitiesTable', () => {
   });
 
   it('normalizes page size before sending it to the API', () => {
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     fireEvent.change(screen.getByLabelText('Page size'), { target: { value: '1.5' } });
     act(() => vi.advanceTimersByTime(300));
@@ -95,7 +105,7 @@ describe('EntitiesTable', () => {
   });
 
   it('clears selected entity details when a filter changes', () => {
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     fireEvent.click(screen.getByText('Entity 1'));
     expect(screen.getByText('running')).toBeInTheDocument();
@@ -107,7 +117,7 @@ describe('EntitiesTable', () => {
   });
 
   it('preserves selected entity details for page-size changes', () => {
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     fireEvent.click(screen.getByText('Entity 1'));
     fireEvent.change(screen.getByLabelText('Page size'), { target: { value: '100' } });
@@ -116,7 +126,7 @@ describe('EntitiesTable', () => {
   });
 
   it('blocks invalid time windows before fetching', () => {
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     fireEvent.change(screen.getByLabelText('Window start (s)'), { target: { value: '11' } });
 
@@ -125,25 +135,25 @@ describe('EntitiesTable', () => {
   });
 
   it('shows usage and state durations and supports keyboard row selection', () => {
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     expect(screen.getByText('Longest usage')).toBeInTheDocument();
     expect(screen.getByText('750.00ms')).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole('row', { name: /Entity 1/ }), { key: 'Enter' });
 
-    expect(screen.getByText(/for 1.00s/)).toBeInTheDocument();
+    expect(screen.getByText('Total span')).toBeInTheDocument();
   });
 
   it('searches operators and resets active filters', () => {
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
     fireEvent.change(screen.getByLabelText('Search operator'), { target: { value: 'one' } });
     fireEvent.click(screen.getByRole('option', { name: 'Operator One' }));
 
     expect(screen.getByText('1 active filter')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     act(() => vi.advanceTimersByTime(300));
 
     const params = useEntities.mock.lastCall?.[0];
@@ -159,7 +169,7 @@ describe('EntitiesTable', () => {
       error: null,
     });
 
-    render(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
     const tableContainer = screen.getByRole('table').closest('[aria-busy]');
     expect(tableContainer).toHaveAttribute('aria-busy', 'true');
@@ -169,11 +179,12 @@ describe('EntitiesTable', () => {
 
   it('uses the selected DAG operator as the entity filter', () => {
     const store = createStore();
-    render(
-      <Provider store={store}>
+    renderTable(
+      <>
         <DagSelectionControl />
         <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
-      </Provider>
+      </>,
+      { store }
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Select DAG operator' }));

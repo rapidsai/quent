@@ -14,7 +14,6 @@
 
 use std::os::raw::{c_char, c_int, c_void};
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::bindings::{
     nvtxDomainHandle_t, nvtxEventAttributes_t, nvtxRangeId_t, nvtxResourceAttributes_t,
@@ -290,56 +289,72 @@ pub(crate) extern "C" fn on_name_category_a(category: u32, name: *const c_char) 
     });
 }
 
-// ---- Wide-char (Unicode) CORE stubs ---------------------------------------
+// ---- Wide-char (Unicode) CORE callbacks -----------------------------------
 //
-// The `*W` variants carry UTF-16 strings, which have no vocabulary
-// representation yet. Rather than leave them unsubscribed (NVTX would then null
-// them into silent no-ops), we subscribe stubs that warn once and preserve
-// range nesting/ids, so an app mixing ASCII and wide-char calls keeps balanced
-// ranges and valid return values while the wide labels are dropped.
+// On Linux `wchar_t` is 32-bit (UTF-32), so each code unit is a Unicode scalar
+// value. `convert::copy_wchar` iterates the NUL-terminated sequence and builds
+// an owned UTF-8 `String`; the result enters the event stream as a plain
+// `NvtxMessage::String`, identical to the ASCII surface. No vocabulary changes
+// are needed downstream.
 
-/// Emit a one-time, process-global diagnostic that a wide-char (`*W`) NVTX call
-/// was seen but not captured. Fires at most once to avoid spamming the hot path.
-fn warn_wide_surface_once() {
-    static WARNED: AtomicBool = AtomicBool::new(false);
-    if !WARNED.swap(true, Ordering::Relaxed) {
-        eprintln!(
-            "nvtx-injection: a wide-char (Unicode) NVTX call was seen but not captured; only the \
-             ASCII surface is decoded. This warning fires once."
-        );
-    }
+/// CORE `MarkW` subscriber — wide-char instantaneous marker on the default domain.
+pub(crate) extern "C" fn on_mark_w(message: *const c_void) {
+    let _ = std::panic::catch_unwind(|| {
+        // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
+        // wchar_t array for this call; copy_wchar copies before returning.
+        let event = unsafe { convert::mark_w(message.cast()) };
+        init::dispatch(event);
+    });
 }
 
-/// CORE `MarkW` stub — wide-char marker, dropped with a one-time warning.
-pub(crate) extern "C" fn on_mark_w(_message: *const c_void) {
-    let _ = std::panic::catch_unwind(warn_wide_surface_once);
-}
-
-/// CORE `RangeStartW` stub — synthesizes/RETURNS an id so a later `RangeEnd`
-/// stays valid; the wide label is dropped and warned once.
-pub(crate) extern "C" fn on_range_start_w(_message: *const c_void) -> nvtxRangeId_t {
+/// CORE `RangeStartW` subscriber — synthesizes and RETURNS a process-unique id,
+/// then captures the wide-char label converted to UTF-8.
+pub(crate) extern "C" fn on_range_start_w(message: *const c_void) -> nvtxRangeId_t {
     let range_id = init::next_handle();
-    let _ = std::panic::catch_unwind(warn_wide_surface_once);
+    let _ = std::panic::catch_unwind(|| {
+        // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
+        // wchar_t array for this call.
+        let event = unsafe { convert::range_start_w(range_id, message.cast()) };
+        init::dispatch(event);
+    });
     range_id
 }
 
-/// CORE `RangePushW` stub — preserves default-domain nesting; label dropped,
-/// warned once.
-pub(crate) extern "C" fn on_range_push_w(_message: *const c_void) -> c_int {
+/// CORE `RangePushW` subscriber — returns the 0-based default-domain nesting
+/// level of the range being started, capturing the wide-char label as UTF-8.
+pub(crate) extern "C" fn on_range_push_w(message: *const c_void) -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        warn_wide_surface_once();
         level = init::range_push_level(0);
+        let thread_id = init::current_thread_id();
+        // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
+        // wchar_t array for this call.
+        let event = unsafe { convert::range_push_w(message.cast(), thread_id) };
+        init::dispatch(event);
     }));
     level
 }
 
-/// CORE `NameCategoryW` stub — wide-char category name, dropped with a warning.
-pub(crate) extern "C" fn on_name_category_w(_category: u32, _name: *const c_void) {
-    let _ = std::panic::catch_unwind(warn_wide_surface_once);
+/// CORE `NameCategoryW` subscriber — wide-char category name on the default domain.
+pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const c_void) {
+    let _ = std::panic::catch_unwind(|| {
+        // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
+        // wchar_t array for this call.
+        let name = unsafe { convert::copy_wchar_pub(name.cast()) };
+        init::dispatch(nvtx_events::NvtxEvent::NameCategory {
+            domain: 0,
+            category,
+            name,
+        });
+    });
 }
 
-/// CORE `NameOsThreadW` stub — wide-char thread name, dropped with a warning.
-pub(crate) extern "C" fn on_name_os_thread_w(_thread_id: u32, _name: *const c_void) {
-    let _ = std::panic::catch_unwind(warn_wide_surface_once);
+/// CORE `NameOsThreadW` subscriber — wide-char thread name.
+pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const c_void) {
+    let _ = std::panic::catch_unwind(|| {
+        // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
+        // wchar_t array for this call.
+        let name = unsafe { convert::copy_wchar_pub(name.cast()) };
+        init::dispatch(nvtx_events::NvtxEvent::NameThread { thread_id, name });
+    });
 }

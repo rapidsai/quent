@@ -130,7 +130,7 @@ function SegmentedBarRow({
       </div>
       <DataText
         className={cn(
-          'text-foreground font-semibold text-[11px] text-right tracking-tighter>',
+          'text-foreground font-semibold text-[11px] text-right tracking-tighter',
           valueClassName
         )}
       >

@@ -38,6 +38,8 @@ interface DAGControlsProps {
   isDark: boolean;
 }
 
+const FOLLOW_MEASURE = '__follow_measure__';
+
 const NODE_LABEL_OPTIONS: SelectFieldOption[] = [
   { value: NODE_LABEL_FIELD.NAME, label: 'Name' },
   { value: NODE_LABEL_FIELD.ID, label: 'ID' },
@@ -203,10 +205,13 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
                 <ControlField label="Bar labels" icon={Tags}>
                   <SelectField
                     ariaLabel="Bar labels"
-                    options={measureOptions}
-                    value={dataFlowLabelMeasure ?? ''}
-                    onValueChange={setDataFlowLabelMeasure}
-                    placeholder="Follow measure"
+                    options={[
+                      { value: FOLLOW_MEASURE, label: 'Follow measure' },
+                      ...measureOptions,
+                    ]}
+                    value={dataFlowLabelMeasure ?? FOLLOW_MEASURE}
+                    onValueChange={v => setDataFlowLabelMeasure(v === FOLLOW_MEASURE ? null : v)}
+                    clearable={false}
                     triggerClassName="h-6 text-xs"
                   />
                 </ControlField>

@@ -36,10 +36,9 @@ function findInsertionIndex(intervals: PackedInterval[], startMs: number): numbe
 /** Greedily pack intervals in input order so appended entries do not move existing rows. */
 export function stackIntervalsIntoRows<
   T extends { startMs: number; endMs: number; rowIndex: number },
->(entries: T[]): T[] {
-  if (entries.length === 0) return entries;
-
+>(entries: readonly T[]): T[] {
   const rows: PackedInterval[][] = [];
+  const stackedEntries: T[] = [];
   for (const entry of entries) {
     let row = 0;
     let insertionIndex = 0;
@@ -58,9 +57,10 @@ export function stackIntervalsIntoRows<
     }
 
     if (row === rows.length) rows.push([]);
-    rows[row]!.splice(insertionIndex, 0, entry);
-    entry.rowIndex = row;
+    const stackedEntry = { ...entry, rowIndex: row };
+    rows[row]!.splice(insertionIndex, 0, stackedEntry);
+    stackedEntries.push(stackedEntry);
   }
 
-  return entries;
+  return stackedEntries;
 }

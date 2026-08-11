@@ -54,6 +54,7 @@ export function Timeline({
   isDark,
   yAxisLabel,
   onHoverChange,
+  onReady,
 }: {
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
   durationSeconds: number;
@@ -68,6 +69,8 @@ export function Timeline({
   yAxisLabel?: string;
   /** Pointer-state callback. */
   onHoverChange?: (position: TimelineHoverPosition | null) => void;
+  /** Called when the underlying ECharts instance is ready or recreated. */
+  onReady?: (instance: EChartsInstance) => void;
 }) {
   const { themeName, textColor, labelBackgroundColor } = useTimelineEchartsTheme(isDark);
   const maxMarkCountRef = useRef(0);
@@ -358,6 +361,7 @@ export function Timeline({
     });
 
     attachWheelNavigation(instance);
+    onReady?.(instance);
   };
 
   // If this Timeline is unmounted while the pointer is over it (e.g. a tree

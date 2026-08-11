@@ -114,6 +114,7 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
             )?;
             let mut seen = HashSet::new();
             for event in importer {
+                let event = event?;
                 if seen.insert(event.id) {
                     index.attribute_context(event.id, context_id);
                 }
@@ -131,6 +132,7 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
             )?;
             let mut seen = HashSet::new();
             for event in importer {
+                let event = event?;
                 if let WorkerEvent::Init(init) = &event.data
                     && seen.insert(event.id)
                 {

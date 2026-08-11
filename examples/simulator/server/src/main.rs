@@ -121,7 +121,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // make up an engine instance.
     let importer = move |context_id| {
         let dir = importer_output_dir.join(format!("{context_id}"));
-        Ok(Simulator::import_events(&dir)?)
+        let events =
+            Simulator::import_events(&dir)?.collect::<quent_io::ImporterResult<Vec<_>>>()?;
+        Ok::<Box<dyn Iterator<Item = _>>, quent_query_engine_server::error::ServerError>(Box::new(
+            events.into_iter(),
+        ))
     };
 
     let analyzer = async {

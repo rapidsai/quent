@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 // Re-exports.
 pub use quent_io_types::{
-    Exporter, ExporterProvider, ExporterResult, ImporterError, ImporterProvider, ImporterResult,
+    Exporter, ExporterProvider, ExporterResult, Importer, ImporterError, ImporterProvider,
+    ImporterResult,
 };
 
 // Feature-gated re-exports for convenience.

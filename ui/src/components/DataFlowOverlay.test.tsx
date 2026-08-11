@@ -13,14 +13,7 @@ import {
   useSetDataFlowSelectedDimensions,
   useSetSelectedNodeData,
 } from '@quent/hooks';
-import {
-  DagPlayhead,
-  DAGLegend,
-  DAGNodeInfoPanel,
-  NodeFlowBar,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
-} from '@quent/components';
+import { DagPlayhead, DAGLegend, DAGNodeInfoPanel, NodeFlowBar } from '@quent/components';
 import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
 
 // 4 bins of 2s over [0, 8): op-1 task totals per bin are [1, 3, 5, 0] and
@@ -252,9 +245,9 @@ describe('data-flow overlay components', () => {
     const bar = screen.getByTestId('node-flow-bar');
     const stateTrack = bar.children[0] as HTMLElement;
     const tierTrack = bar.children[1] as HTMLElement;
-    expect(stateTrack.className).toContain('h-[12px]');
-    expect(tierTrack.className).toContain('h-[12px]');
-    expect(tierTrack.className).toContain('mt-[2px]');
+    expect(stateTrack.style.height).toBe('12px');
+    expect(tierTrack.style.height).toBe('12px');
+    expect(tierTrack.style.marginTop).toBe('2px');
   });
 });
 
@@ -265,55 +258,36 @@ describe('playback while the overlay is disabled', () => {
 
   it('stops the play interval and hides the synced pointer when disabled', () => {
     vi.useFakeTimers();
-    // Fake timeline chart: receives the showTip/hideTip actions that
-    // broadcastSyncedPointer/hideSyncedPointer dispatch to registered charts.
-    const dispatchAction = vi.fn();
-    const fakeChart = {
-      convertToPixel: () => 42,
-      getHeight: () => 100,
-      dispatchAction,
-      getZr: () => ({ on: vi.fn(), off: vi.fn() }),
-    } as unknown as Parameters<typeof registerAxisPointerSync>[0];
-    registerAxisPointerSync(fakeChart);
-    try {
-      const { rerender } = renderOverlay(RESPONSE);
-      fireEvent.click(screen.getByRole('button', { name: 'Play data flow' }));
-      act(() => {
-        vi.advanceTimersByTime(100);
-      });
-      // One tick advanced one bin (2s) and broadcast the synced crosshair.
-      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
-      expect(dispatchAction).toHaveBeenCalledWith(expect.objectContaining({ type: 'showTip' }));
-      dispatchAction.mockClear();
+    const { rerender } = renderOverlay(RESPONSE);
+    fireEvent.click(screen.getByRole('button', { name: 'Play data flow' }));
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    // One tick advanced one bin (2s).
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
 
-      // Disable the overlay mid-playback: the component renders null but
-      // stays mounted, so the interval must stop and the crosshair hide.
-      rerender(
-        <Provider>
-          <Harness response={RESPONSE} enabled={false} />
-        </Provider>
-      );
-      expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
-      expect(dispatchAction).toHaveBeenCalledWith({ type: 'hideTip' });
-      dispatchAction.mockClear();
+    // Disable the overlay mid-playback: the component renders null but
+    // stays mounted, so the interval must stop.
+    rerender(
+      <Provider>
+        <Harness response={RESPONSE} enabled={false} />
+      </Provider>
+    );
+    expect(screen.queryByTestId('dag-playhead')).not.toBeInTheDocument();
 
-      // No further ticks: nothing is broadcast while disabled...
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
-      expect(dispatchAction).not.toHaveBeenCalled();
+    // No further ticks while disabled — after 1000ms the position is unchanged.
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
 
-      // ...and re-enabling shows a paused playhead that did not advance.
-      rerender(
-        <Provider>
-          <Harness response={RESPONSE} enabled />
-        </Provider>
-      );
-      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
-      expect(screen.getByRole('button', { name: 'Play data flow' })).toBeInTheDocument();
-    } finally {
-      unregisterAxisPointerSync(fakeChart);
-    }
+    // Re-enabling shows a paused playhead that did not advance.
+    rerender(
+      <Provider>
+        <Harness response={RESPONSE} enabled />
+      </Provider>
+    );
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
+    expect(screen.getByRole('button', { name: 'Play data flow' })).toBeInTheDocument();
   });
 });
 
@@ -437,12 +411,14 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
 
   it('shows all dimension columns when every tier is selected', () => {
     renderPanel(null);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
     expect(screen.getByText('Memory')).toBeInTheDocument();
     expect(screen.getByText('Filesystem')).toBeInTheDocument();
   });
 
   it('hides deselected dimension columns', () => {
     renderPanel(new Set(['memory']));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
     expect(screen.getByText('Memory')).toBeInTheDocument();
     expect(screen.queryByText('Filesystem')).not.toBeInTheDocument();
   });

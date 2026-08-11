@@ -65,13 +65,13 @@ export const DataFlowMatrix = ({
   return (
     <div className="pt-1.5">
       <div className="text-xs font-medium">
-        Data flow @ <DataText>{formatDuration(frame.timeS * 1000)}</DataText>
+        Activity @ <DataText>{formatDuration(frame.timeS * 1000)}</DataText>
         <span className="text-muted-foreground font-normal">
           {' '}
           · {measureDecl?.display_name ?? frame.measure} during this bin
         </span>
       </div>
-      <table className="mt-1 text-xs w-full border-separate border-spacing-0">
+      <table className="mt-1 text-xs min-w-full border-separate border-spacing-0 whitespace-nowrap">
         <thead>
           <tr>
             <th scope="col" className="text-left font-normal text-muted-foreground pr-2">
@@ -97,7 +97,7 @@ export const DataFlowMatrix = ({
         <tbody>
           {meta.stateNames.map((state, stateIndex) => (
             <tr key={state}>
-              <th scope="row" className="pr-2 text-left font-normal">
+              <th scope="row" className="pr-2 text-left font-normal whitespace-nowrap">
                 <span className="inline-flex items-center gap-1">
                   <ColorSwatch color={stateColor(state)} shape="square" />
                   <DataText>{state}</DataText>

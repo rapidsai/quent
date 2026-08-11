@@ -43,7 +43,7 @@ import {
   useDataFlowEnabled,
   useDataFlowMeta,
 } from '@quent/hooks';
-import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
+import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
@@ -441,7 +441,12 @@ const FlowLayout = ({
 
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
-      const layoutResult = await calculateLayout(flowNodes, flowEdges, layoutDirection);
+      const layoutResult = await calculateLayout(
+        flowNodes,
+        flowEdges,
+        layoutDirection,
+        NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0)
+      );
       if (cancelled) return;
 
       setNodes(layoutResult.nodes);
@@ -455,7 +460,7 @@ const FlowLayout = ({
     return () => {
       cancelled = true;
     };
-  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection]);
+  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection, flowBarVisible]);
 
   return (
     <ReactFlow

@@ -15,8 +15,10 @@ import {
 } from '@quent/hooks';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineTooltipPortal } from './TimelineTooltipPortal';
+import { PlayheadLine } from './PlayheadLine';
 import type { TimelineHoverPosition } from './Timeline';
-import { useCallback, useEffect, useId, useMemo, useRef, lazy, Suspense } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import type { EChartsInstance } from 'echarts-for-react';
 import {
   buildBinnedTimelineSeries,
   dimSeries,
@@ -245,6 +247,10 @@ export function ResourceTimeline({
   // across the loading / error / data render branches.
   const ownerId = useId();
   const setTimelineHover = useSetTimelineHover();
+  const [chartInstance, setChartInstance] = useState<EChartsInstance | null>(null);
+  const handleChartReady = useCallback((instance: EChartsInstance) => {
+    setChartInstance(instance);
+  }, []);
   const handleHoverChange = useCallback(
     (position: TimelineHoverPosition | null) => {
       if (position == null) {
@@ -276,7 +282,7 @@ export function ResourceTimeline({
   const effectiveYAxisLabel = yAxisLabel ?? fsmTypeName;
 
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
       <Suspense fallback={<TimelineSkeleton />}>
         <Timeline
           series={series}
@@ -286,11 +292,13 @@ export function ResourceTimeline({
           isDark={isDark}
           yAxisLabel={effectiveYAxisLabel}
           onHoverChange={handleHoverChange}
+          onReady={handleChartReady}
         />
         {showTooltip && (
           <TimelineTooltipPortal ownerId={ownerId} series={series} timestamps={timestamps ?? []} />
         )}
       </Suspense>
+      <PlayheadLine instance={chartInstance} />
     </div>
   );
 }

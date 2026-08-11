@@ -1,0 +1,60 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default;
+}
+@source "../../schema-viewer/src";
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+.yaml-editor {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.yaml-editor__surface {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.yaml-editor .cm-editor {
+  height: 100%;
+  min-width: 0;
+  font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+}
+
+.yaml-editor .cm-editor.cm-focused {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.yaml-editor .cm-scroller {
+  overflow: auto;
+}
+
+.yaml-editor .cm-content {
+  padding-block: 0.65rem;
+}
+
+.yaml-editor .cm-gutters {
+  border-right-color: #334155;
+}

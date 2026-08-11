@@ -44,7 +44,7 @@ export function LongEntitiesRow({
   durationSeconds,
   fsmTypes,
   isDark,
-  fsmStateScope = 'all',
+  fsmStateScope = 'resource',
   onEntitySelect,
   selectedEntityId,
   onBackgroundClick,
@@ -52,17 +52,17 @@ export function LongEntitiesRow({
   const selectedNodeIds = useSelectedNodeIds();
   const debouncedZoomRange = useDebouncedZoomRange();
   const operatorIds = useMemo(() => [...selectedNodeIds], [selectedNodeIds]);
-  const window =
+  const zoomWindow =
     debouncedZoomRange.end > debouncedZoomRange.start
       ? debouncedZoomRange
       : { start: 0, end: durationSeconds };
-  const minUsageSeconds = getLongEntitiesThreshold(window.end - window.start);
+  const minUsageSeconds = getLongEntitiesThreshold(zoomWindow.end - zoomWindow.start);
 
   const { data, fetchNextPage, hasNextPage, isFetching, isPlaceholderData } = useInfiniteEntityList(
     {
       engineId,
       queryId,
-      window,
+      window: zoomWindow,
       operatorIds,
       minUsageSeconds,
       sortDir: 'Desc',
@@ -92,6 +92,7 @@ export function LongEntitiesRow({
     },
     [entities, onEntitySelect]
   );
+
 
   if (!data && isFetching) {
     return (

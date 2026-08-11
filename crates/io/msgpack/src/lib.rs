@@ -5,16 +5,23 @@
 //!
 //! File format: sequence of length-prefixed records.
 //! Each record: `[4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]`
-use std::{io::BufReader, marker::PhantomData, path::PathBuf};
+use std::{
+    io::{BufReader, Read},
+    marker::PhantomData,
+    path::PathBuf,
+};
 
 use quent_events::{EntityEvent, Event};
-use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_io_types::{
+    Exporter, ExporterError, ExporterResult, Importer, ImporterError, ImporterResult,
+    MAX_FRAME_SIZE_BYTES,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// File extension for MessagePack event files.
@@ -113,6 +120,7 @@ pub struct MsgpackImporterOptions {
 
 pub struct MsgpackImporter<T> {
     reader: BufReader<std::fs::File>,
+    terminated: bool,
     _phantom: PhantomData<T>,
 }
 
@@ -122,6 +130,7 @@ impl<T> MsgpackImporter<T> {
         let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
+            terminated: false,
             _phantom: Default::default(),
         })
     }
@@ -133,31 +142,54 @@ impl<T> Iterator for MsgpackImporter<T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    type Item = Event<T>;
+    type Item = ImporterResult<Event<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use std::io::Read;
-        let mut len_buf = [0u8; 4];
-        match self.reader.read_exact(&mut len_buf) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return None,
-            Err(e) => {
-                error!("failed to read msgpack length: {e}");
-                return None;
-            }
-        }
-        let len = u32::from_be_bytes(len_buf) as usize;
-        let mut payload = vec![0u8; len];
-        if let Err(e) = self.reader.read_exact(&mut payload) {
-            error!("failed to read msgpack payload: {e}");
+        if self.terminated {
             return None;
         }
-        match rmp_serde::from_slice::<Event<T>>(&payload) {
-            Ok(event) => Some(event),
-            Err(e) => {
-                error!("failed to deserialize msgpack event: {e}");
-                None
-            }
+
+        let mut len_buf = [0u8; 4];
+        match self.reader.read(&mut len_buf[..1]) {
+            Ok(0) => return None,
+            Ok(_) => {}
+            // The reader position after an I/O failure may not be a frame boundary.
+            Err(error) => return self.fail(error.into()),
         }
+        if let Err(error) = self.reader.read_exact(&mut len_buf[1..]) {
+            // An incomplete length prefix does not identify the next frame boundary.
+            return self.fail(error.into());
+        }
+        let len = u32::from_be_bytes(len_buf) as usize;
+        if len > MAX_FRAME_SIZE_BYTES {
+            // Consuming an unsupported payload could require unbounded I/O before resuming.
+            return self.fail(ImporterError::other(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "frame size {len} exceeds the supported maximum of {MAX_FRAME_SIZE_BYTES} bytes"
+                ),
+            )));
+        }
+        let mut payload = Vec::new();
+        if let Err(error) = payload.try_reserve_exact(len) {
+            // Without a payload buffer, this importer cannot decode the current frame.
+            return self.fail(ImporterError::other(error));
+        }
+        payload.resize(len, 0);
+        if let Err(error) = self.reader.read_exact(&mut payload) {
+            // An incomplete payload leaves the reader before the next frame boundary.
+            return self.fail(error.into());
+        }
+        match rmp_serde::from_slice::<Event<T>>(&payload) {
+            Ok(event) => Some(Ok(event)),
+            Err(error) => Some(Err(ImporterError::other(error))),
+        }
+    }
+}
+
+impl<T> MsgpackImporter<T> {
+    fn fail(&mut self, error: quent_io_types::ImporterError) -> Option<ImporterResult<Event<T>>> {
+        self.terminated = true;
+        Some(Err(error))
     }
 }

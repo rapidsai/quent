@@ -9,13 +9,15 @@ use std::{
 };
 
 use quent_events::{EntityEvent, Event};
-use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_io_types::{
+    Exporter, ExporterError, ExporterResult, Importer, ImporterError, ImporterResult,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// File extension for ndjson event files.
@@ -116,6 +118,7 @@ pub struct NdjsonImporterOptions {
 
 pub struct NdjsonImporter<T> {
     reader: BufReader<std::fs::File>,
+    terminated: bool,
     _phantom: PhantomData<T>,
 }
 
@@ -125,6 +128,7 @@ impl<T> NdjsonImporter<T> {
         let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
+            terminated: false,
             _phantom: Default::default(),
         })
     }
@@ -136,25 +140,24 @@ impl<T> Iterator for NdjsonImporter<T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    type Item = Event<T>;
+    type Item = ImporterResult<Event<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.terminated {
+            return None;
+        }
+
         let mut line = String::new();
         match self.reader.read_line(&mut line) {
             Ok(0) => None,
-            Ok(_) => {
-                let trimmed = line.trim_end();
-                match serde_json::from_str::<Event<T>>(trimmed) {
-                    Ok(event) => Some(event),
-                    Err(e) => {
-                        error!("failed to parse ndjson line: {e}");
-                        None
-                    }
-                }
-            }
+            Ok(_) => match serde_json::from_str::<Event<T>>(line.trim_end()) {
+                Ok(event) => Some(Ok(event)),
+                Err(error) => Some(Err(ImporterError::other(error))),
+            },
             Err(e) => {
-                error!("failed to read ndjson: {e}");
-                None
+                // The failed read may have consumed a partial line without its delimiter.
+                self.terminated = true;
+                Some(Err(e.into()))
             }
         }
     }

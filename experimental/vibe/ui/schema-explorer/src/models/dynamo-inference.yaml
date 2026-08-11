@@ -1,0 +1,661 @@
+# Generated entirely by coding agents from prompts without human review or refinement.
+quent: alpha
+model: DynamoInferenceDeployment
+doc: A didactic inference deployment inspired by NVIDIA Dynamo's serving, control, and cache planes.
+
+records:
+  Deployment::ModelSpec:
+    doc: The model and backend configuration shared by worker pools.
+    fields:
+      model_id: string
+      backend: string
+      context_limit_tokens: u32
+      tensor_parallel_size: u16
+      cache_block_tokens: u16
+  Api::GenerationSettings:
+    doc: User-controlled generation parameters.
+    fields:
+      maximum_tokens: u32
+      temperature: f64
+      top_p: f64
+      stream: bool
+  Routing::RoutingDecision:
+    doc: The signals behind one KV-aware worker selection.
+    fields:
+      selected_worker: string
+      cached_prefix_tokens: u32
+      projected_prefill_blocks: u32
+      projected_decode_blocks: u32
+  Transport::TransferMetadata:
+    doc: Backend-specific metadata for a prefill-to-decode KV handoff.
+    fields:
+      source_worker: string
+      destination_worker: string
+      transport: string
+      block_count: u32
+  Api::InferenceMetrics:
+    doc: User-visible latency and token counts for a completed request.
+    fields:
+      input_tokens: u32
+      output_tokens: u32
+      time_to_first_token_ns: u64
+      inter_token_latency_ns: u64
+      total_latency_ns: u64
+  Control::SlaTargets:
+    doc: Latency objectives consumed by the planning loop.
+    fields:
+      time_to_first_token_ns: u64
+      inter_token_latency_ns: u64
+
+entities:
+  Deployment::InferenceDeployment:
+    doc: One independently operated model-serving graph.
+    events:
+      created:
+        attributes:
+          name: string
+          model: Deployment::ModelSpec
+          serving_mode: string
+      deleted:
+        attributes:
+          reason: string
+
+  Api::Frontend:
+    doc: Accepts, preprocesses, and streams OpenAI-compatible requests.
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          router:
+            ref: Routing::KvRouter
+          address: string
+      traffic_sampled:
+        multi: true
+        attributes:
+          accepted_requests: u64
+          rejected_requests: u64
+
+  Routing::KvRouter:
+    doc: Selects workers from cache overlap and projected active load.
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          prefill_pool:
+            ref: Worker::PrefillPool
+          decode_pool:
+            ref: Worker::DecodePool
+          mode: string
+      cache_index_updated:
+        multi: true
+        attributes:
+          worker: string
+          added_blocks: u32
+          removed_blocks: u32
+
+  Worker::PrefillPool:
+    doc: Independently scaled workers that process prompts and produce KV state.
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          backend: string
+          parallelism: u16
+      worker_registered:
+        multi: true
+        attributes:
+          worker_id: string
+          kv_capacity_tokens: u64
+      worker_drained:
+        multi: true
+        attributes:
+          worker_id: string
+
+  Worker::DecodePool:
+    doc: Independently scaled workers that generate output tokens.
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          backend: string
+          parallelism: u16
+      worker_registered:
+        multi: true
+        attributes:
+          worker_id: string
+          kv_capacity_tokens: u64
+      worker_drained:
+        multi: true
+        attributes:
+          worker_id: string
+
+  Control::Planner:
+    doc: Computes independent prefill and decode scaling targets from metrics.
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          prefill_pool:
+            ref: Worker::PrefillPool
+          decode_pool:
+            ref: Worker::DecodePool
+          targets: Control::SlaTargets
+      metrics_observed:
+        multi: true
+        attributes:
+          request_rate: f64
+          queued_prompt_tokens: u64
+          decode_kv_utilization: f64
+
+  Cache::KvBlockManager:
+    doc: Coordinates KV block reuse, eviction, offload, and onboarding.
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          prefill_pool:
+            ref: Worker::PrefillPool
+          decode_pool:
+            ref: Worker::DecodePool
+          policy: string
+      pressure_sampled:
+        multi: true
+        attributes:
+          device_utilization: f64
+          host_utilization: f64
+          disk_utilization: f64
+
+  Worker::PrefillBacklog:
+    doc: Prompt tokens waiting for prefill execution.
+    resource:
+      queued_prompt_tokens:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::PrefillPool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Worker::PrefillCompute:
+    doc: Prompt-processing throughput available to prefill workers.
+    resource:
+      prompt_tokens_per_second:
+        kind: rate
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::PrefillPool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Worker::PrefillKvCache:
+    doc: Worker-local device KV capacity used during prefill.
+    resource:
+      cached_tokens:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::PrefillPool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Worker::PrefillReplicaSlots:
+    doc: Deployable prefill worker capacity controlled by the Planner.
+    resource:
+      replicas:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::PrefillPool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Worker::DecodeCompute:
+    doc: Token-generation throughput available to decode workers.
+    resource:
+      generated_tokens_per_second:
+        kind: rate
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::DecodePool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Worker::DecodeKvCache:
+    doc: Worker-local device KV capacity retained during generation.
+    resource:
+      active_kv_tokens:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::DecodePool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Worker::DecodeReplicaSlots:
+    doc: Deployable decode worker capacity controlled by the Planner.
+    resource:
+      replicas:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Worker::DecodePool
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Transport::NixlTransferPath:
+    doc: High-speed transfer capacity between memory domains and workers.
+    resource:
+      bytes_per_second:
+        kind: rate
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          transport: string
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Cache::HostKvTier:
+    doc: Pinned host-memory capacity used for KV offload.
+    resource:
+      cached_tokens:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Cache::KvBlockManager
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Cache::DiskKvTier:
+    doc: Local disk capacity used for deeper KV offload.
+    resource:
+      cached_tokens:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Cache::KvBlockManager
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Deployment::ModelWeightStore:
+    doc: Read throughput used while loading model weights.
+    resource:
+      read_bytes_per_second:
+        kind: rate
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          location: string
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+  Api::ClientEgress:
+    doc: Bandwidth used while streaming generated tokens to clients.
+    resource:
+      bytes_per_second:
+        kind: rate
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Api::Frontend
+          protocol: string
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+fsms:
+  Api::InferenceRequest:
+    doc: A disaggregated request from frontend admission through token streaming.
+    states:
+      received:
+        initial: true
+        attributes:
+          parent:
+            scope-ref: Api::Frontend
+          request_id: uuid
+          settings: Api::GenerationSettings
+          input_tokens: u32
+        to: [preprocessing, rejected]
+      preprocessing:
+        attributes:
+          normalized_prompt_tokens: u32
+        to: [routing_prefill, cancelled, failed]
+      routing_prefill:
+        attributes:
+          decision: Routing::RoutingDecision
+        to: [queued_prefill, local_prefill, rejected]
+      queued_prefill:
+        attributes:
+          backlog:
+            uses: Worker::PrefillBacklog
+        to: [prefilling, cancelled, failed]
+      prefilling:
+        attributes:
+          compute:
+            uses: Worker::PrefillCompute
+          kv_cache:
+            uses: Worker::PrefillKvCache
+        to: [routing_decode, cancelled, failed]
+      routing_decode:
+        attributes:
+          decision: Routing::RoutingDecision
+          transfer: Transport::TransferMetadata
+        to: [transferring_kv, cancelled, failed]
+      transferring_kv:
+        attributes:
+          source_cache:
+            uses: Worker::PrefillKvCache
+          transfer:
+            uses: Transport::NixlTransferPath
+          destination_cache:
+            uses: Worker::DecodeKvCache
+        to: [decoding, cancelled, failed]
+      local_prefill:
+        attributes:
+          compute:
+            uses: Worker::DecodeCompute
+          kv_cache:
+            uses: Worker::DecodeKvCache
+        to: [decoding, cancelled, failed]
+      decoding:
+        attributes:
+          compute:
+            uses: Worker::DecodeCompute
+          kv_cache:
+            uses: Worker::DecodeKvCache
+          generated_tokens: u32
+        to: [decoding, streaming, completed, cancelled, failed]
+      streaming:
+        attributes:
+          kv_cache:
+            uses: Worker::DecodeKvCache
+          egress:
+            uses: Api::ClientEgress
+        to: [decoding, completed, cancelled, failed]
+      completed:
+        attributes:
+          metrics: Api::InferenceMetrics
+        to: [exit]
+      rejected:
+        attributes:
+          reason: string
+        to: [exit]
+      cancelled:
+        attributes:
+          reason: string
+        to: [exit]
+      failed:
+        attributes:
+          error: string
+        to: [exit]
+      exit: {}
+
+  Deployment::DeploymentRollout:
+    doc: Reconciles a desired inference graph into ready worker pools.
+    states:
+      requested:
+        initial: true
+        attributes:
+          parent:
+            scope-ref: Deployment::InferenceDeployment
+          request_id: uuid
+          generated_from_intent: bool
+        to: [profiling, reconciling, failed]
+      profiling:
+        attributes:
+          prefill_probe:
+            uses: Worker::PrefillCompute
+          decode_probe:
+            uses: Worker::DecodeCompute
+        to: [graph_generated, failed]
+      graph_generated:
+        attributes:
+          recommended_prefill_replicas: u16
+          recommended_decode_replicas: u16
+        to: [reconciling]
+      reconciling:
+        to: [provisioning, failed]
+      provisioning:
+        attributes:
+          prefill_replicas:
+            uses: Worker::PrefillReplicaSlots
+          decode_replicas:
+            uses: Worker::DecodeReplicaSlots
+        to: [loading_weights, failed]
+      loading_weights:
+        attributes:
+          model_store:
+            uses: Deployment::ModelWeightStore
+          transfer:
+            uses: Transport::NixlTransferPath
+        to: [warming, failed]
+      warming:
+        attributes:
+          prefill_compute:
+            uses: Worker::PrefillCompute
+          decode_compute:
+            uses: Worker::DecodeCompute
+        to: [ready, failed]
+      ready:
+        attributes:
+          ready_prefill_replicas: u16
+          ready_decode_replicas: u16
+        to: [rolling_update, draining, failed]
+      rolling_update:
+        attributes:
+          prefill_replicas:
+            uses: Worker::PrefillReplicaSlots
+          decode_replicas:
+            uses: Worker::DecodeReplicaSlots
+        to: [loading_weights, failed]
+      draining:
+        attributes:
+          active_requests: u32
+        to: [stopped, failed]
+      stopped:
+        attributes:
+          reason: string
+        to: [exit]
+      failed:
+        attributes:
+          error: string
+        to: [exit]
+      exit: {}
+
+  Cache::KvBlockTransfer:
+    doc: Moves a reusable KV block through device, host, and disk tiers.
+    states:
+      created:
+        initial: true
+        attributes:
+          parent:
+            scope-ref: Cache::KvBlockManager
+          block_id: uuid
+          token_count: u32
+          request:
+            ref: Api::InferenceRequest
+        to: [device_resident, failed]
+      device_resident:
+        attributes:
+          device_cache:
+            uses: Worker::DecodeKvCache
+        to: [offloading_host, evicted]
+      offloading_host:
+        attributes:
+          device_cache:
+            uses: Worker::DecodeKvCache
+          transfer:
+            uses: Transport::NixlTransferPath
+          host_cache:
+            uses: Cache::HostKvTier
+        to: [host_resident, failed]
+      host_resident:
+        attributes:
+          host_cache:
+            uses: Cache::HostKvTier
+        to: [offloading_disk, onboarding_host, evicted]
+      offloading_disk:
+        attributes:
+          host_cache:
+            uses: Cache::HostKvTier
+          transfer:
+            uses: Transport::NixlTransferPath
+          disk_cache:
+            uses: Cache::DiskKvTier
+        to: [disk_resident, failed]
+      disk_resident:
+        attributes:
+          disk_cache:
+            uses: Cache::DiskKvTier
+        to: [onboarding_disk, evicted]
+      onboarding_host:
+        attributes:
+          host_cache:
+            uses: Cache::HostKvTier
+          transfer:
+            uses: Transport::NixlTransferPath
+          device_cache:
+            uses: Worker::DecodeKvCache
+        to: [device_resident, failed]
+      onboarding_disk:
+        attributes:
+          disk_cache:
+            uses: Cache::DiskKvTier
+          transfer:
+            uses: Transport::NixlTransferPath
+          device_cache:
+            uses: Worker::DecodeKvCache
+        to: [device_resident, failed]
+      evicted:
+        attributes:
+          reason: string
+        to: [exit]
+      failed:
+        attributes:
+          error: string
+        to: [exit]
+      exit: {}
+
+  Control::ScalingCycle:
+    doc: Repeatedly observes demand and adjusts prefill and decode independently.
+    states:
+      observing:
+        initial: true
+        attributes:
+          parent:
+            scope-ref: Control::Planner
+          request_rate: f64
+          queued_prompt_tokens: u64
+          decode_kv_utilization: f64
+        to: [predicting, disabled]
+      predicting:
+        attributes:
+          predicted_request_rate: f64
+          predicted_input_tokens: u32
+          predicted_output_tokens: u32
+        to: [holding, adjusting_prefill, adjusting_decode, failed]
+      holding:
+        attributes:
+          reason: string
+        to: [observing, disabled]
+      adjusting_prefill:
+        attributes:
+          replica_slots:
+            uses: Worker::PrefillReplicaSlots
+          desired_replicas: u16
+        to: [adjusting_decode, verifying, failed]
+      adjusting_decode:
+        attributes:
+          replica_slots:
+            uses: Worker::DecodeReplicaSlots
+          desired_replicas: u16
+        to: [adjusting_prefill, verifying, failed]
+      verifying:
+        attributes:
+          observed_time_to_first_token_ns: u64
+          observed_inter_token_latency_ns: u64
+        to: [observing, adjusting_prefill, adjusting_decode, failed]
+      disabled:
+        attributes:
+          reason: string
+        to: [exit]
+      failed:
+        attributes:
+          error: string
+        to: [exit]
+      exit: {}
