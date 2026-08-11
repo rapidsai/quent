@@ -48,12 +48,12 @@ members = [
     # README example
     "examples/readme",
     # Simulator crates
-    "examples/simulator/analyzer",
-    "examples/simulator/application",
-    "examples/simulator/instrumentation",
-    "examples/simulator/server",
-    "examples/simulator/ui",
-    "examples/simulator/ui-bindings",
+    "domains/simulator/analyzer",
+    "domains/simulator/application",
+    "domains/simulator/instrumentation",
+    "domains/simulator/server",
+    "domains/simulator/ui",
+    "domains/simulator/ui-bindings",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
@@ -109,12 +109,12 @@ default-members = [
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
     "examples/readme",
-    "examples/simulator/analyzer",
-    "examples/simulator/application",
-    "examples/simulator/instrumentation",
-    "examples/simulator/server",
-    "examples/simulator/ui",
-    "examples/simulator/ui-bindings",
+    "domains/simulator/analyzer",
+    "domains/simulator/application",
+    "domains/simulator/instrumentation",
+    "domains/simulator/server",
+    "domains/simulator/ui",
+    "domains/simulator/ui-bindings",
 ]
 
 [workspace.package]

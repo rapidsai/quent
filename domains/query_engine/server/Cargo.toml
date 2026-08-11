@@ -34,4 +34,4 @@ mime_guess = { version = "2", optional = true }
 rust-embed = { version = "8", optional = true }
 
 [build-dependencies]
-quent-simulator-ui-bindings = { path = "../../../examples/simulator/ui-bindings", optional = true }
+quent-simulator-ui-bindings = { path = "../../simulator/ui-bindings", optional = true }

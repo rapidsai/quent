@@ -54,8 +54,8 @@ resulting instrumentation API is found here:
 A simulated application (a query engine), analysis back-end and front-end can be
 found here:
 
-- [Simulator](examples/simulator/)
-- [Analyzer](examples/simulator/analyzer/)
+- [Simulator](domains/simulator/)
+- [Analyzer](domains/simulator/analyzer/)
 - [Front-end](ui/)
 
 While Quent is a Rust-based project, it can generate a C++ instrumentation API.

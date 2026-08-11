@@ -23,7 +23,7 @@ repos:
         (?x)
           bridge/include/rust/cxx\.h$|
           bridge/include/quent-bridge/gen/|
-          examples/simulator/server/ts-bindings/
+          domains/simulator/server/ts-bindings/
       files: |
         (?x)
           CMakeLists\.txt$|

@@ -156,7 +156,7 @@ jobs:
       - run: pixi run cargo run -p quent-simulator-ui-bindings --locked
       - name: Generate base bindings
         run: |
-          if [ -d base/examples/simulator/ui-bindings ]; then
+          if [ -d base/domains/simulator/ui-bindings ]; then
             pixi run cargo run \
               --manifest-path base/Cargo.toml \
               -p quent-simulator-ui-bindings \
@@ -174,7 +174,7 @@ jobs:
           if [ -d base/ui/generated/ts-bindings ]; then
             base_bindings=base/ui/generated/ts-bindings
           else
-            base_bindings=base/examples/simulator/server/ts-bindings
+            base_bindings=base/domains/simulator/server/ts-bindings
           fi
           diff --recursive --unified=3 "$base_bindings" \
             ui/generated/ts-bindings > ts-bindings.diff || diff_status=$?
