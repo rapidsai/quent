@@ -53,25 +53,28 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
     return next ? (next.timestamp - t.timestamp) * 1000 : null;
   });
 
+  // Aggregate total time per state name (insertion order = first appearance)
+  const stateTimeMs = new Map<string, number>();
+  fsm.transitions.forEach((t, i) => {
+    const d = durations[i];
+    if (d != null) {
+      stateTimeMs.set(t.name, (stateTimeMs.get(t.name) ?? 0) + d);
+    }
+  });
+
   // Find the state that consumed the most time
   let dominantState: { name: string; pct: number; color: string } | null = null;
-  if (totalSpanMs > 0) {
+  if (totalSpanMs > 0 && stateTimeMs.size > 0) {
     let maxMs = 0;
-    let maxIdx = -1;
-    durations.forEach((d, i) => {
-      if (d != null && d > maxMs) {
-        maxMs = d;
-        maxIdx = i;
-      }
+    let maxName = '';
+    stateTimeMs.forEach((ms, name) => {
+      if (ms > maxMs) { maxMs = ms; maxName = name; }
     });
-    if (maxIdx >= 0) {
-      const name = fsm.transitions[maxIdx]!.name;
-      dominantState = {
-        name,
-        pct: (maxMs / totalSpanMs) * 100,
-        color: getColorForKey(name, paletteTheme),
-      };
-    }
+    dominantState = {
+      name: maxName,
+      pct: (maxMs / totalSpanMs) * 100,
+      color: stateColorFn ? stateColorFn(maxName) : getColorForKey(maxName, paletteTheme),
+    };
   }
 
   // Find data volume from derived attributes (last bytes-stat with a numeric value)
@@ -137,6 +140,21 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Data volume</span>
             <span className="tabular-nums font-medium">{dataVolume}</span>
+          </div>
+        )}
+        {totalSpanMs > 0 && stateTimeMs.size > 0 && (
+          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full">
+            {[...stateTimeMs.entries()].map(([name, ms]) => {
+              const color = stateColorFn ? stateColorFn(name) : getColorForKey(name, paletteTheme);
+              const pct = (ms / totalSpanMs) * 100;
+              return (
+                <div
+                  key={name}
+                  title={`${name}: ${pct.toFixed(1)}%`}
+                  style={{ width: `${pct}%`, backgroundColor: color }}
+                />
+              );
+            })}
           </div>
         )}
       </div>
