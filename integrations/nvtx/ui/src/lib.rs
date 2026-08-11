@@ -12,14 +12,17 @@ use std::error::Error;
 use std::fmt;
 
 use nvtx_analyzer::{NvtxColor, NvtxModel, NvtxSpan, SpanId, SpanKind};
+use quent_time::{TimeUnixNanoSec, to_nanosecs, to_secs, to_secs_relative};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Stable metadata for one NVTX stream.
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxCatalog {
-    pub trace_start: u64,
-    pub trace_end: u64,
+    /// Trace start in seconds relative to the query start.
+    pub trace_start: f64,
+    /// Trace end in seconds relative to the query start.
+    pub trace_end: f64,
     pub domains: Vec<NvtxCatalogDomain>,
     pub anomalies: NvtxCatalogAnomalies,
 }
@@ -71,15 +74,11 @@ pub struct NvtxCatalogCategory {
     pub name: String,
 }
 
-/// Inclusive viewport bounds in Unix nanoseconds.
-#[derive(TS, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// Inclusive viewport bounds in seconds relative to the query start.
+#[derive(TS, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct NvtxViewportWindow {
-    #[serde(with = "decimal_u64")]
-    #[ts(type = "string")]
-    pub start: u64,
-    #[serde(with = "decimal_u64")]
-    #[ts(type = "string")]
-    pub end: u64,
+    pub start: f64,
+    pub end: f64,
 }
 
 /// One domain's selected categories.
@@ -93,21 +92,21 @@ pub struct NvtxDomainSelection {
 }
 
 /// Request for one atomically-scoped set of lanes and statistics.
-#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxViewportRequest {
     pub viewport: NvtxViewportWindow,
     pub selections: Vec<NvtxDomainSelection>,
 }
 
 /// UI-ready NVTX content for one viewport and selection.
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxViewportResponse {
     pub viewport: NvtxViewportWindow,
     pub domains: Vec<NvtxDomainLaneGroup>,
     pub statistics: Vec<NvtxRangeStatistics>,
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxDomainLaneGroup {
     pub domain_id: u64,
     pub name: String,
@@ -125,7 +124,7 @@ pub enum NvtxLaneIdentity {
     Marks,
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxLane {
     pub id: String,
     pub label: String,
@@ -141,7 +140,7 @@ pub enum NvtxRangeKind {
     StartEnd,
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeItem {
     pub message: String,
     pub domain_id: u64,
@@ -152,18 +151,19 @@ pub struct NvtxRangeItem {
     pub kind: NvtxRangeKind,
     pub thread_id: Option<u32>,
     pub thread_name: Option<String>,
-    /// The actual captured start, retained for tooltip truthfulness.
-    pub observed_start: u64,
-    /// The actual captured close; absent for an incomplete range.
-    pub observed_end: Option<u64>,
-    /// Bounds clipped to the requested viewport for rendering.
-    pub display_start: u64,
-    pub display_end: u64,
-    pub observed_duration: Option<u64>,
+    /// The actual captured start in seconds relative to the query start.
+    pub observed_start: f64,
+    /// The actual captured close in relative seconds; absent for an incomplete range.
+    pub observed_end: Option<f64>,
+    /// Relative-second bounds clipped to the requested viewport for rendering.
+    pub display_start: f64,
+    pub display_end: f64,
+    /// The completed range duration in seconds.
+    pub observed_duration: Option<f64>,
     pub incomplete: bool,
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxMarkItem {
     pub message: String,
     pub domain_id: u64,
@@ -171,13 +171,15 @@ pub struct NvtxMarkItem {
     pub category_id: Option<u32>,
     pub category_name: Option<String>,
     pub color: String,
-    pub timestamp: u64,
+    /// Mark timestamp in seconds relative to the query start.
+    pub timestamp: f64,
 }
 
 /// Statistics over exactly the filtered, intersecting range population.
 /// Closed durations are clipped to the visible window; incomplete ranges are
-/// counted but never assigned an inferred duration.
-#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// counted but never assigned an inferred duration. All duration fields are in
+/// seconds.
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeStatistics {
     pub message: String,
     pub domain_id: u64,
@@ -186,10 +188,10 @@ pub struct NvtxRangeStatistics {
     pub category_name: Option<String>,
     pub count: u64,
     pub observed_count: u64,
-    pub total_duration: u64,
-    pub avg_duration: u64,
-    pub min_duration: Option<u64>,
-    pub max_duration: Option<u64>,
+    pub total_duration: f64,
+    pub avg_duration: f64,
+    pub min_duration: Option<f64>,
+    pub max_duration: Option<f64>,
     pub saturated: bool,
 }
 
@@ -206,7 +208,10 @@ pub enum NvtxViewportError {
 impl fmt::Display for NvtxViewportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidWindow => write!(f, "viewport start must not exceed viewport end"),
+            Self::InvalidWindow => write!(
+                f,
+                "viewport bounds must be finite, non-negative, and ordered"
+            ),
             Self::EmptySelection { domain_id } => {
                 write!(f, "domain {domain_id} selects no categories")
             }
@@ -234,7 +239,8 @@ struct CatalogDomainMetadata {
 }
 
 impl NvtxCatalog {
-    pub fn from_model(model: &NvtxModel) -> Self {
+    /// Build catalog metadata with times relative to `query_start`.
+    pub fn from_model(model: &NvtxModel, query_start: TimeUnixNanoSec) -> Self {
         let thread_names: HashMap<u32, &str> = model
             .threads()
             .iter()
@@ -324,8 +330,8 @@ impl NvtxCatalog {
 
         let anomalies = model.anomalies();
         Self {
-            trace_start: model.trace_start(),
-            trace_end: model.trace_end(),
+            trace_start: to_secs_relative(model.trace_start(), query_start),
+            trace_end: to_secs_relative(model.trace_end(), query_start),
             domains,
             anomalies: NvtxCatalogAnomalies {
                 orphan_range_ends: anomalies.orphan_range_ends,
@@ -363,12 +369,16 @@ impl NvtxCatalog {
         selections
     }
 
-    /// Validate and canonicalize selections for request bodies and cache keys.
+    /// Validate and canonicalize a request.
     pub fn canonicalize_request(
         &self,
         mut request: NvtxViewportRequest,
     ) -> Result<NvtxViewportRequest, NvtxViewportError> {
-        if request.viewport.start > request.viewport.end {
+        if !request.viewport.start.is_finite()
+            || !request.viewport.end.is_finite()
+            || request.viewport.start < 0.0
+            || request.viewport.start > request.viewport.end
+        {
             return Err(NvtxViewportError::InvalidWindow);
         }
 
@@ -423,21 +433,26 @@ impl NvtxCatalog {
 }
 
 impl NvtxViewportResponse {
+    /// Convert a viewport with all public times relative to `query_start`.
     pub fn from_model(
         model: &NvtxModel,
+        query_start: TimeUnixNanoSec,
         request: NvtxViewportRequest,
     ) -> Result<Self, NvtxViewportError> {
-        let catalog = NvtxCatalog::from_model(model);
-        Self::from_model_with_catalog(model, &catalog, request)
+        let catalog = NvtxCatalog::from_model(model, query_start);
+        Self::from_model_with_catalog(model, &catalog, query_start, request)
     }
 
-    /// Convert a viewport using catalog metadata cached for this model.
+    /// Convert a viewport using catalog metadata cached for this model and time origin.
     pub fn from_model_with_catalog(
         model: &NvtxModel,
         catalog: &NvtxCatalog,
+        query_start: TimeUnixNanoSec,
         request: NvtxViewportRequest,
     ) -> Result<Self, NvtxViewportError> {
         let request = catalog.canonicalize_request(request)?;
+        let viewport = absolute_viewport(request.viewport, query_start)
+            .ok_or(NvtxViewportError::InvalidWindow)?;
         let selections: HashMap<_, _> = request
             .selections
             .iter()
@@ -458,11 +473,7 @@ impl NvtxViewportResponse {
             };
             if !is_range(span)
                 || !selected(selection, span.category)
-                || !intersects(
-                    span.start,
-                    span.end.unwrap_or(model.trace_end()),
-                    request.viewport,
-                )
+                || !intersects(span.start, span.end.unwrap_or(model.trace_end()), viewport)
             {
                 continue;
             }
@@ -470,7 +481,7 @@ impl NvtxViewportResponse {
             let domain = domains_by_id
                 .get(&span.domain)
                 .expect("validated selections only reference catalog domains");
-            let Some(item) = range_item(model, domain, span, request.viewport) else {
+            let Some(item) = range_item(model, domain, span, query_start, viewport) else {
                 continue;
             };
             statistics
@@ -480,7 +491,7 @@ impl NvtxViewportResponse {
                     message: span.name.clone(),
                 })
                 .or_default()
-                .accumulate(span, request.viewport);
+                .accumulate(span, viewport);
             let domain_items = items_by_domain.entry(span.domain).or_default();
             match span.kind {
                 SpanKind::PushPop { thread_id, .. } => {
@@ -500,8 +511,8 @@ impl NvtxViewportResponse {
                 continue;
             };
             if !selected(selection, mark.category)
-                || mark.timestamp < request.viewport.start
-                || mark.timestamp > request.viewport.end
+                || mark.timestamp < viewport.start
+                || mark.timestamp > viewport.end
             {
                 continue;
             }
@@ -521,7 +532,7 @@ impl NvtxViewportResponse {
                         .category
                         .and_then(|id| model.category_name(domain.domain_id, id)),
                     color: display_color(mark.color, domain.domain_id),
-                    timestamp: mark.timestamp,
+                    timestamp: to_secs_relative(mark.timestamp, query_start),
                 });
         }
 
@@ -533,7 +544,7 @@ impl NvtxViewportResponse {
             let mut marks = domain_items.marks;
             marks.sort_by(|left, right| {
                 left.timestamp
-                    .cmp(&right.timestamp)
+                    .total_cmp(&right.timestamp)
                     .then(left.message.cmp(&right.message))
             });
 
@@ -655,7 +666,19 @@ fn selected(selection: &NvtxDomainSelection, category: Option<u32>) -> bool {
     }
 }
 
-fn intersects(start: u64, effective_end: u64, viewport: NvtxViewportWindow) -> bool {
+#[derive(Debug, Clone, Copy)]
+struct AbsoluteViewport {
+    start: u64,
+    end: u64,
+}
+
+fn absolute_viewport(viewport: NvtxViewportWindow, epoch: u64) -> Option<AbsoluteViewport> {
+    let start = epoch.checked_add(to_nanosecs(viewport.start))?;
+    let end = epoch.checked_add(to_nanosecs(viewport.end))?;
+    Some(AbsoluteViewport { start, end })
+}
+
+fn intersects(start: u64, effective_end: u64, viewport: AbsoluteViewport) -> bool {
     start <= viewport.end && effective_end >= viewport.start
 }
 
@@ -712,7 +735,8 @@ fn range_item(
     model: &NvtxModel,
     domain: &NvtxCatalogDomain,
     span: &NvtxSpan,
-    viewport: NvtxViewportWindow,
+    query_start: TimeUnixNanoSec,
+    viewport: AbsoluteViewport,
 ) -> Option<NvtxRangeItem> {
     let effective_end = span.end.unwrap_or(model.trace_end());
     let thread_id = span.kind.thread_id();
@@ -733,11 +757,11 @@ fn range_item(
         kind,
         thread_id,
         thread_name: thread_id.map(|id| model.thread_name(id)),
-        observed_start: span.start,
-        observed_end: span.end,
-        display_start: span.start.max(viewport.start),
-        display_end: effective_end.min(viewport.end),
-        observed_duration: span.duration(),
+        observed_start: to_secs_relative(span.start, query_start),
+        observed_end: span.end.map(|end| to_secs_relative(end, query_start)),
+        display_start: to_secs_relative(span.start.max(viewport.start), query_start),
+        display_end: to_secs_relative(effective_end.min(viewport.end), query_start),
+        observed_duration: span.duration().map(to_secs),
         incomplete: span.end.is_none(),
     })
 }
@@ -745,8 +769,8 @@ fn range_item(
 fn sort_ranges(ranges: &mut [NvtxRangeItem]) {
     ranges.sort_by(|left, right| {
         left.display_start
-            .cmp(&right.display_start)
-            .then(left.display_end.cmp(&right.display_end))
+            .total_cmp(&right.display_start)
+            .then(left.display_end.total_cmp(&right.display_end))
             .then(left.message.cmp(&right.message))
     });
 }
@@ -793,7 +817,7 @@ struct StatisticsAccumulator {
 }
 
 impl StatisticsAccumulator {
-    fn accumulate(&mut self, span: &NvtxSpan, viewport: NvtxViewportWindow) {
+    fn accumulate(&mut self, span: &NvtxSpan, viewport: AbsoluteViewport) {
         self.count = self.count.saturating_add(1);
         let Some(end) = span.end else {
             return;
@@ -825,6 +849,7 @@ impl StatisticsAccumulator {
         domain: &NvtxCatalogDomain,
         model: &NvtxModel,
     ) -> NvtxRangeStatistics {
+        let total_duration = to_secs(self.total_duration);
         NvtxRangeStatistics {
             message: key.message.clone(),
             domain_id: key.domain_id,
@@ -835,13 +860,14 @@ impl StatisticsAccumulator {
                 .and_then(|id| model.category_name(key.domain_id, id)),
             count: self.count,
             observed_count: self.observed_count,
-            total_duration: self.total_duration,
-            avg_duration: self
-                .total_duration
-                .checked_div(self.observed_count)
-                .unwrap_or(0),
-            min_duration: self.min_duration,
-            max_duration: self.max_duration,
+            total_duration,
+            avg_duration: if self.observed_count == 0 {
+                0.0
+            } else {
+                total_duration / self.observed_count as f64
+            },
+            min_duration: self.min_duration.map(to_secs),
+            max_duration: self.max_duration.map(to_secs),
             saturated: self.saturated,
         }
     }
@@ -876,6 +902,8 @@ mod tests {
 
     use super::*;
 
+    const QUERY_START_NS: u64 = 1_750_000_000_000_000_000;
+
     fn event(timestamp: u64, event: NvtxEvent) -> Event<NvtxEventEntity> {
         Event::new(Uuid::nil(), timestamp, NvtxEventEntity(event))
     }
@@ -889,9 +917,17 @@ mod tests {
         }
     }
 
+    fn seconds(nanoseconds: u64) -> f64 {
+        to_secs(nanoseconds)
+    }
+
+    fn query_event(offset: u64, nvtx_event: NvtxEvent) -> Event<NvtxEventEntity> {
+        event(QUERY_START_NS + offset, nvtx_event)
+    }
+
     fn model() -> NvtxModel {
         NvtxModelBuilder::build(vec![
-            event(
+            query_event(
                 100,
                 NvtxEvent::RangePush {
                     domain: 2,
@@ -899,7 +935,7 @@ mod tests {
                     attributes: attributes("outer", 3, None),
                 },
             ),
-            event(
+            query_event(
                 120,
                 NvtxEvent::RangePush {
                     domain: 2,
@@ -914,21 +950,21 @@ mod tests {
                     ),
                 },
             ),
-            event(
+            query_event(
                 180,
                 NvtxEvent::RangePop {
                     domain: 2,
                     thread_id: 7,
                 },
             ),
-            event(
+            query_event(
                 200,
                 NvtxEvent::RangePop {
                     domain: 2,
                     thread_id: 7,
                 },
             ),
-            event(
+            query_event(
                 210,
                 NvtxEvent::RangeStart {
                     domain: 2,
@@ -936,14 +972,14 @@ mod tests {
                     attributes: attributes("open", 0, None),
                 },
             ),
-            event(
+            query_event(
                 250,
                 NvtxEvent::Mark {
                     domain: 2,
                     attributes: attributes("boundary", 0, None),
                 },
             ),
-            event(
+            query_event(
                 250,
                 NvtxEvent::RangeStart {
                     domain: 2,
@@ -951,7 +987,7 @@ mod tests {
                     attributes: attributes("instant", 0, None),
                 },
             ),
-            event(
+            query_event(
                 250,
                 NvtxEvent::RangeEnd {
                     domain: 2,
@@ -963,12 +999,12 @@ mod tests {
 
     #[test]
     fn canonical_selection_rules_are_enforced() {
-        let catalog = NvtxCatalog::from_model(&model());
+        let catalog = NvtxCatalog::from_model(&model(), QUERY_START_NS);
         let canonical = catalog
             .canonicalize_request(NvtxViewportRequest {
                 viewport: NvtxViewportWindow {
-                    start: 100,
-                    end: 250,
+                    start: 0.0,
+                    end: seconds(250),
                 },
                 selections: vec![NvtxDomainSelection {
                     domain_id: 2,
@@ -1006,12 +1042,35 @@ mod tests {
 
         let inverted = catalog.canonicalize_request(NvtxViewportRequest {
             viewport: NvtxViewportWindow {
-                start: 250,
-                end: 100,
+                start: seconds(150),
+                end: 0.0,
             },
             selections: vec![],
         });
         assert!(matches!(inverted, Err(NvtxViewportError::InvalidWindow)));
+
+        for viewport in [
+            NvtxViewportWindow {
+                start: -1.0,
+                end: 0.0,
+            },
+            NvtxViewportWindow {
+                start: f64::NAN,
+                end: 1.0,
+            },
+            NvtxViewportWindow {
+                start: 0.0,
+                end: f64::INFINITY,
+            },
+        ] {
+            assert!(matches!(
+                catalog.canonicalize_request(NvtxViewportRequest {
+                    viewport,
+                    selections: vec![],
+                }),
+                Err(NvtxViewportError::InvalidWindow)
+            ));
+        }
 
         let unknown_domain = catalog.canonicalize_request(NvtxViewportRequest {
             viewport: canonical.viewport,
@@ -1059,7 +1118,8 @@ mod tests {
                 },
             ),
         ]);
-        let categorized_catalog = NvtxCatalog::from_model(&categorized_model);
+        let categorized_catalog =
+            NvtxCatalog::from_model(&categorized_model, categorized_model.trace_start());
         let uncategorized = categorized_catalog.canonicalize_request(NvtxViewportRequest {
             viewport: canonical.viewport,
             selections: vec![NvtxDomainSelection {
@@ -1110,7 +1170,7 @@ mod tests {
             ),
         ]);
 
-        let anomalies = NvtxCatalog::from_model(&model).anomalies;
+        let anomalies = NvtxCatalog::from_model(&model, model.trace_start()).anomalies;
         assert_eq!(anomalies.orphan_range_ends, 1);
         assert_eq!(anomalies.reused_range_ids, 1);
         assert_eq!(anomalies.total, 2);
@@ -1147,11 +1207,11 @@ mod tests {
     }
 
     #[test]
-    fn request_u64_values_are_lossless_json_strings() {
+    fn request_timing_values_are_decimal_seconds() {
         let request = NvtxViewportRequest {
             viewport: NvtxViewportWindow {
-                start: 9_007_199_254_740_993,
-                end: u64::MAX,
+                start: 0.25,
+                end: 1.5,
             },
             selections: vec![NvtxDomainSelection {
                 domain_id: u64::MAX,
@@ -1161,8 +1221,8 @@ mod tests {
         };
 
         let json = serde_json::to_value(&request).expect("request serializes");
-        assert_eq!(json["viewport"]["start"], "9007199254740993");
-        assert_eq!(json["viewport"]["end"], "18446744073709551615");
+        assert_eq!(json["viewport"]["start"], 0.25);
+        assert_eq!(json["viewport"]["end"], 1.5);
         assert_eq!(json["selections"][0]["domain_id"], "18446744073709551615");
         assert_eq!(
             serde_json::from_value::<NvtxViewportRequest>(json).expect("request deserializes"),
@@ -1173,17 +1233,23 @@ mod tests {
     #[test]
     fn viewport_preserves_truth_and_clips_display_and_statistics() {
         let model = model();
+        let catalog = NvtxCatalog::from_model(&model, QUERY_START_NS);
+        assert_eq!(catalog.trace_start, seconds(100));
+        assert_eq!(catalog.trace_end, seconds(250));
         let response = NvtxViewportResponse::from_model(
             &model,
+            QUERY_START_NS,
             NvtxViewportRequest {
                 viewport: NvtxViewportWindow {
-                    start: 110,
-                    end: 250,
+                    start: seconds(110),
+                    end: seconds(250),
                 },
-                selections: NvtxCatalog::from_model(&model).select_all(),
+                selections: catalog.select_all(),
             },
         )
         .expect("valid viewport");
+        assert_eq!(response.viewport.start, seconds(110));
+        assert_eq!(response.viewport.end, seconds(250));
 
         let ranges = response.domains[0]
             .lanes
@@ -1194,15 +1260,20 @@ mod tests {
             .iter()
             .find(|range| range.message == "outer")
             .unwrap();
-        assert_eq!(outer.observed_start, 100);
-        assert_eq!(outer.observed_end, Some(200));
-        assert_eq!(outer.display_start, 110);
-        assert_eq!(outer.display_end, 200);
+        assert_eq!(outer.observed_start, seconds(100));
+        assert_eq!(outer.observed_end, Some(seconds(200)));
+        assert_eq!(outer.display_start, seconds(110));
+        assert_eq!(outer.display_end, seconds(200));
+        let outer_json = serde_json::to_value(outer).expect("range serializes");
+        assert_eq!(outer_json["observed_start"], seconds(100));
+        assert_eq!(outer_json["observed_end"], seconds(200));
+        assert_eq!(outer_json["display_start"], seconds(110));
+        assert_eq!(outer_json["display_end"], seconds(200));
 
         let open = ranges.iter().find(|range| range.message == "open").unwrap();
         assert!(open.incomplete);
         assert_eq!(open.observed_end, None);
-        assert_eq!(open.display_end, 250);
+        assert_eq!(open.display_end, seconds(250));
         assert_eq!(open.observed_duration, None);
 
         let outer_stats = response
@@ -1211,7 +1282,8 @@ mod tests {
             .find(|stats| stats.message == "outer")
             .unwrap();
         assert_eq!(
-            outer_stats.total_duration, 90,
+            outer_stats.total_duration,
+            seconds(90),
             "duration is viewport-clipped"
         );
         let open_stats = response
@@ -1221,7 +1293,7 @@ mod tests {
             .unwrap();
         assert_eq!(open_stats.count, 1);
         assert_eq!(open_stats.observed_count, 0);
-        assert_eq!(open_stats.total_duration, 0);
+        assert_eq!(open_stats.total_duration, 0.0);
         assert_eq!(open_stats.min_duration, None);
         assert_eq!(open_stats.max_duration, None);
 
@@ -1229,17 +1301,17 @@ mod tests {
             .iter()
             .find(|range| range.message == "instant")
             .unwrap();
-        assert_eq!(instant.display_start, 250);
-        assert_eq!(instant.display_end, 250);
+        assert_eq!(instant.display_start, seconds(250));
+        assert_eq!(instant.display_end, seconds(250));
         let instant_stats = response
             .statistics
             .iter()
             .find(|stats| stats.message == "instant")
             .unwrap();
         assert_eq!(instant_stats.observed_count, 1);
-        assert_eq!(instant_stats.total_duration, 0);
-        assert_eq!(instant_stats.min_duration, Some(0));
-        assert_eq!(instant_stats.max_duration, Some(0));
+        assert_eq!(instant_stats.total_duration, 0.0);
+        assert_eq!(instant_stats.min_duration, Some(0.0));
+        assert_eq!(instant_stats.max_duration, Some(0.0));
     }
 
     #[test]
@@ -1247,12 +1319,13 @@ mod tests {
         let model = model();
         let response = NvtxViewportResponse::from_model(
             &model,
+            QUERY_START_NS,
             NvtxViewportRequest {
                 viewport: NvtxViewportWindow {
-                    start: 120,
-                    end: 250,
+                    start: seconds(120),
+                    end: seconds(250),
                 },
-                selections: NvtxCatalog::from_model(&model).select_all(),
+                selections: NvtxCatalog::from_model(&model, QUERY_START_NS).select_all(),
             },
         )
         .expect("valid viewport");
@@ -1266,7 +1339,7 @@ mod tests {
                 && lane.ranges[0].color == "#40201080"
         }));
         assert!(lanes.iter().any(|lane| {
-            lane.identity == NvtxLaneIdentity::Marks && lane.marks[0].timestamp == 250
+            lane.identity == NvtxLaneIdentity::Marks && lane.marks[0].timestamp == seconds(250)
         }));
     }
 
@@ -1332,12 +1405,14 @@ mod tests {
     }
 
     #[test]
-    fn generated_contract_uses_strings_for_request_u64_values() {
+    fn generated_contract_uses_numbers_for_relative_seconds() {
         let config = ts_rs::Config::default();
         let declaration = NvtxViewportRequest::decl(&config);
         assert!(declaration.contains("viewport: NvtxViewportWindow"));
-        assert!(NvtxViewportWindow::decl(&config).contains("start: string"));
-        assert!(NvtxViewportWindow::decl(&config).contains("end: string"));
+        assert!(NvtxCatalog::decl(&config).contains("trace_start: number"));
+        assert!(NvtxCatalog::decl(&config).contains("trace_end: number"));
+        assert!(NvtxViewportWindow::decl(&config).contains("start: number"));
+        assert!(NvtxViewportWindow::decl(&config).contains("end: number"));
         assert!(NvtxDomainSelection::decl(&config).contains("domain_id: string"));
         let anomalies = NvtxCatalogAnomalies::decl(&config);
         for field in [
@@ -1350,8 +1425,14 @@ mod tests {
         ] {
             assert!(anomalies.contains(&format!("{field}: string")));
         }
-        assert!(NvtxRangeItem::decl(&config).contains("observed_end: bigint | null"));
-        assert!(NvtxRangeStatistics::decl(&config).contains("min_duration: bigint | null"));
-        assert!(NvtxRangeStatistics::decl(&config).contains("max_duration: bigint | null"));
+        assert!(NvtxRangeItem::decl(&config).contains("observed_start: number"));
+        assert!(NvtxRangeItem::decl(&config).contains("observed_end: number | null"));
+        assert!(NvtxRangeItem::decl(&config).contains("display_start: number"));
+        assert!(NvtxRangeItem::decl(&config).contains("display_end: number"));
+        assert!(NvtxMarkItem::decl(&config).contains("timestamp: number"));
+        assert!(NvtxRangeStatistics::decl(&config).contains("total_duration: number"));
+        assert!(NvtxRangeStatistics::decl(&config).contains("avg_duration: number"));
+        assert!(NvtxRangeStatistics::decl(&config).contains("min_duration: number | null"));
+        assert!(NvtxRangeStatistics::decl(&config).contains("max_duration: number | null"));
     }
 }

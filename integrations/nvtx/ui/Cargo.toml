@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 nvtx-analyzer = { path = "../analyzer" }
+quent-time = { path = "../../../crates/time" }
 serde.workspace = true
 ts-rs.workspace = true
 

@@ -2136,6 +2136,7 @@ dependencies = [
  "nvtx-bridge",
  "nvtx-events",
  "quent-events",
+ "quent-time",
  "serde",
  "serde_json",
  "ts-rs",
