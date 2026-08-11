@@ -35,6 +35,7 @@ interface EntityResultsProps {
   total: number;
   visibleStart: number;
   visibleEnd: number;
+  stateColorFn: (name: string) => string;
   onSelect: (fsm: FiniteStateMachine) => void;
   onPageChange: (page: number) => void;
 }
@@ -53,6 +54,7 @@ export function EntityResults({
   total,
   visibleStart,
   visibleEnd,
+  stateColorFn,
   onSelect,
   onPageChange,
 }: EntityResultsProps) {
@@ -125,6 +127,7 @@ export function EntityResults({
                 <SortableHead col="instance" label="Instance" {...headProps} />
                 <SortableHead col="type" label="Type" {...headProps} />
                 <SortableHead col="states" label="States" className="text-right" {...headProps} />
+                <TableHead>Sequence</TableHead>
                 <SortableHead col="start" label="Start" className="text-right" {...headProps} />
                 <SortableHead col="end" label="End" className="text-right" {...headProps} />
                 <SortableHead col="span" label="FSM span" className="text-right" {...headProps} />
@@ -143,6 +146,7 @@ export function EntityResults({
                   key={row.fsm.id}
                   row={row}
                   selected={selected?.id === row.fsm.id}
+                  stateColorFn={stateColorFn}
                   onSelect={onSelect}
                 />
               ))}
@@ -298,10 +302,12 @@ function PageJump({
 function EntityRow({
   row,
   selected,
+  stateColorFn,
   onSelect,
 }: {
   row: EntityTableRow;
   selected: boolean;
+  stateColorFn: (name: string) => string;
   onSelect: (fsm: FiniteStateMachine) => void;
 }) {
   const select = () => onSelect(row.fsm);
@@ -331,6 +337,13 @@ function EntityRow({
       <TableCell className="font-medium">{row.fsm.instance_name}</TableCell>
       <TableCell>{row.fsm.type_name}</TableCell>
       <TableCell className="text-right tabular-nums">{row.fsm.transitions.length}</TableCell>
+      <TableCell>
+        <div className="flex h-3.5 w-24 gap-px overflow-hidden rounded-sm">
+          {row.fsm.transitions.map((t, i) => (
+            <div key={i} className="flex-1" style={{ backgroundColor: stateColorFn(t.name) }} />
+          ))}
+        </div>
+      </TableCell>
       <TableCell className="text-right tabular-nums">{row.start.toFixed(3)}s</TableCell>
       <TableCell className="text-right tabular-nums">{row.end.toFixed(3)}s</TableCell>
       <TableCell className="text-right tabular-nums">

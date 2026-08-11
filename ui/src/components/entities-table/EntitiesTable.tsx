@@ -59,6 +59,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
             total={table.total}
             visibleStart={table.visibleStart}
             visibleEnd={table.visibleEnd}
+            stateColorFn={stateColorFn}
             onSelect={table.setSelected}
             onPageChange={table.setPage}
           />
