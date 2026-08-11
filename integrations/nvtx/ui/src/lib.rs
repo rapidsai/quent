@@ -16,11 +16,11 @@ use quent_time::{TimeUnixNanoSec, to_nanosecs, to_secs, to_secs_relative};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// Stable metadata for one NVTX stream.
-#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Stable, output-only metadata for one NVTX stream.
+#[derive(TS, Debug, Clone, PartialEq, Serialize)]
 pub struct NvtxCatalog {
-    /// Absolute origin used to produce every relative-second field.
-    #[serde(skip)]
+    /// Server-side absolute origin used to produce every relative-second field.
+    #[serde(skip_serializing)]
     #[ts(skip)]
     query_start: TimeUnixNanoSec,
     /// Trace start in seconds relative to the query start.
@@ -222,10 +222,7 @@ pub enum NvtxViewportError {
 impl fmt::Display for NvtxViewportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidWindow => write!(
-                f,
-                "viewport bounds must be finite, non-negative, and ordered"
-            ),
+            Self::InvalidWindow => write!(f, "viewport bounds must be finite and ordered"),
             Self::EmptySelection { domain_id } => {
                 write!(f, "domain {domain_id} selects no categories")
             }
@@ -391,7 +388,6 @@ impl NvtxCatalog {
     ) -> Result<NvtxViewportRequest, NvtxViewportError> {
         if !request.viewport.start.is_finite()
             || !request.viewport.end.is_finite()
-            || request.viewport.start < 0.0
             || request.viewport.start > request.viewport.end
         {
             return Err(NvtxViewportError::InvalidWindow);
@@ -687,9 +683,18 @@ struct AbsoluteViewport {
 }
 
 fn absolute_viewport(viewport: NvtxViewportWindow, epoch: u64) -> Option<AbsoluteViewport> {
-    let start = epoch.checked_add(to_nanosecs(viewport.start))?;
-    let end = epoch.checked_add(to_nanosecs(viewport.end))?;
+    let start = absolute_timestamp(viewport.start, epoch)?;
+    let end = absolute_timestamp(viewport.end, epoch)?;
     Some(AbsoluteViewport { start, end })
+}
+
+fn absolute_timestamp(relative_seconds: f64, epoch: u64) -> Option<u64> {
+    let nanoseconds = to_nanosecs(relative_seconds.abs());
+    if relative_seconds.is_sign_negative() {
+        epoch.checked_sub(nanoseconds)
+    } else {
+        epoch.checked_add(nanoseconds)
+    }
 }
 
 fn intersects(start: u64, effective_end: u64, viewport: AbsoluteViewport) -> bool {
@@ -941,6 +946,16 @@ mod tests {
         event(QUERY_START_NS + offset, nvtx_event)
     }
 
+    fn query_event_signed(offset: i64, nvtx_event: NvtxEvent) -> Event<NvtxEventEntity> {
+        let magnitude = offset.unsigned_abs();
+        let timestamp = if offset.is_negative() {
+            QUERY_START_NS - magnitude
+        } else {
+            QUERY_START_NS + magnitude
+        };
+        event(timestamp, nvtx_event)
+    }
+
     fn model() -> NvtxModel {
         NvtxModelBuilder::build(vec![
             query_event(
@@ -1066,10 +1081,6 @@ mod tests {
         assert!(matches!(inverted, Err(NvtxViewportError::InvalidWindow)));
 
         for viewport in [
-            NvtxViewportWindow {
-                start: -1.0,
-                end: 0.0,
-            },
             NvtxViewportWindow {
                 start: f64::NAN,
                 end: 1.0,
@@ -1226,7 +1237,7 @@ mod tests {
     fn request_timing_values_are_decimal_seconds() {
         let request = NvtxViewportRequest {
             viewport: NvtxViewportWindow {
-                start: 0.25,
+                start: -0.25,
                 end: 1.5,
             },
             selections: vec![NvtxDomainSelection {
@@ -1237,7 +1248,7 @@ mod tests {
         };
 
         let json = serde_json::to_value(&request).expect("request serializes");
-        assert_eq!(json["viewport"]["start"], 0.25);
+        assert_eq!(json["viewport"]["start"], -0.25);
         assert_eq!(json["viewport"]["end"], 1.5);
         assert_eq!(json["selections"][0]["domain_id"], "18446744073709551615");
         assert_eq!(
@@ -1334,6 +1345,50 @@ mod tests {
         assert_eq!(instant_stats.total_duration, 0.0);
         assert_eq!(instant_stats.min_duration, Some(0.0));
         assert_eq!(instant_stats.max_duration, Some(0.0));
+    }
+
+    #[test]
+    fn viewport_supports_trace_data_before_query_start() {
+        let model = NvtxModelBuilder::build(vec![
+            query_event_signed(
+                -100,
+                NvtxEvent::RangeStart {
+                    domain: 2,
+                    range_id: 9,
+                    attributes: attributes("crosses query start", 0, None),
+                },
+            ),
+            query_event_signed(
+                100,
+                NvtxEvent::RangeEnd {
+                    domain: 2,
+                    range_id: 9,
+                },
+            ),
+        ]);
+        let catalog = NvtxCatalog::from_model(&model, QUERY_START_NS);
+        assert_eq!(catalog.trace_start, -seconds(100));
+        assert_eq!(catalog.trace_end, seconds(100));
+
+        let response = NvtxViewportResponse::from_model_with_catalog(
+            &model,
+            &catalog,
+            NvtxViewportRequest {
+                viewport: NvtxViewportWindow {
+                    start: -seconds(75),
+                    end: -seconds(25),
+                },
+                selections: catalog.select_all(),
+            },
+        )
+        .expect("negative relative viewport is valid");
+
+        let range = &response.domains[0].lanes[0].ranges[0];
+        assert_eq!(range.observed_start, -seconds(100));
+        assert_eq!(range.observed_end, Some(seconds(100)));
+        assert_eq!(range.display_start, -seconds(75));
+        assert_eq!(range.display_end, -seconds(25));
+        assert_eq!(response.statistics[0].total_duration, seconds(50));
     }
 
     #[test]
