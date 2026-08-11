@@ -228,8 +228,15 @@ function SortableHead({
   const isActive = sortCol === col;
   const isRight = className?.includes('text-right');
   return (
-    <TableHead className={cn('cursor-pointer select-none', className)} onClick={() => onSort(col)}>
-      <span className={cn('flex items-center gap-1', isRight && 'justify-end')}>
+    <TableHead
+      aria-sort={isActive ? (localSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={cn('p-0 select-none', className)}
+    >
+      <button
+        type="button"
+        className={cn('flex h-10 w-full cursor-pointer items-center gap-1 px-2', isRight && 'justify-end')}
+        onClick={() => onSort(col)}
+      >
         {label}
         {isActive ? (
           localSortDir === 'asc' ? (
@@ -240,7 +247,7 @@ function SortableHead({
         ) : (
           <ChevronsUpDown className="size-3.5 shrink-0 opacity-30" />
         )}
-      </span>
+      </button>
     </TableHead>
   );
 }
