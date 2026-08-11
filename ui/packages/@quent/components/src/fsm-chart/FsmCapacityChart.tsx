@@ -4,7 +4,7 @@
 import { useMemo } from 'react';
 import EChartsReactCore from 'echarts-for-react/lib/core';
 import type { FsmTransition } from '@quent/utils';
-import { formatBytes, isBytesStat } from '@quent/utils';
+import { bigintToChartNumber, formatBytes, isBytesStat } from '@quent/utils';
 import { echarts } from '../lib/echarts';
 import { useChartResize } from '../lib/useChartResize';
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
@@ -15,7 +15,10 @@ interface CapacitySeries {
   label: string;
   // Full-length array aligned to transitions — null where no reading exists
   data: Array<number | null>;
+  // Original bigint values for lossless tooltip formatting
+  rawData: Array<bigint | null>;
 }
+
 
 export interface FsmCapacityChartProps {
   transitions: FsmTransition[];
@@ -33,6 +36,7 @@ export function FsmCapacityChart({ transitions, isDark, resourceLabel }: FsmCapa
 
     // Build per-resource full-length arrays (null = no reading at that state)
     const dataMap = new Map<string, Array<number | null>>();
+    const rawMap = new Map<string, Array<bigint | null>>();
     const labelMap = new Map<string, string>();
 
     transitions.forEach((t, i) => {
@@ -43,9 +47,11 @@ export function FsmCapacityChart({ transitions, isDark, resourceLabel }: FsmCapa
           const key = `${usage.resource} ${name}`;
           if (!dataMap.has(key)) {
             dataMap.set(key, Array<number | null>(n).fill(null));
+            rawMap.set(key, Array<bigint | null>(n).fill(null));
             labelMap.set(key, name === 'capacity_bytes' ? resourceName : `${resourceName} ${name}`);
           }
-          dataMap.get(key)![i] = Number(cap);
+          dataMap.get(key)![i] = bigintToChartNumber(cap);
+          rawMap.get(key)![i] = cap;
         });
       });
     });
@@ -53,7 +59,11 @@ export function FsmCapacityChart({ transitions, isDark, resourceLabel }: FsmCapa
     // Only show resources with readings in at least 2 states
     const series: CapacitySeries[] = [...dataMap.entries()]
       .filter(([, data]) => data.filter(v => v !== null).length >= 2)
-      .map(([key, data]) => ({ label: labelMap.get(key) ?? key, data }));
+      .map(([key, data]) => ({
+        label: labelMap.get(key) ?? key,
+        data,
+        rawData: rawMap.get(key) ?? Array<bigint | null>(n).fill(null),
+      }));
 
     return { series, stateLabels };
   }, [transitions, resourceLabel]);
@@ -89,13 +99,16 @@ export function FsmCapacityChart({ transitions, isDark, resourceLabel }: FsmCapa
       tooltip: {
         trigger: 'axis' as const,
         formatter: (
-          params: Array<{ seriesName: string; value: number | null; dataIndex: number }>
+          params: Array<{ seriesName: string; value: number | null; dataIndex: number; seriesIndex: number }>
         ) => {
           const idx = params[0]?.dataIndex ?? 0;
           const stateName = transitions[idx]?.name ?? '';
           const lines = params
             .filter(p => p.value != null)
-            .map(p => `${p.seriesName}: ${formatBytes(p.value!)}`);
+            .map(p => {
+              const raw = series[p.seriesIndex]?.rawData[idx];
+              return `${p.seriesName}: ${formatBytes(raw ?? p.value!)}`;
+            });
           if (lines.length === 0) return '';
           return [`<strong>${idx + 1}. ${stateName}</strong>`, ...lines].join('<br/>');
         },
