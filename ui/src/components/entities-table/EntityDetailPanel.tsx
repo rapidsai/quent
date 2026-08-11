@@ -10,6 +10,7 @@ import {
   formatDuration,
   formatBytes,
   getColorForKey,
+  isBytesStat,
   unwrapTaggedValue,
 } from '@quent/utils';
 import type { DynamicAttribute, FiniteStateMachine } from '@quent/utils';
@@ -20,15 +21,6 @@ interface EntityDetailPanelProps {
   resourceLabel: (id: string) => string;
   operatorLabel: (id: string) => string;
   stateColorFn?: (name: string) => string;
-}
-
-function isBytesStat(name: string): boolean {
-  return (
-    name.includes('_bytes') ||
-    name.endsWith('_byte') ||
-    name.startsWith('bytes_') ||
-    name === 'bytes'
-  );
 }
 
 export function EntityDetailPanel({

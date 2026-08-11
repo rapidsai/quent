@@ -4,21 +4,12 @@
 import { useMemo } from 'react';
 import EChartsReactCore from 'echarts-for-react/lib/core';
 import type { FsmTransition } from '@quent/utils';
-import { formatBytes } from '@quent/utils';
+import { formatBytes, isBytesStat } from '@quent/utils';
 import { echarts } from '../lib/echarts';
 import { useChartResize } from '../lib/useChartResize';
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
 
 const CHART_HEIGHT = 90;
-
-function isBytesStat(name: string): boolean {
-  return (
-    name.includes('_bytes') ||
-    name.endsWith('_byte') ||
-    name.startsWith('bytes_') ||
-    name === 'bytes'
-  );
-}
 
 interface CapacitySeries {
   label: string;
