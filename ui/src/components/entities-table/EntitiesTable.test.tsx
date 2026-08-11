@@ -160,6 +160,34 @@ describe('EntitiesTable', () => {
     expect(params.request.entry.application.operator_ids).toEqual([]);
   });
 
+  it('shows empty state when the response contains no entities', () => {
+    useEntities.mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+    });
+
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+
+    expect(screen.getByText('No entities match the filters.')).toBeInTheDocument();
+  });
+
+  it('shows error state when the query fails', () => {
+    useEntities.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      isError: true,
+      error: new Error('network timeout'),
+    });
+
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+
+    expect(screen.getByText('Failed to load entities: network timeout')).toBeInTheDocument();
+  });
+
   it('dims existing rows while replacement data is pending', () => {
     useEntities.mockReturnValue({
       data: { items: [fsm], total: 1 },
