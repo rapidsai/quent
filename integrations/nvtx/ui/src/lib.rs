@@ -19,6 +19,10 @@ use ts_rs::TS;
 /// Stable metadata for one NVTX stream.
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxCatalog {
+    /// Absolute origin used to produce every relative-second field.
+    #[serde(skip)]
+    #[ts(skip)]
+    query_start: TimeUnixNanoSec,
     /// Trace start in seconds relative to the query start.
     pub trace_start: f64,
     /// Trace end in seconds relative to the query start.
@@ -54,6 +58,8 @@ pub struct NvtxCatalogAnomalies {
 /// Selectable metadata for one domain.
 #[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NvtxCatalogDomain {
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
     pub domain_id: u64,
     pub name: String,
     pub color: String,
@@ -108,6 +114,8 @@ pub struct NvtxViewportResponse {
 
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxDomainLaneGroup {
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
     pub domain_id: u64,
     pub name: String,
     pub color: String,
@@ -143,6 +151,8 @@ pub enum NvtxRangeKind {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeItem {
     pub message: String,
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
     pub domain_id: u64,
     pub domain_name: String,
     pub category_id: Option<u32>,
@@ -166,6 +176,8 @@ pub struct NvtxRangeItem {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxMarkItem {
     pub message: String,
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
     pub domain_id: u64,
     pub domain_name: String,
     pub category_id: Option<u32>,
@@ -182,6 +194,8 @@ pub struct NvtxMarkItem {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeStatistics {
     pub message: String,
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
     pub domain_id: u64,
     pub domain_name: String,
     pub category_id: Option<u32>,
@@ -330,6 +344,7 @@ impl NvtxCatalog {
 
         let anomalies = model.anomalies();
         Self {
+            query_start,
             trace_start: to_secs_relative(model.trace_start(), query_start),
             trace_end: to_secs_relative(model.trace_end(), query_start),
             domains,
@@ -440,18 +455,17 @@ impl NvtxViewportResponse {
         request: NvtxViewportRequest,
     ) -> Result<Self, NvtxViewportError> {
         let catalog = NvtxCatalog::from_model(model, query_start);
-        Self::from_model_with_catalog(model, &catalog, query_start, request)
+        Self::from_model_with_catalog(model, &catalog, request)
     }
 
     /// Convert a viewport using catalog metadata cached for this model and time origin.
     pub fn from_model_with_catalog(
         model: &NvtxModel,
         catalog: &NvtxCatalog,
-        query_start: TimeUnixNanoSec,
         request: NvtxViewportRequest,
     ) -> Result<Self, NvtxViewportError> {
         let request = catalog.canonicalize_request(request)?;
-        let viewport = absolute_viewport(request.viewport, query_start)
+        let viewport = absolute_viewport(request.viewport, catalog.query_start)
             .ok_or(NvtxViewportError::InvalidWindow)?;
         let selections: HashMap<_, _> = request
             .selections
@@ -481,7 +495,7 @@ impl NvtxViewportResponse {
             let domain = domains_by_id
                 .get(&span.domain)
                 .expect("validated selections only reference catalog domains");
-            let Some(item) = range_item(model, domain, span, query_start, viewport) else {
+            let Some(item) = range_item(model, domain, span, catalog.query_start, viewport) else {
                 continue;
             };
             statistics
@@ -532,7 +546,7 @@ impl NvtxViewportResponse {
                         .category
                         .and_then(|id| model.category_name(domain.domain_id, id)),
                     color: display_color(mark.color, domain.domain_id),
-                    timestamp: to_secs_relative(mark.timestamp, query_start),
+                    timestamp: to_secs_relative(mark.timestamp, catalog.query_start),
                 });
         }
 
@@ -683,7 +697,10 @@ fn intersects(start: u64, effective_end: u64, viewport: AbsoluteViewport) -> boo
 }
 
 fn span_depths(model: &NvtxModel) -> Vec<u32> {
-    let spans = model.spans();
+    span_depths_for(model.spans())
+}
+
+fn span_depths_for(spans: &[NvtxSpan]) -> Vec<u32> {
     let mut depths: Vec<Option<u32>> = vec![None; spans.len()];
     let mut chain_positions: Vec<Option<usize>> = vec![None; spans.len()];
 
@@ -697,7 +714,6 @@ fn span_depths(model: &NvtxModel) -> Vec<u32> {
         let mut next_depth = 0_u32;
         while let Some(index) = cursor {
             if index >= spans.len() {
-                next_depth = 1;
                 break;
             }
             if let Some(depth) = depths[index] {
@@ -1236,9 +1252,15 @@ mod tests {
         let catalog = NvtxCatalog::from_model(&model, QUERY_START_NS);
         assert_eq!(catalog.trace_start, seconds(100));
         assert_eq!(catalog.trace_end, seconds(250));
-        let response = NvtxViewportResponse::from_model(
+        assert!(
+            serde_json::to_value(&catalog)
+                .expect("catalog serializes")
+                .get("query_start")
+                .is_none()
+        );
+        let response = NvtxViewportResponse::from_model_with_catalog(
             &model,
-            QUERY_START_NS,
+            &catalog,
             NvtxViewportRequest {
                 viewport: NvtxViewportWindow {
                     start: seconds(110),
@@ -1404,6 +1426,104 @@ mod tests {
         }
     }
 
+    fn span_with_parent(parent: Option<SpanId>) -> NvtxSpan {
+        NvtxSpan {
+            domain: 0,
+            name: "span".to_owned(),
+            category: None,
+            color: None,
+            payload: None,
+            start: 0,
+            end: Some(1),
+            kind: SpanKind::PushPop {
+                thread_id: 1,
+                parent,
+            },
+        }
+    }
+
+    #[test]
+    fn malformed_parent_chains_have_safe_depths() {
+        let missing_parent = vec![span_with_parent(Some(SpanId(99)))];
+        assert_eq!(span_depths_for(&missing_parent), vec![0]);
+
+        let cycle = vec![
+            span_with_parent(Some(SpanId(1))),
+            span_with_parent(Some(SpanId(0))),
+        ];
+        assert_eq!(span_depths_for(&cycle), vec![0, 0]);
+    }
+
+    #[test]
+    fn response_domain_ids_are_lossless_json_strings() {
+        let domain_id = u64::MAX;
+        let values = [
+            serde_json::to_value(NvtxCatalogDomain {
+                domain_id,
+                name: "domain".to_owned(),
+                color: "#000000ff".to_owned(),
+                threads: vec![],
+                categories: vec![],
+                has_uncategorized: false,
+            })
+            .expect("catalog domain serializes"),
+            serde_json::to_value(NvtxDomainLaneGroup {
+                domain_id,
+                name: "domain".to_owned(),
+                color: "#000000ff".to_owned(),
+                lanes: vec![],
+            })
+            .expect("lane group serializes"),
+            serde_json::to_value(NvtxRangeItem {
+                message: "range".to_owned(),
+                domain_id,
+                domain_name: "domain".to_owned(),
+                category_id: None,
+                category_name: None,
+                color: "#000000ff".to_owned(),
+                kind: NvtxRangeKind::StartEnd,
+                thread_id: None,
+                thread_name: None,
+                observed_start: 0.0,
+                observed_end: Some(1.0),
+                display_start: 0.0,
+                display_end: 1.0,
+                observed_duration: Some(1.0),
+                incomplete: false,
+            })
+            .expect("range serializes"),
+            serde_json::to_value(NvtxMarkItem {
+                message: "mark".to_owned(),
+                domain_id,
+                domain_name: "domain".to_owned(),
+                category_id: None,
+                category_name: None,
+                color: "#000000ff".to_owned(),
+                timestamp: 0.0,
+            })
+            .expect("mark serializes"),
+            serde_json::to_value(NvtxRangeStatistics {
+                message: "range".to_owned(),
+                domain_id,
+                domain_name: "domain".to_owned(),
+                category_id: None,
+                category_name: None,
+                count: 1,
+                observed_count: 1,
+                total_duration: 1.0,
+                avg_duration: 1.0,
+                min_duration: Some(1.0),
+                max_duration: Some(1.0),
+                saturated: false,
+            })
+            .expect("statistics serialize"),
+        ];
+
+        for value in values {
+            assert_eq!(value["domain_id"], "18446744073709551615");
+        }
+    }
+
     #[test]
     fn generated_contract_uses_numbers_for_relative_seconds() {
         let config = ts_rs::Config::default();
@@ -1414,6 +1534,15 @@ mod tests {
         assert!(NvtxViewportWindow::decl(&config).contains("start: number"));
         assert!(NvtxViewportWindow::decl(&config).contains("end: number"));
         assert!(NvtxDomainSelection::decl(&config).contains("domain_id: string"));
+        for declaration in [
+            NvtxCatalogDomain::decl(&config),
+            NvtxDomainLaneGroup::decl(&config),
+            NvtxRangeItem::decl(&config),
+            NvtxMarkItem::decl(&config),
+            NvtxRangeStatistics::decl(&config),
+        ] {
+            assert!(declaration.contains("domain_id: string"));
+        }
         let anomalies = NvtxCatalogAnomalies::decl(&config);
         for field in [
             "orphan_range_ends",
