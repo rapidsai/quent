@@ -106,7 +106,11 @@ export function SearchableSelect({
               </button>
             )}
           </div>
-          <div className="max-h-56 space-y-0.5 overflow-auto" role="listbox" aria-label={accessibleLabel}>
+          <div
+            className="max-h-56 space-y-0.5 overflow-auto"
+            role="listbox"
+            aria-label={accessibleLabel}
+          >
             <Option label={placeholder} selected={value === null} onSelect={() => select(null)} />
             {filteredOptions.map(option => (
               <Option

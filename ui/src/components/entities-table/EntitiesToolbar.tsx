@@ -133,12 +133,7 @@ export function EntitiesToolbar({
 
         {/* Actions */}
         <div className="ml-auto flex items-end gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasNonDefaultSettings}
-            onClick={onReset}
-          >
+          <Button variant="outline" size="sm" disabled={!hasNonDefaultSettings} onClick={onReset}>
             <RotateCcw className="mr-1.5 size-3.5" />
             Reset
           </Button>

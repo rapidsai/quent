@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup, QueryToolbar } from '@quent/components';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  QueryToolbar,
+} from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { createFsmTypeColorFn } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';

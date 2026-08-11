@@ -121,8 +121,17 @@ export function GanttChart<T extends GanttDatum>({
 
       // zrender fires click for ALL clicks; target is null when background is clicked
       type ZrEvent = { target: unknown };
-      const zr = (instance as unknown as { getZr: () => { on: (e: string, h: (ev: ZrEvent) => void) => void; off: (e: string, h: (ev: ZrEvent) => void) => void } }).getZr?.();
-      const handleZrClick = (e: ZrEvent) => { if (!e.target) onBackgroundClick?.(); };
+      const zr = (
+        instance as unknown as {
+          getZr: () => {
+            on: (e: string, h: (ev: ZrEvent) => void) => void;
+            off: (e: string, h: (ev: ZrEvent) => void) => void;
+          };
+        }
+      ).getZr?.();
+      const handleZrClick = (e: ZrEvent) => {
+        if (!e.target) onBackgroundClick?.();
+      };
       zr?.on('click', handleZrClick);
 
       const cleanup = () => {

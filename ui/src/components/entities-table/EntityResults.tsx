@@ -228,10 +228,7 @@ function SortableHead({
   const isActive = sortCol === col;
   const isRight = className?.includes('text-right');
   return (
-    <TableHead
-      className={cn('cursor-pointer select-none', className)}
-      onClick={() => onSort(col)}
-    >
+    <TableHead className={cn('cursor-pointer select-none', className)} onClick={() => onSort(col)}>
       <span className={cn('flex items-center gap-1', isRight && 'justify-end')}>
         {label}
         {isActive ? (

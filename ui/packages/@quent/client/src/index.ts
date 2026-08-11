@@ -25,7 +25,11 @@ export { queriesQueryOptions } from './queries';
 export { singleTimelineQueryOptions } from './timeline';
 export { bulkTimelineQueryOptions } from './bulkTimelines';
 export { dataFlowQueryOptions } from './dataFlow';
-export { entitiesQueryOptions, entityListInfiniteQueryOptions, entityListQueryOptions } from './entityList';
+export {
+  entitiesQueryOptions,
+  entityListInfiniteQueryOptions,
+  entityListQueryOptions,
+} from './entityList';
 
 // Hooks
 export { useQueryBundle } from './queryBundle';

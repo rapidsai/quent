@@ -114,9 +114,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   const operatorLabel = useCallback(
     (id: string) => {
       const operator = entities.operators[id];
-      return operator
-        ? (operator.instance_name ?? operator.operator_type_name ?? id)
-        : id;
+      return operator ? (operator.instance_name ?? operator.operator_type_name ?? id) : id;
     },
     [entities.operators]
   );
@@ -140,10 +138,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     () => buildEntityRequest({ filters: effectiveFilters, operatorId, page, queryId, durationS }),
     [durationS, effectiveFilters, operatorId, page, queryId]
   );
-  const query = useEntities(
-    { engineId, request },
-    { enabled: validationErrors.length === 0 }
-  );
+  const query = useEntities({ engineId, request }, { enabled: validationErrors.length === 0 });
   const isDebouncing =
     filters.minUsageS !== debouncedMinUsageS ||
     filters.windowStart !== debouncedWindowStart ||

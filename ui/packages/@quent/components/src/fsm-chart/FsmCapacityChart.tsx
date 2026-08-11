@@ -97,7 +97,9 @@ export function FsmCapacityChart({ transitions, isDark, resourceLabel }: FsmCapa
       },
       tooltip: {
         trigger: 'axis' as const,
-        formatter: (params: Array<{ seriesName: string; value: number | null; dataIndex: number }>) => {
+        formatter: (
+          params: Array<{ seriesName: string; value: number | null; dataIndex: number }>
+        ) => {
           const idx = params[0]?.dataIndex ?? 0;
           const stateName = transitions[idx]?.name ?? '';
           const lines = params

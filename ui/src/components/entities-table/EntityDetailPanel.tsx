@@ -31,7 +31,12 @@ function isBytesStat(name: string): boolean {
   );
 }
 
-export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColorFn }: EntityDetailPanelProps) {
+export function EntityDetailPanel({
+  fsm,
+  resourceLabel,
+  operatorLabel,
+  stateColorFn,
+}: EntityDetailPanelProps) {
   const { theme } = useTheme();
   const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
   const [copied, setCopied] = useState(false);
@@ -71,7 +76,10 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
     let maxMs = 0;
     let maxName = '';
     stateTimeMs.forEach((ms, name) => {
-      if (ms > maxMs) { maxMs = ms; maxName = name; }
+      if (ms > maxMs) {
+        maxMs = ms;
+        maxName = name;
+      }
     });
     dominantState = {
       name: maxName,
@@ -154,9 +162,15 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
                 <div
                   key={name}
                   style={{ width: `${pct}%`, backgroundColor: color }}
-                  onMouseEnter={e => { setBarTooltip({ name, pct }); setBarPointer({ clientX: e.clientX, clientY: e.clientY }); }}
+                  onMouseEnter={e => {
+                    setBarTooltip({ name, pct });
+                    setBarPointer({ clientX: e.clientX, clientY: e.clientY });
+                  }}
                   onMouseMove={e => setBarPointer({ clientX: e.clientX, clientY: e.clientY })}
-                  onMouseLeave={() => { setBarTooltip(null); setBarPointer(null); }}
+                  onMouseLeave={() => {
+                    setBarTooltip(null);
+                    setBarPointer(null);
+                  }}
                 />
               );
             })}
@@ -186,9 +200,10 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
           const stateColor = stateColorFn
             ? stateColorFn(transition.name)
             : getColorForKey(transition.name, paletteTheme);
-          const pct = durationMs != null && totalSpanMs > 0
-            ? Math.min(100, (durationMs / totalSpanMs) * 100)
-            : null;
+          const pct =
+            durationMs != null && totalSpanMs > 0
+              ? Math.min(100, (durationMs / totalSpanMs) * 100)
+              : null;
 
           return (
             <li
@@ -245,10 +260,7 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
                 </ul>
               )}
               {transition.attributes.length > 0 && (
-                <AttributeRows
-                  attributes={transition.attributes}
-                  operatorLabel={operatorLabel}
-                />
+                <AttributeRows attributes={transition.attributes} operatorLabel={operatorLabel} />
               )}
               {transition.derived_attributes.length > 0 && (
                 <AttributeRows

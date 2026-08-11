@@ -93,7 +93,6 @@ export function LongEntitiesRow({
     [entities, onEntitySelect]
   );
 
-
   if (!data && isFetching) {
     return (
       <div
