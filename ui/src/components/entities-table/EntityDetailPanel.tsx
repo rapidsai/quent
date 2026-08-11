@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { thinScrollbarClass, FsmCapacityChart } from '@quent/components';
+import { thinScrollbarClass, FsmCapacityChart, PointerTooltipPortal } from '@quent/components';
+import type { PointerPosition } from '@quent/components';
 import {
   formatAttributeValue,
   formatDuration,
@@ -34,6 +35,8 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
   const { theme } = useTheme();
   const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
   const [copied, setCopied] = useState(false);
+  const [barTooltip, setBarTooltip] = useState<{ name: string; pct: number } | null>(null);
+  const [barPointer, setBarPointer] = useState<PointerPosition | null>(null);
 
   if (!fsm) {
     return (
@@ -150,13 +153,23 @@ export function EntityDetailPanel({ fsm, resourceLabel, operatorLabel, stateColo
               return (
                 <div
                   key={name}
-                  title={`${name}: ${pct.toFixed(1)}%`}
                   style={{ width: `${pct}%`, backgroundColor: color }}
+                  onMouseEnter={e => { setBarTooltip({ name, pct }); setBarPointer({ clientX: e.clientX, clientY: e.clientY }); }}
+                  onMouseMove={e => setBarPointer({ clientX: e.clientX, clientY: e.clientY })}
+                  onMouseLeave={() => { setBarTooltip(null); setBarPointer(null); }}
                 />
               );
             })}
           </div>
         )}
+        <PointerTooltipPortal hover={barTooltip ? barPointer : null}>
+          {barTooltip && (
+            <div className="rounded bg-popover px-2 py-1.5 text-[11px] leading-tight text-foreground shadow-md">
+              <span className="font-medium">{barTooltip.name}</span>
+              <span className="ml-2 text-muted-foreground">{barTooltip.pct.toFixed(1)}%</span>
+            </div>
+          )}
+        </PointerTooltipPortal>
       </div>
 
       <FsmCapacityChart
