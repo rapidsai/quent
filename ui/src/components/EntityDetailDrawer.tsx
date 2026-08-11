@@ -36,6 +36,7 @@ export function EntityDetailDrawer({
     <div
       role="complementary"
       aria-label="Entity details"
+      inert={!fsm || undefined}
       className={`fixed right-0 top-0 z-50 flex h-full w-80 flex-col border-l bg-background shadow-xl transition-transform duration-200 ${
         fsm ? 'translate-x-0' : 'translate-x-full'
       }`}
