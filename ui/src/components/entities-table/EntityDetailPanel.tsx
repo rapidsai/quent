@@ -153,13 +153,26 @@ export function EntityDetailPanel({
               return (
                 <div
                   key={name}
+                  role="img"
+                  aria-label={`${name}: ${pct.toFixed(1)}%`}
+                  tabIndex={0}
                   style={{ width: `${pct}%`, backgroundColor: color }}
+                  className="focus-visible:brightness-90"
                   onMouseEnter={e => {
                     setBarTooltip({ name, pct });
                     setBarPointer({ clientX: e.clientX, clientY: e.clientY });
                   }}
                   onMouseMove={e => setBarPointer({ clientX: e.clientX, clientY: e.clientY })}
                   onMouseLeave={() => {
+                    setBarTooltip(null);
+                    setBarPointer(null);
+                  }}
+                  onFocus={e => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setBarTooltip({ name, pct });
+                    setBarPointer({ clientX: rect.left + rect.width / 2, clientY: rect.top });
+                  }}
+                  onBlur={() => {
                     setBarTooltip(null);
                     setBarPointer(null);
                   }}
