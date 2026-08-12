@@ -134,7 +134,7 @@ async fn engine_contexts<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let contexts = state.analyzers.contexts(engine_id).map_err(|error| {
+    let contexts = state.analyzers.contexts(engine_id).await.map_err(|error| {
         tracing::error!(%error, %engine_id, "engine context inventory failed");
         crate::error::ServerError::Cache("engine context inventory could not be loaded".to_owned())
     })?;

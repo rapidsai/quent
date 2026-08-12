@@ -232,13 +232,19 @@ where
         Ok((self.lister)()?.engine_ids().collect())
     }
 
-    pub(crate) fn contexts(&self, engine_id: Uuid) -> ServerResult<ui::EngineContexts> {
-        let index = (self.lister)()?;
-        Ok(ui::EngineContexts {
-            engine_id,
-            context_ids: index.contexts_of(engine_id),
-            context_resources: index.context_resources_of(engine_id),
+    /// List an engine's contributing contexts without blocking the async executor.
+    pub(crate) async fn contexts(&self, engine_id: Uuid) -> ServerResult<ui::EngineContexts> {
+        let lister = Arc::clone(&self.lister);
+        tokio::task::spawn_blocking(move || {
+            let index = lister()?;
+            Ok(ui::EngineContexts {
+                engine_id,
+                context_ids: index.contexts_of(engine_id),
+                context_resources: index.context_resources_of(engine_id),
+            })
         })
+        .await
+        .map_err(|error| ServerError::Cache(format!("blocking task panicked: {error}")))?
     }
 
     pub(crate) async fn list_with_metadata(&self) -> ServerResult<Vec<ui::Engine>> {

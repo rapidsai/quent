@@ -21,12 +21,14 @@ use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use quent_events::{EntityEvent, Event};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ImporterOptions, ImporterProvider};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 const MAX_BODY_BYTES: usize = 64 * 1024;
 const MAX_DOMAIN_FILTERS: usize = 256;
 const MAX_CATEGORY_FILTERS: usize = 4096;
 const MAX_CATALOG_ORIGINS: u64 = 32;
+const MAX_CONCURRENT_MODEL_TASKS: usize = 4;
 
 /// A redacted importer failure. Details are logged server-side and are never
 /// copied into an HTTP response.
@@ -34,6 +36,7 @@ const MAX_CATALOG_ORIGINS: u64 = 32;
 pub struct NvtxImporterError(String);
 
 impl NvtxImporterError {
+    /// Capture an importer error for server-side logging.
     pub fn new(error: impl fmt::Display) -> Self {
         Self(error.to_string())
     }
@@ -96,6 +99,7 @@ struct CachedNvtx {
 }
 
 impl CachedNvtx {
+    /// Pair a reconstructed model with its origin-specific catalog cache.
     fn new(model: NvtxModel) -> Self {
         Self {
             model,
@@ -105,6 +109,7 @@ impl CachedNvtx {
         }
     }
 
+    /// Return the catalog whose relative times use `query_start` as their origin.
     fn catalog(&self, query_start: u64) -> Arc<NvtxCatalog> {
         self.catalogs.get_with(query_start, || {
             Arc::new(NvtxCatalog::from_model(&self.model, query_start))
@@ -112,13 +117,48 @@ impl CachedNvtx {
     }
 }
 
+/// Applies backpressure before scheduling expensive NVTX work on Tokio's
+/// blocking pool.
+#[derive(Clone)]
+struct NvtxTaskLimiter {
+    permits: Arc<Semaphore>,
+}
+
+impl NvtxTaskLimiter {
+    /// Create a limiter allowing at most `max_concurrency` model tasks.
+    fn new(max_concurrency: usize) -> Self {
+        Self {
+            permits: Arc::new(Semaphore::new(max_concurrency)),
+        }
+    }
+
+    /// Wait for capacity, then retain that capacity until the blocking task exits.
+    async fn run<T>(&self, task: impl FnOnce() -> T + Send + 'static) -> Result<T, NvtxServerError>
+    where
+        T: Send + 'static,
+    {
+        let permit = Arc::clone(&self.permits)
+            .acquire_owned()
+            .await
+            .map_err(|error| NvtxServerError::Internal(error.to_string()))?;
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            task()
+        })
+        .await
+        .map_err(|error| NvtxServerError::Internal(error.to_string()))
+    }
+}
+
 #[derive(Clone)]
 struct NvtxModelCache {
     models: AsyncCache<Uuid, Arc<CachedModel>>,
     importer: Arc<NvtxImporterFn>,
+    tasks: NvtxTaskLimiter,
 }
 
 impl NvtxModelCache {
+    /// Create the context model cache and its shared blocking-work limiter.
     fn new(importer: Box<NvtxImporterFn>) -> Self {
         Self {
             models: AsyncCache::builder()
@@ -126,30 +166,44 @@ impl NvtxModelCache {
                 .time_to_idle(Duration::from_hours(24))
                 .build(),
             importer: Arc::from(importer),
+            tasks: NvtxTaskLimiter::new(MAX_CONCURRENT_MODEL_TASKS),
         }
     }
 
+    /// Load and reconstruct one context, coalescing concurrent misses by ID.
     async fn get(&self, context_id: Uuid) -> Result<Arc<CachedModel>, NvtxServerError> {
         let importer = Arc::clone(&self.importer);
+        let tasks = self.tasks.clone();
         self.models
             .entry(context_id)
             .or_try_insert_with(async move {
-                tokio::task::spawn_blocking(move || match importer(context_id) {
-                    Ok(Some(events)) => {
-                        let model = NvtxModelBuilder::build(events);
-                        Ok(Arc::new(CachedModel::Present(Box::new(CachedNvtx::new(
-                            model,
-                        )))))
-                    }
-                    Ok(None) => Ok(Arc::new(CachedModel::Absent)),
-                    Err(error) => Err(NvtxServerError::Internal(error.to_string())),
-                })
-                .await
-                .map_err(|error| NvtxServerError::Internal(error.to_string()))?
+                tasks
+                    .run(move || match importer(context_id) {
+                        Ok(Some(events)) => {
+                            let model = NvtxModelBuilder::build(events);
+                            Ok(Arc::new(CachedModel::Present(Box::new(CachedNvtx::new(
+                                model,
+                            )))))
+                        }
+                        Ok(None) => Ok(Arc::new(CachedModel::Absent)),
+                        Err(error) => Err(NvtxServerError::Internal(error.to_string())),
+                    })
+                    .await?
             })
             .await
             .map(|entry| entry.into_value())
             .map_err(|error: Arc<NvtxServerError>| (*error).clone())
+    }
+
+    /// Run catalog or viewport conversion under the same limit as model loading.
+    async fn run_model_task<T>(
+        &self,
+        task: impl FnOnce() -> T + Send + 'static,
+    ) -> Result<T, NvtxServerError>
+    where
+        T: Send + 'static,
+    {
+        self.tasks.run(task).await
     }
 }
 
@@ -187,28 +241,23 @@ impl IntoResponse for NvtxServerError {
     }
 }
 
-async fn run_model_task<T>(task: impl FnOnce() -> T + Send + 'static) -> Result<T, NvtxServerError>
-where
-    T: Send + 'static,
-{
-    tokio::task::spawn_blocking(task)
-        .await
-        .map_err(|error| NvtxServerError::Internal(error.to_string()))
-}
-
+/// Return stable metadata for a context relative to one query origin.
 async fn catalog(
     State(state): State<NvtxState>,
     AxumPath(context_id): AxumPath<Uuid>,
     Query(origin): Query<NvtxTimeOrigin>,
 ) -> Result<Json<NvtxCatalog>, NvtxServerError> {
     let cached_model = state.cache.get(context_id).await?;
-    run_model_task(move || match cached_model.as_ref() {
-        CachedModel::Absent => Err(NvtxServerError::NotFound),
-        CachedModel::Present(cached) => Ok(Json((*cached.catalog(origin.query_start)).clone())),
-    })
-    .await?
+    state
+        .cache
+        .run_model_task(move || match cached_model.as_ref() {
+            CachedModel::Absent => Err(NvtxServerError::NotFound),
+            CachedModel::Present(cached) => Ok(Json((*cached.catalog(origin.query_start)).clone())),
+        })
+        .await?
 }
 
+/// Build lanes and statistics for one relative-time viewport.
 async fn viewport(
     State(state): State<NvtxState>,
     AxumPath(context_id): AxumPath<Uuid>,
@@ -217,18 +266,21 @@ async fn viewport(
 ) -> Result<Json<NvtxViewportResponse>, NvtxServerError> {
     validate_filter_count(&request)?;
     let cached_model = state.cache.get(context_id).await?;
-    run_model_task(move || match cached_model.as_ref() {
-        CachedModel::Absent => Err(NvtxServerError::NotFound),
-        CachedModel::Present(cached) => {
-            let catalog = cached.catalog(origin.query_start);
-            NvtxViewportResponse::from_model_with_catalog(&cached.model, &catalog, request)
-                .map(Json)
-                .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
-        }
-    })
-    .await?
+    state
+        .cache
+        .run_model_task(move || match cached_model.as_ref() {
+            CachedModel::Absent => Err(NvtxServerError::NotFound),
+            CachedModel::Present(cached) => {
+                let catalog = cached.catalog(origin.query_start);
+                NvtxViewportResponse::from_model_with_catalog(&cached.model, &catalog, request)
+                    .map(Json)
+                    .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
+            }
+        })
+        .await?
 }
 
+/// Reject requests whose selector lists could cause disproportionate work.
 fn validate_filter_count(request: &NvtxViewportRequest) -> Result<(), NvtxServerError> {
     if request.selections.len() > MAX_DOMAIN_FILTERS {
         return Err(NvtxServerError::BadRequest(
@@ -309,12 +361,47 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn model_work_runs_off_the_async_executor() {
+        let limiter = NvtxTaskLimiter::new(1);
         let executor_thread = std::thread::current().id();
-        let model_thread = run_model_task(|| std::thread::current().id())
-            .await
-            .unwrap();
+        let model_thread = limiter.run(|| std::thread::current().id()).await.unwrap();
 
         assert_ne!(model_thread, executor_thread);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn model_work_waits_for_capacity_before_entering_the_blocking_pool() {
+        let limiter = NvtxTaskLimiter::new(1);
+        let (first_started_tx, first_started_rx) = tokio::sync::oneshot::channel();
+        let (release_first_tx, release_first_rx) = std::sync::mpsc::channel();
+        let first_limiter = limiter.clone();
+        let first = tokio::spawn(async move {
+            first_limiter
+                .run(move || {
+                    first_started_tx.send(()).unwrap();
+                    release_first_rx.recv().unwrap();
+                })
+                .await
+                .unwrap();
+        });
+        first_started_rx.await.unwrap();
+
+        let (second_started_tx, mut second_started_rx) = tokio::sync::oneshot::channel();
+        let second = tokio::spawn(async move {
+            limiter
+                .run(move || second_started_tx.send(()).unwrap())
+                .await
+                .unwrap();
+        });
+        tokio::task::yield_now().await;
+        assert!(matches!(
+            second_started_rx.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+
+        release_first_tx.send(()).unwrap();
+        first.await.unwrap();
+        second_started_rx.await.unwrap();
+        second.await.unwrap();
     }
 
     #[tokio::test]
