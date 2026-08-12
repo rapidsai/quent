@@ -187,15 +187,26 @@ impl IntoResponse for NvtxServerError {
     }
 }
 
+async fn run_model_task<T>(task: impl FnOnce() -> T + Send + 'static) -> Result<T, NvtxServerError>
+where
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(task)
+        .await
+        .map_err(|error| NvtxServerError::Internal(error.to_string()))
+}
+
 async fn catalog(
     State(state): State<NvtxState>,
     AxumPath(context_id): AxumPath<Uuid>,
     Query(origin): Query<NvtxTimeOrigin>,
 ) -> Result<Json<NvtxCatalog>, NvtxServerError> {
-    match state.cache.get(context_id).await?.as_ref() {
+    let cached_model = state.cache.get(context_id).await?;
+    run_model_task(move || match cached_model.as_ref() {
         CachedModel::Absent => Err(NvtxServerError::NotFound),
         CachedModel::Present(cached) => Ok(Json((*cached.catalog(origin.query_start)).clone())),
-    }
+    })
+    .await?
 }
 
 async fn viewport(
@@ -205,7 +216,8 @@ async fn viewport(
     Json(request): Json<NvtxViewportRequest>,
 ) -> Result<Json<NvtxViewportResponse>, NvtxServerError> {
     validate_filter_count(&request)?;
-    match state.cache.get(context_id).await?.as_ref() {
+    let cached_model = state.cache.get(context_id).await?;
+    run_model_task(move || match cached_model.as_ref() {
         CachedModel::Absent => Err(NvtxServerError::NotFound),
         CachedModel::Present(cached) => {
             let catalog = cached.catalog(origin.query_start);
@@ -213,7 +225,8 @@ async fn viewport(
                 .map(Json)
                 .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
         }
-    }
+    })
+    .await?
 }
 
 fn validate_filter_count(request: &NvtxViewportRequest) -> Result<(), NvtxServerError> {
@@ -292,6 +305,16 @@ mod tests {
                 }),
             ),
         ]
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn model_work_runs_off_the_async_executor() {
+        let executor_thread = std::thread::current().id();
+        let model_thread = run_model_task(|| std::thread::current().id())
+            .await
+            .unwrap();
+
+        assert_ne!(model_thread, executor_thread);
     }
 
     #[tokio::test]
