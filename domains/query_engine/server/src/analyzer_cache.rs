@@ -42,9 +42,7 @@ pub struct EngineIndex {
     contexts: HashMap<Uuid, BTreeSet<Uuid>>,
     /// Engine id to its workers and the context each was found in.
     workers: HashMap<Uuid, Vec<(Uuid, Uuid)>>,
-    /// Engine id to context id to the resource-group entities observed in that
-    /// context. This lets context-wide integrations sit beside the resources
-    /// owned by the same process without claiming query correlation.
+    /// Resource-group entities observed in each context, by engine ID.
     context_resources: HashMap<Uuid, BTreeMap<Uuid, BTreeSet<Uuid>>>,
 }
 
@@ -57,7 +55,6 @@ impl EngineIndex {
     }
 
     fn add_worker(&mut self, engine_id: Uuid, worker_id: Uuid, context_id: Uuid) {
-        self.attribute_context(engine_id, context_id);
         self.attribute_resource(engine_id, context_id, worker_id);
         self.workers
             .entry(engine_id)
@@ -66,6 +63,7 @@ impl EngineIndex {
     }
 
     fn attribute_resource(&mut self, engine_id: Uuid, context_id: Uuid, resource_id: Uuid) {
+        self.attribute_context(engine_id, context_id);
         self.context_resources
             .entry(engine_id)
             .or_default()
@@ -145,7 +143,6 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
             for event in importer {
                 let event = event?;
                 if seen.insert(event.id) {
-                    index.attribute_context(event.id, context_id);
                     index.attribute_resource(event.id, context_id, event.id);
                 }
             }
@@ -239,7 +236,6 @@ where
             let index = lister()?;
             Ok(ui::EngineContexts {
                 engine_id,
-                context_ids: index.contexts_of(engine_id),
                 context_resources: index.context_resources_of(engine_id),
             })
         })
@@ -312,7 +308,6 @@ mod tests {
         let worker_context = Uuid::from_u128(3);
         let worker_id = Uuid::from_u128(4);
         let mut index = EngineIndex::default();
-        index.attribute_context(engine_id, engine_context);
         index.attribute_resource(engine_id, engine_context, engine_id);
         index.add_worker(engine_id, worker_id, worker_context);
 

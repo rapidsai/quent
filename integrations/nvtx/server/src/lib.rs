@@ -36,7 +36,6 @@ const MAX_CONCURRENT_MODEL_TASKS: usize = 4;
 pub struct NvtxImporterError(String);
 
 impl NvtxImporterError {
-    /// Capture an importer error for server-side logging.
     pub fn new(error: impl fmt::Display) -> Self {
         Self(error.to_string())
     }
@@ -99,7 +98,6 @@ struct CachedNvtx {
 }
 
 impl CachedNvtx {
-    /// Pair a reconstructed model with its origin-specific catalog cache.
     fn new(model: NvtxModel) -> Self {
         Self {
             model,
@@ -125,7 +123,6 @@ struct NvtxTaskLimiter {
 }
 
 impl NvtxTaskLimiter {
-    /// Create a limiter allowing at most `max_concurrency` model tasks.
     fn new(max_concurrency: usize) -> Self {
         Self {
             permits: Arc::new(Semaphore::new(max_concurrency)),
@@ -158,7 +155,6 @@ struct NvtxModelCache {
 }
 
 impl NvtxModelCache {
-    /// Create the context model cache and its shared blocking-work limiter.
     fn new(importer: Box<NvtxImporterFn>) -> Self {
         Self {
             models: AsyncCache::builder()
@@ -194,22 +190,6 @@ impl NvtxModelCache {
             .map(|entry| entry.into_value())
             .map_err(|error: Arc<NvtxServerError>| (*error).clone())
     }
-
-    /// Run catalog or viewport conversion under the same limit as model loading.
-    async fn run_model_task<T>(
-        &self,
-        task: impl FnOnce() -> T + Send + 'static,
-    ) -> Result<T, NvtxServerError>
-    where
-        T: Send + 'static,
-    {
-        self.tasks.run(task).await
-    }
-}
-
-#[derive(Clone)]
-struct NvtxState {
-    cache: NvtxModelCache,
 }
 
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
@@ -243,14 +223,14 @@ impl IntoResponse for NvtxServerError {
 
 /// Return stable metadata for a context relative to one query origin.
 async fn catalog(
-    State(state): State<NvtxState>,
+    State(cache): State<NvtxModelCache>,
     AxumPath(context_id): AxumPath<Uuid>,
     Query(origin): Query<NvtxTimeOrigin>,
 ) -> Result<Json<NvtxCatalog>, NvtxServerError> {
-    let cached_model = state.cache.get(context_id).await?;
-    state
-        .cache
-        .run_model_task(move || match cached_model.as_ref() {
+    let cached_model = cache.get(context_id).await?;
+    cache
+        .tasks
+        .run(move || match cached_model.as_ref() {
             CachedModel::Absent => Err(NvtxServerError::NotFound),
             CachedModel::Present(cached) => Ok(Json((*cached.catalog(origin.query_start)).clone())),
         })
@@ -259,16 +239,16 @@ async fn catalog(
 
 /// Build lanes and statistics for one relative-time viewport.
 async fn viewport(
-    State(state): State<NvtxState>,
+    State(cache): State<NvtxModelCache>,
     AxumPath(context_id): AxumPath<Uuid>,
     Query(origin): Query<NvtxTimeOrigin>,
     Json(request): Json<NvtxViewportRequest>,
 ) -> Result<Json<NvtxViewportResponse>, NvtxServerError> {
     validate_filter_count(&request)?;
-    let cached_model = state.cache.get(context_id).await?;
-    state
-        .cache
-        .run_model_task(move || match cached_model.as_ref() {
+    let cached_model = cache.get(context_id).await?;
+    cache
+        .tasks
+        .run(move || match cached_model.as_ref() {
             CachedModel::Absent => Err(NvtxServerError::NotFound),
             CachedModel::Present(cached) => {
                 let catalog = cached.catalog(origin.query_start);
@@ -302,24 +282,21 @@ fn validate_filter_count(request: &NvtxViewportRequest) -> Result<(), NvtxServer
     Ok(())
 }
 
-/// Context-keyed NVTX API routes, ready to merge into the host service before
-/// its common CORS and embedded-UI fallback layers.
+/// Context-keyed NVTX API routes.
 ///
 /// Catalog and viewport requests require a `query_start` query parameter in
 /// Unix nanoseconds. Public viewport times are seconds relative to that origin.
 pub fn routes(importer: Box<NvtxImporterFn>) -> Router {
-    let state = NvtxState {
-        cache: NvtxModelCache::new(importer),
-    };
     Router::new()
         .route("/api/nvtx/contexts/{context_id}/catalog", get(catalog))
         .route("/api/nvtx/contexts/{context_id}/viewport", post(viewport))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
-        .with_state(state)
+        .with_state(NvtxModelCache::new(importer))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Display;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use axum::body::{Body, to_bytes};
@@ -332,6 +309,14 @@ mod tests {
 
     const QUERY_START: u64 = 2_000_000_000;
     const RANGE_END: u64 = 3_000_000_000;
+
+    fn catalog_uri(context_id: impl Display, query_start: u64) -> String {
+        format!("/api/nvtx/contexts/{context_id}/catalog?query_start={query_start}")
+    }
+
+    fn viewport_uri(context_id: impl Display) -> String {
+        format!("/api/nvtx/contexts/{context_id}/viewport?query_start={QUERY_START}")
+    }
 
     fn range_events(context_id: Uuid) -> Vec<Event<NvtxEventEntity>> {
         let attributes = NvtxEventAttributes {
@@ -417,11 +402,9 @@ mod tests {
         let response = app
             .clone()
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/{present}/catalog?query_start={QUERY_START}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri(present, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -436,11 +419,9 @@ mod tests {
         let alternate = app
             .clone()
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/{present}/catalog?query_start={alternate_origin}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri(present, alternate_origin))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -462,12 +443,10 @@ mod tests {
         };
         let response = app
             .oneshot(
-                Request::post(format!(
-                    "/api/nvtx/contexts/{present}/viewport?query_start={QUERY_START}"
-                ))
-                .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&request).unwrap()))
-                .unwrap(),
+                Request::post(viewport_uri(present))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -493,11 +472,9 @@ mod tests {
         let empty_response = app
             .clone()
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/{empty}/catalog?query_start={QUERY_START}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri(empty, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -505,11 +482,9 @@ mod tests {
 
         let absent_response = app
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/{absent}/catalog?query_start={QUERY_START}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri(absent, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -550,12 +525,10 @@ mod tests {
         };
         let response = app
             .oneshot(
-                Request::post(format!(
-                    "/api/nvtx/contexts/{present}/viewport?query_start={QUERY_START}"
-                ))
-                .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&request).unwrap()))
-                .unwrap(),
+                Request::post(viewport_uri(present))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -572,11 +545,9 @@ mod tests {
         let invalid_uuid = app
             .clone()
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/not-a-uuid/catalog?query_start={QUERY_START}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri("not-a-uuid", QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -595,12 +566,10 @@ mod tests {
 
         let oversized = app
             .oneshot(
-                Request::post(format!(
-                    "/api/nvtx/contexts/{present}/viewport?query_start={QUERY_START}"
-                ))
-                .header("content-type", "application/json")
-                .body(Body::from(vec![b' '; MAX_BODY_BYTES + 1]))
-                .unwrap(),
+                Request::post(viewport_uri(present))
+                    .header("content-type", "application/json")
+                    .body(Body::from(vec![b' '; MAX_BODY_BYTES + 1]))
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -624,11 +593,9 @@ mod tests {
         let failed = app
             .clone()
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/{failing}/catalog?query_start={QUERY_START}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri(failing, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -638,11 +605,9 @@ mod tests {
 
         let healthy = app
             .oneshot(
-                Request::get(format!(
-                    "/api/nvtx/contexts/{present}/catalog?query_start={QUERY_START}"
-                ))
-                .body(Body::empty())
-                .unwrap(),
+                Request::get(catalog_uri(present, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();

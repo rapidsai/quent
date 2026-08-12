@@ -26,10 +26,7 @@ use uuid::Uuid;
 #[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineContexts {
     pub engine_id: Uuid,
-    pub context_ids: Vec<Uuid>,
     /// Resource-group entities observed in each context, keyed by context ID.
-    /// Engine IDs identify engine-owned contexts and worker IDs identify the
-    /// process-local worker beneath which context-wide integrations belong.
     pub context_resources: BTreeMap<Uuid, Vec<Uuid>>,
 }
 
