@@ -51,8 +51,8 @@ impl Error for NvtxImporterError {}
 
 pub type NvtxImporterResult<T> = Result<T, NvtxImporterError>;
 
-/// Loads only one context's NVTX entity stream. `None` is a cacheable absence;
-/// `Some(Vec::new())` is a present but empty stream.
+/// Loads only one context's NVTX entity stream. `None` means the stream is not
+/// available; `Some(Vec::new())` is a present but empty stream.
 pub type NvtxImporterFn =
     dyn Fn(Uuid) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> + Send + Sync;
 
@@ -85,11 +85,6 @@ pub fn import_context_events(
         .collect::<quent_io::ImporterResult<Vec<_>>>()
         .map(Some)
         .map_err(NvtxImporterError::new)
-}
-
-enum CachedModel {
-    Absent,
-    Present(Box<CachedNvtx>),
 }
 
 struct CachedNvtx {
@@ -149,7 +144,7 @@ impl NvtxTaskLimiter {
 
 #[derive(Clone)]
 struct NvtxModelCache {
-    models: AsyncCache<Uuid, Arc<CachedModel>>,
+    models: AsyncCache<Uuid, Arc<CachedNvtx>>,
     importer: Arc<NvtxImporterFn>,
     tasks: NvtxTaskLimiter,
 }
@@ -167,7 +162,7 @@ impl NvtxModelCache {
     }
 
     /// Load and reconstruct one context, coalescing concurrent misses by ID.
-    async fn get(&self, context_id: Uuid) -> Result<Arc<CachedModel>, NvtxServerError> {
+    async fn get(&self, context_id: Uuid) -> Result<Arc<CachedNvtx>, NvtxServerError> {
         let importer = Arc::clone(&self.importer);
         let tasks = self.tasks.clone();
         self.models
@@ -177,11 +172,9 @@ impl NvtxModelCache {
                     .run(move || match importer(context_id) {
                         Ok(Some(events)) => {
                             let model = NvtxModelBuilder::build(events);
-                            Ok(Arc::new(CachedModel::Present(Box::new(CachedNvtx::new(
-                                model,
-                            )))))
+                            Ok(Arc::new(CachedNvtx::new(model)))
                         }
-                        Ok(None) => Ok(Arc::new(CachedModel::Absent)),
+                        Ok(None) => Err(NvtxServerError::NotFound),
                         Err(error) => Err(NvtxServerError::Internal(error.to_string())),
                     })
                     .await?
@@ -227,13 +220,10 @@ async fn catalog(
     AxumPath(context_id): AxumPath<Uuid>,
     Query(origin): Query<NvtxTimeOrigin>,
 ) -> Result<Json<NvtxCatalog>, NvtxServerError> {
-    let cached_model = cache.get(context_id).await?;
+    let cached = cache.get(context_id).await?;
     cache
         .tasks
-        .run(move || match cached_model.as_ref() {
-            CachedModel::Absent => Err(NvtxServerError::NotFound),
-            CachedModel::Present(cached) => Ok(Json((*cached.catalog(origin.query_start)).clone())),
-        })
+        .run(move || Ok(Json((*cached.catalog(origin.query_start)).clone())))
         .await?
 }
 
@@ -245,17 +235,14 @@ async fn viewport(
     Json(request): Json<NvtxViewportRequest>,
 ) -> Result<Json<NvtxViewportResponse>, NvtxServerError> {
     validate_filter_count(&request)?;
-    let cached_model = cache.get(context_id).await?;
+    let cached = cache.get(context_id).await?;
     cache
         .tasks
-        .run(move || match cached_model.as_ref() {
-            CachedModel::Absent => Err(NvtxServerError::NotFound),
-            CachedModel::Present(cached) => {
-                let catalog = cached.catalog(origin.query_start);
-                NvtxViewportResponse::from_model_with_catalog(&cached.model, &catalog, request)
-                    .map(Json)
-                    .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
-            }
+        .run(move || {
+            let catalog = cached.catalog(origin.query_start);
+            NvtxViewportResponse::from_model_with_catalog(&cached.model, &catalog, request)
+                .map(Json)
+                .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
         })
         .await?
 }
@@ -297,7 +284,7 @@ pub fn routes(importer: Box<NvtxImporterFn>) -> Router {
 #[cfg(test)]
 mod tests {
     use std::fmt::Display;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use axum::body::{Body, to_bytes};
     use axum::http::Request;
@@ -489,6 +476,48 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(absent_response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn absent_stream_is_retried_and_cached_after_it_becomes_available() {
+        let context_id = Uuid::from_u128(9);
+        let available = Arc::new(AtomicBool::new(false));
+        let loads = Arc::new(AtomicUsize::new(0));
+        let importer_available = Arc::clone(&available);
+        let importer_loads = Arc::clone(&loads);
+        let app = routes(Box::new(move |requested_context_id| {
+            importer_loads.fetch_add(1, Ordering::SeqCst);
+            Ok(
+                (requested_context_id == context_id && importer_available.load(Ordering::SeqCst))
+                    .then(|| range_events(requested_context_id)),
+            )
+        }));
+
+        let missing = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(context_id, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        available.store(true, Ordering::SeqCst);
+        for _ in 0..2 {
+            let present = app
+                .clone()
+                .oneshot(
+                    Request::get(catalog_uri(context_id, QUERY_START))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(present.status(), StatusCode::OK);
+        }
+        assert_eq!(loads.load(Ordering::SeqCst), 2);
     }
 
     #[test]
