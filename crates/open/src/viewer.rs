@@ -90,41 +90,39 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
     println!("building: {label}");
 
     let crate_dir = build_dir(&spec)?;
-    wrapper::generate(&spec, &crate_dir, wrapper::IO_PACKAGE, true)?;
-    let bin = match cargo_build(&crate_dir).await {
-        // The pinned quent revision predates the `quent-exporter` → `quent-io`
-        // rename (cargo found no `quent-io` package there, failing resolution
-        // before anything compiles); regenerate the wrapper against the legacy
-        // package name and build again.
-        Err(error) if missing_package(&error, wrapper::IO_PACKAGE) => {
-            println!(
-                "note: pinned quent has no `{}` package; retrying with `{}`",
-                wrapper::IO_PACKAGE,
-                wrapper::LEGACY_IO_PACKAGE
-            );
-            wrapper::generate(&spec, &crate_dir, wrapper::LEGACY_IO_PACKAGE, true)?;
-            cargo_build(&crate_dir).await?
+    let mut io_package = wrapper::IO_PACKAGE;
+    let mut nvtx_routes = wrapper::NvtxRoutes::Enabled;
+    let bin = loop {
+        wrapper::generate(&spec, &crate_dir, io_package, nvtx_routes)?;
+        match cargo_build(&crate_dir).await {
+            Ok(bin) => break bin,
+            Err(error)
+                if nvtx_routes == wrapper::NvtxRoutes::Enabled
+                    && missing_package(&error, wrapper::NVTX_SERVER_PACKAGE) =>
+            {
+                println!(
+                    "note: pinned quent has no `{}` package; retrying without NVTX routes",
+                    wrapper::NVTX_SERVER_PACKAGE
+                );
+                nvtx_routes = wrapper::NvtxRoutes::Disabled;
+            }
+            // The pinned quent revision predates both the `quent-exporter` →
+            // `quent-io` rename and the NVTX routes. Switch both capabilities
+            // before retrying, regardless of which missing package Cargo reports first.
+            Err(error)
+                if io_package == wrapper::IO_PACKAGE
+                    && missing_package(&error, wrapper::IO_PACKAGE) =>
+            {
+                println!(
+                    "note: pinned quent has no `{}` package; retrying with `{}` and without NVTX routes",
+                    wrapper::IO_PACKAGE,
+                    wrapper::LEGACY_IO_PACKAGE
+                );
+                io_package = wrapper::LEGACY_IO_PACKAGE;
+                nvtx_routes = wrapper::NvtxRoutes::Disabled;
+            }
+            Err(error) => return Err(error),
         }
-        Err(error) if missing_package(&error, "nvtx-server") => {
-            println!(
-                "note: pinned quent has no `nvtx-server` package; retrying without NVTX routes"
-            );
-            wrapper::generate(&spec, &crate_dir, wrapper::IO_PACKAGE, false)?;
-            cargo_build(&crate_dir).await?
-        }
-        Err(error)
-            if missing_package(&error, wrapper::IO_PACKAGE)
-                || missing_package(&error, wrapper::LEGACY_IO_PACKAGE) =>
-        {
-            let io_package = if missing_package(&error, wrapper::LEGACY_IO_PACKAGE) {
-                wrapper::LEGACY_IO_PACKAGE
-            } else {
-                wrapper::IO_PACKAGE
-            };
-            wrapper::generate(&spec, &crate_dir, io_package, false)?;
-            cargo_build(&crate_dir).await?
-        }
-        result => result?,
     };
     Ok(BuiltViewer {
         bin,

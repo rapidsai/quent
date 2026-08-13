@@ -4,7 +4,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NvtxViewportRequest } from '@quent/utils';
 import { fetchNvtxCatalog, fetchNvtxViewport } from './api';
-import { canonicalizeNvtxRequest, nvtxCatalogQueryOptions, nvtxViewportQueryOptions } from './nvtx';
+import {
+  canonicalizeNvtxRequest,
+  nvtxCatalogQueryOptions,
+  nvtxCatalogStaleTime,
+  nvtxViewportQueryOptions,
+} from './nvtx';
 
 function stubFetch(response: Response) {
   const fetchMock = vi.fn().mockResolvedValue(response);
@@ -25,13 +30,17 @@ const request: NvtxViewportRequest = {
 describe('NVTX client', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('treats catalog 404 as optional absence and fetches catalogs once', async () => {
+  it('treats catalog 404 as optional absence and keeps absent streams retryable', async () => {
     const fetchMock = stubFetch(new Response(null, { status: 404, statusText: 'Not Found' }));
     await expect(fetchNvtxCatalog('context-1', QUERY_START_UNIX_NS)).resolves.toBeNull();
     expect(fetchMock.mock.calls[0]?.[0]).toContain(
       `/api/nvtx/contexts/context-1/catalog?query_start=${QUERY_START_UNIX_NS}`
     );
-    expect(nvtxCatalogQueryOptions('context-1', QUERY_START_UNIX_NS).staleTime).toBe(Infinity);
+    expect(nvtxCatalogQueryOptions('context-1', QUERY_START_UNIX_NS).staleTime).toBeTypeOf(
+      'function'
+    );
+    expect(nvtxCatalogStaleTime(null)).toBe(0);
+    expect(nvtxCatalogStaleTime(undefined)).toBe(Infinity);
   });
 
   it('propagates non-404 catalog failures', async () => {
@@ -41,7 +50,7 @@ describe('NVTX client', () => {
     );
   });
 
-  it('uses the same canonical selector order for body and query key', async () => {
+  it('canonicalizes at the fetch boundary without validating during render', async () => {
     const fetchMock = stubFetch(
       new Response('{"viewport":{"start":-0.25,"end":1.5},"domains":[],"statistics":[]}', {
         status: 200,
@@ -68,11 +77,17 @@ describe('NVTX client', () => {
       -0.25,
       1.5,
       [
+        ['9', [7, 3, 7], false],
         ['2', [], true],
-        ['9', [3, 7], false],
       ],
     ]);
     expect(options.placeholderData).toBeTypeOf('function');
+
+    const invalid = { ...request, viewport: { start: 2, end: 1 } };
+    expect(() => nvtxViewportQueryOptions('context-1', QUERY_START_UNIX_NS, invalid)).not.toThrow();
+    await expect(fetchNvtxViewport('context-1', QUERY_START_UNIX_NS, invalid)).rejects.toThrow(
+      'NVTX viewport bounds must be finite and ordered'
+    );
   });
 
   it('preserves relative seconds and decimal-string identifiers from the catalog', async () => {

@@ -25,6 +25,21 @@ pub const IO_PACKAGE: &str = "quent-io";
 /// Cargo package of the I/O crate before its rename to [`IO_PACKAGE`], for
 /// artifacts pinned to quent revisions that predate the rename.
 pub const LEGACY_IO_PACKAGE: &str = "quent-exporter";
+/// Cargo package that provides the optional NVTX HTTP routes.
+pub const NVTX_SERVER_PACKAGE: &str = "nvtx-server";
+
+/// Whether a generated wrapper targets a quent revision with NVTX routes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NvtxRoutes {
+    Enabled,
+    Disabled,
+}
+
+impl NvtxRoutes {
+    fn is_enabled(self) -> bool {
+        self == Self::Enabled
+    }
+}
 
 /// Wrapper env var for the output root: a directory of `<context-uuid>/`
 /// context directories.
@@ -39,17 +54,14 @@ pub fn generate(
     spec: &ViewerSpec,
     crate_dir: &Path,
     io_package: &str,
-    with_nvtx_routes: bool,
+    nvtx_routes: NvtxRoutes,
 ) -> Result<()> {
     std::fs::create_dir_all(crate_dir.join("src"))?;
     std::fs::write(
         crate_dir.join("Cargo.toml"),
-        cargo_toml(spec, io_package, with_nvtx_routes),
+        cargo_toml(spec, io_package, nvtx_routes),
     )?;
-    std::fs::write(
-        crate_dir.join("src/main.rs"),
-        main_rs(spec, with_nvtx_routes),
-    )?;
+    std::fs::write(crate_dir.join("src/main.rs"), main_rs(spec, nvtx_routes))?;
     Ok(())
 }
 
@@ -66,10 +78,16 @@ fn git_dep(url: String, rev: &str, features: &[&str]) -> Dependency {
 /// Wrapper `Cargo.toml`, built with `cargo-manifest`: pin quent crates to
 /// `quent.{remote,commit}` and the analyzer to `analyzer.{remote,commit}`; the
 /// empty `[workspace]` keeps the generated crate out of any parent workspace.
-fn cargo_toml(spec: &ViewerSpec, io_package: &str, with_nvtx_routes: bool) -> String {
+fn cargo_toml(spec: &ViewerSpec, io_package: &str, nvtx_routes: NvtxRoutes) -> String {
     let quent = spec.quent.cargo_url();
     let q_rev = spec.quent.commit.as_str();
-    let mut dependencies = BTreeMap::from([
+    let nvtx_dependency = nvtx_routes.is_enabled().then(|| {
+        (
+            NVTX_SERVER_PACKAGE.to_string(),
+            git_dep(quent.clone(), q_rev, &[]),
+        )
+    });
+    let dependencies: BTreeMap<String, Dependency> = BTreeMap::from([
         (
             "quent-query-engine-server".to_string(),
             git_dep(quent.clone(), q_rev, &["ui"]),
@@ -81,7 +99,7 @@ fn cargo_toml(spec: &ViewerSpec, io_package: &str, with_nvtx_routes: bool) -> St
         (
             // All formats enabled so the analyzer can detect the artifact's format at runtime.
             io_package.to_string(),
-            git_dep(quent.clone(), q_rev, &["ndjson", "msgpack", "postcard"]),
+            git_dep(quent, q_rev, &["ndjson", "msgpack", "postcard"]),
         ),
         (
             spec.analyzer_package.clone(),
@@ -102,10 +120,10 @@ fn cargo_toml(spec: &ViewerSpec, io_package: &str, with_nvtx_routes: bool) -> St
             }),
         ),
         ("uuid".to_string(), Dependency::Simple("1".to_string())),
-    ]);
-    if with_nvtx_routes {
-        dependencies.insert("nvtx-server".to_string(), git_dep(quent, q_rev, &[]));
-    }
+    ])
+    .into_iter()
+    .chain(nvtx_dependency)
+    .collect();
 
     let mut package = Package::new(WRAPPER_PACKAGE.to_string(), "0.0.0".to_string());
     package.edition = Some(MaybeInherited::Local(Edition::E2024));
@@ -129,85 +147,67 @@ fn cargo_toml(spec: &ViewerSpec, io_package: &str, with_nvtx_routes: bool) -> St
 /// Wrapper `src/main.rs`: wire `<analyzer>::Viewer`'s analyzer/importer into
 /// `analyzer_service_router` and serve it. Root (`<context-uuid>/` subdirs) and
 /// bind address come from env so one built binary serves any artifacts.
-fn main_rs(spec: &ViewerSpec, with_nvtx_routes: bool) -> String {
+fn main_rs(spec: &ViewerSpec, nvtx_routes: NvtxRoutes) -> String {
     let analyzer_crate = format_ident!("{}", spec.analyzer_crate());
     let (root_env, addr_env) = (ROOT_ENV, ADDR_ENV);
-    let tokens = if with_nvtx_routes {
-        quote! {
-            use std::net::SocketAddr;
-            use std::path::PathBuf;
-
-            use quent_query_engine_analyzer::ui::QuentViewer;
-            use quent_query_engine_server::analyzer_cache::index_query_engines;
-            use quent_query_engine_server::analyzer_service_router_with_routes;
-            use nvtx_server::{import_context_events, routes as nvtx_routes};
-            use #analyzer_crate::Viewer;
-
-            type Analyzer = <Viewer as QuentViewer>::Analyzer;
-
-            #[tokio::main]
-            async fn main() -> Result<(), Box<dyn std::error::Error>> {
-                let root = PathBuf::from(std::env::var(#root_env)?);
-                let addr: SocketAddr = std::env::var(#addr_env)?.parse()?;
-
-                let import_root = root.clone();
-                let importer = move |id: uuid::Uuid| {
-                    Ok(<Viewer as QuentViewer>::import_events(
-                        &import_root.join(id.to_string()),
-                        &import_root.join(id.to_string()),
-                    )?)
-                };
-                let lister_root = root.clone();
-                let lister = move || index_query_engines(&lister_root);
+    let (route_imports, route_setup, router_call) = match nvtx_routes {
+        NvtxRoutes::Enabled => (
+            quote! {
+                use quent_query_engine_server::analyzer_service_router_with_routes;
+                use nvtx_server::{import_context_events, routes as nvtx_routes};
+            },
+            quote! {
                 let nvtx_root = root.clone();
                 let nvtx_importer = move |id: uuid::Uuid| import_context_events(&nvtx_root, id);
-
-                let router = analyzer_service_router_with_routes::<Analyzer>(
+            },
+            quote! {
+                analyzer_service_router_with_routes::<Analyzer>(
                     Box::new(importer),
                     Box::new(lister),
                     None,
                     nvtx_routes(Box::new(nvtx_importer)),
-                )?;
+                )
+            },
+        ),
+        NvtxRoutes::Disabled => (
+            quote! {
+                use quent_query_engine_server::analyzer_service_router;
+            },
+            quote! {},
+            quote! {
+                analyzer_service_router::<Analyzer>(Box::new(importer), Box::new(lister), None)
+            },
+        ),
+    };
+    let tokens = quote! {
+        use std::net::SocketAddr;
+        use std::path::PathBuf;
 
-                let listener = tokio::net::TcpListener::bind(addr).await?;
-                axum::serve(listener, router.into_make_service()).await?;
-                Ok(())
-            }
-        }
-    } else {
-        quote! {
-            use std::net::SocketAddr;
-            use std::path::PathBuf;
+        use quent_query_engine_analyzer::ui::QuentViewer;
+        use quent_query_engine_server::analyzer_cache::index_query_engines;
+        #route_imports
+        use #analyzer_crate::Viewer;
 
-            use quent_query_engine_analyzer::ui::QuentViewer;
-            use quent_query_engine_server::analyzer_cache::index_query_engines;
-            use quent_query_engine_server::analyzer_service_router;
-            use #analyzer_crate::Viewer;
+        type Analyzer = <Viewer as QuentViewer>::Analyzer;
 
-            type Analyzer = <Viewer as QuentViewer>::Analyzer;
+        #[tokio::main]
+        async fn main() -> Result<(), Box<dyn std::error::Error>> {
+            let root = PathBuf::from(std::env::var(#root_env)?);
+            let addr: SocketAddr = std::env::var(#addr_env)?.parse()?;
 
-            #[tokio::main]
-            async fn main() -> Result<(), Box<dyn std::error::Error>> {
-                let root = PathBuf::from(std::env::var(#root_env)?);
-                let addr: SocketAddr = std::env::var(#addr_env)?.parse()?;
+            let import_root = root.clone();
+            let importer = move |id: uuid::Uuid| {
+                Ok(<Viewer as QuentViewer>::import_events(&import_root.join(id.to_string()))?)
+            };
+            let lister_root = root.clone();
+            let lister = move || index_query_engines(&lister_root);
+            #route_setup
 
-                let import_root = root.clone();
-                let importer = move |id: uuid::Uuid| {
-                    Ok(<Viewer as QuentViewer>::import_events(&import_root.join(id.to_string()))?)
-                };
-                let lister_root = root.clone();
-                let lister = move || index_query_engines(&lister_root);
+            let router = #router_call?;
 
-                let router = analyzer_service_router::<Analyzer>(
-                    Box::new(importer),
-                    Box::new(lister),
-                    None,
-                )?;
-
-                let listener = tokio::net::TcpListener::bind(addr).await?;
-                axum::serve(listener, router.into_make_service()).await?;
-                Ok(())
-            }
+            let listener = tokio::net::TcpListener::bind(addr).await?;
+            axum::serve(listener, router.into_make_service()).await?;
+            Ok(())
         }
     };
     let file = syn::parse2(tokens).expect("generated wrapper main.rs is valid Rust");
@@ -238,7 +238,8 @@ mod tests {
 
     #[test]
     fn cargo_toml_pins_quent_and_analyzer() {
-        let manifest: toml::Value = toml::from_str(&cargo_toml(&spec(), IO_PACKAGE, true)).unwrap();
+        let manifest: toml::Value =
+            toml::from_str(&cargo_toml(&spec(), IO_PACKAGE, NvtxRoutes::Enabled)).unwrap();
         assert!(manifest.get("workspace").is_some(), "standalone workspace");
         let deps = &manifest["dependencies"];
         let server = &deps["quent-query-engine-server"];
@@ -262,9 +263,13 @@ mod tests {
     #[test]
     fn cargo_toml_supports_the_legacy_io_package() {
         // Artifacts pinned to quent revisions predating the `quent-exporter` →
-        // `quent-io` rename depend on the legacy package instead, same features.
-        let manifest: toml::Value =
-            toml::from_str(&cargo_toml(&spec(), LEGACY_IO_PACKAGE, false)).unwrap();
+        // `quent-io` rename also predate the NVTX server package.
+        let manifest: toml::Value = toml::from_str(&cargo_toml(
+            &spec(),
+            LEGACY_IO_PACKAGE,
+            NvtxRoutes::Disabled,
+        ))
+        .unwrap();
         let deps = &manifest["dependencies"];
         assert!(deps.get("quent-io").is_none());
         let exporter = &deps["quent-exporter"];
@@ -281,12 +286,39 @@ mod tests {
     }
 
     #[test]
-    fn main_rs_wires_the_viewer() {
-        let main = main_rs(&spec(), true);
+    fn cargo_toml_can_disable_nvtx_with_the_current_io_package() {
+        let manifest: toml::Value =
+            toml::from_str(&cargo_toml(&spec(), IO_PACKAGE, NvtxRoutes::Disabled)).unwrap();
+        assert!(manifest["dependencies"].get(NVTX_SERVER_PACKAGE).is_none());
+    }
+
+    #[test]
+    fn main_rs_wires_the_nvtx_viewer() {
+        let main = main_rs(&spec(), NvtxRoutes::Enabled);
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
-        assert!(main.contains("import_events"));
         assert!(main.contains("import_context_events"));
         assert!(main.contains("analyzer_service_router_with_routes"));
         assert!(main.contains("QUENT_OPEN_ADDR")); // bind address is configurable
+    }
+
+    #[test]
+    fn main_rs_without_nvtx_uses_the_legacy_router() {
+        let main = main_rs(&spec(), NvtxRoutes::Disabled);
+        assert!(main.contains("use quent_query_engine_server::analyzer_service_router;"));
+        assert!(!main.contains("nvtx_server"));
+        assert!(!main.contains("analyzer_service_router_with_routes"));
+    }
+
+    #[test]
+    fn main_rs_imports_each_context_once_in_both_modes() {
+        for nvtx_routes in [NvtxRoutes::Enabled, NvtxRoutes::Disabled] {
+            let main = main_rs(&spec(), nvtx_routes);
+            assert_eq!(
+                main.matches("<Viewer as QuentViewer>::import_events")
+                    .count(),
+                1
+            );
+            assert_eq!(main.matches("&import_root.join(id.to_string())").count(), 1);
+        }
     }
 }
