@@ -13,7 +13,7 @@ quent-ref-tree = { path = "../ref-tree" }
 quent-resource = { workspace = true }
 quent-schema = { path = "../schema" }
 serde = { workspace = true }
-serde-saphyr = "0.0.29"
+serde-saphyr = "1.0.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
