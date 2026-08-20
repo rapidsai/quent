@@ -20,6 +20,7 @@ import type {
   Engine,
   TimelineConfig,
   EntityListRequest,
+  EntityListResponse,
   FiniteStateMachine,
   EngineContexts,
   NvtxCatalog,
@@ -192,12 +193,16 @@ export async function fetchEntityList(
   engineId: string,
   request: EntityListRequest<QueryFilter, OperatorFilter>
 ): Promise<EntityListResult> {
-  return apiFetch<EntityListResult>(`/engines/${engineId}/entities`, {
+  const response = await apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
     fetchOptions: {
       method: 'POST',
       body: JSON.stringify(request),
     },
   });
+  return {
+    items: response.items.map(item => item.entity),
+    total: response.total,
+  };
 }
 
 /**

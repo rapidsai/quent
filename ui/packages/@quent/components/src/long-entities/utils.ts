@@ -33,7 +33,7 @@ function buildSegments(
   colorFsm: (stateName: string) => string,
   resourceIdsForFilter?: ReadonlySet<string> | null
 ): LongEntitySegment[] {
-  return fsm.transitions
+  return (fsm.transitions ?? [])
     .slice(0, -1)
     .map((transition, i): LongEntitySegment | null => {
       const next = fsm.transitions[i + 1];
