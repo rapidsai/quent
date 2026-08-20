@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import {
   MARK_AREA_BORDER_OPACITY,
@@ -9,7 +10,7 @@ import {
   useTimelineEchartsTheme,
 } from '../timeline/timelineEchartsTheme';
 import { useZoomRange } from '@quent/hooks';
-import { withOpacity } from '@quent/utils';
+import { formatDuration, withOpacity } from '@quent/utils';
 import type { LongEntityEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
 import type { GanttHover } from '../gantt-chart/hover';
@@ -17,6 +18,8 @@ import { clipRectByRect } from '../gantt-chart/utils';
 import { getLongEntitySegmentsAtTimestamp } from './utils';
 import { PointerTooltipPortal } from '../ui/pointer-tooltip-portal';
 import { EntityTooltipContent, type ActiveMark } from '../timeline/TimelineTooltip';
+import { Button } from '../ui/button';
+import { TIMELINE_SPACING } from '../timeline/types';
 
 export const LONG_ENTITIES_TIMELINE_HEIGHT = 75;
 const LABEL_FONT_SIZE = 9;
@@ -24,6 +27,7 @@ const BAR_HEIGHT = LABEL_FONT_SIZE + 4;
 /** Vertical gap between stacked rows. */
 const ROW_GAP = 1;
 const ROW_HEIGHT = BAR_HEIGHT + ROW_GAP;
+const RESIZE_CONTROL_HEIGHT = 12;
 /** Radius applied only to the outer corners of each entity's segment run. */
 const CORNER_RADIUS = 2;
 const SERIES_NAME = 'long-entity-segment';
@@ -38,6 +42,7 @@ type SegmentDatum = {
 export interface LongEntitiesGanttProps {
   entries: LongEntityEntry[];
   durationSeconds: number;
+  minUsageSeconds: number;
   height?: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
@@ -51,6 +56,7 @@ export interface LongEntitiesGanttProps {
 export function LongEntitiesGantt({
   entries,
   durationSeconds,
+  minUsageSeconds,
   height = LONG_ENTITIES_TIMELINE_HEIGHT,
   isDark,
   onEntityClick,
@@ -59,6 +65,16 @@ export function LongEntitiesGantt({
 }: LongEntitiesGanttProps) {
   const { textColor } = useTimelineEchartsTheme(isDark);
   const zoomRange = useZoomRange();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const rowCount = useMemo(
+    () => entries.reduce((count, entry) => Math.max(count, entry.rowIndex + 1), 0),
+    [entries]
+  );
+  const canResize = rowCount * ROW_HEIGHT > height;
+  const resizeControlHeight = canResize ? RESIZE_CONTROL_HEIGHT : 0;
+  const contentHeight = useMemo(() => {
+    return Math.max(height, rowCount * ROW_HEIGHT + resizeControlHeight);
+  }, [height, resizeControlHeight, rowCount]);
   // One custom-series datum per segment, tagged with its parent entry/segment.
   const customSeriesData = useMemo<SegmentDatum[]>(() => {
     const data: SegmentDatum[] = [];
@@ -196,20 +212,53 @@ export function LongEntitiesGantt({
   }, [onEntityClick, customSeriesData, entries]);
 
   return (
-    <GanttChart
-      data={customSeriesData}
-      durationSeconds={durationSeconds}
-      height={height}
-      maxHeight={height}
-      rowHeight={ROW_HEIGHT}
-      isDark={isDark}
-      seriesName={SERIES_NAME}
-      renderItem={renderItem}
-      emptyMessage="No entities"
-      renderTooltip={renderTooltip}
-      cursor={onEntityClick ? 'pointer' : undefined}
-      onEvents={onEvents}
-      onBackgroundClick={onBackgroundClick}
-    />
+    <div className="relative">
+      <GanttChart
+        data={customSeriesData}
+        durationSeconds={durationSeconds}
+        height={height}
+        maxHeight={isExpanded ? contentHeight : height}
+        rowHeight={ROW_HEIGHT}
+        isDark={isDark}
+        seriesName={SERIES_NAME}
+        renderItem={renderItem}
+        animateHeight
+        contentPaddingBottom={resizeControlHeight}
+        gridSpacing={{
+          ...TIMELINE_SPACING,
+          bottom: TIMELINE_SPACING.bottom + resizeControlHeight,
+        }}
+        emptyMessage={
+          <div className="flex flex-col items-center gap-0.5 text-center text-muted-foreground opacity-50">
+            <div className="font-medium">No Matching Entities</div>
+            <div className="text-xs">
+              Showing entities longer than {formatDuration(minUsageSeconds * 1_000, 1)}. Zoom to see
+              more.
+            </div>
+          </div>
+        }
+        renderTooltip={renderTooltip}
+        cursor={onEntityClick ? 'pointer' : undefined}
+        onEvents={onEvents}
+        onBackgroundClick={onBackgroundClick}
+      />
+      {canResize && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="absolute bottom-0 left-0 z-10 h-3 rounded-none border-t border-border/50 bg-background/90 p-0 text-muted-foreground backdrop-blur-sm focus-visible:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0 [&_svg]:size-3"
+          style={{ right: TIMELINE_SPACING.right }}
+          aria-label={isExpanded ? 'Collapse entities chart' : 'Expand entities chart'}
+          aria-expanded={isExpanded}
+          onClick={event => {
+            event.stopPropagation();
+            setIsExpanded(current => !current);
+          }}
+        >
+          {isExpanded ? <ChevronUp /> : <ChevronDown />}
+        </Button>
+      )}
+    </div>
   );
 }

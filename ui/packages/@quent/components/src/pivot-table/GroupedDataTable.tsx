@@ -291,8 +291,7 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
                     }
 
                     const groupKey = row.groupKeys[col] as
-                      | GroupedDataTableGroupKeyEntry
-                      | undefined;
+                      GroupedDataTableGroupKeyEntry | undefined;
                     if (!groupKey) return null;
                     if (stillRepeating && groupKey.id !== prevRow!.groupKeys[col]?.id) {
                       stillRepeating = false;

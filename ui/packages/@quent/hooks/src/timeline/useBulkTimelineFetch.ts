@@ -18,7 +18,7 @@ import {
   setOperatorOnEntry,
   bulkEntryId,
 } from './timeline.utils';
-import { timelineCacheKey, timelineDataMapAtom } from '../atoms/timeline';
+import { bulkInitializedAtom, timelineCacheKey, timelineDataMapAtom } from '../atoms/timeline';
 
 /**
  * Mirrors TimelineCacheParams so meta can be passed directly to timelineCacheKey.
@@ -128,7 +128,7 @@ export function useBulkTimelineFetch({
     requestKey,
   } = useMemo(() => buildMergedBulkEntries(entries, operatorId), [entries, operatorId]);
 
-  const { data } = useQuery<BulkTimelinesResponse>({
+  const { data, isFetched } = useQuery<BulkTimelinesResponse>({
     queryKey: ['bulkTimelines', engineId, queryId, debouncedZoomRange, requestKey],
     queryFn: () =>
       fetchBulkTimelines(engineId, {
@@ -144,6 +144,10 @@ export function useBulkTimelineFetch({
     if (!data) return;
     applyBulkTimelineResponse(data, idToMeta, store);
   }, [data, store, idToMeta]);
+
+  useEffect(() => {
+    if (isFetched) store.set(bulkInitializedAtom, true);
+  }, [isFetched, store]);
 
   return data;
 }

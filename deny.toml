@@ -17,6 +17,10 @@ ignore = [
     # to quick-xml >= 0.41.
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+    # smartstring is unmaintained and has no safe upgrade. It is pulled in only
+    # by ts-rs's TypeScript formatting toolchain (dprint -> SWC), not by shipped
+    # runtime code. Drop once ts-rs/dprint migrate to a maintained string crate.
+    "RUSTSEC-2026-0249",
 ]
 
 [licenses]

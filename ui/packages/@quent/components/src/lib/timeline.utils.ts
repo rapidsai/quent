@@ -30,13 +30,15 @@ import { entityRefToEntitiesKey } from './queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@quent/utils';
 import type { EChartsInstance } from 'echarts-for-react';
+import { LONG_ENTITY_DENSITIES, type LongEntityDensity } from '@quent/hooks';
 import { connect } from './echarts';
 import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 
 // Suppress unused import warning — getColorForKey is used by consumers of this module
 void getColorForKey;
-const LONG_ENTITIES_BIN_MULTIPLIER = 2;
+
+const LONG_ENTITY_DENSITY_MULTIPLIERS = [100, 10, 1, 0.1, 0.01] as const;
 
 /** Minimum bin duration in nanoseconds — the backend cannot produce sub-1ns bins. */
 export const MIN_BIN_DURATION_NS = 10;
@@ -61,10 +63,15 @@ export function getAdaptiveNumBins(): number {
   return MAX_TIMELINE_BINS;
 }
 
-/** Threshold for "long" entities as a fraction of the current bin duration. */
-export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins();
-  return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
+/** Threshold for "long" entities using the bin count returned by the timeline response. */
+export function getLongEntitiesThreshold(
+  windowSeconds: number,
+  numBins: number,
+  density: LongEntityDensity = 3
+): number {
+  return (
+    LONG_ENTITY_DENSITY_MULTIPLIERS[density - LONG_ENTITY_DENSITIES[0]] * (windowSeconds / numBins)
+  );
 }
 
 export function buildBinnedTimelineSeries(
@@ -284,19 +291,6 @@ export function mergeOverlaySeries(
     };
   }
   return merged;
-}
-
-/** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
-export function getResourceTypeName(params: TimelineRequest<OperatorFilter> | undefined): string {
-  if (!params) return '';
-  if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
-  return '';
-}
-
-/** Extract the entity_type_name (FSM filter) from a TimelineRequest */
-export function getFsmTypeName(params: TimelineRequest<OperatorFilter>): string | null {
-  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
-  return params.Resource.entity_filter.entity_type_name;
 }
 
 /** Clone entries and set operator_id on each TimelineRequest */
@@ -558,8 +552,7 @@ export function registerAxisPointerSync(
 /** Unregister a chart instance from axis pointer sync. */
 export function unregisterAxisPointerSync(instance: EChartsInstance) {
   const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
-    | AxisPointerEntry
-    | undefined;
+    AxisPointerEntry | undefined;
   if (!entry) return;
 
   axisPointerRegistry.delete(entry);

@@ -20,6 +20,7 @@ const RULER_HEIGHT = 22;
 const RULER_TARGET_TICKS = 7;
 // Space above the grid for axis labels + ticks.
 const RULER_GRID_TOP = 20;
+const ENDPOINT_CHIP_INSET = 2;
 
 /**
  * `absolute`: elapsed time from query start (e.g. "20.00ms", "40.00ms").
@@ -52,7 +53,9 @@ export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps)
     const formatLabel = (value: number): string => {
       const absoluteMs = value;
       const relativeMs = value - zoomedStartMs;
-      const isMinMax = value === zoomedStartMs || value === zoomedEndMs;
+      const isMin = value === zoomedStartMs;
+      const isMax = value === zoomedEndMs;
+      const isMinMax = isMin || isMax;
 
       let text: string;
       if (mode === 'relative') {
@@ -62,15 +65,15 @@ export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps)
         text = formatDurationForAxisInterval(absoluteMs, interval);
       }
 
-      // Wrap min/max labels in the datazoom-chip rich style.
-      return isMinMax ? `{chip|${text}}` : text;
+      if (!isMinMax) return text;
+      const chip = `{chip|${text}}`;
+      return isMin ? `{chipInset|}${chip}` : `${chip}{chipInset|}`;
     };
 
     return {
       animation: false,
       grid: {
         ...TIMELINE_SPACING,
-        left: 1,
         top: RULER_GRID_TOP,
         bottom: 0,
       },
@@ -97,6 +100,11 @@ export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps)
           alignMaxLabel: 'right',
           formatter: formatLabel,
           rich: {
+            chipInset: {
+              width: ENDPOINT_CHIP_INSET,
+              fontSize: 0,
+              lineHeight: TIMELINE_LABEL_FONT_SIZE,
+            },
             chip: {
               color: axisLabelColor,
               backgroundColor: solidLabelBackgroundColor,

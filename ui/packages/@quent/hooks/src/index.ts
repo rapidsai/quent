@@ -17,10 +17,14 @@ export { useHoveredWorkerId, useSetHoveredWorkerId } from './dag/useHoveredWorke
 // Timeline hooks
 export {
   useTimelineData,
+  useReturnedTimelineNumBins,
+  useReturnedTimelineIsStale,
   useZoomRange,
   useSetZoomRange,
   useDebouncedZoomRange,
   useSetDebouncedZoomRange,
+  useLongEntityDensity,
+  useSetLongEntityDensity,
   useTimelineHover,
   useSetTimelineHover,
   useStartTimeMs,
@@ -33,8 +37,8 @@ export {
 } from './timeline/useTimelineAtoms';
 
 // Timeline cache key helpers (consumers need these to address per-item data)
-export { timelineCacheKey } from './atoms/timeline';
-export type { TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
+export { LONG_ENTITY_DENSITIES, timelineCacheKey } from './atoms/timeline';
+export type { LongEntityDensity, TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
 export { bulkEntryId } from './timeline/timeline.utils';
 
 // Complex timeline hooks

@@ -43,6 +43,7 @@ export const TIMELINE_SPACING = {
   right: 10,
   top: 2.5,
   bottom: 2.5,
+  outerBoundsMode: 'none' as const,
 };
 
 // Timeline color constants live in timelineEchartsTheme (canvas-based, theme mirrored in JS).

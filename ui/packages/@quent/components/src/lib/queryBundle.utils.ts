@@ -46,8 +46,7 @@ export function parseCustomStatistics(
 export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {
   const port = rawPort as Record<string, unknown> | undefined;
   const statistics = port?.statistics as
-    | { custom_statistics?: Record<string, unknown> }
-    | undefined;
+    { custom_statistics?: Record<string, unknown> } | undefined;
   const custom = statistics?.custom_statistics;
   if (!custom) return [];
 

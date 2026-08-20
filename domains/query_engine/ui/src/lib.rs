@@ -15,9 +15,20 @@ use quent_ui::{
     quantity::QuantitySpec,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use ts_rs::TS;
 use uuid::Uuid;
+
+/// Quent contexts whose streams contribute to one engine view.
+///
+/// This is intentionally an inventory only. It does not claim that every
+/// context contains a particular query or NVTX stream.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EngineContexts {
+    pub engine_id: Uuid,
+    /// Resource-group entities observed in each context, keyed by context ID.
+    pub context_resources: BTreeMap<Uuid, Vec<Uuid>>,
+}
 
 /// Global timeline-request parameter identifying the query to report on.
 #[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

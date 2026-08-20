@@ -10,6 +10,7 @@ swagger = ["quent-query-engine-server/swagger"]
 [dependencies]
 axum = { version = "0.8.7" }
 clap = { version = "4.5", features = ["derive", "env"] }
+nvtx-server = { path = "../../../integrations/nvtx/server" }
 quent-io = { path = "../../../crates/io" }
 quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }

@@ -42,10 +42,12 @@ export interface GanttChartProps<T extends GanttDatum> {
   isDark: boolean;
   seriesName: string;
   renderItem: GanttRenderItem;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
   cursor?: GanttSeriesCursor;
   onEvents?: EChartsEvents;
   gridSpacing?: GanttGridSpacing;
+  contentPaddingBottom?: number;
+  animateHeight?: boolean;
   renderTooltip?: (hover: GanttHover | null) => ReactNode;
   /** Called when the user clicks the chart background (not a series item). */
   onBackgroundClick?: () => void;
@@ -64,6 +66,8 @@ export function GanttChart<T extends GanttDatum>({
   cursor,
   onEvents,
   gridSpacing,
+  contentPaddingBottom = 0,
+  animateHeight = false,
   renderTooltip,
   onBackgroundClick,
 }: GanttChartProps<T>) {
@@ -82,7 +86,7 @@ export function GanttChart<T extends GanttDatum>({
       rowCount: maxRow + 1,
     };
   }, [data]);
-  const chartHeight = Math.max(height, rowCount * rowHeight);
+  const chartHeight = Math.max(height, rowCount * rowHeight + contentPaddingBottom);
   const wrapperHeight = Math.min(chartHeight, maxHeight);
 
   const option = useMemo(
@@ -161,7 +165,15 @@ export function GanttChart<T extends GanttDatum>({
 
   return (
     <>
-      <HiddenScroll ref={wrapperRef} className="relative" style={{ height: wrapperHeight }}>
+      <HiddenScroll
+        ref={wrapperRef}
+        className={
+          animateHeight
+            ? 'relative transition-[height] duration-150 ease-out motion-reduce:transition-none'
+            : 'relative'
+        }
+        style={{ height: wrapperHeight }}
+      >
         <EChartsReactCore
           echarts={echarts}
           theme={themeName}

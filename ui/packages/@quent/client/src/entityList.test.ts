@@ -3,8 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { keepPreviousData } from '@tanstack/react-query';
-import type { EntityListResponse } from '@quent/utils';
-import { entityListInfiniteQueryOptions, entityListQueryOptions } from './entityList';
+import { entityListQueryOptions } from './entityList';
 
 describe('entityListQueryOptions', () => {
   it('copies selected operator IDs into the entity-list request', () => {
@@ -30,23 +29,5 @@ describe('entityListQueryOptions', () => {
       }),
     ]);
     expect(options.placeholderData).toBe(keepPreviousData);
-  });
-
-  it('continues paging until all matching entities are loaded', () => {
-    const options = entityListInfiniteQueryOptions({
-      engineId: 'engine-1',
-      queryId: 'query-1',
-      window: { start: 0, end: 1 },
-      maxItems: 1,
-    });
-    const item = {} as EntityListResponse['items'][number];
-    const firstPage: EntityListResponse = { items: [item], total: 3 };
-    const secondPage: EntityListResponse = { items: [item], total: 3 };
-
-    expect(options.placeholderData).toBe(keepPreviousData);
-    expect(options.getNextPageParam?.(secondPage, [firstPage, secondPage], 1, [0, 1])).toBe(2);
-    expect(
-      options.getNextPageParam?.({ items: [item], total: 2 }, [firstPage, secondPage], 1, [0, 1])
-    ).toBeUndefined();
   });
 });

@@ -11,8 +11,15 @@ import {
   startTimeMsAtom,
   bulkInitializedAtom,
   visibleEntriesAtom,
+  longEntityDensityAtom,
+  timelineCacheKey,
 } from '../atoms/timeline';
-import type { ZoomRange, SingleTimelineResponse } from '@quent/utils';
+import {
+  getFsmTypeName,
+  getResourceTypeName,
+  type ZoomRange,
+  type SingleTimelineResponse,
+} from '@quent/utils';
 
 // Record-based replacement for atomFamily(timelineDataAtom(key))
 export function useTimelineData(key: string): SingleTimelineResponse | undefined {
@@ -20,10 +27,45 @@ export function useTimelineData(key: string): SingleTimelineResponse | undefined
   return map[key];
 }
 
+function useReturnedTimelineState(resourceId: string): {
+  data: SingleTimelineResponse | undefined;
+  isStale: boolean;
+} {
+  const timelineDataMap = useAtomValue(timelineDataMapAtom);
+  const visibleEntries = useAtomValue(visibleEntriesAtom);
+  const activeSpan = useAtomValue(debouncedZoomRangeAtom);
+  const request = visibleEntries[resourceId];
+  if (!request) return { data: undefined, isStale: false };
+  const key = timelineCacheKey({
+    resourceId,
+    resourceTypeName: getResourceTypeName(request),
+    fsmTypeName: getFsmTypeName(request),
+  });
+  const data = timelineDataMap[key];
+  if (!data) return { data: undefined, isStale: false };
+  const tolerance = data.config.bin_duration;
+  const matchesActiveSpan =
+    Math.abs(data.config.span.start - activeSpan.start) <= tolerance &&
+    Math.abs(data.config.span.end - activeSpan.end) <= tolerance;
+  return matchesActiveSpan ? { data, isStale: false } : { data: undefined, isStale: true };
+}
+
+export function useReturnedTimelineNumBins(resourceId: string): number | undefined {
+  const { data } = useReturnedTimelineState(resourceId);
+  const numBins = Number(data?.config.num_bins);
+  return Number.isInteger(numBins) && numBins > 0 ? numBins : undefined;
+}
+
+export function useReturnedTimelineIsStale(resourceId: string): boolean {
+  return useReturnedTimelineState(resourceId).isStale;
+}
+
 export const useZoomRange = () => useAtomValue(zoomRangeAtom);
 export const useSetZoomRange = () => useSetAtom(zoomRangeAtom);
 export const useDebouncedZoomRange = () => useAtomValue(debouncedZoomRangeAtom);
 export const useSetDebouncedZoomRange = () => useSetAtom(debouncedZoomRangeAtom);
+export const useLongEntityDensity = () => useAtomValue(longEntityDensityAtom);
+export const useSetLongEntityDensity = () => useSetAtom(longEntityDensityAtom);
 export const useTimelineHover = () => useAtomValue(timelineHoverAtom);
 export const useSetTimelineHover = () => useSetAtom(timelineHoverAtom);
 export const useStartTimeMs = () => useAtomValue(startTimeMsAtom);

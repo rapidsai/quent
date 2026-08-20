@@ -2,19 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { TimelineRequest, OperatorFilter } from '@quent/utils';
-
-/** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
-export function getResourceTypeName(params: TimelineRequest<OperatorFilter> | undefined): string {
-  if (!params) return '';
-  if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
-  return '';
-}
-
-/** Extract the entity_type_name (FSM filter) from a TimelineRequest */
-export function getFsmTypeName(params: TimelineRequest<OperatorFilter>): string | null {
-  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
-  return params.Resource.entity_filter.entity_type_name;
-}
+export { getFsmTypeName, getResourceTypeName } from '@quent/utils';
 
 /** Stable request-entry key for bulk timeline fetches. Omit operatorId for the base variant. */
 export function bulkEntryId(resourceId: string, operatorId?: string | null): string {

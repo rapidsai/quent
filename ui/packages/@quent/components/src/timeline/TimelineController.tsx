@@ -38,6 +38,8 @@ const CONTROLLER_GRID_TOP = 20;
 const CONTROLLER_GRID_BOTTOM = 10;
 // Shifts the datazoom slider up so it overlaps the label row instead of sitting flush with the chart.
 const DATAZOOM_TOP_OFFSET = 5;
+// ECharts insets the slider track to make room for its handles.
+const DATAZOOM_HANDLE_INSET = 3;
 
 type TimelineControllerProps = {
   durationSeconds: number;
@@ -251,6 +253,7 @@ export function TimelineController({
           realtime: true,
           filterMode: 'none',
           minSpan: minZoomSpanPct,
+          left: TIMELINE_SPACING.left - DATAZOOM_HANDLE_INSET,
           top: CONTROLLER_GRID_TOP - DATAZOOM_TOP_OFFSET,
           height: height - CONTROLLER_GRID_TOP - CONTROLLER_GRID_BOTTOM,
           brushSelect: true,

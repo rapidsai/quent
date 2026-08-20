@@ -3,6 +3,7 @@
 
 import { parseJsonWithBigInt } from '@quent/utils';
 import { getApiBaseUrl } from './config';
+import { canonicalizeNvtxRequest } from './nvtxCanonical';
 import type {
   QueryBundle,
   QueryGroup,
@@ -20,6 +21,10 @@ import type {
   TimelineConfig,
   EntityListRequest,
   FiniteStateMachine,
+  EngineContexts,
+  NvtxCatalog,
+  NvtxViewportRequest,
+  NvtxViewportResponse,
 } from '@quent/utils';
 
 /** Runtime shape returned by the /entities endpoint — items are FSMs directly. */
@@ -29,7 +34,7 @@ export interface EntityListResult {
 }
 
 interface ApiFetchOptions {
-  params?: Record<string, string | number | boolean>;
+  params?: Record<string, string | number | bigint | boolean>;
   fetchOptions?: RequestInit;
 }
 
@@ -90,6 +95,59 @@ export async function fetchQueryBundle(
 
 export async function fetchListEngines(): Promise<Engine[]> {
   return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
+}
+
+export async function fetchEngineContexts(engineId: string): Promise<EngineContexts> {
+  return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
+}
+
+/** Fetch stable NVTX metadata, resolving a 404 to optional absence. */
+export async function fetchNvtxCatalog(
+  contextId: string,
+  queryStartUnixNs: bigint
+): Promise<NvtxCatalog | null> {
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
+    params: { query_start: queryStartUnixNs },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return parseJsonWithBigInt<NvtxCatalog>(await response.text());
+}
+
+export async function fetchNvtxViewport(
+  contextId: string,
+  queryStartUnixNs: bigint,
+  request: NvtxViewportRequest
+): Promise<NvtxViewportResponse> {
+  const canonical = canonicalizeNvtxRequest(request);
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
+    params: { query_start: queryStartUnixNs },
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(canonical),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return normalizeNvtxViewport(parseJsonWithBigInt<NvtxViewportResponse>(await response.text()));
+}
+
+function asBigInt(value: bigint | number): bigint {
+  return typeof value === 'bigint' ? value : BigInt(value);
+}
+
+function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResponse {
+  return {
+    ...viewport,
+    statistics: viewport.statistics.map(statistics => ({
+      ...statistics,
+      count: asBigInt(statistics.count),
+      observed_count: asBigInt(statistics.observed_count),
+    })),
+  };
 }
 
 export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {

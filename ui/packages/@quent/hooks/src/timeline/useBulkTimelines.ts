@@ -13,7 +13,6 @@ import {
   timelineDataMapAtom,
   zoomRangeAtom,
   debouncedZoomRangeAtom,
-  bulkInitializedAtom,
   visibleEntriesAtom,
 } from '../atoms/timeline';
 import { selectedNodeIdsAtom } from '../atoms/dag';
@@ -124,19 +123,13 @@ export function useBulkTimelines<T extends TreeNode>({
     store.set(visibleEntriesAtom, baseVisibleEntries);
   }, [baseVisibleEntries, store]);
 
-  const bulkData = useBulkTimelineFetch({
+  useBulkTimelineFetch({
     engineId,
     queryId,
     debouncedZoomRange,
     entries: baseVisibleEntries,
     operatorId,
   });
-
-  useEffect(() => {
-    if (bulkData) {
-      store.set(bulkInitializedAtom, true);
-    }
-  }, [bulkData, store]);
 
   // Zoom change handler — stable, uses store imperatively
   const handleZoomChange = useCallback(

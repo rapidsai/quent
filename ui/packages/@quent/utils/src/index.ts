@@ -4,6 +4,7 @@
 // Utilities
 export { cn } from './cn';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
+export { getFsmTypeName, getResourceTypeName } from './timeline';
 
 // Color utilities
 export {
