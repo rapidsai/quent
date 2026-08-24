@@ -267,7 +267,13 @@ describe('LongEntitiesRow', () => {
 
     mocks.debouncedZoomRange = { start: 0.3, end: 0.7 };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [{ entity: firstEntity, usage_duration_s: 0 }, { entity: secondEntity, usage_duration_s: 0 }], total: 2 },
+      data: {
+        items: [
+          { entity: firstEntity, usage_duration_s: 0 },
+          { entity: secondEntity, usage_duration_s: 0 },
+        ],
+        total: 2,
+      },
       isFetching: false,
       isPlaceholderData: false,
     });
@@ -318,7 +324,13 @@ describe('LongEntitiesRow', () => {
 
     const secondEntity = { id: 'entity-2' };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [{ entity: firstEntity, usage_duration_s: 0 }, { entity: secondEntity, usage_duration_s: 0 }], total: 250 },
+      data: {
+        items: [
+          { entity: firstEntity, usage_duration_s: 0 },
+          { entity: secondEntity, usage_duration_s: 0 },
+        ],
+        total: 250,
+      },
       isFetching: false,
       isPlaceholderData: false,
     });
