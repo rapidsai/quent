@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp } from 'lucide-react';
 import {
   Button,
+  DataText,
   Input,
   Table,
   TableBody,
@@ -322,9 +323,15 @@ function EntityRow({
         }
       }}
     >
-      <TableCell className="font-medium">{row.fsm.instance_name}</TableCell>
-      <TableCell>{row.fsm.type_name}</TableCell>
-      <TableCell className="text-right tabular-nums">{row.fsm.transitions.length}</TableCell>
+      <TableCell className="font-medium">
+        <DataText>{row.fsm.instance_name}</DataText>
+      </TableCell>
+      <TableCell>
+        <DataText>{row.fsm.type_name}</DataText>
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        <DataText>{row.fsm.transitions.length}</DataText>
+      </TableCell>
       <TableCell>
         <div className="flex h-3.5 w-24 gap-px overflow-hidden rounded-sm">
           {row.fsm.transitions.map((t, i) => (
@@ -332,15 +339,21 @@ function EntityRow({
           ))}
         </div>
       </TableCell>
-      <TableCell className="text-right tabular-nums">{row.start.toFixed(3)}s</TableCell>
-      <TableCell className="text-right tabular-nums">{row.end.toFixed(3)}s</TableCell>
       <TableCell className="text-right tabular-nums">
-        {formatDuration((row.end - row.start) * 1000)}
+        <DataText>{row.start.toFixed(3)}s</DataText>
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        {formatDuration(row.usageDurationS * 1000)}
+        <DataText>{row.end.toFixed(3)}s</DataText>
       </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">{row.fsm.id}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        <DataText>{formatDuration((row.end - row.start) * 1000)}</DataText>
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        <DataText>{formatDuration(row.usageDurationS * 1000)}</DataText>
+      </TableCell>
+      <TableCell className="text-xs text-muted-foreground">
+        <DataText>{row.fsm.id}</DataText>
+      </TableCell>
     </TableRow>
   );
 }
