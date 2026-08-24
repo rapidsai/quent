@@ -96,7 +96,7 @@ export function LongEntitiesRow({
     { enabled: numBins != null }
   );
 
-  const entities = useMemo(() => data?.items ?? [], [data]);
+  const entities = useMemo(() => (data?.items ?? []).map(item => item.entity), [data]);
   const entries = useMemo(
     () =>
       buildLongEntityEntries(

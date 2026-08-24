@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEntities } from '@quent/client';
 import { useSelectedNodeIds } from '@quent/hooks';
 import type { SelectFieldOption } from '@quent/components';
-import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
+import type { EntityRef, FiniteStateMachine, QueryBundle, SortDir } from '@quent/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { EntityFilters } from './types';
 import {
@@ -60,6 +60,11 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     },
     []
   );
+
+  const updateSortDir = useCallback((sortDir: SortDir) => {
+    setFilters(previous => ({ ...previous, sortDir }));
+    setPage(0);
+  }, []);
 
   const updateOperator = useCallback(
     (value: string | null) => {
@@ -178,6 +183,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     total,
     updateFilters,
     updateOperator,
+    updateSortDir,
     validationErrors,
     visibleEnd,
     visibleStart,

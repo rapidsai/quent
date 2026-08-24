@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp, ChevronsUpDown } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp } from 'lucide-react';
 import {
   Button,
   Input,
@@ -15,11 +15,8 @@ import {
   thinScrollbarClass,
 } from '@quent/components';
 import { cn, formatDuration } from '@quent/utils';
-import type { FiniteStateMachine } from '@quent/utils';
+import type { FiniteStateMachine, SortDir } from '@quent/utils';
 import type { EntityTableRow } from './types';
-
-type SortColumn = 'instance' | 'type' | 'states' | 'start' | 'end' | 'span' | 'usage' | 'id';
-type LocalSortDir = 'asc' | 'desc';
 
 interface EntityResultsProps {
   rows: EntityTableRow[];
@@ -35,9 +32,11 @@ interface EntityResultsProps {
   total: number;
   visibleStart: number;
   visibleEnd: number;
+  sortDir: SortDir;
   stateColorFn: (name: string) => string;
   onSelect: (fsm: FiniteStateMachine) => void;
   onPageChange: (page: number) => void;
+  onSortChange: (dir: SortDir) => void;
 }
 
 export function EntityResults({
@@ -54,57 +53,15 @@ export function EntityResults({
   total,
   visibleStart,
   visibleEnd,
+  sortDir,
   stateColorFn,
   onSelect,
   onPageChange,
+  onSortChange,
 }: EntityResultsProps) {
-  const [sortCol, setSortCol] = useState<SortColumn | null>(null);
-  const [localSortDir, setLocalSortDir] = useState<LocalSortDir>('asc');
-
-  function handleHeaderClick(col: SortColumn) {
-    if (sortCol === col) {
-      setLocalSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortCol(col);
-      setLocalSortDir('asc');
-    }
+  function handleUsageHeaderClick() {
+    onSortChange(sortDir === 'Asc' ? 'Desc' : 'Asc');
   }
-
-  const sortedRows = useMemo(() => {
-    if (!sortCol) return rows;
-    return [...rows].sort((a, b) => {
-      let cmp = 0;
-      switch (sortCol) {
-        case 'instance':
-          cmp = a.fsm.instance_name.localeCompare(b.fsm.instance_name);
-          break;
-        case 'type':
-          cmp = a.fsm.type_name.localeCompare(b.fsm.type_name);
-          break;
-        case 'states':
-          cmp = a.fsm.transitions.length - b.fsm.transitions.length;
-          break;
-        case 'start':
-          cmp = a.start - b.start;
-          break;
-        case 'end':
-          cmp = a.end - b.end;
-          break;
-        case 'span':
-          cmp = a.end - a.start - (b.end - b.start);
-          break;
-        case 'usage':
-          cmp = a.usageDurationS - b.usageDurationS;
-          break;
-        case 'id':
-          cmp = a.fsm.id.localeCompare(b.fsm.id);
-          break;
-      }
-      return localSortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [rows, sortCol, localSortDir]);
-
-  const headProps = { sortCol, localSortDir, onSort: handleHeaderClick };
 
   return (
     <>
@@ -124,24 +81,24 @@ export function EntityResults({
           <Table containerClassName="relative w-full overflow-x-visible">
             <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
-                <SortableHead col="instance" label="Instance" {...headProps} />
-                <SortableHead col="type" label="Type" {...headProps} />
-                <SortableHead col="states" label="States" className="text-right" {...headProps} />
+                <TableHead>Instance</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">States</TableHead>
                 <TableHead>Sequence</TableHead>
-                <SortableHead col="start" label="Start" className="text-right" {...headProps} />
-                <SortableHead col="end" label="End" className="text-right" {...headProps} />
-                <SortableHead col="span" label="FSM span" className="text-right" {...headProps} />
+                <TableHead className="text-right">Start</TableHead>
+                <TableHead className="text-right">End</TableHead>
+                <TableHead className="text-right">FSM span</TableHead>
                 <SortableHead
-                  col="usage"
                   label="Longest usage"
                   className="text-right"
-                  {...headProps}
+                  sortDir={sortDir}
+                  onSort={handleUsageHeaderClick}
                 />
-                <SortableHead col="id" label="ID" {...headProps} />
+                <TableHead>ID</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedRows.map(row => (
+              {rows.map(row => (
                 <EntityRow
                   key={row.fsm.id}
                   row={row}
@@ -211,25 +168,20 @@ export function EntityResults({
 }
 
 function SortableHead({
-  col,
   label,
   className,
-  sortCol,
-  localSortDir,
+  sortDir,
   onSort,
 }: {
-  col: SortColumn;
   label: string;
   className?: string;
-  sortCol: SortColumn | null;
-  localSortDir: LocalSortDir;
-  onSort: (col: SortColumn) => void;
+  sortDir: SortDir;
+  onSort: () => void;
 }) {
-  const isActive = sortCol === col;
   const isRight = className?.includes('text-right');
   return (
     <TableHead
-      aria-sort={isActive ? (localSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      aria-sort={sortDir === 'Asc' ? 'ascending' : 'descending'}
       className={cn('p-0 select-none', className)}
     >
       <button
@@ -238,17 +190,13 @@ function SortableHead({
           'flex h-10 w-full cursor-pointer items-center gap-1 px-2',
           isRight && 'justify-end'
         )}
-        onClick={() => onSort(col)}
+        onClick={onSort}
       >
         {label}
-        {isActive ? (
-          localSortDir === 'asc' ? (
-            <ChevronUp className="size-3.5 shrink-0" />
-          ) : (
-            <ChevronDown className="size-3.5 shrink-0" />
-          )
+        {sortDir === 'Asc' ? (
+          <ChevronUp className="size-3.5 shrink-0" />
         ) : (
-          <ChevronsUpDown className="size-3.5 shrink-0 opacity-30" />
+          <ChevronDown className="size-3.5 shrink-0" />
         )}
       </button>
     </TableHead>

@@ -64,9 +64,11 @@ export function EntitiesTable(props: EntitiesTableProps) {
             total={table.total}
             visibleStart={table.visibleStart}
             visibleEnd={table.visibleEnd}
+            sortDir={table.filters.sortDir}
             stateColorFn={stateColorFn}
             onSelect={table.setSelected}
             onPageChange={table.setPage}
+            onSortChange={table.updateSortDir}
           />
         </div>
       </ResizablePanel>

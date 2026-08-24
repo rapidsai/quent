@@ -21,18 +21,11 @@ import type {
   TimelineConfig,
   EntityListRequest,
   EntityListResponse,
-  FiniteStateMachine,
   EngineContexts,
   NvtxCatalog,
   NvtxViewportRequest,
   NvtxViewportResponse,
 } from '@quent/utils';
-
-/** Runtime shape returned by the /entities endpoint — items are FSMs directly. */
-export interface EntityListResult {
-  items: FiniteStateMachine[];
-  total: number;
-}
 
 interface ApiFetchOptions {
   params?: Record<string, string | number | bigint | boolean>;
@@ -192,17 +185,13 @@ export async function fetchBulkTimelines(
 export async function fetchEntityList(
   engineId: string,
   request: EntityListRequest<QueryFilter, OperatorFilter>
-): Promise<EntityListResult> {
-  const response = await apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
+): Promise<EntityListResponse> {
+  return apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
     fetchOptions: {
       method: 'POST',
       body: JSON.stringify(request),
     },
   });
-  return {
-    items: response.items.map(item => item.entity),
-    total: response.total,
-  };
 }
 
 /**

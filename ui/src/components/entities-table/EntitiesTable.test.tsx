@@ -82,7 +82,7 @@ describe('EntitiesTable', () => {
     vi.useFakeTimers();
     useEntities.mockReset();
     useEntities.mockReturnValue({
-      data: { items: [fsm], total: 1 },
+      data: { items: [{ entity: fsm, usage_duration_s: 1 }], total: 1 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -190,7 +190,7 @@ describe('EntitiesTable', () => {
 
   it('dims existing rows while replacement data is pending', () => {
     useEntities.mockReturnValue({
-      data: { items: [fsm], total: 1 },
+      data: { items: [{ entity: fsm, usage_duration_s: 1 }], total: 1 },
       isLoading: false,
       isFetching: true,
       isError: false,
