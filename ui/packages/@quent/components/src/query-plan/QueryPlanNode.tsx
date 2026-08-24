@@ -34,7 +34,11 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
   nodeId: string;
   operationType: string;
-  metadata?: { rawNode?: Operator };
+  metadata?: {
+    rawNode?: Operator;
+    relatedOperatorIds?: string[];
+    relatedOperators?: Operator[];
+  };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
   /** Which edge of the node incoming/outgoing handles attach to; flips with the DAG layout direction. */

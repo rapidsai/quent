@@ -117,6 +117,7 @@ export function NavBarNavigator() {
         navigate({
           to: '/profile/engine/$engineId/query/$queryId',
           params: { engineId: newEngineId, queryId: firstQuery.id },
+          search: {},
         });
       }
     } catch {
@@ -136,6 +137,7 @@ export function NavBarNavigator() {
         navigate({
           to: '/profile/engine/$engineId/query/$queryId',
           params: { engineId: engineId!, queryId: firstQuery.id },
+          search: {},
         });
       }
     } catch {
@@ -148,6 +150,7 @@ export function NavBarNavigator() {
     navigate({
       to: '/profile/engine/$engineId/query/$queryId',
       params: { engineId, queryId: newQueryId },
+      search: {},
     });
   };
 

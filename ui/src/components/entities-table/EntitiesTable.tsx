@@ -77,6 +77,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
           resourceLabel={table.resourceLabel}
           operatorLabel={table.operatorLabel}
           stateColorFn={stateColorFn}
+          queryBundle={props.queryBundle}
         />
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -1,14 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo } from 'react';
 import { useTimelineHover, useZoomRange } from '@quent/hooks';
 import { TooltipContent } from './TimelineTooltip';
 import type { TimelineMark, TimelineSeries } from './types';
-
-const POINTER_OFFSET = 12;
-const VIEWPORT_MARGIN = 4;
+import { PositionedTooltip } from '../ui/positioned-tooltip';
 
 /**
  * Pointer-driven tooltip rendered as a single body-level portal.
@@ -40,7 +37,7 @@ export function TimelineTooltipPortal({
   const dataIndex = Math.max(0, Math.min(timestamps.length - 1, hover.dataIndex));
 
   return (
-    <PositionedTooltip
+    <TimelineTooltipAtPosition
       clientX={hover.clientX}
       clientY={hover.clientY}
       dataIndex={dataIndex}
@@ -52,7 +49,7 @@ export function TimelineTooltipPortal({
   );
 }
 
-function PositionedTooltip({
+function TimelineTooltipAtPosition({
   clientX,
   clientY,
   dataIndex,
@@ -97,42 +94,8 @@ function PositionedTooltip({
 
   const fmt = useMemo(() => Object.values(series)[0]?.formatter, [series]);
 
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  // Defer-clamp to viewport: render once at the raw position, measure, then
-  // adjust if the box would overflow. Two-phase keeps us simple — confine: true
-  // was free with ECharts; here it's ~10 lines.
-  const [position, setPosition] = useState({
-    left: clientX + POINTER_OFFSET,
-    top: clientY + POINTER_OFFSET,
-  });
-  useLayoutEffect(() => {
-    const el = hostRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let left = clientX + POINTER_OFFSET;
-    let top = clientY + POINTER_OFFSET;
-    if (left + rect.width + VIEWPORT_MARGIN > vw) {
-      left = Math.max(VIEWPORT_MARGIN, clientX - rect.width - POINTER_OFFSET);
-    }
-    if (top + rect.height + VIEWPORT_MARGIN > vh) {
-      top = Math.max(VIEWPORT_MARGIN, clientY - rect.height - POINTER_OFFSET);
-    }
-    setPosition({ left, top });
-  }, [clientX, clientY, snappedTimestamp]);
-
-  return createPortal(
-    <div
-      ref={hostRef}
-      style={{
-        position: 'fixed',
-        left: position.left,
-        top: position.top,
-        pointerEvents: 'none',
-        zIndex: 1000,
-      }}
-    >
+  return (
+    <PositionedTooltip clientX={clientX} clientY={clientY}>
       <TooltipContent
         timestamp={snappedTimestamp}
         series={tooltipSeries}
@@ -140,7 +103,6 @@ function PositionedTooltip({
         windowMs={windowMs}
         activeMarks={activeMarks}
       />
-    </div>,
-    document.body
+    </PositionedTooltip>
   );
 }

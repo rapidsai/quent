@@ -8,6 +8,7 @@ import type {
   TimelineRequest,
   OperatorFilter,
 } from '@quent/utils';
+import { canonicalOperatorIds } from '../timeline/timeline.utils';
 
 /**
  * All dimensions that distinguish a cached timeline entry.
@@ -19,7 +20,7 @@ import type {
 export interface TimelineCacheParams {
   resourceId: string;
   resourceTypeName: string;
-  operatorId?: string | null;
+  operatorIds?: readonly string[] | null;
   fsmTypeName?: string | null;
 }
 
@@ -28,7 +29,7 @@ export function timelineCacheKey(params: TimelineCacheParams): string {
   return [
     params.resourceId,
     params.resourceTypeName,
-    params.operatorId ?? '',
+    JSON.stringify(canonicalOperatorIds(params.operatorIds)),
     params.fsmTypeName ?? '',
   ].join('|');
 }

@@ -36,11 +36,15 @@ export interface HighlightedNodeIdsState {
   primaryOperatorId: string | null;
 }
 
-export interface InspectedNodeData {
+export interface InspectedOperatorData {
   nodeId: string;
   label: string;
   operationType: string;
   statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
+}
+
+export interface InspectedNodeData extends InspectedOperatorData {
+  relatedOperators?: InspectedOperatorData[];
 }
 
 /** Data for the currently selected/pinned node (persists in the panel after click) */

@@ -1,26 +1,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { thinScrollbarClass, FsmCapacityChart, PointerTooltipPortal } from '@quent/components';
-import type { PointerPosition } from '@quent/components';
+import { DataText, FsmCapacityChart, SegmentedBar, thinScrollbarClass } from '@quent/components';
 import {
-  formatAttributeValue,
-  formatDuration,
+  cn,
   formatBytes,
+  formatDuration,
+  formatDurationForWindow,
   getColorForKey,
   isBytesStat,
   unwrapTaggedValue,
 } from '@quent/utils';
-import type { DynamicAttribute, FiniteStateMachine } from '@quent/utils';
+import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
+import { ResourceUsageList } from './ResourceUsageList';
+import { TransitionAttributes } from './TransitionAttributes';
 
 interface EntityDetailPanelProps {
   fsm: FiniteStateMachine | null;
   resourceLabel: (id: string) => string;
   operatorLabel: (id: string) => string;
   stateColorFn?: (name: string) => string;
+  queryBundle: QueryBundle<EntityRef>;
 }
 
 export function EntityDetailPanel({
@@ -28,12 +31,20 @@ export function EntityDetailPanel({
   resourceLabel,
   operatorLabel,
   stateColorFn,
+  queryBundle,
 }: EntityDetailPanelProps) {
   const { theme } = useTheme();
   const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
   const [copied, setCopied] = useState(false);
-  const [barTooltip, setBarTooltip] = useState<{ name: string; pct: number } | null>(null);
-  const [barPointer, setBarPointer] = useState<PointerPosition | null>(null);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current != null) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!fsm) {
     return (
@@ -43,6 +54,7 @@ export function EntityDetailPanel({
     );
   }
 
+  const fsmId = fsm.id;
   const firstTs = fsm.transitions[0]?.timestamp ?? 0;
   const lastTs = fsm.transitions[fsm.transitions.length - 1]?.timestamp ?? firstTs;
   const totalSpanMs = (lastTs - firstTs) * 1000;
@@ -96,9 +108,12 @@ export function EntityDetailPanel({
   }
 
   function copyId() {
-    void navigator.clipboard.writeText(fsm!.id);
+    void navigator.clipboard.writeText(fsmId);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    if (copiedTimeoutRef.current != null) {
+      clearTimeout(copiedTimeoutRef.current);
+    }
+    copiedTimeoutRef.current = setTimeout(() => setCopied(false), 1500);
   }
 
   return (
@@ -106,15 +121,15 @@ export function EntityDetailPanel({
       {/* Compact header: name + type badge on one line, UUID + copy on second */}
       <div className="shrink-0 border-b bg-card px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{fsm.instance_name}</span>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+          <DataText className="text-sm font-medium">{fsm.instance_name}</DataText>
+          <DataText className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
             {fsm.type_name}
-          </span>
+          </DataText>
         </div>
         <div className="mt-1 flex items-center gap-1">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+          <DataText className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
             {fsm.id}
-          </span>
+          </DataText>
           <button
             onClick={copyId}
             aria-label="Copy ID"
@@ -129,75 +144,63 @@ export function EntityDetailPanel({
       <div className="shrink-0 border-b bg-muted/30 px-3 py-2 text-xs">
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Total span</span>
-          <span className="tabular-nums font-medium">{formatDuration(totalSpanMs)}</span>
+          <DataText className="tabular-nums font-medium">{formatDuration(totalSpanMs)}</DataText>
         </div>
         {dominantState && (
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Dominant state</span>
-            <span className="font-medium" style={{ color: dominantState.color }}>
+            <DataText className="font-medium" style={{ color: dominantState.color }}>
               {dominantState.name} · {dominantState.pct.toFixed(1)}%
-            </span>
+            </DataText>
           </div>
         )}
         {dataVolume && (
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Data volume</span>
-            <span className="tabular-nums font-medium">{dataVolume}</span>
+            <DataText className="tabular-nums font-medium">{dataVolume}</DataText>
           </div>
         )}
         {totalSpanMs > 0 && stateTimeMs.size > 0 && (
-          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full">
-            {[...stateTimeMs.entries()].map(([name, ms]) => {
+          <SegmentedBar
+            className="mt-2"
+            trackClassName="rounded-full bg-transparent"
+            height={8}
+            showLabels={false}
+            showTooltips
+            segments={[...stateTimeMs.entries()].map(([name, ms]) => {
               const color = stateColorFn ? stateColorFn(name) : getColorForKey(name, paletteTheme);
               const pct = (ms / totalSpanMs) * 100;
-              return (
-                <div
-                  key={name}
-                  role="img"
-                  aria-label={`${name}: ${pct.toFixed(1)}%`}
-                  tabIndex={0}
-                  style={{ width: `${pct}%`, backgroundColor: color }}
-                  className="focus-visible:brightness-90"
-                  onMouseEnter={e => {
-                    setBarTooltip({ name, pct });
-                    setBarPointer({ clientX: e.clientX, clientY: e.clientY });
-                  }}
-                  onMouseMove={e => setBarPointer({ clientX: e.clientX, clientY: e.clientY })}
-                  onMouseLeave={() => {
-                    setBarTooltip(null);
-                    setBarPointer(null);
-                  }}
-                  onFocus={e => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setBarTooltip({ name, pct });
-                    setBarPointer({ clientX: rect.left + rect.width / 2, clientY: rect.top });
-                  }}
-                  onBlur={() => {
-                    setBarTooltip(null);
-                    setBarPointer(null);
-                  }}
-                />
-              );
+              return {
+                id: name,
+                value: pct,
+                color,
+                ariaLabel: `${name}: ${pct.toFixed(1)}%`,
+                tooltip: (
+                  <div className="rounded bg-popover px-2 py-1.5 text-[11px] leading-tight text-foreground shadow-md">
+                    <DataText className="font-medium">{name}</DataText>
+                    <DataText className="ml-2 text-muted-foreground">{pct.toFixed(1)}%</DataText>
+                  </div>
+                ),
+              };
             })}
-          </div>
+          />
         )}
-        <PointerTooltipPortal hover={barTooltip ? barPointer : null}>
-          {barTooltip && (
-            <div className="rounded bg-popover px-2 py-1.5 text-[11px] leading-tight text-foreground shadow-md">
-              <span className="font-medium">{barTooltip.name}</span>
-              <span className="ml-2 text-muted-foreground">{barTooltip.pct.toFixed(1)}%</span>
-            </div>
-          )}
-        </PointerTooltipPortal>
       </div>
 
       <FsmCapacityChart
         transitions={fsm.transitions}
         isDark={theme === THEME_DARK}
         resourceLabel={resourceLabel}
+        quantitySpecs={queryBundle.quantity_specs}
+        defaultCapacityPredicate={isBytesStat}
+        getCapacityDecl={(resourceId, capacityName) => {
+          const typeName = queryBundle.entities.resources[resourceId]?.type_name;
+          const resourceType = typeName ? queryBundle.entities.resource_types[typeName] : undefined;
+          return resourceType?.capacities.find(c => c.name === capacityName);
+        }}
       />
 
-      <ol className={`min-h-0 flex-1 space-y-2 overflow-auto p-3 ${thinScrollbarClass}`}>
+      <ol className={cn('min-h-0 flex-1 space-y-2 overflow-auto p-3', thinScrollbarClass)}>
         {fsm.transitions.map((transition, index) => {
           const durationMs = durations[index] ?? null;
           const isBottleneck =
@@ -218,22 +221,23 @@ export function EntityDetailPanel({
             >
               {/* State name + duration (prominent) + absolute timestamp (secondary) */}
               <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-medium">
+                <DataText className="text-sm font-medium">
                   <span className="text-muted-foreground">{index + 1}.</span> {transition.name}
-                </span>
+                </DataText>
                 <div className="flex shrink-0 flex-col items-end">
                   {durationMs != null && (
-                    <span
-                      className={`tabular-nums text-sm font-medium ${
-                        isBottleneck ? 'text-orange-500 dark:text-orange-400' : ''
-                      }`}
+                    <DataText
+                      className={cn(
+                        'tabular-nums text-sm font-medium',
+                        isBottleneck && 'text-orange-500 dark:text-orange-400'
+                      )}
                     >
                       {formatDuration(durationMs)}
-                    </span>
+                    </DataText>
                   )}
-                  <span className="tabular-nums text-xs text-muted-foreground">
-                    @{transition.timestamp.toFixed(3)}s
-                  </span>
+                  <DataText className="tabular-nums text-xs text-muted-foreground">
+                    @{formatDurationForWindow(transition.timestamp * 1000, totalSpanMs, 15)}
+                  </DataText>
                 </div>
               </div>
 
@@ -247,74 +251,20 @@ export function EntityDetailPanel({
                 </div>
               )}
 
-              {transition.usages.length > 0 && (
-                <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                  {transition.usages.map((usage, usageIndex) => (
-                    <li key={usageIndex} className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-mono">{resourceLabel(usage.resource)}</span>
-                      {usage.capacities.map(([name, capacity], capacityIndex) => (
-                        <span key={capacityIndex} className="tabular-nums">
-                          {name}
-                          {capacity != null
-                            ? `=${isBytesStat(name) ? formatBytes(capacity) : String(capacity)}`
-                            : ''}
-                        </span>
-                      ))}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {transition.attributes.length > 0 && (
-                <AttributeRows attributes={transition.attributes} operatorLabel={operatorLabel} />
-              )}
-              {transition.derived_attributes.length > 0 && (
-                <AttributeRows
-                  attributes={transition.derived_attributes}
-                  derived
-                  operatorLabel={operatorLabel}
-                />
-              )}
+              <ResourceUsageList
+                usages={transition.usages}
+                resourceLabel={resourceLabel}
+                queryBundle={queryBundle}
+              />
+              <TransitionAttributes
+                attributes={transition.attributes}
+                derivedAttributes={transition.derived_attributes}
+                operatorLabel={operatorLabel}
+              />
             </li>
           );
         })}
       </ol>
     </div>
   );
-}
-
-function AttributeRows({
-  attributes,
-  derived,
-  operatorLabel,
-}: {
-  attributes: DynamicAttribute[];
-  derived?: boolean;
-  operatorLabel: (id: string) => string;
-}) {
-  return (
-    <ul className={`mt-1 space-y-0.5 text-xs ${derived ? 'italic text-muted-foreground' : ''}`}>
-      {attributes.map((attribute, index) => {
-        const { label, value } = resolveAttributeDisplay(attribute, operatorLabel);
-        return (
-          <li key={index} className="flex justify-between gap-3">
-            <span className={derived ? '' : 'text-muted-foreground'}>{label}</span>
-            <span className="tabular-nums text-right">{value}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function resolveAttributeDisplay(
-  attribute: DynamicAttribute,
-  operatorLabel: (id: string) => string
-): { label: string; value: string } {
-  if (attribute.key === 'operator_id') {
-    const raw = unwrapTaggedValue(attribute.value);
-    if (typeof raw === 'string') {
-      return { label: 'operator', value: operatorLabel(raw) };
-    }
-  }
-  return { label: attribute.key, value: formatAttributeValue(attribute.key, attribute.value) };
 }

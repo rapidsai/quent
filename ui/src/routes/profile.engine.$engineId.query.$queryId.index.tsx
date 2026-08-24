@@ -4,10 +4,11 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/')({
-  beforeLoad: ({ params }) => {
+  beforeLoad: ({ params, search }) => {
     throw redirect({
       to: '/profile/engine/$engineId/query/$queryId/timeline',
       params,
+      search,
     });
   },
 });

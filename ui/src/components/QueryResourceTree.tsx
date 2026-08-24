@@ -123,13 +123,20 @@ function injectLongEntitiesRows(item: TreeTableItem): TreeTableItem {
 interface QueryResourceTreeProps {
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
+  initialZoomRange?: { start: number; end: number };
+  seedRootExpanded?: boolean;
 }
 
 export function QueryResourceTree(props: QueryResourceTreeProps) {
   return <QueryResourceTreeContent {...props} />;
 }
 
-function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
+function QueryResourceTreeContent({
+  queryBundle,
+  engineId,
+  initialZoomRange,
+  seedRootExpanded = true,
+}: QueryResourceTreeProps) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const { entities, resource_tree: resourceTree } = queryBundle;
@@ -137,6 +144,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const [selectedFsmTypes, setSelectedFsmTypes] = useAtom(selectedFsmTypesAtom);
 
   const [drawerFsm, setDrawerFsm] = useState<FiniteStateMachine | null>(null);
+  const toggleDrawerFsm = useCallback(
+    (fsm: FiniteStateMachine) =>
+      setDrawerFsm(selectedFsm => (selectedFsm?.id === fsm.id ? null : fsm)),
+    []
+  );
   const closeDrawer = useCallback(() => setDrawerFsm(null), []);
 
   const stateColorFn = useMemo(
@@ -162,10 +174,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
+  const defaultZoomRange = { start: 0, end: durationSeconds };
 
   useHydrateTimelineAtoms({
-    zoomRange: { start: 0, end: durationSeconds },
-    debouncedZoomRange: { start: 0, end: durationSeconds },
+    zoomRange: initialZoomRange ?? defaultZoomRange,
+    debouncedZoomRange: initialZoomRange ?? defaultZoomRange,
     startTimeMs,
   });
 
@@ -189,7 +202,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
-  const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
+  const { expandedIds, handleExpandChange } = useExpandedIds(
+    seedRootExpanded ? rootItem.id : undefined
+  );
   const controlledExpandedIds = expandedIds;
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
@@ -355,7 +370,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   durationSeconds={durationSeconds}
                   fsmTypes={entities.fsm_types}
                   isDark={isDark}
-                  onEntitySelect={setDrawerFsm}
+                  onEntitySelect={toggleDrawerFsm}
                   selectedEntityId={drawerFsm?.id}
                   onBackgroundClick={closeDrawer}
                 />
@@ -393,8 +408,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     queryBundle,
     handleZoomChange,
     operatorEntriesByWorker,
-    setDrawerFsm,
-    drawerFsm,
+    toggleDrawerFsm,
+    drawerFsm?.id,
+    closeDrawer,
   ]);
 
   return (
@@ -420,6 +436,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         operatorLabel={operatorLabel}
         onClose={closeDrawer}
         stateColorFn={stateColorFn}
+        queryBundle={queryBundle}
       />
     </div>
   );

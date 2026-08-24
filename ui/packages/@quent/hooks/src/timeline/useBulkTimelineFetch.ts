@@ -17,8 +17,11 @@ import {
   getFsmTypeName,
   setOperatorOnEntry,
   bulkEntryId,
+  canonicalOperatorIds,
 } from './timeline.utils';
 import { bulkInitializedAtom, timelineCacheKey, timelineDataMapAtom } from '../atoms/timeline';
+
+const EMPTY_OPERATOR_IDS: readonly string[] = [];
 
 /**
  * Mirrors TimelineCacheParams so meta can be passed directly to timelineCacheKey.
@@ -27,7 +30,7 @@ import { bulkInitializedAtom, timelineCacheKey, timelineDataMapAtom } from '../a
 export interface BulkTimelineIdMeta {
   resourceId: string;
   resourceTypeName: string;
-  operatorId: string | null;
+  operatorIds: string[];
   fsmTypeName: string | null;
 }
 
@@ -61,26 +64,32 @@ export function applyBulkTimelineResponse(
 
 /**
  * Builds a single bulk request: each resource appears once (base) and once with
- * operatorId when provided. Returns UUID-keyed entries, idToMeta map, and a stable requestKey.
+ * operatorIds when provided. Returns keyed entries, idToMeta map, and a stable requestKey.
  */
 export function buildMergedBulkEntries(
   baseEntries: Record<string, TimelineRequest<OperatorFilter>>,
-  operatorId: string | null | undefined
+  operatorIds: readonly string[] | null | undefined
 ): MergedBulkEntries {
   const entries: Record<string, TimelineRequest<OperatorFilter>> = {};
   const idToMeta = new Map<string, BulkTimelineIdMeta>();
+  const canonicalIds = canonicalOperatorIds(operatorIds);
 
   for (const [resourceId, params] of Object.entries(baseEntries)) {
     const resourceTypeName = getResourceTypeName(params);
     const fsmTypeName = getFsmTypeName(params);
     const baseId = bulkEntryId(resourceId);
     entries[baseId] = params;
-    idToMeta.set(baseId, { resourceId, resourceTypeName, operatorId: null, fsmTypeName });
-    if (operatorId) {
-      const opId = bulkEntryId(resourceId, operatorId);
-      const withOperator = setOperatorOnEntry(params, operatorId);
+    idToMeta.set(baseId, { resourceId, resourceTypeName, operatorIds: [], fsmTypeName });
+    if (canonicalIds.length > 0) {
+      const opId = bulkEntryId(resourceId, canonicalIds);
+      const withOperator = setOperatorOnEntry(params, canonicalIds);
       entries[opId] = withOperator;
-      idToMeta.set(opId, { resourceId, resourceTypeName, operatorId, fsmTypeName });
+      idToMeta.set(opId, {
+        resourceId,
+        resourceTypeName,
+        operatorIds: canonicalIds,
+        fsmTypeName,
+      });
     }
   }
 
@@ -94,7 +103,7 @@ export function buildMergedBulkEntries(
           ? params.ResourceGroup.entity_filter.entity_type_name
           : params.Resource.entity_filter.entity_type_name,
       ]),
-    operatorId: operatorId ?? null,
+    operatorIds: canonicalIds,
   });
 
   return { entries, idToMeta, requestKey };
@@ -102,7 +111,7 @@ export function buildMergedBulkEntries(
 
 /**
  * Fetches bulk timeline data. Accepts base entries (keyed by resourceId) and optional
- * operatorId; builds merged entries (base + operator variants) internally and distributes
+ * operatorIds; builds merged entries (base + operator variants) internally and distributes
  * results to the record-based Jotai atom.
  */
 export function useBulkTimelineFetch({
@@ -110,14 +119,14 @@ export function useBulkTimelineFetch({
   queryId,
   debouncedZoomRange,
   entries,
-  operatorId = null,
+  operatorIds = EMPTY_OPERATOR_IDS,
   enabled = true,
 }: {
   engineId: string;
   queryId: string;
   debouncedZoomRange: ZoomRange;
   entries: Record<string, TimelineRequest<OperatorFilter>>;
-  operatorId?: string | null;
+  operatorIds?: readonly string[];
   enabled?: boolean;
 }) {
   const store = useStore();
@@ -126,7 +135,7 @@ export function useBulkTimelineFetch({
     entries: mergedEntries,
     idToMeta,
     requestKey,
-  } = useMemo(() => buildMergedBulkEntries(entries, operatorId), [entries, operatorId]);
+  } = useMemo(() => buildMergedBulkEntries(entries, operatorIds), [entries, operatorIds]);
 
   const { data, isFetched } = useQuery<BulkTimelinesResponse>({
     queryKey: ['bulkTimelines', engineId, queryId, debouncedZoomRange, requestKey],

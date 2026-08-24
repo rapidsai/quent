@@ -192,7 +192,7 @@ export function OperatorGanttChart({
         if (params.seriesName !== 'operator-span') return;
         const op = operators[params.dataIndex];
         if (!op) return;
-        if (selectedNodeIds.has(op.operatorId)) {
+        if (selectedNodeIds.size === 1 && selectedNodeIds.has(op.operatorId)) {
           setSelectedNodeIds(new Set());
           setSelectedOperatorLabel(null);
           setSelectedNodeData(null);

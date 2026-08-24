@@ -28,10 +28,7 @@ export { queriesQueryOptions } from './queries';
 export { singleTimelineQueryOptions } from './timeline';
 export { bulkTimelineQueryOptions } from './bulkTimelines';
 export { dataFlowQueryOptions } from './dataFlow';
-export {
-  entitiesQueryOptions,
-  entityListQueryOptions,
-} from './entityList';
+export { entitiesQueryOptions, entityListQueryOptions } from './entityList';
 export type { EntityListResult } from './api';
 export {
   canonicalizeNvtxRequest,

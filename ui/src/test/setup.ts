@@ -33,6 +33,12 @@ class ResizeObserverMock {
 // Mock scrollIntoView for Radix UI Select components
 Element.prototype.scrollIntoView = vi.fn();
 
+// jsdom doesn't implement pointer capture; Radix UI Select calls these during
+// open/select interactions.
+Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(false);
+Element.prototype.setPointerCapture = vi.fn();
+Element.prototype.releasePointerCapture = vi.fn();
+
 // Start MSW server before all tests
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'warn' });

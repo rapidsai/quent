@@ -1,7 +1,7 @@
 <!-- rumdl-disable MD033 MD041 -->
 
 <p align="center">
-  <img src="ui/public/favicon.svg" alt="Quent honey badger logo" width="240">
+  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="240">
 </p>
 
 <h1 align="center">Quent</h1>

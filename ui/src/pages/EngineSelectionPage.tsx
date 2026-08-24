@@ -45,6 +45,7 @@ export function EngineSelectionPage() {
       navigate({
         to: '/profile/engine/$engineId/query/$queryId',
         params: { engineId, queryId },
+        search: {},
       });
     }
   };

@@ -11,7 +11,7 @@ import {
   useReturnedTimelineNumBins,
   useSelectedNodeIds,
 } from '@quent/hooks';
-import { type FsmTypeDecl, type FiniteStateMachine, MAX_TIMELINE_BINS } from '@quent/utils';
+import { type FiniteStateMachine, type FsmTypeDecl, MAX_TIMELINE_BINS } from '@quent/utils';
 import {
   Button,
   LONG_ENTITIES_TIMELINE_HEIGHT,
@@ -137,7 +137,7 @@ export function LongEntitiesRow({
   }
 
   return (
-    <div>
+    <div data-long-entities-gantt>
       <LongEntitiesGantt
         entries={entries}
         durationSeconds={durationSeconds}

@@ -16,6 +16,7 @@ import {
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineTooltipPortal } from './TimelineTooltipPortal';
 import { PlayheadLine } from './PlayheadLine';
+import { resolveOverlayData, type RetainedOverlayData } from './resourceTimeline.utils';
 import type { TimelineHoverPosition } from './Timeline';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
@@ -90,7 +91,8 @@ export function ResourceTimeline({
   const operatorLabel = useSelectedOperatorLabel();
 
   const selectedNodeIds = useSelectedNodeIds();
-  const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
+  const operatorIds = useMemo(() => [...selectedNodeIds].sort(), [selectedNodeIds]);
+  const hasOperatorFilter = operatorIds.length > 0;
 
   const cacheResourceTypeName =
     resourceType === EntityTypeKey.ResourceGroup ? (resourceTypeName ?? '') : '';
@@ -105,21 +107,22 @@ export function ResourceTimeline({
     resourceId,
     resourceTypeName: cacheResourceTypeName,
     fsmTypeName,
-    operatorId,
+    operatorIds,
   });
   const operatorTimelineData = useTimelineData(operatorCacheKey);
-  // Preserve the last non-undefined overlay data while an operator is selected.
-  // Without this, switching operators causes a one-render undimmed flash because
-  // the new operator's atom is empty until the seed effect fires.
-  const lastOverlayRef = useRef<typeof operatorTimelineData>(undefined);
+  // Retain overlay data for the same operator set while its atom is reseeded.
+  const lastOverlayRef = useRef<RetainedOverlayData | null>(null);
   if (operatorTimelineData !== undefined) {
-    lastOverlayRef.current = operatorTimelineData;
-  } else if (!operatorId) {
-    lastOverlayRef.current = undefined;
+    lastOverlayRef.current = { cacheKey: operatorCacheKey, data: operatorTimelineData };
+  } else if (!hasOperatorFilter) {
+    lastOverlayRef.current = null;
   }
-  const overlayPreloadedData = operatorId
-    ? (operatorTimelineData ?? lastOverlayRef.current)
-    : undefined;
+  const overlayPreloadedData = resolveOverlayData(
+    operatorTimelineData,
+    lastOverlayRef.current,
+    operatorCacheKey,
+    hasOperatorFilter
+  );
 
   const {
     data: fetchedData,
@@ -191,7 +194,7 @@ export function ResourceTimeline({
       fsmTypes
     );
 
-    if (operatorId && operatorLabel) {
+    if (hasOperatorFilter && operatorLabel) {
       if (overlayPreloadedData) {
         const baseSpan = getTimelineConfig(data).span;
         const opSpan = getTimelineConfig(overlayPreloadedData).span;
@@ -227,7 +230,7 @@ export function ResourceTimeline({
   }, [
     preloadedData,
     fetchedData,
-    operatorId,
+    hasOperatorFilter,
     overlayPreloadedData,
     resourceTypeDecl,
     quantitySpecs,

@@ -13,7 +13,6 @@ import {
   fitDataFlowSegmentLabel,
   formatDataFlowValueCompact,
 } from '@quent/hooks';
-import { cn } from '@quent/utils';
 import {
   NODE_LAYOUT_WIDTH,
   FLOW_BAR_TOP_MARGIN,
@@ -21,7 +20,7 @@ import {
   FLOW_BAR_TRACK_GAP,
   FLOW_BAR_LABEL_HEIGHT,
 } from '../dag/layout';
-import { SegmentValueLabel } from './SegmentValueLabel';
+import { SegmentedBar } from '../segmented-bar/SegmentedBar';
 
 const BAR_TRANSITION = 'width 120ms linear';
 
@@ -78,9 +77,6 @@ export const NodeFlowBar = memo(
     const operatorFrame = frame.perOperator.get(operatorId);
     const total = operatorFrame?.total ?? 0;
     const hasData = operatorFrame != null && total > 0 && frame.maxTotal > 0;
-    // Stable scale while scrubbing: filled width is relative to the max
-    // operator total across ALL bins of the window (frame.maxTotal).
-    const filledWidth = hasData ? `max(2px, ${(total / frame.maxTotal) * 100}%)` : '0px';
 
     // One compact total per declared measure with data at this bin, in
     // declaration order — e.g. "3.2 | 45MB" (count | bytes). A pipe, not a
@@ -92,6 +88,44 @@ export const NodeFlowBar = memo(
           .map(m => formatDataFlowValueCompact(operatorTotals[m.name]!, m.name, meta))
           .join(' | ')
       : '';
+    const stateSegments = hasData
+      ? meta.stateNames.flatMap((state, stateIndex) => {
+          const value = operatorFrame.byState[stateIndex] ?? 0;
+          if (value <= 0) return [];
+          const color = stateColor(state);
+          const label = fitDataFlowSegmentLabel(
+            value,
+            frame.maxTotal,
+            frame.measure,
+            meta,
+            FLOW_TRACK_PX,
+            {
+              value: operatorFrame.labelByState[stateIndex] ?? 0,
+              measure: frame.labelMeasure,
+            }
+          );
+          return [{ id: state, value, color, label: label ?? undefined }];
+        })
+      : [];
+    const dimensionSegments = hasData
+      ? meta.decl.dimension_keys.flatMap((dimension, dimensionIndex) => {
+          const value = operatorFrame.byDimension[dimensionIndex] ?? 0;
+          if (value <= 0) return [];
+          const color = dimensionColor(dimension.key);
+          const label = fitDataFlowSegmentLabel(
+            value,
+            frame.maxTotal,
+            frame.measure,
+            meta,
+            FLOW_TRACK_PX,
+            {
+              value: operatorFrame.labelByDimension[dimensionIndex] ?? 0,
+              measure: frame.labelMeasure,
+            }
+          );
+          return [{ id: dimension.key, value, color, label: label ?? undefined }];
+        })
+      : [];
 
     return (
       <div
@@ -99,90 +133,29 @@ export const NodeFlowBar = memo(
         style={{ marginTop: FLOW_BAR_TOP_MARGIN }}
         data-testid="node-flow-bar"
       >
-        <div
-          className={cn(
-            'w-full overflow-hidden rounded-sm',
-            hasData ? 'bg-muted/40' : 'bg-transparent'
-          )}
-          style={{ height: FLOW_BAR_TRACK_HEIGHT }}
-        >
-          <div className="flex h-full" style={{ width: filledWidth, transition: BAR_TRANSITION }}>
-            {hasData &&
-              meta.stateNames.map((state, stateIndex) => {
-                const value = operatorFrame.byState[stateIndex] ?? 0;
-                if (value <= 0) return null;
-                const color = stateColor(state);
-                const label = fitDataFlowSegmentLabel(
-                  value,
-                  frame.maxTotal,
-                  frame.measure,
-                  meta,
-                  FLOW_TRACK_PX,
-                  {
-                    value: operatorFrame.labelByState[stateIndex] ?? 0,
-                    measure: frame.labelMeasure,
-                  }
-                );
-                return (
-                  <div
-                    key={state}
-                    className="relative overflow-hidden"
-                    style={{ flexGrow: value, backgroundColor: color }}
-                  >
-                    {label != null && (
-                      <SegmentValueLabel
-                        label={label}
-                        segmentColor={color}
-                        testId="flow-segment-label"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-        <div
-          className={cn(
-            'w-full overflow-hidden rounded-sm',
-            hasData ? 'bg-muted/40' : 'bg-transparent'
-          )}
-          style={{ marginTop: FLOW_BAR_TRACK_GAP, height: FLOW_BAR_TRACK_HEIGHT }}
-        >
-          <div className="flex h-full" style={{ width: filledWidth, transition: BAR_TRANSITION }}>
-            {hasData &&
-              meta.decl.dimension_keys.map((dimension, dimensionIndex) => {
-                const value = operatorFrame.byDimension[dimensionIndex] ?? 0;
-                if (value <= 0) return null;
-                const color = dimensionColor(dimension.key);
-                const label = fitDataFlowSegmentLabel(
-                  value,
-                  frame.maxTotal,
-                  frame.measure,
-                  meta,
-                  FLOW_TRACK_PX,
-                  {
-                    value: operatorFrame.labelByDimension[dimensionIndex] ?? 0,
-                    measure: frame.labelMeasure,
-                  }
-                );
-                return (
-                  <div
-                    key={dimension.key}
-                    className="relative overflow-hidden"
-                    style={{ flexGrow: value, backgroundColor: color }}
-                  >
-                    {label != null && (
-                      <SegmentValueLabel
-                        label={label}
-                        segmentColor={color}
-                        testId="flow-tier-label"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </div>
+        <SegmentedBar
+          segments={stateSegments}
+          fillValue={total}
+          maxValue={frame.maxTotal}
+          height={FLOW_BAR_TRACK_HEIGHT}
+          minimumFillPx={2}
+          showTooltips={false}
+          transition={BAR_TRANSITION}
+          trackClassName={hasData ? 'bg-muted/40' : 'bg-transparent'}
+          labelTestId="flow-segment-label"
+        />
+        <SegmentedBar
+          segments={dimensionSegments}
+          fillValue={total}
+          maxValue={frame.maxTotal}
+          height={FLOW_BAR_TRACK_HEIGHT}
+          minimumFillPx={2}
+          showTooltips={false}
+          transition={BAR_TRANSITION}
+          style={{ marginTop: FLOW_BAR_TRACK_GAP }}
+          trackClassName={hasData ? 'bg-muted/40' : 'bg-transparent'}
+          labelTestId="flow-tier-label"
+        />
         <div
           className="text-right text-[9px] text-muted-foreground tabular-nums truncate"
           style={{ lineHeight: `${FLOW_BAR_LABEL_HEIGHT}px` }}

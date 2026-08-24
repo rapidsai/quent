@@ -322,6 +322,11 @@ const FlowLayout = ({
     [data.nodes]
   );
 
+  const getSelectionIds = useCallback((node: Node<QueryPlanNodeData>): string[] => {
+    const relatedOperatorIds = node.data.metadata?.relatedOperatorIds ?? [];
+    return relatedOperatorIds.length > 0 ? [...relatedOperatorIds, node.id] : [node.id];
+  }, []);
+
   const statQuantitySpecs = useMemo((): Record<string, QuantitySpec> => {
     if (!data.quantitySpecs) return {};
     const result: Record<string, QuantitySpec> = {};
@@ -390,7 +395,8 @@ const FlowLayout = ({
         setSelectedNodeData(null);
         onSelectionChange?.([]);
       } else {
-        const newSet = new Set([node.id]);
+        const selectionIds = getSelectionIds(node);
+        const newSet = new Set(selectionIds);
         setSelectedNodeIds(newSet);
         setSelectedOperatorLabel(node.data.label);
         setSelectedNodeData({
@@ -398,11 +404,18 @@ const FlowLayout = ({
           label: node.data.label,
           operationType: node.data.operationType,
           statistics: parseCustomStatistics(node.data.metadata?.rawNode),
+          relatedOperators: node.data.metadata?.relatedOperators?.map(operator => ({
+            nodeId: operator.id,
+            label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
+            operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
+            statistics: parseCustomStatistics(operator),
+          })),
         });
-        onSelectionChange?.([node.id]);
+        onSelectionChange?.(selectionIds);
       }
     },
     [
+      getSelectionIds,
       selectedNodeIds,
       setSelectedNodeIds,
       setSelectedOperatorLabel,

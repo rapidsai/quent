@@ -234,7 +234,10 @@ function SortableHead({
     >
       <button
         type="button"
-        className={cn('flex h-10 w-full cursor-pointer items-center gap-1 px-2', isRight && 'justify-end')}
+        className={cn(
+          'flex h-10 w-full cursor-pointer items-center gap-1 px-2',
+          isRight && 'justify-end'
+        )}
         onClick={() => onSort(col)}
       >
         {label}

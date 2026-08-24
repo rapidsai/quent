@@ -81,36 +81,36 @@ describe('getFsmTypeName', () => {
 });
 
 describe('bulkEntryId', () => {
-  it('returns "<resourceId>:base" when operatorId is omitted', () => {
+  it('returns "<resourceId>:base" when operatorIds are omitted', () => {
     expect(bulkEntryId('res-1')).toBe('res-1:base');
   });
 
-  it('returns "<resourceId>:base" when operatorId is undefined', () => {
+  it('returns "<resourceId>:base" when operatorIds are undefined', () => {
     expect(bulkEntryId('res-1', undefined)).toBe('res-1:base');
   });
 
-  it('returns "<resourceId>:base" when operatorId is null', () => {
+  it('returns "<resourceId>:base" when operatorIds are null', () => {
     expect(bulkEntryId('res-1', null)).toBe('res-1:base');
   });
 
-  it('returns "<resourceId>:op:<operatorId>" when operatorId is provided', () => {
-    expect(bulkEntryId('res-1', 'op-42')).toBe('res-1:op:op-42');
+  it('returns a canonical key when operatorIds are provided', () => {
+    expect(bulkEntryId('res-1', ['op-42', 'op-41', 'op-42'])).toBe('res-1:ops:["op-41","op-42"]');
   });
 });
 
 describe('setOperatorOnEntry', () => {
   it('sets operator_ids on a Resource variant', () => {
     const entry = makeResourceRequest('r1', null, null);
-    const result = setOperatorOnEntry(entry, 'op-99');
+    const result = setOperatorOnEntry(entry, ['op-98', 'op-99']);
     expect('Resource' in result).toBe(true);
     expect(
       (result as { Resource: { application: OperatorFilter } }).Resource.application.operator_ids
-    ).toEqual(['op-99']);
+    ).toEqual(['op-98', 'op-99']);
   });
 
   it('preserves other Resource fields when setting operator_ids', () => {
     const entry = makeResourceRequest('r1', 'Fsm', null);
-    const result = setOperatorOnEntry(entry, 'op-1') as {
+    const result = setOperatorOnEntry(entry, ['op-1']) as {
       Resource: (typeof entry)['Resource' & keyof typeof entry];
     };
     expect(result.Resource.resource_id).toBe('r1');
@@ -121,7 +121,7 @@ describe('setOperatorOnEntry', () => {
     const entry = makeResourceRequest('r1');
     const original = (entry as { Resource: { application: OperatorFilter } }).Resource.application
       .operator_ids;
-    setOperatorOnEntry(entry, 'op-new');
+    setOperatorOnEntry(entry, ['op-new']);
     expect(
       (entry as { Resource: { application: OperatorFilter } }).Resource.application.operator_ids
     ).toEqual(original);
@@ -129,17 +129,17 @@ describe('setOperatorOnEntry', () => {
 
   it('sets operator_ids on a ResourceGroup variant', () => {
     const entry = makeGroupRequest('g1', 'GPU', null, null);
-    const result = setOperatorOnEntry(entry, 'op-7');
+    const result = setOperatorOnEntry(entry, ['op-7', 'op-8']);
     expect('ResourceGroup' in result).toBe(true);
     expect(
       (result as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params
         .operator_ids
-    ).toEqual(['op-7']);
+    ).toEqual(['op-7', 'op-8']);
   });
 
   it('preserves other ResourceGroup fields when setting operator_ids', () => {
     const entry = makeGroupRequest('g1', 'GPU', 'Worker', null);
-    const result = setOperatorOnEntry(entry, 'op-2') as {
+    const result = setOperatorOnEntry(entry, ['op-2']) as {
       ResourceGroup: (typeof entry)['ResourceGroup' & keyof typeof entry];
     };
     expect(result.ResourceGroup.resource_group_id).toBe('g1');
@@ -151,7 +151,7 @@ describe('setOperatorOnEntry', () => {
     const entry = makeGroupRequest('g1', 'GPU');
     const original = (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup
       .app_params.operator_ids;
-    setOperatorOnEntry(entry, 'op-new');
+    setOperatorOnEntry(entry, ['op-new']);
     expect(
       (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params
         .operator_ids

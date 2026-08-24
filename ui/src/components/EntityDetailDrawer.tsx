@@ -1,11 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { Button } from '@quent/components';
-import type { FiniteStateMachine } from '@quent/utils';
+import {
+  Button,
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerPortal,
+  DrawerTitle,
+} from '@quent/components';
+import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
 import { EntityDetailPanel } from './entities-table/EntityDetailPanel';
 
 interface EntityDetailDrawerProps {
@@ -14,6 +20,7 @@ interface EntityDetailDrawerProps {
   operatorLabel: (id: string) => string;
   onClose: () => void;
   stateColorFn?: (name: string) => string;
+  queryBundle: QueryBundle<EntityRef>;
 }
 
 export function EntityDetailDrawer({
@@ -22,40 +29,56 @@ export function EntityDetailDrawer({
   operatorLabel,
   onClose,
   stateColorFn,
+  queryBundle,
 }: EntityDetailDrawerProps) {
-  useEffect(() => {
-    if (!fsm) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fsm, onClose]);
-
-  return createPortal(
-    <div
-      role="complementary"
-      aria-label="Entity details"
-      inert={!fsm || undefined}
-      className={`fixed right-0 top-0 z-50 flex h-full w-80 flex-col border-l bg-background shadow-xl transition-transform duration-200 ${
-        fsm ? 'translate-x-0' : 'translate-x-full'
-      }`}
+  return (
+    <Drawer
+      open={fsm !== null}
+      onOpenChange={open => {
+        if (!open) onClose();
+      }}
+      direction="right"
+      modal={false}
+      noBodyStyles
+      shouldScaleBackground={false}
+      handleOnly
     >
-      <div className="flex shrink-0 items-center justify-between border-b bg-card px-3 py-2">
-        <span className="text-sm font-medium">Entity details</span>
-        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1">
-        <EntityDetailPanel
-          fsm={fsm}
-          resourceLabel={resourceLabel}
-          operatorLabel={operatorLabel}
-          stateColorFn={stateColorFn}
-        />
-      </div>
-    </div>,
-    document.body
+      <DrawerPortal>
+        <DrawerContent
+          onPointerDownOutside={event => {
+            const target = event.detail.originalEvent.target;
+            // Entity clicks on the long-entities Gantt already toggle the
+            // selection via onEntitySelect; closing here first would clear
+            // drawerFsm before that handler runs, breaking the toggle.
+            if (target instanceof Element && target.closest('[data-long-entities-gantt]')) {
+              return;
+            }
+            onClose();
+          }}
+          className="h-full w-80 shadow-xl sm:max-w-none"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b bg-card px-3 py-2">
+            <DrawerTitle className="text-sm">Entity details</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Details for the selected entity.
+            </DrawerDescription>
+            <DrawerClose asChild>
+              <Button variant="ghost" size="icon" aria-label="Close">
+                <X className="size-4" />
+              </Button>
+            </DrawerClose>
+          </div>
+          <div className="min-h-0 flex-1">
+            <EntityDetailPanel
+              fsm={fsm}
+              resourceLabel={resourceLabel}
+              operatorLabel={operatorLabel}
+              stateColorFn={stateColorFn}
+              queryBundle={queryBundle}
+            />
+          </div>
+        </DrawerContent>
+      </DrawerPortal>
+    </Drawer>
   );
 }
