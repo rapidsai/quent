@@ -40,8 +40,8 @@ catalogs:
       specifier: ^2.20.1
       version: 2.20.1
     jotai-family:
-      specifier: ^1.0.2
-      version: 1.0.2
+      specifier: ^1.1.0
+      version: 1.1.0
     react:
       specifier: ^19.2.7
       version: 19.2.7
@@ -148,7 +148,7 @@ importers:
         version: 2.20.1(@babel/core@7.29.7(supports-color@7.2.0))(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)
       jotai-family:
         specifier: 'catalog:'
-        version: 1.0.2(jotai@2.20.1(@babel/core@7.29.7(supports-color@7.2.0))(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7))
+        version: 1.1.0(jotai@2.20.1(@babel/core@7.29.7(supports-color@7.2.0))(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7))
       lucide-react:
         specifier: ^1.21.0
         version: 1.21.0(react@19.2.7)
@@ -358,7 +358,7 @@ importers:
         version: link:../utils
       jotai-family:
         specifier: 'catalog:'
-        version: 1.0.2(jotai@2.20.1(@babel/core@8.0.1)(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7))
+        version: 1.1.0(jotai@2.20.1(@babel/core@8.0.1)(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7))
     devDependencies:
       '@tanstack/react-query':
         specifier: 'catalog:'
@@ -3461,8 +3461,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jotai-family@1.0.2:
-    resolution: {integrity: sha512-U1aTMGxmsmz2Z8gaJD1/ljmMnsmG4/dqrcsfwGbjWV7p6boB9Vy3+75YwUpwPj7GbLNJk9O8rl1VNi8d7+6Rxw==}
+  jotai-family@1.1.0:
+    resolution: {integrity: sha512-T1ACRsLnN5Mu0B8/DIWUW1hW7x1RmpBprm/+CWmUTf4ZZUmIFEQpBJ9PNQtXPjdUD2uu8RvwBxr7nJPdCw5BXg==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       jotai: '>=2.9.0'
@@ -7352,11 +7352,11 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jotai-family@1.0.2(jotai@2.20.1(@babel/core@7.29.7(supports-color@7.2.0))(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)):
+  jotai-family@1.1.0(jotai@2.20.1(@babel/core@7.29.7(supports-color@7.2.0))(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)):
     dependencies:
       jotai: 2.20.1(@babel/core@7.29.7(supports-color@7.2.0))(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)
 
-  jotai-family@1.0.2(jotai@2.20.1(@babel/core@8.0.1)(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)):
+  jotai-family@1.1.0(jotai@2.20.1(@babel/core@8.0.1)(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)):
     dependencies:
       jotai: 2.20.1(@babel/core@8.0.1)(@babel/template@8.0.0)(@types/react@19.2.14)(react@19.2.7)
 
