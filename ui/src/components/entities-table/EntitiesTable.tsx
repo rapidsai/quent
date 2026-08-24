@@ -60,6 +60,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
             hasValidationErrors={table.validationErrors.length > 0}
             page={table.page}
             pageCount={table.pageCount}
+            pageSize={table.filters.pageSize}
             paginationDisabled={table.paginationDisabled}
             total={table.total}
             visibleStart={table.visibleStart}
@@ -68,6 +69,9 @@ export function EntitiesTable(props: EntitiesTableProps) {
             stateColorFn={stateColorFn}
             onSelect={table.setSelected}
             onPageChange={table.setPage}
+            onPageSizeChange={value =>
+              table.updateFilters({ pageSize: value }, { preserveSelection: true })
+            }
             onSortChange={table.updateSortDir}
           />
         </div>

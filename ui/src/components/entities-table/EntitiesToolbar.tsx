@@ -12,7 +12,6 @@ import {
 import { cn } from '@quent/utils';
 import type { SortDir } from '@quent/utils';
 import type { EntityFilters } from './types';
-import { MAX_PAGE_SIZE, normalizePageSize } from './utils';
 
 const SORT_DIR_OPTIONS: SelectFieldOption[] = [
   { value: 'Desc', label: 'Longest first' },
@@ -125,10 +124,6 @@ export function EntitiesToolbar({
               triggerClassName="h-8"
             />
           </FieldWrapper>
-          <PageSizeField
-            value={filters.pageSize}
-            onChange={value => onFiltersChange({ pageSize: value }, { preserveSelection: true })}
-          />
         </div>
 
         {/* Actions */}
@@ -193,39 +188,15 @@ function NumberField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className={cn('flex flex-col gap-1 text-xs text-muted-foreground', className)}>
-      {label}
+    <label className={cn('flex flex-col gap-1', className)}>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <Input
         type="number"
         min={0}
         step="any"
-        className="h-8"
+        className="h-8 text-xs"
         value={value}
         onChange={event => onChange(event.target.value)}
-      />
-    </label>
-  );
-}
-
-function PageSizeField({
-  value,
-  onChange,
-}: {
-  value: number | null;
-  onChange: (value: number | null) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-      Page size
-      <Input
-        type="number"
-        min={1}
-        max={MAX_PAGE_SIZE}
-        step={1}
-        className="h-8 w-24"
-        value={value ?? ''}
-        onChange={event => onChange(event.target.value === '' ? null : event.target.valueAsNumber)}
-        onBlur={() => onChange(normalizePageSize(value))}
       />
     </label>
   );

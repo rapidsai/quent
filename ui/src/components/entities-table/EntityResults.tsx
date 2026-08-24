@@ -17,6 +17,7 @@ import {
 import { cn, formatDuration } from '@quent/utils';
 import type { FiniteStateMachine, SortDir } from '@quent/utils';
 import type { EntityTableRow } from './types';
+import { MAX_PAGE_SIZE, normalizePageSize } from './utils';
 
 interface EntityResultsProps {
   rows: EntityTableRow[];
@@ -28,6 +29,7 @@ interface EntityResultsProps {
   hasValidationErrors: boolean;
   page: number;
   pageCount: number;
+  pageSize: number | null;
   paginationDisabled: boolean;
   total: number;
   visibleStart: number;
@@ -36,6 +38,7 @@ interface EntityResultsProps {
   stateColorFn: (name: string) => string;
   onSelect: (fsm: FiniteStateMachine) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number | null) => void;
   onSortChange: (dir: SortDir) => void;
 }
 
@@ -49,6 +52,7 @@ export function EntityResults({
   hasValidationErrors,
   page,
   pageCount,
+  pageSize,
   paginationDisabled,
   total,
   visibleStart,
@@ -57,6 +61,7 @@ export function EntityResults({
   stateColorFn,
   onSelect,
   onPageChange,
+  onPageSizeChange,
   onSortChange,
 }: EntityResultsProps) {
   function handleUsageHeaderClick() {
@@ -117,9 +122,12 @@ export function EntityResults({
       </div>
 
       <div className="shrink-0 border-t bg-card p-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          {visibleStart}–{visibleEnd} of {total} {total === 1 ? 'entity' : 'entities'}
-        </span>
+        <div className="flex items-center gap-3">
+          <span>
+            {visibleStart}–{visibleEnd} of {total} {total === 1 ? 'entity' : 'entities'}
+          </span>
+          <PageSizeField value={pageSize} onChange={onPageSizeChange} />
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -200,6 +208,31 @@ function SortableHead({
         )}
       </button>
     </TableHead>
+  );
+}
+
+function PageSizeField({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1.5">
+      Page size
+      <Input
+        type="number"
+        min={1}
+        max={MAX_PAGE_SIZE}
+        step={1}
+        aria-label="Page size"
+        className="h-7 w-16 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        value={value ?? ''}
+        onChange={event => onChange(event.target.value === '' ? null : event.target.valueAsNumber)}
+        onBlur={() => onChange(normalizePageSize(value))}
+      />
+    </label>
   );
 }
 
