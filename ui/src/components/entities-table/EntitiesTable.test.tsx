@@ -116,6 +116,19 @@ describe('EntitiesTable', () => {
     expect(screen.getByText('Select an entity to view its states.')).toBeInTheDocument();
   });
 
+  it('deselects an entity when its selected row is clicked again', () => {
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
+
+    const row = screen.getByRole('row', { name: /Entity 1/ });
+    fireEvent.click(row);
+    expect(screen.getByText('running')).toBeInTheDocument();
+
+    fireEvent.click(row);
+
+    expect(screen.queryByText('running')).not.toBeInTheDocument();
+    expect(screen.getByText('Select an entity to view its states.')).toBeInTheDocument();
+  });
+
   it('preserves selected entity details for page-size changes', () => {
     renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 

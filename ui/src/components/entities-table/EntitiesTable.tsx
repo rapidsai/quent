@@ -67,7 +67,9 @@ export function EntitiesTable(props: EntitiesTableProps) {
             visibleEnd={table.visibleEnd}
             sortDir={table.filters.sortDir}
             stateColorFn={stateColorFn}
-            onSelect={table.setSelected}
+            onSelect={fsm =>
+              table.setSelected(current => (current?.id === fsm.id ? null : fsm))
+            }
             onPageChange={table.setPage}
             onPageSizeChange={value =>
               table.updateFilters({ pageSize: value }, { preserveSelection: true })
