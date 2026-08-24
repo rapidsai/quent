@@ -1,37 +1,60 @@
 version: 2
 
-multi-ecosystem-groups:
-  quent-dependencies:
-    schedule:
-      interval: "weekly"
-
 updates:
-  - cooldown:
+  - commit-message:
+      prefix: "chore(deps)"
+    cooldown:
       default-days: 14
     directory: "/"
-    multi-ecosystem-group: "quent-dependencies"
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     package-ecosystem: "github-actions"
-    patterns:
-      - "*"
-  - cooldown:
+    schedule:
+      interval: "weekly"
+  - commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    cooldown:
       default-days: 14
     directories:
       - "/ui"
       - "/ui/examples/quent-pivot-table-panel"
       - "/crates/schema/ts"
-    multi-ecosystem-group: "quent-dependencies"
+    groups:
+      npm:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     package-ecosystem: "npm"
-    patterns:
-      - "*"
-  - cooldown:
+    schedule:
+      interval: "weekly"
+  - commit-message:
+      prefix: "chore(deps)"
+    cooldown:
       default-days: 14
     directories:
       - "/"
       - "/crates/instrumentation-build/example"
-    multi-ecosystem-group: "quent-dependencies"
+    groups:
+      cargo:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     package-ecosystem: "cargo"
-    patterns:
-      - "*"
+    schedule:
+      interval: "weekly"
