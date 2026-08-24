@@ -169,10 +169,10 @@ function FieldWrapper({
   className?: string;
 }) {
   return (
-    <div className={cn('flex flex-col gap-1', className)}>
+    <label className={cn('flex flex-col gap-1', className)}>
       <span className="text-xs text-muted-foreground">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
