@@ -31,7 +31,7 @@ import {
   rootResourceTypeAtom,
 } from '@/atoms/resourceTree';
 import { TimelineToolbar } from '@quent/components';
-import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
+import { useTheme, THEME_DARK, THEME_LIGHT } from '@/contexts/ThemeContext';
 import {
   OperatorGanttChart,
   OPERATOR_TIMELINE_ROW_TYPE,
@@ -152,7 +152,7 @@ function QueryResourceTreeContent({
   const closeDrawer = useCallback(() => setDrawerFsm(null), []);
 
   const stateColorFn = useMemo(
-    () => createFsmTypeColorFn(entities.fsm_types, isDark ? 'dark' : 'light'),
+    () => createFsmTypeColorFn(entities.fsm_types, isDark ? THEME_DARK : THEME_LIGHT),
     [entities.fsm_types, isDark]
   );
 
