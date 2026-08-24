@@ -1,28 +1,37 @@
 version: 2
+
+multi-ecosystem-groups:
+  quent-dependencies:
+    schedule:
+      interval: "weekly"
+
 updates:
   - cooldown:
       default-days: 14
     directory: "/"
+    multi-ecosystem-group: "quent-dependencies"
     open-pull-requests-limit: 5
     package-ecosystem: "github-actions"
-    schedule:
-      interval: "weekly"
+    patterns:
+      - "*"
   - cooldown:
       default-days: 14
     directories:
       - "/ui"
       - "/ui/examples/quent-pivot-table-panel"
       - "/crates/schema/ts"
+    multi-ecosystem-group: "quent-dependencies"
     open-pull-requests-limit: 5
     package-ecosystem: "npm"
-    schedule:
-      interval: "weekly"
+    patterns:
+      - "*"
   - cooldown:
       default-days: 14
-    directories: 
+    directories:
       - "/"
       - "/crates/instrumentation-build/example"
+    multi-ecosystem-group: "quent-dependencies"
     open-pull-requests-limit: 5
     package-ecosystem: "cargo"
-    schedule:
-      interval: "weekly"
+    patterns:
+      - "*"
