@@ -1,12 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
+import { useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp } from 'lucide-react';
 import {
-  Button,
   DataText,
   Input,
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
   Table,
   TableBody,
   TableCell,
@@ -43,6 +48,30 @@ interface EntityResultsProps {
   onSortChange: (dir: SortDir) => void;
 }
 
+/**
+ * `PaginationLink`/`PaginationPrevious`/`PaginationNext` render bare anchors
+ * (no `href`), which aren't keyboard-operable by default — this restores
+ * Enter/Space activation and standard disabled affordances.
+ */
+function navLinkProps(disabled: boolean, onClick: () => void) {
+  return {
+    'aria-disabled': disabled,
+    tabIndex: disabled ? -1 : 0,
+    className: cn(disabled && 'pointer-events-none opacity-50'),
+    onClick: (event: MouseEvent) => {
+      event.preventDefault();
+      if (!disabled) onClick();
+    },
+    onKeyDown: (event: KeyboardEvent) => {
+      if (disabled) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onClick();
+      }
+    },
+  };
+}
+
 export function EntityResults({
   rows,
   selected,
@@ -68,6 +97,9 @@ export function EntityResults({
   function handleUsageHeaderClick() {
     onSortChange(sortDir === 'Asc' ? 'Desc' : 'Asc');
   }
+
+  const firstPageDisabled = paginationDisabled || page <= 0;
+  const lastPageDisabled = paginationDisabled || page + 1 >= pageCount;
 
   return (
     <>
@@ -129,48 +161,44 @@ export function EntityResults({
           </span>
           <PageSizeField value={pageSize} onChange={onPageSizeChange} />
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="First page"
-            disabled={paginationDisabled || page <= 0}
-            onClick={() => onPageChange(0)}
-          >
-            <ChevronFirst className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={paginationDisabled || page <= 0}
-            onClick={() => onPageChange(Math.max(0, page - 1))}
-          >
-            Previous
-          </Button>
-          <PageJump
-            page={page}
-            pageCount={pageCount}
-            disabled={paginationDisabled}
-            onPageChange={onPageChange}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={paginationDisabled || page + 1 >= pageCount}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Next
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Last page"
-            disabled={paginationDisabled || page + 1 >= pageCount}
-            onClick={() => onPageChange(pageCount - 1)}
-          >
-            <ChevronLast className="size-4" />
-          </Button>
-        </div>
+        <Pagination className="mx-0 w-auto">
+          <PaginationContent className="gap-1">
+            <PaginationItem>
+              <PaginationLink
+                aria-label="First page"
+                size="icon"
+                {...navLinkProps(firstPageDisabled, () => onPageChange(0))}
+              >
+                <ChevronFirst className="size-4" />
+              </PaginationLink>
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationPrevious
+                {...navLinkProps(firstPageDisabled, () => onPageChange(Math.max(0, page - 1)))}
+              />
+            </PaginationItem>
+            <PaginationItem className="mx-1.5">
+              <PageJump
+                page={page}
+                pageCount={pageCount}
+                disabled={paginationDisabled}
+                onPageChange={onPageChange}
+              />
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationNext {...navLinkProps(lastPageDisabled, () => onPageChange(page + 1))} />
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationLink
+                aria-label="Last page"
+                size="icon"
+                {...navLinkProps(lastPageDisabled, () => onPageChange(pageCount - 1))}
+              >
+                <ChevronLast className="size-4" />
+              </PaginationLink>
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       </div>
     </>
   );
