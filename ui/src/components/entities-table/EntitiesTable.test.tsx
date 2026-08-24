@@ -82,7 +82,7 @@ describe('EntitiesTable', () => {
     vi.useFakeTimers();
     useEntities.mockReset();
     useEntities.mockReturnValue({
-      data: { items: [{ entity: fsm, usage_duration_s: 1 }], total: 1 },
+      data: { items: [{ entity: fsm, usage_duration_s: 0.25 }], total: 1 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -139,6 +139,7 @@ describe('EntitiesTable', () => {
 
     expect(screen.getByText('Longest usage')).toBeInTheDocument();
     expect(screen.getAllByText('1.00s').length).toBeGreaterThan(0);
+    expect(screen.getByText('250.00ms')).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole('row', { name: /Entity 1/ }), { key: 'Enter' });
 
