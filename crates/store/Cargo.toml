@@ -1,0 +1,26 @@
+[package]
+name = "quent-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["io-ndjson", "io-msgpack", "io-postcard"]
+io-ndjson = ["quent-io/ndjson"]
+io-msgpack = ["quent-io/msgpack"]
+io-postcard = ["quent-io/postcard"]
+
+[dependencies]
+quent-build-info = { path = "../build-info" }
+quent-events = { path = "../events" }
+quent-io = { path = "../io", default-features = false }
+quent-time = { path = "../time" }
+serde.workspace = true
+smallvec.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+quent-instrumentation = { path = "../instrumentation", features = ["io-ndjson"] }
+tempfile = "3"

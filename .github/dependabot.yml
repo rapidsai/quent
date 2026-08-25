@@ -45,7 +45,6 @@ updates:
       default-days: 14
     directories:
       - "/"
-      - "/crates/instrumentation-build/example"
     groups:
       cargo:
         applies-to: version-updates

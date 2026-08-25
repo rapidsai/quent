@@ -1,8 +1,3 @@
-# Its own workspace, excluded from the repo workspace, so its exporter feature
-# graph stays callback-only (`Serialize`-free) instead of being unified with the
-# repo's filesystem/collector exporters under `--workspace --all-features`.
-[workspace]
-
 [package]
 name = "quent-instrumentation-build-example"
 version = "0.1.0"
@@ -10,7 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
+quent-instrumentation = { path = "../../instrumentation", features = ["io-callback", "io-ndjson"] }
+serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 quent-instrumentation-build = { path = ".." }

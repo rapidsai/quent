@@ -2779,6 +2779,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-instrumentation-build-example"
+version = "0.1.0"
+dependencies = [
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
+ "serde",
+]
+
+[[package]]
 name = "quent-io"
 version = "0.1.0"
 dependencies = [
@@ -3221,6 +3231,49 @@ version = "0.1.0"
 dependencies = [
  "quent-model",
  "uuid",
+]
+
+[[package]]
+name = "quent-store"
+version = "0.1.0"
+dependencies = [
+ "quent-build-info",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-io",
+ "quent-time",
+ "serde",
+ "smallvec",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-store-build"
+version = "0.1.0"
+dependencies = [
+ "prettyplease 0.3.0",
+ "quent-instrumentation-build",
+ "quent-schema",
+ "quote",
+ "syn 3.0.3",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "quent-store-build-example"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "quent-instrumentation-build-example",
+ "quent-store",
+ "quent-store-build",
+ "quent-yaml",
+ "serde",
+ "tempfile",
 ]
 
 [[package]]

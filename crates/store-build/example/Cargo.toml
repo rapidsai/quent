@@ -1,0 +1,16 @@
+[package]
+name = "quent-store-build-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+quent-events = { path = "../../events", features = ["serde"] }
+quent-instrumentation-build-example = { path = "../../instrumentation-build/example" }
+quent-store = { path = "../../store" }
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+
+[build-dependencies]
+quent-store-build = { path = ".." }
+quent-yaml = { path = "../../yaml" }

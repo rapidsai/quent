@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
+    # Legacy PoC crates, scheduled for removal
+    "crates/model",
+    "crates/model-macros",
     # Application-agnostic crates
     "crates/analyzer",
     "crates/dynamic-attributes",
@@ -18,8 +21,6 @@ members = [
     "crates/io/postcard",
     "crates/io/types",
     "crates/instrumentation",
-    "crates/model",
-    "crates/model-macros",
     "crates/open",
     "crates/stdlib",
     "crates/time",
@@ -68,14 +69,12 @@ members = [
     "crates/fsm",
     "crates/resource",
     "crates/instrumentation-build",
+    "crates/instrumentation-build/example",
     "crates/yaml",
+    "crates/store",
+    "crates/store-build",
+    "crates/store-build/example"
 ]
-
-# The instrumentation-build example is deliberately its own workspace (see its
-# Cargo.toml). Kept out of this one so `--workspace --all-features` doesn't
-# unify the filesystem/collector exporters (and their `serde` bound) into its
-# callback-only, `Serialize`-free graph.
-exclude = ["crates/instrumentation-build/example"]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
 # `cargo build` and `cargo test` (no -p, no --workspace) skip those crates, preserving
