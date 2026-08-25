@@ -144,11 +144,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     [durationS, effectiveFilters, operatorId, page, queryId]
   );
   const query = useEntities({ engineId, request }, { enabled: validationErrors.length === 0 });
-  const isDebouncing =
-    filters.minUsageS !== debouncedMinUsageS ||
-    filters.windowStart !== debouncedWindowStart ||
-    filters.windowEnd !== debouncedWindowEnd;
-  const requestPending = query.isFetching || isDebouncing;
+  const requestPending = query.isFetching;
   const rows = useMemo(() => entityRows(query.data), [query.data]);
   const pageSize = normalizePageSize(filters.pageSize);
   const total = query.data?.total ?? 0;
