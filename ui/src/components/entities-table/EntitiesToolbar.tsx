@@ -10,13 +10,7 @@ import {
   type SelectFieldOption,
 } from '@quent/components';
 import { cn } from '@quent/utils';
-import type { SortDir } from '@quent/utils';
 import type { EntityFilters } from './types';
-
-const SORT_DIR_OPTIONS: SelectFieldOption[] = [
-  { value: 'Desc', label: 'Longest first' },
-  { value: 'Asc', label: 'Shortest first' },
-];
 
 interface EntitiesToolbarProps {
   filters: EntityFilters;
@@ -52,9 +46,9 @@ export function EntitiesToolbar({
 }: EntitiesToolbarProps) {
   return (
     <div className="shrink-0 border-b bg-card px-3 py-2.5">
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
-        {/* Entity filters */}
-        <div className="flex items-end gap-2.5">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        {/* Filters */}
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
           <FieldWrapper label="Operator" className="w-64">
             <SearchableSelect
               ariaLabel="Operator"
@@ -83,10 +77,6 @@ export function EntitiesToolbar({
               onValueChange={value => onFiltersChange({ resourceId: value })}
             />
           </FieldWrapper>
-        </div>
-
-        {/* Time filters */}
-        <div className="flex items-end gap-2.5">
           <NumberField
             label="Min usage (s)"
             className="w-28"
@@ -107,36 +97,8 @@ export function EntitiesToolbar({
           />
         </div>
 
-        {/* Display settings */}
-        <div className="flex items-end gap-2.5">
-          <FieldWrapper label="Sort" className="w-44">
-            <SelectField
-              ariaLabel="Sort"
-              clearable={false}
-              options={SORT_DIR_OPTIONS}
-              value={filters.sortDir}
-              onValueChange={value =>
-                onFiltersChange(
-                  { sortDir: (value as SortDir | null) ?? 'Desc' },
-                  { preserveSelection: true }
-                )
-              }
-              triggerClassName="h-8"
-            />
-          </FieldWrapper>
-        </div>
-
         {/* Actions */}
-        <div className="ml-auto flex items-end gap-3">
-          <Button variant="outline" size="sm" disabled={!hasNonDefaultSettings} onClick={onReset}>
-            <RotateCcw className="mr-1.5 size-3.5" />
-            Reset
-          </Button>
-          {activeFilterCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
-            </span>
-          )}
+        <div className="flex items-end gap-3">
           {requestPending && validationErrors.length === 0 && (
             <span
               role="status"
@@ -147,6 +109,15 @@ export function EntitiesToolbar({
               Updating…
             </span>
           )}
+          {activeFilterCount > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
+            </span>
+          )}
+          <Button variant="outline" size="sm" disabled={!hasNonDefaultSettings} onClick={onReset}>
+            <RotateCcw className="mr-1.5 size-3.5" />
+            Reset
+          </Button>
         </div>
       </div>
 
