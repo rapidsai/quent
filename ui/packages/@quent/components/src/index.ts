@@ -100,6 +100,10 @@ export type {
 } from './ui/required-multi-select-field';
 export { Skeleton } from './ui/skeleton';
 export { Slider } from './ui/slider';
+export { SliderField } from './ui/slider-field';
+export type { SliderFieldProps } from './ui/slider-field';
+export { RangeSliderField } from './ui/range-slider-field';
+export type { RangeSliderFieldProps } from './ui/range-slider-field';
 export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
 export { TreeTable } from './ui/tree-table';
