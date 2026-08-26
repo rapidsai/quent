@@ -99,6 +99,7 @@ export type {
   RequiredMultiSelectOption,
 } from './ui/required-multi-select-field';
 export { Skeleton } from './ui/skeleton';
+export { Slider } from './ui/slider';
 export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
 export { TreeTable } from './ui/tree-table';
