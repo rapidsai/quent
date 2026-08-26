@@ -6,8 +6,8 @@
 use std::collections::HashSet;
 
 use quent_analyzer::{
-    AnalyzerResult,
-    fsm::{FsmUsages, collection::FsmCollection},
+    AnalyzerResult, Span,
+    fsm::{Fsm, FsmUsages, collection::FsmCollection},
     resource::Usage,
 };
 use quent_time::{TimeNanoSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs, to_secs};
@@ -124,6 +124,11 @@ where
 
 /// The longest single usage span within the window on a scope resource, or any
 /// resource when `scope` is `None`.
+///
+/// When `scope` is `None`, an entity may have no usages overlapping the
+/// window at all yet still belong in the window — it's kept as long as its
+/// overall lifecycle (first event to last event) overlaps the window, even if
+/// no single event falls inside it (e.g. it started before and ended after).
 fn usage_metric<'a, F>(
     fsm: &'a F,
     scope: Option<&HashSet<Uuid>>,
@@ -141,6 +146,15 @@ where
 
     match scope {
         Some(_) => longest,
-        None => Some(longest.unwrap_or(0)),
+        None => entity_overlaps_window(fsm, window).then(|| longest.unwrap_or(0)),
     }
+}
+
+/// Whether `fsm`'s overall lifecycle span (its first event to its last event)
+/// overlaps `window` at all.
+fn entity_overlaps_window<F>(fsm: &F, window: SpanUnixNanoSec) -> bool
+where
+    F: Fsm,
+{
+    fsm.span().is_ok_and(|span| span.intersects(&window))
 }
