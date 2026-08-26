@@ -6,12 +6,10 @@ import { Check, Copy } from 'lucide-react';
 import { DataText, FsmCapacityChart, SegmentedBar, thinScrollbarClass } from '@quent/components';
 import {
   cn,
-  formatBytes,
   formatDuration,
   formatDurationForWindow,
   getColorForKey,
   isBytesStat,
-  unwrapTaggedValue,
 } from '@quent/utils';
 import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -92,21 +90,6 @@ export function EntityDetailPanel({
     };
   }
 
-  // Find data volume from derived attributes (last bytes-stat with a numeric value)
-  let dataVolume: string | null = null;
-  for (let i = fsm.transitions.length - 1; i >= 0; i--) {
-    for (const attr of fsm.transitions[i]!.derived_attributes) {
-      if (isBytesStat(attr.key) && attr.value != null) {
-        const raw = unwrapTaggedValue(attr.value);
-        if (typeof raw === 'number' || typeof raw === 'bigint') {
-          dataVolume = formatBytes(raw);
-          break;
-        }
-      }
-    }
-    if (dataVolume) break;
-  }
-
   function copyId() {
     void navigator.clipboard.writeText(fsmId);
     setCopied(true);
@@ -152,12 +135,6 @@ export function EntityDetailPanel({
             <DataText className="font-medium" style={{ color: dominantState.color }}>
               {dominantState.name} · {dominantState.pct.toFixed(1)}%
             </DataText>
-          </div>
-        )}
-        {dataVolume && (
-          <div className="mt-0.5 flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Data volume</span>
-            <DataText className="tabular-nums font-medium">{dataVolume}</DataText>
           </div>
         )}
         {totalSpanMs > 0 && stateTimeMs.size > 0 && (
