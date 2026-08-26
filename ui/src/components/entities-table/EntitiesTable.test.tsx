@@ -202,7 +202,7 @@ describe('EntitiesTable', () => {
     expect(screen.getByText('Failed to load entities: network timeout')).toBeInTheDocument();
   });
 
-  it('dims existing rows while replacement data is pending', () => {
+  it('shows a loading overlay over existing rows while replacement data is pending', () => {
     useEntities.mockReturnValue({
       data: { items: [{ entity: fsm, usage_duration_s: 1 }], total: 1 },
       isLoading: false,
@@ -215,7 +215,7 @@ describe('EntitiesTable', () => {
 
     const tableContainer = screen.getByRole('table').closest('[aria-busy]');
     expect(tableContainer).toHaveAttribute('aria-busy', 'true');
-    expect(tableContainer).toHaveClass('opacity-60');
+    expect(screen.getByRole('status')).toHaveTextContent('Updating…');
     expect(screen.getByText('Entity 1')).toBeInTheDocument();
   });
 

@@ -45,7 +45,6 @@ export function EntitiesTable(props: EntitiesTableProps) {
             resourceOptions={table.filters.resourceOptions}
             activeFilterCount={table.filters.activeFilterCount}
             hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
-            requestPending={table.query.requestPending}
             validationErrors={table.filters.validationErrors}
             invalidFilterFields={table.filters.invalidFilterFields}
             onOperatorChange={table.filters.updateOperator}

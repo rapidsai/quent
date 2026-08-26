@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState, type KeyboardEvent, type MouseEvent } from 'react';
-import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp, LoaderCircle } from 'lucide-react';
 import {
   DataText,
   Input,
@@ -103,55 +103,63 @@ export function EntityResults({
 
   return (
     <>
-      <div
-        aria-busy={requestPending}
-        className={cn(
-          'flex-1 min-h-0 overflow-auto transition-opacity duration-150',
-          thinScrollbarClass,
-          requestPending && rows.length > 0 ? 'opacity-60' : 'opacity-100'
-        )}
-      >
-        {isError ? (
-          <div className="p-4 text-sm text-destructive">
-            Failed to load entities: {error instanceof Error ? error.message : 'unknown error'}
+      <div className="relative flex-1 min-h-0">
+        <div aria-busy={requestPending} className={cn('h-full overflow-auto', thinScrollbarClass)}>
+          {isError ? (
+            <div className="p-4 text-sm text-destructive">
+              Failed to load entities: {error instanceof Error ? error.message : 'unknown error'}
+            </div>
+          ) : (
+            <Table containerClassName="relative w-full overflow-x-visible">
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Instance</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">States</TableHead>
+                  <TableHead>Sequence</TableHead>
+                  <TableHead className="text-right">Start</TableHead>
+                  <TableHead className="text-right">End</TableHead>
+                  <TableHead className="text-right">FSM span</TableHead>
+                  <SortableHead
+                    label="Longest usage"
+                    className="text-right"
+                    sortDir={sortDir}
+                    onSort={handleUsageHeaderClick}
+                  />
+                  <TableHead>ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map(row => (
+                  <EntityRow
+                    key={row.fsm.id}
+                    row={row}
+                    selected={selected?.id === row.fsm.id}
+                    stateColorFn={stateColorFn}
+                    onSelect={onSelect}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {!isError && !isLoading && !hasValidationErrors && rows.length === 0 && (
+            <div className="p-4 text-sm text-muted-foreground">No entities match the filters.</div>
+          )}
+          {isLoading && <div className="p-4 text-sm text-muted-foreground">Loading…</div>}
+        </div>
+
+        {requestPending && rows.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
+            <span
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
+            >
+              <LoaderCircle className="size-4 animate-spin text-primary" />
+              Updating…
+            </span>
           </div>
-        ) : (
-          <Table containerClassName="relative w-full overflow-x-visible">
-            <TableHeader className="sticky top-0 z-10 bg-card">
-              <TableRow>
-                <TableHead>Instance</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">States</TableHead>
-                <TableHead>Sequence</TableHead>
-                <TableHead className="text-right">Start</TableHead>
-                <TableHead className="text-right">End</TableHead>
-                <TableHead className="text-right">FSM span</TableHead>
-                <SortableHead
-                  label="Longest usage"
-                  className="text-right"
-                  sortDir={sortDir}
-                  onSort={handleUsageHeaderClick}
-                />
-                <TableHead>ID</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map(row => (
-                <EntityRow
-                  key={row.fsm.id}
-                  row={row}
-                  selected={selected?.id === row.fsm.id}
-                  stateColorFn={stateColorFn}
-                  onSelect={onSelect}
-                />
-              ))}
-            </TableBody>
-          </Table>
         )}
-        {!isError && !isLoading && !hasValidationErrors && rows.length === 0 && (
-          <div className="p-4 text-sm text-muted-foreground">No entities match the filters.</div>
-        )}
-        {isLoading && <div className="p-4 text-sm text-muted-foreground">Loading…</div>}
       </div>
 
       <div className="shrink-0 border-t bg-card p-2 flex items-center justify-between text-xs text-muted-foreground">

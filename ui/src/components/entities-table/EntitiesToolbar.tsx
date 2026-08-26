@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoaderCircle, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import {
   Button,
   RangeSliderField,
@@ -25,7 +25,6 @@ interface EntitiesToolbarProps {
   resourceOptions: SelectFieldOption[];
   activeFilterCount: number;
   hasNonDefaultSettings: boolean;
-  requestPending: boolean;
   validationErrors: string[];
   invalidFilterFields: Set<EntityNumberFilterField>;
   onOperatorChange: (value: string | null) => void;
@@ -45,7 +44,6 @@ export function EntitiesToolbar({
   resourceOptions,
   activeFilterCount,
   hasNonDefaultSettings,
-  requestPending,
   validationErrors,
   invalidFilterFields,
   onOperatorChange,
@@ -114,26 +112,16 @@ export function EntitiesToolbar({
         </div>
 
         {/* Actions */}
-        <div className="flex items-end gap-3">
-          {requestPending && validationErrors.length === 0 && (
-            <span
-              role="status"
-              aria-live="polite"
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-            >
-              <LoaderCircle className="size-3.5 animate-spin" />
-              Updating…
-            </span>
-          )}
-          {activeFilterCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
-            </span>
-          )}
+        <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" disabled={!hasNonDefaultSettings} onClick={onReset}>
             <RotateCcw className="mr-1.5 size-3.5" />
             Reset
           </Button>
+          {activeFilterCount > 0 && (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
+            </span>
+          )}
         </div>
       </div>
 
