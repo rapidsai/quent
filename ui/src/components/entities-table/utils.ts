@@ -7,11 +7,15 @@ import type {
   FiniteStateMachine,
   OperatorFilter,
   QueryFilter,
+  SortDir,
 } from '@quent/utils';
 import type { EntityFilters, EntityTableRow } from './types';
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 500;
+
+export const SORT_ASC: SortDir = 'Asc';
+export const SORT_DESC: SortDir = 'Desc';
 
 export function defaultEntityFilters(durationS: number): EntityFilters {
   return {
@@ -20,7 +24,7 @@ export function defaultEntityFilters(durationS: number): EntityFilters {
     minUsageS: '',
     windowStart: '0',
     windowEnd: String(durationS),
-    sortDir: 'Desc',
+    sortDir: SORT_DESC,
     pageSize: DEFAULT_PAGE_SIZE,
   };
 }

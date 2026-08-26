@@ -23,7 +23,7 @@ import {
 import { cn, formatDuration } from '@quent/utils';
 import type { FiniteStateMachine, SortDir } from '@quent/utils';
 import type { EntityTableRow } from './types';
-import { MAX_PAGE_SIZE, normalizePageSize } from './utils';
+import { MAX_PAGE_SIZE, SORT_ASC, SORT_DESC, normalizePageSize } from './utils';
 
 interface EntityResultsProps {
   rows: EntityTableRow[];
@@ -95,7 +95,7 @@ export function EntityResults({
   onSortChange,
 }: EntityResultsProps) {
   function handleUsageHeaderClick() {
-    onSortChange(sortDir === 'Asc' ? 'Desc' : 'Asc');
+    onSortChange(sortDir === SORT_ASC ? SORT_DESC : SORT_ASC);
   }
 
   const firstPageDisabled = paginationDisabled || page <= 0;
@@ -218,7 +218,7 @@ function SortableHead({
   const isRight = className?.includes('text-right');
   return (
     <TableHead
-      aria-sort={sortDir === 'Asc' ? 'ascending' : 'descending'}
+      aria-sort={sortDir === SORT_ASC ? 'ascending' : 'descending'}
       className={cn('p-0 select-none', className)}
     >
       <button
@@ -230,7 +230,7 @@ function SortableHead({
         onClick={onSort}
       >
         {label}
-        {sortDir === 'Asc' ? (
+        {sortDir === SORT_ASC ? (
           <ChevronUp className="size-3.5 shrink-0" />
         ) : (
           <ChevronDown className="size-3.5 shrink-0" />
