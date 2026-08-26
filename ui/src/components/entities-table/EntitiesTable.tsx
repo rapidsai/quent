@@ -10,7 +10,7 @@ import {
 } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { createFsmTypeColorFn } from '@quent/utils';
-import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
+import { useTheme, THEME_DARK, THEME_LIGHT } from '@/contexts/ThemeContext';
 import { EntityDetailPanel } from './EntityDetailPanel';
 import { EntityResults } from './EntityResults';
 import { EntitiesToolbar } from './EntitiesToolbar';
@@ -27,8 +27,8 @@ export function EntitiesTable(props: EntitiesTableProps) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const stateColorFn = useMemo(
-    () => createFsmTypeColorFn(table.fsmTypes, isDark ? 'dark' : 'light'),
-    [table.fsmTypes, isDark]
+    () => createFsmTypeColorFn(table.query.fsmTypes, isDark ? THEME_DARK: THEME_LIGHT),
+    [table.query.fsmTypes, isDark]
   );
 
   return (
@@ -37,49 +37,51 @@ export function EntitiesTable(props: EntitiesTableProps) {
         <div className="flex h-full min-h-0 flex-col">
           <QueryToolbar />
           <EntitiesToolbar
-            filters={table.filters}
-            operatorId={table.operatorId}
-            operatorOptions={table.operatorOptions}
-            entityTypeOptions={table.entityTypeOptions}
-            resourceOptions={table.resourceOptions}
-            activeFilterCount={table.activeFilterCount}
-            hasNonDefaultSettings={table.hasNonDefaultSettings}
-            requestPending={table.requestPending}
-            validationErrors={table.validationErrors}
-            onOperatorChange={table.updateOperator}
-            onFiltersChange={table.updateFilters}
-            onReset={table.resetFilters}
+            filters={table.filters.values}
+            operatorId={table.filters.operatorId}
+            operatorOptions={table.filters.operatorOptions}
+            entityTypeOptions={table.filters.entityTypeOptions}
+            resourceOptions={table.filters.resourceOptions}
+            activeFilterCount={table.filters.activeFilterCount}
+            hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
+            requestPending={table.query.requestPending}
+            validationErrors={table.filters.validationErrors}
+            onOperatorChange={table.filters.updateOperator}
+            onFiltersChange={table.filters.update}
+            onReset={table.filters.reset}
           />
           <EntityResults
-            rows={table.rows}
-            selected={table.selected}
-            isError={table.isError}
-            isLoading={table.isLoading}
-            error={table.error}
-            requestPending={table.requestPending}
-            hasValidationErrors={table.validationErrors.length > 0}
-            page={table.page}
-            pageCount={table.pageCount}
-            pageSize={table.filters.pageSize}
-            paginationDisabled={table.paginationDisabled}
-            total={table.total}
-            visibleStart={table.visibleStart}
-            visibleEnd={table.visibleEnd}
-            sortDir={table.filters.sortDir}
+            rows={table.query.rows}
+            selected={table.selection.selected}
+            isError={table.query.isError}
+            isLoading={table.query.isLoading}
+            error={table.query.error}
+            requestPending={table.query.requestPending}
+            hasValidationErrors={table.filters.validationErrors.length > 0}
+            page={table.pagination.page}
+            pageCount={table.pagination.pageCount}
+            pageSize={table.filters.values.pageSize}
+            paginationDisabled={table.pagination.disabled}
+            total={table.pagination.total}
+            visibleStart={table.pagination.visibleStart}
+            visibleEnd={table.pagination.visibleEnd}
+            sortDir={table.filters.values.sortDir}
             stateColorFn={stateColorFn}
-            onSelect={fsm => table.setSelected(current => (current?.id === fsm.id ? null : fsm))}
-            onPageChange={table.setPage}
-            onPageSizeChange={value =>
-              table.updateFilters({ pageSize: value }, { preserveSelection: true })
+            onSelect={fsm =>
+              table.selection.setSelected(current => (current?.id === fsm.id ? null : fsm))
             }
-            onSortChange={table.updateSortDir}
+            onPageChange={table.pagination.setPage}
+            onPageSizeChange={value =>
+              table.filters.update({ pageSize: value }, { preserveSelection: true })
+            }
+            onSortChange={table.filters.updateSortDir}
           />
         </div>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize="35%" minSize="20%" collapsible collapsedSize="0%">
         <EntityDetailPanel
-          fsm={table.selected}
+          fsm={table.selection.selected}
           resourceLabel={table.resourceLabel}
           operatorLabel={table.operatorLabel}
           stateColorFn={stateColorFn}
