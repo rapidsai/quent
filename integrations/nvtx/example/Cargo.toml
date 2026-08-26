@@ -21,8 +21,6 @@ quent-instrumentation = { path = "../../../crates/instrumentation", features = [
     "io-callback",
 ] }
 uuid = { workspace = true }
-# The official NVIDIA NVTX Rust producer makes the calls the injection layer
-# captures.
 nvtx = { workspace = true }
 
 [dev-dependencies]
