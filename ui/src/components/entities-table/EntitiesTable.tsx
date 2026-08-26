@@ -38,6 +38,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
           <QueryToolbar />
           <EntitiesToolbar
             filters={table.filters.values}
+            durationS={table.filters.durationS}
             operatorId={table.filters.operatorId}
             operatorOptions={table.filters.operatorOptions}
             entityTypeOptions={table.filters.entityTypeOptions}

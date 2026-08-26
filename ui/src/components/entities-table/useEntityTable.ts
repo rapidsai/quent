@@ -159,6 +159,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   return {
     filters: {
       values: filters,
+      durationS,
       validationErrors,
       invalidFilterFields,
       hasNonDefaultSettings: hasNonDefaultEntitySettings(filters, defaults, activeFilterCount),

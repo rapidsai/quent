@@ -120,6 +120,11 @@ export function entityRows(data: EntityListResponse | undefined): EntityTableRow
   });
 }
 
+/** Compares two numeric filter strings by value rather than formatting, since sliders and typed input can format the same value differently (e.g. "0" vs "0.000"). */
+function numericFilterValueChanged(value: string, defaultValue: string): boolean {
+  return parseOptionalNumber(value) !== parseOptionalNumber(defaultValue);
+}
+
 export function activeEntityFilterCount(
   filters: EntityFilters,
   defaults: EntityFilters,
@@ -130,8 +135,8 @@ export function activeEntityFilterCount(
     filters.entityType !== null,
     filters.resourceId !== null,
     filters.minUsageS !== '',
-    filters.windowStart !== defaults.windowStart,
-    filters.windowEnd !== defaults.windowEnd,
+    numericFilterValueChanged(filters.windowStart, defaults.windowStart),
+    numericFilterValueChanged(filters.windowEnd, defaults.windowEnd),
   ].filter(Boolean).length;
 }
 
@@ -147,7 +152,7 @@ export function hasNonDefaultEntitySettings(
   );
 }
 
-function parseOptionalNumber(value: string): number | null {
+export function parseOptionalNumber(value: string): number | null {
   if (value.trim() === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;

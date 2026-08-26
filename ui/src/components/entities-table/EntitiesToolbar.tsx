@@ -4,17 +4,21 @@
 import { LoaderCircle, RotateCcw } from 'lucide-react';
 import {
   Button,
-  Input,
+  RangeSliderField,
   SearchableSelect,
   SelectField,
+  SliderField,
   type SelectFieldOption,
 } from '@quent/components';
 import { cn } from '@quent/utils';
 import type { EntityNumberFilterField } from './utils';
 import type { EntityFilters } from './types';
 
+const FILTER_ERRORS_ID = 'entities-filter-errors';
+
 interface EntitiesToolbarProps {
   filters: EntityFilters;
+  durationS: number;
   operatorId: string | null;
   operatorOptions: SelectFieldOption[];
   entityTypeOptions: SelectFieldOption[];
@@ -34,6 +38,7 @@ interface EntitiesToolbarProps {
 
 export function EntitiesToolbar({
   filters,
+  durationS,
   operatorId,
   operatorOptions,
   entityTypeOptions,
@@ -47,6 +52,7 @@ export function EntitiesToolbar({
   onFiltersChange,
   onReset,
 }: EntitiesToolbarProps) {
+  const sliderMax = Math.max(durationS, 0);
   return (
     <div className="shrink-0 border-b bg-card px-3 py-2.5">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
@@ -80,26 +86,30 @@ export function EntitiesToolbar({
               onValueChange={value => onFiltersChange({ resourceId: value })}
             />
           </FieldWrapper>
-          <NumberField
+          <SliderField
             label="Min usage (s)"
-            className="w-28"
+            className="w-32"
+            min={0}
+            max={sliderMax}
             value={filters.minUsageS}
             invalid={invalidFilterFields.has('minUsageS')}
+            errorMessageId={FILTER_ERRORS_ID}
             onChange={value => onFiltersChange({ minUsageS: value })}
           />
-          <NumberField
-            label="Window start (s)"
-            className="w-28"
-            value={filters.windowStart}
-            invalid={invalidFilterFields.has('windowStart')}
-            onChange={value => onFiltersChange({ windowStart: value })}
-          />
-          <NumberField
-            label="Window end (s)"
-            className="w-28"
-            value={filters.windowEnd}
-            invalid={invalidFilterFields.has('windowEnd')}
-            onChange={value => onFiltersChange({ windowEnd: value })}
+          <RangeSliderField
+            label="Window (s)"
+            startLabel="Window start (s)"
+            endLabel="Window end (s)"
+            className="w-56"
+            min={0}
+            max={sliderMax}
+            startValue={filters.windowStart}
+            endValue={filters.windowEnd}
+            invalidStart={invalidFilterFields.has('windowStart')}
+            invalidEnd={invalidFilterFields.has('windowEnd')}
+            errorMessageId={FILTER_ERRORS_ID}
+            onStartChange={value => onFiltersChange({ windowStart: value })}
+            onEndChange={value => onFiltersChange({ windowEnd: value })}
           />
         </div>
 
@@ -128,7 +138,7 @@ export function EntitiesToolbar({
       </div>
 
       {validationErrors.length > 0 && (
-        <div id="entities-filter-errors" role="alert" className="mt-2 text-xs text-destructive">
+        <div id={FILTER_ERRORS_ID} role="alert" className="mt-2 text-xs text-destructive">
           {validationErrors.join(' ')}
         </div>
       )}
@@ -149,36 +159,6 @@ function FieldWrapper({
     <label className={cn('flex flex-col gap-1', className)}>
       <span className="text-xs text-muted-foreground">{label}</span>
       {children}
-    </label>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  className,
-  invalid,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  className?: string;
-  invalid?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className={cn('flex flex-col gap-1', className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <Input
-        type="number"
-        min={0}
-        step="any"
-        className="h-8 text-xs"
-        value={value}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? 'entities-filter-errors' : undefined}
-        onChange={event => onChange(event.target.value)}
-      />
     </label>
   );
 }
