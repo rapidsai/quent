@@ -48,7 +48,7 @@ fn example_capture_roundtrip() {
 
     let model = NvtxModelBuilder::build(events);
 
-    // `nvtx::name_thread!` — the name must reach the thread view.
+    // `nvtx::name_thread` — the name must reach the thread view.
     assert!(
         model
             .threads()
@@ -58,7 +58,7 @@ fn example_capture_roundtrip() {
         model.threads()
     );
 
-    // `nvtx::mark!` — an instant, not a zero-length span.
+    // `nvtx::mark` — an instant, not a zero-length span.
     assert!(
         model.marks().iter().any(|mark| mark.name == "startup"),
         "mark \"startup\" missing; marks: {:?}",
@@ -69,7 +69,7 @@ fn example_capture_roundtrip() {
         "the mark must not have been reconstructed as a span"
     );
 
-    // `nvtx::range_push!` / `range_pop!` — a per-thread nested range.
+    // `nvtx::LocalRange` — a per-thread nested range.
     let phase1 = model
         .spans()
         .iter()
@@ -83,7 +83,7 @@ fn example_capture_roundtrip() {
     assert!(phase1.end.is_some(), "the pop was observed");
     assert!(phase1.duration().is_some());
 
-    // `nvtx::range!` — a process-wide start/end range.
+    // `nvtx::Range` — a process-wide start/end range.
     let phase2 = model
         .spans()
         .iter()

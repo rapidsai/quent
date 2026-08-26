@@ -133,6 +133,9 @@ cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
+# NVIDIA's own NVTX bindings, published from github.com/NVIDIA/NVTX. Only `std`
+# is wanted; the defaults also pull in CUDA, `tracing`, and colour-name support.
+nvtx = { version = "2", default-features = false, features = ["std"] }
 petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"
