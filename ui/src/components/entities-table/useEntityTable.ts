@@ -124,7 +124,10 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     [entities.operators]
   );
 
-  const validationErrors = useMemo(() => validateEntityFilters(filters), [filters]);
+  const { errors: validationErrors, invalidFields: invalidFilterFields } = useMemo(
+    () => validateEntityFilters(filters),
+    [filters]
+  );
 
   // Only text inputs need debouncing. Dropdowns, page, and sort fire immediately.
   const debouncedMinUsageS = useDebouncedValue(filters.minUsageS, FILTER_DEBOUNCE_MS);
@@ -157,6 +160,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     filters: {
       values: filters,
       validationErrors,
+      invalidFilterFields,
       hasNonDefaultSettings: hasNonDefaultEntitySettings(filters, defaults, activeFilterCount),
       activeFilterCount,
       operatorId,

@@ -30,25 +30,51 @@ export function normalizePageSize(value: number | null): number {
   return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(value)));
 }
 
-export function validateEntityFilters(filters: EntityFilters): string[] {
+export type EntityNumberFilterField = 'windowStart' | 'windowEnd' | 'minUsageS';
+
+export interface EntityFilterValidation {
+  errors: string[];
+  invalidFields: Set<EntityNumberFilterField>;
+}
+
+export function validateEntityFilters(filters: EntityFilters): EntityFilterValidation {
   const windowStart = parseOptionalNumber(filters.windowStart);
   const windowEnd = parseOptionalNumber(filters.windowEnd);
   const minUsageS = parseOptionalNumber(filters.minUsageS);
   const errors: string[] = [];
+  const invalidFields = new Set<EntityNumberFilterField>();
 
-  if (filters.windowStart.trim() !== '' && windowStart === null)
+  if (filters.windowStart.trim() !== '' && windowStart === null) {
     errors.push('Window start must be a number.');
-  if (filters.windowEnd.trim() !== '' && windowEnd === null)
+    invalidFields.add('windowStart');
+  }
+  if (filters.windowEnd.trim() !== '' && windowEnd === null) {
     errors.push('Window end must be a number.');
-  if (filters.minUsageS.trim() !== '' && minUsageS === null)
+    invalidFields.add('windowEnd');
+  }
+  if (filters.minUsageS.trim() !== '' && minUsageS === null) {
     errors.push('Minimum usage must be a number.');
-  if (windowStart !== null && windowStart < 0) errors.push('Window start cannot be negative.');
-  if (windowEnd !== null && windowEnd < 0) errors.push('Window end cannot be negative.');
-  if (windowStart !== null && windowEnd !== null && windowStart > windowEnd)
+    invalidFields.add('minUsageS');
+  }
+  if (windowStart !== null && windowStart < 0) {
+    errors.push('Window start cannot be negative.');
+    invalidFields.add('windowStart');
+  }
+  if (windowEnd !== null && windowEnd < 0) {
+    errors.push('Window end cannot be negative.');
+    invalidFields.add('windowEnd');
+  }
+  if (windowStart !== null && windowEnd !== null && windowStart > windowEnd) {
     errors.push('Window start must not exceed window end.');
-  if (minUsageS !== null && minUsageS < 0) errors.push('Minimum usage cannot be negative.');
+    invalidFields.add('windowStart');
+    invalidFields.add('windowEnd');
+  }
+  if (minUsageS !== null && minUsageS < 0) {
+    errors.push('Minimum usage cannot be negative.');
+    invalidFields.add('minUsageS');
+  }
 
-  return errors;
+  return { errors, invalidFields };
 }
 
 export function buildEntityRequest({

@@ -10,6 +10,7 @@ import {
   type SelectFieldOption,
 } from '@quent/components';
 import { cn } from '@quent/utils';
+import type { EntityNumberFilterField } from './utils';
 import type { EntityFilters } from './types';
 
 interface EntitiesToolbarProps {
@@ -22,6 +23,7 @@ interface EntitiesToolbarProps {
   hasNonDefaultSettings: boolean;
   requestPending: boolean;
   validationErrors: string[];
+  invalidFilterFields: Set<EntityNumberFilterField>;
   onOperatorChange: (value: string | null) => void;
   onFiltersChange: (
     patch: Partial<EntityFilters>,
@@ -40,6 +42,7 @@ export function EntitiesToolbar({
   hasNonDefaultSettings,
   requestPending,
   validationErrors,
+  invalidFilterFields,
   onOperatorChange,
   onFiltersChange,
   onReset,
@@ -81,18 +84,21 @@ export function EntitiesToolbar({
             label="Min usage (s)"
             className="w-28"
             value={filters.minUsageS}
+            invalid={invalidFilterFields.has('minUsageS')}
             onChange={value => onFiltersChange({ minUsageS: value })}
           />
           <NumberField
             label="Window start (s)"
             className="w-28"
             value={filters.windowStart}
+            invalid={invalidFilterFields.has('windowStart')}
             onChange={value => onFiltersChange({ windowStart: value })}
           />
           <NumberField
             label="Window end (s)"
             className="w-28"
             value={filters.windowEnd}
+            invalid={invalidFilterFields.has('windowEnd')}
             onChange={value => onFiltersChange({ windowEnd: value })}
           />
         </div>
@@ -122,7 +128,7 @@ export function EntitiesToolbar({
       </div>
 
       {validationErrors.length > 0 && (
-        <div role="alert" className="mt-2 text-xs text-destructive">
+        <div id="entities-filter-errors" role="alert" className="mt-2 text-xs text-destructive">
           {validationErrors.join(' ')}
         </div>
       )}
@@ -151,11 +157,13 @@ function NumberField({
   label,
   value,
   className,
+  invalid,
   onChange,
 }: {
   label: string;
   value: string;
   className?: string;
+  invalid?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -167,6 +175,8 @@ function NumberField({
         step="any"
         className="h-8 text-xs"
         value={value}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? 'entities-filter-errors' : undefined}
         onChange={event => onChange(event.target.value)}
       />
     </label>

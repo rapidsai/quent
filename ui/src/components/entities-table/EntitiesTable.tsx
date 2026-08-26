@@ -27,7 +27,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const stateColorFn = useMemo(
-    () => createFsmTypeColorFn(table.query.fsmTypes, isDark ? THEME_DARK: THEME_LIGHT),
+    () => createFsmTypeColorFn(table.query.fsmTypes, isDark ? THEME_DARK : THEME_LIGHT),
     [table.query.fsmTypes, isDark]
   );
 
@@ -46,6 +46,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
             hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
             requestPending={table.query.requestPending}
             validationErrors={table.filters.validationErrors}
+            invalidFilterFields={table.filters.invalidFilterFields}
             onOperatorChange={table.filters.updateOperator}
             onFiltersChange={table.filters.update}
             onReset={table.filters.reset}
