@@ -70,7 +70,7 @@ export function RangeSliderField({
           type="number"
           min={0}
           step="any"
-          className="h-7 min-w-0 flex-1 text-xs"
+          className="h-8 min-w-0 flex-1 rounded-sm px-2 text-xs md:text-xs"
           value={startValue}
           aria-label={startLabel}
           aria-invalid={invalidStart}
@@ -82,7 +82,7 @@ export function RangeSliderField({
           type="number"
           min={0}
           step="any"
-          className="h-7 min-w-0 flex-1 text-xs"
+          className="h-8 min-w-0 flex-1 rounded-sm px-2 text-xs md:text-xs"
           value={endValue}
           aria-label={endLabel}
           aria-invalid={invalidEnd}

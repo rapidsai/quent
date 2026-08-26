@@ -48,7 +48,7 @@ export function SliderField({
         type="number"
         min={0}
         step="any"
-        className="mt-0.5 h-7 text-xs"
+        className="mt-0.5 h-8 rounded-sm px-2 text-xs md:text-xs"
         value={value}
         aria-label={label}
         aria-invalid={invalid}
