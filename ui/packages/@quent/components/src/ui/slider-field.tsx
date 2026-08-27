@@ -4,7 +4,7 @@
 import { cn } from '@quent/utils';
 import { Input } from './input';
 import { Slider } from './slider';
-import { clamp, formatStep, niceSliderStep, parseOptionalNumber } from './slider-field-helpers';
+import { clamp, formatStep, niceSliderStep, parseOptionalNumber } from '../lib/sliderField.utils';
 
 export interface SliderFieldProps {
   label: string;
