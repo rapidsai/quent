@@ -12,7 +12,9 @@ export function normalizeZoomRange(
   range: ZoomRange,
   durationSeconds: number
 ): NormalizedZoomRange | null {
-  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
 
   const start = Math.min(Math.max(range.start, 0), durationSeconds);
   const end = Math.min(Math.max(range.end, 0), durationSeconds);

@@ -25,10 +25,14 @@ import {
 } from '@quent/hooks';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
-import type { OperatorTableRow } from './types';
+import {
+  DEFAULT_OPERATOR_TABLE_ENABLED,
+  OPERATOR_TABLE_INDEX_ORDER,
+  OPERATOR_TABLE_PERSIST_KEY,
+  type OperatorTableIndexKey,
+  type OperatorTableRow,
+} from './types';
 import { buildOperatorRows, buildItemIdIndex } from './utils';
-
-type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
 
 const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   groups: {
@@ -54,22 +58,6 @@ const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   scopeId: row => row.scopeId,
   itemType: row => row.itemType,
   stats: row => row.stats,
-};
-
-const INDEX_ORDER: IndexKey[] = [
-  'partition',
-  'parent_item_type',
-  'parent_item',
-  'item_type',
-  'item',
-];
-
-const DEFAULT_ENABLED: Record<IndexKey, boolean> = {
-  partition: true,
-  parent_item_type: false,
-  parent_item: false,
-  item_type: true,
-  item: true,
 };
 
 // Module-scoped so the reference is stable across renders. An inline arrow
@@ -104,22 +92,33 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   // Plans included in the table: the selected plan plus every descendant plan
   // (children, grandchildren, ...). Selecting a leaf plan yields a singleton.
   const includedPlanIds = useMemo(() => {
-    if (!selectedPlanId || !entities.plans[selectedPlanId]) return new Set<string>();
+    if (!selectedPlanId || !entities.plans[selectedPlanId]) {
+      return new Set<string>();
+    }
     const childrenByParent = new Map<string | null, string[]>();
     for (const p of Object.values(entities.plans)) {
-      if (!p) continue;
+      if (!p) {
+        continue;
+      }
       const list = childrenByParent.get(p.parent);
-      if (list) list.push(p.id);
-      else childrenByParent.set(p.parent, [p.id]);
+      if (list) {
+        list.push(p.id);
+      } else {
+        childrenByParent.set(p.parent, [p.id]);
+      }
     }
     const result = new Set<string>();
     const stack: string[] = [selectedPlanId];
     while (stack.length > 0) {
       const id = stack.pop()!;
-      if (result.has(id)) continue;
+      if (result.has(id)) {
+        continue;
+      }
       result.add(id);
       const children = childrenByParent.get(id);
-      if (children) stack.push(...children);
+      if (children) {
+        stack.push(...children);
+      }
     }
     return result;
   }, [entities.plans, selectedPlanId]);
@@ -133,7 +132,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     const result: Record<string, string> = {};
     for (const row of allRows) {
       for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
-        if (!(statKey in result)) result[statKey] = quantityName;
+        if (!(statKey in result)) {
+          result[statKey] = quantityName;
+        }
       }
     }
     return result;
@@ -153,7 +154,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   // current sibling-plan scope (e.g. a stage node was selected), fall back to
   // the unfiltered rows so the table doesn't appear inexplicably empty.
   const rows = useMemo(() => {
-    if (selectedNodeIds.size === 0) return allRows;
+    if (selectedNodeIds.size === 0) {
+      return allRows;
+    }
     const filtered = allRows.filter(r => selectedNodeIds.has(r.itemId));
     return filtered.length > 0 ? filtered : allRows;
   }, [allRows, selectedNodeIds]);
@@ -173,7 +176,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const allStatNames = useMemo(() => getSchemaStatNames(rows, OPERATOR_SCHEMA), [rows]);
   const hasParentItems = useMemo(() => rows.some(r => r.parentItemType !== '-'), [rows]);
   const filterIndexOrder = useCallback(
-    (order: IndexKey[]) =>
+    (order: OperatorTableIndexKey[]) =>
       hasParentItems ? order : order.filter(k => k !== 'parent_item_type' && k !== 'parent_item'),
     [hasParentItems]
   );
@@ -194,9 +197,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     handleSelectNoStats,
     sorting,
     setSorting,
-  } = useStatGroupTableControls<IndexKey, OperatorTableRow>({
-    baseIndexOrder: INDEX_ORDER,
-    defaultEnabled: DEFAULT_ENABLED,
+  } = useStatGroupTableControls<OperatorTableIndexKey, OperatorTableRow>({
+    baseIndexOrder: OPERATOR_TABLE_INDEX_ORDER,
+    defaultEnabled: DEFAULT_OPERATOR_TABLE_ENABLED,
     allStatNames,
     defaultStatSelector: stats => {
       const duration = stats.filter(stat => stat === 'duration_s');
@@ -205,27 +208,31 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       return [...duration, ...inputs, ...outputs];
     },
     filterIndexOrder,
-    persistKey: 'operatorTable',
+    persistKey: OPERATOR_TABLE_PERSIST_KEY,
     rows,
     getRowIndexId: (row, key) => OPERATOR_SCHEMA.groups[key].id(row),
   });
 
   const parentScopeLabelValue = useMemo(() => {
     for (const row of rows) {
-      if (row.parentScopeLabel !== '-') return row.parentScopeLabel;
+      if (row.parentScopeLabel !== '-') {
+        return row.parentScopeLabel;
+      }
     }
     return 'Parent';
   }, [rows]);
 
   const scopeLabelValue = useMemo(() => {
     for (const row of rows) {
-      if (row.scopeLabel !== '-' && row.scopeLabel !== parentScopeLabelValue) return row.scopeLabel;
+      if (row.scopeLabel !== '-' && row.scopeLabel !== parentScopeLabelValue) {
+        return row.scopeLabel;
+      }
     }
     return 'Current';
   }, [rows, parentScopeLabelValue]);
 
   /* This should in the future be extended with all categorical/boolean type stats */
-  const indexLabels: Record<IndexKey, React.ReactNode> = useMemo(
+  const indexLabels: Record<OperatorTableIndexKey, React.ReactNode> = useMemo(
     () => ({
       partition: 'Worker / Plan',
       parent_item_type: (

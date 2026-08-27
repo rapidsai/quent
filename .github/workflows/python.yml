@@ -51,15 +51,15 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - name: Build Python integration example
+      - name: Build legacy Python integration example
         run: |
-          pixi run maturin develop --uv -m examples/python-integration/bridge/Cargo.toml
-      - name: Run Python integration example
+          pixi run maturin develop --uv -m examples/legacy/python-integration/bridge/Cargo.toml
+      - name: Run legacy Python integration example
         run: |
-          pixi run python examples/python-integration/main.py
-      - name: Type check Python integration example
+          pixi run python examples/legacy/python-integration/main.py
+      - name: Type check legacy Python integration example
         run: |
-          pixi run ty check examples/python-integration/
+          pixi run ty check examples/legacy/python-integration/
       - name: Build Python query engine bridge test
         run: |
           pixi run maturin develop --uv -m domains/query_engine/tests/python/bridge/Cargo.toml

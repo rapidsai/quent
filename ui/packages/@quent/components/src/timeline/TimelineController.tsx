@@ -13,8 +13,6 @@ import {
   buildBinnedTimelineSeries,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
 } from '../lib/timeline.utils';
 import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
@@ -24,6 +22,7 @@ import { useTimelineEchartsTheme } from './timelineEchartsTheme';
 import type { PaletteTheme } from '@quent/utils';
 import { Opts } from 'echarts-for-react/lib/types';
 import { PlayheadLine } from './PlayheadLine';
+import { TimelinePointerArea } from './TimelinePointerArea';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
@@ -127,11 +126,15 @@ export function TimelineController({
   const [containerWidth, setContainerWidth] = useState(0);
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      return;
+    }
     setContainerWidth(el.clientWidth);
     const observer = new ResizeObserver(entries => {
       const entry = entries[0];
-      if (entry) setContainerWidth(entry.contentRect.width);
+      if (entry) {
+        setContainerWidth(entry.contentRect.width);
+      }
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -168,13 +171,7 @@ export function TimelineController({
         },
       },
       splitLine: { show: true, lineStyle: { type: 'solid' } },
-      axisPointer: {
-        show: true,
-        type: 'line',
-        snap: false,
-        label: { show: false },
-        handle: { show: false },
-      },
+      axisPointer: { show: false },
     };
   }, [endTimeMillis, containerWidth]);
 
@@ -231,18 +228,7 @@ export function TimelineController({
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
-      tooltip: {
-        show: true,
-        showContent: false,
-        trigger: 'axis',
-        // Pin to xAxis[0] (full range) so synced times outside the dataZoom
-        // window of xAxis[1] still resolve and render a crosshair.
-        axisPointer: { axis: 'x', xAxisIndex: 0 },
-      },
-      // Link only the static axis so the dataZoom'd xAxis[1] doesn't draw a second crosshair.
-      axisPointer: {
-        link: [{ xAxisIndex: [0] }],
-      },
+      tooltip: { show: false },
       grid: gridOptions,
       dataZoom: [
         {
@@ -295,7 +281,9 @@ export function TimelineController({
   ]);
 
   const handleDataZoom = useMemo(() => {
-    if (!onZoomChange) return undefined;
+    if (!onZoomChange) {
+      return undefined;
+    }
     return {
       dataZoom: (params: {
         start?: number;
@@ -326,9 +314,18 @@ export function TimelineController({
   const [chartInstance, setChartInstance] = useState<EChartsInstance | null>(null);
 
   const zoomRange = useZoomRange();
+  const pointerRange = useMemo(
+    () =>
+      durationSeconds > 0
+        ? {
+            start: Math.min(1, Math.max(0, zoomRange.start / durationSeconds)),
+            end: Math.min(1, Math.max(0, zoomRange.end / durationSeconds)),
+          }
+        : { start: 0, end: 1 },
+    [durationSeconds, zoomRange.end, zoomRange.start]
+  );
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
-    registerAxisPointerSync(instance);
     setChartInstance(instance);
   }, []);
 
@@ -344,7 +341,9 @@ export function TimelineController({
       selfTriggeredRef.current = false;
       return;
     }
-    if (!chartInstance || durationSeconds === 0) return;
+    if (!chartInstance || durationSeconds === 0) {
+      return;
+    }
 
     const startPct = (zoomRange.start / durationSeconds) * 100;
     const endPct = (zoomRange.end / durationSeconds) * 100;
@@ -359,17 +358,11 @@ export function TimelineController({
     });
   }, [chartInstance, zoomRange, durationSeconds]);
 
-  useEffect(() => {
-    return () => {
-      if (chartInstance) unregisterAxisPointerSync(chartInstance);
-    };
-  }, [chartInstance]);
-
   const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
   const containerDims = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
 
   return (
-    <div ref={containerRef} style={containerDims} className="relative">
+    <TimelinePointerArea ref={containerRef} style={containerDims} range={pointerRange}>
       <EChartsReactCore
         echarts={echarts}
         theme={themeName}
@@ -383,6 +376,6 @@ export function TimelineController({
         autoResize={false}
       />
       <PlayheadLine instance={chartInstance} />
-    </div>
+    </TimelinePointerArea>
   );
 }

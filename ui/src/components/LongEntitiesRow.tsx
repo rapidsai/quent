@@ -79,7 +79,9 @@ export function LongEntitiesRow({
     numBins == null
       ? null
       : getLongEntitiesThreshold(zoomWindow.end - zoomWindow.start, numBins, longEntityDensity);
-  if (minUsageSeconds != null) previousMinUsageSeconds.current = minUsageSeconds;
+  if (minUsageSeconds != null) {
+    previousMinUsageSeconds.current = minUsageSeconds;
+  }
   const displayedMinUsageSeconds = minUsageSeconds ?? previousMinUsageSeconds.current;
 
   const { data, isFetching, isPlaceholderData } = useEntityList(
@@ -114,9 +116,13 @@ export function LongEntitiesRow({
 
   const handleEntityClick = useCallback(
     (entry: LongEntityEntry) => {
-      if (!onEntitySelect) return;
+      if (!onEntitySelect) {
+        return;
+      }
       const fsm = entities.find(e => e.id === entry.entityId);
-      if (fsm) onEntitySelect(fsm);
+      if (fsm) {
+        onEntitySelect(fsm);
+      }
     },
     [entities, onEntitySelect]
   );

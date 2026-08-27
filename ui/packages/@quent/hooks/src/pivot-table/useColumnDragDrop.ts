@@ -56,7 +56,9 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
     (e: React.DragEvent<HTMLElement>, targetId: string) => {
       e.preventDefault();
       const activeDraggedId = draggedIdRef.current;
-      if (activeDraggedId == null || activeDraggedId === targetId) return;
+      if (activeDraggedId == null || activeDraggedId === targetId) {
+        return;
+      }
       // Avoid re-rendering in dragstart, which can cancel native DnD in some browsers.
       setDraggedId(prev => (prev === activeDraggedId ? prev : activeDraggedId));
       const position = getDropPosition(e);
@@ -70,7 +72,9 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLElement>, targetId: string) => {
     const related = e.relatedTarget as Node | null;
-    if (related && e.currentTarget.contains(related)) return;
+    if (related && e.currentTarget.contains(related)) {
+      return;
+    }
     setDropIndicator(prev => (prev?.id === targetId ? null : prev));
   }, []);
 
@@ -90,9 +94,13 @@ export function useColumnDragDrop({ onDropCommit, createDragPreview }: UseColumn
   );
 
   useEffect(() => {
-    if (draggedId == null) return;
+    if (draggedId == null) {
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape') {
+        return;
+      }
       event.preventDefault();
       resetDragState();
     };

@@ -49,5 +49,11 @@ export default tseslint.config(
       ],
     },
   },
-  prettier
+  {
+    ...prettier,
+    rules: {
+      ...prettier.rules,
+      curly: ['error', 'all'],
+    },
+  }
 );

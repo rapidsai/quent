@@ -61,7 +61,9 @@ export function SegmentedBar({
       : `${fillPercent}%`;
 
   const showSegmentTooltip = (content: ReactNode, pointer: PointerPosition) => {
-    if (showTooltips) setTooltip({ content, pointer });
+    if (showTooltips) {
+      setTooltip({ content, pointer });
+    }
   };
 
   return (
@@ -98,7 +100,9 @@ export function SegmentedBar({
               }}
               onMouseLeave={() => setTooltip(null)}
               onFocus={event => {
-                if (!segment.tooltip) return;
+                if (!segment.tooltip) {
+                  return;
+                }
                 const rect = event.currentTarget.getBoundingClientRect();
                 showSegmentTooltip(segment.tooltip, {
                   clientX: rect.left + rect.width / 2,

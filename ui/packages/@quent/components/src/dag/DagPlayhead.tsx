@@ -24,7 +24,9 @@ interface DagPlayheadProps {
 }
 
 function formatTimeLabel(timeS: number, windowS: number): string {
-  if (timeS === 0) return '0s';
+  if (timeS === 0) {
+    return '0s';
+  }
   return formatDurationForWindow(timeS * 1000, Math.max(windowS, Number.EPSILON) * 1000);
 }
 
@@ -54,7 +56,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const clampTime = useCallback(
     (timeS: number): number => {
-      if (!bin) return timeS;
+      if (!bin) {
+        return timeS;
+      }
       return Math.min(Math.max(timeS, bin.startS), bin.endS);
     },
     [bin]
@@ -63,9 +67,13 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const applyClientX = useCallback(
     (clientX: number) => {
       const track = trackRef.current;
-      if (!track || !bin) return;
+      if (!track || !bin) {
+        return;
+      }
       const rect = track.getBoundingClientRect();
-      if (rect.width <= 0) return;
+      if (rect.width <= 0) {
+        return;
+      }
       const t = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
       const timeS = bin.startS + t * (bin.endS - bin.startS);
       setPlayheadTimeS(timeS);
@@ -84,12 +92,18 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        return;
+      }
       pendingClientXRef.current = event.clientX;
-      if (rafRef.current != null) return;
+      if (rafRef.current != null) {
+        return;
+      }
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        if (pendingClientXRef.current != null) applyClientX(pendingClientXRef.current);
+        if (pendingClientXRef.current != null) {
+          applyClientX(pendingClientXRef.current);
+        }
         pendingClientXRef.current = null;
       });
     },
@@ -108,7 +122,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const stepBy = useCallback(
     (bins: number) => {
-      if (!bin) return;
+      if (!bin) {
+        return;
+      }
       const current = playheadRef.current ?? bin.startS;
       setPlayheadTimeS(clampTime(current + bins * bin.binDurationS));
     },
@@ -117,7 +133,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!bin) return;
+      if (!bin) {
+        return;
+      }
       const step = event.shiftKey ? KEYBOARD_FAST_STEP_BINS : KEYBOARD_STEP_BINS;
       switch (event.key) {
         case 'ArrowLeft':
@@ -143,52 +161,68 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   );
 
   const togglePlay = useCallback(() => {
-    if (!bin) return;
+    if (!bin) {
+      return;
+    }
     setIsPlaying(playing => {
       if (!playing) {
         // Restart from the window start when play is pressed at the end.
         const current = playheadRef.current ?? bin.startS;
-        if (current >= bin.endS) setPlayheadTimeS(bin.startS);
+        if (current >= bin.endS) {
+          setPlayheadTimeS(bin.startS);
+        }
       }
       return !playing;
     });
-  }, [bin, setPlayheadTimeS]);
+  }, [bin, setIsPlaying, setPlayheadTimeS]);
 
   // Stop playback when the overlay is disabled or the bin metadata goes away:
   // the component stays mounted while rendering null, so a live play interval
   // would otherwise keep advancing the playhead invisibly.
   useEffect(() => {
-    if (enabled && bin) return;
+    if (enabled && bin) {
+      return;
+    }
     setIsPlaying(false);
     setPlayheadLineTimeMs(null);
-  }, [enabled, bin, setPlayheadLineTimeMs]);
+  }, [enabled, bin, setIsPlaying, setPlayheadLineTimeMs]);
 
   // Advance one bin per tick while playing; stop at the window end.
   useEffect(() => {
-    if (!isPlaying || !bin) return;
+    if (!isPlaying || !bin) {
+      return;
+    }
     const { startS, endS, binDurationS } = bin;
     const id = window.setInterval(() => {
       const current = playheadRef.current ?? startS;
       const next = Math.min(current + binDurationS, endS);
       setPlayheadTimeS(next);
       setPlayheadLineTimeMs(next * 1000);
-      if (next >= endS) setIsPlaying(false);
+      if (next >= endS) {
+        setIsPlaying(false);
+      }
     }, PLAY_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [isPlaying, bin, setPlayheadTimeS, setPlayheadLineTimeMs]);
+  }, [isPlaying, bin, setIsPlaying, setPlayheadTimeS, setPlayheadLineTimeMs]);
 
   useEffect(() => {
-    if (!isPlaying) setPlayheadLineTimeMs(null);
+    if (!isPlaying) {
+      setPlayheadLineTimeMs(null);
+    }
   }, [isPlaying, setPlayheadLineTimeMs]);
 
   useEffect(() => {
     return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+      }
       setPlayheadLineTimeMs(null);
     };
   }, [setPlayheadLineTimeMs]);
 
-  if (!enabled || !meta || !bin) return null;
+  if (!enabled || !meta || !bin) {
+    return null;
+  }
 
   const windowS = Math.max(bin.endS - bin.startS, Number.EPSILON);
   const timeS = clampTime(playheadTimeS ?? bin.startS);
@@ -228,7 +262,10 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       >
         <div className="absolute top-1/2 -translate-y-1/2 h-1 w-full rounded-full bg-muted" />
         <div
-          className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full bg-primary/40"
+          className={cn(
+            'absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary/40',
+            isPlaying && 'transition-[width] duration-100 ease-linear motion-reduce:transition-none'
+          )}
           style={{ width: `${positionPct}%` }}
         />
         <div
@@ -240,7 +277,10 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
           aria-valuenow={timeS}
           aria-valuetext={currentLabel}
           onKeyDown={handleKeyDown}
-          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            isPlaying && 'transition-[left] duration-100 ease-linear motion-reduce:transition-none'
+          )}
           style={{ left: `${positionPct}%` }}
         />
       </div>

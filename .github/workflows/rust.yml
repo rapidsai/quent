@@ -57,12 +57,10 @@ jobs:
       - run: pixi run cargo fmt --all -- --check
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
+      - run: pixi run cargo test -p quent-store --no-default-features --features io-ndjson --locked
       - run: pixi run cargo build --workspace --all-features --locked --release
-      # The instrumentation-build example is its own workspace (callback-only,
-      # Serialize-free), excluded above; build and run it separately so it stays
-      # covered.
-      - run: pixi run cargo clippy --manifest-path crates/instrumentation-build/example/Cargo.toml --all-targets --locked -- -D warnings
-      - run: pixi run cargo run --manifest-path crates/instrumentation-build/example/Cargo.toml --locked
+      - run: pixi run cargo run -p quent-instrumentation-build-example --locked
+      - run: pixi run cargo run -p quent-store-build-example --locked
 
   # Regression gate for `quent-open` backward compatibility: build a viewer for
   # a sidecar pinning the previous quent commit (the PR's base commit, or the

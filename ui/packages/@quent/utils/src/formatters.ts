@@ -52,13 +52,21 @@ export function formatDurationForWindow(
   const resolution = Math.abs(windowMs) / 1000;
 
   let unitMs: number;
-  if (absMs < 0.001) unitMs = 1e-6;
-  else if (absMs < 1) unitMs = 0.001;
-  else if (absMs < MS_PER_SECOND) unitMs = 1;
-  else if (absMs < MS_PER_MINUTE) unitMs = MS_PER_SECOND;
-  else if (absMs < MS_PER_HOUR) unitMs = MS_PER_MINUTE;
-  else if (absMs < MS_PER_DAY) unitMs = MS_PER_HOUR;
-  else unitMs = MS_PER_DAY;
+  if (absMs < 0.001) {
+    unitMs = 1e-6;
+  } else if (absMs < 1) {
+    unitMs = 0.001;
+  } else if (absMs < MS_PER_SECOND) {
+    unitMs = 1;
+  } else if (absMs < MS_PER_MINUTE) {
+    unitMs = MS_PER_SECOND;
+  } else if (absMs < MS_PER_HOUR) {
+    unitMs = MS_PER_MINUTE;
+  } else if (absMs < MS_PER_DAY) {
+    unitMs = MS_PER_HOUR;
+  } else {
+    unitMs = MS_PER_DAY;
+  }
 
   const resolutionInUnit = resolution / unitMs;
   const decimals =
@@ -79,13 +87,21 @@ export function formatDurationForAxisInterval(ms: number, intervalMs: number): s
   const absMs = Math.abs(ms);
 
   let unitMs: number;
-  if (absMs < 0.001) unitMs = 1e-6;
-  else if (absMs < 1) unitMs = 0.001;
-  else if (absMs < MS_PER_SECOND) unitMs = 1;
-  else if (absMs < MS_PER_MINUTE) unitMs = MS_PER_SECOND;
-  else if (absMs < MS_PER_HOUR) unitMs = MS_PER_MINUTE;
-  else if (absMs < MS_PER_DAY) unitMs = MS_PER_HOUR;
-  else unitMs = MS_PER_DAY;
+  if (absMs < 0.001) {
+    unitMs = 1e-6;
+  } else if (absMs < 1) {
+    unitMs = 0.001;
+  } else if (absMs < MS_PER_SECOND) {
+    unitMs = 1;
+  } else if (absMs < MS_PER_MINUTE) {
+    unitMs = MS_PER_SECOND;
+  } else if (absMs < MS_PER_HOUR) {
+    unitMs = MS_PER_MINUTE;
+  } else if (absMs < MS_PER_DAY) {
+    unitMs = MS_PER_HOUR;
+  } else {
+    unitMs = MS_PER_DAY;
+  }
 
   const intervalInUnit = intervalMs / unitMs;
   const decimals =
@@ -127,7 +143,9 @@ export function formatWithPrefix(
 ): string {
   // For the unprefixed case with a bigint, avoid Number() coercion to preserve full precision
   if (prefixSystem === 'None' && typeof value === 'bigint') {
-    if (value === 0n) return symbol ? `0 ${symbol}` : '0';
+    if (value === 0n) {
+      return symbol ? `0 ${symbol}` : '0';
+    }
     const absB = value < 0n ? -value : value;
     const signB = value < 0n ? '-' : '';
     const str = decimals === 0 ? absB.toString() : `${absB}.${'0'.repeat(decimals)}`;
@@ -136,7 +154,9 @@ export function formatWithPrefix(
 
   const num = typeof value === 'bigint' ? Number(value) : value;
 
-  if (num === 0) return symbol ? `0 ${symbol}` : '0';
+  if (num === 0) {
+    return symbol ? `0 ${symbol}` : '0';
+  }
 
   const abs = num < 0 ? -num : num;
   const sign = num < 0 ? '-' : '';
@@ -196,7 +216,9 @@ export function formatCompactWithPrefix(
 ): string {
   const abs = value < 0 ? -value : value;
   const sign = value < 0 ? '-' : '';
-  if (value === 0) return `0${symbol}`;
+  if (value === 0) {
+    return `0${symbol}`;
+  }
 
   if (prefixSystem === 'Si' && abs < 1) {
     for (let i = 1; i < SI_DOWN.length; i++) {
@@ -274,7 +296,9 @@ export function formatBytes(value: number | bigint, decimals = 1): string {
  * and beyond u64::MAX).
  */
 export function bigintToChartNumber(n: bigint): number {
-  if (n <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(n);
+  if (n <= BigInt(Number.MAX_SAFE_INTEGER)) {
+    return Number(n);
+  }
   const bitLength = n.toString(2).length;
   const shift = BigInt(bitLength - 53);
   return Number(n >> shift) * 2 ** Number(shift);
@@ -343,13 +367,21 @@ export function isBytesRateStat(name: string): boolean {
  */
 export function formatAttributeValue(key: string, value: unknown): string {
   const v = unwrapTaggedValue(value);
-  if (v == null) return '—';
+  if (v == null) {
+    return '—';
+  }
   if (isNumericValue(v)) {
-    if (isBytesRateStat(key)) return formatWithPrefix(v, 'B/s', 'Si', 2);
-    if (isBytesStat(key)) return formatBytes(v, 2);
+    if (isBytesRateStat(key)) {
+      return formatWithPrefix(v, 'B/s', 'Si', 2);
+    }
+    if (isBytesStat(key)) {
+      return formatBytes(v, 2);
+    }
     return formatNumber(v);
   }
-  if (Array.isArray(v)) return v.join(', ');
+  if (Array.isArray(v)) {
+    return v.join(', ');
+  }
   return String(v);
 }
 
@@ -376,18 +408,27 @@ function formatSiCount(value: number, decimals = 2): string {
 export function inferFieldFormatter(fieldName: string): (value: number | bigint) => string {
   return (value: number | bigint): string => {
     const num = typeof value === 'bigint' ? Number(value) : value;
-    if (fieldName.endsWith('_ns')) return formatDuration(num / 1e6);
-    if (isBytesStat(fieldName)) return formatBytes(value, 2);
-    if (isCountStat(fieldName)) return formatSiCount(num, 2);
-    if (fieldName.endsWith('_mbs')) return `${num.toFixed(1)} MB/s`;
+    if (fieldName.endsWith('_ns')) {
+      return formatDuration(num / 1e6);
+    }
+    if (isBytesStat(fieldName)) {
+      return formatBytes(value, 2);
+    }
+    if (isCountStat(fieldName)) {
+      return formatSiCount(num, 2);
+    }
+    if (fieldName.endsWith('_mbs')) {
+      return `${num.toFixed(1)} MB/s`;
+    }
     if (
       fieldName.endsWith('_ratio') ||
       fieldName.endsWith('_fraction') ||
       fieldName.endsWith('_fpr') ||
       fieldName.endsWith('_selectivity') ||
       fieldName.endsWith('_rate')
-    )
+    ) {
       return `${(num * 100).toFixed(1)}%`;
+    }
     return typeof value === 'bigint'
       ? formatNumber(value)
       : formatNumberWithMaxFractionDigits(num, 4);
@@ -418,6 +459,8 @@ export function formatStatWithQuantity(
   key: string,
   quantitySpec: QuantitySpec | undefined
 ): string {
-  if (quantitySpec) return formatQuantity(value, quantitySpec, 'Occupancy');
+  if (quantitySpec) {
+    return formatQuantity(value, quantitySpec, 'Occupancy');
+  }
   return inferFieldFormatter(key)(value);
 }

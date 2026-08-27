@@ -16,7 +16,9 @@ export function TransitionAttributes({
   derivedAttributes,
   operatorLabel,
 }: TransitionAttributesProps) {
-  if (attributes.length === 0 && derivedAttributes.length === 0) return null;
+  if (attributes.length === 0 && derivedAttributes.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mt-1.5 space-y-1.5">
@@ -42,7 +44,9 @@ function AttributeGroup({
   operatorLabel: (id: string) => string;
   derived?: boolean;
 }) {
-  if (attributes.length === 0) return null;
+  if (attributes.length === 0) {
+    return null;
+  }
 
   return (
     <Card className="bg-muted/20 p-2 shadow-none">

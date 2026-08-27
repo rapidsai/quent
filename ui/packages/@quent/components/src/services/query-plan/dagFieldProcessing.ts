@@ -10,14 +10,20 @@ export function computeNodeColoring(
   field: string | null,
   theme: PaletteTheme
 ): NodeColoring {
-  if (!field || !nodes.length) return null;
+  if (!field || !nodes.length) {
+    return null;
+  }
 
   const entries = nodes.flatMap(node => {
     const stat = parseCustomStatistics(node.metadata?.rawNode).find(s => s.key === field);
-    if (stat?.value == null) return [];
+    if (stat?.value == null) {
+      return [];
+    }
     return [{ id: node.id, value: stat.value }];
   });
-  if (!entries.length) return null;
+  if (!entries.length) {
+    return null;
+  }
 
   // handle potential bigints
   if (entries.every(e => isNumericValue(e.value))) {
@@ -45,14 +51,20 @@ export function computeEdgeColoring(
   field: string | null,
   theme: PaletteTheme
 ): EdgeColoring {
-  if (!field || !edges.length) return null;
+  if (!field || !edges.length) {
+    return null;
+  }
 
   const entries = edges.flatMap(edge => {
     const stat = (edge.portStats ?? []).find(s => s.key === field);
-    if (stat?.value == null) return [];
+    if (stat?.value == null) {
+      return [];
+    }
     return [{ id: edge.id, value: stat.value }];
   });
-  if (!entries.length) return null;
+  if (!entries.length) {
+    return null;
+  }
 
   // handle potential bigints
   if (entries.every(e => isNumericValue(e.value))) {
@@ -77,14 +89,20 @@ export function computeEdgeColoring(
 }
 
 export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): EdgeWidthConfig {
-  if (!field || !edges.length) return null;
+  if (!field || !edges.length) {
+    return null;
+  }
 
   const entries = edges.flatMap(edge => {
     const stat = (edge.portStats ?? []).find(s => s.key === field);
-    if (stat?.value == null || !isNumericValue(stat.value)) return [];
+    if (stat?.value == null || !isNumericValue(stat.value)) {
+      return [];
+    }
     return [{ id: edge.id, value: Number(stat.value) }];
   });
-  if (!entries.length) return null;
+  if (!entries.length) {
+    return null;
+  }
 
   const nums = entries.map(e => e.value);
   return {

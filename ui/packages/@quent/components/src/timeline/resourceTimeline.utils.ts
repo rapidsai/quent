@@ -16,7 +16,9 @@ export function resolveOverlayData(
   currentCacheKey: string,
   hasOperatorFilter: boolean
 ): SingleTimelineResponse | undefined {
-  if (!hasOperatorFilter) return undefined;
+  if (!hasOperatorFilter) {
+    return undefined;
+  }
   return (
     currentData ?? (retainedData?.cacheKey === currentCacheKey ? retainedData.data : undefined)
   );

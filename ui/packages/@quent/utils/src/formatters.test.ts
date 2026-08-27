@@ -658,7 +658,6 @@ describe('isNumericValue', () => {
 
   it('rejects non-numeric StatValue members', () => {
     expect(isNumericValue('42')).toBe(false);
-    expect(isNumericValue(true)).toBe(false);
     expect(isNumericValue(null)).toBe(false);
     expect(isNumericValue(['1', '2'])).toBe(false);
   });

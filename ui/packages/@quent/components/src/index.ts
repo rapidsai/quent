@@ -152,10 +152,6 @@ export { getIconForType, collectResourceTypesFromTree } from './lib/resource.uti
 export {
   nanosToMs,
   connectChart,
-  registerAxisPointerSync,
-  unregisterAxisPointerSync,
-  broadcastSyncedPointer,
-  hideSyncedPointer,
   buildBinnedTimelineSeries,
   buildBulkParamsForItem,
   buildTimelineMarks,
@@ -171,7 +167,6 @@ export {
   findItemById,
   transformResourceTree,
 } from './lib/timeline.utils';
-export type { AxisPointerSyncOptions } from './lib/timeline.utils';
 export { getFsmTypeName, getResourceTypeName } from '@quent/utils';
 
 // ─── Services – query-plan ────────────────────────────────────────────────────
@@ -190,12 +185,18 @@ export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/q
 
 // ─── Timeline components ──────────────────────────────────────────────────────
 export { TimelineController } from './timeline/TimelineController';
+export { TimelinePointerArea } from './timeline/TimelinePointerArea';
+export type {
+  TimelinePointerAreaProps,
+  TimelinePointerRange,
+} from './timeline/TimelinePointerArea';
 export { TimelineRuler } from './timeline/TimelineRuler';
 export { TimelineSettingsPopover } from './timeline/TimelineSettingsPopover';
 export { TimelineSkeleton } from './timeline/TimelineSkeleton';
 export { TimelineToolbar } from './timeline/TimelineToolbar';
 export { QueryToolbar } from './timeline/QueryToolbar';
 export { TooltipContent } from './timeline/TimelineTooltip';
+export type { TooltipItemNoun } from './timeline/TimelineTooltip';
 export { TimelineTooltipPortal } from './timeline/TimelineTooltipPortal';
 export {
   useTimelineEchartsTheme,
@@ -234,6 +235,7 @@ export type { SegmentedBarProps, SegmentedBarSegment } from './segmented-bar/Seg
 
 // ─── Resource-tree components ─────────────────────────────────────────────────
 export { InlineSelector } from './resource-tree/InlineSelector';
+export type { InlineSelectorOption } from './resource-tree/InlineSelector';
 export { ResourceColumn } from './resource-tree/ResourceColumn';
 export { ResourceGroupRow } from './resource-tree/ResourceGroupRow';
 export { ResourceRow } from './resource-tree/ResourceRow';
@@ -325,4 +327,27 @@ export {
   clipRectByRect,
   stackIntervalsIntoRows,
   stackIntervalsIntoRows as stackOperatorsIntoRows,
+  layoutGanttBar,
+  ganttExpansionLayout,
 } from './gantt-chart/utils';
+
+// ─── NVTX timeline ────────────────────────────────────────────────────────────
+export { NvtxGantt, NVTX_GANTT_HEIGHT } from './nvtx-timeline/NvtxGantt';
+export type { NvtxGanttProps } from './nvtx-timeline/NvtxGantt';
+export {
+  NVTX_SECTION_ROW_TYPE,
+  NVTX_DOMAIN_ROW_TYPE,
+  NVTX_LANE_ROW_TYPE,
+  NVTX_SECTION_ID,
+  nvtxDomainRowId,
+  nvtxThreadRowId,
+  nvtxProcessRowId,
+  nvtxMarksRowId,
+  buildNvtxTree,
+  indexNvtxLanes,
+  isNvtxTreeEntity,
+  nvtxDomainMeta,
+  nvtxLaneLabel,
+  nvtxDefaultExpandedIds,
+} from './nvtx-timeline/utils';
+export type { NvtxTreeEntity, NvtxTreeItem } from './nvtx-timeline/utils';

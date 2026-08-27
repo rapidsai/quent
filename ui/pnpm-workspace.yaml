@@ -8,22 +8,22 @@ packages:
   # `workspace:*` deps still resolve to source.
 
 catalog:
-  '@tanstack/react-query': ^5.90.21
-  '@tanstack/react-router': ^1.169.9
+  '@tanstack/react-query': ^5.101.4
+  '@tanstack/react-router': ^1.170.27
   '@tanstack/react-table': ^8.20.5
   '@tanstack/react-virtual': ^3.14.9
-  '@types/react': ^19.2.14
-  '@types/react-dom': ^19.2.3
-  '@xyflow/react': ^12.11.2
+  '@types/react': ^19.2.18
+  '@types/react-dom': ^19.2.4
+  '@xyflow/react': ^12.11.3
   clsx: ^2.1.1
   echarts: ^6.1.0
   echarts-for-react: ^3.0.6
-  jotai: ^2.20.1
+  jotai: ^2.20.2
   jotai-family: ^1.1.0
-  react: ^19.2.7
-  react-dom: ^19.2.7
-  tailwind-merge: ^3.5.0
-  tsdown: ^0.22.12
+  react: ^19.2.8
+  react-dom: ^19.2.8
+  tailwind-merge: ^3.6.0
+  tsdown: ^0.22.14
   typescript: ^6.0.3
 
 allowBuilds:

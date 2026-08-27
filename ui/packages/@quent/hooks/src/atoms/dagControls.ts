@@ -76,7 +76,9 @@ export const dagDisplayedNodeIdsAtom = atom<Set<string>>(new Set<string>());
 
 function intersectsDisplayed(ids: Iterable<string>, displayed: Set<string>): boolean {
   for (const id of ids) {
-    if (displayed.has(id)) return true;
+    if (displayed.has(id)) {
+      return true;
+    }
   }
   return false;
 }
@@ -90,12 +92,18 @@ function intersectsDisplayed(ids: Iterable<string>, displayed: Set<string>): boo
  */
 export const effectiveHighlightedNodeIdsAtom = atom<HighlightedNodeIdsState>(get => {
   const state = get(highlightedNodeIdsAtom);
-  if (state.ids === null) return state;
+  if (state.ids === null) {
+    return state;
+  }
   const displayed = get(dagDisplayedNodeIdsAtom);
   // Until the DAG has reported what it shows, fall back to the source state
   // so behavior is unchanged on first render.
-  if (displayed.size === 0) return state;
-  if (intersectsDisplayed(state.ids, displayed)) return state;
+  if (displayed.size === 0) {
+    return state;
+  }
+  if (intersectsDisplayed(state.ids, displayed)) {
+    return state;
+  }
   return { ...state, ids: null, source: null, primaryOperatorId: null };
 });
 
@@ -106,10 +114,16 @@ export const effectiveHighlightedNodeIdsAtom = atom<HighlightedNodeIdsState>(get
  */
 export const effectiveHoveredStatAtom = atom<HoveredStatInfo | null>(get => {
   const stat = get(highlightedNodeIdsAtom).hoveredStat;
-  if (!stat) return null;
+  if (!stat) {
+    return null;
+  }
   const displayed = get(dagDisplayedNodeIdsAtom);
-  if (displayed.size === 0) return stat;
-  if (intersectsDisplayed(stat.values.keys(), displayed)) return stat;
+  if (displayed.size === 0) {
+    return stat;
+  }
+  if (intersectsDisplayed(stat.values.keys(), displayed)) {
+    return stat;
+  }
   return null;
 });
 

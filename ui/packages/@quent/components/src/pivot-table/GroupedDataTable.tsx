@@ -122,16 +122,24 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
   const lastGroupColIndex = groupColumnIds.length - 1;
 
   useEffect(() => {
-    if (!stickyGroupColumns) return;
-    if (typeof ResizeObserver === 'undefined') return;
+    if (!stickyGroupColumns) {
+      return;
+    }
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
     const elements = groupHeaderRefs.current.filter((el): el is HTMLTableCellElement => el != null);
-    if (elements.length === 0) return;
+    if (elements.length === 0) {
+      return;
+    }
     const updateWidths = () => {
       setGroupColumnWidths(elements.map(el => el.getBoundingClientRect().width));
     };
     updateWidths();
     const observer = new ResizeObserver(updateWidths);
-    for (const el of elements) observer.observe(el);
+    for (const el of elements) {
+      observer.observe(el);
+    }
     window.addEventListener('resize', updateWidths);
     return () => {
       observer.disconnect();
@@ -141,7 +149,9 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
 
   const getStickyStyle = useCallback(
     (col: number, header: boolean): React.CSSProperties | undefined => {
-      if (!stickyGroupColumns) return undefined;
+      if (!stickyGroupColumns) {
+        return undefined;
+      }
       const style: React.CSSProperties = {
         position: 'sticky',
         left: stickyLeftOffsets[col] ?? 0,
@@ -201,7 +211,9 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
                 <th
                   key={columnId}
                   ref={el => {
-                    if (idx >= 0) groupHeaderRefs.current[idx] = el;
+                    if (idx >= 0) {
+                      groupHeaderRefs.current[idx] = el;
+                    }
                   }}
                   className={cn(
                     'table-header-overlay text-left px-3 py-2 text-sm text-muted-foreground whitespace-nowrap font-normal'
@@ -218,8 +230,12 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
                 const onSort = () => {
                   setSorting(prev => {
                     const current = prev.find(s => s.id === columnId);
-                    if (!current) return [{ id: columnId, desc: true }];
-                    if (current.desc) return [{ id: columnId, desc: false }];
+                    if (!current) {
+                      return [{ id: columnId, desc: true }];
+                    }
+                    if (current.desc) {
+                      return [{ id: columnId, desc: false }];
+                    }
                     return [];
                   });
                 };
@@ -273,8 +289,9 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
                 >
                   {groupColumnIds.map((_, col) => {
                     if (groupRenderMode === 'rowSpan') {
-                      if (spans == null || spans[col] == null || row.groupKeys[col] == null)
+                      if (spans == null || spans[col] == null || row.groupKeys[col] == null) {
                         return null;
+                      }
                       return (
                         <React.Fragment key={col}>
                           {GroupCell && (
@@ -292,7 +309,9 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
 
                     const groupKey = row.groupKeys[col] as
                       GroupedDataTableGroupKeyEntry | undefined;
-                    if (!groupKey) return null;
+                    if (!groupKey) {
+                      return null;
+                    }
                     if (stillRepeating && groupKey.id !== prevRow!.groupKeys[col]?.id) {
                       stillRepeating = false;
                     }

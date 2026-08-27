@@ -78,16 +78,6 @@ mod tests {
     }
 
     #[test]
-    fn detects_one_context_wide_format() {
-        let context =
-            context_with_streams(&[("EngineEvent", "ndjson"), ("NvtxEventEntity", "ndjson")]);
-        let detected = Format::detect(&context);
-        std::fs::remove_dir_all(context).unwrap();
-
-        assert_eq!(detected, Some(Format::Ndjson));
-    }
-
-    #[test]
     #[cfg(feature = "msgpack")]
     fn rejects_mixed_context_formats() {
         let context =

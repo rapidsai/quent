@@ -12,7 +12,9 @@ export function useExpandedIds(initialId?: string) {
   // Seed with the initial id only when the atom is empty so that
   // navigating away and back keeps the user's expansion intact.
   useEffect(() => {
-    if (!initialId) return;
+    if (!initialId) {
+      return;
+    }
     setExpandedIds(prev => (prev.size === 0 ? new Set([initialId]) : prev));
   }, [initialId, setExpandedIds]);
 

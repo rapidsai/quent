@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useId } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import {
@@ -9,6 +9,7 @@ import {
   zoomRangeAtom,
   debouncedZoomRangeAtom,
   timelineHoverAtom,
+  timelinePointerAtom,
   startTimeMsAtom,
   bulkInitializedAtom,
   visibleEntriesAtom,
@@ -36,14 +37,18 @@ function useReturnedTimelineState(resourceId: string): {
   const visibleEntries = useAtomValue(visibleEntriesAtom);
   const activeSpan = useAtomValue(debouncedZoomRangeAtom);
   const request = visibleEntries[resourceId];
-  if (!request) return { data: undefined, isStale: false };
+  if (!request) {
+    return { data: undefined, isStale: false };
+  }
   const key = timelineCacheKey({
     resourceId,
     resourceTypeName: getResourceTypeName(request),
     fsmTypeName: getFsmTypeName(request),
   });
   const data = timelineDataMap[key];
-  if (!data) return { data: undefined, isStale: false };
+  if (!data) {
+    return { data: undefined, isStale: false };
+  }
   const tolerance = data.config.bin_duration;
   const matchesActiveSpan =
     Math.abs(data.config.span.start - activeSpan.start) <= tolerance &&
@@ -62,6 +67,10 @@ export function useReturnedTimelineIsStale(resourceId: string): boolean {
 }
 
 export const useZoomRange = () => useAtomValue(zoomRangeAtom);
+export const useGetZoomRange = () => {
+  const store = useStore();
+  return useCallback(() => store.get(zoomRangeAtom), [store]);
+};
 export const useSetZoomRange = () => useSetAtom(zoomRangeAtom);
 export function useReadZoomRange() {
   const store = useStore();
@@ -73,6 +82,45 @@ export const useLongEntityDensity = () => useAtomValue(longEntityDensityAtom);
 export const useSetLongEntityDensity = () => useSetAtom(longEntityDensityAtom);
 export const useTimelineHover = () => useAtomValue(timelineHoverAtom);
 export const useSetTimelineHover = () => useSetAtom(timelineHoverAtom);
+export const useTimelinePointerRatio = () => useAtomValue(timelinePointerAtom)?.ratio ?? null;
+export function useTimelinePointerPublisher() {
+  const ownerId = useId();
+  const store = useStore();
+  const setPointer = useSetAtom(timelinePointerAtom);
+  const publish = useCallback(
+    (ratio: number) => {
+      setPointer({ ratio: Math.min(1, Math.max(0, ratio)), ownerId });
+    },
+    [ownerId, setPointer]
+  );
+  const clear = useCallback(() => {
+    const ownedPointer = store.get(timelinePointerAtom);
+    if (ownedPointer?.ownerId !== ownerId) {
+      return;
+    }
+    const clearIfUnchanged = () => {
+      if (store.get(timelinePointerAtom) === ownedPointer) {
+        setPointer(null);
+      }
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(clearIfUnchanged);
+    } else {
+      setTimeout(clearIfUnchanged, 0);
+    }
+  }, [ownerId, setPointer, store]);
+
+  useEffect(
+    () => () => {
+      if (store.get(timelinePointerAtom)?.ownerId === ownerId) {
+        setPointer(null);
+      }
+    },
+    [ownerId, setPointer, store]
+  );
+
+  return { publish, clear };
+}
 export const useStartTimeMs = () => useAtomValue(startTimeMsAtom);
 export const useSetStartTimeMs = () => useSetAtom(startTimeMsAtom);
 export const useBulkInitialized = () => useAtomValue(bulkInitializedAtom);

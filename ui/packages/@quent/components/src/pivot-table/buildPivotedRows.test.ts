@@ -67,7 +67,9 @@ describe('buildPivotedRows row clustering', () => {
     // First-appearance order of brands is preserved.
     const firstAppearance: string[] = [];
     for (const b of brandOrder) {
-      if (!firstAppearance.includes(b)) firstAppearance.push(b);
+      if (!firstAppearance.includes(b)) {
+        firstAppearance.push(b);
+      }
     }
     expect(firstAppearance).toEqual(['Ford', 'Hyundai', 'BMW', 'Honda']);
   });

@@ -35,7 +35,9 @@ export function EntityDetailDrawer({
     <Drawer
       open={fsm !== null}
       onOpenChange={open => {
-        if (!open) onClose();
+        if (!open) {
+          onClose();
+        }
       }}
       direction="right"
       modal={false}

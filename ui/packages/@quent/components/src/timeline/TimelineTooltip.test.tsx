@@ -97,6 +97,20 @@ describe('TooltipContent active marks', () => {
     expect(screen.queryByText('Total')).not.toBeInTheDocument();
   });
 
+  it('keeps the timestamp above summaries', () => {
+    render(
+      <EntityTooltipContent
+        timestamp={1_000}
+        windowMs={5_000}
+        summary="3 ranges"
+        activeMarks={makeMarks(1)}
+      />
+    );
+
+    const summary = screen.getByText('3 ranges');
+    expect(summary.previousElementSibling).not.toBeNull();
+  });
+
   it('keeps full details for six or fewer overlapping entities', () => {
     render(<EntityTooltipContent timestamp={1_000} windowMs={5_000} activeMarks={makeMarks(6)} />);
 
@@ -111,5 +125,18 @@ describe('TooltipContent active marks', () => {
     expect(screen.queryByText('task-6')).not.toBeInTheDocument();
     expect(screen.getAllByText('500.00ms')).toHaveLength(6);
     expect(screen.getByText('1 more entity not shown')).toBeInTheDocument();
+  });
+
+  it('uses configurable names for hidden items', () => {
+    render(
+      <EntityTooltipContent
+        timestamp={1_000}
+        windowMs={5_000}
+        activeMarks={makeMarks(7)}
+        itemNoun={{ singular: 'range', plural: 'ranges' }}
+      />
+    );
+
+    expect(screen.getByText('1 more range not shown')).toBeInTheDocument();
   });
 });

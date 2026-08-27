@@ -69,7 +69,9 @@ function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProp
       onDrop={e => dnd.onStatDrop(e, stat)}
       onDragEnd={dnd.onStatDragEnd}
       onClick={() => {
-        if (dnd.draggedStat !== null) return;
+        if (dnd.draggedStat !== null) {
+          return;
+        }
         onSort();
       }}
       onMouseEnter={() => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat))}
@@ -299,7 +301,9 @@ export function PivotedStatTable<TRow>({
 
   useEffect(() => {
     setTableStatOrder(prev => {
-      if (prev.length === 0) return resolvedVisibleStats;
+      if (prev.length === 0) {
+        return resolvedVisibleStats;
+      }
       const visibleSet = new Set(resolvedVisibleStats);
       const kept = prev.filter(stat => visibleSet.has(stat));
       const additions = resolvedVisibleStats.filter(stat => !kept.includes(stat));
@@ -321,7 +325,9 @@ export function PivotedStatTable<TRow>({
     const map = new Map<string, Map<string, number>>();
     for (const row of expandedRows) {
       const v = typeof row.value === 'number' ? row.value : null;
-      if (v === null) continue;
+      if (v === null) {
+        continue;
+      }
       let itemMap = map.get(row.statisticName);
       if (!itemMap) {
         itemMap = new Map();
@@ -335,12 +341,18 @@ export function PivotedStatTable<TRow>({
   const buildHoveredStatInfo = useCallback(
     (statName: string): HoveredStatInfo | null => {
       const values = statsByItem.get(statName);
-      if (!values || values.size === 0) return null;
+      if (!values || values.size === 0) {
+        return null;
+      }
       let min = Infinity,
         max = -Infinity;
       for (const v of values.values()) {
-        if (v < min) min = v;
-        if (v > max) max = v;
+        if (v < min) {
+          min = v;
+        }
+        if (v > max) {
+          max = v;
+        }
       }
       return { name: statName, values, min, max };
     },
@@ -366,15 +378,21 @@ export function PivotedStatTable<TRow>({
   // `values.get(stat)` is null/undefined; in aggregating mode it means every
   // `aggs.get(stat)` is missing or non-numeric (i.e. the cell would render '-').
   const visiblePivotedRows = useMemo(() => {
-    if (!hideEmptyRows) return pivotedRows;
+    if (!hideEmptyRows) {
+      return pivotedRows;
+    }
     return pivotedRows.filter(row => {
       for (const stat of effectiveVisibleStats) {
         if (isAggregating) {
           const agg = row.aggs.get(stat);
-          if (agg && agg.isNumeric) return true;
+          if (agg && agg.isNumeric) {
+            return true;
+          }
         } else {
           const v = row.values.get(stat);
-          if (v !== null && v !== undefined) return true;
+          if (v !== null && v !== undefined) {
+            return true;
+          }
         }
       }
       return false;
@@ -391,17 +409,25 @@ export function PivotedStatTable<TRow>({
         if (v !== null) {
           // Convert to number for gradient color math — precision loss is acceptable here
           const n = Number(v);
-          if (n < min) min = n;
-          if (n > max) max = n;
+          if (n < min) {
+            min = n;
+          }
+          if (n > max) {
+            max = n;
+          }
         }
       }
-      if (min !== Infinity) ranges.set(stat, { min, max });
+      if (min !== Infinity) {
+        ranges.set(stat, { min, max });
+      }
     }
     return ranges;
   }, [visiblePivotedRows, effectiveVisibleStats, isAggregating, aggMode]);
 
   const removeDragGhost = useCallback(() => {
-    if (dragGhostRef.current == null) return;
+    if (dragGhostRef.current == null) {
+      return;
+    }
     dragGhostRef.current.remove();
     dragGhostRef.current = null;
   }, []);
@@ -434,7 +460,9 @@ export function PivotedStatTable<TRow>({
       e.dataTransfer.setDragImage(dragGhost, offsetX, offsetY);
 
       return () => {
-        if (dragGhostRef.current === dragGhost) dragGhostRef.current = null;
+        if (dragGhostRef.current === dragGhost) {
+          dragGhostRef.current = null;
+        }
         dragGhost.remove();
       };
     },
@@ -446,10 +474,14 @@ export function PivotedStatTable<TRow>({
       setTableStatOrder(prev => {
         const next = prev.length > 0 ? [...prev] : [...resolvedVisibleStats];
         const fromIndex = next.indexOf(from);
-        if (fromIndex < 0 || from === to) return next;
+        if (fromIndex < 0 || from === to) {
+          return next;
+        }
         const [moved] = next.splice(fromIndex, 1);
         const targetIndex = next.indexOf(to);
-        if (targetIndex < 0) return next;
+        if (targetIndex < 0) {
+          return next;
+        }
         const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
         next.splice(insertIndex, 0, moved);
         return next;
@@ -476,11 +508,15 @@ export function PivotedStatTable<TRow>({
   // state whenever the pointer exits the document or the window loses focus.
   useEffect(() => {
     const onDocPointerOut = (e: PointerEvent) => {
-      if (e.relatedTarget == null) handleTableMouseLeave();
+      if (e.relatedTarget == null) {
+        handleTableMouseLeave();
+      }
     };
     const onWindowBlur = () => handleTableMouseLeave();
     const onVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') handleTableMouseLeave();
+      if (document.visibilityState !== 'visible') {
+        handleTableMouseLeave();
+      }
     };
     document.addEventListener('pointerout', onDocPointerOut);
     window.addEventListener('blur', onWindowBlur);
@@ -493,9 +529,13 @@ export function PivotedStatTable<TRow>({
   }, [handleTableMouseLeave]);
 
   useEffect(() => {
-    if (!effectiveHoveredItemId) return;
+    if (!effectiveHoveredItemId) {
+      return;
+    }
     const row = visiblePivotedRows.find(r => r.itemIds.has(effectiveHoveredItemId));
-    if (!row) return;
+    if (!row) {
+      return;
+    }
     const el = rowRefs.current.get(row.rowKey);
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [effectiveHoveredItemId, visiblePivotedRows]);
@@ -594,8 +634,11 @@ export function PivotedStatTable<TRow>({
 
   const getRowRef = useCallback(
     (rowKey: string) => (el: HTMLTableRowElement | null) => {
-      if (el) rowRefs.current.set(rowKey, el);
-      else rowRefs.current.delete(rowKey);
+      if (el) {
+        rowRefs.current.set(rowKey, el);
+      } else {
+        rowRefs.current.delete(rowKey);
+      }
     },
     []
   );

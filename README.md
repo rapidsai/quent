@@ -61,11 +61,11 @@ found here:
 While Quent is a Rust-based project, it can generate a C++ instrumentation API.
 This is shown here:
 
-- [C++ Integration Example](examples/cpp-integration/)
+- [Legacy C++ Integration Example](examples/legacy/cpp-integration/)
 
 It can also generate a PyO3-backed Python extension module for the same model:
 
-- [Python Integration Example](examples/python-integration/)
+- [Legacy Python Integration Example](examples/legacy/python-integration/)
 
 ## How
 

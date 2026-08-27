@@ -74,6 +74,7 @@ reviews:
         - Jotai for UI/interaction state; TanStack Query for server state; no ad-hoc Context stores for either.
         - Data fetching uses `@quent/client` `queryOptions` with stable `queryKey` arrays and `enabled` guards — not raw `useEffect` + `fetch` in components.
         - Jotai atoms only from React components/hooks/providers — never from plain utils.
+        - For every Jotai state addition, removal, or behavior change, investigate whether shareable state handling must change; flag missing companion updates to the deep-link schema/types and intake decoding/hydration in `ui/src/features/deep-link/`. Treat inconsistencies involving state already handled by `DeepLinkBoundary` as high- or critical-priority findings.
         - Merge classes via `cn()` from `@quent/utils`, not string concatenation; Tailwind tokens over one-off inline styles.
         - Use valid Tailwind utilities from the theme scale, or explicit arbitrary values (`w-[1px]`, `z-[8]`); flag non-standard classes like `w-0.25` unless the theme defines them.
         - Virtualize large lists/tables (`@tanstack/react-virtual`); this UI renders big traces.

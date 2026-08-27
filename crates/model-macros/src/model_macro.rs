@@ -14,6 +14,7 @@
 //!         quent_stdlib::memory::Memory,
 //!     },
 //!     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
+//!     nvtx: false,              // optional: defaults to true
 //! }
 //! ```
 //!
@@ -23,7 +24,7 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{LitStr, Path, Token};
+use syn::{LitBool, LitStr, Path, Token};
 
 struct DefineModelInput {
     name: Ident,
@@ -32,6 +33,8 @@ struct DefineModelInput {
     /// Optional `analyzer: "<crate>"`: the cargo package providing this model's
     /// `QuentViewer` entry, recorded in the provenance sidecar.
     analyzer_package: Option<LitStr>,
+    /// Whether generated CXX contexts attach an NVTX capture pipeline.
+    nvtx: bool,
 }
 
 impl Parse for DefineModelInput {
@@ -42,6 +45,7 @@ impl Parse for DefineModelInput {
         let mut root: Option<Path> = None;
         let mut components: Option<Vec<Path>> = None;
         let mut analyzer_package: Option<LitStr> = None;
+        let mut nvtx: Option<LitBool> = None;
 
         while !input.is_empty() {
             let key: Ident = input.parse()?;
@@ -78,11 +82,16 @@ impl Parse for DefineModelInput {
                         return Err(dup());
                     }
                 }
+                "nvtx" => {
+                    if nvtx.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
                 other => {
                     return Err(syn::Error::new_spanned(
                         &key,
                         format!(
-                            "unknown `model!` field `{other}`; expected `name`, `root`, `entities`, or `analyzer`"
+                            "unknown `model!` field `{other}`; expected `name`, `root`, `entities`, `analyzer`, or `nvtx`"
                         ),
                     ));
                 }
@@ -99,6 +108,7 @@ impl Parse for DefineModelInput {
             root,
             components: components.unwrap_or_default(),
             analyzer_package,
+            nvtx: nvtx.map(|value| value.value).unwrap_or(true),
         })
     }
 }
@@ -147,6 +157,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let model_type = format_ident!("{}Model", name);
     let event_type = format_ident!("{}Event", name);
+    let nvtx_options_type = format_ident!("__{}NvtxOptions", name);
+    let nvtx = input.nvtx;
 
     let root = &input.root;
 
@@ -409,8 +421,17 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     };
 
     let output = quote! {
+        #[doc(hidden)]
+        pub struct #nvtx_options_type;
+
+        impl quent_model::ModelComponent for #nvtx_options_type {
+            fn collect(builder: &mut quent_model::ModelBuilder) {
+                builder.nvtx = #nvtx;
+            }
+        }
+
         #[doc = #doc_model]
-        pub type #model_type = quent_model::Model<#model_tuple>;
+        pub type #model_type = quent_model::Model<(#model_tuple, #nvtx_options_type)>;
 
         #[doc = #doc_event]
         #[derive(#serde_derives)]
@@ -562,6 +583,7 @@ mod parse_tests {
             input.analyzer_package.map(|l| l.value()),
             Some("my-analyzer".to_string())
         );
+        assert!(input.nvtx);
     }
 
     #[test]
@@ -569,5 +591,13 @@ mod parse_tests {
         let input: DefineModelInput = syn::parse_str("name: App, root: a::Root").unwrap();
         assert!(input.analyzer_package.is_none());
         assert!(input.components.is_empty());
+        assert!(input.nvtx);
+    }
+
+    #[test]
+    fn parses_nvtx_opt_out() {
+        let input: DefineModelInput =
+            syn::parse_str("name: App, root: a::Root, nvtx: false").unwrap();
+        assert!(!input.nvtx);
     }
 }

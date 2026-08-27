@@ -22,7 +22,16 @@ export interface ActiveMark {
   derivedAttributes?: DynamicAttribute[];
   /** Duration of the hovered state span in milliseconds. */
   durationMs?: number;
+  /** Name + count row; skip duration/attribute details. */
+  compact?: boolean;
 }
+
+export interface TooltipItemNoun {
+  singular: string;
+  plural: string;
+}
+
+const DEFAULT_ITEM_NOUN: TooltipItemNoun = { singular: 'entity', plural: 'entities' };
 
 interface TooltipSeries {
   color: string;
@@ -183,7 +192,7 @@ const INLINE_VALUE_MAX_CHARS = 32;
 function MarkDetailRow({ name, value }: { name: string; value: string }) {
   if (value.length > INLINE_VALUE_MAX_CHARS) {
     return (
-      <div className="pl-3">
+      <div className="min-w-0 pl-3">
         <DataText className="text-muted-foreground">{name}</DataText>
         <DataText as="div" className="text-foreground break-words pl-2">
           {value}
@@ -192,58 +201,103 @@ function MarkDetailRow({ name, value }: { name: string; value: string }) {
     );
   }
   return (
-    <div className="flex items-center gap-1 pl-3">
-      <DataText className="text-muted-foreground">{name}</DataText>
-      <DataText className="text-foreground ml-auto">{value}</DataText>
+    <div className="flex min-w-0 items-start gap-1 pl-3">
+      <DataText className="shrink-0 text-muted-foreground">{name}</DataText>
+      <DataText className="text-foreground ml-auto min-w-0 break-words text-right">
+        {value}
+      </DataText>
     </div>
   );
 }
 
-const ACTIVE_MARK_LIMIT = 6;
-
-function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
-  if (marks.length === 0) return null;
-  const visibleMarks = marks.slice(0, ACTIVE_MARK_LIMIT);
-  const hiddenCount = marks.length - visibleMarks.length;
-
+function CompactCountRow({ mark }: { mark: ActiveMark }) {
   return (
-    <div className="mt-1 pt-1 border-t border-border">
-      {visibleMarks.map((m, i) => (
-        <div key={i}>
-          <div className="flex items-center gap-1">
-            <ColorSwatch color={m.color} />
-            <DataText className="text-muted-foreground">{m.label}</DataText>
-            <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
-          </div>
-          {m.durationMs !== undefined && (
-            <MarkDetailRow name="duration" value={formatDuration(m.durationMs)} />
-          )}
-          {m.attributes?.map(attr => (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <ColorSwatch color={mark.color} />
+      <DataText className="min-w-0 flex-1 break-words">{mark.label}</DataText>
+      {mark.stateName && (
+        <DataText className="ml-auto shrink-0 text-muted-foreground">{mark.stateName}</DataText>
+      )}
+    </div>
+  );
+}
+
+function MarkBlock({ mark }: { mark: ActiveMark }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1">
+        <ColorSwatch color={mark.color} />
+        <DataText
+          className={cn('min-w-0 break-words', {
+            'text-muted-foreground': mark.stateName,
+            'font-medium text-foreground': !mark.stateName,
+          })}
+        >
+          {mark.label}
+        </DataText>
+        {mark.stateName && (
+          <DataText className="text-foreground font-medium ml-auto min-w-0 flex-1 break-words text-right">
+            {mark.stateName}
+          </DataText>
+        )}
+      </div>
+      {mark.durationMs !== undefined && (
+        <MarkDetailRow name="duration" value={formatDuration(mark.durationMs)} />
+      )}
+      {mark.attributes?.map(attr => (
+        <MarkDetailRow
+          key={attr.key}
+          name={attr.key}
+          value={formatAttributeValue(attr.key, attr.value)}
+        />
+      ))}
+      {mark.derivedAttributes && mark.derivedAttributes.length > 0 && (
+        <>
+          <DataText as="div" className="pl-3 pt-0.5 text-muted-foreground italic opacity-70">
+            derived
+          </DataText>
+          {mark.derivedAttributes.map(attr => (
             <MarkDetailRow
               key={attr.key}
               name={attr.key}
               value={formatAttributeValue(attr.key, attr.value)}
             />
           ))}
-          {m.derivedAttributes && m.derivedAttributes.length > 0 && (
-            <>
-              <DataText as="div" className="pl-3 pt-0.5 text-muted-foreground italic opacity-70">
-                derived
-              </DataText>
-              {m.derivedAttributes.map(attr => (
-                <MarkDetailRow
-                  key={attr.key}
-                  name={attr.key}
-                  value={formatAttributeValue(attr.key, attr.value)}
-                />
-              ))}
-            </>
-          )}
-        </div>
-      ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+const ACTIVE_MARK_LIMIT = 6;
+
+function ActiveMarksSection({
+  marks,
+  itemLimit = ACTIVE_MARK_LIMIT,
+  itemNoun = DEFAULT_ITEM_NOUN,
+}: {
+  marks: ActiveMark[];
+  itemLimit?: number;
+  itemNoun?: TooltipItemNoun;
+}) {
+  if (marks.length === 0) {
+    return null;
+  }
+  const visibleMarks = marks.slice(0, itemLimit);
+  const hiddenCount = marks.length - visibleMarks.length;
+
+  return (
+    <div className="mt-1 space-y-1 border-t border-border pt-1">
+      {visibleMarks.map((mark, index) =>
+        mark.compact ? (
+          <CompactCountRow key={index} mark={mark} />
+        ) : (
+          <MarkBlock key={index} mark={mark} />
+        )
+      )}
       {hiddenCount > 0 && (
         <DataText as="div" className="pt-1 text-muted-foreground">
-          {hiddenCount} more {hiddenCount === 1 ? 'entity' : 'entities'} not shown
+          {hiddenCount} more {hiddenCount === 1 ? itemNoun.singular : itemNoun.plural} not shown
         </DataText>
       )}
     </div>
@@ -256,12 +310,14 @@ function OverlayBarTooltip({
   fmt,
   windowMs,
   activeMarks,
+  itemNoun,
 }: {
   timestamp: number;
   bars: StateBar[];
   fmt: ValueFormatter;
   windowMs: number;
   activeMarks?: ActiveMark[];
+  itemNoun?: TooltipItemNoun;
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -340,7 +396,7 @@ function OverlayBarTooltip({
             );
           })()}
       </div>
-      {activeMarks && <ActiveMarksSection marks={activeMarks} />}
+      {activeMarks && <ActiveMarksSection marks={activeMarks} itemNoun={itemNoun} />}
     </div>
   );
 }
@@ -350,18 +406,39 @@ export function EntityTooltipContent({
   timestamp,
   windowMs,
   activeMarks,
+  itemLimit,
+  itemNoun,
+  summary,
+  className,
 }: {
   /** Elapsed ms from query start. */
   timestamp: number;
   windowMs: number;
   activeMarks: ActiveMark[];
+  /** Hide overflow items and show a remainder line. */
+  itemLimit?: number;
+  /** Singular and plural names used for hidden items. */
+  itemNoun?: TooltipItemNoun;
+  /** Totals line, e.g. "12 ranges". */
+  summary?: string;
+  className?: string;
 }) {
   return (
-    <div className="overflow-x-hidden px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
+    <div
+      className={cn(
+        'overflow-x-hidden px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50',
+        className
+      )}
+    >
       <DataText as="div" className="font-semibold mb-1 text-muted-foreground">
         {formatDurationForWindow(timestamp, windowMs)}
       </DataText>
-      <ActiveMarksSection marks={activeMarks} />
+      {summary && (
+        <DataText as="div" className="mb-1 font-medium">
+          {summary}
+        </DataText>
+      )}
+      <ActiveMarksSection marks={activeMarks} itemLimit={itemLimit} itemNoun={itemNoun} />
     </div>
   );
 }
@@ -372,12 +449,14 @@ export function TooltipContent({
   fmt = defaultFormatter,
   windowMs,
   activeMarks,
+  itemNoun,
 }: {
   timestamp: number;
   series: TooltipSeries[];
   fmt?: ValueFormatter;
   windowMs: number;
   activeMarks?: ActiveMark[];
+  itemNoun?: TooltipItemNoun;
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 
@@ -407,6 +486,7 @@ export function TooltipContent({
         fmt={fmt}
         windowMs={windowMs}
         activeMarks={activeMarks}
+        itemNoun={itemNoun}
       />
     );
   }
@@ -427,7 +507,7 @@ export function TooltipContent({
           fmt={fmt}
         />
       </section>
-      {activeMarks && <ActiveMarksSection marks={activeMarks} />}
+      {activeMarks && <ActiveMarksSection marks={activeMarks} itemNoun={itemNoun} />}
     </div>
   );
 }

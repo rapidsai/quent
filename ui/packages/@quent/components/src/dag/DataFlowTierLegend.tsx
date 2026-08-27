@@ -31,9 +31,13 @@ export const DataFlowTierLegend = memo(function DataFlowTierLegend({
 }: DataFlowTierLegendProps) {
   const frame = useDataFlowFrame();
   const entrySuffixes = useMemo(() => {
-    if (!frame) return undefined;
+    if (!frame) {
+      return undefined;
+    }
     const totals = frame.dimensionTotalsByMeasure[frame.measure];
-    if (!totals) return undefined;
+    if (!totals) {
+      return undefined;
+    }
     const suffixes = new Map<string, string>();
     meta.decl.dimension_keys.forEach((k, index) => {
       const total = totals[index] ?? 0;

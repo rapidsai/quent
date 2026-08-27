@@ -1,4 +1,4 @@
-# C++ Integration Example
+# Legacy C++ Integration Example
 
 Demonstrates using a Quent model from C++ via the CXX bridge.
 Uses the same model as the [README example](../readme/src/lib.rs).
@@ -19,7 +19,7 @@ Requires cmake, a C++ compiler, and Rust toolchain (via pixi or manually).
 
 ```bash
 pixi shell
-cd examples/cpp-integration/cpp
+cd examples/legacy/cpp-integration/cpp
 cmake -B build
 cmake --build build
 ```

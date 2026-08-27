@@ -72,7 +72,9 @@ export const NodeFlowBar = memo(
       [dimensionKeys, theme]
     );
 
-    if (!meta || !frame) return null;
+    if (!meta || !frame) {
+      return null;
+    }
 
     const operatorFrame = frame.perOperator.get(operatorId);
     const total = operatorFrame?.total ?? 0;
@@ -91,7 +93,9 @@ export const NodeFlowBar = memo(
     const stateSegments = hasData
       ? meta.stateNames.flatMap((state, stateIndex) => {
           const value = operatorFrame.byState[stateIndex] ?? 0;
-          if (value <= 0) return [];
+          if (value <= 0) {
+            return [];
+          }
           const color = stateColor(state);
           const label = fitDataFlowSegmentLabel(
             value,
@@ -110,7 +114,9 @@ export const NodeFlowBar = memo(
     const dimensionSegments = hasData
       ? meta.decl.dimension_keys.flatMap((dimension, dimensionIndex) => {
           const value = operatorFrame.byDimension[dimensionIndex] ?? 0;
-          if (value <= 0) return [];
+          if (value <= 0) {
+            return [];
+          }
           const color = dimensionColor(dimension.key);
           const label = fitDataFlowSegmentLabel(
             value,

@@ -17,7 +17,7 @@ import { continuousColor, withOpacity, getOperationTypeColor } from '@quent/util
 import type { OperatorActiveSpanEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
 import type { GanttHover } from '../gantt-chart/hover';
-import { clipRectByRect } from '../gantt-chart/utils';
+import { layoutGanttBar } from '../gantt-chart/utils';
 import { getOperatorsAtTimestamp } from './utils';
 import { GanttTooltipPortal, type GanttTooltipItem } from '../ui/gantt-tooltip';
 
@@ -80,9 +80,13 @@ export function OperatorGanttChart({
   );
   const operatorFieldStyles = useMemo(() => {
     const styles = new Map<string, { stroke?: string; fieldDimmed: boolean }>();
-    if (!nodeColoring) return styles;
+    if (!nodeColoring) {
+      return styles;
+    }
     for (const op of operators) {
-      if (styles.has(op.operatorId)) continue;
+      if (styles.has(op.operatorId)) {
+        continue;
+      }
       if (nodeColoring.type === 'continuous') {
         const v = nodeColoring.values.get(op.operatorId);
         if (v === undefined) {
@@ -106,37 +110,13 @@ export function OperatorGanttChart({
   }, [operators, nodeColoring, nodePalette, isDark]);
   const renderItem: GanttRenderItem = useCallback(
     (params, api) => {
-      const startMs = api.value(0) as number;
-      const endMs = api.value(1) as number;
-      const rowIndex = api.value(2) as number;
-      if (endMs <= startMs) return null;
-      const startPoint = api.coord([startMs, rowIndex]);
-      const endPoint = api.coord([endMs, rowIndex]);
-
-      // Full band height
-      const barHeight = Math.max(1, BAR_HEIGHT - BAR_GAP);
-      const y = startPoint[1] - barHeight / 2;
-      const width = Math.max(1, endPoint[0] - startPoint[0]);
-
-      // Clips boxes to the chart container
-      const coord = params.coordSys as { x?: number; y?: number; width?: number; height?: number };
-      const clipBound =
-        typeof coord.width === 'number' && typeof coord.height === 'number'
-          ? {
-              x: coord.x ?? 0,
-              y: coord.y ?? 0,
-              width: coord.width,
-              height: coord.height,
-            }
-          : null;
-      const rectShape = {
-        x: startPoint[0],
-        y,
-        width,
-        height: barHeight,
-      };
-      const clippedShape = clipBound ? clipRectByRect(rectShape, clipBound) : rectShape;
-      if (!clippedShape) return null;
+      const layout = layoutGanttBar(params, api, {
+        barHeight: Math.max(1, BAR_HEIGHT - BAR_GAP),
+      });
+      if (!layout) {
+        return null;
+      }
+      const { clippedShape } = layout;
 
       const op = operators[params.dataIndexInside];
       const barLabel =
@@ -160,15 +140,12 @@ export function OperatorGanttChart({
         },
       };
 
-      const textX = clippedShape.x + 6;
-      const textY = clippedShape.y + clippedShape.height / 2;
-
       const text = {
         type: 'text' as const,
         style: {
           text: barLabel,
-          x: textX,
-          y: textY,
+          x: clippedShape.x + 6,
+          y: clippedShape.y + clippedShape.height / 2,
           textVerticalAlign: 'middle' as const,
           fontSize: BAR_FONT_SIZE,
           fill: barLabelTextColor,
@@ -189,9 +166,13 @@ export function OperatorGanttChart({
   const handleClick = useMemo(
     () => ({
       click: (params: { dataIndex: number; seriesName?: string }) => {
-        if (params.seriesName !== 'operator-span') return;
+        if (params.seriesName !== 'operator-span') {
+          return;
+        }
         const op = operators[params.dataIndex];
-        if (!op) return;
+        if (!op) {
+          return;
+        }
         if (selectedNodeIds.size === 1 && selectedNodeIds.has(op.operatorId)) {
           setSelectedNodeIds(new Set());
           setSelectedOperatorLabel(null);

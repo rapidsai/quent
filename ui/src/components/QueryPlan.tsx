@@ -97,7 +97,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   useLayoutEffect(() => {
     const treeContent = treeContentRef.current;
     const topPanel = topPanelRef.current;
-    if (!treeContent || !topPanel) return;
+    if (!treeContent || !topPanel) {
+      return;
+    }
 
     const tabsListHeight = tabsListRef.current?.offsetHeight ?? 0;
     const desiredPx = treeContent.scrollHeight + tabsListHeight;

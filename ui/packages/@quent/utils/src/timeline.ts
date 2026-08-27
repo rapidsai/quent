@@ -4,7 +4,9 @@
 import type { OperatorFilter, TimelineRequest } from './types';
 
 export function getResourceTypeName(request: TimelineRequest<OperatorFilter> | undefined): string {
-  if (!request || !('ResourceGroup' in request)) return '';
+  if (!request || !('ResourceGroup' in request)) {
+    return '';
+  }
   return request.ResourceGroup.resource_type_name;
 }
 

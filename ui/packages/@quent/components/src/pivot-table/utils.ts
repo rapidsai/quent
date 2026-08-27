@@ -29,17 +29,27 @@ export interface GroupIndexDef {
 }
 
 export function formatNumericStat(n: number | bigint | null, statName: string): string {
-  if (n === null) return '-';
+  if (n === null) {
+    return '-';
+  }
   return inferFieldFormatter(statName)(n);
 }
 
 export const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) => {
   const a = rowA.getValue<number | bigint | undefined>(columnId);
   const b = rowB.getValue<number | bigint | undefined>(columnId);
-  if (a === b) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-  if (typeof a === typeof b) return a < b ? -1 : 1;
+  if (a === b) {
+    return 0;
+  }
+  if (a == null) {
+    return 1;
+  }
+  if (b == null) {
+    return -1;
+  }
+  if (typeof a === typeof b) {
+    return a < b ? -1 : 1;
+  }
   return (a as number) < (b as number) ? -1 : 1;
 };
 
@@ -51,16 +61,26 @@ export const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) =>
  */
 export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>): boolean {
   for (const id of items) {
-    if (target.has(id)) return true;
+    if (target.has(id)) {
+      return true;
+    }
   }
   return false;
 }
 
 export function formatStatValue(value: StatValue, statName: string): string {
-  if (value === null || value === undefined) return '-';
-  if (isNumericValue(value)) return formatNumericStat(value, statName);
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (Array.isArray(value)) return value.join(', ');
+  if (value === null || value === undefined) {
+    return '-';
+  }
+  if (isNumericValue(value)) {
+    return formatNumericStat(value, statName);
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (Array.isArray(value)) {
+    return value.join(', ');
+  }
   return String(value);
 }
 
@@ -76,7 +96,9 @@ export function gradientBg(
   const vn = Number(value);
   const mn = Number(min);
   const mx = Number(max);
-  if (mn === mx) return undefined;
+  if (mn === mx) {
+    return undefined;
+  }
   const t = (vn - mn) / (mx - mn);
   return continuousColor(t, palette, darkMode);
 }
@@ -93,7 +115,9 @@ export function getUniqueStatNames(rows: StatGroupExpandedRow[]): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
   for (const row of rows) {
-    if (seen.has(row.statisticName)) continue;
+    if (seen.has(row.statisticName)) {
+      continue;
+    }
     seen.add(row.statisticName);
     names.push(row.statisticName);
   }
@@ -109,7 +133,9 @@ export function getSchemaStatNames<TRow>(
   for (const row of rows) {
     const stats = schema.stats(row);
     for (const statName of Object.keys(stats)) {
-      if (seen.has(statName)) continue;
+      if (seen.has(statName)) {
+        continue;
+      }
       seen.add(statName);
       names.push(statName);
     }
@@ -156,7 +182,9 @@ export type RowWithGroupKeys = { groupKeys: Array<{ id: string }> };
 export function computeRowSpans<T extends RowWithGroupKeys>(rows: T[]): (number | null)[][] {
   const numCols = rows[0]?.groupKeys.length ?? 0;
   const spans: (number | null)[][] = rows.map(() => new Array(numCols).fill(null));
-  if (rows.length === 0) return spans;
+  if (rows.length === 0) {
+    return spans;
+  }
 
   for (let col = 0; col < numCols; col++) {
     let start = 0;
@@ -186,11 +214,15 @@ export function getSortValue(
 ): number | bigint | null {
   if (!isAgg) {
     const v = row.values.get(stat);
-    if (v === undefined) return null;
+    if (v === undefined) {
+      return null;
+    }
     return isNumericValue(v) ? v : null;
   }
   const agg = row.aggs.get(stat);
-  if (!agg || !agg.isNumeric) return null;
+  if (!agg || !agg.isNumeric) {
+    return null;
+  }
   switch (aggMode) {
     case 'sum':
       return agg.sum;
@@ -352,14 +384,18 @@ export function buildPivotedRows(
       for (let c = 0; c < row.groupKeys.length; c++) {
         const ranks = rankByCol[c];
         const k = pathKey(row, c);
-        if (!ranks.has(k)) ranks.set(k, ranks.size);
+        if (!ranks.has(k)) {
+          ranks.set(k, ranks.size);
+        }
       }
     }
     result.sort((a, b) => {
       for (let c = 0; c < a.groupKeys.length; c++) {
         const ra = rankByCol[c].get(pathKey(a, c))!;
         const rb = rankByCol[c].get(pathKey(b, c))!;
-        if (ra !== rb) return ra - rb;
+        if (ra !== rb) {
+          return ra - rb;
+        }
       }
       return 0;
     });

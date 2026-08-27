@@ -20,6 +20,7 @@ export default defineConfig(({ command }) => ({
         fileURLToPath(
           new URL('../../../../crates/schema/ts', import.meta.url),
         ),
+        fileURLToPath(new URL('../../../../ui', import.meta.url)),
       ],
     },
   },

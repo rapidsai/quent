@@ -76,6 +76,14 @@ export interface TimelineHoverState {
 
 export const timelineHoverAtom = atom<TimelineHoverState | null>(null);
 
+export interface TimelinePointerState {
+  ratio: number;
+  ownerId: string;
+}
+
+/** Shared horizontal pointer position within the visible timeline plot. */
+export const timelinePointerAtom = atom<TimelinePointerState | null>(null);
+
 /** Start time in milliseconds — set once per query, never changes */
 export const startTimeMsAtom = atom(0);
 

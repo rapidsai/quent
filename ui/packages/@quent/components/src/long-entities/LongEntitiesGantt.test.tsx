@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LongEntitiesGantt } from './LongEntitiesGantt';
 import type { LongEntityEntry } from './types';
@@ -23,10 +23,10 @@ vi.mock('../timeline/timelineEchartsTheme', () => ({
 
 vi.mock('../gantt-chart/GanttChart', () => ({
   GanttChart: (props: {
-    animateHeight: boolean;
-    contentPaddingBottom: number;
+    collapseLabel: string;
     emptyMessage: ReactNode;
-    gridSpacing: { bottom: number };
+    expandable: boolean;
+    expandLabel: string;
     maxHeight: number;
   }) => {
     mocks.ganttChart(props);
@@ -46,7 +46,7 @@ describe('LongEntitiesGantt', () => {
     ).toBeInTheDocument();
   });
 
-  it('expands to fit all rows and collapses to the default height', () => {
+  it('delegates expansion to the shared Gantt chart', () => {
     const entries: LongEntityEntry[] = [
       {
         entityId: 'entity-1',
@@ -77,20 +77,11 @@ describe('LongEntitiesGantt', () => {
 
     expect(mocks.ganttChart).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        animateHeight: true,
-        contentPaddingBottom: 12,
-        gridSpacing: expect.objectContaining({ bottom: 14.5 }),
+        collapseLabel: 'Collapse entities chart',
+        expandable: true,
+        expandLabel: 'Expand entities chart',
         maxHeight: 75,
       })
     );
-
-    const expandButton = screen.getByRole('button', { name: 'Expand entities chart' });
-    expect(expandButton).toHaveStyle({ right: '10px' });
-    expect(expandButton).toHaveClass('focus-visible:ring-0', 'focus-visible:ring-offset-0');
-    fireEvent.click(expandButton);
-    expect(mocks.ganttChart).toHaveBeenLastCalledWith(expect.objectContaining({ maxHeight: 96 }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse entities chart' }));
-    expect(mocks.ganttChart).toHaveBeenLastCalledWith(expect.objectContaining({ maxHeight: 75 }));
   });
 });

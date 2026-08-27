@@ -13,6 +13,7 @@
 //! `static-injection` feature, so NVTX initializes injection at the first NVTX
 //! call in whatever binary links the crate.
 
+use std::ffi::CString;
 use std::sync::{Arc, Barrier};
 
 use nvtx_bridge::NvtxEventEntity;
@@ -65,11 +66,11 @@ pub fn run_capture_n_threads(
 /// events interleave in time.
 fn annotated_work_n_threads(n: usize) {
     if n == 1 {
-        nvtx::name_thread!("nvtx-example/main");
-        nvtx::mark!("startup");
-        nvtx::range_push!("phase-1");
-        nvtx::range_pop!();
-        let phase2 = nvtx::range!("phase-2");
+        nvtx::name_thread(current_thread_id(), c"nvtx-example/main");
+        nvtx::mark(c"startup");
+        let phase1 = nvtx::LocalRange::new(c"phase-1");
+        drop(phase1);
+        let phase2 = nvtx::Range::new(c"phase-2");
         drop(phase2);
         return;
     }
@@ -82,12 +83,22 @@ fn annotated_work_n_threads(n: usize) {
             let b = Arc::clone(&barrier);
             std::thread::spawn(move || {
                 b.wait();
-                nvtx::range_push!("{}", format!("thread-{i}"));
-                nvtx::range_pop!();
+                let name = CString::new(format!("thread-{i}"))
+                    .expect("generated thread range name contains no NUL");
+                let range = nvtx::LocalRange::new(name);
+                drop(range);
             })
         })
         .collect();
     for h in handles {
         h.join().expect("worker thread panicked");
     }
+}
+
+fn current_thread_id() -> u32 {
+    // The glibc `gettid()` wrapper requires glibc >= 2.30, but Quent's Conda
+    // toolchain supports an older sysroot. The Linux syscall is stable across
+    // every architecture supported by this Linux-64-only integration.
+    // SAFETY: `gettid` takes no arguments and returns the caller's kernel task id.
+    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
 }

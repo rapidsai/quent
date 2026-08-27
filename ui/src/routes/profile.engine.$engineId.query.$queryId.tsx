@@ -33,7 +33,6 @@ const activeTabClass = cn(tabClass, 'text-foreground font-semibold bg-muted shad
 
 function QueryLayout() {
   const { engineId, queryId } = Route.useParams();
-  const search = Route.useSearch();
   return (
     <div className="flex min-w-0 flex-col h-full w-full">
       <div className="shrink-0 border-b">
@@ -41,7 +40,6 @@ function QueryLayout() {
           <Link
             to="/profile/engine/$engineId/query/$queryId/timeline"
             params={{ engineId, queryId }}
-            search={search}
             className={tabClass}
             activeProps={{ className: activeTabClass }}
           >
@@ -50,7 +48,6 @@ function QueryLayout() {
           <Link
             to="/profile/engine/$engineId/query/$queryId/operators"
             params={{ engineId, queryId }}
-            search={search}
             className={tabClass}
             activeProps={{ className: activeTabClass }}
           >
@@ -59,7 +56,6 @@ function QueryLayout() {
           <Link
             to="/profile/engine/$engineId/query/$queryId/entities"
             params={{ engineId, queryId }}
-            search={search}
             className={tabClass}
             activeProps={{ className: activeTabClass }}
           >

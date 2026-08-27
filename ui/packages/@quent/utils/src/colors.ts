@@ -120,9 +120,13 @@ function hashString(str: string): number {
  */
 function pickPaletteIndex(key: string, paletteSize: number, used: Set<number>): number {
   const hashIndex = hashString(key) % paletteSize;
-  if (used.size >= paletteSize) return hashIndex;
+  if (used.size >= paletteSize) {
+    return hashIndex;
+  }
   let index = hashIndex;
-  while (used.has(index)) index = (index + 1) % paletteSize;
+  while (used.has(index)) {
+    index = (index + 1) % paletteSize;
+  }
   return index;
 }
 
@@ -236,10 +240,14 @@ export function createDataFlowStateColorFn(
  */
 function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<string, number> {
   const stateIndexMap = new Map<string, number>();
-  if (!fsmTypes) return stateIndexMap;
+  if (!fsmTypes) {
+    return stateIndexMap;
+  }
 
   for (const decl of Object.values(fsmTypes)) {
-    if (!decl) continue;
+    if (!decl) {
+      continue;
+    }
     for (let i = 0; i < decl.states.length; i++) {
       stateIndexMap.set(decl.states[i]!.name, i);
     }

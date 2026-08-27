@@ -30,6 +30,7 @@ import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
 import { Opts } from 'echarts-for-react/lib/types';
+import { TimelinePointerArea } from './TimelinePointerArea';
 
 const DIMMED_OPACITY = 0.25;
 
@@ -220,12 +221,7 @@ export function Timeline({
       max: durationSeconds * 1_000,
       axisLine: { onZero: true },
       axisLabel: { show: false },
-      axisPointer: {
-        show: true,
-        type: 'line',
-        animation: false,
-        label: { show: false },
-      },
+      axisPointer: { show: false },
     }),
     [durationSeconds]
   );
@@ -235,22 +231,10 @@ export function Timeline({
   const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
   const attachWheelNavigation = useTimelineWheelNavigation(minZoomSpanPct);
 
-  // ECharts' built-in tooltip is reduced to crosshair only (`showContent: false`).
-  // Tooltip content is rendered by the parent via `onHoverChange` — keeping
-  // `connect()` mirroring `showTip` harmless (only the crosshair paints,
-  // never tooltip DOM.
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       animation: false,
-      tooltip: {
-        show: true,
-        showContent: false,
-        trigger: 'axis',
-        transitionDuration: 0,
-      },
-      axisPointer: {
-        link: [{ xAxisIndex: 'all' }],
-      },
+      tooltip: { show: false },
       grid: gridOptions,
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
@@ -319,9 +303,15 @@ export function Timeline({
     // converts pointer pixels into a snapped bin index so the parent can
     // sample series data without re-doing the search.
     const reportHover = (e: PointerEvent) => {
-      if (!showTooltipRef.current) return;
-      if (isDraggingRef.current) return;
-      if (instance.isDisposed?.()) return;
+      if (!showTooltipRef.current) {
+        return;
+      }
+      if (isDraggingRef.current) {
+        return;
+      }
+      if (instance.isDisposed?.()) {
+        return;
+      }
       const rect = dom.getBoundingClientRect();
       const offsetX = e.clientX - rect.left;
       // Don't report hover if the pointer is outside the timeline
@@ -332,13 +322,17 @@ export function Timeline({
       let tsMs: number;
       try {
         const v = instance.convertFromPixel({ xAxisIndex: 0 }, offsetX);
-        if (v == null || !isFinite(v as number)) return;
+        if (v == null || !isFinite(v as number)) {
+          return;
+        }
         tsMs = v as number;
       } catch {
         return;
       }
       const idx = snapToBinIndex(timestampsRef.current, tsMs);
-      if (idx < 0) return;
+      if (idx < 0) {
+        return;
+      }
       onHoverChangeRef.current?.({
         dataIndex: idx,
         timestampMs: tsMs,
@@ -384,7 +378,7 @@ export function Timeline({
   });
 
   return (
-    <div className="relative w-full h-full">
+    <TimelinePointerArea className="h-full w-full">
       {(yAxisLabel != null || maxValue != null) && (
         <div
           className="absolute z-[8] pointer-events-none flex flex-col items-start gap-px text-[10px] leading-none"
@@ -423,7 +417,7 @@ export function Timeline({
         replaceMerge={['series']}
         autoResize={false}
       />
-    </div>
+    </TimelinePointerArea>
   );
 }
 
@@ -433,19 +427,28 @@ export function Timeline({
  */
 function snapToBinIndex(timestamps: number[], ts: number): number {
   const n = timestamps.length;
-  if (n === 0) return -1;
-  if (n === 1) return 0;
+  if (n === 0) {
+    return -1;
+  }
+  if (n === 1) {
+    return 0;
+  }
   let lo = 0;
   let hi = n - 1;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if ((timestamps[mid] ?? 0) < ts) lo = mid + 1;
-    else hi = mid;
+    if ((timestamps[mid] ?? 0) < ts) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
   }
   if (lo > 0) {
     const a = timestamps[lo - 1] ?? 0;
     const b = timestamps[lo] ?? 0;
-    if (Math.abs(a - ts) < Math.abs(b - ts)) return lo - 1;
+    if (Math.abs(a - ts) < Math.abs(b - ts)) {
+      return lo - 1;
+    }
   }
   return lo;
 }

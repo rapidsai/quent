@@ -32,6 +32,8 @@ pub use quent_dynamic_attributes::DynamicAttributes;
 pub use quent_events as events;
 pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
 pub use quent_io::{ExporterOptions, ExporterProvider};
+#[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
+pub use quent_io::{FileSystemExporterOptions, FileSystemFormat};
 pub use uuid::Uuid;
 
 /// A caller-supplied typed event sink, selected via the `io-callback` feature.

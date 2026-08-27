@@ -170,7 +170,9 @@ export function deriveCapacityLabel(
   quantitySpecs: { [key in string]?: QuantitySpec } | undefined
 ): string | undefined {
   const meaningful = resourceTypeDecl?.capacities.filter(c => c.name !== 'unit') ?? [];
-  if (meaningful.length === 0) return undefined;
+  if (meaningful.length === 0) {
+    return undefined;
+  }
   if (meaningful.length === 1) {
     const cap = meaningful[0]!;
     const spec = quantitySpecs?.[cap.quantity];
@@ -190,8 +192,12 @@ export function getTimelineConfig(response: SingleTimelineResponse): BinnedSpanS
 
 /** Extract long_fsms from a ResourceTimeline response. */
 export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
-  if ('Binned' in data) return data.Binned.long_fsms;
-  if ('BinnedByState' in data) return data.BinnedByState.long_fsms;
+  if ('Binned' in data) {
+    return data.Binned.long_fsms;
+  }
+  if ('BinnedByState' in data) {
+    return data.BinnedByState.long_fsms;
+  }
   return [];
 }
 
@@ -211,7 +217,9 @@ export function buildTimelineMarks(
   overlayFsmIds?: Set<string>,
   overlayLabel?: string
 ): TimelineMark[] | undefined {
-  if (longFsms.length === 0) return undefined;
+  if (longFsms.length === 0) {
+    return undefined;
+  }
 
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
 
@@ -295,14 +303,20 @@ export function mergeOverlaySeries(
 
 /** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
 export function getResourceTypeName(params: TimelineRequest<OperatorFilter> | undefined): string {
-  if (!params) return '';
-  if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
+  if (!params) {
+    return '';
+  }
+  if ('ResourceGroup' in params) {
+    return params.ResourceGroup.resource_type_name;
+  }
   return '';
 }
 
 /** Extract the entity_type_name (FSM filter) from a TimelineRequest */
 export function getFsmTypeName(params: TimelineRequest<OperatorFilter>): string | null {
-  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
+  if ('ResourceGroup' in params) {
+    return params.ResourceGroup.entity_filter.entity_type_name;
+  }
   return params.Resource.entity_filter.entity_type_name;
 }
 
@@ -399,7 +413,9 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   // Choose the largest "nice" interval that still satisfies the minimum split count.
   for (let i = NICE_TIMELINE_INTERVALS_MS.length - 1; i >= 0; i--) {
     const intervalMs = NICE_TIMELINE_INTERVALS_MS[i]!;
-    if (intervalMs <= maxAllowedStep) return intervalMs;
+    if (intervalMs <= maxAllowedStep) {
+      return intervalMs;
+    }
   }
 
   // Fallback for very small spans where even the smallest nice interval is too coarse.
@@ -445,140 +461,6 @@ export const connectChart = (
   connect(chartGroup);
 };
 
-/* Axis pointer sync — manual crosshair sync across charts
- *
- * We manually broadcast showTip/hideTip by converting a shared timestamp
- * to each chart's local pixel coordinate, since the controller uses a
- * different xAxis type (value) than the resource timelines (time).
- */
-
-interface AxisPointerEntry {
-  instance: EChartsInstance;
-  xAxisIndex: number;
-  receiveShowTip: boolean;
-  onMouseMove: (e: { offsetX: number }) => void;
-  onGlobalOut: () => void;
-}
-
-const axisPointerRegistry = new Set<AxisPointerEntry>();
-let isBroadcasting = false;
-
-function broadcastShowPointer(source: EChartsInstance | null, timestampMs: number) {
-  if (isBroadcasting) return;
-  isBroadcasting = true;
-  try {
-    axisPointerRegistry.forEach(({ instance, xAxisIndex, receiveShowTip }) => {
-      if (instance === source || !receiveShowTip) return;
-      try {
-        const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
-        if (pixel != null && isFinite(pixel)) {
-          instance.dispatchAction({
-            type: 'showTip',
-            x: pixel,
-            y: instance.getHeight() / 2,
-          });
-        }
-      } catch {
-        // Target chart may not be ready or value out of range
-      }
-    });
-  } finally {
-    isBroadcasting = false;
-  }
-}
-
-function broadcastHidePointer(source: EChartsInstance | null) {
-  if (isBroadcasting) return;
-  isBroadcasting = true;
-  try {
-    axisPointerRegistry.forEach(({ instance }) => {
-      if (instance === source) return;
-      try {
-        instance.dispatchAction({ type: 'hideTip' });
-      } catch {
-        // Ignore disposed instances
-      }
-    });
-  } finally {
-    isBroadcasting = false;
-  }
-}
-
-/**
- * Broadcast a synced axis-pointer crosshair at `timestampMs` (ms relative to
- * query start) to every registered timeline chart, without a source chart. Used by the DAG
- * playhead so scrubbing/playing draws a crosshair on the right-panel
- * timelines with zero React re-renders.
- */
-export function broadcastSyncedPointer(timestampMs: number) {
-  broadcastShowPointer(null, timestampMs);
-}
-
-/** Hide the crosshair broadcast by {@link broadcastSyncedPointer}. */
-export function hideSyncedPointer() {
-  broadcastHidePointer(null);
-}
-
-export interface AxisPointerSyncOptions {
-  /** If false, this chart will not receive showTip when the pointer is synced from another chart (default true). */
-  receiveShowTip?: boolean;
-}
-
-/**
- * Register a chart instance for manual axis pointer sync.
- * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
- * regardless of tooltip/axisPointer configuration differences.
- * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
- * @param options.receiveShowTip If false, tooltip is only shown when the user hovers this chart (default true).
- */
-export function registerAxisPointerSync(
-  instance: EChartsInstance,
-  xAxisIndex = 0,
-  options: AxisPointerSyncOptions = {}
-) {
-  const receiveShowTip = options.receiveShowTip !== false;
-  const onMouseMove = (e: { offsetX: number }) => {
-    try {
-      const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
-      if (value != null && isFinite(value as number)) {
-        broadcastShowPointer(instance, value as number);
-      }
-    } catch {
-      // Chart grid not ready
-    }
-  };
-
-  const onGlobalOut = () => {
-    broadcastHidePointer(instance);
-  };
-
-  const zr = instance.getZr();
-  zr.on('mousemove', onMouseMove);
-  zr.on('globalout', onGlobalOut);
-
-  const entry = { instance, xAxisIndex, receiveShowTip, onMouseMove, onGlobalOut };
-  axisPointerRegistry.add(entry);
-
-  (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;
-}
-
-/** Unregister a chart instance from axis pointer sync. */
-export function unregisterAxisPointerSync(instance: EChartsInstance) {
-  const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
-    AxisPointerEntry | undefined;
-  if (!entry) return;
-
-  axisPointerRegistry.delete(entry);
-
-  const zr = instance.getZr?.();
-  if (zr) {
-    zr.off('mousemove', entry.onMouseMove);
-    zr.off('globalout', entry.onGlobalOut);
-  }
-
-  delete (instance as unknown as Record<string, unknown>).__axisPointerEntry;
-}
-
 // Helper function to lookup entity from QueryEntities
 const lookupEntity = (
   entities: QueryEntities,
@@ -586,7 +468,9 @@ const lookupEntity = (
   entityId: string
 ): EntityTypeValue | undefined => {
   const entityKey = entityRefToEntitiesKey(entityType);
-  if (!entityKey) return undefined; // handles Task and future unknown EntityRef variants
+  if (!entityKey) {
+    return undefined;
+  } // handles Task and future unknown EntityRef variants
 
   const entityValue = entities[entityKey];
 
@@ -635,11 +519,15 @@ export const transformResourceTree = (
 
 /** Recursively find a TreeTableItem by id */
 export function findItemById(root: TreeTableItem, id: string): TreeTableItem | undefined {
-  if (root.id === id) return root;
+  if (root.id === id) {
+    return root;
+  }
   if (root.children) {
     for (const child of root.children) {
       const found = findItemById(child, id);
-      if (found) return found;
+      if (found) {
+        return found;
+      }
     }
   }
   return undefined;
@@ -652,7 +540,9 @@ function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string
   const typeName =
     item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
   const usedBy = typeName ? entities.resource_types[typeName]?.used_by : undefined;
-  if (usedBy && usedBy.length === 1) return usedBy[0]!;
+  if (usedBy && usedBy.length === 1) {
+    return usedBy[0]!;
+  }
   return null;
 }
 
@@ -757,14 +647,20 @@ export function computeVisibleMaxValue(
     overlayEntries.length > 0
       ? overlayEntries
       : allEntries.filter(e => !e.isDimmed && !e.isOverlay);
-  if (!entries.length || !entries[0]?.values.length) return null;
+  if (!entries.length || !entries[0]?.values.length) {
+    return null;
+  }
   let max = 0;
   const binDurationMs = (entries[0]?.binDuration ?? 0) * 1_000;
   for (let i = 0; i < entries[0].values.length; i++) {
     const t = timestamps[i];
-    if (t === undefined || t + binDurationMs <= zoomStartMs || t >= zoomEndMs) continue;
+    if (t === undefined || t + binDurationMs <= zoomStartMs || t >= zoomEndMs) {
+      continue;
+    }
     const sum = entries.reduce((acc, e) => acc + (e.values[i] ?? 0), 0);
-    if (sum > max) max = sum;
+    if (sum > max) {
+      max = sum;
+    }
   }
   return max > 0 ? max : null;
 }

@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
+    # Legacy PoC crates, scheduled for removal
+    "crates/model",
+    "crates/model-macros",
     # Application-agnostic crates
     "crates/analyzer",
     "crates/dynamic-attributes",
@@ -18,8 +21,6 @@ members = [
     "crates/io/postcard",
     "crates/io/types",
     "crates/instrumentation",
-    "crates/model",
-    "crates/model-macros",
     "crates/open",
     "crates/stdlib",
     "crates/time",
@@ -37,10 +38,6 @@ members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    # C++ integration example (uses readme model)
-    "examples/cpp-integration/bridge",
-    # Python integration example (uses readme model)
-    "examples/python-integration/bridge",
     # Query engine C++ bridge test
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
@@ -49,6 +46,12 @@ members = [
     "domains/query_engine/tests/python/bridge",
     # README example
     "examples/readme",
+    # Legacy README example using model macros
+    "examples/legacy/readme",
+    # Legacy C++ integration example using the legacy README model
+    "examples/legacy/cpp-integration/bridge",
+    # Legacy Python integration example using the legacy README model
+    "examples/legacy/python-integration/bridge",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",
@@ -68,14 +71,12 @@ members = [
     "crates/fsm",
     "crates/resource",
     "crates/instrumentation-build",
+    "crates/instrumentation-build/example",
     "crates/yaml",
+    "crates/store",
+    "crates/store-build",
+    "crates/store-build/example"
 ]
-
-# The instrumentation-build example is deliberately its own workspace (see its
-# Cargo.toml). Kept out of this one so `--workspace --all-features` doesn't
-# unify the filesystem/collector exporters (and their `serde` bound) into its
-# callback-only, `Serialize`-free graph.
-exclude = ["crates/instrumentation-build/example"]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
 # `cargo build` and `cargo test` (no -p, no --workspace) skip those crates, preserving
@@ -107,7 +108,7 @@ default-members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    "examples/cpp-integration/bridge",
+    "examples/legacy/cpp-integration/bridge",
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
     "examples/readme",
@@ -134,6 +135,7 @@ cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
+nvtx = { version = "2", default-features = false, features = ["std"] }
 petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"

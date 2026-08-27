@@ -22,8 +22,14 @@ describe('buildGanttOption', () => {
     });
 
     expect(option).toMatchObject({
+      tooltip: { show: false },
       grid: { left: 1, right: 2, top: 3, bottom: 4 },
-      xAxis: { type: 'value', min: 0, max: 12_000 },
+      xAxis: {
+        type: 'value',
+        min: 0,
+        max: 12_000,
+        axisPointer: { show: false },
+      },
       yAxis: { type: 'category', data: [0, 1], inverse: true },
       series: [
         {

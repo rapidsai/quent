@@ -144,13 +144,17 @@ export function resolveDataFlowWindow(
   zoom: ZoomRange | null | undefined,
   durationS: number
 ): { start: number; end: number } {
-  if (zoom && zoom.end > zoom.start) return { start: zoom.start, end: zoom.end };
+  if (zoom && zoom.end > zoom.start) {
+    return { start: zoom.start, end: zoom.end };
+  }
   return { start: 0, end: durationS };
 }
 
 /** Map a time (seconds) to a bin index, clamped into `[0, numBins - 1]`. */
 export function timeToBinIndex(timeS: number, bin: DataFlowBinConfig): number {
-  if (bin.numBins <= 0 || !(bin.binDurationS > 0)) return 0;
+  if (bin.numBins <= 0 || !(bin.binDurationS > 0)) {
+    return 0;
+  }
   const raw = Math.floor((timeS - bin.startS) / bin.binDurationS);
   return Math.min(bin.numBins - 1, Math.max(0, raw));
 }
@@ -178,7 +182,9 @@ export function resolveDataFlowStates(
   const present = new Set<string>();
   for (const series of Object.values(binned.operators)) {
     for (const states of Object.values(series.values)) {
-      for (const state of Object.keys(states)) present.add(state);
+      for (const state of Object.keys(states)) {
+        present.add(state);
+      }
     }
   }
   const declared = fsmType?.states.map(s => s.name) ?? [];
@@ -200,7 +206,9 @@ export function resolveDataFlowDimensions(
 ): ReadonlySet<string> {
   if (selected && selected.size > 0) {
     const valid = dimensionKeys.filter(k => selected.has(k));
-    if (valid.length > 0) return new Set(valid);
+    if (valid.length > 0) {
+      return new Set(valid);
+    }
   }
   return new Set(dimensionKeys);
 }
@@ -224,17 +232,25 @@ export function computeWindowMax(
   let max = 0;
   for (const series of Object.values(binned.operators)) {
     const states = series.values[measure];
-    if (!states) continue;
+    if (!states) {
+      continue;
+    }
     const totals = new Array<number>(numBins).fill(0);
     for (const dims of Object.values(states)) {
       for (const [dimension, values] of Object.entries(dims)) {
-        if (!selected.has(dimension)) continue;
+        if (!selected.has(dimension)) {
+          continue;
+        }
         const len = Math.min(values.length, numBins);
-        for (let i = 0; i < len; i++) totals[i] += values[i]!;
+        for (let i = 0; i < len; i++) {
+          totals[i] += values[i]!;
+        }
       }
     }
     for (const t of totals) {
-      if (t > max) max = t;
+      if (t > max) {
+        max = t;
+      }
     }
   }
   return max;
@@ -297,17 +313,23 @@ export function extractDataFlowFrame(
     let hasAnyMeasure = false;
     for (const measureName of measureNames) {
       const measureStates = series.values[measureName];
-      if (!measureStates) continue;
+      if (!measureStates) {
+        continue;
+      }
       const dimensionTotals = dimensionTotalsByMeasure[measureName]!;
       let measureTotal = 0;
       for (const state of stateNames) {
         const dims = measureStates[state];
-        if (!dims) continue;
+        if (!dims) {
+          continue;
+        }
         for (let dimensionIndex = 0; dimensionIndex < dimensionKeys.length; dimensionIndex++) {
           const dimension = dimensionKeys[dimensionIndex]!;
           const value = dims[dimension]?.[clamped] ?? 0;
           dimensionTotals[dimensionIndex]! += value;
-          if (selected.has(dimension)) measureTotal += value;
+          if (selected.has(dimension)) {
+            measureTotal += value;
+          }
         }
       }
       if (measureTotal > 0) {
@@ -315,23 +337,33 @@ export function extractDataFlowFrame(
         hasAnyMeasure = true;
       }
     }
-    if (hasAnyMeasure) totalsByMeasure.set(operatorId, totals);
+    if (hasAnyMeasure) {
+      totalsByMeasure.set(operatorId, totals);
+    }
 
     const states = series.values[measure];
-    if (!states) continue;
+    if (!states) {
+      continue;
+    }
     const matrix = stateNames.map(() => dimensionKeys.map(() => 0));
     let total = 0;
     stateNames.forEach((state, stateIndex) => {
       const dims = states[state];
-      if (!dims) return;
+      if (!dims) {
+        return;
+      }
       dimensionKeys.forEach((dimension, dimensionIndex) => {
-        if (!selected.has(dimension)) return;
+        if (!selected.has(dimension)) {
+          return;
+        }
         const value = dims[dimension]?.[clamped] ?? 0;
         matrix[stateIndex]![dimensionIndex] = value;
         total += value;
       });
     });
-    if (total <= 0) continue;
+    if (total <= 0) {
+      continue;
+    }
     const byState = matrix.map(row => row.reduce((acc, v) => acc + v, 0));
     const byDimension = dimensionKeys.map((_, dimensionIndex) =>
       matrix.reduce((acc, row) => acc + row[dimensionIndex]!, 0)
@@ -348,9 +380,13 @@ export function extractDataFlowFrame(
       if (labelStates) {
         stateNames.forEach((state, stateIndex) => {
           const dims = labelStates[state];
-          if (!dims) return;
+          if (!dims) {
+            return;
+          }
           dimensionKeys.forEach((dimension, dimensionIndex) => {
-            if (!selected.has(dimension)) return;
+            if (!selected.has(dimension)) {
+              return;
+            }
             const value = dims[dimension]?.[clamped] ?? 0;
             labelByState[stateIndex]! += value;
             labelByDimension[dimensionIndex]! += value;
@@ -424,7 +460,9 @@ export function resolveDataFlowMeasure(
   decl: CategoricalDecl
 ): string | null {
   const isDeclared = (name: string) => decl.measures.some(m => m.name === name);
-  if (selected != null && isDeclared(selected)) return selected;
+  if (selected != null && isDeclared(selected)) {
+    return selected;
+  }
   if (decl.default_measure != null && isDeclared(decl.default_measure)) {
     return decl.default_measure;
   }
@@ -440,7 +478,9 @@ export function resolveDataFlowLabelMeasure(
   decl: CategoricalDecl,
   barMeasure: string
 ): string {
-  if (selected != null && decl.measures.some(m => m.name === selected)) return selected;
+  if (selected != null && decl.measures.some(m => m.name === selected)) {
+    return selected;
+  }
   return barMeasure;
 }
 
@@ -457,7 +497,9 @@ export function formatDataFlowValue(
 ): string {
   const measure = meta.decl.measures.find(m => m.name === measureName);
   const spec = measure ? meta.quantitySpecs[measure.quantity] : undefined;
-  if (measure && spec) return formatQuantity(value, spec, measure.kind, decimals);
+  if (measure && spec) {
+    return formatQuantity(value, spec, measure.kind, decimals);
+  }
   return value.toFixed(decimals);
 }
 
@@ -473,7 +515,9 @@ export function formatDataFlowValueCompact(
 ): string {
   const measure = meta.decl.measures.find(m => m.name === measureName);
   const spec = measure ? meta.quantitySpecs[measure.quantity] : undefined;
-  if (measure && spec) return formatQuantityCompact(value, spec, measure.kind);
+  if (measure && spec) {
+    return formatQuantityCompact(value, spec, measure.kind);
+  }
   return formatCompactWithPrefix(value, '', 'None');
 }
 
@@ -512,7 +556,9 @@ export function fitDataFlowSegmentLabel(
 ): string | null {
   const labelValue = label ? label.value : value;
   const labelMeasure = label ? label.measure : measureName;
-  if (!(value > 0) || !(labelValue > 0) || !(maxTotal > 0) || !(trackPx > 0)) return null;
+  if (!(value > 0) || !(labelValue > 0) || !(maxTotal > 0) || !(trackPx > 0)) {
+    return null;
+  }
   const segmentPx = (value / maxTotal) * trackPx;
   const text = formatDataFlowValueCompact(labelValue, labelMeasure, meta);
   const requiredPx = text.length * DATA_FLOW_LABEL_CHAR_PX + DATA_FLOW_LABEL_PAD_PX;

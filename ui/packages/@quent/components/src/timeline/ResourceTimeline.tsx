@@ -183,7 +183,9 @@ export function ResourceTimeline({
     yAxisLabel?: string;
   }>(() => {
     const data = preloadedData ?? fetchedData;
-    if (!data) return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
+    if (!data) {
+      return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
+    }
 
     const base = buildBinnedTimelineSeries(
       data.data,

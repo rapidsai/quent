@@ -4,11 +4,11 @@
 import { EntityTypeValue } from '@quent/utils';
 import { LucideIcon } from 'lucide-react';
 
-export type TreeTableItem = {
+export type TreeTableItem<TEntity = EntityTypeValue> = {
   id: string;
   type: string;
-  entity: EntityTypeValue;
+  entity: TEntity;
   icon?: LucideIcon;
-  children?: TreeTableItem[];
+  children?: TreeTableItem<TEntity>[];
   availableResourceTypes?: string[];
 };

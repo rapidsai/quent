@@ -51,9 +51,13 @@ export function applyBulkTimelineResponse(
 ): void {
   const updates: Record<string, SingleTimelineResponse> = {};
   for (const [id, entry] of Object.entries(response.entries)) {
-    if (entry?.status !== 'ok') continue;
+    if (entry?.status !== 'ok') {
+      continue;
+    }
     const meta = idToMeta.get(id);
-    if (!meta) continue;
+    if (!meta) {
+      continue;
+    }
     const key = timelineCacheKey(meta);
     updates[key] = { data: entry.data, config: entry.config };
   }
@@ -150,12 +154,16 @@ export function useBulkTimelineFetch({
   });
 
   useEffect(() => {
-    if (!data) return;
+    if (!data) {
+      return;
+    }
     applyBulkTimelineResponse(data, idToMeta, store);
   }, [data, store, idToMeta]);
 
   useEffect(() => {
-    if (isFetched) store.set(bulkInitializedAtom, true);
+    if (isFetched) {
+      store.set(bulkInitializedAtom, true);
+    }
   }, [isFetched, store]);
 
   return data;

@@ -23,7 +23,9 @@ export function buildOperatorRows(
     .sort((a, b) => {
       const wA = a.worker_id ?? '';
       const wB = b.worker_id ?? '';
-      if (wA !== wB) return wA.localeCompare(wB);
+      if (wA !== wB) {
+        return wA.localeCompare(wB);
+      }
       return a.id.localeCompare(b.id);
     });
 
@@ -39,7 +41,9 @@ export function buildOperatorRows(
       .sort((a, b) => {
         const typeA = a.operator_type_name ?? '';
         const typeB = b.operator_type_name ?? '';
-        if (typeA !== typeB) return typeA.localeCompare(typeB);
+        if (typeA !== typeB) {
+          return typeA.localeCompare(typeB);
+        }
         const nameA = a.instance_name ?? a.id;
         const nameB = b.instance_name ?? b.id;
         return nameA.localeCompare(nameB);
@@ -74,7 +78,9 @@ export function buildOperatorRows(
       const statQuantities: Record<string, string> = {};
       for (const stat of parseCustomStatistics(op)) {
         stats[stat.key] = stat.value;
-        if (stat.quantity) statQuantities[stat.key] = stat.quantity;
+        if (stat.quantity) {
+          statQuantities[stat.key] = stat.quantity;
+        }
       }
       rows.push({
         partitionId,
@@ -108,8 +114,12 @@ export function buildItemIdIndex<T extends keyof OperatorTableRow>(
   const map = new Map<string, Set<string>>();
   for (const row of rows) {
     const key = row[field];
-    if (typeof key !== 'string') continue;
-    if (skipDash && key === '-') continue;
+    if (typeof key !== 'string') {
+      continue;
+    }
+    if (skipDash && key === '-') {
+      continue;
+    }
     let set = map.get(key);
     if (!set) {
       set = new Set();

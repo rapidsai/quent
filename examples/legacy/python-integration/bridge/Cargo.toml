@@ -10,8 +10,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { workspace = true, features = ["abi3-py311"] }
-quent-readme-example = { path = "../../readme" }
+quent-readme-example = { package = "quent-legacy-readme-example", path = "../../readme" }
 
 [build-dependencies]
-quent-codegen = { path = "../../../crates/codegen" }
-quent-readme-example = { path = "../../readme" }
+quent-codegen = { path = "../../../../crates/codegen" }
+quent-readme-example = { package = "quent-legacy-readme-example", path = "../../readme" }

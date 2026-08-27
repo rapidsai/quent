@@ -24,14 +24,18 @@ export function useHighlightedItemIds(rootItem: TreeNode): Set<string> | undefin
   const hoveredWorkerId = useAtomValue(hoveredWorkerIdAtom);
 
   return useMemo(() => {
-    if (!hoveredWorkerId) return undefined;
+    if (!hoveredWorkerId) {
+      return undefined;
+    }
 
     const ids = new Set<string>();
 
     function collectSubtree(items: TreeNode[]) {
       for (const item of items) {
         ids.add(item.id);
-        if (item.children) collectSubtree(item.children);
+        if (item.children) {
+          collectSubtree(item.children);
+        }
       }
     }
 
@@ -42,7 +46,9 @@ export function useHighlightedItemIds(rootItem: TreeNode): Set<string> | undefin
           ids.add(operatorTimelineRowId(hoveredWorkerId));
           return true;
         }
-        if (item.children && find(item.children)) return true;
+        if (item.children && find(item.children)) {
+          return true;
+        }
       }
       return false;
     }

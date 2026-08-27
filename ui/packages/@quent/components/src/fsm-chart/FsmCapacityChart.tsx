@@ -84,7 +84,9 @@ export function FsmCapacityChart({
         }
         const entry = resourceMap.get(usage.resource)!;
         usage.capacities.forEach(([name, cap]) => {
-          if (cap == null) return;
+          if (cap == null) {
+            return;
+          }
           if (!entry.caps.has(name)) {
             entry.caps.set(name, {
               data: Array<number | null>(n).fill(null),
@@ -103,7 +105,9 @@ export function FsmCapacityChart({
     resourceMap.forEach(({ label, caps }, resourceId) => {
       const capacities: CapacityEntry[] = [];
       caps.forEach(({ data, rawData }, name) => {
-        if (data.filter(v => v !== null).length < 2) return;
+        if (data.filter(v => v !== null).length < 2) {
+          return;
+        }
         const capDecl = getCapacityDecl(resourceId, name);
         const spec = capDecl ? quantitySpecs[capDecl.quantity] : undefined;
         const statLabel = spec?.symbol ? `${name} (${spec.symbol})` : name;
@@ -169,7 +173,9 @@ export function FsmCapacityChart({
     hover && activeCapacity && activeResource
       ? (() => {
           const value = activeCapacity.data[hover.dataIndex];
-          if (value == null) return [];
+          if (value == null) {
+            return [];
+          }
           const raw = activeCapacity.rawData[hover.dataIndex];
           return [
             {
@@ -233,7 +239,9 @@ export function FsmCapacityChart({
     [activeCapacity, activeResource, stateLabels]
   );
 
-  if (resources.length === 0) return null;
+  if (resources.length === 0) {
+    return null;
+  }
 
   return (
     <div className="shrink-0 border-b">
@@ -248,7 +256,9 @@ export function FsmCapacityChart({
               options={resources.map(r => ({ value: r.resourceId, label: r.label }))}
               value={activeResource?.resourceId ?? ''}
               onValueChange={value => {
-                if (!value) return;
+                if (!value) {
+                  return;
+                }
                 setSelectedResourceId(value);
                 setSelectedCapacityName(null);
               }}

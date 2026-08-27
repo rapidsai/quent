@@ -33,9 +33,12 @@ export {
   canonicalizeNvtxRequest,
   canonicalizeNvtxSelections,
   engineContextsQueryOptions,
+  firstNvtxCatalog,
   nvtxCatalogQueryOptions,
   nvtxViewportQueryOptions,
+  selectAllNvtxDomains,
 } from './nvtx';
+export type { NvtxCategoryFilter } from './nvtx';
 
 // Hooks
 export { useQueryBundle } from './queryBundle';
@@ -46,4 +49,4 @@ export { useTimeline } from './timeline';
 export { useEntities } from './entityList';
 export { useDataFlow } from './dataFlow';
 export { useEntityList } from './entityList';
-export { useEngineContexts, useNvtxCatalog, useNvtxViewport } from './nvtx';
+export { useEngineContexts, useNvtxCatalog, useNvtxStream, useNvtxViewport } from './nvtx';
