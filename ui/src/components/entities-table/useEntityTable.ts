@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useEntities } from '@quent/client';
+import { useEntities, useEntityList } from '@quent/client';
 import { useSelectedNodeIds } from '@quent/hooks';
 import type { SelectFieldOption } from '@quent/components';
 import type { EntityRef, FiniteStateMachine, QueryBundle, SortDir } from '@quent/utils';
@@ -13,6 +13,7 @@ import {
   buildEntityRequest,
   defaultEntityFilters,
   entityRows,
+  fsmSpan,
   hasNonDefaultEntitySettings,
   normalizePageSize,
   validateEntityFilters,
@@ -36,6 +37,22 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   const selectedNodeIds = useSelectedNodeIds();
   const dagOperatorId = selectedNodeIds.values().next().value ?? null;
   const defaults = useMemo(() => defaultEntityFilters(durationS), [durationS]);
+  // The "Window (s)" slider is bounded by the query duration, which is often far longer than
+  // when entities actually occur. Use the longest-running entity's end time as a tighter,
+  // more useful max so the slider isn't mostly dead space.
+  const longestEntityQuery = useEntityList({
+    engineId,
+    queryId,
+    window: { start: 0, end: durationS },
+    sortKey: 'UsageDuration',
+    sortDir: 'Desc',
+    maxItems: 1,
+  });
+  const windowMaxS = useMemo(() => {
+    const longestEntity = longestEntityQuery.data?.items[0]?.entity;
+    if (!longestEntity) return durationS;
+    return Math.min(durationS, Math.max(0, fsmSpan(longestEntity).end));
+  }, [longestEntityQuery.data, durationS]);
   const [filters, setFilters] = useState<EntityFilters>(() => defaultEntityFilters(durationS));
   const [manualOperatorOverride, setManualOperatorOverride] =
     useState<ManualOperatorOverride | null>(null);
@@ -160,6 +177,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     filters: {
       values: filters,
       durationS,
+      windowMaxS,
       validationErrors,
       invalidFilterFields,
       hasNonDefaultSettings: hasNonDefaultEntitySettings(filters, defaults, activeFilterCount),

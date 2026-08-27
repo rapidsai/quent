@@ -19,9 +19,11 @@ function renderTable(
 }
 
 const useEntities = vi.fn();
+const useEntityList = vi.fn();
 
 vi.mock('@quent/client', () => ({
   useEntities: (...args: unknown[]) => useEntities(...args),
+  useEntityList: (...args: unknown[]) => useEntityList(...args),
 }));
 
 const queryBundle = {
@@ -82,6 +84,14 @@ describe('EntitiesTable', () => {
     vi.useFakeTimers();
     useEntities.mockReset();
     useEntities.mockReturnValue({
+      data: { items: [{ entity: fsm, usage_duration_s: 0.25 }], total: 1 },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+    });
+    useEntityList.mockReset();
+    useEntityList.mockReturnValue({
       data: { items: [{ entity: fsm, usage_duration_s: 0.25 }], total: 1 },
       isLoading: false,
       isFetching: false,

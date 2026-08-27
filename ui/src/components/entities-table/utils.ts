@@ -158,7 +158,7 @@ export function parseOptionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function fsmSpan(fsm: FiniteStateMachine): { start: number; end: number } {
+export function fsmSpan(fsm: FiniteStateMachine): { start: number; end: number } {
   let start = Infinity;
   let end = -Infinity;
   for (const transition of fsm.transitions) {
