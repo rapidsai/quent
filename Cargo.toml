@@ -1,38 +1,43 @@
 [workspace]
 resolver = "3"
 members = [
+    # Legacy PoC crates, scheduled for removal
+    "crates/model",
+    "crates/model-macros",
     # Application-agnostic crates
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
     "crates/events",
-    "crates/exporter",
-    "crates/exporter/callback",
-    "crates/exporter/collector",
-    "crates/exporter/msgpack",
-    "crates/exporter/ndjson",
-    "crates/exporter/postcard",
-    "crates/exporter/types",
+    "crates/io",
+    "crates/io/callback",
+    "crates/io/collector",
+    "crates/io/msgpack",
+    "crates/io/ndjson",
+    "crates/io/postcard",
+    "crates/io/types",
     "crates/instrumentation",
-    "crates/model",
-    "crates/model-macros",
     "crates/open",
     "crates/stdlib",
     "crates/time",
     "crates/ui",
+    # NVTX integration crates
+    "integrations/nvtx/events",
+    "integrations/nvtx/injection",
+    "integrations/nvtx/bridge",
+    "integrations/nvtx/example",
+    "integrations/nvtx/analyzer",
+    "integrations/nvtx/ui",
+    "integrations/nvtx/server",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    # C++ integration example (uses readme model)
-    "examples/cpp-integration/bridge",
-    # Python integration example (uses readme model)
-    "examples/python-integration/bridge",
     # Query engine C++ bridge test
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
@@ -41,12 +46,19 @@ members = [
     "domains/query_engine/tests/python/bridge",
     # README example
     "examples/readme",
+    # Legacy README example using model macros
+    "examples/legacy/readme",
+    # Legacy C++ integration example using the legacy README model
+    "examples/legacy/cpp-integration/bridge",
+    # Legacy Python integration example using the legacy README model
+    "examples/legacy/python-integration/bridge",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
@@ -60,6 +72,10 @@ members = [
     "crates/resource",
     "crates/instrumentation-build",
     "crates/instrumentation-build/example",
+    "crates/yaml",
+    "crates/store",
+    "crates/store-build",
+    "crates/store-build/example"
 ]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
@@ -67,20 +83,20 @@ members = [
 # the zero-cost guarantee for everything else. Use `cargo build -p <crate>` to opt in.
 default-members = [
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
     "crates/events",
-    "crates/exporter",
-    "crates/exporter/callback",
-    "crates/exporter/collector",
-    "crates/exporter/msgpack",
-    "crates/exporter/ndjson",
-    "crates/exporter/postcard",
-    "crates/exporter/types",
+    "crates/io",
+    "crates/io/callback",
+    "crates/io/collector",
+    "crates/io/msgpack",
+    "crates/io/ndjson",
+    "crates/io/postcard",
+    "crates/io/types",
     "crates/instrumentation",
     "crates/model",
     "crates/model-macros",
@@ -92,7 +108,7 @@ default-members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    "examples/cpp-integration/bridge",
+    "examples/legacy/cpp-integration/bridge",
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
     "examples/readme",
@@ -101,6 +117,7 @@ default-members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
 ]
 
 [workspace.package]
@@ -111,18 +128,27 @@ repository = "https://github.com/rapidsai/quent"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+bindgen = "0.72"
+bitcode = { version = "0.6.9", features = ["serde"] }
+cargo_metadata = "0.23"
+cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
+nvtx = { version = "2", default-features = false, features = ["std"] }
 petgraph = "0.8.3"
-postcard = { version = "1", features = ["alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
+prettyplease = "0.3.0"
 prost = "0.14.1"
 pyo3 = "0.29"
+quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
+quent-resource = { path = "crates/resource" }
 rmp-serde = "1"
 rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 smallvec = {version = "1.15.1", features = ["serde"] }
+syn = { version = "3.0.3", features = ["full", "parsing"] }
 thiserror = "2.0.17"
 tokio = "1.48.0"
 tokio-stream = "0.1.17"

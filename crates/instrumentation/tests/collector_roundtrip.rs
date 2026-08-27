@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! A client whose exporter is the collector: events must survive the full
@@ -6,21 +6,18 @@
 //! client) must not panic — exercising the teardown path the bench masks with
 //! `mem::forget`.
 
-#![cfg(feature = "collector")]
-
 mod common;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use common::{TestEvent, TestModel};
-use quent_build_info::ModelSource;
-use quent_collector::{CollectorSink, server::CollectorService};
+use common::TestEvent;
+use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{CollectorExporterOptions, ExporterOptions};
-use quent_instrumentation::Context;
+use quent_instrumentation::ContextInner;
+use quent_io::{CollectorExporterOptions, ExporterOptions};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as GrpcServer;
 use uuid::Uuid;
@@ -37,7 +34,7 @@ impl CollectorSink for CountingSink {
         if entity != TestEvent::NAME {
             return Err(format!("unexpected entity `{entity}`").into());
         }
-        let _: Event<TestEvent> = ciborium::from_reader(event)?;
+        let _: Event<TestEvent> = deserialize_event(event)?;
         self.received.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -83,15 +80,13 @@ fn collector_client_flushes_all_events_on_drop() {
     let (address, _server) = start_server(received.clone());
 
     // A plain sync client (no ambient runtime); the context spawns its own.
-    let ctx = Context::try_new(
-        TestModel::model_info(),
-        Some(ExporterOptions::Collector(CollectorExporterOptions {
-            address,
-        })),
-    )
-    .unwrap();
+    let id = Uuid::now_v7();
+    let ctx = ContextInner::try_new(id).unwrap();
+    let options = ExporterOptions::Collector(CollectorExporterOptions::new(address));
     {
-        let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();
+        let observer = ctx
+            .block_on(async { ctx.observer::<TestEvent>(&options).await })
+            .unwrap();
         for _ in 0..EVENTS {
             observer.emit(Uuid::now_v7(), TestEvent);
         }

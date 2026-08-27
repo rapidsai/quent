@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -69,6 +69,32 @@ pub enum OpenError {
     /// One or more viewers failed to build or serve.
     #[error("{count} viewer(s) failed")]
     ViewersFailed { count: usize },
+
+    /// An HTTP request to the Benchmarking API (or an asset download) failed.
+    #[cfg(feature = "db")]
+    #[error(transparent)]
+    Http(#[from] reqwest::Error),
+
+    /// The Benchmarking API returned a non-success status.
+    #[cfg(feature = "db")]
+    #[error("benchmark API request failed ({status}): {body}")]
+    Api { status: String, body: String },
+
+    /// No benchmark run matched the requested id.
+    #[cfg(feature = "db")]
+    #[error("no benchmark run found for '{run}'")]
+    RunNotFound { run: String },
+
+    /// The benchmark run has no assets that look like Quent telemetry.
+    #[cfg(feature = "db")]
+    #[error("benchmark run '{run}' has no Quent telemetry assets")]
+    NoTelemetryAssets { run: String },
+
+    /// A telemetry archive is malformed or not laid out as `<context-uuid>/…`
+    /// context directories (e.g. too many entries, or sidecar/streams at the root).
+    #[cfg(feature = "archive")]
+    #[error("unexpected telemetry layout: {detail}")]
+    BadArtifactLayout { detail: String },
 
     /// An I/O error occurred (reading artifacts, spawning the viewer, etc.).
     #[error(transparent)]

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { EntityTypeKey } from '@quent/utils';
@@ -15,9 +15,13 @@ export function collectResourceTypesFromTree(items: TreeTableItem[]): string[] {
     items.forEach(item => {
       if ('type_name' in item.entity && !item.children?.length) {
         const typeName = item.entity.type_name;
-        if (typeName) types.add(typeName);
+        if (typeName) {
+          types.add(typeName);
+        }
       }
-      if (item.children?.length) collect(item.children);
+      if (item.children?.length) {
+        collect(item.children);
+      }
     });
   };
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
@@ -198,7 +198,9 @@ const TreeNode = ({
     (newValue: string[]) => {
       const wasExpanded = value.includes(item.id);
       const isNowExpanded = newValue.includes(item.id);
-      if (!isControlled) setUncontrolledValue(newValue);
+      if (!isControlled) {
+        setUncontrolledValue(newValue);
+      }
       if (wasExpanded !== isNowExpanded) {
         onExpandChange?.(item.id, isNowExpanded);
       }
@@ -307,7 +309,9 @@ const TreeLeaf = React.forwardRef<
           item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
         )}
         onClick={() => {
-          if (item.disabled) return;
+          if (item.disabled) {
+            return;
+          }
           handleSelectChange(item);
           item.onClick?.();
         }}
@@ -485,11 +489,15 @@ function collectInitialExpandedIds(
     return ids;
   }
 
-  if (!targetId) return ids;
+  if (!targetId) {
+    return ids;
+  }
 
   const walkPath = (nodes: TreeTableDataItem[]): boolean => {
     for (const node of nodes) {
-      if (node.id === targetId) return true;
+      if (node.id === targetId) {
+        return true;
+      }
       if (node.children?.length && walkPath(node.children)) {
         ids.add(node.id);
         return true;
@@ -623,15 +631,20 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 onClick={() => {
-                  if (item.disabled) return;
+                  if (item.disabled) {
+                    return;
+                  }
                   handleSelectChange(item);
                   if (hasChildren) {
                     const nextIsOpen = !isOpen;
                     if (!isControlled) {
                       setExpandedIds(prev => {
                         const next = new Set(prev);
-                        if (nextIsOpen) next.add(item.id);
-                        else next.delete(item.id);
+                        if (nextIsOpen) {
+                          next.add(item.id);
+                        } else {
+                          next.delete(item.id);
+                        }
                         return next;
                       });
                     }
@@ -791,7 +804,6 @@ export function TreeTable<I extends TreeTableDataItem>({
     setTreeData(data);
   }, [data]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
@@ -803,13 +815,14 @@ export function TreeTable<I extends TreeTableDataItem>({
   );
 
   useIsomorphicLayoutEffect(() => {
-    const node = containerRef.current;
+    const node = scrollContainerRef.current;
     if (!node) {
       return;
     }
 
     const updateWidth = () => {
-      const next = node.getBoundingClientRect().width;
+      // clientWidth excludes classic scrollbar gutters from the content budget.
+      const next = node.clientWidth;
       setContainerWidth(next);
       if (!isLayoutReady) {
         setIsLayoutReady(true);
@@ -824,9 +837,8 @@ export function TreeTable<I extends TreeTableDataItem>({
     }
 
     const observer = new ResizeObserver(entries => {
-      const entry = entries[0];
-      if (entry) {
-        setContainerWidth(entry.contentRect.width);
+      if (entries[0]) {
+        setContainerWidth(node.clientWidth);
         if (!isLayoutReady) {
           setIsLayoutReady(true);
         }
@@ -877,7 +889,9 @@ export function TreeTable<I extends TreeTableDataItem>({
   const columnLayoutWidths = useMemo(
     (): ColumnWidth[] =>
       displayColumnWidths.map((width, index) => {
-        if (width === 'auto') return 'auto';
+        if (width === 'auto') {
+          return 'auto';
+        }
         return index === 0 ? Math.max(width - totalLeftSpacing, 0) : width;
       }),
     [displayColumnWidths, totalLeftSpacing]
@@ -913,7 +927,7 @@ export function TreeTable<I extends TreeTableDataItem>({
             return (
               <div
                 key={column.key}
-                className="flex items-center pr-1"
+                className="flex min-w-0 items-center overflow-hidden pr-1"
                 style={{
                   paddingLeft: `${firstCellPaddingLeft}px`,
                   paddingRight: '6px',
@@ -929,7 +943,7 @@ export function TreeTable<I extends TreeTableDataItem>({
           return (
             <div
               key={column.key}
-              className="text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+              className="min-w-0 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {column.render({ item: extended, level, isSelected })}
             </div>
@@ -942,7 +956,9 @@ export function TreeTable<I extends TreeTableDataItem>({
   const handleColumnResizeStart = (index: number, e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (currentColumnWidths[index] === 'auto') return;
+    if (currentColumnWidths[index] === 'auto') {
+      return;
+    }
     const startX = e.clientX;
     const initialWidths = hasUserResized ? currentColumnWidths : displayColumnWidths;
     const startWidths = [...initialWidths];
@@ -951,12 +967,18 @@ export function TreeTable<I extends TreeTableDataItem>({
       const delta = moveEvent.clientX - startX;
       const next = [...startWidths];
       const currentWidth = startWidths[index];
-      if (currentWidth === 'auto') return;
+      if (currentWidth === 'auto') {
+        return;
+      }
       let newLeft = currentWidth + delta;
-      if (newLeft < minWidth) newLeft = minWidth;
+      if (newLeft < minWidth) {
+        newLeft = minWidth;
+      }
       next[index] = newLeft;
       setCurrentColumnWidths(next);
-      if (index !== columns.length - 1) setHasUserResized(true);
+      if (index !== columns.length - 1) {
+        setHasUserResized(true);
+      }
     };
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
@@ -967,20 +989,16 @@ export function TreeTable<I extends TreeTableDataItem>({
   };
 
   return (
-    <div className="h-full w-full select-none">
+    <div className="h-full w-full min-w-0 select-none">
       <div
-        ref={containerRef}
         className={cn(
-          'bg-transparent transition-opacity duration-100 ease-out h-full',
+          'h-full min-w-0 bg-transparent transition-opacity duration-100 ease-out',
           isLayoutReady ? 'opacity-100' : 'opacity-0'
         )}
       >
         <div
           ref={scrollContainerRef}
-          className={cn(
-            'w-full overflow-y-auto max-h-full overscroll-none',
-            isLayoutReady ? 'overflow-x-auto' : 'overflow-x-hidden'
-          )}
+          className="w-full min-w-0 max-h-full overflow-x-auto overflow-y-auto overscroll-none"
         >
           <div style={{ minWidth: `${effectiveWidth}px` }}>
             {/* Sticky header container */}

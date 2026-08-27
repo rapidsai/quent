@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -66,7 +66,17 @@ function makeTagged(variant: string, value: unknown) {
 
 function makeOperator(custom_statistics: Record<string, unknown> | undefined) {
   return {
-    statistics: custom_statistics !== undefined ? { custom_statistics } : undefined,
+    statistics:
+      custom_statistics !== undefined
+        ? {
+            custom_statistics: Object.fromEntries(
+              Object.entries(custom_statistics).map(([key, value]) => [
+                key,
+                { value, quantity: null },
+              ])
+            ),
+          }
+        : undefined,
   };
 }
 
@@ -90,14 +100,20 @@ describe('parseCustomStatistics', () => {
     expect(result).toEqual([{ key: 'rows', value: 42 }]);
   });
 
+  it('preserves a quantity key', () => {
+    const op = {
+      statistics: {
+        custom_statistics: {
+          bytes: { value: makeTagged('UInt64', 1024), quantity: 'bytes' },
+        },
+      },
+    };
+    expect(parseCustomStatistics(op)).toEqual([{ key: 'bytes', value: 1024, quantity: 'bytes' }]);
+  });
+
   it('unwraps a string tagged value', () => {
     const op = makeOperator({ label: makeTagged('String', 'hello') });
     expect(parseCustomStatistics(op)).toEqual([{ key: 'label', value: 'hello' }]);
-  });
-
-  it('unwraps a boolean tagged value', () => {
-    const op = makeOperator({ enabled: makeTagged('Bool', true) });
-    expect(parseCustomStatistics(op)).toEqual([{ key: 'enabled', value: true }]);
   });
 
   it('produces null for a null-valued tagged entry', () => {

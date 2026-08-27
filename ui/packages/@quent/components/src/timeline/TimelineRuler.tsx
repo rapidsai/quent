@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
@@ -7,7 +7,7 @@ import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import { useZoomRange } from '@quent/hooks';
 import { formatDurationForAxisInterval } from '@quent/utils';
-import { nanosToMs, getTimelineXAxisIntervalMs, MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
+import { getTimelineXAxisIntervalMs, MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
 import { useChartResize } from '../lib/useChartResize';
 import {
   useTimelineEchartsTheme,
@@ -15,11 +15,13 @@ import {
   TIMELINE_LABEL_FONT_SIZE,
 } from './timelineEchartsTheme';
 import { TIMELINE_SPACING } from './types';
+import { TimelinePointerArea } from './TimelinePointerArea';
 
 const RULER_HEIGHT = 22;
 const RULER_TARGET_TICKS = 7;
 // Space above the grid for axis labels + ticks.
 const RULER_GRID_TOP = 20;
+const ENDPOINT_CHIP_INSET = 2;
 
 /**
  * `absolute`: elapsed time from query start (e.g. "20.00ms", "40.00ms").
@@ -28,21 +30,19 @@ const RULER_GRID_TOP = 20;
 export type TimelineRulerMode = 'absolute' | 'relative';
 
 type TimelineRulerProps = {
-  startTime: bigint;
   isDark: boolean;
   mode?: TimelineRulerMode;
 };
 
 /** Sticky axis ruler showing elapsed time for the current zoom window. */
-export function TimelineRuler({ startTime, isDark, mode = 'relative' }: TimelineRulerProps) {
+export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps) {
   const { themeName, axisTickColor, axisLabelColor, solidLabelBackgroundColor } =
     useTimelineEchartsTheme(isDark);
   const { handleChartReady } = useChartResize();
-  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
   const zoomRange = useZoomRange();
 
-  const zoomedStartMs = startTimeMs + zoomRange.start * 1000;
-  const zoomedEndMs = startTimeMs + zoomRange.end * 1000;
+  const zoomedStartMs = zoomRange.start * 1000;
+  const zoomedEndMs = zoomRange.end * 1000;
   const zoomedSpanMs = Math.max(zoomedEndMs - zoomedStartMs, MIN_ZOOM_WINDOW_S * 1000);
 
   const interval = useMemo(
@@ -52,9 +52,11 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
 
   const option: EChartsOption = useMemo(() => {
     const formatLabel = (value: number): string => {
-      const absoluteMs = value - startTimeMs;
+      const absoluteMs = value;
       const relativeMs = value - zoomedStartMs;
-      const isMinMax = value === zoomedStartMs || value === zoomedEndMs;
+      const isMin = value === zoomedStartMs;
+      const isMax = value === zoomedEndMs;
+      const isMinMax = isMin || isMax;
 
       let text: string;
       if (mode === 'relative') {
@@ -64,15 +66,17 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
         text = formatDurationForAxisInterval(absoluteMs, interval);
       }
 
-      // Wrap min/max labels in the datazoom-chip rich style.
-      return isMinMax ? `{chip|${text}}` : text;
+      if (!isMinMax) {
+        return text;
+      }
+      const chip = `{chip|${text}}`;
+      return isMin ? `{chipInset|}${chip}` : `${chip}{chipInset|}`;
     };
 
     return {
       animation: false,
       grid: {
         ...TIMELINE_SPACING,
-        left: 1,
         top: RULER_GRID_TOP,
         bottom: 0,
       },
@@ -99,6 +103,11 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
           alignMaxLabel: 'right',
           formatter: formatLabel,
           rich: {
+            chipInset: {
+              width: ENDPOINT_CHIP_INSET,
+              fontSize: 0,
+              lineHeight: TIMELINE_LABEL_FONT_SIZE,
+            },
             chip: {
               color: axisLabelColor,
               backgroundColor: solidLabelBackgroundColor,
@@ -135,7 +144,6 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
     zoomedStartMs,
     zoomedEndMs,
     interval,
-    startTimeMs,
     axisTickColor,
     axisLabelColor,
     solidLabelBackgroundColor,
@@ -143,16 +151,18 @@ export function TimelineRuler({ startTime, isDark, mode = 'relative' }: Timeline
   ]);
 
   return (
-    <EChartsReactCore
-      echarts={echarts}
-      theme={themeName}
-      option={option}
-      style={{ width: '100%', height: `${RULER_HEIGHT}px` }}
-      onChartReady={handleChartReady}
-      notMerge={false}
-      lazyUpdate={false}
-      opts={{ renderer: 'svg' }}
-      autoResize={false}
-    />
+    <TimelinePointerArea className="h-full w-full">
+      <EChartsReactCore
+        echarts={echarts}
+        theme={themeName}
+        option={option}
+        style={{ width: '100%', height: `${RULER_HEIGHT}px` }}
+        onChartReady={handleChartReady}
+        notMerge={false}
+        lazyUpdate={false}
+        opts={{ renderer: 'svg' }}
+        autoResize={false}
+      />
+    </TimelinePointerArea>
   );
 }

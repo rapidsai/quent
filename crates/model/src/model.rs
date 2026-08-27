@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Model composition via type alias and tuple recursion.
@@ -59,12 +59,26 @@ impl<T: ModelComponent> Model<T> {
 /// The codegen binary calls `Model::build()` which populates this builder
 /// via `ModelComponent::collect()` calls. The builder is then consumed to
 /// produce the final resolved model representation.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ModelBuilder {
     pub name: String,
     pub fsms: Vec<FsmDef>,
     pub entities: Vec<EntityDef>,
     pub resource_groups: Vec<ResourceGroupDef>,
+    /// Whether CXX instrumentation should attach the NVTX capture pipeline.
+    pub nvtx: bool,
+}
+
+impl Default for ModelBuilder {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            fsms: Vec::new(),
+            entities: Vec::new(),
+            resource_groups: Vec::new(),
+            nvtx: true,
+        }
+    }
 }
 
 impl ModelBuilder {
@@ -196,8 +210,8 @@ pub enum ValueType {
     /// A typed reference to another entity, FSM, or resource.
     /// The string is the referenced type's canonical name.
     Ref(std::string::String),
-    /// A collection of custom key-value attributes (opaque in CXX bridge).
-    CustomAttributes,
+    /// A collection of key-value attributes with runtime-defined keys.
+    DynamicAttributes,
 }
 
 // Unit tuple (base case)

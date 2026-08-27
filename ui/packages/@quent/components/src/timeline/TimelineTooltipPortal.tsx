@@ -1,14 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo } from 'react';
 import { useTimelineHover, useZoomRange } from '@quent/hooks';
 import { TooltipContent } from './TimelineTooltip';
 import type { TimelineMark, TimelineSeries } from './types';
-
-const POINTER_OFFSET = 12;
-const VIEWPORT_MARGIN = 4;
+import { PositionedTooltip } from '../ui/positioned-tooltip';
 
 /**
  * Pointer-driven tooltip rendered as a single body-level portal.
@@ -21,48 +18,48 @@ export function TimelineTooltipPortal({
   series,
   timestamps,
   marks,
-  startTime,
 }: {
   /** Stable id of the Timeline that owns this portal. */
   ownerId: string;
   series: TimelineSeries;
   timestamps: number[];
   marks?: TimelineMark[];
-  startTime: bigint;
 }) {
   const hover = useTimelineHover();
   const zoomRange = useZoomRange();
   const isOwned = hover?.sourceId === ownerId;
 
-  if (!isOwned || !hover) return null;
-  if (timestamps.length === 0) return null;
+  if (!isOwned || !hover) {
+    return null;
+  }
+  if (timestamps.length === 0) {
+    return null;
+  }
 
   // Defensive clamp: a stale `dataIndex` from a previous render could exceed
   // the current array length
   const dataIndex = Math.max(0, Math.min(timestamps.length - 1, hover.dataIndex));
 
   return (
-    <PositionedTooltip
+    <TimelineTooltipAtPosition
       clientX={hover.clientX}
       clientY={hover.clientY}
       dataIndex={dataIndex}
       series={series}
       timestamps={timestamps}
       marks={marks}
-      startTime={startTime}
       windowMs={(zoomRange.end - zoomRange.start) * 1000}
     />
   );
 }
 
-function PositionedTooltip({
+function TimelineTooltipAtPosition({
   clientX,
   clientY,
   dataIndex,
   series,
   timestamps,
   marks,
-  startTime,
   windowMs,
 }: {
   clientX: number;
@@ -71,7 +68,6 @@ function PositionedTooltip({
   series: TimelineSeries;
   timestamps: number[];
   marks?: TimelineMark[];
-  startTime: bigint;
   windowMs: number;
 }) {
   const { snappedTimestamp, tooltipSeries, activeMarks } = useMemo(() => {
@@ -85,7 +81,14 @@ function PositionedTooltip({
     }));
     const activeMarksAtTs = marks
       ?.filter(m => snapped >= m.xStart && snapped <= m.xEnd)
-      .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
+      .map(m => ({
+        label: m.label,
+        stateName: m.stateName,
+        color: m.color,
+        attributes: m.attributes,
+        derivedAttributes: m.derivedAttributes,
+        durationMs: m.xEnd - m.xStart,
+      }));
     return {
       snappedTimestamp: snapped,
       tooltipSeries: tooltipSeriesValues,
@@ -95,51 +98,15 @@ function PositionedTooltip({
 
   const fmt = useMemo(() => Object.values(series)[0]?.formatter, [series]);
 
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  // Defer-clamp to viewport: render once at the raw position, measure, then
-  // adjust if the box would overflow. Two-phase keeps us simple — confine: true
-  // was free with ECharts; here it's ~10 lines.
-  const [position, setPosition] = useState({
-    left: clientX + POINTER_OFFSET,
-    top: clientY + POINTER_OFFSET,
-  });
-  useLayoutEffect(() => {
-    const el = hostRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let left = clientX + POINTER_OFFSET;
-    let top = clientY + POINTER_OFFSET;
-    if (left + rect.width + VIEWPORT_MARGIN > vw) {
-      left = Math.max(VIEWPORT_MARGIN, clientX - rect.width - POINTER_OFFSET);
-    }
-    if (top + rect.height + VIEWPORT_MARGIN > vh) {
-      top = Math.max(VIEWPORT_MARGIN, clientY - rect.height - POINTER_OFFSET);
-    }
-    setPosition({ left, top });
-  }, [clientX, clientY, snappedTimestamp]);
-
-  return createPortal(
-    <div
-      ref={hostRef}
-      style={{
-        position: 'fixed',
-        left: position.left,
-        top: position.top,
-        pointerEvents: 'none',
-        zIndex: 1000,
-      }}
-    >
+  return (
+    <PositionedTooltip clientX={clientX} clientY={clientY}>
       <TooltipContent
         timestamp={snappedTimestamp}
         series={tooltipSeries}
-        startTime={startTime}
         fmt={fmt}
         windowMs={windowMs}
         activeMarks={activeMarks}
       />
-    </div>,
-    document.body
+    </PositionedTooltip>
   );
 }

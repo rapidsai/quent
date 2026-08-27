@@ -1,0 +1,59 @@
+version: 2
+
+updates:
+  - commit-message:
+      prefix: "chore(deps)"
+    cooldown:
+      default-days: 14
+    directory: "/"
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+    package-ecosystem: "github-actions"
+    schedule:
+      interval: "weekly"
+  - commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    cooldown:
+      default-days: 14
+    directories:
+      - "/ui"
+      - "/ui/examples/quent-pivot-table-panel"
+      - "/crates/schema/ts"
+    groups:
+      npm:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+    package-ecosystem: "npm"
+    schedule:
+      interval: "weekly"
+  - commit-message:
+      prefix: "chore(deps)"
+    cooldown:
+      default-days: 14
+    directories:
+      - "/"
+    groups:
+      cargo:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+    package-ecosystem: "cargo"
+    schedule:
+      interval: "weekly"

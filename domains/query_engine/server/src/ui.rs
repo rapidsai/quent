@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
@@ -8,9 +8,13 @@ use axum::{
 };
 
 use quent_analyzer::AnalyzerResult;
-use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
+use quent_query_engine_analyzer::{
+    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
+};
 use quent_query_engine_ui as ui;
+use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
+    categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
@@ -110,6 +114,33 @@ where
     Ok(Json(analyzer.query_engine_model().engine()?.to_ui()?))
 }
 
+/// List every Quent context attributed to an engine.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/api/engines/{engine_id}/contexts",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    responses(
+        (status = 200, description = "Contexts contributing telemetry to the engine", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn engine_contexts<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+) -> ServerResult<Json<ui::EngineContexts>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let contexts = state.analyzers.contexts(engine_id).await.map_err(|error| {
+        tracing::error!(%error, %engine_id, "engine context inventory failed");
+        crate::error::ServerError::Cache("engine context inventory could not be loaded".to_owned())
+    })?;
+    Ok(Json(contexts))
+}
+
 // TODO(johanpel): pagination
 /// List all query groups for a given engine.
 #[cfg_attr(feature = "swagger", utoipa::path(
@@ -136,7 +167,7 @@ where
         analyzer
             .query_engine_model()
             .query_groups()
-            .map(QueryGroup::to_ui)
+            .map(|query_group| query_group.to_ui())
             .collect::<Vec<_>>(),
     ))
 }
@@ -261,21 +292,83 @@ where
     ))
 }
 
+/// Fetch the per-operator data-flow distribution timeline for a query.
+///
+/// Not cached in v1; the response shape is `combine_chunks`-compatible
+/// (`BinnedSpanSec` config with `Vec<f64>` leaves), so chunked caching à la
+/// `timeline_cache` can be added later without a protocol change.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/timeline/data-flow",
+    tag = "timelines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Per-operator categorical data-flow timeline; 501 when the analyzer does not support it", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn data_flow_timeline<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<CategoricalTimelineRequest<ui::QueryFilter>>,
+) -> ServerResult<Json<ui::DataFlowTimelineBinned>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    Ok(Json(
+        tokio::task::spawn_blocking(move || analyzer.data_flow_timeline(request)).await??,
+    ))
+}
+
+/// List the entities of a resource or resource group, ranked and paged.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/entities",
+    tag = "entities",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Ranked, paged list of entities", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn entities<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<EntityListRequest<ui::QueryFilter, ui::OperatorFilter>>,
+) -> ServerResult<Json<EntityListResponse>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    Ok(Json(analyzer.list_entities(request)?))
+}
+
 #[cfg(feature = "swagger")]
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
         list_engines,
         engine,
+        engine_contexts,
         list_query_groups,
         list_queries,
         query,
         single_timeline,
         bulk_timelines,
+        data_flow_timeline,
+        entities,
     ),
     tags(
         (name = "engines", description = "Engine, query group, and query management"),
         (name = "timelines", description = "Resource timeline data"),
+        (name = "entities", description = "Entity list queries"),
     )
 )]
 pub(crate) struct ApiDoc;
@@ -288,6 +381,7 @@ where
     Router::new()
         .route("/", get(list_engines))
         .route("/{engine_id}", get(engine))
+        .route("/{engine_id}/contexts", get(engine_contexts))
         .route("/{engine_id}/query-groups", get(list_query_groups))
         .route(
             "/{engine_id}/query_group/{query_group_id}/queries",
@@ -296,5 +390,7 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route("/{engine_id}/timeline/data-flow", post(data_flow_timeline))
+        .route("/{engine_id}/entities", post(entities))
         .with_state(state)
 }

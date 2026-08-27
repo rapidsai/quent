@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
@@ -17,10 +17,14 @@ function isTheme(value: unknown): value is Theme {
 
 /** Default theme: localStorage first, then system preference. */
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return THEME_LIGHT;
+  if (typeof window === 'undefined') {
+    return THEME_LIGHT;
+  }
   try {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
-    if (isTheme(saved)) return saved;
+    if (isTheme(saved)) {
+      return saved;
+    }
   } catch {
     // Ignore storage access errors and fall back to system preference.
   }

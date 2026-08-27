@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-example"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "nvtx_capture"
+path = "src/main.rs"
+
+[dependencies]
+nvtx-injection = { path = "../injection", features = ["static-injection"] }
+nvtx-bridge = { path = "../bridge" }
+libc = "0.2"
+# `io-callback` selects the callback exporter used to print (bin) and collect
+# (test) captured events.
+quent-instrumentation = { path = "../../../crates/instrumentation", features = [
+    "io-callback",
+] }
+uuid = { workspace = true }
+nvtx = { workspace = true }
+
+[dev-dependencies]
+# The test matches on `NvtxEvent` variants to assert coverage.
+nvtx-events = { path = "../events" }

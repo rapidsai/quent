@@ -7,4 +7,3 @@ publish.workspace = true
 [dependencies]
 quent-model = { path = "../model" }
 uuid = { workspace = true, features = ["serde", "v7"] }
-serde.workspace = true

@@ -1,92 +1,99 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_model::{Ref, attributes::Attribute, usage, uuid::Uuid};
-use quent_readme_example::*;
+use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+use quent_readme_example::{
+    App, Checksum, Cluster, Context, Decompressed, Details, DynamicAttributes, FileStats, Info,
+    MemoryPool, MemoryPoolBounds, MemoryPoolUsage, Queue, QueueUsage, Task, Thread, ThreadUsage,
+    Worker,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::PathBuf::from("./events");
-    let exporter = quent_model::exporter::ExporterOptions::FileSystem(
-        quent_model::exporter::FileSystemExporterOptions {
-            format: quent_model::exporter::FileSystemFormat::Ndjson,
-            root: root.clone(),
-        },
-    );
-    let context = AppContext::try_new(Some(exporter))?;
+    let context = Context::<App>::try_new(ExporterOptions::FileSystem(
+        FileSystemExporterOptions::new(FileSystemFormat::Ndjson, root.clone()),
+    ))?;
 
     // The context generates its own id and writes events under `root/<id>/`.
-    // Reuse it as the root resource group id.
+    // Reuse it as the root entity id.
     let id = context.id();
-    let cluster = context.cluster_observer().cluster(id, "example_cluster");
+    let mut cluster = context.observer::<Cluster>().handle_with_id(id);
+    cluster.declaration("example_cluster".to_owned())?;
 
     // Spawn a worker.
-    let worker = context.worker_observer().worker(
-        Uuid::now_v7(),
-        "worker_0",
-        Ref::new(cluster),
+    let mut custom = DynamicAttributes::new();
+    custom.add_u64("threads", 256);
+    let mut worker = context.observer::<Worker>().handle();
+    worker.declaration(
+        "worker_0".to_owned(),
+        cluster.as_entity_ref(),
         Details {
-            version: "42.1.2".to_string(),
-            custom: vec![Attribute::u64("threads", 256)].into(),
+            version: "42.1.2".to_owned(),
+            custom,
         },
-    );
+    )?;
 
-    // Construct a queue.
-    let mut queue = context
-        .queue_observer()
-        .initializing(Uuid::now_v7(), "my_queue", worker);
-    queue.operating(None);
+    // Construct a queue with no known upper bound.
+    let mut queue = context.observer::<Queue>().handle();
+    queue.declaration("my_queue".to_owned(), worker.as_entity_ref())?;
 
-    // Construct a memory pool.
-    let mut mem_pool =
-        context
-            .memory_pool_observer()
-            .initializing(Uuid::now_v7(), "my_memory_pool", worker);
-    mem_pool.operating(1337);
-    mem_pool.resizing();
-    mem_pool.operating(2048);
+    // Construct and resize a memory pool.
+    let mut memory = context.observer::<MemoryPool>().handle();
+    memory.declaration(
+        "my_memory_pool".to_owned(),
+        worker.as_entity_ref(),
+        MemoryPoolBounds { bytes: 1337 },
+    )?;
+    memory.resized(MemoryPoolBounds { bytes: 2048 })?;
 
     // Spawn a thread.
-    let mut thread = context
-        .thread_observer()
-        .initializing(Uuid::now_v7(), "my_thread", worker);
-    thread.operating();
+    let mut thread = context.observer::<Thread>().handle();
+    thread.idle(worker.as_entity_ref())?;
+    thread.active()?;
 
-    // Single event entity
-    context.info_observer().info(
-        Uuid::now_v7(),
-        "ready to operate".to_string(),
-        Some(std::file!().to_string()),
-    );
+    // Emit a structured log event.
+    context.observer::<Info>().handle().recorded(
+        "ready to operate".to_owned(),
+        Some(std::file!().to_owned()),
+        worker.as_entity_ref(),
+    )?;
 
-    // Multi-event entities can emit in any order from an entity handle.
-    let file_stats_handle = context.file_stats_observer().create(Uuid::now_v7());
-    file_stats_handle.checksum(Checksum {
-        algorithm: "sha256".to_string(),
-        value: "abc123def456".to_string(),
-    });
-    file_stats_handle.decompressed(Decompressed {
-        algorithm: "snappy".to_string(),
+    // Multi-event entities can emit their events independently.
+    let mut file_stats = context.observer::<FileStats>().handle();
+    file_stats.checksum(
+        Checksum {
+            algorithm: "sha256".to_owned(),
+            value: "abc123def456".to_owned(),
+        },
+        worker.as_entity_ref(),
+    )?;
+    file_stats.decompressed(Decompressed {
+        algorithm: "snappy".to_owned(),
         ratio: 0.4,
-    });
+    })?;
 
-    // Queue a task. The entry transition returns an FSM handle.
-    let mut task = context.task_observer().queued(
-        Uuid::now_v7(),
-        "my_task_31415",
+    // Queue and execute a task with typed resource usage claims.
+    let mut task = context.observer::<Task>().handle();
+    task.queued(
+        "my_task_31415".to_owned(),
         1,
-        Ref::new(worker),
-        Some(usage((&queue, 1))),
-    );
+        worker.as_entity_ref(),
+        Some(queue.as_entity_ref_with(QueueUsage { entries: 1 })),
+    )?;
+    task.computing(Some(thread.as_entity_ref_with(ThreadUsage)), None)?;
+    task.computing(
+        Some(thread.as_entity_ref_with(ThreadUsage)),
+        Some(memory.as_entity_ref_with(MemoryPoolUsage { bytes: 1024 })),
+    )?;
+    task.exit()?;
+    thread.idle(worker.as_entity_ref())?;
+    thread.exit()?;
 
-    task.computing(Some(usage(&thread)), None);
-    task.computing(Some(usage(&thread)), Some(usage((&mem_pool, 1024))));
-    task.exit();
+    // Flush all entity streams before reporting the output directory.
+    drop((
+        context, cluster, worker, queue, memory, thread, task, file_stats,
+    ));
 
-    // Each entity stream flushes when its last handle drops, so drop the handles
-    // along with the context to write all pending events before reading them.
-    drop((context, queue, mem_pool, thread, task, file_stats_handle));
-
-    // Events are written per entity under the context directory.
     let output_dir = root.join(id.to_string());
     println!(
         "Events written to: {}",

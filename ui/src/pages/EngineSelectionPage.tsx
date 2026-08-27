@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate } from '@tanstack/react-router';
@@ -45,6 +45,7 @@ export function EngineSelectionPage() {
       navigate({
         to: '/profile/engine/$engineId/query/$queryId',
         params: { engineId, queryId },
+        search: {},
       });
     }
   };

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use rustc_hash::FxHashMap as HashMap;
@@ -18,15 +18,12 @@ use quent_analyzer::{
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{
-    QueryEngineModel,
-    engine::Engine,
-    model::{InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder, QueryEngineEntityId},
-    operator::Operator,
-    plan::{Plan, tree::PlanTree},
-    port::Port,
-    query::Query,
-    query_group::QueryGroup,
-    worker::Worker,
+    OperatorEntityMut, QueryEngineModel, QueryEngineModelMut,
+    plain::legacy::{
+        Engine, InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder, Operator, Plan, Port,
+        Query, QueryEngineEntityId, QueryGroup, Worker,
+    },
+    plan_tree::PlanTree,
 };
 use quent_query_engine_model::QueryEngineEvent;
 use quent_simulator_instrumentation::SimulatorEvent;
@@ -82,6 +79,14 @@ impl Model for SimulatorModel {
 }
 
 impl QueryEngineModel for SimulatorModel {
+    type Engine = Engine;
+    type Query = Query;
+    type QueryGroup = QueryGroup;
+    type Worker = Worker;
+    type Plan = Plan;
+    type Operator = Operator;
+    type Port = Port;
+
     fn engine(&self) -> AnalyzerResult<&Engine> {
         self.query_engine.engine()
     }
@@ -123,6 +128,12 @@ impl QueryEngineModel for SimulatorModel {
     }
     fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<PlanTree> {
         self.query_engine.plan_tree(query_id)
+    }
+}
+
+impl QueryEngineModelMut for SimulatorModel {
+    fn operator_mut(&mut self, operator_id: Uuid) -> AnalyzerResult<&mut Operator> {
+        self.query_engine.operator_mut(operator_id)
     }
 }
 
@@ -449,12 +460,9 @@ impl SimulatorModelBuilder {
             }
             if let Some(operator_id) = task.operator_id()
                 && let Some(task_span) = task.active_span()
-                && let Some(operator) = query_engine.operators.get_mut(&operator_id)
+                && let Ok(operator) = query_engine.operator_mut(operator_id)
             {
-                operator.active_span = Some(match operator.active_span() {
-                    None => task_span,
-                    Some(existing) => existing.extend(&task_span),
-                });
+                operator.extend_active_span(task_span);
             }
 
             tasks.insert(task_id, task);

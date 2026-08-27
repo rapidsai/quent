@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
 
 use petgraph::{algo::tarjan_scc, graphmap::DiGraphMap};
 use quent_schema::{
-    DataType, Identifier,
+    DataType, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use rustc_hash::FxHashMap;
@@ -15,7 +15,7 @@ use rustc_hash::FxHashMap;
 #[derive(Default)]
 pub(crate) struct RecursiveRecords {
     // Record name -> the records its fields reference.
-    edges: FxHashMap<Identifier, Vec<Identifier>>,
+    edges: FxHashMap<Path, Vec<Path>>,
 }
 
 impl Visitor for RecursiveRecords {
@@ -29,7 +29,7 @@ impl Visitor for RecursiveRecords {
             && let [_, Element::Record(source), ..] = cursor.elements()
         {
             self.edges
-                .entry(source.name().clone())
+                .entry(source.path().clone())
                 .or_default()
                 .push(target.clone());
         }
@@ -37,13 +37,13 @@ impl Visitor for RecursiveRecords {
 
     fn finish(self) -> Self::Output {
         // Construct a graph of all records referencing all other records.
-        let graph: DiGraphMap<&Identifier, ()> = self
+        let graph: DiGraphMap<&Path, ()> = self
             .edges
             .iter()
             .flat_map(|(source, targets)| targets.iter().map(move |target| (source, target)))
             .collect();
 
-        let mut recursive: BTreeSet<&Identifier> = BTreeSet::new();
+        let mut recursive: BTreeSet<&Path> = BTreeSet::new();
         // Records in a strongly connected component of more than one node are
         // mutually recursive.
         for scc in tarjan_scc(&graph) {
@@ -66,7 +66,7 @@ impl Visitor for RecursiveRecords {
 mod tests {
     use super::*;
     use quent_schema::Schema;
-    use quent_schema::test_utils::{entity, event, field, ident, record, schema};
+    use quent_schema::test_utils::{entity, event, field, record, record_type, schema};
 
     fn walk(schema: &Schema) -> Vec<String> {
         schema.walk(RecursiveRecords::default())
@@ -79,7 +79,7 @@ mod tests {
             "S",
             vec![],
             vec![
-                record("S", vec![field("f", DataType::Record(ident("R")))]),
+                record("S", vec![field("f", record_type("R"))]),
                 record("R", vec![field("g", DataType::U64)]),
             ],
         );
@@ -91,7 +91,7 @@ mod tests {
         let s = schema(
             "S",
             vec![],
-            vec![record("R", vec![field("f", DataType::Record(ident("R")))])],
+            vec![record("R", vec![field("f", record_type("R"))])],
         );
         assert_eq!(walk(&s), vec!["R".to_string()]);
     }
@@ -102,8 +102,8 @@ mod tests {
             "S",
             vec![],
             vec![
-                record("A", vec![field("f", DataType::Record(ident("B")))]),
-                record("B", vec![field("g", DataType::Record(ident("A")))]),
+                record("A", vec![field("f", record_type("B"))]),
+                record("B", vec![field("g", record_type("A"))]),
             ],
         );
         assert_eq!(walk(&s), vec!["A".to_string(), "B".to_string()]);
@@ -112,16 +112,11 @@ mod tests {
     #[test]
     fn recursion_through_option_and_list_wrappers_is_reported() {
         let cases = [
-            (
-                "A",
-                DataType::Option(Box::new(DataType::Record(ident("A")))),
-            ),
-            ("B", DataType::List(Box::new(DataType::Record(ident("B"))))),
+            ("A", DataType::Option(Box::new(record_type("A")))),
+            ("B", DataType::List(Box::new(record_type("B")))),
             (
                 "C",
-                DataType::List(Box::new(DataType::Option(Box::new(DataType::Record(
-                    ident("C"),
-                ))))),
+                DataType::List(Box::new(DataType::Option(Box::new(record_type("C"))))),
             ),
         ];
         for (name, ty) in cases {
@@ -136,10 +131,24 @@ mod tests {
             "S",
             vec![entity(
                 "E",
-                vec![event("Ev", vec![field("f", DataType::Record(ident("R")))])],
+                vec![event("Ev", vec![field("f", record_type("R"))])],
             )],
             vec![record("R", vec![field("g", DataType::U64)])],
         );
         assert!(walk(&s).is_empty());
+    }
+
+    #[test]
+    fn recursion_across_namespaces_is_reported() {
+        let s = schema(
+            "S",
+            [],
+            [
+                record("Foo::A", [field("b", record_type("Bar::B"))]),
+                record("Bar::B", [field("a", record_type("Foo::A"))]),
+            ],
+        );
+
+        assert_eq!(walk(&s), ["Bar::B".to_string(), "Foo::A".to_string()]);
     }
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for CXX bridge code generation.
@@ -141,11 +141,75 @@ fn generate_query_engine_cxx_bridge() {
         "operator.rs should have parent_operator_ids"
     );
 
-    // Verify CustomAttributes bridge is generated
+    // Verify DynamicAttributes bridge is generated
     assert!(
-        files.iter().any(|f| f.name == "custom_attributes.rs"),
-        "custom_attributes.rs should be generated"
+        files.iter().any(|f| f.name == "dynamic_attributes.rs"),
+        "dynamic_attributes.rs should be generated"
     );
+
+    let context_file = files.iter().find(|f| f.name == "context.rs").unwrap();
+    for factory in ["none", "ndjson", "msgpack", "postcard", "collector"] {
+        assert!(
+            context_file.content.contains(&format!("fn {factory}(")),
+            "context.rs should contain the {factory} exporter factory"
+        );
+    }
+    assert!(
+        context_file
+            .content
+            .contains("#[Self = \"ExporterOptions\"]")
+    );
+    assert!(
+        context_file
+            .content
+            .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;")
+    );
+    assert!(context_file.content.contains("pub struct ExporterOptions"));
+    assert!(context_file.content.contains("filesystem::Format::Msgpack"));
+    assert!(
+        context_file
+            .content
+            .contains("filesystem::Format::Postcard")
+    );
+    assert!(context_file.content.contains("CollectorExporterOptions"));
+    assert!(
+        context_file
+            .content
+            .contains("io::ExporterOptions::Collector")
+    );
+    assert!(context_file.content.contains("use nvtx_bridge;"));
+    assert!(context_file.content.contains("use nvtx_injection;"));
+    assert!(
+        context_file
+            .content
+            .contains("_nvtx_pipeline: Option<Box<dyn std::any::Any + Send + Sync>>")
+    );
+    assert!(
+        context_file
+            .content
+            .contains("observer::<nvtx_bridge::NvtxEventEntity>(&options)")
+    );
+    assert!(
+        context_file
+            .content
+            .contains("nvtx_injection::install_hook")
+    );
+    assert!(context_file.content.contains("_nvtx_pipeline,"));
+    assert!(!context_file.content.contains("exporter: String"));
+}
+
+#[test]
+fn cxx_bridge_can_opt_out_of_nvtx() {
+    let mut builder = quent_query_engine_model::QueryEngineModel::build("QueryEngine");
+    builder.nvtx = false;
+
+    let files = emit_cxx(&builder, &CxxOptions::default());
+    let context = files.iter().find(|file| file.name == "context.rs").unwrap();
+
+    assert!(!context.content.contains("nvtx_bridge"));
+    assert!(!context.content.contains("nvtx_injection"));
+    assert!(!context.content.contains("_nvtx_pipeline"));
+    syn::parse_file(&context.content).unwrap();
 }
 
 #[test]

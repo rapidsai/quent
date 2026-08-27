@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for PyO3 bridge code generation.
@@ -24,6 +24,7 @@ fn generate_readme_pyo3_bridge() {
     assert!(file.content.contains("pub fn quent_readme"));
     assert!(file.content.contains("pub struct PyUuid"));
     assert!(file.content.contains("pub fn now_v7() -> PyUuid"));
+    assert!(file.content.contains("pub struct PyExporterOptions"));
     assert!(file.content.contains("pub struct PyContext"));
     assert!(!file.content.contains("PyCustomAttributes"));
     assert!(file.content.contains("pub struct PyWorkerObserver"));
@@ -41,7 +42,11 @@ fn generate_readme_pyo3_bridge() {
     assert!(file.content.contains("pub fn queued"));
     assert!(!file.content.contains("self.inner.queued("));
     assert!(file.content.contains("__usage_arg_item"));
-    assert!(file.content.contains("expected dict for custom attributes"));
+    assert!(
+        file.content
+            .contains("expected dict for dynamic attributes")
+    );
+    assert!(file.content.contains("attributes::DynamicAttribute::null"));
     assert!(file.content.contains("value.cast::<PyBool>()"));
     assert!(
         file.content
@@ -57,6 +62,19 @@ fn generate_readme_pyo3_bridge() {
         file.content
             .contains("#[pymodule(name = \"quent_readme\")]")
     );
+    for factory in ["none", "ndjson", "msgpack", "postcard", "collector"] {
+        assert!(
+            file.content.contains(&format!("pub fn {factory}(")),
+            "generated bridge should contain the {factory} exporter factory"
+        );
+    }
+    assert!(
+        file.content
+            .contains("pub fn new(options: Option<PyRef<'_, PyExporterOptions>>)")
+    );
+    assert!(file.content.contains("CollectorExporterOptions"));
+    assert!(file.content.contains("io::ExporterOptions::Collector"));
+    assert!(!file.content.contains("exporter: Option<String>"));
 }
 
 #[test]
@@ -74,7 +92,28 @@ fn generate_readme_pyo3_type_stubs() {
     assert_eq!(file.name, "quent_readme/__init__.pyi");
     assert!(file.content.contains("class Uuid:"));
     assert!(file.content.contains("def now_v7() -> Uuid"));
+    assert!(file.content.contains("class ExporterOptions:"));
+    assert!(
+        file.content
+            .contains("def ndjson(output_dir: str | PathLike[str]) -> ExporterOptions")
+    );
+    assert!(
+        file.content
+            .contains("def msgpack(output_dir: str | PathLike[str]) -> ExporterOptions")
+    );
+    assert!(
+        file.content
+            .contains("def postcard(output_dir: str | PathLike[str]) -> ExporterOptions")
+    );
+    assert!(
+        file.content
+            .contains("def collector(address: str) -> ExporterOptions")
+    );
     assert!(file.content.contains("class Context:"));
+    assert!(
+        file.content
+            .contains("def __init__(self, options: ExporterOptions | None = ...)")
+    );
     assert!(file.content.contains("class DetailsDict(TypedDict):"));
     assert!(file.content.contains("def worker(self, id: Uuid"));
     assert!(

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Task FSM for the simulator.
@@ -22,6 +22,9 @@ state! {
 
 state! {
     Computing {
+        attributes: {
+            input_bytes: u64,
+        },
         usages: {
             use_thread: quent_stdlib::processor::Processor,
             use_memory: quent_stdlib::memory::Memory,

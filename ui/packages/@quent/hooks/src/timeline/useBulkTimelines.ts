@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -13,7 +13,6 @@ import {
   timelineDataMapAtom,
   zoomRangeAtom,
   debouncedZoomRangeAtom,
-  bulkInitializedAtom,
   visibleEntriesAtom,
 } from '../atoms/timeline';
 import { selectedNodeIdsAtom } from '../atoms/dag';
@@ -80,11 +79,13 @@ export function useBulkTimelines<T extends TreeNode>({
   const queryClient = useQueryClient();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
+  const operatorIds = useMemo(() => [...selectedNodeIds].sort(), [selectedNodeIds]);
 
   useEffect(() => {
     return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
   }, []);
 
@@ -124,26 +125,22 @@ export function useBulkTimelines<T extends TreeNode>({
     store.set(visibleEntriesAtom, baseVisibleEntries);
   }, [baseVisibleEntries, store]);
 
-  const bulkData = useBulkTimelineFetch({
+  useBulkTimelineFetch({
     engineId,
     queryId,
     debouncedZoomRange,
     entries: baseVisibleEntries,
-    operatorId,
+    operatorIds,
   });
-
-  useEffect(() => {
-    if (bulkData) {
-      store.set(bulkInitializedAtom, true);
-    }
-  }, [bulkData, store]);
 
   // Zoom change handler — stable, uses store imperatively
   const handleZoomChange = useCallback(
     (range: ZoomRange) => {
       store.set(zoomRangeAtom, range);
 
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
       debounceTimerRef.current = setTimeout(() => {
         store.set(debouncedZoomRangeAtom, range);
         debounceTimerRef.current = null;
@@ -155,10 +152,14 @@ export function useBulkTimelines<T extends TreeNode>({
   // Expand handler — fetches base + operator data for newly expanded children
   const handleExpand = useCallback(
     async (itemId: string, isExpanded: boolean) => {
-      if (!isExpanded) return;
+      if (!isExpanded) {
+        return;
+      }
 
       const item = findItemByIdFn(rootItem, itemId);
-      if (!item?.children) return;
+      if (!item?.children) {
+        return;
+      }
 
       const zoom = store.get(debouncedZoomRangeAtom);
       const expandConfig = {
@@ -178,19 +179,28 @@ export function useBulkTimelines<T extends TreeNode>({
         );
         const resourceTypeName = getResourceTypeName(params);
         const fsmTypeName = getFsmTypeName(params);
-        const key = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
-        if (!store.get(timelineDataMapAtom)[key]) {
+        const baseKey = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
+        const operatorKey = timelineCacheKey({
+          resourceId: child.id,
+          resourceTypeName,
+          operatorIds,
+          fsmTypeName,
+        });
+        const timelineData = store.get(timelineDataMapAtom);
+        if (!timelineData[baseKey] || (operatorIds.length > 0 && !timelineData[operatorKey])) {
           newBaseEntries[child.id] = params;
         }
       }
 
-      if (Object.keys(newBaseEntries).length === 0) return;
+      if (Object.keys(newBaseEntries).length === 0) {
+        return;
+      }
 
       const {
         entries: expandEntries,
         idToMeta: expandIdToMeta,
         requestKey: expandRequestKey,
-      } = buildMergedBulkEntries(newBaseEntries, operatorId);
+      } = buildMergedBulkEntries(newBaseEntries, operatorIds);
 
       try {
         const response = await queryClient.fetchQuery({
@@ -217,7 +227,7 @@ export function useBulkTimelines<T extends TreeNode>({
       queryClient,
       engineId,
       queryId,
-      operatorId,
+      operatorIds,
       buildBulkParamsFn,
       findItemByIdFn,
     ]

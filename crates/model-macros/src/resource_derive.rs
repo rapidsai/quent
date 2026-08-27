@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! `#[derive(Resource)]` and `#[derive(ResizableResource)]` implementations.
@@ -776,7 +776,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
             const NAME: &'static str = #event_name;
         }
 
-        impl quent_model::HasEventType for #name {
+        impl quent_model::events::Entity for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;
         }
 

@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{http::StatusCode, response::IntoResponse};
 use quent_analyzer::AnalyzerError;
-use quent_exporter_types::ImporterError;
+use quent_io::ImporterError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -27,6 +27,12 @@ pub type ServerResult<T> = std::result::Result<T, ServerError>;
 impl From<ServerError> for StatusCode {
     fn from(value: ServerError) -> Self {
         match value {
+            // A capability the analyzer opted out of is not a server fault:
+            // clients probe for optional endpoints (e.g. the data-flow view)
+            // and hide the feature on 501.
+            ServerError::Analyzer(quent_analyzer::AnalyzerError::Unsupported) => {
+                StatusCode::NOT_IMPLEMENTED
+            }
             ServerError::Importer(_)
             | ServerError::Analyzer(_)
             | ServerError::Io(_)

@@ -1,9 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Run-time defined Resources and Resource Groups (in analysis)
 
-use quent_attributes::Attribute;
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
@@ -43,10 +42,6 @@ impl Transition for RtResourceTransition {
             RtResourceTransition::Finalizing(_) => "finalizing",
             RtResourceTransition::Exit(_) => "exit",
         }
-    }
-
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        std::iter::empty()
     }
 }
 

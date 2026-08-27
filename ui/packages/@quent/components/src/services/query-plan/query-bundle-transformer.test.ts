@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -22,12 +22,17 @@ function makePlan(
 
 function makeOperator(
   id: string,
-  opts: { typeName?: string | null; instanceName?: string | null } = {}
+  opts: {
+    typeName?: string | null;
+    instanceName?: string | null;
+    planId?: string | null;
+    parentOperatorIds?: string[];
+  } = {}
 ): Operator {
   return {
     id,
-    plan_id: null,
-    parent_operator_ids: [],
+    plan_id: opts.planId ?? null,
+    parent_operator_ids: opts.parentOperatorIds ?? [],
     instance_name: opts.instanceName ?? null,
     operator_type_name: opts.typeName ?? null,
     custom_attributes: {},
@@ -364,5 +369,117 @@ describe('getPlanDAG', () => {
     const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.rawNode).toBe(op1);
+  });
+
+  it('attaches related lower-level operator IDs from parent_operator_ids', () => {
+    const logical = makeOperator('logical', { typeName: 'LogicalJoin', planId: 'logical-plan' });
+    const sibling = makeOperator('sibling', { typeName: 'LogicalScan', planId: 'logical-plan' });
+    const physical = makeOperator('physical', {
+      typeName: 'HashJoin',
+      planId: 'physical-plan',
+      parentOperatorIds: ['logical'],
+    });
+    const logicalPort = makePort('logical-port', 'logical');
+    const siblingPort = makePort('sibling-port', 'sibling');
+    const logicalPlan = makePlan('logical-plan', {
+      edges: [{ source: 'logical-port', target: 'sibling-port' }],
+    });
+    const physicalPlan = makePlan('physical-plan');
+    const bundle = makeBundle(
+      { 'logical-plan': logicalPlan, 'physical-plan': physicalPlan },
+      {
+        operators: { logical, sibling, physical },
+        ports: { 'logical-port': logicalPort, 'sibling-port': siblingPort },
+      }
+    );
+
+    const result = getPlanDAG(bundle, 'logical-plan');
+
+    expect(result.nodes.find(n => n.id === 'logical')!.metadata!.relatedOperatorIds).toEqual([
+      'physical',
+    ]);
+    expect(result.nodes.find(n => n.id === 'logical')!.metadata!.relatedOperators).toEqual([
+      physical,
+    ]);
+  });
+
+  it('includes transitive related operator IDs', () => {
+    const logical = makeOperator('logical', { typeName: 'LogicalJoin', planId: 'logical-plan' });
+    const sibling = makeOperator('sibling', { typeName: 'LogicalScan', planId: 'logical-plan' });
+    const intermediate = makeOperator('intermediate', {
+      typeName: 'DistributedJoin',
+      planId: 'distributed-plan',
+      parentOperatorIds: ['logical'],
+    });
+    const physical = makeOperator('physical', {
+      typeName: 'HashJoin',
+      planId: 'physical-plan',
+      parentOperatorIds: ['intermediate'],
+    });
+    const logicalPort = makePort('logical-port', 'logical');
+    const siblingPort = makePort('sibling-port', 'sibling');
+    const logicalPlan = makePlan('logical-plan', {
+      edges: [{ source: 'logical-port', target: 'sibling-port' }],
+    });
+    const distributedPlan = makePlan('distributed-plan');
+    const physicalPlan = makePlan('physical-plan');
+    const bundle = makeBundle(
+      {
+        'logical-plan': logicalPlan,
+        'distributed-plan': distributedPlan,
+        'physical-plan': physicalPlan,
+      },
+      {
+        operators: { logical, sibling, intermediate, physical },
+        ports: { 'logical-port': logicalPort, 'sibling-port': siblingPort },
+      }
+    );
+
+    const result = getPlanDAG(bundle, 'logical-plan');
+    const relatedOperatorIds = result.nodes.find(n => n.id === 'logical')!.metadata!
+      .relatedOperatorIds as string[];
+
+    expect(new Set(relatedOperatorIds)).toEqual(new Set(['intermediate', 'physical']));
+    expect(
+      new Set(
+        (result.nodes.find(n => n.id === 'logical')!.metadata!.relatedOperators as Operator[]).map(
+          operator => operator.id
+        )
+      )
+    ).toEqual(new Set(['intermediate', 'physical']));
+  });
+
+  it('stops descendant traversal when operator relationships contain a cycle', () => {
+    const logical = makeOperator('logical', {
+      planId: 'logical-plan',
+      parentOperatorIds: ['physical'],
+    });
+    const sibling = makeOperator('sibling', { planId: 'logical-plan' });
+    const physical = makeOperator('physical', {
+      planId: 'physical-plan',
+      parentOperatorIds: ['logical'],
+    });
+    const logicalPlan = makePlan('logical-plan', {
+      edges: [{ source: 'logical-port', target: 'sibling-port' }],
+    });
+    const bundle = makeBundle(
+      {
+        'logical-plan': logicalPlan,
+        'physical-plan': makePlan('physical-plan'),
+      },
+      {
+        operators: { logical, sibling, physical },
+        ports: {
+          'logical-port': makePort('logical-port', 'logical'),
+          'sibling-port': makePort('sibling-port', 'sibling'),
+        },
+      }
+    );
+
+    const logicalNode = getPlanDAG(bundle, 'logical-plan').nodes.find(
+      node => node.id === 'logical'
+    )!;
+
+    expect(logicalNode.metadata!.relatedOperatorIds).toEqual(['physical']);
   });
 });

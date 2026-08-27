@@ -1,15 +1,13 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Integration test for the `fsm!` proc macro.
 
-use quent_model::build_info::ModelInfo;
-use quent_model::{Context, FsmEvent, ModelBuilder, ModelComponent, Observer, StateMetadata};
+use quent_model::{FsmEvent, ModelBuilder, ModelComponent, Observer, StateMetadata};
 use uuid::Uuid;
 
 fn noop_task_observer() -> Observer<TaskEvent> {
-    let ctx = Context::try_new(ModelInfo::unknown(), None).unwrap();
-    ctx.block_on(ctx.observer::<TaskEvent>()).unwrap()
+    Observer::noop()
 }
 
 // States via state! macro

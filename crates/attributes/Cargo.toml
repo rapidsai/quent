@@ -1,9 +1,0 @@
-[package]
-name = "quent-attributes"
-version.workspace = true
-edition.workspace =  true
-publish.workspace = true
-[dependencies]
-serde.workspace = true
-thiserror.workspace = true
-ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }

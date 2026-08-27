@@ -1,0 +1,192 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Select the schema language version.
+quent: alpha
+# Top-level name of the application event model. This name is re-used in various
+# generated marker types and provides the file name of the generated code.
+model: App
+# `doc` values become Rust documentation on generated items.
+doc: Event model used by the README instrumentation example.
+
+# Records generate reusable Rust structs. Fields may use schema primitives,
+# other records, or special types such as `dynamic` (see below).
+records:
+  Checksum:
+    doc: Details of the applied checksum.
+    fields:
+      algorithm: string
+      value: string
+
+  Decompressed:
+    doc: Details of the decompression stage.
+    fields:
+      algorithm: string
+      ratio: f64
+
+  Details:
+    doc: Compile-time and run-time worker details.
+    fields:
+      version: string
+      # `dynamic` stores run-time-defined key-value attributes.
+      custom: dynamic
+
+# Entities group one or more event types under an entity type.
+#
+# At run-time, every instance of an entity gets a unique identifier (UUID)
+# carried by every event.
+entities:
+  Cluster:
+    doc: The top-level entity representing the entire application.
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+
+  Worker:
+    doc: A worker belonging to a cluster.
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          # Entities can reference other entities in various semantically
+          # enriched ways.`scope-ref` is one example of a strongly-typed
+          # reference in a tree of entity types. This tree is useful to
+          # establish some "preferred" top-down path through which developers
+          # typically explore all telemetry. See the `quent-ref-tree` crate for
+          # more details.
+          cluster: { scope-ref: Cluster }
+          # A field using a previously declared record.
+          details: Details
+
+  # Quent's flexible application event model allows you to easily express
+  # traditional telemetry signals. Here is an example of how a stream of info
+  # log events might be captured under a single entity.
+  Info:
+    doc: An informational structured-log message.
+    events:
+      recorded:
+        # Events can be emitted at most once per entity instance, unless
+        # explicitly marked `multi`.
+        multi: true
+        attributes:
+          message: string
+          # `option` maps to Rust's `Option<T>`.
+          source: { option: string }
+          worker: { scope-ref: Worker }
+
+  # Entities can have multiple events.
+  FileStats:
+    doc: Events for a mock async file processing pipeline.
+    events:
+      # `{}` declares an event without attributes.
+      scheduled: {}
+      checksum:
+        attributes:
+          details: Checksum
+          worker: { scope-ref: Worker }
+      decompressed:
+        attributes:
+          details: Decompressed
+
+  # Resources are entities with capacities that other entities can use. They do
+  # not need to be FSMs unless their states are meaningful to the application.
+  # A resource entry names a capacity and describes how usage is measured.
+  Queue:
+    doc: A queue whose maximum capacity may be unknown.
+    resource:
+      # `occupancy` measures an amount held over time. This generates a
+      # `QueueUsage` record containing an `entries` field.
+      entries: { kind: occupancy }
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          worker: { scope-ref: Worker }
+
+  Cache:
+    doc: A cache holding recent items.
+    resource:
+      # `known-bounds` also generates a `CacheBounds` record.
+      slots: { kind: occupancy, known-bounds: true }
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          worker: { scope-ref: Worker }
+          # A bounds field reports the resource's current capacity.
+          limits: { sets-resource-bounds: true }
+
+  MemoryPool:
+    doc: A resizable memory pool.
+    resource:
+      bytes: { kind: occupancy, known-bounds: true }
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          worker: { scope-ref: Worker }
+          limits: { sets-resource-bounds: true }
+      # `multi` permits subsequent capacity changes on the same entity.
+      resized:
+        multi: true
+        attributes:
+          limits: { sets-resource-bounds: true }
+
+# FSMs are specialized entities that add finite-state-machine semantics to
+# entities.
+#
+# This is useful to restrict the order in which events can be emitted. Every
+# event represents a transition to the next state and the state transition graph
+# topology is captured by declaring the next possible states under `to: ...`.
+fsms:
+  Job:
+    doc: A simple unit of work.
+    states:
+      queued:
+        # Every FSM has exactly one initial state.
+        initial: true
+        attributes:
+          # The scope reference places this FSM under `Worker` in the entity tree.
+          worker: { scope-ref: Worker }
+        # `to` lists the states that may follow this state.
+        to: [running]
+      running:
+        to: [done]
+      done: {}
+
+  Thread:
+    doc: A thread running tasks.
+    # `resource: true` is shorthand for a unit resource. A thread has one unit
+    # of capacity because it can execute one instruction stream at a time.
+    resource: true
+    states:
+      idle:
+        initial: true
+        attributes:
+          worker: { scope-ref: Worker }
+        to: [active, exit]
+      active:
+        to: [idle]
+      exit: {}
+
+  Task:
+    doc: A task progressing from a queue onto compute resources.
+    states:
+      queued:
+        initial: true
+        attributes:
+          instance_name: string
+          index: u64
+          worker: { scope-ref: Worker }
+          # `uses` generates an `EntityRef<Queue, QueueUsage>`. Wrapping it in
+          # `option` allows the state to omit that resource claim.
+          use_queue: { option: { uses: Queue } }
+        to: [computing]
+      computing:
+        attributes:
+          use_thread: { option: { uses: Thread } }
+          use_memory: { option: { uses: MemoryPool } }
+        # A self-transition makes `computing` a repeatable event.
+        to: [computing, exit]
+      exit: {}

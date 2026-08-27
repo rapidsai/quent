@@ -3,9 +3,11 @@ name = "quent-ui"
 version.workspace = true
 edition.workspace =  true
 publish.workspace = true
+
 [dependencies]
 quent-analyzer = { path = "../analyzer" }
+quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-time = { path = "../time", features = ["ts"] }
 serde.workspace = true
-ts-rs.workspace = true
-uuid.workspace = true
+ts-rs = { workspace = true, features = ["uuid"] }
+uuid = { workspace = true, features = ["serde"] }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // PRIVATE to @quent/hooks — do not export raw atoms (HOOKS-02).
@@ -10,9 +10,10 @@ import type {
   EdgeWidthConfig,
   EdgeColoring,
   NodeLabelField,
+  DagLayoutDirection,
   StatValue,
 } from '@quent/utils';
-import { NODE_LABEL_FIELD } from '@quent/utils';
+import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
 
 /**
@@ -35,11 +36,15 @@ export interface HighlightedNodeIdsState {
   primaryOperatorId: string | null;
 }
 
-export interface InspectedNodeData {
+export interface InspectedOperatorData {
   nodeId: string;
   label: string;
   operationType: string;
-  statistics: Array<{ key: string; value: StatValue }>;
+  statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
+}
+
+export interface InspectedNodeData extends InspectedOperatorData {
+  relatedOperators?: InspectedOperatorData[];
 }
 
 /** Data for the currently selected/pinned node (persists in the panel after click) */
@@ -71,7 +76,9 @@ export const dagDisplayedNodeIdsAtom = atom<Set<string>>(new Set<string>());
 
 function intersectsDisplayed(ids: Iterable<string>, displayed: Set<string>): boolean {
   for (const id of ids) {
-    if (displayed.has(id)) return true;
+    if (displayed.has(id)) {
+      return true;
+    }
   }
   return false;
 }
@@ -85,12 +92,18 @@ function intersectsDisplayed(ids: Iterable<string>, displayed: Set<string>): boo
  */
 export const effectiveHighlightedNodeIdsAtom = atom<HighlightedNodeIdsState>(get => {
   const state = get(highlightedNodeIdsAtom);
-  if (state.ids === null) return state;
+  if (state.ids === null) {
+    return state;
+  }
   const displayed = get(dagDisplayedNodeIdsAtom);
   // Until the DAG has reported what it shows, fall back to the source state
   // so behavior is unchanged on first render.
-  if (displayed.size === 0) return state;
-  if (intersectsDisplayed(state.ids, displayed)) return state;
+  if (displayed.size === 0) {
+    return state;
+  }
+  if (intersectsDisplayed(state.ids, displayed)) {
+    return state;
+  }
   return { ...state, ids: null, source: null, primaryOperatorId: null };
 });
 
@@ -101,10 +114,16 @@ export const effectiveHighlightedNodeIdsAtom = atom<HighlightedNodeIdsState>(get
  */
 export const effectiveHoveredStatAtom = atom<HoveredStatInfo | null>(get => {
   const stat = get(highlightedNodeIdsAtom).hoveredStat;
-  if (!stat) return null;
+  if (!stat) {
+    return null;
+  }
   const displayed = get(dagDisplayedNodeIdsAtom);
-  if (displayed.size === 0) return stat;
-  if (intersectsDisplayed(stat.values.keys(), displayed)) return stat;
+  if (displayed.size === 0) {
+    return stat;
+  }
+  if (intersectsDisplayed(stat.values.keys(), displayed)) {
+    return stat;
+  }
   return null;
 });
 
@@ -134,3 +153,8 @@ export const nodeColorPaletteAtom = atom<ContinuousPaletteName>('blue');
 
 /** Continuous color palette used for edge coloring */
 export const edgeColorPaletteAtom = atom<ContinuousPaletteName>('teal');
+
+/** Direction the DAG layout flows — defaults to sources at the bottom, result at the top */
+export const selectedDagLayoutDirectionAtom = atom<DagLayoutDirection>(
+  DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP
+);

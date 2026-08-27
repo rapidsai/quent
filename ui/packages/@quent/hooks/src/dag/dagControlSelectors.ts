@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Selector hooks for DAG control atoms (HOOKS-02: no raw atom exports).
@@ -15,6 +15,7 @@ import {
   edgeColoringAtom,
   edgeColorPaletteAtom,
   selectedNodeLabelFieldAtom,
+  selectedDagLayoutDirectionAtom,
   selectedNodeDataAtom,
   highlightedNodeIdsAtom,
   effectiveHighlightedNodeIdsAtom,
@@ -61,6 +62,10 @@ export function useEdgeColorPalette() {
 
 export function useSelectedNodeLabelField() {
   return useAtom(selectedNodeLabelFieldAtom);
+}
+
+export function useSelectedDagLayoutDirection() {
+  return useAtom(selectedDagLayoutDirectionAtom);
 }
 
 export function useSelectedNodeData() {

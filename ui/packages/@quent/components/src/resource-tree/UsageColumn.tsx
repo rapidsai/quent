@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { EntityTypeKey } from '@quent/utils';
@@ -14,7 +14,6 @@ type UsageColumnProps = {
   queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
   selectedFsmTypes?: Map<string, string | null>;
-  startTime: bigint;
   durationSeconds: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
@@ -27,7 +26,6 @@ export function UsageColumn({
   queryBundle,
   selectedTypes,
   selectedFsmTypes,
-  startTime,
   durationSeconds,
   isDark,
 }: UsageColumnProps): React.ReactNode {
@@ -48,7 +46,6 @@ export function UsageColumn({
   } else if (resourceType === EntityTypeKey.ResourceGroup) {
     fsmTypeName = selectedFsmTypes?.get(item.id) ?? undefined;
   }
-  const capacities = resourceTypeDecl?.capacities;
   // Cell wrapper kept (without enter/leave) so click events still don't
   // propagate to the table-row click handler. Tooltip visibility is driven
   // by the chart's own pointermove via `timelineHoverAtom` — no row-level
@@ -64,11 +61,10 @@ export function UsageColumn({
         queryId={queryBundle.query_id}
         resourceId={item.id}
         resourceType={resourceType}
-        startTime={startTime}
         durationSeconds={durationSeconds}
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
-        capacities={capacities}
+        resourceTypeDecl={resourceTypeDecl}
         quantitySpecs={queryBundle.quantity_specs}
         fsmTypes={queryBundle.entities.fsm_types}
         isDark={isDark}

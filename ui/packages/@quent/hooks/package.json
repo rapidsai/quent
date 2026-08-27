@@ -10,13 +10,16 @@
   },
   "sideEffects": false,
   "scripts": {
+    "prebuild": "pnpm --workspace-root bindings",
     "build": "tsdown",
+    "build:ci": "tsdown",
+    "pretypecheck": "pnpm --workspace-root bindings",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@quent/client": "workspace:*",
     "@quent/utils": "workspace:*",
-    "jotai-family": "^1.0.1"
+    "jotai-family": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -25,7 +28,12 @@
     "jotai": "^2.0.0"
   },
   "devDependencies": {
-    "tsdown": "^0.22.3",
-    "typescript": "^5.9.3"
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@types/react": "catalog:",
+    "jotai": "catalog:",
+    "react": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
   }
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { defineConfig } from 'vitest/config';
@@ -28,6 +28,12 @@ export default defineConfig({
     },
   },
   resolve: {
+    // Mirror vite.config.ts: the workspace packages each resolve their own
+    // copy of these (pnpm peer-hash duplicates). Without dedupe, a jotai
+    // <Provider> in a test does NOT scope atoms used inside @quent/hooks —
+    // they silently fall back to jotai's global default store and state
+    // leaks between tests.
+    dedupe: ['react', 'react-dom', 'jotai', '@tanstack/react-query', '@tanstack/react-router'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },

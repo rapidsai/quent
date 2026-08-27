@@ -1,4 +1,18 @@
-# Quent
+<!-- rumdl-disable MD033 MD041 -->
+
+<p align="center">
+  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="240">
+</p>
+
+<h1 align="center">Quent</h1>
+
+<p align="center">
+  <a href="https://github.com/rapidsai/quent/actions/workflows/rust.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
+  <a href="https://github.com/rapidsai/quent/actions/workflows/python.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/python.yml/badge.svg" alt="Python CI"></a>
+  <a href="https://github.com/rapidsai/quent/actions/workflows/cpp.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/cpp.yml/badge.svg" alt="C++ CI"></a>
+  <a href="https://github.com/rapidsai/quent/actions/workflows/ui.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/ui.yml/badge.svg" alt="UI CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/rapidsai/quent" alt="Apache-2.0 license"></a>
+</p>
 
 Quent is a framework for building tools that help understand behavior and
 resource utilization of abstract data and control flow structures in your
@@ -47,11 +61,11 @@ found here:
 While Quent is a Rust-based project, it can generate a C++ instrumentation API.
 This is shown here:
 
-- [C++ Integration Example](examples/cpp-integration/)
+- [Legacy C++ Integration Example](examples/legacy/cpp-integration/)
 
 It can also generate a PyO3-backed Python extension module for the same model:
 
-- [Python Integration Example](examples/python-integration/)
+- [Legacy Python Integration Example](examples/legacy/python-integration/)
 
 ## How
 
@@ -94,19 +108,14 @@ opinionated but replaceable implementation based on the modeling approach.
 
 ### Prerequisites
 
-- Rust (stable, >= 1.93)
-- Node.js (>= 24.11)
-- pnpm (>= 10)
-- protoc (protobuf compiler)
-
-Or use [pixi](https://pixi.sh) to manage all dependencies:
+Install [Pixi](https://pixi.sh), then enter the repository environment:
 
 ```bash
 pixi shell
 ```
 
-This installs the required toolchains and drops you into a shell with
-everything on `PATH`.
+Pixi provides the required Rust, Node.js, pnpm, and protoc versions. Run
+development and build commands from this environment.
 
 ### UI development
 
@@ -128,6 +137,10 @@ cd ui
 pnpm install
 pnpm dev
 ```
+
+`pnpm dev` generates the TypeScript bindings consumed by the UI before starting
+Vite. Run `pnpm bindings` after changing Rust types while the dev server remains
+open. The `start`, `typecheck`, and `build` scripts also ensure bindings exist.
 
 The dev server starts on <http://localhost:5173> by default.
 
@@ -157,8 +170,8 @@ stress testing on the UI.
 cargo build -p quent-simulator-server --features ui --release
 ```
 
-This runs `pnpm install && pnpm build` in `ui/` as part of the Cargo build and
-bundles the output into the binary.
+The Cargo build generates the TypeScript bindings, builds the UI, and bundles
+the output into the binary.
 
 ### Swagger UI
 

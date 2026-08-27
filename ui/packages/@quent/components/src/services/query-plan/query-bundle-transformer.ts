@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
@@ -20,7 +20,11 @@ export const validateQueryBundle = (
 /**
  * Retrieve the operator node entity from a port id
  */
-const getNodeEntity = (bundle: QueryBundle<EntityRef>, id: string): DAGNode | undefined => {
+const getNodeEntity = (
+  bundle: QueryBundle<EntityRef>,
+  id: string,
+  relatedOperatorIdsById: Map<string, string[]>
+): DAGNode | undefined => {
   // Find associated port
   if (bundle?.entities?.ports?.[id]) {
     const port: Port = bundle?.entities?.ports?.[id];
@@ -28,18 +32,58 @@ const getNodeEntity = (bundle: QueryBundle<EntityRef>, id: string): DAGNode | un
       ? bundle?.entities?.operators?.[port.operator_id]
       : undefined;
     if (operator) {
+      const relatedOperatorIds = relatedOperatorIdsById.get(operator.id) ?? [];
       return {
         id: operator.id,
         label: operator.instance_name ?? operator.operator_type_name ?? 'Node',
         type: operator.operator_type_name?.toLowerCase() ?? 'operator',
         metadata: {
           rawNode: operator,
+          relatedOperatorIds,
+          relatedOperators: relatedOperatorIds.flatMap(id => {
+            const relatedOperator = bundle.entities.operators[id];
+            return relatedOperator ? [relatedOperator] : [];
+          }),
         },
       };
     }
   }
 
   return undefined;
+};
+
+const buildRelatedOperatorIdsById = (
+  operators: Operator[],
+  selectedOperatorIds: ReadonlySet<string>
+): Map<string, string[]> => {
+  const childrenByParentId = new Map<string, string[]>();
+  for (const operator of operators) {
+    for (const parentId of operator.parent_operator_ids ?? []) {
+      const children = childrenByParentId.get(parentId);
+      if (children) {
+        children.push(operator.id);
+      } else {
+        childrenByParentId.set(parentId, [operator.id]);
+      }
+    }
+  }
+
+  const relatedById = new Map<string, string[]>();
+  for (const operatorId of selectedOperatorIds) {
+    const related = new Set<string>();
+    const stack = [...(childrenByParentId.get(operatorId) ?? [])];
+    while (stack.length > 0) {
+      const childId = stack.pop()!;
+      if (childId === operatorId || related.has(childId)) {
+        continue;
+      }
+      related.add(childId);
+      stack.push(...(childrenByParentId.get(childId) ?? []));
+    }
+    relatedById.set(operatorId, [...related]);
+  }
+
+  return relatedById;
 };
 
 /**
@@ -88,7 +132,6 @@ export const getPlanDAG = (
 
   const nodeMap = new Map<string, DAGNode>();
   const edges: DAGEdge[] = [];
-
   const plans = Object.values(bundle.entities.plans).filter(
     (plan): plan is Plan => plan !== undefined
   );
@@ -98,10 +141,23 @@ export const getPlanDAG = (
     throw new Error(`No plan found for planId: ${planId}`);
   }
 
+  const selectedOperatorIds = new Set(
+    planTree.edges.flatMap(edge =>
+      [edge.source, edge.target].flatMap(portId => {
+        const operatorId = bundle.entities.ports[portId]?.operator_id;
+        return operatorId ? [operatorId] : [];
+      })
+    )
+  );
+  const operators = Object.values(bundle.entities.operators).filter(
+    (operator): operator is Operator => operator !== undefined
+  );
+  const relatedOperatorIdsById = buildRelatedOperatorIdsById(operators, selectedOperatorIds);
+
   // Build the DAG from the plan's edges
   planTree.edges.forEach(edge => {
-    const sourceNode = getNodeEntity(bundle, edge.source);
-    const targetNode = getNodeEntity(bundle, edge.target);
+    const sourceNode = getNodeEntity(bundle, edge.source, relatedOperatorIdsById);
+    const targetNode = getNodeEntity(bundle, edge.target, relatedOperatorIdsById);
 
     if (sourceNode && targetNode) {
       // Deduplicate nodes by ID

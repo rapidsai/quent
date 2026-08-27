@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
@@ -90,10 +90,20 @@ export function useStatGroupTableControls<TIndexKey extends string, TRow = unkno
   }, [defaultStatSelector]);
 
   useEffect(() => {
-    if (allStatNames.length === 0) return;
+    if (allStatNames.length === 0) {
+      return;
+    }
     const allStatsKey = allStatNames.join('\0');
-    if (appliedDefaultKey === allStatsKey) return;
+    if (appliedDefaultKey === allStatsKey) {
+      return;
+    }
     setAppliedDefaultKey(allStatsKey);
+
+    // Preserve state hydrated before the table mounted, then resume normal
+    // default reconciliation if the available stat set later changes.
+    if (appliedDefaultKey === null && (selectedStats !== null || statOrder !== null)) {
+      return;
+    }
 
     const selectedByDefault = defaultStatSelectorRef.current?.(allStatNames);
     if (!selectedByDefault || selectedByDefault.length === 0) {
@@ -111,14 +121,26 @@ export function useStatGroupTableControls<TIndexKey extends string, TRow = unkno
     const orderedDefaults = allStatNames.filter(stat => defaults.has(stat));
     const rest = allStatNames.filter(stat => !defaults.has(stat));
     setStatOrder([...orderedDefaults, ...rest]);
-  }, [allStatNames, appliedDefaultKey, setAppliedDefaultKey, setSelectedStats, setStatOrder]);
+  }, [
+    allStatNames,
+    appliedDefaultKey,
+    selectedStats,
+    setAppliedDefaultKey,
+    setSelectedStats,
+    setStatOrder,
+    statOrder,
+  ]);
 
   const orderedStatNames = useMemo(() => {
-    if (!statOrder) return allStatNames;
+    if (!statOrder) {
+      return allStatNames;
+    }
     const allSet = new Set(allStatNames);
     const ordered = statOrder.filter(stat => allSet.has(stat));
     for (const stat of allStatNames) {
-      if (!ordered.includes(stat)) ordered.push(stat);
+      if (!ordered.includes(stat)) {
+        ordered.push(stat);
+      }
     }
     return ordered;
   }, [allStatNames, statOrder]);
@@ -144,13 +166,19 @@ export function useStatGroupTableControls<TIndexKey extends string, TRow = unkno
     if (!rows || !getRowIndexId) {
       return activeIndexKeys.length < visibleIndexOrder.length;
     }
-    if (rows.length <= 1) return false;
+    if (rows.length <= 1) {
+      return false;
+    }
     // No active keys means every row collapses into a single bucket.
-    if (activeIndexKeys.length === 0) return true;
+    if (activeIndexKeys.length === 0) {
+      return true;
+    }
     const seen = new Set<string>();
     for (const row of rows) {
       const bucketKey = activeIndexKeys.map(k => getRowIndexId(row, k)).join('\0');
-      if (seen.has(bucketKey)) return true;
+      if (seen.has(bucketKey)) {
+        return true;
+      }
       seen.add(bucketKey);
     }
     return false;
@@ -173,7 +201,9 @@ export function useStatGroupTableControls<TIndexKey extends string, TRow = unkno
         const next = [...current];
         const fromIdx = next.indexOf(fromKey as TIndexKey);
         const toIdx = next.indexOf(toKey as TIndexKey);
-        if (fromIdx === -1 || toIdx === -1) return current;
+        if (fromIdx === -1 || toIdx === -1) {
+          return current;
+        }
         next.splice(fromIdx, 1);
         next.splice(toIdx, 0, fromKey as TIndexKey);
         return next;
@@ -187,8 +217,11 @@ export function useStatGroupTableControls<TIndexKey extends string, TRow = unkno
       setSelectedStats(prev => {
         const current = prev ?? new Set(allStatNames);
         const next = new Set(current);
-        if (next.has(stat)) next.delete(stat);
-        else next.add(stat);
+        if (next.has(stat)) {
+          next.delete(stat);
+        } else {
+          next.add(stat);
+        }
         return next;
       });
     },

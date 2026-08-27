@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { X, Filter } from 'lucide-react';
@@ -6,6 +6,7 @@ import {
   useSelectedOperatorLabel,
   useSetSelectedNodeIds,
   useSetSelectedOperatorLabel,
+  useSetSelectedNodeData,
 } from '@quent/hooks';
 
 interface QueryToolbarProps {
@@ -21,10 +22,12 @@ export function QueryToolbar({ children }: QueryToolbarProps) {
   const operatorLabel = useSelectedOperatorLabel();
   const setSelectedNodeIds = useSetSelectedNodeIds();
   const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const setSelectedNodeData = useSetSelectedNodeData();
 
   const clearOperator = () => {
     setSelectedNodeIds(new Set());
     setSelectedOperatorLabel(null);
+    setSelectedNodeData(null);
   };
 
   return (
@@ -36,6 +39,7 @@ export function QueryToolbar({ children }: QueryToolbarProps) {
             {operatorLabel}
             <button
               onClick={clearOperator}
+              aria-label="Clear operator filter"
               className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors cursor-pointer"
             >
               <X className="h-2.5 w-2.5" />

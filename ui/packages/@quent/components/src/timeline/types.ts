@@ -1,5 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+
+import type { DynamicAttribute } from '@quent/utils';
 
 export type TimelineSeriesEntry = {
   binDuration: number;
@@ -24,9 +26,14 @@ export type TimelineMark = {
   isDimmed?: boolean;
   /** Operator instance name when this mark belongs to a selected operator's long entities. */
   operatorName?: string;
+  /** Attributes recorded by instrumentation on this state. */
+  attributes?: DynamicAttribute[];
+  /** Attributes computed by the analyzer, rendered under a "derived" section. */
+  derivedAttributes?: DynamicAttribute[];
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 45;
+export const CHART_GROUP = 'timeline-sync-group';
 
 // left/right spacing needs to be consistent across all timelines
 // so axes line up. top/bottom spacing can be overridden, but defaults still
@@ -36,6 +43,7 @@ export const TIMELINE_SPACING = {
   right: 10,
   top: 2.5,
   bottom: 2.5,
+  outerBoundsMode: 'none' as const,
 };
 
 // Timeline color constants live in timelineEchartsTheme (canvas-based, theme mirrored in JS).

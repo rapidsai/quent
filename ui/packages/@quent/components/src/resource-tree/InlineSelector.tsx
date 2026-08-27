@@ -1,14 +1,19 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@quent/utils';
 
+export interface InlineSelectorOption {
+  value: string;
+  label: string;
+}
+
 interface InlineSelectorProps {
   id: string;
   label?: string;
   value: string;
-  options: string[];
+  options: Array<string | InlineSelectorOption>;
   onChange: (itemId: string, type: string) => void;
   className?: string;
 }
@@ -51,15 +56,19 @@ export const InlineSelector = ({
           position="popper"
           className="max-h-[--radix-select-content-available-height] min-w-[var(--radix-select-trigger-width)]"
         >
-          {options.map(option => (
-            <SelectItem
-              key={option}
-              value={option}
-              className="text-xs font-mono py-1.5 pl-8 pr-2 cursor-pointer"
-            >
-              {option}
-            </SelectItem>
-          ))}
+          {options.map(option => {
+            const value = typeof option === 'string' ? option : option.value;
+            const label = typeof option === 'string' ? option : option.label;
+            return (
+              <SelectItem
+                key={value}
+                value={value}
+                className="text-xs font-mono py-1.5 pl-8 pr-2 cursor-pointer"
+              >
+                {label}
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
     </div>

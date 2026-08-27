@@ -1,0 +1,12 @@
+[package]
+name = "quent-simulator-ui-bindings"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+nvtx-ui = { path = "../../../integrations/nvtx/ui" }
+quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
+quent-simulator-ui = { path = "../ui" }
+quent-ui = { path = "../../../crates/ui" }
+ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl", "format"] }

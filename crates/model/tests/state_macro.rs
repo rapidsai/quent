@@ -1,15 +1,13 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Integration test for the `state!` proc macro with flat-arg FSM methods.
 
-use quent_model::build_info::ModelInfo;
-use quent_model::{Context, ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
+use quent_model::{ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
 use uuid::Uuid;
 
 fn noop_task_observer() -> Observer<TaskEvent> {
-    let ctx = Context::try_new(ModelInfo::unknown(), None).unwrap();
-    ctx.block_on(ctx.observer::<TaskEvent>()).unwrap()
+    Observer::noop()
 }
 
 // States defined with state! macro.
@@ -172,6 +170,46 @@ fn extract_usages() {
     assert_eq!(usages.len(), 2);
     assert_eq!(usages[0].resource_id, Uuid::from_u128(1));
     assert_eq!(usages[1].resource_id, Uuid::from_u128(2));
+}
+
+#[test]
+fn extract_attributes_inline_fields() {
+    use quent_model::analyze::ExtractAttributes;
+    use quent_model::attributes::DynamicValue;
+
+    let q = Queued {
+        instance_name: "test_task".to_string(),
+        priority: 7,
+    };
+    let attrs = q.extract_attributes();
+    // instance_name is excluded — surfaced via ExtractInstanceName instead.
+    assert_eq!(attrs.len(), 1);
+    assert_eq!(attrs[0].key, "priority");
+    assert_eq!(attrs[0].value, Some(DynamicValue::U32(7)));
+
+    // Usage-only states carry no attributes.
+    let c = Computing {
+        thread: None,
+        memory: None,
+    };
+    assert!(c.extract_attributes().is_empty());
+}
+
+#[test]
+fn transition_info_attributes() {
+    use quent_model::analyze::TransitionInfo;
+    use quent_model::attributes::DynamicValue;
+
+    let transition = TaskTransition::from(Queued {
+        instance_name: "test_task".to_string(),
+        priority: 3,
+    });
+    let attrs = transition.attributes();
+    assert_eq!(attrs.len(), 1);
+    assert_eq!(attrs[0].key, "priority");
+    assert_eq!(attrs[0].value, Some(DynamicValue::U32(3)));
+
+    assert!(TaskTransition::Exit.attributes().is_empty());
 }
 
 #[test]

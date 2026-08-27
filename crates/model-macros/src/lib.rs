@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Proc macros for defining Quent application models.
@@ -63,8 +63,8 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 
 /// Composes a model's entities into a model type and event enum.
 ///
-/// Fields may appear in any order; `name` and `root` are required, `entities` is
-/// optional.
+/// Fields may appear in any order; `name` and `root` are required. `entities`
+/// and `analyzer` are optional. `nvtx` is optional and defaults to `true`.
 ///
 /// ```ignore
 /// model! {
@@ -72,6 +72,7 @@ pub fn derive_resizable_resource(input: TokenStream) -> TokenStream {
 ///     root: Cluster,
 ///     entities: { Worker, Thread, Task },
 ///     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
+///     nvtx: false,              // optional: disable CXX NVTX capture
 /// }
 /// ```
 #[proc_macro]
@@ -90,7 +91,7 @@ pub fn model(input: TokenStream) -> TokenStream {
 /// This generates `AppContext`, the entry point for instrumenting your
 /// application. To start emitting events:
 ///
-/// 1. Create a context: `let ctx = AppContext::try_new(Some(exporter_options))?;`
+/// 1. Create a context: `let ctx = AppContext::try_new(exporter_options)?;`
 /// 2. Get an observer: `let obs = ctx.cluster_observer();`
 /// 3. Declare the root entity with the context id: `obs.cluster(ctx.id(), "my-cluster");`
 ///

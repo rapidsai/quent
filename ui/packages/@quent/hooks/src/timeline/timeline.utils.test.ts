@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -20,7 +20,7 @@ function makeResourceRequest(
       resource_id: resourceId,
       long_entities_threshold_s: null,
       entity_filter: { entity_type_name: entityTypeName },
-      application: { operator_id: operatorId },
+      application: { operator_ids: operatorId ? [operatorId] : [] },
       config: { window_start_s: 0, window_end_s: 1, num_bins: 10 } as never,
     },
   };
@@ -38,7 +38,7 @@ function makeGroupRequest(
       resource_type_name: resourceTypeName,
       long_entities_threshold_s: null,
       entity_filter: { entity_type_name: entityTypeName },
-      app_params: { operator_id: operatorId },
+      app_params: { operator_ids: operatorId ? [operatorId] : [] },
       config: { window_start_s: 0, window_end_s: 1, num_bins: 10 } as never,
     },
   };
@@ -81,38 +81,39 @@ describe('getFsmTypeName', () => {
 });
 
 describe('bulkEntryId', () => {
-  it('returns "<resourceId>:base" when operatorId is omitted', () => {
+  it('returns "<resourceId>:base" when operatorIds are omitted', () => {
     expect(bulkEntryId('res-1')).toBe('res-1:base');
   });
 
-  it('returns "<resourceId>:base" when operatorId is undefined', () => {
+  it('returns "<resourceId>:base" when operatorIds are undefined', () => {
     expect(bulkEntryId('res-1', undefined)).toBe('res-1:base');
   });
 
-  it('returns "<resourceId>:base" when operatorId is null', () => {
+  it('returns "<resourceId>:base" when operatorIds are null', () => {
     expect(bulkEntryId('res-1', null)).toBe('res-1:base');
   });
 
-  it('returns "<resourceId>:op:<operatorId>" when operatorId is provided', () => {
-    expect(bulkEntryId('res-1', 'op-42')).toBe('res-1:op:op-42');
+  it('returns a canonical key when operatorIds are provided', () => {
+    expect(bulkEntryId('res-1', ['op-42', 'op-41', 'op-42'])).toBe('res-1:ops:["op-41","op-42"]');
   });
 });
 
 describe('setOperatorOnEntry', () => {
-  it('sets operator_id on a Resource variant', () => {
+  it('sets operator_ids on a Resource variant', () => {
     const entry = makeResourceRequest('r1', null, null);
-    const result = setOperatorOnEntry(entry, 'op-99');
+    const result = setOperatorOnEntry(entry, ['op-98', 'op-99']);
     expect('Resource' in result).toBe(true);
     expect(
-      (result as { Resource: { application: OperatorFilter } }).Resource.application.operator_id
-    ).toBe('op-99');
+      (result as { Resource: { application: OperatorFilter } }).Resource.application.operator_ids
+    ).toEqual(['op-98', 'op-99']);
   });
 
-  it('preserves other Resource fields when setting operator_id', () => {
+  it('preserves other Resource fields when setting operator_ids', () => {
     const entry = makeResourceRequest('r1', 'Fsm', null);
-    const result = setOperatorOnEntry(entry, 'op-1') as {
-      Resource: (typeof entry)['Resource' & keyof typeof entry];
-    };
+    const result = setOperatorOnEntry(entry, ['op-1']);
+    if (!('Resource' in result)) {
+      throw new Error('expected Resource');
+    }
     expect(result.Resource.resource_id).toBe('r1');
     expect(result.Resource.entity_filter.entity_type_name).toBe('Fsm');
   });
@@ -120,28 +121,29 @@ describe('setOperatorOnEntry', () => {
   it('does not mutate the original Resource entry', () => {
     const entry = makeResourceRequest('r1');
     const original = (entry as { Resource: { application: OperatorFilter } }).Resource.application
-      .operator_id;
-    setOperatorOnEntry(entry, 'op-new');
+      .operator_ids;
+    setOperatorOnEntry(entry, ['op-new']);
     expect(
-      (entry as { Resource: { application: OperatorFilter } }).Resource.application.operator_id
-    ).toBe(original);
+      (entry as { Resource: { application: OperatorFilter } }).Resource.application.operator_ids
+    ).toEqual(original);
   });
 
-  it('sets operator_id on a ResourceGroup variant', () => {
+  it('sets operator_ids on a ResourceGroup variant', () => {
     const entry = makeGroupRequest('g1', 'GPU', null, null);
-    const result = setOperatorOnEntry(entry, 'op-7');
+    const result = setOperatorOnEntry(entry, ['op-7', 'op-8']);
     expect('ResourceGroup' in result).toBe(true);
     expect(
       (result as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params
-        .operator_id
-    ).toBe('op-7');
+        .operator_ids
+    ).toEqual(['op-7', 'op-8']);
   });
 
-  it('preserves other ResourceGroup fields when setting operator_id', () => {
+  it('preserves other ResourceGroup fields when setting operator_ids', () => {
     const entry = makeGroupRequest('g1', 'GPU', 'Worker', null);
-    const result = setOperatorOnEntry(entry, 'op-2') as {
-      ResourceGroup: (typeof entry)['ResourceGroup' & keyof typeof entry];
-    };
+    const result = setOperatorOnEntry(entry, ['op-2']);
+    if (!('ResourceGroup' in result)) {
+      throw new Error('expected ResourceGroup');
+    }
     expect(result.ResourceGroup.resource_group_id).toBe('g1');
     expect(result.ResourceGroup.resource_type_name).toBe('GPU');
     expect(result.ResourceGroup.entity_filter.entity_type_name).toBe('Worker');
@@ -150,11 +152,11 @@ describe('setOperatorOnEntry', () => {
   it('does not mutate the original ResourceGroup entry', () => {
     const entry = makeGroupRequest('g1', 'GPU');
     const original = (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup
-      .app_params.operator_id;
-    setOperatorOnEntry(entry, 'op-new');
+      .app_params.operator_ids;
+    setOperatorOnEntry(entry, ['op-new']);
     expect(
       (entry as { ResourceGroup: { app_params: OperatorFilter } }).ResourceGroup.app_params
-        .operator_id
-    ).toBe(original);
+        .operator_ids
+    ).toEqual(original);
   });
 });

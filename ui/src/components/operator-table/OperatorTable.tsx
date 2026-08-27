@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
@@ -8,7 +8,7 @@ import {
   PivotTableToolbar,
   getSchemaStatNames,
 } from '@quent/components';
-import { getOperationTypeColor } from '@quent/utils';
+import { getOperationTypeColor, formatStatWithQuantity } from '@quent/utils';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -25,10 +25,14 @@ import {
 } from '@quent/hooks';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
-import type { OperatorTableRow } from './types';
+import {
+  DEFAULT_OPERATOR_TABLE_ENABLED,
+  OPERATOR_TABLE_INDEX_ORDER,
+  OPERATOR_TABLE_PERSIST_KEY,
+  type OperatorTableIndexKey,
+  type OperatorTableRow,
+} from './types';
 import { buildOperatorRows, buildItemIdIndex } from './utils';
-
-type IndexKey = 'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
 
 const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   groups: {
@@ -56,22 +60,6 @@ const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   stats: row => row.stats,
 };
 
-const INDEX_ORDER: IndexKey[] = [
-  'partition',
-  'parent_item_type',
-  'parent_item',
-  'item_type',
-  'item',
-];
-
-const DEFAULT_ENABLED: Record<IndexKey, boolean> = {
-  partition: true,
-  parent_item_type: false,
-  parent_item: false,
-  item_type: true,
-  item: true,
-};
-
 // Module-scoped so the reference is stable across renders. An inline arrow
 // here would be a fresh function on every render of OperatorTable, which
 // cascades into PivotedStatTable's renderer dep arrays and ultimately causes
@@ -97,29 +85,40 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [hoveredStat, setHoveredStat] = useHoveredStat();
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
-  const { entities } = queryBundle;
+  const { entities, quantity_specs: quantitySpecs } = queryBundle;
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
 
   // Plans included in the table: the selected plan plus every descendant plan
   // (children, grandchildren, ...). Selecting a leaf plan yields a singleton.
   const includedPlanIds = useMemo(() => {
-    if (!selectedPlanId || !entities.plans[selectedPlanId]) return new Set<string>();
+    if (!selectedPlanId || !entities.plans[selectedPlanId]) {
+      return new Set<string>();
+    }
     const childrenByParent = new Map<string | null, string[]>();
     for (const p of Object.values(entities.plans)) {
-      if (!p) continue;
+      if (!p) {
+        continue;
+      }
       const list = childrenByParent.get(p.parent);
-      if (list) list.push(p.id);
-      else childrenByParent.set(p.parent, [p.id]);
+      if (list) {
+        list.push(p.id);
+      } else {
+        childrenByParent.set(p.parent, [p.id]);
+      }
     }
     const result = new Set<string>();
     const stack: string[] = [selectedPlanId];
     while (stack.length > 0) {
       const id = stack.pop()!;
-      if (result.has(id)) continue;
+      if (result.has(id)) {
+        continue;
+      }
       result.add(id);
       const children = childrenByParent.get(id);
-      if (children) stack.push(...children);
+      if (children) {
+        stack.push(...children);
+      }
     }
     return result;
   }, [entities.plans, selectedPlanId]);
@@ -129,12 +128,35 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     [entities, includedPlanIds]
   );
 
+  const statQuantityNames = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const row of allRows) {
+      for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
+        if (!(statKey in result)) {
+          result[statKey] = quantityName;
+        }
+      }
+    }
+    return result;
+  }, [allRows]);
+
+  const formatNumericValue = useCallback(
+    (value: number, statName: string) => {
+      const quantityName = statQuantityNames[statName];
+      const spec = quantityName ? quantitySpecs?.[quantityName] : undefined;
+      return formatStatWithQuantity(value, statName, spec);
+    },
+    [statQuantityNames, quantitySpecs]
+  );
+
   // When the DAG has a selection, narrow the table to just the matching
   // operator rows. If the selection is non-empty but matches nothing in the
   // current sibling-plan scope (e.g. a stage node was selected), fall back to
   // the unfiltered rows so the table doesn't appear inexplicably empty.
   const rows = useMemo(() => {
-    if (selectedNodeIds.size === 0) return allRows;
+    if (selectedNodeIds.size === 0) {
+      return allRows;
+    }
     const filtered = allRows.filter(r => selectedNodeIds.has(r.itemId));
     return filtered.length > 0 ? filtered : allRows;
   }, [allRows, selectedNodeIds]);
@@ -154,7 +176,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const allStatNames = useMemo(() => getSchemaStatNames(rows, OPERATOR_SCHEMA), [rows]);
   const hasParentItems = useMemo(() => rows.some(r => r.parentItemType !== '-'), [rows]);
   const filterIndexOrder = useCallback(
-    (order: IndexKey[]) =>
+    (order: OperatorTableIndexKey[]) =>
       hasParentItems ? order : order.filter(k => k !== 'parent_item_type' && k !== 'parent_item'),
     [hasParentItems]
   );
@@ -175,9 +197,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     handleSelectNoStats,
     sorting,
     setSorting,
-  } = useStatGroupTableControls<IndexKey, OperatorTableRow>({
-    baseIndexOrder: INDEX_ORDER,
-    defaultEnabled: DEFAULT_ENABLED,
+  } = useStatGroupTableControls<OperatorTableIndexKey, OperatorTableRow>({
+    baseIndexOrder: OPERATOR_TABLE_INDEX_ORDER,
+    defaultEnabled: DEFAULT_OPERATOR_TABLE_ENABLED,
     allStatNames,
     defaultStatSelector: stats => {
       const duration = stats.filter(stat => stat === 'duration_s');
@@ -186,27 +208,31 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       return [...duration, ...inputs, ...outputs];
     },
     filterIndexOrder,
-    persistKey: 'operatorTable',
+    persistKey: OPERATOR_TABLE_PERSIST_KEY,
     rows,
     getRowIndexId: (row, key) => OPERATOR_SCHEMA.groups[key].id(row),
   });
 
   const parentScopeLabelValue = useMemo(() => {
     for (const row of rows) {
-      if (row.parentScopeLabel !== '-') return row.parentScopeLabel;
+      if (row.parentScopeLabel !== '-') {
+        return row.parentScopeLabel;
+      }
     }
     return 'Parent';
   }, [rows]);
 
   const scopeLabelValue = useMemo(() => {
     for (const row of rows) {
-      if (row.scopeLabel !== '-' && row.scopeLabel !== parentScopeLabelValue) return row.scopeLabel;
+      if (row.scopeLabel !== '-' && row.scopeLabel !== parentScopeLabelValue) {
+        return row.scopeLabel;
+      }
     }
     return 'Current';
   }, [rows, parentScopeLabelValue]);
 
   /* This should in the future be extended with all categorical/boolean type stats */
-  const indexLabels: Record<IndexKey, React.ReactNode> = useMemo(
+  const indexLabels: Record<OperatorTableIndexKey, React.ReactNode> = useMemo(
     () => ({
       partition: 'Worker / Plan',
       parent_item_type: (
@@ -359,6 +385,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
+          formatNumericValue={formatNumericValue}
         />
       </div>
     </div>

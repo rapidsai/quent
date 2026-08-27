@@ -1,10 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useZoomRange } from '@quent/hooks';
+import { useGetZoomRange } from '@quent/hooks';
 import { connectChart } from './timeline.utils';
 import { useChartResize } from './useChartResize';
 
@@ -33,10 +33,9 @@ export interface UseChartConnectResult {
  * Shared `onChartReady` handler for charts that participate in the timeline
  * connect group.
  *
- * Reads the live zoom from `zoomRangeAtom` via {@link useZoomRange} on every
- * render and stashes both the zoom and the current `durationSeconds` in refs,
- * so the returned `handleChartReady` always seeds new instances with the
- * up-to-date values without rebuilding the callback. This is what keeps a
+ * Reads the live zoom imperatively when a chart connects, so zoom gestures do
+ * not re-render every chart. New instances still seed with the up-to-date
+ * range without rebuilding the callback. This is what keeps a
  * user's saved zoom intact across theme switches (which simultaneously dispose
  * and recreate every chart in the group).
  *
@@ -50,10 +49,7 @@ export function useChartConnect({
   activateBrushSelect = false,
   onReady,
 }: UseChartConnectOptions): UseChartConnectResult {
-  const zoomRange = useZoomRange();
-
-  const zoomRangeRef = useRef(zoomRange);
-  zoomRangeRef.current = zoomRange;
+  const getZoomRange = useGetZoomRange();
   const durationSecondsRef = useRef(durationSeconds);
   durationSecondsRef.current = durationSeconds;
   const onReadyRef = useRef(onReady);
@@ -65,13 +61,13 @@ export function useChartConnect({
     (instance: EChartsInstance) => {
       handleResize(instance);
       const dur = durationSecondsRef.current;
-      const range = zoomRangeRef.current;
+      const range = getZoomRange();
       const zoomPct =
         dur > 0 ? { start: (range.start / dur) * 100, end: (range.end / dur) * 100 } : null;
       connectChart(instance, chartGroup, activateBrushSelect, zoomPct);
       onReadyRef.current?.(instance);
     },
-    [handleResize, chartGroup, activateBrushSelect]
+    [handleResize, chartGroup, activateBrushSelect, getZoomRange]
   );
 
   return { handleChartReady, instanceRef };

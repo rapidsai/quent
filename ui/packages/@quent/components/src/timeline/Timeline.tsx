@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import EChartsReactCore from 'echarts-for-react/lib/core';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
@@ -9,7 +9,13 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { withOpacity } from '@quent/utils';
 import type { TimelineSeriesEntry } from './types';
-import { TimelineSeries, TimelineMark, TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from './types';
+import {
+  CHART_GROUP,
+  TimelineSeries,
+  TimelineMark,
+  TIMELINE_SPACING,
+  TIMELINE_X_AXIS_ANIMATION,
+} from './types';
 import {
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
@@ -19,12 +25,13 @@ import {
   TIMELINE_MONO_FONT,
   useTimelineEchartsTheme,
 } from './timelineEchartsTheme';
-import { MIN_ZOOM_WINDOW_S, nanosToMs } from '../lib/timeline.utils';
 import { useVisibleMaxValue } from './useVisibleMaxValue';
 import { useChartConnect } from '../lib/useChartConnect';
+import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
+import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
 import { Opts } from 'echarts-for-react/lib/types';
+import { TimelinePointerArea } from './TimelinePointerArea';
 
-export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
 
 /**
@@ -40,16 +47,16 @@ export interface TimelineHoverPosition {
 
 /** Stacked-area timeline chart backed by ECharts, with zoom sync and optional tooltip. */
 export function Timeline({
-  startTime,
   durationSeconds,
   series,
   timestamps,
   showTooltip = true,
   marks,
   isDark,
+  yAxisLabel,
   onHoverChange,
+  onReady,
 }: {
-  startTime: bigint;
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
   durationSeconds: number;
   series: TimelineSeries;
@@ -59,8 +66,12 @@ export function Timeline({
   marks?: TimelineMark[];
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
+  /** Label describing the Y axis metric (e.g. capacity name). */
+  yAxisLabel?: string;
   /** Pointer-state callback. */
   onHoverChange?: (position: TimelineHoverPosition | null) => void;
+  /** Called when the underlying ECharts instance is ready or recreated. */
+  onReady?: (instance: EChartsInstance) => void;
 }) {
   const { themeName, textColor, labelBackgroundColor } = useTimelineEchartsTheme(isDark);
   const maxMarkCountRef = useRef(0);
@@ -82,8 +93,7 @@ export function Timeline({
         type: 'line',
         stack: isOverlay ? `overlay-total` : 'total',
         step: 'middle',
-        symbol: 'circle',
-        symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
+        symbol: 'none',
         hoverAnimation: false,
         showSymbol: false,
         ...TIMELINE_X_AXIS_ANIMATION,
@@ -174,12 +184,10 @@ export function Timeline({
 
   const formatAxisValue = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
-    return (v: number) => firstEntry?.formatter(v, 0) ?? String(v);
+    return (v: number) => firstEntry?.formatter(Math.ceil(v), 0) ?? String(Math.ceil(v));
   }, [series]);
 
-  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
-
-  const maxValue = useVisibleMaxValue(series, timestamps, startTimeMs);
+  const maxValue = useVisibleMaxValue(series, timestamps);
 
   const yAxisOptions = useMemo(
     () => [
@@ -206,50 +214,27 @@ export function Timeline({
   const xAxisOptions = useMemo(
     () => ({
       boundaryGap: [0, 0] as [number, number],
-      type: 'time',
+      type: 'value',
       animation: false,
       show: true,
-      min: startTimeMs,
-      max: startTimeMs + durationSeconds * 1_000,
+      min: 0,
+      max: durationSeconds * 1_000,
       axisLine: { onZero: true },
       axisLabel: { show: false },
-      axisPointer: {
-        show: true,
-        type: 'line',
-        animation: false,
-        label: { show: false },
-      },
+      axisPointer: { show: false },
     }),
-    [startTimeMs, durationSeconds]
+    [durationSeconds]
   );
 
   const gridOptions = useMemo(() => ({ ...TIMELINE_SPACING }), []);
 
-  const minZoomSpanPct = useMemo(() => {
-    if (durationSeconds <= 0) return 0;
-    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
-  }, [durationSeconds]);
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
+  const attachWheelNavigation = useTimelineWheelNavigation(minZoomSpanPct);
 
-  const minZoomSpanPctRef = useRef(minZoomSpanPct);
-  minZoomSpanPctRef.current = minZoomSpanPct;
-  const atZoomLimitRef = useRef(false);
-
-  // ECharts' built-in tooltip is reduced to crosshair only (`showContent: false`).
-  // Tooltip content is rendered by the parent via `onHoverChange` — keeping
-  // `connect()` mirroring `showTip` harmless (only the crosshair paints,
-  // never tooltip DOM.
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       animation: false,
-      tooltip: {
-        show: true,
-        showContent: false,
-        trigger: 'axis',
-        transitionDuration: 0,
-      },
-      axisPointer: {
-        link: [{ xAxisIndex: 'all' }],
-      },
+      tooltip: { show: false },
       grid: gridOptions,
       xAxis: xAxisOptions,
       yAxis: yAxisOptions,
@@ -299,7 +284,7 @@ export function Timeline({
   const timestampsRef = useRef(timestamps);
   timestampsRef.current = timestamps;
 
-  const onChartReady = useCallback((instance: EChartsInstance) => {
+  const onChartReady = (instance: EChartsInstance) => {
     const dom = instance.getDom();
     const outsideTimelineViz = (e: PointerEvent) => {
       const rect = dom.getBoundingClientRect();
@@ -318,9 +303,15 @@ export function Timeline({
     // converts pointer pixels into a snapped bin index so the parent can
     // sample series data without re-doing the search.
     const reportHover = (e: PointerEvent) => {
-      if (!showTooltipRef.current) return;
-      if (isDraggingRef.current) return;
-      if (instance.isDisposed?.()) return;
+      if (!showTooltipRef.current) {
+        return;
+      }
+      if (isDraggingRef.current) {
+        return;
+      }
+      if (instance.isDisposed?.()) {
+        return;
+      }
       const rect = dom.getBoundingClientRect();
       const offsetX = e.clientX - rect.left;
       // Don't report hover if the pointer is outside the timeline
@@ -331,13 +322,17 @@ export function Timeline({
       let tsMs: number;
       try {
         const v = instance.convertFromPixel({ xAxisIndex: 0 }, offsetX);
-        if (v == null || !isFinite(v as number)) return;
+        if (v == null || !isFinite(v as number)) {
+          return;
+        }
         tsMs = v as number;
       } catch {
         return;
       }
       const idx = snapToBinIndex(timestampsRef.current, tsMs);
-      if (idx < 0) return;
+      if (idx < 0) {
+        return;
+      }
       onHoverChangeRef.current?.({
         dataIndex: idx,
         timestampMs: tsMs,
@@ -359,42 +354,9 @@ export function Timeline({
       isDraggingRef.current = false;
     });
 
-    // Update atZoomLimitRef from ECharts' datazoom event, which fires synchronously
-    // within the same dispatch tick as the wheel handler — no React render-cycle lag.
-    instance.on('datazoom', () => {
-      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
-      const dz = opt.dataZoom?.[0];
-      if (dz != null) {
-        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
-        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
-      }
-    });
-
-    // Pass non-shift wheel events through to the page for normal scrolling.
-    // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
-    // When at the zoom limit, also block shift+wheel-in before ECharts sees it —
-    // ECharts converts a blocked zoom into a pan, so we must stop it at the source.
-    dom.addEventListener(
-      'wheel',
-      e => {
-        if (!e.shiftKey) {
-          e.stopPropagation();
-        } else if (e.deltaY < 0 && atZoomLimitRef.current) {
-          e.stopPropagation();
-        }
-      },
-      { capture: true, passive: true }
-    );
-
-    // Prevent the browser from handling shift+wheel-in when ECharts can't zoom further
-    dom.addEventListener(
-      'wheel',
-      e => {
-        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
-      },
-      { passive: false }
-    );
-  }, []);
+    attachWheelNavigation(instance);
+    onReady?.(instance);
+  };
 
   // If this Timeline is unmounted while the pointer is over it (e.g. a tree
   // row is virtualized away mid-hover, or ResourceTimeline swaps to a
@@ -416,20 +378,32 @@ export function Timeline({
   });
 
   return (
-    <div className="relative w-full h-full">
-      {maxValue != null && (
-        <span
-          className="absolute z-[8] pointer-events-none text-[10px] leading-none rounded-sm px-1 py-0.5"
+    <TimelinePointerArea className="h-full w-full">
+      {(yAxisLabel != null || maxValue != null) && (
+        <div
+          className="absolute z-[8] pointer-events-none flex flex-col items-start gap-px text-[10px] leading-none"
           style={{
             top: TIMELINE_SPACING.top + 1,
             left: TIMELINE_SPACING.left + 1,
             fontFamily: TIMELINE_MONO_FONT,
             color: textColor,
-            background: labelBackgroundColor,
           }}
         >
-          {formatAxisValue(maxValue)}
-        </span>
+          <span
+            className="w-fit rounded-sm px-1 py-0.5"
+            style={{ background: labelBackgroundColor }}
+          >
+            {maxValue !== null ? formatAxisValue(maxValue) : '-'}
+          </span>
+          {yAxisLabel != null && (
+            <span
+              className="w-fit rounded-sm px-1 py-0.5"
+              style={{ background: labelBackgroundColor }}
+            >
+              {yAxisLabel}
+            </span>
+          )}
+        </div>
       )}
       <EChartsReactCore
         echarts={echarts}
@@ -443,7 +417,7 @@ export function Timeline({
         replaceMerge={['series']}
         autoResize={false}
       />
-    </div>
+    </TimelinePointerArea>
   );
 }
 
@@ -453,19 +427,28 @@ export function Timeline({
  */
 function snapToBinIndex(timestamps: number[], ts: number): number {
   const n = timestamps.length;
-  if (n === 0) return -1;
-  if (n === 1) return 0;
+  if (n === 0) {
+    return -1;
+  }
+  if (n === 1) {
+    return 0;
+  }
   let lo = 0;
   let hi = n - 1;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if ((timestamps[mid] ?? 0) < ts) lo = mid + 1;
-    else hi = mid;
+    if ((timestamps[mid] ?? 0) < ts) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
   }
   if (lo > 0) {
     const a = timestamps[lo - 1] ?? 0;
     const b = timestamps[lo] ?? 0;
-    if (Math.abs(a - ts) < Math.abs(b - ts)) return lo - 1;
+    if (Math.abs(a - ts) < Math.abs(b - ts)) {
+      return lo - 1;
+    }
   }
   return lo;
 }

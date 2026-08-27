@@ -40,13 +40,13 @@ jobs:
     name: Rust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index/
@@ -57,21 +57,55 @@ jobs:
       - run: pixi run cargo fmt --all -- --check
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
+      - run: pixi run cargo test -p quent-store --no-default-features --features io-ndjson --locked
       - run: pixi run cargo build --workspace --all-features --locked --release
+      - run: pixi run cargo run -p quent-instrumentation-build-example --locked
+      - run: pixi run cargo run -p quent-store-build-example --locked
+
+  # Regression gate for `quent-open` backward compatibility: build a viewer for
+  # a sidecar pinning the previous quent commit (the PR's base commit, or the
+  # parent of the pushed commit), with the quent-open of this tree. A failure
+  # means this change breaks `quent open` for existing artifacts — add a
+  # compatibility path in the same PR instead of merging the breakage.
+  open-compat:
+    name: quent-open compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Picking the previous commit on push builds needs the parent of HEAD.
+          fetch-depth: 2
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Pick the previous quent commit
+        id: previous
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: echo "commit=${BASE_SHA:-$(git rev-parse HEAD~1)}" >> "$GITHUB_OUTPUT"
+      - run: pixi run cargo test --package quent-open --locked -- --ignored opens_artifacts_built_by_a_previous_quent_commit
+        env:
+          QUENT_OPEN_COMPAT_COMMIT: ${{ steps.previous.outputs.commit }}
+          QUENT_OPEN_COMPAT_REMOTE: ${{ github.server_url }}/${{ github.repository }}
 
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: rustup toolchain install stable --profile minimal
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        id: cargo-deny-cache
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
-          path: ~/.cargo/bin/cargo-deny
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-deny-0.19.0
-      - if: steps.cargo-deny-cache.outputs.cache-hit != 'true'
-        run: cargo install cargo-deny --locked --version 0.19.0
-      - run: cargo deny check
+          cache: true
+      - run: pixi run cargo deny check

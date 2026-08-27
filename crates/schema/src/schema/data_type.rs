@@ -1,7 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::schema::{annotations::Annotations, identifier::Identifier};
+use crate::Path;
+use crate::schema::annotations::Annotations;
 
 /// Types of data values in [`crate::event::Event`]s and [`crate::record::Record`]s.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,12 +24,10 @@ pub enum DataType {
     F64,
     Option(Box<DataType>),
     List(Box<DataType>),
-    /// A reference to a named [`crate::record::Record`].
+    /// A reference to the [`crate::Record`] declared at the exact path.
     ///
-    /// The top-level [`crate::Schema::records`] field must contain a
-    /// [`crate::record::Record`] with this name, otherwise the
-    /// [`crate::Schema`] is ill-formed.
-    Record(Identifier),
+    /// The [`crate::Schema`] is ill-formed if no record is declared at this path.
+    Record(Path),
     /// A record whose fields are determined by the instrumentation client at
     /// run-time.
     DynamicRecord,

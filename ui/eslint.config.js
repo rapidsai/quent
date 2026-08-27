@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import js from '@eslint/js';
@@ -22,6 +22,7 @@ export default tseslint.config(
       'examples/**',
       '**/dist/**',
       '**/node_modules/**',
+      'generated/ts-bindings/**',
       '.e2e-data/**',
       'playwright-report/**',
       'test-results/**',
@@ -48,5 +49,11 @@ export default tseslint.config(
       ],
     },
   },
-  prettier
+  {
+    ...prettier,
+    rules: {
+      ...prettier.rules,
+      curly: ['error', 'all'],
+    },
+  }
 );

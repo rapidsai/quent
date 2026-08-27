@@ -6,20 +6,25 @@ publish.workspace = true
 
 [features]
 default = ["serde"]
-serde = ["dep:serde", "quent-model-macros/serde", "uuid/serde"]
+serde = [
+    "dep:serde",
+    "quent-model-macros/serde",
+    "quent-events/serde",
+    "quent-dynamic-attributes/serde",
+    "uuid/serde",
+]
 collector = ["dep:quent-collector-client"]
 
 [dependencies]
 quent-collector-client = { path = "../collector/client", optional = true }
 uuid = { workspace = true, features = ["v7"] }
 serde = { workspace = true, optional = true }
-ciborium = "0.2.2"
-quent-attributes = { path = "../attributes" }
+quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
-quent-exporter = { path = "../exporter" }
-quent-instrumentation = { path = "../instrumentation" }
+quent-io = { path = "../io" }
+quent-instrumentation = { path = "../instrumentation", features = ["io-callback"] }
 quent-time = { path = "../time" }
 tokio = { workspace = true, features = ["macros"] }
 

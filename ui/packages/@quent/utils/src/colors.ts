@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -120,9 +120,13 @@ function hashString(str: string): number {
  */
 function pickPaletteIndex(key: string, paletteSize: number, used: Set<number>): number {
   const hashIndex = hashString(key) % paletteSize;
-  if (used.size >= paletteSize) return hashIndex;
+  if (used.size >= paletteSize) {
+    return hashIndex;
+  }
   let index = hashIndex;
-  while (used.has(index)) index = (index + 1) % paletteSize;
+  while (used.has(index)) {
+    index = (index + 1) % paletteSize;
+  }
   return index;
 }
 
@@ -205,15 +209,45 @@ export function createFsmTypeColorFn(
 }
 
 /**
+ * State colors for the data-flow overlay: states declared in the FSM keep
+ * their declaration-index palette colors (consistent with the timeline
+ * lanes), while synthetic states the analyzer appends (e.g. a working-space
+ * series) continue the palette after the declared block — so they can never
+ * collide with a declared state's color.
+ */
+export function createDataFlowStateColorFn(
+  fsmType: FsmTypeDecl | null | undefined,
+  resolvedStates: readonly string[],
+  theme: PaletteTheme
+): (stateName: string) => ChartColor {
+  const declared = new Map<string, number>();
+  fsmType?.states.forEach((state, index) => declared.set(state.name, index));
+  const appended = new Map<string, number>();
+  for (const state of resolvedStates) {
+    if (!declared.has(state) && !appended.has(state)) {
+      appended.set(state, declared.size + appended.size);
+    }
+  }
+  return (stateName: string) => {
+    const index = declared.get(stateName) ?? appended.get(stateName);
+    return index != null ? getColorByIndex(index, theme) : getColorForKey(stateName, theme);
+  };
+}
+
+/**
  * Build a deterministic state->index lookup from FSM declarations.
  * State index controls palette position so same state names stay consistent.
  */
 function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<string, number> {
   const stateIndexMap = new Map<string, number>();
-  if (!fsmTypes) return stateIndexMap;
+  if (!fsmTypes) {
+    return stateIndexMap;
+  }
 
   for (const decl of Object.values(fsmTypes)) {
-    if (!decl) continue;
+    if (!decl) {
+      continue;
+    }
     for (let i = 0; i < decl.states.length; i++) {
       stateIndexMap.set(decl.states[i]!.name, i);
     }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { TimelineSeries, TimelineMark } from '../timeline/types';
@@ -16,7 +16,6 @@ import type {
   ResourceTimeline,
   EntityRef,
   QuantitySpec,
-  CapacityDecl,
   BinnedSpanSec,
   SingleTimelineResponse,
   FiniteStateMachine,
@@ -24,27 +23,29 @@ import type {
   TimelineRequest,
   OperatorFilter,
   TimelineConfig,
+  ResourceTypeDecl,
 } from '@quent/utils';
 import { QueryEntities, ResourceTree } from '@quent/utils';
 import { entityRefToEntitiesKey } from './queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@quent/utils';
 import type { EChartsInstance } from 'echarts-for-react';
+import { LONG_ENTITY_DENSITIES, type LongEntityDensity } from '@quent/hooks';
 import { connect } from './echarts';
-import { CHART_GROUP } from '../timeline/Timeline';
+import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 
 // Suppress unused import warning — getColorForKey is used by consumers of this module
 void getColorForKey;
-const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
-/** Minimum bin duration in nanoseconds — prevents ECharts from stacking bins when zoomed too far. */
-export const MIN_BIN_DURATION_NS = 250;
+const LONG_ENTITY_DENSITY_MULTIPLIERS = [100, 10, 1, 0.1, 0.01] as const;
+
+/** Minimum bin duration in nanoseconds — the backend cannot produce sub-1ns bins. */
+export const MIN_BIN_DURATION_NS = 10;
 
 /**
- * Minimum visible zoom window in seconds.
- * Below this, each bin would cover less than MIN_BIN_DURATION_NS nanoseconds.
- * 10 ns/bin × 400 bins = 4 μs
+ * Minimum visible zoom window in seconds: the smallest window the backend can
+ * bin at 1 ns/bin. 1 ns/bin × MAX_TIMELINE_BINS bins.
  */
 export const MIN_ZOOM_WINDOW_S = (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000;
 
@@ -62,34 +63,43 @@ export function getAdaptiveNumBins(): number {
   return MAX_TIMELINE_BINS;
 }
 
-/** Threshold for "long" entities: 10x the current bin duration in seconds. */
-export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins();
-  return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
+/** Threshold for "long" entities using the bin count returned by the timeline response. */
+export function getLongEntitiesThreshold(
+  windowSeconds: number,
+  numBins: number,
+  density: LongEntityDensity = 3
+): number {
+  return (
+    LONG_ENTITY_DENSITY_MULTIPLIERS[density - LONG_ENTITY_DENSITIES[0]] * (windowSeconds / numBins)
+  );
 }
 
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  startTime: bigint,
   theme: PaletteTheme,
-  capacities?: CapacityDecl[],
+  resourceTypeDecl?: ResourceTypeDecl,
   quantitySpecs?: { [key in string]?: QuantitySpec },
   fsmTypes?: { [key in string]?: FsmTypeDecl }
 ): {
   timestamps: number[];
   series: TimelineSeries;
+  yAxisLabel: string | undefined;
 } {
   const { bin_duration, num_bins, span } = config;
 
   const numBinsNumber = Number(num_bins);
-  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
+  // x-domain is relative to query start (ms); span.start is already relative
+  // seconds, so no absolute epoch base is added — keeps values float64-exact.
+  const firstBinMs = span.start * 1_000;
   const binDurationMs = bin_duration * 1_000;
 
   const timestamps = new Array<number>(numBinsNumber);
   for (let i = 0; i < numBinsNumber; i++) {
     timestamps[i] = firstBinMs + i * binDurationMs;
   }
+
+  const capacities = resourceTypeDecl?.capacities;
 
   const getFormatter = (capacityName: string): ((value: number) => string) => {
     const capDecl = capacities?.find(c => c.name === capacityName);
@@ -146,7 +156,33 @@ export function buildBinnedTimelineSeries(
       values: [],
     };
   }
-  return { timestamps, series };
+
+  return { timestamps, series, yAxisLabel: deriveCapacityLabel(resourceTypeDecl, quantitySpecs) };
+}
+
+/**
+ * Derive a display label for the y-axis from a resource type's capacity metadata.
+ * Considers all non-unit capacities declared on the type. Returns undefined when
+ * no meaningful capacity exists (missing decl or unit-only).
+ */
+export function deriveCapacityLabel(
+  resourceTypeDecl: ResourceTypeDecl | undefined,
+  quantitySpecs: { [key in string]?: QuantitySpec } | undefined
+): string | undefined {
+  const meaningful = resourceTypeDecl?.capacities.filter(c => c.name !== 'unit') ?? [];
+  if (meaningful.length === 0) {
+    return undefined;
+  }
+  if (meaningful.length === 1) {
+    const cap = meaningful[0]!;
+    const spec = quantitySpecs?.[cap.quantity];
+    return spec ? `${cap.name} (${spec.symbol})` : cap.name;
+  }
+  // Multiple capacities: use a shared unit symbol when all agree, otherwise names only.
+  const symbols = new Set(meaningful.map(c => quantitySpecs?.[c.quantity]?.symbol));
+  const names = meaningful.map(c => c.name).join(' + ');
+  const commonSymbol = symbols.size === 1 ? [...symbols][0] : undefined;
+  return commonSymbol ? `${names} (${commonSymbol})` : names;
 }
 
 /** Extract the config from a SingleTimelineResponse */
@@ -156,8 +192,12 @@ export function getTimelineConfig(response: SingleTimelineResponse): BinnedSpanS
 
 /** Extract long_fsms from a ResourceTimeline response. */
 export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
-  if ('Binned' in data) return data.Binned.long_fsms;
-  if ('BinnedByState' in data) return data.BinnedByState.long_fsms;
+  if ('Binned' in data) {
+    return data.Binned.long_fsms;
+  }
+  if ('BinnedByState' in data) {
+    return data.BinnedByState.long_fsms;
+  }
   return [];
 }
 
@@ -170,7 +210,6 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  startTime: bigint,
   theme: PaletteTheme,
   resourceIdsForFilter?: Set<string> | null,
   fsmTypes?: { [key in string]?: FsmTypeDecl },
@@ -178,9 +217,10 @@ export function buildTimelineMarks(
   overlayFsmIds?: Set<string>,
   overlayLabel?: string
 ): TimelineMark[] | undefined {
-  if (longFsms.length === 0) return undefined;
+  if (longFsms.length === 0) {
+    return undefined;
+  }
 
-  const startTimeMs = nanosToMs(startTime);
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
 
   const marks = longFsms.flatMap(fsm => {
@@ -196,8 +236,8 @@ export function buildTimelineMarks(
           return null;
         }
         const next = fsm.transitions[i + 1];
-        const xStart = startTimeMs + transition.timestamp * 1000;
-        const xEnd = startTimeMs + next.timestamp * 1000;
+        const xStart = transition.timestamp * 1000;
+        const xEnd = next.timestamp * 1000;
         const color = colorFsm(transition.name);
         return {
           label,
@@ -205,6 +245,11 @@ export function buildTimelineMarks(
           color,
           xStart,
           xEnd,
+          // Tolerate responses from servers predating attributes.
+          ...((transition.attributes?.length ?? 0) > 0 && { attributes: transition.attributes }),
+          ...((transition.derived_attributes?.length ?? 0) > 0 && {
+            derivedAttributes: transition.derived_attributes,
+          }),
           ...(inOverlay !== undefined && {
             isDimmed: !inOverlay,
             operatorName: inOverlay ? overlayLabel : undefined,
@@ -258,44 +303,50 @@ export function mergeOverlaySeries(
 
 /** Extract the resource_type_name from a TimelineRequest (empty string for Resource requests) */
 export function getResourceTypeName(params: TimelineRequest<OperatorFilter> | undefined): string {
-  if (!params) return '';
-  if ('ResourceGroup' in params) return params.ResourceGroup.resource_type_name;
+  if (!params) {
+    return '';
+  }
+  if ('ResourceGroup' in params) {
+    return params.ResourceGroup.resource_type_name;
+  }
   return '';
 }
 
 /** Extract the entity_type_name (FSM filter) from a TimelineRequest */
 export function getFsmTypeName(params: TimelineRequest<OperatorFilter>): string | null {
-  if ('ResourceGroup' in params) return params.ResourceGroup.entity_filter.entity_type_name;
+  if ('ResourceGroup' in params) {
+    return params.ResourceGroup.entity_filter.entity_type_name;
+  }
   return params.Resource.entity_filter.entity_type_name;
 }
 
-/** Clone entries and set operator_id on each TimelineRequest */
+/** Clone an entry and set its operator filter. */
 export function setOperatorOnEntry(
   entry: TimelineRequest<OperatorFilter>,
-  operatorId: string
+  operatorIds: readonly string[]
 ): TimelineRequest<OperatorFilter> {
   if ('ResourceGroup' in entry) {
     return {
       ResourceGroup: {
         ...entry.ResourceGroup,
-        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+        app_params: { ...entry.ResourceGroup.app_params, operator_ids: [...operatorIds] },
       },
     };
   }
   return {
     Resource: {
       ...entry.Resource,
-      application: { ...entry.Resource.application, operator_id: operatorId },
+      application: { ...entry.Resource.application, operator_ids: [...operatorIds] },
     },
   };
 }
 
 export function setOperatorOnEntries(
   baseEntries: Record<string, TimelineRequest<OperatorFilter>>,
-  operatorId: string
+  operatorIds: readonly string[]
 ): Record<string, TimelineRequest<OperatorFilter>> {
   return Object.fromEntries(
-    Object.entries(baseEntries).map(([id, entry]) => [id, setOperatorOnEntry(entry, operatorId)])
+    Object.entries(baseEntries).map(([id, entry]) => [id, setOperatorOnEntry(entry, operatorIds)])
   );
 }
 
@@ -362,7 +413,9 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
   // Choose the largest "nice" interval that still satisfies the minimum split count.
   for (let i = NICE_TIMELINE_INTERVALS_MS.length - 1; i >= 0; i--) {
     const intervalMs = NICE_TIMELINE_INTERVALS_MS[i]!;
-    if (intervalMs <= maxAllowedStep) return intervalMs;
+    if (intervalMs <= maxAllowedStep) {
+      return intervalMs;
+    }
   }
 
   // Fallback for very small spans where even the smallest nice interval is too coarse.
@@ -408,126 +461,6 @@ export const connectChart = (
   connect(chartGroup);
 };
 
-/* Axis pointer sync — manual crosshair sync across charts
- *
- * We manually broadcast showTip/hideTip by converting a shared timestamp
- * to each chart's local pixel coordinate, since the controller uses a
- * different xAxis type (value) than the resource timelines (time).
- */
-
-interface AxisPointerEntry {
-  instance: EChartsInstance;
-  xAxisIndex: number;
-  receiveShowTip: boolean;
-  onMouseMove: (e: { offsetX: number }) => void;
-  onGlobalOut: () => void;
-}
-
-const axisPointerRegistry = new Set<AxisPointerEntry>();
-let isBroadcasting = false;
-
-function broadcastShowPointer(source: EChartsInstance, timestampMs: number) {
-  if (isBroadcasting) return;
-  isBroadcasting = true;
-  try {
-    axisPointerRegistry.forEach(({ instance, xAxisIndex, receiveShowTip }) => {
-      if (instance === source || !receiveShowTip) return;
-      try {
-        const pixel = instance.convertToPixel({ xAxisIndex }, timestampMs);
-        if (pixel != null && isFinite(pixel)) {
-          instance.dispatchAction({
-            type: 'showTip',
-            x: pixel,
-            y: instance.getHeight() / 2,
-          });
-        }
-      } catch {
-        // Target chart may not be ready or value out of range
-      }
-    });
-  } finally {
-    isBroadcasting = false;
-  }
-}
-
-function broadcastHidePointer(source: EChartsInstance) {
-  if (isBroadcasting) return;
-  isBroadcasting = true;
-  try {
-    axisPointerRegistry.forEach(({ instance }) => {
-      if (instance === source) return;
-      try {
-        instance.dispatchAction({ type: 'hideTip' });
-      } catch {
-        // Ignore disposed instances
-      }
-    });
-  } finally {
-    isBroadcasting = false;
-  }
-}
-
-export interface AxisPointerSyncOptions {
-  /** If false, this chart will not receive showTip when the pointer is synced from another chart (default true). */
-  receiveShowTip?: boolean;
-}
-
-/**
- * Register a chart instance for manual axis pointer sync.
- * Uses zr-level mouse events + convertFromPixel for reliable cross-chart sync
- * regardless of tooltip/axisPointer configuration differences.
- * @param xAxisIndex Which xAxis index carries the timestamp values (default 0).
- * @param options.receiveShowTip If false, tooltip is only shown when the user hovers this chart (default true).
- */
-export function registerAxisPointerSync(
-  instance: EChartsInstance,
-  xAxisIndex = 0,
-  options: AxisPointerSyncOptions = {}
-) {
-  const receiveShowTip = options.receiveShowTip !== false;
-  const onMouseMove = (e: { offsetX: number }) => {
-    try {
-      const value = instance.convertFromPixel({ xAxisIndex }, e.offsetX);
-      if (value != null && isFinite(value as number)) {
-        broadcastShowPointer(instance, value as number);
-      }
-    } catch {
-      // Chart grid not ready
-    }
-  };
-
-  const onGlobalOut = () => {
-    broadcastHidePointer(instance);
-  };
-
-  const zr = instance.getZr();
-  zr.on('mousemove', onMouseMove);
-  zr.on('globalout', onGlobalOut);
-
-  const entry = { instance, xAxisIndex, receiveShowTip, onMouseMove, onGlobalOut };
-  axisPointerRegistry.add(entry);
-
-  (instance as unknown as Record<string, unknown>).__axisPointerEntry = entry;
-}
-
-/** Unregister a chart instance from axis pointer sync. */
-export function unregisterAxisPointerSync(instance: EChartsInstance) {
-  const entry = (instance as unknown as Record<string, unknown>).__axisPointerEntry as
-    | AxisPointerEntry
-    | undefined;
-  if (!entry) return;
-
-  axisPointerRegistry.delete(entry);
-
-  const zr = instance.getZr?.();
-  if (zr) {
-    zr.off('mousemove', entry.onMouseMove);
-    zr.off('globalout', entry.onGlobalOut);
-  }
-
-  delete (instance as unknown as Record<string, unknown>).__axisPointerEntry;
-}
-
 // Helper function to lookup entity from QueryEntities
 const lookupEntity = (
   entities: QueryEntities,
@@ -535,7 +468,9 @@ const lookupEntity = (
   entityId: string
 ): EntityTypeValue | undefined => {
   const entityKey = entityRefToEntitiesKey(entityType);
-  if (!entityKey) return undefined; // handles Task and future unknown EntityRef variants
+  if (!entityKey) {
+    return undefined;
+  } // handles Task and future unknown EntityRef variants
 
   const entityValue = entities[entityKey];
 
@@ -584,11 +519,15 @@ export const transformResourceTree = (
 
 /** Recursively find a TreeTableItem by id */
 export function findItemById(root: TreeTableItem, id: string): TreeTableItem | undefined {
-  if (root.id === id) return root;
+  if (root.id === id) {
+    return root;
+  }
   if (root.children) {
     for (const child of root.children) {
       const found = findItemById(child, id);
-      if (found) return found;
+      if (found) {
+        return found;
+      }
     }
   }
   return undefined;
@@ -601,7 +540,9 @@ function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string
   const typeName =
     item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
   const usedBy = typeName ? entities.resource_types[typeName]?.used_by : undefined;
-  if (usedBy && usedBy.length === 1) return usedBy[0]!;
+  if (usedBy && usedBy.length === 1) {
+    return usedBy[0]!;
+  }
   return null;
 }
 
@@ -616,7 +557,7 @@ export function buildBulkParamsForItem(
   entities: QueryEntities,
   config: TimelineConfig,
   groupFsmFilters?: Map<string, string | null>,
-  operatorId: string | null = null
+  operatorIds: readonly string[] = []
 ): TimelineRequest<OperatorFilter> {
   const isGroup = item.type !== EntityTypeKey.Resource;
   const resourceTypeName = isGroup
@@ -631,8 +572,6 @@ export function buildBulkParamsForItem(
   } else {
     fsmTypeName = lookupFsmTypeName(item, entities);
   }
-  const threshold = getLongEntitiesThreshold(config.end - config.start);
-
   if (isGroup) {
     return {
       ResourceGroup: {
@@ -640,7 +579,7 @@ export function buildBulkParamsForItem(
         resource_type_name: resourceTypeName || '',
         long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
-        app_params: { operator_id: operatorId },
+        app_params: { operator_ids: [...operatorIds] },
         config,
       },
     };
@@ -649,9 +588,9 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: threshold,
+      long_entities_threshold_s: null,
       entity_filter: { entity_type_name: fsmTypeName },
-      application: { operator_id: operatorId },
+      application: { operator_ids: [...operatorIds] },
       config,
     },
   };
@@ -668,7 +607,7 @@ export function collectVisibleEntries(
   entities: QueryEntities,
   config: TimelineConfig,
   groupFsmFilters?: Map<string, string | null>,
-  operatorId: string | null = null
+  operatorIds: readonly string[] = []
 ): Record<string, TimelineRequest<OperatorFilter>> {
   const result: Record<string, TimelineRequest<OperatorFilter>> = {};
 
@@ -679,7 +618,7 @@ export function collectVisibleEntries(
       entities,
       config,
       groupFsmFilters,
-      operatorId
+      operatorIds
     );
 
     if (item.children && expandedIds.has(item.id)) {
@@ -695,21 +634,33 @@ export function collectVisibleEntries(
   return result;
 }
 
-/** Max stacked value across non-dimmed, non-overlay bins within [zoomStartMs, zoomEndMs]. */
+/** Max stacked value across the active base or overlay bins in the visible window. */
 export function computeVisibleMaxValue(
   series: TimelineSeries,
   timestamps: number[],
   zoomStartMs: number,
   zoomEndMs: number
 ): number | null {
-  const entries = Object.values(series).filter(e => !e.isDimmed && !e.isOverlay);
-  if (!entries.length || !entries[0]?.values.length) return null;
+  const allEntries = Object.values(series);
+  const overlayEntries = allEntries.filter(e => e.isOverlay && !e.isDimmed);
+  const entries =
+    overlayEntries.length > 0
+      ? overlayEntries
+      : allEntries.filter(e => !e.isDimmed && !e.isOverlay);
+  if (!entries.length || !entries[0]?.values.length) {
+    return null;
+  }
   let max = 0;
+  const binDurationMs = (entries[0]?.binDuration ?? 0) * 1_000;
   for (let i = 0; i < entries[0].values.length; i++) {
     const t = timestamps[i];
-    if (t === undefined || t < zoomStartMs || t > zoomEndMs) continue;
+    if (t === undefined || t + binDurationMs <= zoomStartMs || t >= zoomEndMs) {
+      continue;
+    }
     const sum = entries.reduce((acc, e) => acc + (e.values[i] ?? 0), 0);
-    if (sum > max) max = sum;
+    if (sum > max) {
+      max = sum;
+    }
   }
   return max > 0 ? max : null;
 }

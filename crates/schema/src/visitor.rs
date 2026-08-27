@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::Display;
@@ -107,9 +107,9 @@ impl Display for Element<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Schema(s) => Display::fmt(s.name(), f),
-            Self::Entity(e) => Display::fmt(e.name(), f),
+            Self::Entity(e) => Display::fmt(e.path(), f),
             Self::Event(e) => Display::fmt(e.name(), f),
-            Self::Record(r) => Display::fmt(r.name(), f),
+            Self::Record(r) => Display::fmt(r.path(), f),
             Self::Field(fi) => Display::fmt(fi.name(), f),
             Self::Annotations(_) => f.write_str("Annotations"),
             Self::DataType(ty) => match ty {
@@ -255,7 +255,7 @@ tuple_impls!(A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I =
 mod test {
     use super::*;
     use crate::builder::AnnotationsBuilder;
-    use crate::test_utils::{entity, event, field, ident, record, schema};
+    use crate::test_utils::{entity, event, field, ident, path, record, record_type, schema};
 
     // Stateless no-op visitor
     #[derive(Default)]
@@ -337,9 +337,9 @@ mod test {
         let entity_ref = DataType::EntityRef {
             data: None,
             annotations: AnnotationsBuilder::new()
-                .constraint("my.constraint.v1", None)
-                .unwrap()
-                .build(),
+                .with_constraint("quent.visitor-test.v0.1.0", None)
+                .build()
+                .unwrap(),
         };
         let schema = schema(
             "S",
@@ -399,9 +399,9 @@ mod test {
                 }
                 // Declared names resolve through the root mid-walk.
                 if let Element::Schema(_) = cursor.current() {
-                    assert!(cursor.root().entity(&ident("E")).is_some());
-                    assert!(cursor.root().record(&ident("R")).is_some());
-                    assert!(cursor.root().entity(&ident("nope")).is_none());
+                    assert!(cursor.root().entity(&path("E")).is_some());
+                    assert!(cursor.root().record(&path("R")).is_some());
+                    assert!(cursor.root().entity(&path("nope")).is_none());
                 }
             }
             fn finish(self) {}
@@ -416,7 +416,7 @@ mod test {
             "S",
             vec![entity(
                 "E",
-                vec![event("Ev", vec![field("f", DataType::Record(ident("R")))])],
+                vec![event("Ev", vec![field("f", record_type("R"))])],
             )],
             vec![record("R", vec![field("rf", DataType::U64)])],
         );
@@ -476,7 +476,7 @@ mod test {
                 field("f64_f", DataType::F64),
                 field("opt_f", DataType::Option(Box::new(DataType::U64))),
                 field("list_f", DataType::List(Box::new(DataType::Bool))),
-                field("rec_f", DataType::Record(ident("R"))),
+                field("rec_f", record_type("R")),
                 field("dyn_f", DataType::DynamicRecord),
                 field(
                     "ref_f",

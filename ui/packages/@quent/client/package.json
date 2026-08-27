@@ -9,7 +9,10 @@
   },
   "sideEffects": false,
   "scripts": {
+    "prebuild": "pnpm --workspace-root bindings",
     "build": "tsdown",
+    "build:ci": "tsdown",
+    "pretypecheck": "pnpm --workspace-root bindings",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,7 +24,11 @@
     "@tanstack/react-router": "^1.0.0"
   },
   "devDependencies": {
-    "tsdown": "^0.22.3",
-    "typescript": "^5.9.3"
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
   }
 }

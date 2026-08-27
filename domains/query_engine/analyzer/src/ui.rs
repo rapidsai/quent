@@ -1,18 +1,22 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
 use std::path::Path;
 
-use quent_analyzer::AnalyzerResult;
+use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
-use quent_model::exporter::ImporterResult;
+use quent_model::io::ImporterResult;
 use quent_query_engine_ui as ui;
-use quent_ui::timeline::{
-    request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
-    response::{
-        BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
-        SingleTimelineResponse,
+use quent_ui::{
+    entities::{request::EntityListRequest, response::EntityListResponse},
+    timeline::{
+        categorical::CategoricalTimelineRequest,
+        request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
+        response::{
+            BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
+            SingleTimelineResponse,
+        },
     },
 };
 use uuid::Uuid;
@@ -61,6 +65,13 @@ pub trait UiAnalyzer {
         request: SingleTimelineRequest<ui::QueryFilter, ui::OperatorFilter>,
     ) -> AnalyzerResult<SingleTimelineResponse>;
 
+    /// List the entities matching a scope, window, and filter, ranked by the
+    /// requested sort key and sliced to the requested page.
+    fn list_entities(
+        &self,
+        request: EntityListRequest<ui::QueryFilter, ui::OperatorFilter>,
+    ) -> AnalyzerResult<EntityListResponse>;
+
     /// Return a set of resource timelines in bulk.
     fn bulk_resource_timeline(
         &self,
@@ -105,6 +116,21 @@ pub trait UiAnalyzer {
         }
 
         Ok(BulkChunkedTimelinesResponse { entries })
+    }
+
+    /// Return, for every operator of a query, a binned categorical timeline
+    /// over (entity state, analyzer-defined dimension), for one or more
+    /// analyzer-declared measures. Powers the UI's data-flow-over-time view of
+    /// the query plan.
+    ///
+    /// The default implementation returns [`AnalyzerError::Unsupported`]
+    /// (served as HTTP 501), so existing analyzers keep compiling and the UI
+    /// hides the view.
+    fn data_flow_timeline(
+        &self,
+        _request: CategoricalTimelineRequest<ui::QueryFilter>,
+    ) -> AnalyzerResult<ui::DataFlowTimelineBinned> {
+        Err(AnalyzerError::Unsupported)
     }
 }
 

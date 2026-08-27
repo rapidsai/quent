@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
@@ -8,6 +8,7 @@ import type {
   TimelineRequest,
   OperatorFilter,
 } from '@quent/utils';
+import { canonicalOperatorIds } from '../timeline/timeline.utils';
 
 /**
  * All dimensions that distinguish a cached timeline entry.
@@ -19,7 +20,7 @@ import type {
 export interface TimelineCacheParams {
   resourceId: string;
   resourceTypeName: string;
-  operatorId?: string | null;
+  operatorIds?: readonly string[] | null;
   fsmTypeName?: string | null;
 }
 
@@ -28,7 +29,7 @@ export function timelineCacheKey(params: TimelineCacheParams): string {
   return [
     params.resourceId,
     params.resourceTypeName,
-    params.operatorId ?? '',
+    JSON.stringify(canonicalOperatorIds(params.operatorIds)),
     params.fsmTypeName ?? '',
   ].join('|');
 }
@@ -41,6 +42,12 @@ export const zoomRangeAtom = atom<ZoomRange>({ start: 0, end: 0 });
 
 /** Debounced zoom range — settles after ZOOM_DEBOUNCE_MS, drives the bulk query */
 export const debouncedZoomRangeAtom = atom<ZoomRange>({ start: 0, end: 0 });
+
+export const LONG_ENTITY_DENSITIES = [1, 2, 3, 4, 5] as const;
+export type LongEntityDensity = (typeof LONG_ENTITY_DENSITIES)[number];
+
+/** Controls the minimum usage threshold for entities shown in timeline rows. */
+export const longEntityDensityAtom = atom<LongEntityDensity>(3);
 
 /**
  * Pointer-level hover state used to drive an app-rendered timeline tooltip.
@@ -69,6 +76,14 @@ export interface TimelineHoverState {
 
 export const timelineHoverAtom = atom<TimelineHoverState | null>(null);
 
+export interface TimelinePointerState {
+  ratio: number;
+  ownerId: string;
+}
+
+/** Shared horizontal pointer position within the visible timeline plot. */
+export const timelinePointerAtom = atom<TimelinePointerState | null>(null);
+
 /** Start time in milliseconds — set once per query, never changes */
 export const startTimeMsAtom = atom(0);
 
@@ -77,6 +92,3 @@ export const bulkInitializedAtom = atom(false);
 
 /** Visible entries for bulk fetch — set in useEffect, read imperatively via store.get() */
 export const visibleEntriesAtom = atom<Record<string, TimelineRequest<OperatorFilter>>>({});
-
-/** When true, hides task annotation marks on timeline charts */
-export const hideTasksAtom = atom(false);

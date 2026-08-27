@@ -1,16 +1,13 @@
 [package]
 name = "quent-instrumentation-build-example"
-version.workspace = true
-edition.workspace = true
-publish.workspace = true
+version = "0.1.0"
+edition = "2024"
+publish = false
 
 [dependencies]
-quent-attributes = { path = "../../attributes" }
-serde = { workspace = true }
-serde_json = { workspace = true }
-uuid = { workspace = true, features = ["serde"] }
+quent-instrumentation = { path = "../../instrumentation", features = ["io-callback", "io-ndjson"] }
+serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
-quent-constraints = { path = "../../constraints" }
 quent-instrumentation-build = { path = ".." }
-quent-schema = { path = "../../schema", features = ["test-utils"] }
+quent-yaml = { path = "../../yaml" }

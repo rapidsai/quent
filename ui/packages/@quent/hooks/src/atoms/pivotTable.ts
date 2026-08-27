@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // PRIVATE to @quent/hooks — consumers use the selector hook
@@ -7,13 +7,9 @@
 import { atom } from 'jotai';
 import { atomFamily } from 'jotai-family';
 import type { SortingState } from '@tanstack/react-table';
+import type { AggMode } from '@quent/utils';
 
-/**
- * Aggregation mode for pivot-table cells. Defined here (rather than in
- * `@quent/components`) so the atoms below can type their stored values
- * without creating a circular dependency on the components package.
- */
-export type AggMode = 'value' | 'sum' | 'mean' | 'min' | 'max' | 'stdev';
+export type { AggMode };
 
 /**
  * Per-pivot-table controls state, keyed by a stable `persistKey` string.

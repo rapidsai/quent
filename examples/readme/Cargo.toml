@@ -4,11 +4,10 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
-[features]
-collector = ["quent-model/collector"]
-
 [dependencies]
-quent-attributes = { path = "../../crates/attributes" }
-quent-model = { path = "../../crates/model" }
-serde.workspace = true
-uuid = { workspace = true, features = ["serde", "v7"] }
+quent-instrumentation = { path = "../../crates/instrumentation", features = ["io-ndjson"] }
+serde = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../crates/instrumentation-build" }
+quent-yaml = { path = "../../crates/yaml" }

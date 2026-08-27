@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Constraint marking an entity reference as tree-forming.
@@ -15,7 +15,7 @@ use thiserror::Error;
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_ref_target::RefTarget;
 use quent_schema::{
-    DataType, Identifier,
+    DataType, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 
@@ -101,9 +101,9 @@ pub struct RefTreeConstraint {
     // Map of a node to its petgraph index.
     index: FxHashMap<Node, NodeIndex>,
     // Name of every entity, in schema order, to figure out which one is root.
-    entities: Vec<Identifier>,
+    entities: Vec<Path>,
     // Quick lookup for records that have already declared a parent.
-    records_seen: FxHashSet<Identifier>,
+    records_seen: FxHashSet<Path>,
     // Set once a tree-forming reference declares a parent. The tree shape is
     // only validated when at least one reference uses the constraint.
     used: bool,
@@ -114,9 +114,9 @@ pub struct RefTreeConstraint {
 /// A vertex in the entity/event/record graph.
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Node {
-    Entity(Identifier),
-    Event(Identifier, Identifier),
-    Record(Identifier),
+    Entity(Path),
+    Event(Path, Identifier),
+    Record(Path),
 }
 
 impl Visitor for RefTreeConstraint {
@@ -127,17 +127,17 @@ impl Visitor for RefTreeConstraint {
             // Add every entity as a node.
             Element::Schema(schema) => {
                 for entity in schema.entities() {
-                    self.entities.push(entity.name().clone());
-                    self.node_or_insert(Node::Entity(entity.name().clone()));
+                    self.entities.push(entity.path().clone());
+                    self.node_or_insert(Node::Entity(entity.path().clone()));
                 }
             }
             // If we encounter an event, add it as a node and connect it to its
             // entity.
             Element::Event(event) => {
                 if let [_, Element::Entity(entity), ..] = cursor.elements() {
-                    let from = self.node_or_insert(Node::Entity(entity.name().clone()));
+                    let from = self.node_or_insert(Node::Entity(entity.path().clone()));
                     let to = self
-                        .node_or_insert(Node::Event(entity.name().clone(), event.name().clone()));
+                        .node_or_insert(Node::Event(entity.path().clone(), event.name().clone()));
                     self.graph.add_edge(from, to, ());
                 }
             }
@@ -237,7 +237,7 @@ impl Visitor for RefTreeConstraint {
 }
 
 impl Constraint for RefTreeConstraint {
-    const NAME: &'static str = "quent.ref-tree.v1";
+    const NAME: &'static str = "quent.ref-tree.v0.1.0";
 }
 
 impl RefTreeConstraint {
@@ -254,16 +254,16 @@ impl RefTreeConstraint {
 fn check_tree(
     graph: &Graph<Node, ()>,
     index: &FxHashMap<Node, NodeIndex>,
-    entities: &[Identifier],
+    entities: &[Path],
     errors: &mut Vec<RefTreeError>,
 ) {
-    let mut roots: Vec<&Identifier> = Vec::new();
-    let mut non_roots: Vec<&Identifier> = Vec::new();
+    let mut roots: Vec<&Path> = Vec::new();
+    let mut non_roots: Vec<&Path> = Vec::new();
 
     // For each entity, we figure out whether we can collapse its parent edges
     // (through multiple events) into one edge. If not, this violates the
     // requirements.
-    let mut entity_edges: Vec<(&Identifier, &Identifier)> = Vec::new();
+    let mut entity_edges: Vec<(&Path, &Path)> = Vec::new();
 
     for entity in entities {
         // Unwrap should be safe here since we added entities to the set and
@@ -310,12 +310,12 @@ fn check_tree(
     // Now check:
     // - every entity reaches root (req 5)
     // If there are no errors afterwards the whole constraint is validated.
-    let mut maybe_tree: DiGraphMap<&Identifier, ()> = DiGraphMap::new();
+    let mut maybe_tree: DiGraphMap<&Path, ()> = DiGraphMap::new();
     maybe_tree.add_node(root);
     for (parent, child) in entity_edges {
         maybe_tree.add_edge(parent, child, ());
     }
-    let reachable: FxHashSet<&Identifier> = Bfs::new(&maybe_tree, root).iter(&maybe_tree).collect();
+    let reachable: FxHashSet<&Path> = Bfs::new(&maybe_tree, root).iter(&maybe_tree).collect();
     for entity in non_roots {
         if !reachable.contains(entity) {
             errors.push(RefTreeError::Unreachable {
@@ -368,7 +368,7 @@ fn event_ref_count(graph: &Graph<Node, ()>, event: NodeIndex) -> usize {
 }
 
 // List all unique parent entities reachable from the supplied entity
-fn entity_unique_parents(graph: &Graph<Node, ()>, entity: NodeIndex) -> Vec<&Identifier> {
+fn entity_unique_parents(graph: &Graph<Node, ()>, entity: NodeIndex) -> Vec<&Path> {
     let mut parents = Vec::new();
     let mut seen: FxHashSet<NodeIndex> = FxHashSet::default();
     let mut stack: Vec<NodeIndex> = graph.neighbors(entity).collect();
@@ -384,17 +384,17 @@ fn entity_unique_parents(graph: &Graph<Node, ()>, entity: NodeIndex) -> Vec<&Ide
     parents
 }
 
-fn event_at_cursor<'s>(cursor: &'s Cursor) -> Option<(&'s Identifier, &'s Identifier)> {
+fn event_at_cursor<'s>(cursor: &'s Cursor) -> Option<(&'s Path, &'s Identifier)> {
     match cursor.elements() {
         [_schema, Element::Entity(entity), Element::Event(event), ..] => {
-            Some((entity.name(), event.name()))
+            Some((entity.path(), event.name()))
         }
         _ => None,
     }
 }
-fn record_at_cursor<'s>(cursor: &'s Cursor) -> Option<&'s Identifier> {
+fn record_at_cursor<'s>(cursor: &'s Cursor) -> Option<&'s Path> {
     match cursor.elements() {
-        [_schema, Element::Record(record), ..] => Some(record.name()),
+        [_schema, Element::Record(record), ..] => Some(record.path()),
         _ => None,
     }
 }
@@ -404,29 +404,26 @@ pub enum RefTreeError {
     #[error("{location}: a tree-forming reference must be target-constrained")]
     NotTargetConstrained { location: String },
     #[error("{location}: tree-forming reference targets unknown entity \"{target}\"")]
-    UnknownTarget {
-        location: String,
-        target: Identifier,
-    },
+    UnknownTarget { location: String, target: Path },
     #[error("{location}: an event carries more than one tree-forming reference")]
     MultiplePerEvent { location: String },
     #[error("{location}: a record carries more than one tree-forming reference")]
     MultipleRefsInRecord { location: String },
     #[error("tree-forming references are used, but there is no root entity")]
     NoRoot,
-    #[error("more than one root entity: {}", join_idents(.roots))]
-    MultipleRoots { roots: Vec<Identifier> },
-    #[error("entity \"{entity}\" declares more than one parent type: {}", join_idents(.parents))]
-    ConflictingParents {
-        entity: Identifier,
-        parents: Vec<Identifier>,
-    },
+    #[error("more than one root entity: {}", join_paths(.roots))]
+    MultipleRoots { roots: Vec<Path> },
+    #[error("entity \"{entity}\" declares more than one parent type: {}", join_paths(.parents))]
+    ConflictingParents { entity: Path, parents: Vec<Path> },
     #[error("entity \"{entity}\" has no path to the root through tree-forming references")]
-    Unreachable { entity: Identifier },
+    Unreachable { entity: Path },
     #[error("multiple ref-tree violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTreeError>),
 }
 
-fn join_idents(ids: &[Identifier]) -> String {
-    ids.iter().map(AsRef::as_ref).collect::<Vec<_>>().join(", ")
+fn join_paths(ids: &[Path]) -> String {
+    ids.iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Fixed query-engine event emitter.
@@ -18,7 +18,7 @@
 //! UUIDs and timestamps are plain numeric literals — grep them. Sibling:
 //! `examples/simulator/` (same model, runtime entropy).
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
@@ -524,6 +524,8 @@ fn execute_tasks(ctx: &SimulatorContext) {
         ts!(
             t_c,
             task.computing(
+                /* instance_name */ "",
+                /* input_bytes */ 1_500_000_000u64,
                 Some(usage(Ref::new(thread))),
                 Some(usage((Ref::new(memory), 256u64))),
             )
@@ -564,7 +566,7 @@ fn emit_operator_statistics(ctx: &SimulatorContext) {
         ts!(
             6_100_000_000,
             op_obs.create(op_id).statistics(operator::Statistics {
-                custom_attributes: vec![Attribute::string("type", type_name)].into(),
+                custom_attributes: vec![DynamicAttribute::string("type", type_name)].into(),
             })
         );
     }

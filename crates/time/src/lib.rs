@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Time-related types and utilities.
@@ -123,6 +123,8 @@ pub trait Timestamp {
 /// Optimized for when the common case is that items arrive in timestamp order,
 /// in which case [`Self::push`] is O(1). Out-of-order items are inserted via
 /// binary search (O(log n) search + O(n) insertion).
+///
+/// Stable: items with equal timestamps keep their arrival order.
 pub struct TimeOrderedCollector<T>(Vec<T>);
 
 impl<T> Default for TimeOrderedCollector<T> {
@@ -141,9 +143,11 @@ where
         {
             self.0.push(state);
         } else {
+            // `<=` (upper bound): late arrivals land after ties, matching the fast path.
+            // `<` (lower bound) would insert before ties, reversing arrival order.
             let pos = self
                 .0
-                .partition_point(|s| s.timestamp() < state.timestamp());
+                .partition_point(|s| s.timestamp() <= state.timestamp());
             self.0.insert(pos, state);
         }
     }
@@ -161,6 +165,83 @@ where
         for transition in iter {
             self.push(transition)
         }
+    }
+}
+
+#[cfg(test)]
+mod collector_tests {
+    use super::*;
+
+    /// Carries its timestamp plus a tag, so equal-timestamp ordering is visible.
+    #[derive(Debug, PartialEq, Eq)]
+    struct Tagged(TimeUnixNanoSec, &'static str);
+
+    impl Timestamp for Tagged {
+        fn timestamp(&self) -> TimeUnixNanoSec {
+            self.0
+        }
+    }
+
+    fn collect(items: impl IntoIterator<Item = Tagged>) -> Vec<(TimeUnixNanoSec, &'static str)> {
+        let mut collector = TimeOrderedCollector::default();
+        collector.extend(items);
+        collector
+            .into_inner()
+            .into_iter()
+            .map(|Tagged(ts, tag)| (ts, tag))
+            .collect()
+    }
+
+    #[test]
+    fn in_order_arrivals_are_sorted() {
+        assert_eq!(
+            collect([Tagged(10, "a"), Tagged(20, "b"), Tagged(30, "c")]),
+            [(10, "a"), (20, "b"), (30, "c")]
+        );
+    }
+
+    #[test]
+    fn late_arrivals_are_sorted_into_place() {
+        assert_eq!(
+            collect([Tagged(30, "c"), Tagged(10, "a"), Tagged(20, "b")]),
+            [(10, "a"), (20, "b"), (30, "c")]
+        );
+    }
+
+    #[test]
+    fn equal_timestamps_keep_arrival_order_on_the_fast_path() {
+        assert_eq!(
+            collect([Tagged(10, "first"), Tagged(10, "second")]),
+            [(10, "first"), (10, "second")]
+        );
+    }
+
+    /// Regression: `<` predicate (lower bound) reversed arrival order on the slow path.
+    #[test]
+    fn equal_timestamps_keep_arrival_order_on_the_slow_path() {
+        // t=20 "later" triggers the slow path for the subsequent t=10 "second".
+        assert_eq!(
+            collect([
+                Tagged(10, "first"),
+                Tagged(20, "later"),
+                Tagged(10, "second"),
+            ]),
+            [(10, "first"), (10, "second"), (20, "later")]
+        );
+    }
+
+    #[test]
+    fn equal_timestamps_keep_arrival_order_across_a_run() {
+        assert_eq!(
+            collect([
+                Tagged(10, "a"),
+                Tagged(10, "b"),
+                Tagged(20, "later"),
+                Tagged(10, "c"),
+                Tagged(10, "d"),
+            ]),
+            [(10, "a"), (10, "b"), (10, "c"), (10, "d"), (20, "later")]
+        );
     }
 }
 

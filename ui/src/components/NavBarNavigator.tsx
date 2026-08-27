@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMatch, useNavigate } from '@tanstack/react-router';
@@ -93,21 +93,27 @@ export function NavBarNavigator() {
     enabled: !!engineId && !!queryGroupId,
   });
 
-  if (!queryBundle || !engineId) return null;
+  if (!queryBundle || !engineId) {
+    return null;
+  }
 
   const engine = queryBundle.entities.engine.instance_name ?? queryBundle.entities.engine.id;
   const queryGroupName = queryBundle.entities.query_group.instance_name;
   const queryName = queryBundle.entities.query.instance_name;
 
   const handleEngineChange = async (newEngineId: string) => {
-    if (newEngineId === engineId) return;
+    if (newEngineId === engineId) {
+      return;
+    }
     try {
       const groups = await queryClient.fetchQuery({
         queryKey: ['list_coordinators', newEngineId],
         queryFn: () => fetchListCoordinators(newEngineId),
       });
       const firstGroup = groups[0];
-      if (!firstGroup) return;
+      if (!firstGroup) {
+        return;
+      }
       const groupQueries = await queryClient.fetchQuery({
         queryKey: ['list_queries', newEngineId, firstGroup.id],
         queryFn: () => fetchListQueries(newEngineId, firstGroup.id),
@@ -117,6 +123,7 @@ export function NavBarNavigator() {
         navigate({
           to: '/profile/engine/$engineId/query/$queryId',
           params: { engineId: newEngineId, queryId: firstQuery.id },
+          search: {},
         });
       }
     } catch {
@@ -125,7 +132,9 @@ export function NavBarNavigator() {
   };
 
   const handleQueryGroupChange = async (newGroupId: string) => {
-    if (newGroupId === queryGroupId) return;
+    if (newGroupId === queryGroupId) {
+      return;
+    }
     try {
       const groupQueries = await queryClient.fetchQuery({
         queryKey: ['list_queries', engineId, newGroupId],
@@ -136,6 +145,7 @@ export function NavBarNavigator() {
         navigate({
           to: '/profile/engine/$engineId/query/$queryId',
           params: { engineId: engineId!, queryId: firstQuery.id },
+          search: {},
         });
       }
     } catch {
@@ -144,10 +154,13 @@ export function NavBarNavigator() {
   };
 
   const handleQueryChange = (newQueryId: string) => {
-    if (newQueryId === queryId) return;
+    if (newQueryId === queryId) {
+      return;
+    }
     navigate({
       to: '/profile/engine/$engineId/query/$queryId',
       params: { engineId, queryId: newQueryId },
+      search: {},
     });
   };
 

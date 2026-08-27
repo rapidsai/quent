@@ -1,5 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+
+import type { DynamicValue } from './types/index';
 
 // Pure-data types for DAG coloring, width configuration, and node/edge shapes.
 // These are kept in @quent/utils to avoid circular dependencies between
@@ -50,7 +52,16 @@ export const NODE_LABEL_FIELD = {
 
 export type NodeLabelField = (typeof NODE_LABEL_FIELD)[keyof typeof NODE_LABEL_FIELD];
 
-export type StatValue = string | number | boolean | null | string[];
+export const DAG_LAYOUT_DIRECTION = {
+  /** Sources (e.g. Scan) at the bottom, flowing up toward the result. Conventional for query profiling. */
+  BOTTOM_TO_TOP: 'bottom-to-top',
+  /** Sources at the top, flowing down toward the result. */
+  TOP_TO_BOTTOM: 'top-to-bottom',
+} as const;
+
+export type DagLayoutDirection = (typeof DAG_LAYOUT_DIRECTION)[keyof typeof DAG_LAYOUT_DIRECTION];
+
+export type StatValue = DynamicValue | null;
 
 export interface DAGNode {
   id: string;
