@@ -50,7 +50,9 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   });
   const windowMaxS = useMemo(() => {
     const longestEntity = longestEntityQuery.data?.items[0]?.entity;
-    if (!longestEntity) return durationS;
+    if (!longestEntity) {
+      return durationS;
+    }
     return Math.min(durationS, Math.max(0, fsmSpan(longestEntity).end));
   }, [longestEntityQuery.data, durationS]);
   const [filters, setFilters] = useState<EntityFilters>(() => defaultEntityFilters(durationS));
@@ -73,7 +75,9 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     (patch: Partial<EntityFilters>, options?: { preserveSelection?: boolean }) => {
       setFilters(previous => ({ ...previous, ...patch }));
       setPage(0);
-      if (!options?.preserveSelection) setSelected(null);
+      if (!options?.preserveSelection) {
+        setSelected(null);
+      }
     },
     []
   );

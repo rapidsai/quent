@@ -60,10 +60,14 @@ function navLinkProps(disabled: boolean, onClick: () => void) {
     className: cn(disabled && 'pointer-events-none opacity-50'),
     onClick: (event: MouseEvent) => {
       event.preventDefault();
-      if (!disabled) onClick();
+      if (!disabled) {
+        onClick();
+      }
     },
     onKeyDown: (event: KeyboardEvent) => {
-      if (disabled) return;
+      if (disabled) {
+        return;
+      }
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         onClick();
@@ -288,7 +292,9 @@ function PageJump({
   const displayValue = draft ?? String(page + 1);
 
   function commit() {
-    if (draft === null) return;
+    if (draft === null) {
+      return;
+    }
     const parsed = parseInt(draft, 10);
     if (Number.isFinite(parsed)) {
       onPageChange(Math.min(pageCount - 1, Math.max(0, parsed - 1)));

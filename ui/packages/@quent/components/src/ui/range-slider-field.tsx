@@ -60,8 +60,12 @@ export function RangeSliderField({
           const [start, end] = next as number[];
           // Only the dragged thumb's value is reformatted from the slider — leave the other
           // field's string untouched so a precisely-typed value isn't rounded to the slider step.
-          if (start !== sliderValue[0]) onStartChange(formatStep(start!, step));
-          if (end !== sliderValue[1]) onEndChange(formatStep(end!, step));
+          if (start !== sliderValue[0]) {
+            onStartChange(formatStep(start!, step));
+          }
+          if (end !== sliderValue[1]) {
+            onEndChange(formatStep(end!, step));
+          }
         }}
         className="px-0.5"
       />

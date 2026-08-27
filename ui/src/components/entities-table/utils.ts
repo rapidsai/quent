@@ -30,7 +30,9 @@ export function defaultEntityFilters(durationS: number): EntityFilters {
 }
 
 export function normalizePageSize(value: number | null): number {
-  if (value === null || !Number.isFinite(value)) return DEFAULT_PAGE_SIZE;
+  if (value === null || !Number.isFinite(value)) {
+    return DEFAULT_PAGE_SIZE;
+  }
   return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(value)));
 }
 
@@ -153,7 +155,9 @@ export function hasNonDefaultEntitySettings(
 }
 
 export function parseOptionalNumber(value: string): number | null {
-  if (value.trim() === '') return null;
+  if (value.trim() === '') {
+    return null;
+  }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -162,8 +166,12 @@ export function fsmSpan(fsm: FiniteStateMachine): { start: number; end: number }
   let start = Infinity;
   let end = -Infinity;
   for (const transition of fsm.transitions) {
-    if (transition.timestamp < start) start = transition.timestamp;
-    if (transition.timestamp > end) end = transition.timestamp;
+    if (transition.timestamp < start) {
+      start = transition.timestamp;
+    }
+    if (transition.timestamp > end) {
+      end = transition.timestamp;
+    }
   }
   return fsm.transitions.length === 0 ? { start: 0, end: 0 } : { start, end };
 }

@@ -6,14 +6,18 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 export function parseOptionalNumber(value: string): number | null {
-  if (value.trim() === '') return null;
+  if (value.trim() === '') {
+    return null;
+  }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 /** Picks a "nice" step (1/2/5 * 10^n) so a slider spanning `span` units has roughly 100-200 stops. */
 export function niceSliderStep(span: number): number {
-  if (!Number.isFinite(span) || span <= 0) return 0.1;
+  if (!Number.isFinite(span) || span <= 0) {
+    return 0.1;
+  }
   const rawStep = span / 150;
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));
   const normalized = rawStep / magnitude;

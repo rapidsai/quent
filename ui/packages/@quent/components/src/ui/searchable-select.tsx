@@ -39,7 +39,9 @@ export function SearchableSelect({
   const selected = options.find(option => option.value === value);
   const filteredOptions = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    if (!needle) return options;
+    if (!needle) {
+      return options;
+    }
     return options.filter(option =>
       `${option.label ?? option.value} ${option.value}`.toLowerCase().includes(needle)
     );
@@ -62,7 +64,9 @@ export function SearchableSelect({
         open={open}
         onOpenChange={nextOpen => {
           setOpen(nextOpen);
-          if (!nextOpen) setSearch('');
+          if (!nextOpen) {
+            setSearch('');
+          }
         }}
       >
         <PopoverTrigger asChild>
