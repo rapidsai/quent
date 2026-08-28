@@ -33,9 +33,9 @@ function BreadcrumbDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-0.5 px-1.5 py-0.5 -mx-1.5 rounded-sm hover:text-foreground hover:bg-accent transition-colors cursor-pointer">
-          <DataText>{label}</DataText>
-          <ChevronDown className="h-3 w-3 opacity-50" />
+        <button className="flex min-w-0 items-center gap-0.5 px-1.5 py-0.5 -mx-1.5 rounded-sm hover:text-foreground hover:bg-accent transition-colors cursor-pointer">
+          <DataText className="min-w-0 truncate">{label}</DataText>
+          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
@@ -165,7 +165,7 @@ export function NavBarNavigator() {
   };
 
   return (
-    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+    <nav className="flex min-w-0 max-w-full items-center gap-1.5 text-sm text-muted-foreground">
       <BreadcrumbDropdown
         label={engine}
         activeId={engineId}

@@ -36,7 +36,7 @@ function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
             QUENT <span className="font-light text-muted-foreground">UI</span>
           </h1>
         </Link>
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex min-w-0 flex-1 items-center justify-center">
           <NavBarNavigator />
         </div>
         <div className="flex items-center gap-2">
