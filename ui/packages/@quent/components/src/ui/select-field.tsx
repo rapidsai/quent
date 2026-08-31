@@ -16,6 +16,8 @@ import { ScrollArea } from './scroll-area';
 export interface SelectFieldOption {
   value: string;
   label?: string;
+  /** Optional secondary text */
+  description?: string;
 }
 
 export interface SelectFieldProps {

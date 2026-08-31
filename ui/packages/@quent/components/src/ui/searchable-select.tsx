@@ -43,7 +43,9 @@ export function SearchableSelect({
       return options;
     }
     return options.filter(option =>
-      `${option.label ?? option.value} ${option.value}`.toLowerCase().includes(needle)
+      `${option.label ?? option.value} ${option.value} ${option.description ?? ''}`
+        .toLowerCase()
+        .includes(needle)
     );
   }, [options, search]);
 
@@ -120,6 +122,7 @@ export function SearchableSelect({
               <Option
                 key={option.value}
                 label={option.label ?? option.value}
+                description={option.description}
                 selected={option.value === value}
                 onSelect={() => select(option.value)}
               />
@@ -136,10 +139,12 @@ export function SearchableSelect({
 
 function Option({
   label,
+  description,
   selected,
   onSelect,
 }: {
   label: string;
+  description?: string;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -150,13 +155,18 @@ function Option({
       aria-selected={selected}
       onClick={onSelect}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-xs outline-none',
+        'relative flex w-full cursor-pointer select-none items-start gap-2 rounded-sm px-2 py-1 text-xs outline-none',
         'transition-colors hover:bg-accent hover:text-accent-foreground',
         'focus-visible:bg-accent focus-visible:text-accent-foreground'
       )}
     >
-      <Check className={cn('size-3.5 shrink-0', !selected && 'opacity-0')} />
-      <span className="truncate">{label}</span>
+      <Check className={cn('mt-0.5 size-3.5 shrink-0', !selected && 'opacity-0')} />
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate">{label}</span>
+        {description && (
+          <span className="block truncate text-[10px] text-muted-foreground">{description}</span>
+        )}
+      </span>
     </button>
   );
 }
