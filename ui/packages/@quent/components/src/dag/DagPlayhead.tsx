@@ -110,15 +110,11 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
     [applyClientX]
   );
 
-  const handlePointerEnd = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-      setPlayheadLineTimeMs(null);
-    },
-    [setPlayheadLineTimeMs]
-  );
+  const handlePointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
 
   const stepBy = useCallback(
     (bins: number) => {
@@ -170,11 +166,14 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
         const current = playheadRef.current ?? bin.startS;
         if (current >= bin.endS) {
           setPlayheadTimeS(bin.startS);
+          setPlayheadLineTimeMs(bin.startS * 1000);
+        } else {
+          setPlayheadLineTimeMs(current * 1000);
         }
       }
       return !playing;
     });
-  }, [bin, setIsPlaying, setPlayheadTimeS]);
+  }, [bin, setIsPlaying, setPlayheadTimeS, setPlayheadLineTimeMs]);
 
   // Stop playback when the overlay is disabled or the bin metadata goes away:
   // the component stays mounted while rendering null, so a live play interval
@@ -187,7 +186,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
     setPlayheadLineTimeMs(null);
   }, [enabled, bin, setIsPlaying, setPlayheadLineTimeMs]);
 
-  // Advance one bin per tick while playing; stop at the window end.
+  // Advance one bin per tick while playing; stop at the window end. The line
+  // is only cleared here (playback finished), not on manual pause, so the
+  // last position stays visible until the user resumes, scrubs, or restarts.
   useEffect(() => {
     if (!isPlaying || !bin) {
       return;
@@ -197,19 +198,15 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       const current = playheadRef.current ?? startS;
       const next = Math.min(current + binDurationS, endS);
       setPlayheadTimeS(next);
-      setPlayheadLineTimeMs(next * 1000);
       if (next >= endS) {
+        setPlayheadLineTimeMs(null);
         setIsPlaying(false);
+      } else {
+        setPlayheadLineTimeMs(next * 1000);
       }
     }, PLAY_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [isPlaying, bin, setIsPlaying, setPlayheadTimeS, setPlayheadLineTimeMs]);
-
-  useEffect(() => {
-    if (!isPlaying) {
-      setPlayheadLineTimeMs(null);
-    }
-  }, [isPlaying, setPlayheadLineTimeMs]);
 
   useEffect(() => {
     return () => {
