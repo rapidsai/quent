@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useRef } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play, Square } from 'lucide-react';
 import { cn, formatDurationForWindow } from '@quent/utils';
 import {
   useDataFlowEnabled,
@@ -11,6 +11,7 @@ import {
   useSetDataFlowIsPlaying,
   usePlayheadTimeS,
   useSetPlayheadTimeS,
+  usePlayheadLineTimeMs,
   useSetPlayheadLineTimeMs,
 } from '@quent/hooks';
 
@@ -44,6 +45,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const setPlayheadTimeS = useSetPlayheadTimeS();
   const isPlaying = useDataFlowIsPlaying();
   const setIsPlaying = useSetDataFlowIsPlaying();
+  const playheadLineTimeMs = usePlayheadLineTimeMs();
   const setPlayheadLineTimeMs = useSetPlayheadLineTimeMs();
 
   const trackRef = useRef<HTMLDivElement>(null);
@@ -175,6 +177,11 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
     });
   }, [bin, setIsPlaying, setPlayheadTimeS, setPlayheadLineTimeMs]);
 
+  const stopLine = useCallback(() => {
+    setIsPlaying(false);
+    setPlayheadLineTimeMs(null);
+  }, [setIsPlaying, setPlayheadLineTimeMs]);
+
   // Stop playback when the overlay is disabled or the bin metadata goes away:
   // the component stays mounted while rendering null, so a live play interval
   // would otherwise keep advancing the playhead invisibly.
@@ -245,6 +252,15 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
         ) : (
           <Play className="h-3 w-3 text-muted-foreground" />
         )}
+      </button>
+      <button
+        onClick={stopLine}
+        disabled={!isPlaying && playheadLineTimeMs == null}
+        aria-label="Stop and clear playhead line"
+        title="Stop"
+        className="rounded p-1 hover:bg-muted transition-colors cursor-pointer flex-shrink-0 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <Square className="h-3 w-3 text-muted-foreground" />
       </button>
       <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
         {formatTimeLabel(bin.startS, windowS)}
