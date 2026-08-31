@@ -242,6 +242,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       data-testid="dag-playhead"
     >
       <button
+        type="button"
         onClick={togglePlay}
         aria-label={isPlaying ? 'Pause data flow' : 'Play data flow'}
         title={isPlaying ? 'Pause' : 'Play'}
@@ -254,6 +255,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
         )}
       </button>
       <button
+        type="button"
         onClick={stopLine}
         disabled={!isPlaying && playheadLineTimeMs == null}
         aria-label="Stop and clear playhead line"
