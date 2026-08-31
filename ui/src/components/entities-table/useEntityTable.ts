@@ -16,6 +16,7 @@ import {
   fsmSpan,
   hasNonDefaultEntitySettings,
   normalizePageSize,
+  operatorLocationDescription,
   validateEntityFilters,
 } from './utils';
 
@@ -109,9 +110,10 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
         .map(operator => ({
           value: operator.id,
           label: operator.instance_name ?? operator.operator_type_name ?? operator.id,
+          description: operatorLocationDescription(operator, entities.plans, entities.workers),
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [entities.operators]
+    [entities.operators, entities.plans, entities.workers]
   );
   const entityTypeOptions = useMemo<SelectFieldOption[]>(
     () =>

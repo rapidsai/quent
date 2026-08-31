@@ -5,9 +5,12 @@ import type {
   EntityListRequest,
   EntityListResponse,
   FiniteStateMachine,
+  Operator,
   OperatorFilter,
+  Plan,
   QueryFilter,
   SortDir,
+  Worker,
 } from '@quent/utils';
 import type { EntityFilters, EntityTableRow } from './types';
 
@@ -160,6 +163,22 @@ export function parseOptionalNumber(value: string): number | null {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Builds a "Plan / Worker" subtitle so operators sharing the same name can be told apart. */
+export function operatorLocationDescription(
+  operator: Operator,
+  plans: Record<string, Plan>,
+  workers: Record<string, Worker>
+): string | undefined {
+  const plan = operator.plan_id ? plans[operator.plan_id] : undefined;
+  if (!plan) {
+    return undefined;
+  }
+  const planLabel = plan.instance_name ?? plan.id;
+  const worker = plan.worker_id ? workers[plan.worker_id] : undefined;
+  const workerLabel = worker ? (worker.instance_name ?? worker.id) : null;
+  return workerLabel ? `Plan: ${planLabel} · Worker: ${workerLabel}` : `Plan: ${planLabel}`;
 }
 
 export function fsmSpan(fsm: FiniteStateMachine): { start: number; end: number } {
