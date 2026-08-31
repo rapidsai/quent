@@ -9,4 +9,5 @@ tonic.workspace = true
 tonic-prost.workspace = true
 
 [build-dependencies]
+protox.workspace = true
 tonic-prost-build = "0.14.2"

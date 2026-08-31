@@ -4,9 +4,6 @@ FROM rust:1.97.0-trixie AS builder
 
 WORKDIR /quent
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends protobuf-compiler
-
 COPY . .
 
 # Build simulator executables with cached target dir and cargo registry

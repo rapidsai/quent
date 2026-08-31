@@ -114,7 +114,7 @@ Install [Pixi](https://pixi.sh), then enter the repository environment:
 pixi shell
 ```
 
-Pixi provides the required Rust, Node.js, pnpm, and protoc versions. Run
+Pixi provides the required Rust, Node.js, and pnpm versions. Run
 development and build commands from this environment.
 
 ### UI development

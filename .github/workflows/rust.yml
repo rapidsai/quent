@@ -77,9 +77,6 @@ jobs:
           persist-credentials: false
           # Picking the previous commit on push builds needs the parent of HEAD.
           fetch-depth: 2
-      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
-        with:
-          cache: true
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -93,7 +90,17 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: echo "commit=${BASE_SHA:-$(git rev-parse HEAD~1)}" >> "$GITHUB_OUTPUT"
-      - run: pixi run cargo test --package quent-open --locked -- --ignored opens_artifacts_built_by_a_previous_quent_commit
+      # Historical revisions may have different Pixi environments.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.previous.outputs.commit }}
+          path: compat
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+          working-directory: compat
+      - run: pixi run --manifest-path compat/pixi.toml cargo test --package quent-open --locked -- --ignored opens_artifacts_built_by_a_previous_quent_commit
         env:
           QUENT_OPEN_COMPAT_COMMIT: ${{ steps.previous.outputs.commit }}
           QUENT_OPEN_COMPAT_REMOTE: ${{ github.server_url }}/${{ github.repository }}

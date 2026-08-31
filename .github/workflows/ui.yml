@@ -157,12 +157,12 @@ jobs:
       - name: Generate base bindings
         run: |
           if [ -d base/examples/simulator/ui-bindings ]; then
-            pixi run cargo run \
+            pixi run --locked --manifest-path base/pixi.toml cargo run \
               --manifest-path base/Cargo.toml \
               -p quent-simulator-ui-bindings \
               --locked
           else
-            pixi run cargo build \
+            pixi run --locked --manifest-path base/pixi.toml cargo build \
               --manifest-path base/Cargo.toml \
               -p quent-simulator-server \
               --locked
