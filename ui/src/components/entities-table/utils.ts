@@ -9,6 +9,8 @@ import type {
   OperatorFilter,
   Plan,
   QueryFilter,
+  Resource,
+  ResourceGroup,
   SortDir,
   Worker,
 } from '@quent/utils';
@@ -193,6 +195,24 @@ export function operatorLocationDescription(
   const worker = plan.worker_id ? workers[plan.worker_id] : undefined;
   const workerLabel = worker ? (worker.instance_name ?? worker.id) : null;
   return workerLabel ? `Plan: ${planLabel} · Worker: ${workerLabel}` : `Plan: ${planLabel}`;
+}
+
+export function resourceLocationDescription(
+  resource: Resource,
+  resourceGroups: Record<string, ResourceGroup>,
+  workers: Record<string, Worker>
+): string | undefined {
+  const visited = new Set<string>();
+  let groupId: string | null = resource.parent_group_id;
+  while (groupId && !visited.has(groupId)) {
+    visited.add(groupId);
+    const worker = workers[groupId];
+    if (worker) {
+      return `Worker: ${worker.instance_name ?? worker.id}`;
+    }
+    groupId = resourceGroups[groupId]?.parent_group_id ?? null;
+  }
+  return undefined;
 }
 
 export function fsmSpan(fsm: FiniteStateMachine): { start: number; end: number } {

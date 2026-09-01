@@ -21,6 +21,7 @@ import {
   hasNonDefaultEntitySettings,
   normalizePageSize,
   operatorLocationDescription,
+  resourceLocationDescription,
   selectedOperatorsLabel,
   validateEntityFilters,
 } from './utils';
@@ -156,9 +157,14 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
         .map(resource => ({
           value: resource.id,
           label: `${resource.instance_name} (${resource.type_name})`,
+          description: resourceLocationDescription(
+            resource,
+            entities.resource_groups,
+            entities.workers
+          ),
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [entities.resources]
+    [entities.resources, entities.resource_groups, entities.workers]
   );
   const resourceLabel = useCallback(
     (id: string) => {
