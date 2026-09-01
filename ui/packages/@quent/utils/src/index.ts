@@ -79,6 +79,14 @@ export type {
   DAGEdge,
 } from './dagTypes';
 
+// Operator selection and inspection types
+export type {
+  OperatorSelection,
+  OperatorSelectionState,
+  InspectedOperatorData,
+  InspectedNodeData,
+} from './operatorTypes';
+
 export { AGG_MODES } from './aggMode';
 export type { AggMode } from './aggMode';
 
