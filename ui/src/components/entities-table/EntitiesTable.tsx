@@ -40,7 +40,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
             filters={table.filters.values}
             durationS={table.filters.durationS}
             windowMaxS={table.filters.windowMaxS}
-            operatorId={table.filters.operatorId}
+            operatorIds={table.filters.operatorIds}
             operatorOptions={table.filters.operatorOptions}
             entityTypeOptions={table.filters.entityTypeOptions}
             resourceOptions={table.filters.resourceOptions}
@@ -48,7 +48,9 @@ export function EntitiesTable(props: EntitiesTableProps) {
             hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
             validationErrors={table.filters.validationErrors}
             invalidFilterFields={table.filters.invalidFilterFields}
-            onOperatorChange={table.filters.updateOperator}
+            onToggleOperator={table.filters.toggleOperator}
+            onSelectAllOperators={table.filters.selectAllOperators}
+            onSelectNoOperators={table.filters.selectNoOperators}
             onFiltersChange={table.filters.update}
             onReset={table.filters.reset}
           />

@@ -4,10 +4,12 @@
 import { RotateCcw } from 'lucide-react';
 import {
   Button,
+  OptionMultiSelect,
   RangeSliderField,
   SearchableSelect,
   SelectField,
   SliderField,
+  type OptionMultiSelectOption,
   type SelectFieldOption,
 } from '@quent/components';
 import { cn } from '@quent/utils';
@@ -20,15 +22,17 @@ interface EntitiesToolbarProps {
   filters: EntityFilters;
   durationS: number;
   windowMaxS: number;
-  operatorId: string | null;
-  operatorOptions: SelectFieldOption[];
+  operatorIds: ReadonlySet<string>;
+  operatorOptions: OptionMultiSelectOption[];
   entityTypeOptions: SelectFieldOption[];
   resourceOptions: SelectFieldOption[];
   activeFilterCount: number;
   hasNonDefaultSettings: boolean;
   validationErrors: string[];
   invalidFilterFields: Set<EntityNumberFilterField>;
-  onOperatorChange: (value: string | null) => void;
+  onToggleOperator: (value: string) => void;
+  onSelectAllOperators: () => void;
+  onSelectNoOperators: () => void;
   onFiltersChange: (
     patch: Partial<EntityFilters>,
     options?: { preserveSelection?: boolean }
@@ -40,7 +44,7 @@ export function EntitiesToolbar({
   filters,
   durationS,
   windowMaxS,
-  operatorId,
+  operatorIds,
   operatorOptions,
   entityTypeOptions,
   resourceOptions,
@@ -48,7 +52,9 @@ export function EntitiesToolbar({
   hasNonDefaultSettings,
   validationErrors,
   invalidFilterFields,
-  onOperatorChange,
+  onToggleOperator,
+  onSelectAllOperators,
+  onSelectNoOperators,
   onFiltersChange,
   onReset,
 }: EntitiesToolbarProps) {
@@ -60,12 +66,19 @@ export function EntitiesToolbar({
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
           <FieldWrapper label="Operator" className="w-64">
-            <SearchableSelect
+            <OptionMultiSelect
               ariaLabel="Operator"
-              placeholder="All operators"
+              triggerText="All operators"
               options={operatorOptions}
-              value={operatorId}
-              onValueChange={onOperatorChange}
+              selectedOptionIds={new Set(operatorIds)}
+              onToggleOption={onToggleOperator}
+              onSelectAllOptions={onSelectAllOperators}
+              onSelectNoOptions={onSelectNoOperators}
+              searchPlaceholder="Search operators…"
+              emptyMessage="No operators found"
+              showSelectedBadges={false}
+              monospaceLabels={false}
+              triggerClassName="h-8 w-full"
             />
           </FieldWrapper>
           <FieldWrapper label="Type" className="w-36">

@@ -88,13 +88,13 @@ export function validateEntityFilters(filters: EntityFilters): EntityFilterValid
 
 export function buildEntityRequest({
   filters,
-  operatorId,
+  operatorIds,
   page,
   queryId,
   durationS,
 }: {
   filters: EntityFilters;
-  operatorId: string | null;
+  operatorIds: ReadonlySet<string>;
   page: number;
   queryId: string;
   durationS: number;
@@ -112,7 +112,7 @@ export function buildEntityRequest({
       },
       sort: { key: 'UsageDuration', dir: filters.sortDir },
       page: { max: normalizePageSize(filters.pageSize), page },
-      application: { operator_ids: operatorId != null ? [operatorId] : [] },
+      application: { operator_ids: [...operatorIds] },
     },
     app_params: { query_id: queryId },
   };
@@ -133,10 +133,10 @@ function numericFilterValueChanged(value: string, defaultValue: string): boolean
 export function activeEntityFilterCount(
   filters: EntityFilters,
   defaults: EntityFilters,
-  operatorId: string | null
+  operatorIds: ReadonlySet<string>
 ): number {
   return [
-    operatorId !== null,
+    operatorIds.size > 0,
     filters.entityType !== null,
     filters.resourceId !== null,
     filters.minUsageS !== '',
@@ -163,6 +163,20 @@ export function parseOptionalNumber(value: string): number | null {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Builds the crossfilter chip label (e.g. shown in QueryToolbar) for a set of selected operators. */
+export function selectedOperatorsLabel(
+  operatorIds: ReadonlySet<string>,
+  operatorLabel: (id: string) => string
+): string | null {
+  if (operatorIds.size === 0) {
+    return null;
+  }
+  if (operatorIds.size === 1) {
+    return operatorLabel([...operatorIds][0]);
+  }
+  return `${operatorIds.size} operators`;
 }
 
 /** Builds a "Plan / Worker" subtitle so operators sharing the same name can be told apart. */

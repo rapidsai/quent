@@ -3,8 +3,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEntities, useEntityList } from '@quent/client';
-import { useSelectedNodeIds } from '@quent/hooks';
-import type { SelectFieldOption } from '@quent/components';
+import {
+  useSelectedNodeIds,
+  useSetSelectedNodeIds,
+  useSetSelectedOperatorLabel,
+} from '@quent/hooks';
+import type { OptionMultiSelectOption, SelectFieldOption } from '@quent/components';
 import type { EntityRef, FiniteStateMachine, QueryBundle, SortDir } from '@quent/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { EntityFilters } from './types';
@@ -17,6 +21,7 @@ import {
   hasNonDefaultEntitySettings,
   normalizePageSize,
   operatorLocationDescription,
+  selectedOperatorsLabel,
   validateEntityFilters,
 } from './utils';
 
@@ -28,15 +33,11 @@ interface UseEntityTableParams {
   queryBundle: QueryBundle<EntityRef>;
 }
 
-interface ManualOperatorOverride {
-  dagOperatorId: string | null;
-  value: string | null;
-}
-
 export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTableParams) {
   const { entities, duration_s: durationS } = queryBundle;
-  const selectedNodeIds = useSelectedNodeIds();
-  const dagOperatorId = selectedNodeIds.values().next().value ?? null;
+  const operatorIds = useSelectedNodeIds();
+  const setSelectedNodeIds = useSetSelectedNodeIds();
+  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
   const defaults = useMemo(() => defaultEntityFilters(durationS), [durationS]);
   // The "Window (s)" slider is bounded by the query duration, which is often far longer than
   // when entities actually occur. Use the longest-running entity's end time as a tighter,
@@ -57,20 +58,22 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     return Math.min(durationS, Math.max(0, fsmSpan(longestEntity).end));
   }, [longestEntityQuery.data, durationS]);
   const [filters, setFilters] = useState<EntityFilters>(() => defaultEntityFilters(durationS));
-  const [manualOperatorOverride, setManualOperatorOverride] =
-    useState<ManualOperatorOverride | null>(null);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<FiniteStateMachine | null>(null);
-  const operatorId =
-    manualOperatorOverride?.dagOperatorId === dagOperatorId
-      ? manualOperatorOverride.value
-      : dagOperatorId;
+  const operatorLabel = useCallback(
+    (id: string) => {
+      const operator = entities.operators[id];
+      return operator ? (operator.instance_name ?? operator.operator_type_name ?? id) : id;
+    },
+    [entities.operators]
+  );
 
+  // Reset pagination/selection whenever the operator filter changes, regardless of whether
+  // it came from this toolbar or another crossfiltered view (DAG, operator swimlanes, etc).
   useEffect(() => {
-    setManualOperatorOverride(null);
     setPage(0);
     setSelected(null);
-  }, [dagOperatorId]);
+  }, [operatorIds]);
 
   const updateFilters = useCallback(
     (patch: Partial<EntityFilters>, options?: { preserveSelection?: boolean }) => {
@@ -88,23 +91,48 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     setPage(0);
   }, []);
 
-  const updateOperator = useCallback(
-    (value: string | null) => {
-      setManualOperatorOverride({ dagOperatorId, value });
+  const applyOperatorSelection = useCallback(
+    (nextIds: Set<string>) => {
+      setSelectedNodeIds(nextIds);
+      setSelectedOperatorLabel(selectedOperatorsLabel(nextIds, operatorLabel));
       setPage(0);
       setSelected(null);
     },
-    [dagOperatorId]
+    [operatorLabel, setSelectedNodeIds, setSelectedOperatorLabel]
+  );
+
+  const toggleOperator = useCallback(
+    (value: string) => {
+      const next = new Set(operatorIds);
+      if (next.has(value)) {
+        next.delete(value);
+      } else {
+        next.add(value);
+      }
+      applyOperatorSelection(next);
+    },
+    [applyOperatorSelection, operatorIds]
+  );
+
+  const selectAllOperators = useCallback(
+    () => applyOperatorSelection(new Set(Object.keys(entities.operators))),
+    [applyOperatorSelection, entities.operators]
+  );
+
+  const selectNoOperators = useCallback(
+    () => applyOperatorSelection(new Set()),
+    [applyOperatorSelection]
   );
 
   const resetFilters = useCallback(() => {
     setFilters(defaults);
-    setManualOperatorOverride({ dagOperatorId, value: null });
+    setSelectedNodeIds(new Set());
+    setSelectedOperatorLabel(null);
     setPage(0);
     setSelected(null);
-  }, [dagOperatorId, defaults]);
+  }, [defaults, setSelectedNodeIds, setSelectedOperatorLabel]);
 
-  const operatorOptions = useMemo<SelectFieldOption[]>(
+  const operatorOptions = useMemo<OptionMultiSelectOption[]>(
     () =>
       Object.values(entities.operators)
         .map(operator => ({
@@ -112,7 +140,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
           label: operator.instance_name ?? operator.operator_type_name ?? operator.id,
           description: operatorLocationDescription(operator, entities.plans, entities.workers),
         }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
+        .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '')),
     [entities.operators, entities.plans, entities.workers]
   );
   const entityTypeOptions = useMemo<SelectFieldOption[]>(
@@ -139,14 +167,6 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     },
     [entities.resources]
   );
-  const operatorLabel = useCallback(
-    (id: string) => {
-      const operator = entities.operators[id];
-      return operator ? (operator.instance_name ?? operator.operator_type_name ?? id) : id;
-    },
-    [entities.operators]
-  );
-
   const { errors: validationErrors, invalidFields: invalidFilterFields } = useMemo(
     () => validateEntityFilters(filters),
     [filters]
@@ -166,8 +186,8 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     [filters, debouncedMinUsageS, debouncedWindowStart, debouncedWindowEnd]
   );
   const request = useMemo(
-    () => buildEntityRequest({ filters: effectiveFilters, operatorId, page, queryId, durationS }),
-    [durationS, effectiveFilters, operatorId, page, queryId]
+    () => buildEntityRequest({ filters: effectiveFilters, operatorIds, page, queryId, durationS }),
+    [durationS, effectiveFilters, operatorIds, page, queryId]
   );
   const query = useEntities({ engineId, request }, { enabled: validationErrors.length === 0 });
   const requestPending = query.isFetching;
@@ -177,7 +197,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const visibleStart = total === 0 ? 0 : page * pageSize + 1;
   const visibleEnd = total === 0 ? 0 : Math.min(total, visibleStart + rows.length - 1);
-  const activeFilterCount = activeEntityFilterCount(filters, defaults, operatorId);
+  const activeFilterCount = activeEntityFilterCount(filters, defaults, operatorIds);
 
   return {
     filters: {
@@ -188,12 +208,14 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
       invalidFilterFields,
       hasNonDefaultSettings: hasNonDefaultEntitySettings(filters, defaults, activeFilterCount),
       activeFilterCount,
-      operatorId,
+      operatorIds,
       operatorOptions,
       entityTypeOptions,
       resourceOptions,
       update: updateFilters,
-      updateOperator,
+      toggleOperator,
+      selectAllOperators,
+      selectNoOperators,
       updateSortDir,
       reset: resetFilters,
     },

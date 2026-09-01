@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { cn, AGG_MODES } from '@quent/utils';
 import { useColumnDragDrop } from '@quent/hooks';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -41,6 +41,7 @@ export function PivotTableToolbar({
   onSelectAllStats,
   onSelectNoStats,
 }: PivotTableToolbarProps) {
+  const statOptions = useMemo(() => orderedStats.map(stat => ({ value: stat })), [orderedStats]);
   const commitDrop = useCallback(
     (fromKey: string, toKey: string, position: 'before' | 'after') => {
       if (fromKey === toKey) {
@@ -135,7 +136,7 @@ export function PivotTableToolbar({
       <OptionMultiSelect
         label="Columns"
         triggerText="Select Columns"
-        options={orderedStats}
+        options={statOptions}
         selectedOptionIds={selectedStats}
         onToggleOption={onToggleStat}
         onSelectAllOptions={onSelectAllStats}
