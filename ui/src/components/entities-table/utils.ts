@@ -197,6 +197,7 @@ export function operatorLocationDescription(
   return workerLabel ? `Plan: ${planLabel} · Worker: ${workerLabel}` : `Plan: ${planLabel}`;
 }
 
+/** Builds a "Worker" subtitle so resources sharing the same name across workers can be told apart. */
 export function resourceLocationDescription(
   resource: Resource,
   resourceGroups: Record<string, ResourceGroup>,
