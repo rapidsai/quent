@@ -79,13 +79,30 @@ export function SearchableSelect({
             aria-label={accessibleLabel}
             aria-expanded={open}
             className={cn(
-              'h-8 min-w-0 flex-1 justify-between gap-2 px-2 font-normal',
+              'h-8 min-w-0 flex-1 justify-between gap-2 px-2 font-normal hover:bg-background hover:text-foreground',
               triggerClassName
             )}
           >
-            <span className="truncate text-xs">
+            <span className="flex-1 truncate text-left text-xs">
               {selected?.label ?? selected?.value ?? placeholder}
             </span>
+            {value !== null && (
+              <span
+                role="button"
+                aria-label={`Clear ${accessibleLabel ?? 'selection'}`}
+                className="shrink-0 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                onPointerDown={e => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                onClick={e => {
+                  e.stopPropagation();
+                  select(null);
+                }}
+              >
+                <X className="size-3!" />
+              </span>
+            )}
             <ChevronDown className="size-3.5 shrink-0 opacity-70" />
           </Button>
         </PopoverTrigger>

@@ -216,9 +216,7 @@ describe('EntitiesTable', () => {
       expect.arrayContaining(['operator-1', 'operator-2'])
     );
     expect(params.request.entry.application.operator_ids).toHaveLength(2);
-    expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent(
-      'All operators (2)'
-    );
+    expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent('2 selected');
   });
 
   it('shows empty state when the response contains no entities', () => {
@@ -281,8 +279,6 @@ describe('EntitiesTable', () => {
 
     const params = useEntities.mock.lastCall?.[0];
     expect(params.request.entry.application.operator_ids).toEqual(['operator-1']);
-    expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent(
-      'All operators (1)'
-    );
+    expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent('Operator One');
   });
 });

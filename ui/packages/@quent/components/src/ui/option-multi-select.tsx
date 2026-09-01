@@ -82,6 +82,13 @@ export function OptionMultiSelect({
     );
   }, [options, search]);
 
+  const triggerLabel =
+    selectedOptions.length === 0
+      ? triggerText
+      : selectedOptions.length === 1
+        ? optionLabel(selectedOptions[0])
+        : `${selectedOptions.length} selected`;
+
   return (
     <div
       className={cn(
@@ -105,15 +112,11 @@ export function OptionMultiSelect({
             role="combobox"
             aria-label={ariaLabel ?? label}
             className={cn(
-              'h-7 min-w-36 justify-between gap-2 px-2 text-xs font-normal',
+              'h-7 min-w-36 justify-between gap-2 px-2 text-xs font-normal hover:bg-background hover:text-foreground',
               triggerClassName
             )}
           >
-            <span className="flex-1 truncate text-left">
-              {selectedOptions.length > 0
-                ? `${triggerText} (${selectedOptions.length})`
-                : triggerText}
-            </span>
+            <span className="flex-1 truncate text-left">{triggerLabel}</span>
             {selectedOptions.length > 0 && (
               <span
                 role="button"
