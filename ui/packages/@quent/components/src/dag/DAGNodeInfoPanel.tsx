@@ -1,197 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
-  useSelectedNodeData,
   useDataFlowEnabled,
+  useDataFlowFrame,
   useDataFlowIsPlaying,
   useDataFlowMeta,
-  useDataFlowFrame,
-  type DataFlowMeta,
-  type DataFlowFrame,
-  type InspectedNodeData,
-  type InspectedOperatorData,
+  useSelectedNodeData,
 } from '@quent/hooks';
+import { cn, type QuantitySpec } from '@quent/utils';
+import { OperatorColorBar, OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
 import { DataText } from '../ui/data-text';
 import { thinScrollbarClass } from '../ui/thin-scroll';
-import { cn, formatStatWithQuantity, getOperationTypeColor, type QuantitySpec } from '@quent/utils';
-import { DataFlowMatrix } from './DataFlowMatrix';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
-
-const OperatorColorBar = ({
-  operationType,
-  className,
-}: {
-  operationType: string;
-  className?: string;
-}) => (
-  <span
-    aria-hidden
-    data-testid="operator-color-bar"
-    data-operation-type={operationType}
-    className={cn('shrink-0 rounded-full', className)}
-    style={{ backgroundColor: getOperationTypeColor(operationType) }}
-  />
-);
-
-const OperatorStatFields = ({
-  operator,
-  quantitySpecs,
-}: {
-  operator: InspectedOperatorData;
-  quantitySpecs?: { [key: string]: QuantitySpec | undefined };
-}) => (
-  <>
-    <div className="text-xs flex items-center justify-between">
-      <DataText className="capitalize">ID:</DataText>
-      <DataText className="text-muted-foreground ml-1 truncate">{operator.nodeId}</DataText>
-    </div>
-    {operator.statistics.map(({ key, value, quantity }) => (
-      <div key={key} className="text-xs">
-        {Array.isArray(value) ? (
-          <div className="flex items-center justify-between gap-0.5">
-            <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
-            <div className="ml-2 flex flex-col gap-0.5">
-              {value.map((item, i) => (
-                <DataText key={i} className="text-muted-foreground whitespace-pre-line">
-                  {String(item)}
-                </DataText>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
-            <DataText className="text-muted-foreground ml-1">
-              {typeof value === 'number'
-                ? formatStatWithQuantity(
-                    value,
-                    key,
-                    quantity && quantitySpecs ? quantitySpecs[quantity] : undefined
-                  )
-                : String(value)}
-            </DataText>
-          </div>
-        )}
-      </div>
-    ))}
-  </>
-);
-
-const OperatorAccordion = ({
-  operator,
-  open,
-  onOpenChange,
-  children,
-}: {
-  operator: InspectedOperatorData;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: ReactNode;
-}) => (
-  <Collapsible
-    open={open}
-    onOpenChange={onOpenChange}
-    className="flex min-w-0 gap-2"
-    data-testid={`operator-accordion-${operator.nodeId}`}
-  >
-    <OperatorColorBar operationType={operator.operationType} className="w-1 self-stretch" />
-    <div className="min-w-0 flex-1">
-      <CollapsibleTrigger
-        className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 my-1 text-left hover:bg-muted/50"
-        aria-label={`Toggle ${operator.label} details`}
-      >
-        <DataText className="min-w-0 truncate text-xs font-medium" title={operator.label}>
-          {operator.label}
-        </DataText>
-        <DataText className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs capitalize text-muted-foreground">
-          {operator.operationType}
-        </DataText>
-        <ChevronDown className="ml-auto h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-      </CollapsibleTrigger>
-      <CollapsibleContent>{children}</CollapsibleContent>
-    </div>
-  </Collapsible>
-);
-
-const OperatorDetailsBlock = ({
-  operator,
-  quantitySpecs,
-  isOpen,
-  onOpenChange,
-}: {
-  operator: InspectedNodeData;
-  quantitySpecs?: { [key: string]: QuantitySpec | undefined };
-  isOpen: (id: string) => boolean;
-  onOpenChange: (id: string, open: boolean) => void;
-}) => (
-  <OperatorAccordion
-    operator={operator}
-    open={isOpen(operator.nodeId)}
-    onOpenChange={open => onOpenChange(operator.nodeId, open)}
-  >
-    <OperatorStatFields operator={operator} quantitySpecs={quantitySpecs} />
-    {operator.relatedOperators?.map(related => (
-      <div key={related.nodeId} className="mt-1.5 border-t pt-1.5">
-        <OperatorAccordion
-          operator={related}
-          open={isOpen(related.nodeId)}
-          onOpenChange={open => onOpenChange(related.nodeId, open)}
-        >
-          <OperatorStatFields operator={related} quantitySpecs={quantitySpecs} />
-        </OperatorAccordion>
-      </div>
-    ))}
-  </OperatorAccordion>
-);
-
-const OperatorDataFlowBlock = ({
-  operator,
-  meta,
-  frame,
-  isDark,
-  isOpen,
-  onOpenChange,
-}: {
-  operator: InspectedNodeData;
-  meta: DataFlowMeta;
-  frame: DataFlowFrame;
-  isDark: boolean;
-  isOpen: (id: string) => boolean;
-  onOpenChange: (id: string, open: boolean) => void;
-}) => (
-  <OperatorAccordion
-    operator={operator}
-    open={isOpen(operator.nodeId)}
-    onOpenChange={open => onOpenChange(operator.nodeId, open)}
-  >
-    <DataFlowMatrix
-      meta={meta}
-      frame={frame}
-      operatorFrame={frame.perOperator.get(operator.nodeId)}
-      isDark={isDark}
-    />
-    {operator.relatedOperators?.map(related => (
-      <div key={related.nodeId} className="mt-1.5 border-t pt-1.5">
-        <OperatorAccordion
-          operator={related}
-          open={isOpen(related.nodeId)}
-          onOpenChange={open => onOpenChange(related.nodeId, open)}
-        >
-          <DataFlowMatrix
-            meta={meta}
-            frame={frame}
-            operatorFrame={frame.perOperator.get(related.nodeId)}
-            isDark={isDark}
-          />
-        </OperatorAccordion>
-      </div>
-    ))}
-  </OperatorAccordion>
-);
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 export const DAGNodeInfoPanel = ({
   isDark = false,
