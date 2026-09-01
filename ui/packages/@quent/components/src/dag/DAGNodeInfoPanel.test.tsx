@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider } from 'jotai';
-import { useSetSelectedNodeData } from '@quent/hooks';
+import { useOperatorSelectionActions, useSetSelectedNodeData } from '@quent/hooks';
 import { getOperationTypeColor } from '@quent/utils';
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 
@@ -67,6 +67,47 @@ function SwitchSelectedNode() {
   );
 }
 
+function TwoSelectedNodes() {
+  const updateOperatorSelection = useOperatorSelectionActions();
+
+  useEffect(() => {
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'scan',
+      label: 'Table scan',
+      operatorIds: ['scan'],
+      inspectedData: {
+        nodeId: 'scan',
+        label: 'Table scan',
+        operationType: 'scan',
+        statistics: [{ key: 'output_rows', value: 10 }],
+      },
+    });
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'join',
+      label: 'Hash join',
+      operatorIds: ['join'],
+      inspectedData: {
+        nodeId: 'join',
+        label: 'Hash join',
+        operationType: 'hashjoin',
+        statistics: [{ key: 'build_rows', value: 20 }],
+        relatedOperators: [
+          {
+            nodeId: 'probe',
+            label: 'Probe hash table',
+            operationType: 'hashprobe',
+            statistics: [{ key: 'probe_rows', value: 30 }],
+          },
+        ],
+      },
+    });
+  }, [updateOperatorSelection]);
+
+  return <DAGNodeInfoPanel />;
+}
+
 describe('DAGNodeInfoPanel', () => {
   it('shows statistics for every related child operator', async () => {
     render(
@@ -96,7 +137,52 @@ describe('DAGNodeInfoPanel', () => {
     });
   });
 
-  it('resets collapsed operators when the selected root changes', async () => {
+  it('shows statistics for every selected operator', async () => {
+    render(
+      <Provider>
+        <TwoSelectedNodes />
+      </Provider>
+    );
+
+    const title = await screen.findByTestId('operator-details-title');
+    expect(within(title).getByText('Table scan')).toHaveAttribute('title', 'Table scan');
+    expect(within(title).getByText('Hash join')).toHaveAttribute('title', 'Hash join');
+    expect(screen.getByText('output rows:')).toBeInTheDocument();
+    expect(screen.getByText('build rows:')).toBeInTheDocument();
+    expect(screen.getByText('Probe hash table')).toBeInTheDocument();
+    expect(screen.getByText('probe rows:')).toBeInTheDocument();
+
+    const titleBars = within(title).getAllByTestId('operator-color-bar');
+    expect(titleBars[0]).toHaveAttribute('data-operation-type', 'scan');
+    expect(titleBars[0]).toHaveStyle({ backgroundColor: getOperationTypeColor('scan') });
+    expect(titleBars[1]).toHaveAttribute('data-operation-type', 'hashjoin');
+    expect(titleBars[1]).toHaveStyle({ backgroundColor: getOperationTypeColor('hashjoin') });
+  });
+
+  it('collapses a selected operator without hiding the others', async () => {
+    render(
+      <Provider>
+        <TwoSelectedNodes />
+      </Provider>
+    );
+
+    const scanToggle = await screen.findByRole('button', { name: 'Toggle Table scan details' });
+    const joinToggle = screen.getByRole('button', { name: 'Toggle Hash join details' });
+    expect(scanToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(joinToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('output rows:')).toBeInTheDocument();
+    expect(screen.getByText('build rows:')).toBeInTheDocument();
+
+    fireEvent.click(scanToggle);
+
+    expect(scanToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(joinToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByText('output rows:')).not.toBeInTheDocument();
+    expect(screen.getByText('build rows:')).toBeInTheDocument();
+    expect(screen.getByText('Probe hash table')).toBeInTheDocument();
+  });
+
+  it('resets collapsed operators when the selection changes', async () => {
     render(
       <Provider>
         <SwitchSelectedNode />

@@ -195,4 +195,33 @@ describe('operator selection actions', () => {
     );
     expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
   });
+
+  it('keeps inspected selections that are not present in the loaded DAG', () => {
+    const store = createStore();
+    const timelineData = {
+      nodeId: 'timeline-only',
+      label: 'Timeline operator',
+      operationType: 'scan',
+      statistics: [],
+    };
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'timeline-only',
+      label: 'Timeline operator',
+      operatorIds: ['timeline-only'],
+      inspectedData: timelineData,
+    });
+
+    store.set(operatorSelectionActionAtom, {
+      type: 'hydrate',
+      selections: [],
+      unresolvedOperatorIds: ['timeline-only'],
+    });
+
+    expect(store.get(operatorSelectionAtom).selections.get('timeline-only')).toEqual({
+      label: 'Timeline operator',
+      operatorIds: new Set(['timeline-only']),
+    });
+    expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['timeline-only', timelineData]]));
+  });
 });
