@@ -142,11 +142,9 @@ const VariableWidthEdge = ({
   const isInSelection = selectedNodeIds.has(source) || selectedNodeIds.has(target);
   const isInHighlight =
     hasActiveHighlight && (highlightedNodeIds.has(source) || highlightedNodeIds.has(target));
-  // While a hover-driven highlight set is active, it overrides the
-  // selection-based dim (matching `QueryPlanNode`).
-  const dimFromHighlight = hasActiveHighlight && !isInHighlight;
-  const dimFromSelection = !hasActiveHighlight && hasSelection && !isInSelection;
-  const isEdgeDimmed = edgeDimmed || dimFromHighlight || dimFromSelection;
+  const dimFromInteraction =
+    (hasActiveHighlight || hasSelection) && !isInHighlight && !isInSelection;
+  const isEdgeDimmed = edgeDimmed || dimFromInteraction;
 
   let edgeLabelValue: string | undefined;
   if (edgeColoring) {
