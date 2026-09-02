@@ -97,7 +97,7 @@ export function OptionMultiSelect({
         className
       )}
     >
-      {label && <span className="text-xs text-muted-foreground shrink-0 mr-1">{label}:</span>}
+      {label && <label className="text-xs text-muted-foreground shrink-0 mr-1">{label}:</label>}
       <Popover
         onOpenChange={open => {
           if (!open) {
