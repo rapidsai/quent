@@ -82,10 +82,16 @@ export type {
 // Operator selection and inspection types
 export type {
   OperatorSelection,
+  OperatorSelectionInput,
   OperatorSelectionState,
   InspectedOperatorData,
   InspectedNodeData,
 } from './operatorTypes';
+export {
+  buildRelatedOperatorIdsById,
+  getOperatorDisplayLabel,
+  resolveOperatorSelections,
+} from './operatorHierarchy';
 
 export { AGG_MODES } from './aggMode';
 export type { AggMode } from './aggMode';

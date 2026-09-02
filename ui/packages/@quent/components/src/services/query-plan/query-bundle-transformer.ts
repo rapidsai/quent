@@ -3,7 +3,7 @@
 
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle, EntityRef } from '@quent/utils';
-import { Operator, Port, Plan, PlanTree } from '@quent/utils';
+import { buildRelatedOperatorIdsById, Operator, Port, Plan, PlanTree } from '@quent/utils';
 
 interface PlanTreeNode extends PlanTree {
   query?: string | null;
@@ -50,40 +50,6 @@ const getNodeEntity = (
   }
 
   return undefined;
-};
-
-const buildRelatedOperatorIdsById = (
-  operators: Operator[],
-  selectedOperatorIds: ReadonlySet<string>
-): Map<string, string[]> => {
-  const childrenByParentId = new Map<string, string[]>();
-  for (const operator of operators) {
-    for (const parentId of operator.parent_operator_ids ?? []) {
-      const children = childrenByParentId.get(parentId);
-      if (children) {
-        children.push(operator.id);
-      } else {
-        childrenByParentId.set(parentId, [operator.id]);
-      }
-    }
-  }
-
-  const relatedById = new Map<string, string[]>();
-  for (const operatorId of selectedOperatorIds) {
-    const related = new Set<string>();
-    const stack = [...(childrenByParentId.get(operatorId) ?? [])];
-    while (stack.length > 0) {
-      const childId = stack.pop()!;
-      if (childId === operatorId || related.has(childId)) {
-        continue;
-      }
-      related.add(childId);
-      stack.push(...(childrenByParentId.get(childId) ?? []));
-    }
-    relatedById.set(operatorId, [...related]);
-  }
-
-  return relatedById;
 };
 
 /**

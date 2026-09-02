@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
-import type { InspectedNodeData, OperatorSelectionState } from '@quent/utils';
+import type {
+  InspectedNodeData,
+  OperatorSelectionInput,
+  OperatorSelectionState,
+} from '@quent/utils';
 import {
   addOperatorSelection as addSelection,
-  createOperatorSelectionState,
   createEmptyOperatorSelectionState,
   getActiveOperatorLabel,
   getLastOperatorSelectionId,
@@ -26,8 +29,7 @@ export type OperatorSelectionAction =
   | { type: 'remove'; selectionId: string }
   | {
       type: 'replace';
-      operatorIds: Iterable<string>;
-      inspectedData?: InspectedNodeData;
+      selections: ReadonlyArray<OperatorSelectionInput & { inspectedData?: InspectedNodeData }>;
     }
   | {
       type: 'hydrate';
@@ -37,7 +39,6 @@ export type OperatorSelectionAction =
         operatorIds: Iterable<string>;
         inspectedData: InspectedNodeData;
       }>;
-      unresolvedOperatorIds: Iterable<string>;
     }
   | { type: 'clear' };
 
@@ -73,27 +74,8 @@ export const operatorSelectionActionAtom = atom(
         nextData = removeInspectedNodeData(currentData, action.selectionId);
         break;
       case 'replace': {
-        const operatorIds = [...action.operatorIds];
-        if (action.inspectedData) {
-          nextSelection = addSelection(
-            createEmptyOperatorSelectionState(),
-            action.inspectedData.nodeId,
-            action.inspectedData.label,
-            operatorIds
-          );
-          nextData = new Map([[action.inspectedData.nodeId, action.inspectedData]]);
-        } else {
-          nextSelection = createOperatorSelectionState(operatorIds);
-          nextData = new Map([...currentData].filter(([id]) => nextSelection.selections.has(id)));
-        }
-        break;
-      }
-      case 'hydrate': {
         nextSelection = createEmptyOperatorSelectionState();
         nextData = new Map();
-        for (const id of action.unresolvedOperatorIds) {
-          nextSelection = addSelection(nextSelection, id, id, [id]);
-        }
         for (const selection of action.selections) {
           nextSelection = addSelection(
             nextSelection,
@@ -101,7 +83,22 @@ export const operatorSelectionActionAtom = atom(
             selection.label,
             selection.operatorIds
           );
-          if (nextSelection.selections.has(selection.selectionId)) {
+          if (!nextSelection.selections.has(selection.selectionId)) {
+            continue;
+          }
+          const inspectedData = selection.inspectedData ?? currentData.get(selection.selectionId);
+          if (inspectedData) {
+            nextData = upsertInspectedNodeData(nextData, inspectedData);
+          }
+        }
+        nextData = new Map([...nextData].filter(([id]) => nextSelection.selections.has(id)));
+        break;
+      }
+      case 'hydrate': {
+        nextSelection = currentSelection;
+        nextData = new Map(currentData);
+        for (const selection of action.selections) {
+          if (currentSelection.selections.has(selection.selectionId)) {
             nextData = upsertInspectedNodeData(nextData, selection.inspectedData);
           }
         }
@@ -123,7 +120,14 @@ export const operatorSelectionActionAtom = atom(
 export const selectedNodeIdsAtom = atom(
   get => getSelectedOperatorIds(get(operatorSelectionAtom)),
   (_get, set, operatorIds: Set<string>) =>
-    set(operatorSelectionActionAtom, { type: 'replace', operatorIds })
+    set(operatorSelectionActionAtom, {
+      type: 'replace',
+      selections: [...operatorIds].map(selectionId => ({
+        selectionId,
+        label: selectionId,
+        operatorIds: new Set([selectionId]),
+      })),
+    })
 );
 
 /** Display label of the active operator selection */

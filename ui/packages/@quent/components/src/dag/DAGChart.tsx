@@ -309,12 +309,22 @@ const FlowLayout = ({
   useEffect(() => {
     const operatorIds = new Set(hydratedNodeIdsKey === '' ? [] : hydratedNodeIdsKey.split('\0'));
     const resolved = resolveInspectedNodeSelections(data.nodes, operatorIds);
-    updateOperatorSelection({
-      type: 'hydrate',
-      selections: resolved.selections,
-      unresolvedOperatorIds: resolved.unresolvedOperatorIds,
-    });
-  }, [data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
+    if (controlledSelectedNodeIds !== undefined) {
+      updateOperatorSelection({
+        type: 'replace',
+        selections: [
+          ...resolved.selections,
+          ...[...resolved.unresolvedOperatorIds].map(selectionId => ({
+            selectionId,
+            label: data.nodes.find(node => node.id === selectionId)?.label ?? selectionId,
+            operatorIds: new Set([selectionId]),
+          })),
+        ],
+      });
+      return;
+    }
+    updateOperatorSelection({ type: 'hydrate', selections: resolved.selections });
+  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
 
   // Publish the set of operator IDs visible in this DAG so other consumers
   // (effective highlight/heatmap atoms) can decide whether a hover-driven

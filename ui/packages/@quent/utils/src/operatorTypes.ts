@@ -8,6 +8,10 @@ export interface OperatorSelection {
   readonly operatorIds: ReadonlySet<string>;
 }
 
+export interface OperatorSelectionInput extends OperatorSelection {
+  readonly selectionId: string;
+}
+
 export interface OperatorSelectionState {
   readonly selections: ReadonlyMap<string, OperatorSelection>;
   readonly activeId: string | null;

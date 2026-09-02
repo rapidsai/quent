@@ -97,7 +97,10 @@ describe('operator selection actions', () => {
       inspectedData: joinData,
     });
 
-    store.set(operatorSelectionActionAtom, { type: 'replace', operatorIds: ['scan'] });
+    store.set(operatorSelectionActionAtom, {
+      type: 'replace',
+      selections: [{ selectionId: 'scan', label: 'Scan', operatorIds: new Set(['scan']) }],
+    });
 
     expect([...store.get(selectedNodesDataAtom).keys()]).toEqual(['scan']);
 
@@ -112,8 +115,14 @@ describe('operator selection actions', () => {
 
     store.set(operatorSelectionActionAtom, {
       type: 'replace',
-      operatorIds: ['join', 'physical-join'],
-      inspectedData: joinData,
+      selections: [
+        {
+          selectionId: 'join',
+          label: 'Join',
+          operatorIds: new Set(['join', 'physical-join']),
+          inspectedData: joinData,
+        },
+      ],
     });
 
     expect(store.get(operatorSelectionAtom).selections).toEqual(
@@ -130,8 +139,23 @@ describe('operator selection actions', () => {
     expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['join', joinData]]));
   });
 
-  it('hydrates resolved selections while preserving unknown IDs', () => {
+  it('hydrates inspection data without changing global selections', () => {
     const store = createStore();
+    store.set(operatorSelectionActionAtom, {
+      type: 'replace',
+      selections: [
+        {
+          selectionId: 'join',
+          label: 'Join',
+          operatorIds: new Set(['join', 'physical-join']),
+        },
+        {
+          selectionId: 'unknown',
+          label: 'Unknown operator',
+          operatorIds: new Set(['unknown']),
+        },
+      ],
+    });
 
     store.set(operatorSelectionActionAtom, {
       type: 'hydrate',
@@ -142,18 +166,29 @@ describe('operator selection actions', () => {
           operatorIds: ['join', 'physical-join'],
           inspectedData: groupedJoinData,
         },
+        {
+          selectionId: 'physical-join',
+          label: 'Physical join',
+          operatorIds: ['physical-join'],
+          inspectedData: scanData,
+        },
       ],
-      unresolvedOperatorIds: ['unknown'],
     });
 
     expect(store.get(operatorSelectionAtom).selections).toEqual(
       new Map([
-        ['unknown', { label: 'unknown', operatorIds: new Set(['unknown']) }],
         [
           'join',
           {
             label: 'Join',
             operatorIds: new Set(['join', 'physical-join']),
+          },
+        ],
+        [
+          'unknown',
+          {
+            label: 'Unknown operator',
+            operatorIds: new Set(['unknown']),
           },
         ],
       ])

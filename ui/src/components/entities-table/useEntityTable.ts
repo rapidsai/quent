@@ -4,12 +4,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEntities, useEntityList } from '@quent/client';
 import {
+  useOperatorSelection,
+  useOperatorSelectionActions,
   useSelectedNodeIds,
-  useSetSelectedNodeIds,
-  useSetSelectedOperatorLabel,
 } from '@quent/hooks';
 import type { OptionMultiSelectOption, SelectFieldOption } from '@quent/components';
-import type { EntityRef, FiniteStateMachine, QueryBundle, SortDir } from '@quent/utils';
+import {
+  buildRelatedOperatorIdsById,
+  resolveOperatorSelections,
+  type EntityRef,
+  type FiniteStateMachine,
+  type QueryBundle,
+  type SortDir,
+} from '@quent/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { EntityFilters } from './types';
 import {
@@ -22,7 +29,6 @@ import {
   normalizePageSize,
   operatorLocationDescription,
   resourceLocationDescription,
-  selectedOperatorsLabel,
   validateEntityFilters,
 } from './utils';
 
@@ -36,9 +42,11 @@ interface UseEntityTableParams {
 
 export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTableParams) {
   const { entities, duration_s: durationS } = queryBundle;
+  const operatorSelection = useOperatorSelection();
   const operatorIds = useSelectedNodeIds();
-  const setSelectedNodeIds = useSetSelectedNodeIds();
-  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const updateOperatorSelection = useOperatorSelectionActions();
+  const operators = useMemo(() => Object.values(entities.operators), [entities.operators]);
+  const relatedOperatorIdsById = useMemo(() => buildRelatedOperatorIdsById(operators), [operators]);
   const defaults = useMemo(() => defaultEntityFilters(durationS), [durationS]);
   // The "Window (s)" slider is bounded by the query duration, which is often far longer than
   // when entities actually occur. Use the longest-running entity's end time as a tighter,
@@ -94,25 +102,35 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
 
   const applyOperatorSelection = useCallback(
     (nextIds: Set<string>) => {
-      setSelectedNodeIds(nextIds);
-      setSelectedOperatorLabel(selectedOperatorsLabel(nextIds, operatorLabel));
+      updateOperatorSelection({
+        type: 'replace',
+        selections: resolveOperatorSelections(operators, nextIds),
+      });
       setPage(0);
       setSelected(null);
     },
-    [operatorLabel, setSelectedNodeIds, setSelectedOperatorLabel]
+    [operators, updateOperatorSelection]
   );
 
   const toggleOperator = useCallback(
     (value: string) => {
       const next = new Set(operatorIds);
-      if (next.has(value)) {
+      const selectedGroup = operatorSelection.selections.get(value);
+      if (selectedGroup) {
+        for (const id of selectedGroup.operatorIds) {
+          next.delete(id);
+        }
+      } else if (next.has(value)) {
         next.delete(value);
       } else {
         next.add(value);
+        for (const id of relatedOperatorIdsById.get(value) ?? []) {
+          next.add(id);
+        }
       }
       applyOperatorSelection(next);
     },
-    [applyOperatorSelection, operatorIds]
+    [applyOperatorSelection, operatorIds, operatorSelection.selections, relatedOperatorIdsById]
   );
 
   const selectAllOperators = useCallback(
@@ -127,22 +145,21 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
 
   const resetFilters = useCallback(() => {
     setFilters(defaults);
-    setSelectedNodeIds(new Set());
-    setSelectedOperatorLabel(null);
+    updateOperatorSelection({ type: 'clear' });
     setPage(0);
     setSelected(null);
-  }, [defaults, setSelectedNodeIds, setSelectedOperatorLabel]);
+  }, [defaults, updateOperatorSelection]);
 
   const operatorOptions = useMemo<OptionMultiSelectOption[]>(
     () =>
-      Object.values(entities.operators)
+      operators
         .map(operator => ({
           value: operator.id,
           label: operator.instance_name ?? operator.operator_type_name ?? operator.id,
           description: operatorLocationDescription(operator, entities.plans, entities.workers),
         }))
         .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '')),
-    [entities.operators, entities.plans, entities.workers]
+    [entities.plans, entities.workers, operators]
   );
   const entityTypeOptions = useMemo<SelectFieldOption[]>(
     () =>

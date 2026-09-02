@@ -4,8 +4,14 @@
 import { useCallback } from 'react';
 import { useStore } from 'jotai';
 import type { SortingState } from '@tanstack/react-table';
-import type { ContinuousPaletteName, DagLayoutDirection, NodeLabelField } from '@quent/utils';
-import { selectedNodeIdsAtom, selectedPlanIdAtom } from '../atoms/dag';
+import {
+  resolveOperatorSelections,
+  type ContinuousPaletteName,
+  type DagLayoutDirection,
+  type NodeLabelField,
+  type Operator,
+} from '@quent/utils';
+import { operatorSelectionActionAtom, selectedNodeIdsAtom, selectedPlanIdAtom } from '../atoms/dag';
 import {
   dataFlowEnabledAtom,
   dataFlowIsPlayingAtom,
@@ -83,11 +89,13 @@ export interface HydratableViewState {
 interface SerializableViewStateOptions {
   operatorTablePersistKey: string;
   operatorTableGroupKeys: readonly string[];
+  operators?: readonly Operator[];
 }
 
 export function useSerializableViewState({
   operatorTablePersistKey,
   operatorTableGroupKeys,
+  operators,
 }: SerializableViewStateOptions) {
   const store = useStore();
 
@@ -147,7 +155,14 @@ export function useSerializableViewState({
         store.set(selectedPlanIdAtom, state.selection.planId);
       }
       if (state.selection?.operatorNodeIds !== undefined) {
-        store.set(selectedNodeIdsAtom, new Set(state.selection.operatorNodeIds));
+        if (operators) {
+          store.set(operatorSelectionActionAtom, {
+            type: 'replace',
+            selections: resolveOperatorSelections(operators, state.selection.operatorNodeIds),
+          });
+        } else {
+          store.set(selectedNodeIdsAtom, new Set(state.selection.operatorNodeIds));
+        }
       }
 
       const dag = state.dag;
@@ -217,7 +232,7 @@ export function useSerializableViewState({
         store.set(sortingAtomFamily(operatorTablePersistKey), table.sort);
       }
     },
-    [operatorTableGroupKeys, operatorTablePersistKey, store]
+    [operatorTableGroupKeys, operatorTablePersistKey, operators, store]
   );
 
   return { read, hydrate } as const;

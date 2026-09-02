@@ -13,6 +13,7 @@ import {
   useZoomRange,
 } from '@quent/hooks';
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
+import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
 import {
   expandedIdsAtom,
@@ -45,6 +46,28 @@ const BOUNDARY_PROPS = {
 
 const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
+const DEEP_LINK_OPERATORS: Operator[] = [
+  {
+    id: 'operator-a',
+    plan_id: null,
+    parent_operator_ids: [],
+    instance_name: 'Operator A',
+    operator_type_name: null,
+    custom_attributes: {},
+    statistics: null,
+    active_span: null,
+  },
+  {
+    id: 'operator-child',
+    plan_id: null,
+    parent_operator_ids: ['operator-a'],
+    instance_name: 'Operator Child',
+    operator_type_name: null,
+    custom_attributes: {},
+    statistics: null,
+    active_span: null,
+  },
+];
 
 function ViewportProbe() {
   const immediate = useZoomRange();
@@ -240,7 +263,10 @@ describe('DeepLinkBoundary', () => {
     const encoded = encodeDeepLinkState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
-      selection: { planId: 'plan-a', operatorNodeIds: ['operator-a', 'operator-unknown'] },
+      selection: {
+        planId: 'plan-a',
+        operatorNodeIds: ['operator-a', 'operator-child', 'operator-unknown'],
+      },
       resources: {
         expandedRowIds: ['worker-a'],
         resourceFilter: {
@@ -284,7 +310,11 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          operators={DEEP_LINK_OPERATORS}
+          encodedState={encoded.value}
+        >
           <SerializableStateProbe />
           <OperatorSelectionProbe />
         </DeepLinkBoundary>
@@ -296,7 +326,7 @@ describe('DeepLinkBoundary', () => {
       view: {
         selection: {
           planId: 'plan-a',
-          operatorNodeIds: ['operator-a', 'operator-unknown'],
+          operatorNodeIds: ['operator-a', 'operator-child', 'operator-unknown'],
         },
         dag: {
           nodeColorField: 'duration_s',
@@ -337,7 +367,11 @@ describe('DeepLinkBoundary', () => {
     });
     expect(screen.getByTestId('operator-selection')).toHaveTextContent(
       JSON.stringify([
-        { id: 'operator-a', label: 'operator-a', operatorIds: ['operator-a'] },
+        {
+          id: 'operator-a',
+          label: 'Operator A',
+          operatorIds: ['operator-a', 'operator-child'],
+        },
         {
           id: 'operator-unknown',
           label: 'operator-unknown',

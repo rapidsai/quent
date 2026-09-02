@@ -30,19 +30,6 @@ export function getLastOperatorSelectionId(
   return lastId;
 }
 
-export function createOperatorSelectionState(
-  operatorIds: Iterable<string>
-): OperatorSelectionState {
-  const selections = new Map<string, OperatorSelection>();
-  for (const id of operatorIds) {
-    selections.set(id, { label: id, operatorIds: new Set([id]) });
-  }
-  return {
-    selections,
-    activeId: getLastOperatorSelectionId(selections),
-  };
-}
-
 function containsAll(container: ReadonlySet<string>, contained: ReadonlySet<string>): boolean {
   for (const id of contained) {
     if (!container.has(id)) {

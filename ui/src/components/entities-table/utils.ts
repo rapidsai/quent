@@ -167,20 +167,6 @@ export function parseOptionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** Builds the crossfilter chip label (e.g. shown in QueryToolbar) for a set of selected operators. */
-export function selectedOperatorsLabel(
-  operatorIds: ReadonlySet<string>,
-  operatorLabel: (id: string) => string
-): string | null {
-  if (operatorIds.size === 0) {
-    return null;
-  }
-  if (operatorIds.size === 1) {
-    return operatorLabel([...operatorIds][0]);
-  }
-  return `${operatorIds.size} operators`;
-}
-
 /** Builds a "Plan / Worker" subtitle so operators sharing the same name can be told apart. */
 export function operatorLocationDescription(
   operator: Operator,
