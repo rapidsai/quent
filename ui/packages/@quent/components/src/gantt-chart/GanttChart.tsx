@@ -11,10 +11,10 @@ import {
   type ReactNode,
 } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import EChartsReactCore from 'echarts-for-react/lib/core';
 
 import type { EChartsInstance } from 'echarts-for-react';
 import { echarts } from '../lib/echarts';
+import { EChartsReactCore } from '../lib/echartsReactCore';
 import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';

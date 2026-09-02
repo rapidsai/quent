@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useMemo, useState } from 'react';
-import EChartsReactCore from 'echarts-for-react/lib/core';
 import type { CapacityDecl, FsmTransition, QuantitySpec } from '@quent/utils';
 import { bigintToChartNumber, formatBytes, formatQuantity } from '@quent/utils';
 import { echarts } from '../lib/echarts';
+import { EChartsReactCore } from '../lib/echartsReactCore';
 import { useChartResize } from '../lib/useChartResize';
 import type { PointerPosition } from '../ui/pointer-tooltip-portal';
 import { PositionedTooltip } from '../ui/positioned-tooltip';
