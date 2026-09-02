@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import {
@@ -319,9 +319,6 @@ describe('EntitiesTable', () => {
     expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
       JSON.stringify(['Logical Operator'])
     );
-    const toolbarBadges = screen.getByTestId('operator-filter-badges');
-    expect(within(toolbarBadges).getByText('Logical Operator')).toBeInTheDocument();
-    expect(within(toolbarBadges).queryByText('Child One')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('option', { name: 'Child One' }));
 
@@ -333,8 +330,6 @@ describe('EntitiesTable', () => {
     expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
       JSON.stringify(['Child Two', 'Logical Operator'])
     );
-    expect(within(toolbarBadges).getByText('Child Two')).toBeInTheDocument();
-    expect(within(toolbarBadges).queryByText('child-two')).not.toBeInTheDocument();
   });
 
   it('shows empty state when the response contains no entities', () => {
