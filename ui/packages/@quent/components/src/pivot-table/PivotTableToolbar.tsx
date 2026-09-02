@@ -144,6 +144,7 @@ export function PivotTableToolbar({
         searchPlaceholder="Search columns…"
         emptyMessage="No columns found"
         noneSelectedText="None selected"
+        optionClassName="font-mono"
       />
     </>
   );

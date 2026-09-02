@@ -77,7 +77,6 @@ export function EntitiesToolbar({
               searchPlaceholder="Search operators…"
               emptyMessage="No operators found"
               showSelectedBadges={false}
-              monospaceLabels={false}
               triggerClassName="h-8 w-full"
             />
           </FieldWrapper>

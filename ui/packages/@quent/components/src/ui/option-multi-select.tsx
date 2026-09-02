@@ -33,8 +33,8 @@ interface OptionMultiSelectProps {
   showSelectedBadges?: boolean;
   className?: string;
   triggerClassName?: string;
-  /** Render option labels in a monospace font, e.g. for raw field/column identifiers. Defaults to true. */
-  monospaceLabels?: boolean;
+  /** className applied to each option's label and its selected badge. */
+  optionClassName?: string;
 }
 
 function optionLabel(option: OptionMultiSelectOption): string {
@@ -57,7 +57,7 @@ export function OptionMultiSelect({
   showSelectedBadges = true,
   className,
   triggerClassName,
-  monospaceLabels = true,
+  optionClassName,
 }: OptionMultiSelectProps) {
   const [search, setSearch] = useState('');
 
@@ -199,7 +199,7 @@ export function OptionMultiSelect({
                     {checked && <Check className="size-2.5" strokeWidth={3} />}
                   </span>
                   <span className="min-w-0 flex-1 text-left">
-                    <span className={cn('block truncate', monospaceLabels && 'font-mono')}>
+                    <span className={cn('block truncate', optionClassName)}>
                       {optionLabel(option)}
                     </span>
                     {option.description && (
@@ -229,7 +229,7 @@ export function OptionMultiSelect({
                   variant="outline"
                   className={cn(
                     'px-1.5 py-0 text-data bg-primary/10 border-primary/40 hover:bg-primary/15',
-                    monospaceLabels && 'font-mono'
+                    optionClassName
                   )}
                 >
                   <span className="truncate">{optionLabel(option)}</span>
