@@ -8,7 +8,11 @@ import {
   readDeepLinkFields,
   type DeepLinkFields,
 } from './deepLink.fields';
-import { DeepLinkStateV1Schema, DeepLinkStateV2Schema } from './deepLink.schema';
+import {
+  DeepLinkStateV1Schema,
+  DeepLinkStateV2Schema,
+  DeepLinkStateV3Schema,
+} from './deepLink.schema';
 
 const absentFields = {
   route: undefined,
@@ -19,6 +23,7 @@ const absentFields = {
   dag: undefined,
   dataFlow: undefined,
   operatorTable: undefined,
+  entities: undefined,
 } satisfies DeepLinkFields;
 
 const v1State = DeepLinkStateV1Schema.parse({
@@ -31,6 +36,16 @@ const v2State = DeepLinkStateV2Schema.parse({
   timeline: { zoomRange: { start: 10, end: 40 } },
   resources: { expandedRowIds: ['resource-b', 'resource-a'] },
   selection: { planId: 'plan-a' },
+});
+
+const v3State = DeepLinkStateV3Schema.parse({
+  route: { engineId: 'engine-a', queryId: 'query-a', tab: 'entities' },
+  selection: { operatorNodeIds: ['operator-a'] },
+  entities: {
+    entityType: 'task',
+    window: { start: 12, end: 24 },
+    sortDir: 'Asc',
+  },
 });
 
 describe('deep-link field readers', () => {
@@ -60,6 +75,17 @@ describe('deep-link field readers', () => {
       expandedResourceIds: ['resource-a', 'resource-b'],
       selection: { planId: 'plan-a' },
       resources: v2State.resources,
+    });
+  });
+
+  it('reads v3 entity fields without requiring a timeline viewport', () => {
+    const decoded = { version: 'v3' as const, data: v3State };
+
+    expect(readDeepLinkFields(decoded)).toEqual({
+      ...absentFields,
+      route: v3State.route,
+      selection: v3State.selection,
+      entities: v3State.entities,
     });
   });
 

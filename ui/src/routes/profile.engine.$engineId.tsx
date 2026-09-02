@@ -57,7 +57,17 @@ function ProfileLayout() {
     from: '/profile/engine/$engineId/query/$queryId/operators',
     shouldThrow: false,
   });
-  const activeTab = timelineMatch ? 'timeline' : operatorsMatch ? 'operators' : undefined;
+  const entitiesMatch = useMatch({
+    from: '/profile/engine/$engineId/query/$queryId/entities',
+    shouldThrow: false,
+  });
+  const activeTab = timelineMatch
+    ? 'timeline'
+    : operatorsMatch
+      ? 'operators'
+      : entitiesMatch
+        ? 'entities'
+        : undefined;
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
   // Stripping a consumed `s` keeps the store; a different payload resets it.

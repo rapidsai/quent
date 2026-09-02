@@ -8,12 +8,12 @@ import {
   type VersionedDeepLinkState,
 } from './deepLink.fields';
 import {
-  DeepLinkStateV2Schema,
+  DeepLinkStateV3Schema,
   MAX_ENCODED_STATE_LENGTH,
-  type DeepLinkStateV2,
+  type DeepLinkStateV3,
 } from './deepLink.schema';
 
-export const CURRENT_DEEP_LINK_VERSION: DeepLinkVersion = 'v2';
+export const CURRENT_DEEP_LINK_VERSION: DeepLinkVersion = 'v3';
 export const SUPPORTED_DEEP_LINK_VERSIONS = SUPPORTED_DEEP_LINK_SCHEMAS.map(entry => entry.version);
 export const DEEP_LINK_SEARCH_KEY = 's';
 export const MAX_DEEP_LINK_URL_LENGTH = 2048;
@@ -55,8 +55,8 @@ function base64UrlToBytes(value: string): Uint8Array | null {
   }
 }
 
-export function encodeDeepLinkState(state: DeepLinkStateV2): DeepLinkResult<string> {
-  const parsed = DeepLinkStateV2Schema.safeParse(state);
+export function encodeDeepLinkState(state: DeepLinkStateV3): DeepLinkResult<string> {
+  const parsed = DeepLinkStateV3Schema.safeParse(state);
   if (!parsed.success) {
     return failure('invalid-state', 'The current shared view state is invalid.');
   }
@@ -112,7 +112,7 @@ export function decodeDeepLinkState(encoded: string): DeepLinkResult<VersionedDe
 
 export function buildDeepLinkUrl(
   currentUrl: string,
-  state: DeepLinkStateV2
+  state: DeepLinkStateV3
 ): DeepLinkResult<string> {
   const encoded = encodeDeepLinkState(state);
   if (!encoded.ok) {

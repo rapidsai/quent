@@ -8,6 +8,7 @@ import {
   NODE_LABEL_FIELD,
   AGG_MODES,
 } from '@quent/utils';
+import { MAX_PAGE_SIZE } from '@/components/entities-table/utils';
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 
 export const MAX_ENCODED_STATE_LENGTH = 4096;
@@ -73,6 +74,16 @@ const RouteSchema = z
     tab: z.enum(['timeline', 'operators']),
   })
   .strip();
+
+const RouteV3Schema = z
+  .object({
+    engineId: IdSchema,
+    queryId: IdSchema,
+    tab: z.enum(['timeline', 'operators', 'entities']),
+  })
+  .strip();
+
+const TimelineSchema = z.object({ zoomRange: ZoomRangeSchema }).strip();
 
 const SelectionSchema = z
   .object({
@@ -174,10 +185,33 @@ const OperatorTableSchema = z
   })
   .strip();
 
+const EntityWindowSchema = z
+  .object({
+    start: z.number().finite().nonnegative(),
+    end: z.number().finite().nonnegative(),
+  })
+  .refine(window => window.end >= window.start, {
+    message: 'Entity window end must not precede its start',
+  });
+
+const EntitiesSchema = z
+  .object({
+    operatorId: IdSchema.nullable().optional(),
+    entityType: NameSchema.optional(),
+    resourceId: IdSchema.optional(),
+    minUsageS: z.number().finite().nonnegative().optional(),
+    window: EntityWindowSchema.optional(),
+    sortDir: z.enum(['Asc', 'Desc']).optional(),
+    pageSize: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+    page: z.number().int().nonnegative().max(1_000_000).optional(),
+    selectedEntityId: IdSchema.optional(),
+  })
+  .strip();
+
 export const DeepLinkStateV2Schema = z
   .object({
     route: RouteSchema,
-    timeline: z.object({ zoomRange: ZoomRangeSchema }).strip(),
+    timeline: TimelineSchema,
     selection: SelectionSchema.optional(),
     resources: ResourceTreeSchema.optional(),
     dag: DagControlsSchema.optional(),
@@ -187,8 +221,40 @@ export const DeepLinkStateV2Schema = z
   .strip();
 
 export type DeepLinkStateV2 = z.infer<typeof DeepLinkStateV2Schema>;
-export type DeepLinkState = DeepLinkStateV2;
-export type DeepLinkTab = DeepLinkStateV2['route']['tab'];
+
+export const DeepLinkStateV3Schema = z
+  .object({
+    route: RouteV3Schema,
+    timeline: TimelineSchema.optional(),
+    selection: SelectionSchema.optional(),
+    resources: ResourceTreeSchema.optional(),
+    dag: DagControlsSchema.optional(),
+    dataFlow: DataFlowSchema.optional(),
+    operatorTable: OperatorTableSchema.optional(),
+    entities: EntitiesSchema.optional(),
+  })
+  .strip()
+  .superRefine((state, context) => {
+    if (state.route.tab !== 'entities' && !state.timeline) {
+      context.addIssue({
+        code: 'custom',
+        path: ['timeline'],
+        message: 'Timeline state is required for timeline and operator links',
+      });
+    }
+    if (state.route.tab !== 'entities' && state.entities) {
+      context.addIssue({
+        code: 'custom',
+        path: ['entities'],
+        message: 'Entity state is only valid for entity links',
+      });
+    }
+  });
+
+export type DeepLinkStateV3 = z.infer<typeof DeepLinkStateV3Schema>;
+export type DeepLinkState = DeepLinkStateV3;
+export type DeepLinkTab = DeepLinkStateV3['route']['tab'];
+export type DeepLinkEntitiesState = NonNullable<DeepLinkStateV3['entities']>;
 
 export const DeepLinkSearchSchema = z
   .object({

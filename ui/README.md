@@ -105,6 +105,13 @@ stores generated event data in `ui/.e2e-data/`.
 In CI only, Playwright writes an HTML report and screenshots failures; the
 GitHub UI workflow uploads those files when the E2E job fails.
 
+### Deep Links
+
+The query timeline, operators, and entities tabs support versioned shareable
+view snapshots through the **Copy Link** action. See
+[Deep links](./docs/deep-links.md) for the stored state, compatibility policy,
+and command-line creation and decoding examples.
+
 ## API Integration
 
 The application includes stub API functions in `src/services/api.ts`. These
@@ -169,6 +176,7 @@ pnpm dlx shadcn@latest add dropdown-menu
 - `pnpm lint` - Run ESLint
 - `pnpm lint:fix` - Fix ESLint errors and format code
 - `pnpm format` - Format code with Prettier
+- `pnpm deep-link` - Create or decode versioned shareable links
 - `pnpm test:e2e` - Run Playwright end-to-end tests
 
 ## Development Tools

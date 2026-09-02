@@ -20,6 +20,11 @@ import {
 import { DAG_LAYOUT_DIRECTION, NODE_LABEL_FIELD } from '@quent/utils';
 import { toast } from '@quent/components';
 import {
+  entitiesTableStateAtom,
+  type EntitiesTableState,
+  type EntityFilters,
+} from '@/atoms/entitiesTable';
+import {
   expandedIdsAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
@@ -30,6 +35,14 @@ import {
   OPERATOR_TABLE_INDEX_ORDER,
   OPERATOR_TABLE_PERSIST_KEY,
 } from '@/components/operator-table/types';
+import {
+  DEFAULT_PAGE_SIZE,
+  SORT_DESC,
+  defaultEntityFilters,
+  normalizePageSize,
+  parseOptionalNumber,
+  validateEntityFilters,
+} from '@/components/entities-table/utils';
 import { buildDeepLinkUrl, decodeDeepLinkState, DEEP_LINK_SEARCH_KEY } from './deepLink.codec';
 import {
   DeepLinkContext,
@@ -39,7 +52,12 @@ import {
 } from './deepLink.context';
 import { readDeepLinkFields, type DeepLinkFields } from './deepLink.fields';
 import { normalizeZoomRange, resolveCapturedZoomRange } from './deepLink.normalize';
-import { OperatorGroupSchema, type DeepLinkStateV2, type DeepLinkTab } from './deepLink.schema';
+import {
+  OperatorGroupSchema,
+  type DeepLinkEntitiesState,
+  type DeepLinkStateV3,
+  type DeepLinkTab,
+} from './deepLink.schema';
 
 interface DeepLinkBoundaryProps {
   children: ReactNode;
@@ -66,6 +84,82 @@ function hasKeys(value: object): boolean {
 
 function isOperatorGroup(value: string): value is (typeof OperatorGroupSchema.options)[number] {
   return OperatorGroupSchema.safeParse(value).success;
+}
+
+function hydrateEntitiesState(
+  state: DeepLinkEntitiesState,
+  durationSeconds: number,
+  dagOperatorId: string | null
+): EntitiesTableState {
+  const filters: EntityFilters = {
+    ...defaultEntityFilters(durationSeconds),
+    entityType: state.entityType ?? null,
+    resourceId: state.resourceId ?? null,
+    minUsageS: state.minUsageS === undefined ? '' : String(state.minUsageS),
+    windowStart: state.window ? String(state.window.start) : '0',
+    windowEnd: state.window ? String(state.window.end) : String(durationSeconds),
+    sortDir: state.sortDir ?? SORT_DESC,
+    pageSize: state.pageSize ?? DEFAULT_PAGE_SIZE,
+  };
+
+  return {
+    filters,
+    manualOperatorOverride:
+      'operatorId' in state ? { dagOperatorId, value: state.operatorId ?? null } : null,
+    page: state.page ?? 0,
+    selected: null,
+    selectedEntityId: state.selectedEntityId ?? null,
+  };
+}
+
+function captureEntitiesState(
+  tableState: EntitiesTableState,
+  durationSeconds: number,
+  dagOperatorId: string | null
+): DeepLinkEntitiesState | null {
+  const filters = tableState.filters ?? defaultEntityFilters(durationSeconds);
+  if (validateEntityFilters(filters).errors.length > 0) {
+    return null;
+  }
+
+  const state: DeepLinkEntitiesState = {};
+  const operatorId =
+    tableState.manualOperatorOverride?.dagOperatorId === dagOperatorId
+      ? tableState.manualOperatorOverride.value
+      : dagOperatorId;
+  if (operatorId !== dagOperatorId) {
+    state.operatorId = operatorId;
+  }
+  if (filters.entityType) {
+    state.entityType = filters.entityType;
+  }
+  if (filters.resourceId) {
+    state.resourceId = filters.resourceId;
+  }
+  const minUsageS = parseOptionalNumber(filters.minUsageS);
+  if (minUsageS !== null) {
+    state.minUsageS = minUsageS;
+  }
+  const windowStart = parseOptionalNumber(filters.windowStart) ?? 0;
+  const windowEnd = parseOptionalNumber(filters.windowEnd) ?? durationSeconds;
+  if (windowStart !== 0 || windowEnd !== durationSeconds) {
+    state.window = { start: windowStart, end: windowEnd };
+  }
+  if (filters.sortDir !== SORT_DESC) {
+    state.sortDir = filters.sortDir;
+  }
+  const pageSize = normalizePageSize(filters.pageSize);
+  if (pageSize !== DEFAULT_PAGE_SIZE) {
+    state.pageSize = pageSize;
+  }
+  if (tableState.page > 0) {
+    state.page = tableState.page;
+  }
+  const selectedEntityId = tableState.selectedEntityId ?? tableState.selected?.id;
+  if (selectedEntityId) {
+    state.selectedEntityId = selectedEntityId;
+  }
+  return state;
 }
 
 export function DeepLinkBoundary({
@@ -248,6 +342,16 @@ export function DeepLinkBoundary({
           : undefined,
         operatorTable: intake.fields.operatorTable,
       });
+      if (intake.fields.entities) {
+        store.set(
+          entitiesTableStateAtom,
+          hydrateEntitiesState(
+            intake.fields.entities,
+            durationSeconds,
+            intake.fields.selection?.operatorNodeIds?.[0] ?? null
+          )
+        );
+      }
     }
     if (encodedState) {
       const url = new URL(window.location.href);
@@ -260,6 +364,7 @@ export function DeepLinkBoundary({
     }
     setIsHydrated(true);
   }, [
+    durationSeconds,
     encodedState,
     intake.initialExpandedResourceIds,
     intake.initialZoomRange,
@@ -275,18 +380,32 @@ export function DeepLinkBoundary({
     if (!queryId || !activeTab) {
       return { ok: false, message: 'Select a query tab before copying a shared link.' };
     }
-    const capturedRange = resolveCapturedZoomRange(readZoomRange(), durationSeconds);
-    if (!capturedRange) {
+    const capturedRange =
+      activeTab === 'entities' ? null : resolveCapturedZoomRange(readZoomRange(), durationSeconds);
+    if (!capturedRange && activeTab !== 'entities') {
       return { ok: false, message: 'The timeline viewport is not available yet.' };
     }
-
     const sharedView = readSerializableViewState();
-    const state: DeepLinkStateV2 = {
-      route: { engineId, queryId, tab: activeTab },
-      timeline: { zoomRange: capturedRange },
-    };
+    const entitiesState =
+      activeTab === 'entities'
+        ? captureEntitiesState(
+            store.get(entitiesTableStateAtom),
+            durationSeconds,
+            sharedView.selection.operatorNodeIds[0] ?? null
+          )
+        : undefined;
+    if (activeTab === 'entities' && entitiesState === null) {
+      return { ok: false, message: 'Fix the entity filters before copying a shared link.' };
+    }
 
-    const selection: NonNullable<DeepLinkStateV2['selection']> = {};
+    const state: DeepLinkStateV3 = {
+      route: { engineId, queryId, tab: activeTab },
+    };
+    if (capturedRange) {
+      state.timeline = { zoomRange: capturedRange };
+    }
+
+    const selection: NonNullable<DeepLinkStateV3['selection']> = {};
     if (sharedView.selection.planId) {
       selection.planId = sharedView.selection.planId;
     }
@@ -297,7 +416,7 @@ export function DeepLinkBoundary({
       state.selection = selection;
     }
 
-    const resources: NonNullable<DeepLinkStateV2['resources']> = {};
+    const resources: NonNullable<DeepLinkStateV3['resources']> = {};
     const expandedRowIds = [...store.get(expandedIdsAtom)].sort();
     if (expandedRowIds.length > 0) {
       resources.expandedRowIds = expandedRowIds;
@@ -322,7 +441,7 @@ export function DeepLinkBoundary({
       state.resources = resources;
     }
 
-    const dag: NonNullable<DeepLinkStateV2['dag']> = {};
+    const dag: NonNullable<DeepLinkStateV3['dag']> = {};
     if (sharedView.dag.nodeColorField) {
       dag.nodeColorField = sharedView.dag.nodeColorField;
     }
@@ -348,7 +467,7 @@ export function DeepLinkBoundary({
       state.dag = dag;
     }
 
-    const dataFlow: NonNullable<DeepLinkStateV2['dataFlow']> = {};
+    const dataFlow: NonNullable<DeepLinkStateV3['dataFlow']> = {};
     if (!sharedView.dataFlow.enabled) {
       dataFlow.enabled = false;
     }
@@ -363,7 +482,8 @@ export function DeepLinkBoundary({
     }
     if (
       sharedView.dataFlow.playheadS !== null &&
-      Math.abs(sharedView.dataFlow.playheadS - capturedRange.start) > Number.EPSILON
+      (!capturedRange ||
+        Math.abs(sharedView.dataFlow.playheadS - capturedRange.start) > Number.EPSILON)
     ) {
       dataFlow.playheadS = sharedView.dataFlow.playheadS;
     }
@@ -371,7 +491,7 @@ export function DeepLinkBoundary({
       state.dataFlow = dataFlow;
     }
 
-    const table: NonNullable<DeepLinkStateV2['operatorTable']> = {};
+    const table: NonNullable<DeepLinkStateV3['operatorTable']> = {};
     const groupingOrder = sharedView.operatorTable.groupingOrder?.filter(isOperatorGroup);
     if (groupingOrder) {
       table.groupingOrder = groupingOrder;
@@ -396,6 +516,10 @@ export function DeepLinkBoundary({
     }
     if (hasKeys(table)) {
       state.operatorTable = table;
+    }
+
+    if (entitiesState && hasKeys(entitiesState)) {
+      state.entities = entitiesState;
     }
 
     const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;

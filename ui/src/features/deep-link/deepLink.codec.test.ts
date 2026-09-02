@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
+import { gzipSync, strToU8 } from 'fflate';
 import {
   buildDeepLinkUrl,
   CURRENT_DEEP_LINK_VERSION,
@@ -11,11 +12,12 @@ import {
   SUPPORTED_DEEP_LINK_VERSIONS,
 } from './deepLink.codec';
 import {
-  DeepLinkStateV2Schema,
   DeepLinkStateV1Schema,
+  DeepLinkStateV2Schema,
+  DeepLinkStateV3Schema,
   MAX_EXPANDED_RESOURCE_IDS,
   OperatorGroupSchema,
-  type DeepLinkStateV2,
+  type DeepLinkStateV3,
   validateDeepLinkSearch,
 } from './deepLink.schema';
 import { CONTINUOUS_PALETTES, DAG_LAYOUT_DIRECTION, NODE_LABEL_FIELD } from '@quent/utils';
@@ -25,11 +27,11 @@ const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
 const NVTX_SECTION_ID = '__nvtx__';
 
-const state: DeepLinkStateV2 = {
+const state: DeepLinkStateV3 = {
   route: {
     engineId: 'engine-a',
     queryId: 'query-a',
-    tab: 'operators',
+    tab: 'entities',
   },
   timeline: {
     zoomRange: {
@@ -70,6 +72,17 @@ const state: DeepLinkStateV2 = {
     aggregation: 'max',
     sort: [{ id: 'spill_bytes', desc: true }],
   },
+  entities: {
+    operatorId: null,
+    entityType: 'task',
+    resourceId: 'resource-a',
+    minUsageS: 0.25,
+    window: { start: 10, end: 45 },
+    sortDir: 'Asc',
+    pageSize: 100,
+    page: 2,
+    selectedEntityId: 'entity-a',
+  },
 };
 
 describe('deep-link codec', () => {
@@ -84,7 +97,7 @@ describe('deep-link codec', () => {
     }
     expect(decodeDeepLinkState(first.value)).toEqual({
       ok: true,
-      value: { version: 'v2', data: state },
+      value: { version: 'v3', data: state },
     });
   });
 
@@ -110,6 +123,28 @@ describe('deep-link codec', () => {
     expect(decodeDeepLinkState(encoded)).toEqual({
       ok: true,
       value: { version: 'v1', data: { zoomRange: { start: 0, end: 0.407 } } },
+    });
+  });
+
+  it('decodes legacy v2 links', () => {
+    const legacyState = DeepLinkStateV2Schema.parse({
+      route: { engineId: 'engine-a', queryId: 'query-a', tab: 'operators' },
+      timeline: { zoomRange: { start: 12.5, end: 48.75 } },
+      selection: { operatorNodeIds: ['operator-a'] },
+    });
+    const compressed = gzipSync(strToU8(JSON.stringify(legacyState)), { level: 9, mtime: 0 });
+    let binary = '';
+    for (const byte of compressed) {
+      binary += String.fromCharCode(byte);
+    }
+    const encoded = `v2.${btoa(binary)
+      .replace(/\+/gu, '-')
+      .replace(/\//gu, '_')
+      .replace(/=+$/u, '')}`;
+
+    expect(decodeDeepLinkState(encoded)).toEqual({
+      ok: true,
+      value: { version: 'v2', data: legacyState },
     });
   });
 
@@ -147,10 +182,10 @@ describe('deep-link search validation', () => {
 });
 
 describe('deep-link state validation', () => {
-  it('validates and canonicalizes comprehensive v2 state', () => {
-    expect(DeepLinkStateV2Schema.parse({ ...state, futureField: true })).toEqual(state);
+  it('validates and canonicalizes comprehensive v3 state', () => {
+    expect(DeepLinkStateV3Schema.parse({ ...state, futureField: true })).toEqual(state);
     expect(
-      DeepLinkStateV2Schema.parse({
+      DeepLinkStateV3Schema.parse({
         route: state.route,
         timeline: state.timeline,
         resources: {
@@ -159,13 +194,13 @@ describe('deep-link state validation', () => {
       }).resources?.expandedRowIds
     ).toEqual([RESOURCE_A_ID, RESOURCE_B_ID, NVTX_SECTION_ID]);
     expect(
-      DeepLinkStateV2Schema.safeParse({
+      DeepLinkStateV3Schema.safeParse({
         route: state.route,
         timeline: { zoomRange: { start: 20, end: 10 } },
       }).success
     ).toBe(false);
     expect(
-      DeepLinkStateV2Schema.safeParse({
+      DeepLinkStateV3Schema.safeParse({
         route: state.route,
         timeline: state.timeline,
         resources: {
@@ -174,6 +209,21 @@ describe('deep-link state validation', () => {
             (_, index) => `resource-${index}`
           ),
         },
+      }).success
+    ).toBe(false);
+    expect(
+      DeepLinkStateV3Schema.safeParse({
+        route: state.route,
+        entities: { window: { start: 20, end: 10 } },
+      }).success
+    ).toBe(false);
+  });
+
+  it('keeps the v2 schema unchanged', () => {
+    expect(
+      DeepLinkStateV2Schema.safeParse({
+        route: { engineId: 'engine-a', queryId: 'query-a', tab: 'entities' },
+        timeline: state.timeline,
       }).success
     ).toBe(false);
   });
@@ -209,19 +259,19 @@ describe('deep-link state validation', () => {
     const base = { route: state.route, timeline: state.timeline };
     for (const palette of Object.keys(CONTINUOUS_PALETTES)) {
       expect(
-        DeepLinkStateV2Schema.safeParse({
+        DeepLinkStateV3Schema.safeParse({
           ...base,
           dag: { nodeColorPalette: palette, edgeColorPalette: palette },
         }).success
       ).toBe(true);
     }
     for (const nodeLabelField of Object.values(NODE_LABEL_FIELD)) {
-      expect(DeepLinkStateV2Schema.safeParse({ ...base, dag: { nodeLabelField } }).success).toBe(
+      expect(DeepLinkStateV3Schema.safeParse({ ...base, dag: { nodeLabelField } }).success).toBe(
         true
       );
     }
     for (const layoutDirection of Object.values(DAG_LAYOUT_DIRECTION)) {
-      expect(DeepLinkStateV2Schema.safeParse({ ...base, dag: { layoutDirection } }).success).toBe(
+      expect(DeepLinkStateV3Schema.safeParse({ ...base, dag: { layoutDirection } }).success).toBe(
         true
       );
     }

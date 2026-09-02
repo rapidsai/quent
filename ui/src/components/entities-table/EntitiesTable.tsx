@@ -30,7 +30,6 @@ export function EntitiesTable(props: EntitiesTableProps) {
     () => createFsmTypeColorFn(table.query.fsmTypes, isDark ? THEME_DARK : THEME_LIGHT),
     [table.query.fsmTypes, isDark]
   );
-
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
       <ResizablePanel defaultSize="65%" minSize="40%">
