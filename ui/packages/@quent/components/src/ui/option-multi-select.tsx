@@ -182,7 +182,7 @@ export function OptionMultiSelect({
                   data-state={checked ? 'checked' : 'unchecked'}
                   onClick={() => onToggleOption(option.value)}
                   className={cn(
-                    'relative flex w-full cursor-pointer select-none items-start gap-2 rounded-sm px-2 py-1 text-xs outline-none',
+                    'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-xs outline-none',
                     'transition-colors hover:bg-accent hover:text-accent-foreground',
                     'focus-visible:bg-accent focus-visible:text-accent-foreground'
                   )}
