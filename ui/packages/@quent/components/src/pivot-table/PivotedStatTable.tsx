@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
+import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
 import { cn } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
@@ -25,6 +25,7 @@ import {
   numericSortingFn,
 } from './utils';
 import type {
+  GroupedDataTableColumnDef,
   GroupedDataTableGroupRenderMode,
   GroupedDataTableVirtualizationOptions,
 } from './GroupedDataTable';
@@ -605,18 +606,18 @@ export function PivotedStatTable<TRow>({
     ]
   );
 
-  const columns = useMemo((): ColumnDef<PivotedRow>[] => {
-    const groupCols: ColumnDef<PivotedRow>[] = activeIndices.map(def => ({
+  const columns = useMemo((): GroupedDataTableColumnDef<PivotedRow>[] => {
+    const groupCols: GroupedDataTableColumnDef<PivotedRow>[] = activeIndices.map(def => ({
       id: def,
       header: String(resolvedIndexLabels[def] ?? def),
       enableSorting: false,
     }));
-    const statCols: ColumnDef<PivotedRow>[] = effectiveVisibleStats.map(stat => ({
+    const statCols: GroupedDataTableColumnDef<PivotedRow>[] = effectiveVisibleStats.map(stat => ({
       id: stat,
       header: stat,
       enableSorting: true,
       sortUndefined: 'last',
-      sortingFn: numericSortingFn,
+      sortFn: numericSortingFn,
       accessorFn: (row: PivotedRow) => getSortValue(row, stat, isAggregating, aggMode) ?? undefined,
     }));
     return [...groupCols, ...statCols];

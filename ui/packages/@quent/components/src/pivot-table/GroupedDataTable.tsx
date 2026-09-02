@@ -4,11 +4,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@quent/utils';
 import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
+  createSortedRowModel,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
   type ColumnDef,
   type OnChangeFn,
+  type SortFn,
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -22,6 +24,20 @@ import type {
   DataCellProps,
 } from './types';
 
+const groupedDataTableFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+
+export type GroupedDataTableColumnDef<TRow extends GroupedDataTableRowBase> = ColumnDef<
+  typeof groupedDataTableFeatures,
+  TRow
+>;
+export type GroupedDataTableSortFn<TRow extends GroupedDataTableRowBase> = SortFn<
+  typeof groupedDataTableFeatures,
+  TRow
+>;
+
 export interface GroupedDataTableVirtualizationOptions {
   enabled: boolean;
   estimateRowHeight?: number;
@@ -32,7 +48,7 @@ export type GroupedDataTableGroupRenderMode = 'rowSpan' | 'compact';
 
 export interface GroupedDataTableProps<TRow extends GroupedDataTableRowBase> {
   data: TRow[];
-  columns: ColumnDef<TRow>[];
+  columns: GroupedDataTableColumnDef<TRow>[];
   getRowId: (row: TRow) => string;
   /** Column ids for group columns (rowSpan); must match order of row.groupKeys. */
   groupColumnIds: string[];
@@ -86,13 +102,12 @@ export function GroupedDataTable<TRow extends GroupedDataTableRowBase>({
   const [groupColumnWidths, setGroupColumnWidths] = useState<number[]>([]);
   const groupHeaderRefs = useRef<Array<HTMLTableCellElement | null>>([]);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: groupedDataTableFeatures,
     data,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getRowId,
   });
 

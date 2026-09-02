@@ -4,7 +4,7 @@
 import { inferFieldFormatter, isNumericValue } from '@quent/utils';
 import type { StatValue, ContinuousPaletteName } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
-import type { SortingFn } from '@tanstack/react-table';
+import type { GroupedDataTableSortFn } from './GroupedDataTable';
 
 // Re-exported for consumers that still import it from here; defined in `@quent/utils`
 export { isNumericValue };
@@ -35,7 +35,7 @@ export function formatNumericStat(n: number | bigint | null, statName: string): 
   return inferFieldFormatter(statName)(n);
 }
 
-export const numericSortingFn: SortingFn<PivotedRow> = (rowA, rowB, columnId) => {
+export const numericSortingFn: GroupedDataTableSortFn<PivotedRow> = (rowA, rowB, columnId) => {
   const a = rowA.getValue<number | bigint | undefined>(columnId);
   const b = rowB.getValue<number | bigint | undefined>(columnId);
   if (a === b) {
