@@ -4,10 +4,11 @@
 use quent_dynamic_attributes::DynamicValue;
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
+#[cfg(not(target_arch = "wasm32"))]
+use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
-    WorkerEntity, entities,
-    ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
+    WorkerEntity, entities, ui::UiAnalyzer,
 };
 use quent_query_engine_ui::{
     DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
@@ -50,7 +51,9 @@ use quent_analyzer::{
         },
     },
 };
-use quent_simulator_instrumentation::{Simulator, SimulatorEvent};
+#[cfg(not(target_arch = "wasm32"))]
+use quent_simulator_instrumentation::Simulator;
+use quent_simulator_instrumentation::SimulatorEvent;
 use quent_simulator_ui::EntityRef;
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use uuid::Uuid;
@@ -146,8 +149,10 @@ pub struct SimulatorUiAnalyzer {
 /// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
 /// streams with [`SimulatorUiAnalyzer`]. The required `Viewer` path
 /// `quent-open` names when building a viewer for this analyzer's models.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct Viewer;
 
+#[cfg(not(target_arch = "wasm32"))]
 impl QuentViewer for Viewer {
     type Analyzer = SimulatorUiAnalyzer;
 

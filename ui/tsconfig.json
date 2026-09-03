@@ -27,6 +27,6 @@
       "~quent/types/*": ["./generated/ts-bindings/*"]
     }
   },
-  "include": ["src", "generated/ts-bindings"],
+  "include": ["src", "simulator", "generated/ts-bindings"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

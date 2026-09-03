@@ -360,6 +360,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let import_events_impl = if cfg!(feature = "serde") {
         quote! {
+            #[cfg(not(target_arch = "wasm32"))]
             impl #name {
                 #[doc = #doc_import]
                 pub fn import_events(

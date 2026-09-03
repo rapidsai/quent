@@ -19,6 +19,8 @@ pytest = ">=8,<10"
 ty = ">=0.0.55"
 uv = ">=0.11.25"
 pre-commit = ">=4"
+rust-std-wasm32-unknown-unknown = "1.97.0.*"
+wasm-bindgen-cli = "0.2.127.*"
 
 [pypi-dependencies]
 rumdl = "*"

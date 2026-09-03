@@ -1,5 +1,5 @@
 # Generated entirely by coding agents from prompts without human review or refinement.
-name: Deploy Schema Explorer to Pages
+name: Deploy Demos to Pages
 
 on:
   push:
@@ -29,18 +29,29 @@ jobs:
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
-      - name: Install dependencies
+      - name: Install schema explorer dependencies
         run: pixi run --frozen pnpm --dir experimental/vibe/ui install --frozen-lockfile
-      - name: Build
+      - name: Build schema explorer
         run: pixi run --frozen pnpm --dir experimental/vibe/ui build
         env:
           SCHEMA_EXPLORER_BASE: /quent/
+      - name: Install simulator UI dependencies
+        run: pixi run --frozen pnpm --dir ui install --frozen-lockfile
+      - name: Build simulator
+        run: pixi run --frozen pnpm --dir ui demo:build
+        env:
+          VITE_BASE_PATH: /quent/simulator/
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p pages/simulator
+          cp -R experimental/vibe/ui/schema-explorer/dist/. pages/
+          cp -R ui/dist/. pages/simulator/
       - name: Set up Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
-          path: experimental/vibe/ui/schema-explorer/dist
+          path: pages
       - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

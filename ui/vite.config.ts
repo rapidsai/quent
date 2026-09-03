@@ -61,6 +61,8 @@ export default defineConfig({
     react(),
     vitePluginScriptPriority(),
     TanStackRouterVite({
+      routesDirectory: path.resolve(__dirname, 'src/routes'),
+      generatedRouteTree: path.resolve(__dirname, 'src/routeTree.gen.ts'),
       routeFileIgnorePattern: '.test.|.spec.',
     }),
     tailwindcss(),

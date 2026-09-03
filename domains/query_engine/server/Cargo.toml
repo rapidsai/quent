@@ -8,6 +8,7 @@ swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
 ui = ["dep:mime_guess", "dep:quent-simulator-ui-bindings", "dep:rust-embed"]
 
 [dependencies]
+async-trait.workspace = true
 axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future"] }
 quent-analyzer = { path = "../../../crates/analyzer" }

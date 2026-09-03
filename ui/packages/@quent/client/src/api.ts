@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseJsonWithBigInt } from '@quent/utils';
+import { getApiClient } from './client';
 import { getApiBaseUrl } from './config';
 import { canonicalizeNvtxRequest } from './nvtxCanonical';
 import type {
@@ -84,14 +85,26 @@ export async function fetchQueryBundle(
   engineId: string,
   queryId: string
 ): Promise<QueryBundle<EntityRef>> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchQueryBundle(engineId, queryId);
+  }
   return apiFetch<QueryBundle<EntityRef>>(`/engines/${engineId}/query/${queryId}`);
 }
 
 export async function fetchListEngines(): Promise<Engine[]> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchListEngines();
+  }
   return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
 }
 
 export async function fetchEngineContexts(engineId: string): Promise<EngineContexts> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchEngineContexts(engineId);
+  }
   return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
 }
 
@@ -100,6 +113,10 @@ export async function fetchNvtxCatalog(
   contextId: string,
   queryStartUnixNs: bigint
 ): Promise<NvtxCatalog | null> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchNvtxCatalog(contextId, queryStartUnixNs);
+  }
   const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
     params: { query_start: queryStartUnixNs },
   });
@@ -117,6 +134,10 @@ export async function fetchNvtxViewport(
   queryStartUnixNs: bigint,
   request: NvtxViewportRequest
 ): Promise<NvtxViewportResponse | null> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchNvtxViewport(contextId, queryStartUnixNs, request);
+  }
   const canonical = canonicalizeNvtxRequest(request);
   const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
     params: { query_start: queryStartUnixNs },
@@ -150,10 +171,18 @@ function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResp
 }
 
 export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchListCoordinators(engineId);
+  }
   return apiFetch<QueryGroup[]>(`/engines/${engineId}/query-groups`);
 }
 
 export async function fetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchListQueries(engineId, coordinatorId);
+  }
   return apiFetch<Query[]>(`/engines/${engineId}/query_group/${coordinatorId}/queries`);
 }
 
@@ -162,6 +191,10 @@ export async function fetchSingleTimeline(
   request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
   durationSeconds: number
 ): Promise<SingleTimelineResponse> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchSingleTimeline(engineId, request, durationSeconds);
+  }
   return apiFetch<SingleTimelineResponse>(`/engines/${engineId}/timeline/single`, {
     params: { duration: durationSeconds },
     fetchOptions: {
@@ -175,6 +208,10 @@ export async function fetchBulkTimelines(
   engineId: string,
   request: BulkTimelineRequest<QueryFilter, OperatorFilter>
 ): Promise<BulkTimelinesResponse> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchBulkTimelines(engineId, request);
+  }
   return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
     fetchOptions: {
       method: 'POST',
@@ -191,6 +228,10 @@ export async function fetchEntityList(
   engineId: string,
   request: EntityListRequest<QueryFilter, OperatorFilter>
 ): Promise<EntityListResponse> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchEntityList(engineId, request);
+  }
   return apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
     fetchOptions: {
       method: 'POST',
@@ -212,6 +253,10 @@ export async function fetchDataFlow(
   config: TimelineConfig,
   measures: string[] = []
 ): Promise<DataFlowTimelineBinned | null> {
+  const client = getApiClient();
+  if (client) {
+    return client.fetchDataFlow(engineId, queryId, config, measures);
+  }
   const request: CategoricalTimelineRequest<QueryFilter> = {
     measures,
     config,

@@ -7,11 +7,8 @@ use axum::{
     routing::{get, post},
 };
 
-use quent_analyzer::AnalyzerResult;
-use quent_query_engine_analyzer::{
-    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
-};
-use quent_query_engine_ui as ui;
+use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_ui::{self as ui, ServerContract};
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
     categorical::CategoricalTimelineRequest,
@@ -82,12 +79,7 @@ async fn list_engines<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    if query.with_metadata {
-        Ok(Json(state.analyzers.list_with_metadata().await?))
-    } else {
-        let ids = state.analyzers.list()?;
-        Ok(Json(ids.into_iter().map(ui::Engine::new).collect()))
-    }
+    Ok(Json(state.list_engines(query.with_metadata).await?))
 }
 
 /// Get details for a specific engine.
@@ -110,8 +102,7 @@ async fn engine<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(analyzer.query_engine_model().engine()?.to_ui()?))
+    Ok(Json(state.engine(engine_id).await?))
 }
 
 /// List every Quent context attributed to an engine.
@@ -134,11 +125,7 @@ async fn engine_contexts<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let contexts = state.analyzers.contexts(engine_id).await.map_err(|error| {
-        tracing::error!(%error, %engine_id, "engine context inventory failed");
-        crate::error::ServerError::Cache("engine context inventory could not be loaded".to_owned())
-    })?;
-    Ok(Json(contexts))
+    Ok(Json(state.engine_contexts(engine_id).await?))
 }
 
 // TODO(johanpel): pagination
@@ -162,14 +149,7 @@ async fn list_query_groups<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(
-        analyzer
-            .query_engine_model()
-            .query_groups()
-            .map(|query_group| query_group.to_ui())
-            .collect::<Vec<_>>(),
-    ))
+    Ok(Json(state.query_groups(engine_id).await?))
 }
 
 // TODO(johanpel): pagination
@@ -194,14 +174,7 @@ async fn list_queries<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    let queries = analyzer
-        .query_engine_model()
-        .queries()
-        .filter(|q| q.query_group_id() == Some(query_group_id))
-        .map(|q| q.to_ui())
-        .collect::<AnalyzerResult<_>>()?;
-    Ok(Json(queries))
+    Ok(Json(state.queries(engine_id, query_group_id).await?))
 }
 
 /// Fetch the query plan for a given query.
@@ -225,9 +198,7 @@ async fn query<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    let query_bundle = analyzer.query_bundle(query_id)?;
-    Ok(Json(query_bundle))
+    Ok(Json(state.query(engine_id, query_id).await?))
 }
 
 /// Fetch a single resource or resource-group timeline.
@@ -252,13 +223,7 @@ async fn single_timeline<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(
-        state
-            .timelines
-            .cached_single_timeline(analyzer, engine_id, request)
-            .await?,
-    ))
+    Ok(Json(state.single_timeline(engine_id, request).await?))
 }
 
 /// Fetch multiple resource/resource-group timelines in one request.
@@ -283,13 +248,7 @@ async fn bulk_timelines<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(
-        state
-            .timelines
-            .cached_bulk_timeline(analyzer, engine_id, request)
-            .await?,
-    ))
+    Ok(Json(state.bulk_timelines(engine_id, request).await?))
 }
 
 /// Fetch the per-operator data-flow distribution timeline for a query.
@@ -318,10 +277,7 @@ async fn data_flow_timeline<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(
-        tokio::task::spawn_blocking(move || analyzer.data_flow_timeline(request)).await??,
-    ))
+    Ok(Json(state.data_flow_timeline(engine_id, request).await?))
 }
 
 /// List the entities of a resource or resource group, ranked and paged.
@@ -346,8 +302,7 @@ async fn entities<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(analyzer.list_entities(request)?))
+    Ok(Json(state.entities(engine_id, request).await?))
 }
 
 #[cfg(feature = "swagger")]

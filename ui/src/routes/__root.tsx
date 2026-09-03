@@ -17,6 +17,7 @@ import { cn } from '@quent/utils';
 import { DeepLinkNavSlot } from '@/features/deep-link';
 
 function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
+  const logoUrl = `${import.meta.env.BASE_URL}logo.svg`;
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -28,8 +29,8 @@ function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
             aria-hidden="true"
             className="size-8 shrink-0 bg-current text-primary"
             style={{
-              WebkitMask: "url('/logo.svg') center / contain no-repeat",
-              mask: "url('/logo.svg') center / contain no-repeat",
+              WebkitMask: `url('${logoUrl}') center / contain no-repeat`,
+              mask: `url('${logoUrl}') center / contain no-repeat`,
             }}
           />
           <h1 className="text-2xl font-semibold text-primary">

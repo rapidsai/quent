@@ -4,6 +4,7 @@
  */
 
 @import 'tailwindcss';
+@source "./**/*.{ts,tsx}";
 @source "../packages/@quent/**/*.{ts,tsx}";
 @plugin "tailwindcss-animate";
 

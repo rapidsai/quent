@@ -28,10 +28,13 @@ quent-io = { path = "../io", default-features = false }
 quent-io-callback = { path = "../io/callback", optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "sync", "macros"]}
+tokio = { workspace = true, features = ["rt", "sync", "macros"]}
 tokio-util.workspace = true
 tracing.workspace = true
 uuid = { workspace = true, features = ["serde"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

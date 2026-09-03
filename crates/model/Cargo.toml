@@ -13,7 +13,7 @@ serde = [
     "quent-dynamic-attributes/serde",
     "uuid/serde",
 ]
-collector = ["dep:quent-collector-client"]
+collector = ["dep:quent-collector-client", "quent-io/collector"]
 
 [dependencies]
 quent-collector-client = { path = "../collector/client", optional = true }
@@ -23,10 +23,13 @@ quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
-quent-io = { path = "../io" }
+quent-io = { path = "../io", default-features = false }
 quent-instrumentation = { path = "../instrumentation", features = ["io-callback"] }
 quent-time = { path = "../time" }
 tokio = { workspace = true, features = ["macros"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+quent-io = { path = "../io", default-features = false, features = ["ndjson", "msgpack", "postcard", "collector"] }
 
 [dev-dependencies]
 quent-stdlib = { path = "../stdlib" }
