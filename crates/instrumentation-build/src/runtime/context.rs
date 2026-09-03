@@ -89,7 +89,11 @@ pub(super) fn observer_storage(
 }
 
 /// Generate the model's observer integration.
-pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> TokenStream {
+pub(super) fn schema_model(
+    schema: &Schema,
+    namespaces: &Namespace<'_>,
+    collector_sink: bool,
+) -> TokenStream {
     let model = model_ident(schema);
     let observers = observers_ident(schema, namespaces);
     let observers_initializer = observer_storage_initializer(schema, namespaces);
@@ -111,6 +115,7 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
     let observer_impls = schema
         .entities()
         .map(|entity| observer_storage_impl(schema, entity));
+    let collector_sink = collector_sink.then(|| collector_sink_impl(schema));
 
     quote! {
         #(#observer_impls)*
@@ -135,6 +140,45 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
                         ::std::boxed::Box<dyn ::std::error::Error>,
                     >::Ok(#observers_initializer)
                 })
+            }
+        }
+
+        #collector_sink
+    }
+}
+
+fn collector_sink_impl(schema: &Schema) -> TokenStream {
+    let model = model_ident(schema);
+    let routes = schema.entities().map(|entity| {
+        let marker = relative_type_path(entity.path(), &[], "");
+        let event_ty = relative_type_path(entity.path(), &[], "Event");
+        quote! {
+            if entity == <#event_ty as ::quent_instrumentation::EntityEvent>::NAME {
+                let event = ::quent_instrumentation::deserialize_event::<#event_ty>(event)?;
+                ::quent_instrumentation::collector::forward(
+                    &context.observer::<#marker>(),
+                    event,
+                );
+                return ::core::result::Result::Ok(());
+            }
+        }
+    });
+
+    quote! {
+        #[cfg(feature = "collector")]
+        impl ::quent_instrumentation::CollectorRouter for #model {
+            fn dispatch(
+                context: &Context<Self>,
+                entity: &str,
+                event: &[u8],
+            ) -> ::core::result::Result<
+                (),
+                ::std::boxed::Box<dyn ::std::error::Error>,
+            > {
+                #(#routes)*
+                ::core::result::Result::Err(
+                    ::std::format!("unknown entity stream `{entity}`").into(),
+                )
             }
         }
     }

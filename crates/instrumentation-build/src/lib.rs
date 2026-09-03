@@ -97,6 +97,12 @@ pub struct Options {
 
     /// Cargo package providing the analyzer for this model.
     pub analyzer_package: Option<String>,
+
+    /// Generate collector dispatch for the model context.
+    ///
+    /// Requires [`Self::serde`]. The generated crate must expose a `collector`
+    /// feature that enables `quent-instrumentation/io-collector`.
+    pub collector_sink: bool,
 }
 
 impl Default for Options {
@@ -111,6 +117,7 @@ impl Default for Options {
             file_name: None,
             umbrella_event: false,
             analyzer_package: None,
+            collector_sink: false,
         }
     }
 }
@@ -156,6 +163,8 @@ pub enum GenerateError {
         /// The schema type whose generated name conflicts.
         schema_path: Path,
     },
+    #[error("`collector_sink` requires serde generation")]
+    CollectorSinkRequiresSerde,
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
     #[error("failed to write generated file")]
@@ -218,6 +227,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// schema type, a field type exceeds the supported nesting depth, a derive
 /// entry is not a parseable Rust path, or the generated code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    if opts.collector_sink && !opts.serde {
+        return Err(GenerateError::CollectorSinkRequiresSerde);
+    }
     let namespaces = namespace::Namespace::root(schema);
 
     let reexports = if opts.instrumentation {
@@ -229,7 +241,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let types = generate_namespace(schema, opts, &namespaces)?;
     let observable = opts
         .instrumentation
-        .then(|| runtime::generate_model(schema, &namespaces));
+        .then(|| runtime::generate_model(schema, &namespaces, opts.collector_sink));
     let file = syn::parse2::<syn::File>(quote! {
         #reexports
         #entity_types

@@ -17,12 +17,13 @@ io-callback = ["dep:quent-io-callback"]
 io-ndjson = ["quent-io/ndjson", "serde"]
 io-msgpack = ["quent-io/msgpack", "serde"]
 io-postcard = ["quent-io/postcard", "serde"]
-io-collector = ["quent-io/collector", "serde"]
+io-collector = ["dep:quent-collector-client", "quent-io/collector", "serde"]
 
 [dependencies]
 async-trait.workspace = true
 quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
+quent-collector-client = { path = "../collector/client", optional = true }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
 quent-io-callback = { path = "../io/callback", optional = true }

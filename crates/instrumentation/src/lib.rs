@@ -7,6 +7,9 @@
 //! there is a very special reason. Instead, it should interact with the
 //! generated instrumentation library only.
 
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub mod collector;
 mod context;
 mod entity;
 mod handle;
@@ -15,6 +18,9 @@ mod noop;
 mod observer;
 mod sidecar;
 
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub use collector::{CollectorRouter, CollectorSink, deserialize_event, serialize_event};
 pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use handle::{HandleError, HandleInner};

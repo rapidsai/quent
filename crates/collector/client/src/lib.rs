@@ -38,6 +38,14 @@ where
     bitcode::deserialize(bytes)
 }
 
+/// Encode an [`Event`] using the collector wire format.
+pub fn serialize_event<T>(event: &Event<T>) -> Result<Vec<u8>, bitcode::Error>
+where
+    T: serde::Serialize,
+{
+    bitcode::serialize(event)
+}
+
 #[derive(Debug, Error)]
 pub enum CollectorError {
     #[error("Unable to connect: {0}")]
@@ -143,7 +151,7 @@ where
             loop {
                 select! {
                     Some(event) = event_receiver.recv() => {
-                        let serialized_event = match bitcode::serialize(&event) {
+                        let serialized_event = match serialize_event(&event) {
                             Ok(bytes) => bytes,
                             Err(e) => {
                                 error!("unable to serialize event: {e}");
@@ -171,7 +179,7 @@ where
                         event_receiver.close();
                         // drain events that are buffered
                         while let Some(event) = event_receiver.recv().await {
-                            match bitcode::serialize(&event) {
+                            match serialize_event(&event) {
                                 Ok(bytes) => buffer.push(bytes),
                                 Err(e) => error!("unable to serialize event: {e}"),
                             }

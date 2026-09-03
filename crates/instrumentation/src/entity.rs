@@ -18,7 +18,7 @@ pub trait InstrumentedEntity: quent_events::Entity + Sized {
 
 /// Provides handles for an entity type through its shared event observer.
 pub struct Observer<E: InstrumentedEntity> {
-    inner: Arc<ObserverInner<E::Event>>,
+    pub(crate) inner: Arc<ObserverInner<E::Event>>,
 }
 
 impl<E: InstrumentedEntity> Clone for Observer<E> {
