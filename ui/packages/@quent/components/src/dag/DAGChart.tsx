@@ -48,6 +48,7 @@ import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import { resolveInspectedNodeData } from './dagSelection';
+import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import {
   continuousColor,
@@ -136,14 +137,12 @@ const VariableWidthEdge = ({
     }
   }
 
-  const hasSelection = selectedNodeIds.size > 0;
-  const hasActiveHighlight = highlightedNodeIds !== null;
-  // An edge "belongs to" a set when at least one endpoint is in the set.
-  const isInSelection = selectedNodeIds.has(source) || selectedNodeIds.has(target);
-  const isInHighlight =
-    hasActiveHighlight && (highlightedNodeIds.has(source) || highlightedNodeIds.has(target));
-  const dimFromInteraction =
-    (hasActiveHighlight || hasSelection) && !isInHighlight && !isInSelection;
+  const dimFromInteraction = shouldDimEdgeFromInteraction({
+    sourceId: source,
+    targetId: target,
+    selectedNodeIds,
+    highlightedNodeIds,
+  });
   const isEdgeDimmed = edgeDimmed || dimFromInteraction;
 
   let edgeLabelValue: string | undefined;
