@@ -4,7 +4,10 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Barrier,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -17,7 +20,9 @@ use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
     operator, plan, port, query_group, worker,
 };
-use quent_simulator_instrumentation::SimulatorContext;
+use quent_simulator_instrumentation::{
+    DEFAULT_MAX_NVTX_RANGES, NvtxCapture, NvtxCategory, NvtxLayout, NvtxPushGuard, SimulatorContext,
+};
 use rand::{RngExt, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -46,8 +51,83 @@ struct Args {
     #[arg(long, default_value_t = 2)]
     num_threads: usize,
 
+    /// NVTX domains to declare (0 disables NVTX). Default is default+CCCL+libcudf.
+    #[arg(long, default_value_t = 3)]
+    num_nvtx_domains: usize,
+
+    /// Named categories declared in every NVTX domain (0 = Uncategorized)
+    #[arg(long, default_value_t = 5)]
+    num_nvtx_categories: usize,
+
+    /// Instant NVTX marks emitted per query
+    #[arg(long, default_value_t = 2)]
+    num_nvtx_marks: usize,
+
+    /// Extra nested libcudf frames inside each scan
+    #[arg(long, default_value_t = 0)]
+    num_nvtx_nested_ranges: usize,
+
+    /// Emit per-task NVTX ranges on 1 in N tasks (`0` skips them).
+    #[arg(long, default_value_t = 1)]
+    nvtx_task_every: usize,
+
+    /// Maximum NVTX ranges emitted across the simulation (`0` disables ranges).
+    #[arg(long, default_value_t = DEFAULT_MAX_NVTX_RANGES)]
+    max_nvtx_ranges: usize,
+
     #[command(flatten)]
     exporter: ExporterArgs,
+}
+
+const QUERY_LEVEL_NVTX_RANGES: usize = 3;
+const TARGET_NVTX_RANGES_PER_CLUSTER: usize = 32;
+
+#[derive(Clone, Copy)]
+struct NvtxWorkload {
+    query_count: usize,
+    worker_thread_count: usize,
+}
+
+#[derive(Clone, Copy)]
+struct NvtxExecution<'a> {
+    capture: &'a NvtxCapture,
+    workload: NvtxWorkload,
+    query_barrier: &'a Barrier,
+}
+
+impl NvtxWorkload {
+    fn from_args(args: &Args) -> Self {
+        Self {
+            query_count: args.num_query_groups.saturating_mul(args.num_queries),
+            worker_thread_count: args.num_workers.saturating_mul(args.num_threads),
+        }
+    }
+
+    fn detailed_ranges_per_thread(self, layout: NvtxLayout) -> usize {
+        let query_thread_count = self.query_count.saturating_mul(self.worker_thread_count);
+        if layout.num_domains == 0 || query_thread_count == 0 {
+            return 0;
+        }
+        let query_ranges = self.query_count.saturating_mul(QUERY_LEVEL_NVTX_RANGES);
+        let envelope_ranges = query_thread_count.saturating_mul(layout.num_domains);
+        layout
+            .max_ranges
+            .saturating_sub(query_ranges.saturating_add(envelope_ranges))
+            / query_thread_count
+    }
+}
+
+fn nvtx_push_budgeted<'a>(
+    nvtx: &'a NvtxCapture,
+    range_budget: &mut usize,
+    domain: u64,
+    thread_id: u32,
+    message: &str,
+    category: u32,
+) -> NvtxPushGuard<'a> {
+    let enabled = *range_budget != 0;
+    *range_budget = range_budget.saturating_sub(1);
+    nvtx.push_if(enabled, domain, thread_id, message, category)
 }
 
 fn initialize_tracing() {
@@ -183,6 +263,112 @@ enum Physical {
     Sort,
     Limit,
     Output,
+}
+
+fn nvtx_pipeline_op(kind: Physical) -> &'static str {
+    match kind {
+        Physical::FileSystemScan => "GPU_SCAN",
+        Physical::JoinPartition => "PARTITION",
+        Physical::JoinLocal => "HASH_GROUP_BY",
+        Physical::Sort => "ORDER_BY",
+        Physical::Limit => "MERGE_SORT",
+        Physical::Output => "RESULT_COLLECTOR",
+    }
+}
+
+fn nvtx_execute_name(kind: Physical) -> &'static str {
+    match kind {
+        Physical::FileSystemScan => "read_parquet",
+        Physical::JoinPartition => "sirius_physical_partition::execute",
+        Physical::JoinLocal => "sirius_physical_grouped_aggregate::execute",
+        Physical::Sort => "sirius_physical_order::execute",
+        Physical::Limit => "sirius_physical_merge_sort::execute",
+        Physical::Output => "sirius_physical_result_collector::execute",
+    }
+}
+
+fn nvtx_category_for_operator(kind: Physical) -> NvtxCategory {
+    match kind {
+        Physical::FileSystemScan | Physical::Output => NvtxCategory::Io,
+        Physical::JoinPartition => NvtxCategory::Memory,
+        Physical::JoinLocal | Physical::Sort => NvtxCategory::Compute,
+        Physical::Limit => NvtxCategory::Internal,
+    }
+}
+
+fn nvtx_libcudf_scan(nvtx: &NvtxCapture, thread_id: u32, range_budget: &mut usize) {
+    let Some(domain) = nvtx.try_domain(2) else {
+        return;
+    };
+    let _parquet = nvtx_push_budgeted(
+        nvtx,
+        range_budget,
+        domain,
+        thread_id,
+        "read_parquet",
+        nvtx.category_id(NvtxCategory::Io),
+    );
+    {
+        let _chunk = nvtx_push_budgeted(
+            nvtx,
+            range_budget,
+            domain,
+            thread_id,
+            "read_chunk_internal",
+            nvtx.category_id(NvtxCategory::Internal),
+        );
+        {
+            let _decode = nvtx_push_budgeted(
+                nvtx,
+                range_budget,
+                domain,
+                thread_id,
+                "decode_page_data",
+                nvtx.category_id(NvtxCategory::Compute),
+            );
+            let nested_count = nvtx.layout().num_nested_ranges.min(*range_budget);
+            *range_budget -= nested_count;
+            let _extra = nvtx.push_nested(thread_id, nested_count);
+            sleep_short();
+        }
+    }
+    {
+        let _copy = nvtx_push_budgeted(
+            nvtx,
+            range_budget,
+            domain,
+            thread_id,
+            "copy_if",
+            nvtx.category_id(NvtxCategory::Memory),
+        );
+        sleep_short();
+    }
+    {
+        let _finalize = nvtx_push_budgeted(
+            nvtx,
+            range_budget,
+            domain,
+            thread_id,
+            "finalize_output",
+            nvtx.category_id(NvtxCategory::Internal),
+        );
+        sleep_short();
+    }
+}
+
+fn nvtx_cccl_kernel(nvtx: &NvtxCapture, thread_id: u32, index: usize, range_budget: &mut usize) {
+    let Some(domain) = nvtx.try_domain(1) else {
+        return;
+    };
+    let _kernel = nvtx_push_budgeted(
+        nvtx,
+        range_budget,
+        domain,
+        thread_id,
+        NvtxCapture::cccl_kernel_name(index),
+        nvtx.category_id(NvtxCategory::Compute),
+    );
+    sleep_short();
 }
 
 struct Plan<T>
@@ -485,6 +671,7 @@ struct Worker {
     mem_to_fs: Uuid,
     thread_pool: Uuid,
     threads: Vec<Uuid>,
+    nvtx_thread_ids: Vec<u32>,
     // Resource handles — kept alive until shut_down().
     memory_handles: Vec<quent_stdlib::memory::MemoryHandle>,
     channel_handles: Vec<quent_stdlib::channel::ChannelHandle>,
@@ -496,6 +683,7 @@ impl Worker {
         id: Uuid,
         name: String,
         context: &SimulatorContext,
+        nvtx: &NvtxCapture,
         parent_engine_id: Uuid,
         num_threads: usize,
     ) -> Self {
@@ -548,11 +736,13 @@ impl Worker {
         tp_obs.thread_pool(thread_pool, "Thread Pool", id);
 
         let mut threads = Vec::new();
+        let mut nvtx_thread_ids = Vec::new();
         for index in 0..num_threads {
             let thread_id = Uuid::now_v7();
             let mut thread_handle =
                 proc_obs.initializing(thread_id, &format!("Thread {index}"), thread_pool);
             threads.push(thread_id);
+            nvtx_thread_ids.push(nvtx.name_thread(&format!("{name} Thread {index}")));
             thread_handle.operating();
             processor_handles.push(thread_handle);
         }
@@ -565,22 +755,62 @@ impl Worker {
             mem_to_fs,
             thread_pool,
             threads,
+            nvtx_thread_ids,
             memory_handles,
             channel_handles,
             processor_handles,
         }
     }
 
+    fn nvtx_thread_id(&self, thread: Uuid) -> u32 {
+        let index = self
+            .threads
+            .iter()
+            .position(|id| *id == thread)
+            .expect("thread belongs to this worker");
+        self.nvtx_thread_ids[index]
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn execute_physical_operator_task(
         &self,
         context: &SimulatorContext,
+        nvtx: &NvtxCapture,
         index: usize,
+        op_id: usize,
         engine: &Engine,
         operator: &Operator<Physical>,
         thread: Uuid,
+        range_budget: &mut usize,
     ) {
         let thread_ref = Ref::new(thread);
         let mem_ref = Ref::new(self.memory);
+        let nvtx_thread_id = self.nvtx_thread_id(thread);
+        let category = nvtx.category_id(nvtx_category_for_operator(operator.kind));
+        let emit_nvtx = *range_budget != 0;
+        let _op = emit_nvtx.then(|| {
+            nvtx_push_budgeted(
+                nvtx,
+                range_budget,
+                nvtx.domain_at(0),
+                nvtx_thread_id,
+                &format!(
+                    "Pipeline 0: {} (id={op_id})",
+                    nvtx_pipeline_op(operator.kind)
+                ),
+                nvtx.category_id(NvtxCategory::Internal),
+            )
+        });
+        let _execute = emit_nvtx.then(|| {
+            nvtx_push_budgeted(
+                nvtx,
+                range_budget,
+                nvtx.domain_at(0),
+                nvtx_thread_id,
+                nvtx_execute_name(operator.kind),
+                category,
+            )
+        });
 
         // Create task — emits entry -> Queueing
         let task_obs = context.task_observer();
@@ -598,8 +828,14 @@ impl Worker {
 
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
-        task.allocating(Some(usage(thread_ref)));
-        sleep_short();
+        if emit_nvtx && operator.kind == Physical::FileSystemScan {
+            nvtx_libcudf_scan(nvtx, nvtx_thread_id, range_budget);
+        }
+
+        {
+            task.allocating(Some(usage(thread_ref)));
+            sleep_short();
+        }
 
         if spill {
             task.spilling(
@@ -612,6 +848,9 @@ impl Worker {
         }
 
         if load {
+            if emit_nvtx && operator.kind != Physical::FileSystemScan {
+                nvtx_libcudf_scan(nvtx, nvtx_thread_id, range_budget);
+            }
             task.loading(
                 Some(usage(thread_ref)),
                 Some(usage((Ref::new(self.fs_to_mem), num_bytes))),
@@ -620,12 +859,35 @@ impl Worker {
             sleep_sometimes_really_long();
         }
 
-        task.computing(
-            /* instance_name */ "",
-            /* input_bytes */ num_bytes,
-            Some(usage(thread_ref)),
-            Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
-        );
+        {
+            if emit_nvtx {
+                nvtx_cccl_kernel(
+                    nvtx,
+                    nvtx_thread_id,
+                    index.wrapping_add(op_id),
+                    range_budget,
+                );
+                if operator.kind == Physical::JoinLocal
+                    && let Some(domain) = nvtx.try_domain(2)
+                {
+                    let _binop = nvtx_push_budgeted(
+                        nvtx,
+                        range_budget,
+                        domain,
+                        nvtx_thread_id,
+                        "binary_operation",
+                        nvtx.category_id(NvtxCategory::Compute),
+                    );
+                    sleep_short();
+                }
+            }
+            task.computing(
+                /* instance_name */ "",
+                /* input_bytes */ num_bytes,
+                Some(usage(thread_ref)),
+                Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
+            );
+        }
 
         if send {
             let other_workers = engine.workers.keys().filter(|w| **w != self.id);
@@ -647,10 +909,16 @@ impl Worker {
     fn execute_logical_plan(
         &self,
         context: &SimulatorContext,
+        nvtx_execution: NvtxExecution<'_>,
         engine: &Engine,
         l_plan: &Plan<Logical>,
         num_tasks: usize,
     ) {
+        let NvtxExecution {
+            capture: nvtx,
+            workload: nvtx_workload,
+            query_barrier: nvtx_query_barrier,
+        } = nvtx_execution;
         let physical_plan = simulate_planning(l_plan);
         physical_plan.declare(context, Some(self.id));
 
@@ -701,20 +969,80 @@ impl Worker {
         if physical_plan.execute {
             // On each thread, run a bunch of tasks for each operator.
             let tasks_per_thread_per_op = num_tasks / self.threads.len();
+            let detailed_ranges_per_thread =
+                nvtx_workload.detailed_ranges_per_thread(nvtx.layout());
             let plan = &physical_plan;
             let nodes = &nodes;
             std::thread::scope(|s| {
                 for (thread_index, thread_id) in self.threads.iter().enumerate() {
+                    let nvtx_thread_id = self.nvtx_thread_id(*thread_id);
                     s.spawn({
                         let thread_id = *thread_id;
                         move || {
-                            for task_index in thread_index * tasks_per_thread_per_op
-                                ..(thread_index + 1) * tasks_per_thread_per_op
-                            {
-                                for node_idx in nodes {
+                            let _query_envelopes = (0..nvtx.layout().num_domains)
+                                .map(|domain_index| {
+                                    nvtx.push(
+                                        nvtx.domain_at(domain_index),
+                                        nvtx_thread_id,
+                                        "query thread execution",
+                                        nvtx.category_id(NvtxCategory::Internal),
+                                    )
+                                })
+                                .collect::<Vec<_>>();
+                            nvtx_query_barrier.wait();
+                            let pipeline = nodes
+                                .iter()
+                                .map(|node_idx| nvtx_pipeline_op(plan.dag[*node_idx].kind))
+                                .collect::<Vec<_>>()
+                                .join(" -> ");
+                            let requested_clusters = if detailed_ranges_per_thread == 0 {
+                                0
+                            } else {
+                                detailed_ranges_per_thread
+                                    .div_ceil(TARGET_NVTX_RANGES_PER_CLUSTER)
+                                    .max(2)
+                                    .min(detailed_ranges_per_thread)
+                            };
+                            let sampled_offsets = nvtx
+                                .sampled_task_offsets(tasks_per_thread_per_op, requested_clusters);
+                            let mut next_cluster = 0;
+                            let task_range = thread_index * tasks_per_thread_per_op
+                                ..(thread_index + 1) * tasks_per_thread_per_op;
+                            for (task_offset, task_index) in task_range.enumerate() {
+                                let mut range_budget =
+                                    if sampled_offsets.get(next_cluster) == Some(&task_offset) {
+                                        let cluster_count = sampled_offsets.len();
+                                        let budget = detailed_ranges_per_thread / cluster_count
+                                            + usize::from(
+                                                next_cluster
+                                                    < detailed_ranges_per_thread % cluster_count,
+                                            );
+                                        next_cluster += 1;
+                                        budget
+                                    } else {
+                                        0
+                                    };
+                                let _pipeline_task = (range_budget != 0).then(|| {
+                                    nvtx_push_budgeted(
+                                        nvtx,
+                                        &mut range_budget,
+                                        nvtx.domain_at(0),
+                                        nvtx_thread_id,
+                                        &format!("Pipeline 0 Task {task_index} [{pipeline}]"),
+                                        nvtx.category_id(NvtxCategory::Internal),
+                                    )
+                                });
+                                for (op_id, node_idx) in nodes.iter().enumerate() {
                                     let op = &plan.dag[*node_idx];
                                     self.execute_physical_operator_task(
-                                        context, task_index, engine, op, thread_id,
+                                        context,
+                                        nvtx,
+                                        task_index,
+                                        op_id,
+                                        engine,
+                                        op,
+                                        thread_id,
+                                        &mut range_budget,
                                     );
                                     op.tasks_processed.fetch_add(1, Ordering::Relaxed);
                                     let edges =
@@ -739,6 +1067,7 @@ impl Worker {
                                     }
                                 }
                             }
+                            nvtx_query_barrier.wait();
                         }
                     });
                 }
@@ -1027,7 +1356,13 @@ impl Engine {
         }
     }
 
-    fn spawn(&mut self, context: &SimulatorContext, num_workers: usize, num_threads: usize) {
+    fn spawn(
+        &mut self,
+        context: &SimulatorContext,
+        nvtx: &NvtxCapture,
+        num_workers: usize,
+        num_threads: usize,
+    ) {
         info!("Simulating Engine:");
         info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
         let engine_obs = context.engine_observer();
@@ -1053,6 +1388,7 @@ impl Engine {
                 *worker_id,
                 format!("drone-{worker_index}"),
                 context,
+                nvtx,
                 self.id,
                 num_threads,
             );
@@ -1128,13 +1464,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Simulating with: {args:?}");
 
     let mut engine = Engine::new();
+    let nvtx_workload = NvtxWorkload::from_args(&args);
 
-    let context = match args.exporter.into_options() {
+    let exporter = args.exporter.into_options();
+    let context = match exporter.clone() {
         Some(provider) => SimulatorContext::try_new(provider)?,
         None => SimulatorContext::try_new(quent_model::Noop)?,
     };
+    let nvtx_layout = NvtxLayout {
+        num_domains: args.num_nvtx_domains,
+        num_categories: args.num_nvtx_categories,
+        num_marks: args.num_nvtx_marks,
+        num_nested_ranges: args.num_nvtx_nested_ranges,
+        task_every: args.nvtx_task_every,
+        max_ranges: args.max_nvtx_ranges,
+    };
+    let nvtx = match exporter.as_ref() {
+        Some(provider) => NvtxCapture::try_new(context.id(), provider, nvtx_layout)?,
+        None => NvtxCapture::noop(context.id(), nvtx_layout),
+    };
+    nvtx.declare_schema();
+    let main_thread = nvtx.name_thread("main");
+    let simulation_resource = nvtx.resource(nvtx.domain_at(0), "simulated CUDA execution context");
 
-    engine.spawn(&context, args.num_workers, args.num_threads);
+    engine.spawn(&context, &nvtx, args.num_workers, args.num_threads);
 
     for (query_group_index, query_group_id) in std::iter::repeat_with(Uuid::now_v7)
         .take(args.num_query_groups)
@@ -1171,30 +1524,103 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 engine.id
             );
             query_handle.planning();
-            let l_plan = make_logical_plan(query_id, "logical".into());
+            let query_process = nvtx.start(
+                nvtx.domain_at(0),
+                &format!("Q{query_index} process range"),
+                nvtx.category_id(NvtxCategory::Api),
+            );
+            let _query = nvtx.push(
+                nvtx.domain_at(0),
+                main_thread,
+                "sirius::query",
+                nvtx.category_id(NvtxCategory::Api),
+            );
+            let l_plan = {
+                let _planning = nvtx.push(
+                    nvtx.domain_at(0),
+                    main_thread,
+                    "planning",
+                    nvtx.category_id(NvtxCategory::Internal),
+                );
+                make_logical_plan(query_id, "logical".into())
+            };
             l_plan.declare(&context, None);
             query_handle.executing();
+            for mark_index in 0..nvtx.layout().num_marks {
+                nvtx.mark(
+                    nvtx.domain_at(0),
+                    &format!("Q{query_index} mark-{mark_index}"),
+                    nvtx.category_at(mark_index),
+                );
+            }
 
             let workers: Vec<_> = engine.workers.values().collect();
+            let nvtx_query_barrier = Barrier::new(nvtx_workload.worker_thread_count.max(1));
+            let nvtx_execution = NvtxExecution {
+                capture: &nvtx,
+                workload: nvtx_workload,
+                query_barrier: &nvtx_query_barrier,
+            };
             std::thread::scope(|s| {
                 for worker in workers {
                     s.spawn(|| {
-                        worker.execute_logical_plan(&context, &engine, &l_plan, args.num_tasks);
+                        worker.execute_logical_plan(
+                            &context,
+                            nvtx_execution,
+                            &engine,
+                            &l_plan,
+                            args.num_tasks,
+                        );
                     });
                 }
             });
+            drop(_query);
+            drop(query_process);
 
             query_handle.exit();
         }
     }
 
     engine.shut_down(&context);
+    drop(simulation_resource);
+    nvtx.destroy_schema();
 
     // Each entity stream flushes only when its last observer clone is released.
     // `engine` co-owns those clones through its worker and network-link handles,
     // so it must drop together with the context to write all pending events.
-    drop((engine, context));
+    drop((engine, context, nvtx));
 
     info!("simulation completed");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nvtx_budget_is_divided_across_every_query_thread() {
+        let workload = NvtxWorkload {
+            query_count: 2,
+            worker_thread_count: 10,
+        };
+        let layout = NvtxLayout {
+            num_domains: 3,
+            max_ranges: 1_000,
+            ..NvtxLayout::default()
+        };
+        assert_eq!(workload.detailed_ranges_per_thread(layout), 46);
+    }
+
+    #[test]
+    fn default_cap_reserves_full_query_envelopes() {
+        let workload = NvtxWorkload {
+            query_count: 4,
+            worker_thread_count: 64,
+        };
+        assert_eq!(
+            workload.detailed_ranges_per_thread(NvtxLayout::default()),
+            75
+        );
+    }
 }

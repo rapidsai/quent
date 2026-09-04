@@ -5,6 +5,9 @@
 
 use quent_model::{entity, instrumentation, model};
 
+#[cfg(feature = "collector")]
+pub mod collector_sink;
+pub mod nvtx;
 pub mod task;
 
 entity! {
@@ -15,6 +18,12 @@ entity! {
     Network: ResourceGroup {}
 }
 
+#[cfg(feature = "collector")]
+pub use collector_sink::SimulatorCollectorSink;
+pub use nvtx::{
+    DEFAULT_MAX_NVTX_RANGES, NvtxCapture, NvtxCategory, NvtxLayout, NvtxPushGuard, NvtxPushStack,
+    NvtxResourceGuard, NvtxStartGuard,
+};
 pub use quent_query_engine_model::{engine, operator, plan, port, query, query_group, worker};
 pub use quent_stdlib::{channel, memory, processor};
 pub use task::TaskEvent;

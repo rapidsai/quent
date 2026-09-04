@@ -3212,10 +3212,15 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
+ "bitcode",
+ "nvtx-analyzer",
+ "nvtx-bridge",
+ "nvtx-events",
  "quent-model",
  "quent-query-engine-model",
  "quent-stdlib",
  "serde",
+ "tempfile",
  "uuid",
 ]
 

@@ -8,8 +8,15 @@ publish.workspace = true
 collector = ["quent-model/collector"]
 
 [dependencies]
+nvtx-bridge = { path = "../../../integrations/nvtx/bridge" }
+nvtx-events = { path = "../../../integrations/nvtx/events" }
 quent-model = { path = "../../../crates/model" }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-stdlib = { path = "../../../crates/stdlib" }
 serde.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
+
+[dev-dependencies]
+bitcode.workspace = true
+nvtx-analyzer = { path = "../../../integrations/nvtx/analyzer" }
+tempfile = "3"
