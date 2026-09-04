@@ -4,7 +4,7 @@
 // Constants
 export { DEFAULT_STALE_TIME } from './constants';
 export { getApiBaseUrl, setApiBaseUrl } from './config';
-export { setApiClient } from './client';
+export { getApiClient, setApiClient } from './api';
 export type { ApiClient } from './client';
 
 // Fetch functions

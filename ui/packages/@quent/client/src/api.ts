@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseJsonWithBigInt } from '@quent/utils';
-import { getApiClient } from './client';
+import type { ApiClient } from './client';
 import { getApiBaseUrl } from './config';
 import { canonicalizeNvtxRequest } from './nvtxCanonical';
 import type {
@@ -81,42 +81,26 @@ async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise
  * @param engineId - The engine ID
  * @param queryId - The query ID to fetch the bundle for
  */
-export async function fetchQueryBundle(
+async function httpFetchQueryBundle(
   engineId: string,
   queryId: string
 ): Promise<QueryBundle<EntityRef>> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchQueryBundle(engineId, queryId);
-  }
   return apiFetch<QueryBundle<EntityRef>>(`/engines/${engineId}/query/${queryId}`);
 }
 
-export async function fetchListEngines(): Promise<Engine[]> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchListEngines();
-  }
+async function httpFetchListEngines(): Promise<Engine[]> {
   return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
 }
 
-export async function fetchEngineContexts(engineId: string): Promise<EngineContexts> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchEngineContexts(engineId);
-  }
+async function httpFetchEngineContexts(engineId: string): Promise<EngineContexts> {
   return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
 }
 
 /** Fetch stable NVTX metadata, resolving a 404 to optional absence. */
-export async function fetchNvtxCatalog(
+async function httpFetchNvtxCatalog(
   contextId: string,
   queryStartUnixNs: bigint
 ): Promise<NvtxCatalog | null> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchNvtxCatalog(contextId, queryStartUnixNs);
-  }
   const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
     params: { query_start: queryStartUnixNs },
   });
@@ -129,15 +113,11 @@ export async function fetchNvtxCatalog(
   return parseJsonWithBigInt<NvtxCatalog>(await response.text());
 }
 
-export async function fetchNvtxViewport(
+async function httpFetchNvtxViewport(
   contextId: string,
   queryStartUnixNs: bigint,
   request: NvtxViewportRequest
 ): Promise<NvtxViewportResponse | null> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchNvtxViewport(contextId, queryStartUnixNs, request);
-  }
   const canonical = canonicalizeNvtxRequest(request);
   const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
     params: { query_start: queryStartUnixNs },
@@ -170,31 +150,19 @@ function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResp
   };
 }
 
-export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchListCoordinators(engineId);
-  }
+async function httpFetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
   return apiFetch<QueryGroup[]>(`/engines/${engineId}/query-groups`);
 }
 
-export async function fetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchListQueries(engineId, coordinatorId);
-  }
+async function httpFetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]> {
   return apiFetch<Query[]>(`/engines/${engineId}/query_group/${coordinatorId}/queries`);
 }
 
-export async function fetchSingleTimeline(
+async function httpFetchSingleTimeline(
   engineId: string,
   request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
   durationSeconds: number
 ): Promise<SingleTimelineResponse> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchSingleTimeline(engineId, request, durationSeconds);
-  }
   return apiFetch<SingleTimelineResponse>(`/engines/${engineId}/timeline/single`, {
     params: { duration: durationSeconds },
     fetchOptions: {
@@ -204,14 +172,10 @@ export async function fetchSingleTimeline(
   });
 }
 
-export async function fetchBulkTimelines(
+async function httpFetchBulkTimelines(
   engineId: string,
   request: BulkTimelineRequest<QueryFilter, OperatorFilter>
 ): Promise<BulkTimelinesResponse> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchBulkTimelines(engineId, request);
-  }
   return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
     fetchOptions: {
       method: 'POST',
@@ -224,14 +188,10 @@ export async function fetchBulkTimelines(
  * Fetch a ranked, paged list of a query's entities (longest resource-usage
  * span first). Backs the long-entities Gantt view.
  */
-export async function fetchEntityList(
+async function httpFetchEntityList(
   engineId: string,
   request: EntityListRequest<QueryFilter, OperatorFilter>
 ): Promise<EntityListResponse> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchEntityList(engineId, request);
-  }
   return apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
     fetchOptions: {
       method: 'POST',
@@ -247,16 +207,12 @@ export async function fetchEntityList(
  * outcome, not an error, so react-query settles instead of retrying.
  * @param measures - Measure names to compute; empty means all declared measures.
  */
-export async function fetchDataFlow(
+async function httpFetchDataFlow(
   engineId: string,
   queryId: string,
   config: TimelineConfig,
   measures: string[] = []
 ): Promise<DataFlowTimelineBinned | null> {
-  const client = getApiClient();
-  if (client) {
-    return client.fetchDataFlow(engineId, queryId, config, measures);
-  }
   const request: CategoricalTimelineRequest<QueryFilter> = {
     measures,
     config,
@@ -276,3 +232,51 @@ export async function fetchDataFlow(
   }
   return parseJsonWithBigInt<DataFlowTimelineBinned>(await response.text());
 }
+
+const httpClient: ApiClient = {
+  fetchQueryBundle: httpFetchQueryBundle,
+  fetchListEngines: httpFetchListEngines,
+  fetchEngineContexts: httpFetchEngineContexts,
+  fetchNvtxCatalog: httpFetchNvtxCatalog,
+  fetchNvtxViewport: httpFetchNvtxViewport,
+  fetchListCoordinators: httpFetchListCoordinators,
+  fetchListQueries: httpFetchListQueries,
+  fetchSingleTimeline: httpFetchSingleTimeline,
+  fetchBulkTimelines: httpFetchBulkTimelines,
+  fetchEntityList: httpFetchEntityList,
+  fetchDataFlow: httpFetchDataFlow,
+};
+
+export const { getApiClient, setApiClient } = (() => {
+  let activeClient: ApiClient = httpClient;
+
+  return {
+    getApiClient: (): ApiClient => activeClient,
+    setApiClient: (client: ApiClient): void => {
+      activeClient = client;
+    },
+  };
+})();
+
+export const fetchQueryBundle = (...args: Parameters<ApiClient['fetchQueryBundle']>) =>
+  getApiClient().fetchQueryBundle(...args);
+export const fetchListEngines = (...args: Parameters<ApiClient['fetchListEngines']>) =>
+  getApiClient().fetchListEngines(...args);
+export const fetchEngineContexts = (...args: Parameters<ApiClient['fetchEngineContexts']>) =>
+  getApiClient().fetchEngineContexts(...args);
+export const fetchNvtxCatalog = (...args: Parameters<ApiClient['fetchNvtxCatalog']>) =>
+  getApiClient().fetchNvtxCatalog(...args);
+export const fetchNvtxViewport = (...args: Parameters<ApiClient['fetchNvtxViewport']>) =>
+  getApiClient().fetchNvtxViewport(...args);
+export const fetchListCoordinators = (...args: Parameters<ApiClient['fetchListCoordinators']>) =>
+  getApiClient().fetchListCoordinators(...args);
+export const fetchListQueries = (...args: Parameters<ApiClient['fetchListQueries']>) =>
+  getApiClient().fetchListQueries(...args);
+export const fetchSingleTimeline = (...args: Parameters<ApiClient['fetchSingleTimeline']>) =>
+  getApiClient().fetchSingleTimeline(...args);
+export const fetchBulkTimelines = (...args: Parameters<ApiClient['fetchBulkTimelines']>) =>
+  getApiClient().fetchBulkTimelines(...args);
+export const fetchEntityList = (...args: Parameters<ApiClient['fetchEntityList']>) =>
+  getApiClient().fetchEntityList(...args);
+export const fetchDataFlow = (...args: Parameters<ApiClient['fetchDataFlow']>) =>
+  getApiClient().fetchDataFlow(...args);

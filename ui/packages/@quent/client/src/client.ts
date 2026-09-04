@@ -56,14 +56,3 @@ export interface ApiClient {
     measures?: string[]
   ): Promise<DataFlowTimelineBinned | null>;
 }
-
-let client: ApiClient | undefined;
-
-/** Install an alternative implementation of the UI's typed API operations. */
-export function setApiClient(apiClient: ApiClient): void {
-  client = apiClient;
-}
-
-export function getApiClient(): ApiClient | undefined {
-  return client;
-}
