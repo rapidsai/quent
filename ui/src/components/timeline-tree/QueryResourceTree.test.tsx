@@ -40,6 +40,10 @@ vi.mock('@quent/hooks', async importOriginal => {
   };
 });
 
+vi.mock('./useFullDurationZeroUtilizationResourceIds', () => ({
+  useFullDurationZeroUtilizationResourceIds: () => new Set<string>(),
+}));
+
 vi.mock('@/contexts/ThemeContext', () => ({
   useTheme: () => ({ theme: 'light', setTheme: vi.fn() }),
   THEME_DARK: 'dark',

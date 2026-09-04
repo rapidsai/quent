@@ -20,6 +20,7 @@ import {
   useReturnedTimelineNumBins,
   useTimelinePointerPublisher,
   useTimelinePointerRatio,
+  useZeroUtilizationResourceIds,
 } from './useTimelineAtoms';
 
 describe('useGetZoomRange', () => {
@@ -184,5 +185,81 @@ describe('useReturnedTimelineNumBins', () => {
     );
 
     expect(result.current).toEqual({ numBins: undefined, isStale: true });
+  });
+});
+
+describe('useZeroUtilizationResourceIds', () => {
+  function makeRequest(resourceId: string): TimelineRequest<OperatorFilter> {
+    return {
+      Resource: {
+        resource_id: resourceId,
+        long_entities_threshold_s: null,
+        entity_filter: { entity_type_name: null },
+        application: { operator_ids: [] },
+        config: { num_bins: 10, start: 0, end: 1 },
+      },
+    };
+  }
+
+  function makeResponse(values: number[]): SingleTimelineResponse {
+    return {
+      config: { span: { start: 0, end: 1 }, bin_duration: 0.1, num_bins: BigInt(values.length) },
+      data: { Binned: { capacities_values: { count: values }, long_fsms: [] } } as never,
+    };
+  }
+
+  it('includes a resource whose current-window utilization is all zero', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, {
+      'zero-resource': makeRequest('zero-resource'),
+      'busy-resource': makeRequest('busy-resource'),
+    });
+    store.set(timelineDataMapAtom, {
+      [timelineCacheKey({ resourceId: 'zero-resource', resourceTypeName: '' })]: makeResponse([
+        0, 0, 0,
+      ]),
+      [timelineCacheKey({ resourceId: 'busy-resource', resourceTypeName: '' })]: makeResponse([
+        0, 3, 0,
+      ]),
+    });
+    store.set(debouncedZoomRangeAtom, { start: 0, end: 1 });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useZeroUtilizationResourceIds(), { wrapper });
+
+    expect(result.current.has('zero-resource')).toBe(true);
+    expect(result.current.has('busy-resource')).toBe(false);
+  });
+
+  it('excludes a resource whose cached response belongs to a stale viewport', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, { 'zero-resource': makeRequest('zero-resource') });
+    store.set(timelineDataMapAtom, {
+      [timelineCacheKey({ resourceId: 'zero-resource', resourceTypeName: '' })]: makeResponse([
+        0, 0, 0,
+      ]),
+    });
+    store.set(debouncedZoomRangeAtom, { start: 0.5, end: 1 });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useZeroUtilizationResourceIds(), { wrapper });
+
+    expect(result.current.has('zero-resource')).toBe(false);
+  });
+
+  it('returns an empty set when no timeline data has been fetched yet', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, { 'zero-resource': makeRequest('zero-resource') });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useZeroUtilizationResourceIds(), { wrapper });
+
+    expect(result.current.size).toBe(0);
   });
 });

@@ -13,6 +13,7 @@ import {
   type ResourceTimelineSubRow,
 } from './ResourceTimelinesTree';
 import { TimelineTreeTable, useTimelineTreeSetup } from './TimelineTreeTable';
+import { useFullDurationZeroUtilizationResourceIds } from './useFullDurationZeroUtilizationResourceIds';
 
 export interface QueryResourceTreeProps {
   engineId: string;
@@ -63,6 +64,13 @@ export function QueryResourceTree({
     () => createOperatorGanttTimelineSubRow({ queryBundle, isDark }),
     [isDark, queryBundle]
   );
+  const zeroUtilizationResourceIds = useFullDurationZeroUtilizationResourceIds(
+    engineId,
+    queryBundle.query_id,
+    queryBundle.duration_s,
+    entities,
+    resourceSubRows === undefined
+  );
   const longEntitiesSubRow = useMemo(
     () =>
       createLongEntitiesTimelineSubRow({
@@ -72,8 +80,17 @@ export function QueryResourceTree({
         onEntitySelect: toggleDrawerFsm,
         selectedEntityId: drawerFsm?.id,
         onBackgroundClick: closeDrawer,
+        zeroUtilizationResourceIds,
       }),
-    [closeDrawer, drawerFsm?.id, engineId, isDark, queryBundle, toggleDrawerFsm]
+    [
+      closeDrawer,
+      drawerFsm?.id,
+      engineId,
+      isDark,
+      queryBundle,
+      toggleDrawerFsm,
+      zeroUtilizationResourceIds,
+    ]
   );
   const defaultResourceSubRows = useMemo(
     () => [operatorGanttSubRow, longEntitiesSubRow],

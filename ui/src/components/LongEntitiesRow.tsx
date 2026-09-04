@@ -10,6 +10,7 @@ import {
   useReturnedTimelineIsStale,
   useReturnedTimelineNumBins,
   useSelectedNodeIds,
+  useZeroUtilizationResourceIds,
 } from '@quent/hooks';
 import { type FiniteStateMachine, type FsmTypeDecl, MAX_TIMELINE_BINS } from '@quent/utils';
 import {
@@ -62,6 +63,8 @@ export function LongEntitiesRow({
   const longEntityDensity = useLongEntityDensity();
   const returnedNumBins = useReturnedTimelineNumBins(resourceId);
   const returnedTimelineIsStale = useReturnedTimelineIsStale(resourceId);
+  const zeroUtilizationResourceIds = useZeroUtilizationResourceIds();
+  const hasNoUsagesInWindow = zeroUtilizationResourceIds.has(resourceId);
   const previousMinUsageSeconds = useRef<number | null>(null);
   const [maxEntities, setMaxEntities] = useState(ENTITIES_PER_PAGE);
   const operatorIds = useMemo(() => [...selectedNodeIds], [selectedNodeIds]);
@@ -153,6 +156,7 @@ export function LongEntitiesRow({
         onEntityClick={onEntitySelect ? handleEntityClick : undefined}
         selectedEntityId={selectedEntityId}
         onBackgroundClick={onBackgroundClick}
+        noUsagesInRange={hasNoUsagesInWindow}
       />
 
       {showMoreButton && (

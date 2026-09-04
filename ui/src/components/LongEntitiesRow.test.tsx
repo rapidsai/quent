@@ -20,9 +20,15 @@ const mocks = vi.hoisted(() => ({
   returnedNumBins: 400 as number | undefined,
   returnedTimelineIsStale: false,
   longEntitiesGantt: vi.fn(
-    (_props: { entries: unknown[]; height: number; minUsageSeconds: number }) => null
+    (_props: {
+      entries: unknown[];
+      height: number;
+      minUsageSeconds: number;
+      noUsagesInRange?: boolean;
+    }) => null
   ),
   useEntityList: vi.fn(),
+  zeroUtilizationResourceIds: new Set<string>(),
 }));
 
 vi.mock('@quent/client', () => ({
@@ -36,6 +42,7 @@ vi.mock('@quent/hooks', () => ({
   useReturnedTimelineIsStale: () => mocks.returnedTimelineIsStale,
   useReturnedTimelineNumBins: () => mocks.returnedNumBins,
   useSelectedNodeIds: () => new Set(['operator-1']),
+  useZeroUtilizationResourceIds: () => mocks.zeroUtilizationResourceIds,
 }));
 
 vi.mock('@quent/components', () => ({
@@ -60,6 +67,7 @@ describe('LongEntitiesRow', () => {
     mocks.longEntityDensity = 3;
     mocks.returnedNumBins = 400;
     mocks.returnedTimelineIsStale = false;
+    mocks.zeroUtilizationResourceIds = new Set();
     mocks.useEntityList.mockReturnValue({
       data: undefined,
       isFetching: false,
@@ -337,6 +345,42 @@ describe('LongEntitiesRow', () => {
     rerender(<LongEntitiesRow {...props} />);
 
     expect(screen.getByRole('button', { name: 'Show more (2 of 250)' })).toBeEnabled();
+  });
+
+  it('passes noUsagesInRange when the resource has zero utilization in the current window', () => {
+    mocks.zeroUtilizationResourceIds = new Set(['resource-1']);
+
+    render(
+      <LongEntitiesRow
+        engineId="engine-1"
+        queryId="query-1"
+        resourceId="resource-1"
+        durationSeconds={1}
+        fsmTypes={{}}
+        isDark={false}
+      />
+    );
+
+    expect(mocks.longEntitiesGantt.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ noUsagesInRange: true })
+    );
+  });
+
+  it('does not pass noUsagesInRange for a resource with utilization in the current window', () => {
+    render(
+      <LongEntitiesRow
+        engineId="engine-1"
+        queryId="query-1"
+        resourceId="resource-1"
+        durationSeconds={1}
+        fsmTypes={{}}
+        isDark={false}
+      />
+    );
+
+    expect(mocks.longEntitiesGantt.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ noUsagesInRange: false })
+    );
   });
 
   it('keeps the previous entities visible while a changed request loads', () => {

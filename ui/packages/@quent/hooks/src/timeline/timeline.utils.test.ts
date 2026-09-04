@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import type { OperatorFilter, TimelineRequest } from '@quent/utils';
+import type { OperatorFilter, ResourceTimeline, TimelineRequest } from '@quent/utils';
 import {
   getResourceTypeName,
   getFsmTypeName,
   bulkEntryId,
   setOperatorOnEntry,
+  isTimelineUtilizationAllZero,
 } from './timeline.utils';
 
 function makeResourceRequest(
@@ -95,6 +96,42 @@ describe('bulkEntryId', () => {
 
   it('returns a canonical key when operatorIds are provided', () => {
     expect(bulkEntryId('res-1', ['op-42', 'op-41', 'op-42'])).toBe('res-1:ops:["op-41","op-42"]');
+  });
+});
+
+describe('isTimelineUtilizationAllZero', () => {
+  it('returns true for a Binned variant with only zero values', () => {
+    const data: ResourceTimeline = {
+      Binned: { capacities_values: { count: [0, 0, 0] }, long_fsms: [] } as never,
+    };
+    expect(isTimelineUtilizationAllZero(data)).toBe(true);
+  });
+
+  it('returns false for a Binned variant with a non-zero value', () => {
+    const data: ResourceTimeline = {
+      Binned: { capacities_values: { count: [0, 1, 0] }, long_fsms: [] } as never,
+    };
+    expect(isTimelineUtilizationAllZero(data)).toBe(false);
+  });
+
+  it('returns true for a BinnedByState variant with only zero values', () => {
+    const data: ResourceTimeline = {
+      BinnedByState: {
+        capacities_states_values: { count: { idle: [0, 0], busy: [0, 0] } },
+        long_fsms: [],
+      } as never,
+    };
+    expect(isTimelineUtilizationAllZero(data)).toBe(true);
+  });
+
+  it('returns false for a BinnedByState variant with a non-zero value', () => {
+    const data: ResourceTimeline = {
+      BinnedByState: {
+        capacities_states_values: { count: { idle: [0, 0], busy: [0, 2] } },
+        long_fsms: [],
+      } as never,
+    };
+    expect(isTimelineUtilizationAllZero(data)).toBe(false);
   });
 });
 
