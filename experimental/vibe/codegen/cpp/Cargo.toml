@@ -1,0 +1,20 @@
+[package]
+name = "quent-schema-codegen-cpp"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+convert_case.workspace = true
+prettyplease.workspace = true
+proc-macro2.workspace = true
+quent-constraints.workspace = true
+quent-ref-target.workspace = true
+quent-schema.workspace = true
+quote.workspace = true
+syn.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { workspace = true, features = ["test-utils"] }
+quent-yaml.workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "quent-demo-cpp-bridge"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1"
+quent-dynamic-attributes = { path = "../../../../../../crates/dynamic-attributes" }
+quent-instrumentation = {
+    path = "../../../../../../crates/instrumentation",
+    features = ["serde", "io-ndjson"],
+}
+quent-io = { path = "../../../../../../crates/io", default-features = false, features = ["ndjson"] }
+quent-readme-example = { path = "../../../../../../examples/readme" }
+
+[build-dependencies]
+cxx-build = "1"
+quent-schema-codegen-cpp = { path = "../.." }
+quent-yaml = { path = "../../../../../../crates/yaml" }

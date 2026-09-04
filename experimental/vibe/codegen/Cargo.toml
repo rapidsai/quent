@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = [
+    "cpp",
+    "python",
+    "cpp/example/bridge",
+    "python/example/bridge",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+convert_case = "0.11"
+prettyplease = "0.3.0"
+proc-macro2 = "1"
+quent-constraints = { path = "../../../crates/constraints" }
+quent-ref-target = { path = "../../../crates/ref-target" }
+quent-schema = { path = "../../../crates/schema" }
+quent-yaml = { path = "../../../crates/yaml" }
+quote = "1"
+syn = { version = "3.0.3", features = ["full", "parsing"] }
+thiserror = "2.0.17"
