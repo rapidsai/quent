@@ -6,9 +6,8 @@ import { useCallback, useMemo } from 'react';
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
 import {
   useSelectedNodeIds,
-  useSetSelectedNodeIds,
-  useSetSelectedOperatorLabel,
-  useSetSelectedNodeData,
+  useOperatorSelection,
+  useOperatorSelectionActions,
   useSetSelectedPlanId,
   useNodeColoringValue,
   useNodeColorPalette,
@@ -47,10 +46,9 @@ export function OperatorGanttChart({
   height = DEFAULT_HEIGHT,
   isDark,
 }: OperatorGanttChartProps) {
-  const setSelectedNodeIds = useSetSelectedNodeIds();
-  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const operatorSelection = useOperatorSelection();
+  const updateOperatorSelection = useOperatorSelectionActions();
   const setSelectedPlanId = useSetSelectedPlanId();
-  const setSelectedNodeData = useSetSelectedNodeData();
   const { textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
@@ -173,18 +171,20 @@ export function OperatorGanttChart({
         if (!op) {
           return;
         }
-        if (selectedNodeIds.size === 1 && selectedNodeIds.has(op.operatorId)) {
-          setSelectedNodeIds(new Set());
-          setSelectedOperatorLabel(null);
-          setSelectedNodeData(null);
+        if (operatorSelection.selections.has(op.operatorId)) {
+          updateOperatorSelection({ type: 'remove', selectionId: op.operatorId });
         } else {
-          setSelectedNodeIds(new Set([op.operatorId]));
-          setSelectedOperatorLabel(op.label);
-          setSelectedNodeData({
-            nodeId: op.operatorId,
+          updateOperatorSelection({
+            type: 'add',
+            selectionId: op.operatorId,
             label: op.label,
-            operationType: op.typeName,
-            statistics: op.statistics,
+            operatorIds: [op.operatorId],
+            inspectedData: {
+              nodeId: op.operatorId,
+              label: op.label,
+              operationType: op.typeName,
+              statistics: op.statistics,
+            },
           });
           if (op.planId) {
             setSelectedPlanId(op.planId);
@@ -192,14 +192,7 @@ export function OperatorGanttChart({
         }
       },
     }),
-    [
-      operators,
-      selectedNodeIds,
-      setSelectedNodeIds,
-      setSelectedOperatorLabel,
-      setSelectedPlanId,
-      setSelectedNodeData,
-    ]
+    [operators, operatorSelection, setSelectedPlanId, updateOperatorSelection]
   );
 
   return (

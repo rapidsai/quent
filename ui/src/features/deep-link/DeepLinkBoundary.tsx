@@ -17,7 +17,7 @@ import {
   useSetDebouncedZoomRange,
   useSetZoomRange,
 } from '@quent/hooks';
-import { DAG_LAYOUT_DIRECTION, NODE_LABEL_FIELD } from '@quent/utils';
+import { DAG_LAYOUT_DIRECTION, NODE_LABEL_FIELD, type Operator } from '@quent/utils';
 import { toast } from '@quent/components';
 import {
   expandedIdsAtom,
@@ -53,6 +53,7 @@ interface DeepLinkBoundaryProps {
   activeTab?: DeepLinkTab;
   durationSeconds: number;
   defaultRootResourceType?: string | null;
+  operators?: readonly Operator[];
   encodedState?: string;
   isQueryReady: boolean;
 }
@@ -80,6 +81,7 @@ export function DeepLinkBoundary({
   activeTab,
   durationSeconds,
   defaultRootResourceType = null,
+  operators,
   encodedState,
   isQueryReady,
 }: DeepLinkBoundaryProps) {
@@ -91,6 +93,7 @@ export function DeepLinkBoundary({
     useSerializableViewState({
       operatorTablePersistKey: OPERATOR_TABLE_PERSIST_KEY,
       operatorTableGroupKeys: OPERATOR_TABLE_INDEX_ORDER,
+      operators,
     });
   const intakeRoute = useRef({ engineId, queryId, activeTab }).current;
   const [isHydrated, setIsHydrated] = useState(!encodedState);

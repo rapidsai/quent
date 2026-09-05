@@ -114,6 +114,8 @@ export type { TreeDataItem } from './ui/tree-view';
 export { TreeTable } from './ui/tree-table';
 export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
 export { Badge, badgeVariants } from './ui/badge';
+export { TruncatedBadgeList } from './ui/truncated-badge-list';
+export type { TruncatedBadgeListProps } from './ui/truncated-badge-list';
 export { OptionMultiSelect } from './ui/option-multi-select';
 export type { OptionMultiSelectOption } from './ui/option-multi-select';
 export {

@@ -8,6 +8,7 @@ import { Badge } from './badge';
 import { Button } from './button';
 import { Input } from './input';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { TruncatedBadgeList } from './truncated-badge-list';
 
 export interface OptionMultiSelectOption {
   value: string;
@@ -69,8 +70,6 @@ export function OptionMultiSelect({
       options.filter(option => (selectedOptionIds ? selectedOptionIds.has(option.value) : true)),
     [options, selectedOptionIds]
   );
-  const visibleSelectedOptions = selectedOptions.slice(0, maxVisibleBadges);
-  const hiddenSelectedCount = Math.max(0, selectedOptions.length - visibleSelectedOptions.length);
 
   const filteredOptions = useMemo(() => {
     if (!search) {
@@ -222,10 +221,14 @@ export function OptionMultiSelect({
           {selectedOptions.length === 0 ? (
             <span className="text-xs text-muted-foreground italic">{noneSelectedText}</span>
           ) : (
-            <div className="flex flex-wrap items-center gap-1">
-              {visibleSelectedOptions.map(option => (
+            <TruncatedBadgeList
+              items={selectedOptions}
+              maxVisible={maxVisibleBadges}
+              getItemKey={option => option.value}
+              getItemLabel={optionLabel}
+              overflowBadgeClassName="px-1.5 py-0"
+              renderBadge={option => (
                 <Badge
-                  key={option.value}
                   variant="outline"
                   className={cn(
                     'px-1.5 py-0 text-data bg-primary/10 border-primary/40 hover:bg-primary/15',
@@ -245,13 +248,8 @@ export function OptionMultiSelect({
                     <X className="size-2.5" />
                   </button>
                 </Badge>
-              ))}
-              {hiddenSelectedCount > 0 && (
-                <Badge variant="outline" className="px-1.5 py-0 bg-muted/40 text-muted-foreground">
-                  +{hiddenSelectedCount} more
-                </Badge>
               )}
-            </div>
+            />
           )}
         </div>
       )}
