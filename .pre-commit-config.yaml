@@ -32,7 +32,7 @@ repos:
         (?x)
           bridge/include/rust/cxx\.h$|
           bridge/include/quent-bridge/gen/|
-          examples/simulator/server/ts-bindings/
+          ui/generated/ts-bindings/
       # When adding a new source file type to the repo, add its extension here.
       files: |
         (?x)

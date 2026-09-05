@@ -62,7 +62,7 @@ Install [Docker](https://docs.docker.com/compose/install/) with the Compose
 plugin, then start the complete example from the repository root:
 
 ```bash
-docker compose -f examples/simulator/docker-compose.yml up --build
+docker compose -f experimental/vibe/simulator/docker-compose.yml up --build
 ```
 
 Open <http://localhost:8080> after the services start. Docker Compose serves the

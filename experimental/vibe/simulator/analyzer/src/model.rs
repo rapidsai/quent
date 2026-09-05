@@ -317,6 +317,15 @@ impl SimulatorModelBuilder {
                 );
                 Ok(())
             }
+            SimulatorEvent::Gpu(quent_simulator_instrumentation::GpuEvent::Declaration(d)) => {
+                self.arbitrary_resources.push_group_raw(
+                    id,
+                    "gpu",
+                    &d.instance_name,
+                    Some(d.parent_group_id),
+                );
+                Ok(())
+            }
         }
     }
 

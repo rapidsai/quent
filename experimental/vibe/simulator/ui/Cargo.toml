@@ -5,7 +5,7 @@ edition.workspace =  true
 publish.workspace = true
 
 [dependencies]
-quent-analyzer = { path = "../../../crates/analyzer", features = [ "ts" ]}
+quent-analyzer = { path = "../../../../crates/analyzer", features = [ "ts" ]}
 serde.workspace = true
 ts-rs.workspace = true
 uuid = { workspace = true, features = ["serde"] }

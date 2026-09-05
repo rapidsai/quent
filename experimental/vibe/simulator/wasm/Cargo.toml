@@ -18,14 +18,14 @@ required-features = ["generate"]
 [dependencies]
 async-trait.workspace = true
 postcard.workspace = true
-quent-events = { path = "../../../crates/events", features = ["serde"] }
-quent-model = { path = "../../../crates/model", optional = true }
-quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
-quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
+quent-events = { path = "../../../../crates/events", features = ["serde"] }
+quent-model = { path = "../../../../crates/model", optional = true }
+quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
+quent-query-engine-ui = { path = "../../../../domains/query_engine/ui" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-instrumentation = { path = "../instrumentation" }
 quent-simulator = { path = "../application", optional = true }
-quent-ui = { path = "../../../crates/ui" }
+quent-ui = { path = "../../../../crates/ui" }
 serde.workspace = true
 serde_json.workspace = true
 uuid = { workspace = true, features = ["js"] }

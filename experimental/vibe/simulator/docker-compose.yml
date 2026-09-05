@@ -1,8 +1,8 @@
 services:
   server:
     build:
-      context: ../..
-      dockerfile: examples/simulator/Dockerfile
+      context: ../../..
+      dockerfile: experimental/vibe/simulator/Dockerfile
     image: quent-simulator-example
     ports:
       - "8080:8080"

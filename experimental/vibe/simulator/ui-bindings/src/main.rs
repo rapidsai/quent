@@ -5,6 +5,6 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ui/generated/ts-bindings");
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../ui/generated/ts-bindings");
     quent_simulator_ui_bindings::generate(&output_dir)
 }

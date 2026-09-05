@@ -15,6 +15,6 @@ syn.workspace = true
 [dev-dependencies]
 quent-query-engine-model = { path = "../../domains/query_engine/model" }
 quent-readme-example = { package = "quent-legacy-readme-example", path = "../../examples/legacy/readme" }
-quent-simulator-instrumentation = { path = "../../examples/simulator/instrumentation" }
+quent-simulator-instrumentation = { path = "../../experimental/vibe/simulator/instrumentation" }
 serde = { workspace = true, features = ["derive"] }
 syn.workspace = true

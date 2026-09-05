@@ -68,6 +68,7 @@ pub trait PlanEntity: Entity + ResourceGroup {
 /// Read-only analyzer API for an operator entity.
 pub trait OperatorEntity: Entity + ResourceGroup {
     fn plan_id(&self) -> Option<Uuid>;
+    fn parent_operator_ids(&self) -> impl ExactSizeIterator<Item = Uuid> + '_;
     fn active_span(&self) -> Option<SpanUnixNanoSec>;
     fn operator_type_name(&self) -> Option<&str>;
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Operator;

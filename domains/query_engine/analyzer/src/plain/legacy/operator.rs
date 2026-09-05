@@ -41,6 +41,17 @@ impl OperatorEntity for Operator {
             .map(|d| d.plan_id.uuid())
     }
 
+    fn parent_operator_ids(&self) -> impl ExactSizeIterator<Item = Uuid> + '_ {
+        self.inner
+            .data()
+            .declaration
+            .as_ref()
+            .map(|declaration| declaration.parent_operator_ids.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .map(|parent| parent.uuid())
+    }
+
     fn active_span(&self) -> Option<SpanUnixNanoSec> {
         self.active_span
     }
@@ -86,11 +97,7 @@ impl OperatorEntity for Operator {
         ui::Operator {
             id: self.inner.id(),
             plan_id: self.plan_id(),
-            parent_operator_ids: d
-                .declaration
-                .as_ref()
-                .map(|decl| decl.parent_operator_ids.iter().map(|r| r.uuid()).collect())
-                .unwrap_or_default(),
+            parent_operator_ids: self.parent_operator_ids().collect(),
             instance_name: d
                 .declaration
                 .as_ref()

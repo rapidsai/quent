@@ -11,12 +11,12 @@ quent-model = { path = "../../../../crates/model" }
 quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
 quent-io = { path = "../../../../crates/io", features = ["clap"] }
 quent-query-engine-model = { path = "../../model" }
-quent-simulator-instrumentation = { path = "../../../../examples/simulator/instrumentation" }
+quent-simulator-instrumentation = { path = "../../../../experimental/vibe/simulator/instrumentation" }
 quent-stdlib = { path = "../../../../crates/stdlib" }
 uuid = { workspace = true }
 
 [dev-dependencies]
-quent-simulator-analyzer = { path = "../../../../examples/simulator/analyzer" }
+quent-simulator-analyzer = { path = "../../../../experimental/vibe/simulator/analyzer" }
 quent-query-engine-analyzer = { path = "../../analyzer" }
 quent-query-engine-ui = { path = "../../ui" }
 quent-ui = { path = "../../../../crates/ui" }

@@ -19,8 +19,14 @@ FROM debian:trixie AS runtime
 
 WORKDIR /quent
 
+RUN groupadd --system quent && \
+    useradd --system --gid quent --home-dir /quent --no-create-home quent && \
+    install -d -o quent -g quent /quent/events
+
 COPY --from=builder /quent/quent-simulator-server /quent/quent-simulator-server
 COPY --from=builder /quent/quent-simulator /quent/quent-simulator
 
 EXPOSE 8080
 EXPOSE 7836
+
+USER quent

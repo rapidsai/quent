@@ -86,6 +86,7 @@ fsm! {
             queueing => allocating,
             allocating => computing,
             allocating => loading,
+            loading => loading,
             loading => computing,
             computing => sending,
             computing => spilling,
