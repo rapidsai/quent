@@ -4,7 +4,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
-import { useSetSelectedNodeIds } from '@quent/hooks';
+import {
+  useOperatorSelection,
+  useOperatorSelectionActions,
+  useSelectedNodeIds,
+} from '@quent/hooks';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { EntitiesTable } from './EntitiesTable';
@@ -48,6 +52,33 @@ const queryBundle = {
   },
 } as unknown as QueryBundle<EntityRef>;
 
+const logicalOperatorQueryBundle = {
+  ...queryBundle,
+  entities: {
+    ...queryBundle.entities,
+    operators: {
+      logical: {
+        id: 'logical',
+        instance_name: 'Logical Operator',
+        operator_type_name: 'Logical',
+        parent_operator_ids: [],
+      },
+      'child-one': {
+        id: 'child-one',
+        instance_name: 'Child One',
+        operator_type_name: 'Physical',
+        parent_operator_ids: ['logical'],
+      },
+      'child-two': {
+        id: 'child-two',
+        instance_name: 'Child Two',
+        operator_type_name: 'Physical',
+        parent_operator_ids: ['logical'],
+      },
+    },
+  },
+} as unknown as QueryBundle<EntityRef>;
+
 const fsm = {
   id: 'entity-1',
   type_name: 'Task',
@@ -71,11 +102,40 @@ const fsm = {
 };
 
 function DagSelectionControl() {
-  const setSelectedNodeIds = useSetSelectedNodeIds();
+  const updateOperatorSelection = useOperatorSelectionActions();
   return (
-    <button type="button" onClick={() => setSelectedNodeIds(new Set(['operator-1']))}>
+    <button
+      type="button"
+      onClick={() =>
+        updateOperatorSelection({
+          type: 'add',
+          selectionId: 'operator-1',
+          label: 'Operator One',
+          operatorIds: ['operator-1'],
+          inspectedData: {
+            nodeId: 'operator-1',
+            label: 'Operator One',
+            operationType: 'scan',
+            statistics: [],
+          },
+        })
+      }
+    >
       Select DAG operator
     </button>
+  );
+}
+
+function OperatorSelectionProbe() {
+  const operatorIds = useSelectedNodeIds();
+  const selection = useOperatorSelection();
+  return (
+    <>
+      <output data-testid="selected-operator-ids">{JSON.stringify([...operatorIds].sort())}</output>
+      <output data-testid="operator-selection-labels">
+        {JSON.stringify([...selection.selections.values()].map(value => value.label).sort())}
+      </output>
+    </>
   );
 }
 
@@ -187,6 +247,7 @@ describe('EntitiesTable', () => {
   });
 
   it('supports selecting multiple operators from the dropdown', () => {
+    const store = createStore();
     const multiOperatorQueryBundle = {
       ...queryBundle,
       entities: {
@@ -203,7 +264,15 @@ describe('EntitiesTable', () => {
     } as unknown as QueryBundle<EntityRef>;
 
     renderTable(
-      <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={multiOperatorQueryBundle} />
+      <>
+        <OperatorSelectionProbe />
+        <EntitiesTable
+          engineId="engine-1"
+          queryId="query-1"
+          queryBundle={multiOperatorQueryBundle}
+        />
+      </>,
+      { store }
     );
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
@@ -217,6 +286,50 @@ describe('EntitiesTable', () => {
     );
     expect(params.request.entry.application.operator_ids).toHaveLength(2);
     expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent('2 selected');
+    expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
+      JSON.stringify(['Operator One', 'Operator Two'])
+    );
+  });
+
+  it('groups logical operators and splits the group when a child is deselected', () => {
+    const store = createStore();
+    renderTable(
+      <>
+        <OperatorSelectionProbe />
+        <EntitiesTable
+          engineId="engine-1"
+          queryId="query-1"
+          queryBundle={logicalOperatorQueryBundle}
+        />
+      </>,
+      { store }
+    );
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Logical Operator' }));
+
+    let params = useEntities.mock.lastCall?.[0];
+    expect(params.request.entry.application.operator_ids).toEqual(
+      expect.arrayContaining(['logical', 'child-one', 'child-two'])
+    );
+    expect(params.request.entry.application.operator_ids).toHaveLength(3);
+    expect(screen.getByTestId('selected-operator-ids')).toHaveTextContent(
+      JSON.stringify(['child-one', 'child-two', 'logical'])
+    );
+    expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
+      JSON.stringify(['Logical Operator'])
+    );
+
+    fireEvent.click(screen.getByRole('option', { name: 'Child One' }));
+
+    params = useEntities.mock.lastCall?.[0];
+    expect(params.request.entry.application.operator_ids).toEqual(
+      expect.arrayContaining(['logical', 'child-two'])
+    );
+    expect(params.request.entry.application.operator_ids).toHaveLength(2);
+    expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
+      JSON.stringify(['Child Two', 'Logical Operator'])
+    );
   });
 
   it('shows empty state when the response contains no entities', () => {

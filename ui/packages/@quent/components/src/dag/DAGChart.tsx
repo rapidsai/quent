@@ -31,6 +31,7 @@ import {
   useSelectedNodeIds,
   useSetSelectedNodeIds,
   useSetSelectedOperatorLabel,
+  useOperatorSelectionActions,
   useEdgeWidthConfig,
   useEdgeColoring,
   useEdgeColorPalette,
@@ -47,7 +48,7 @@ import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
-import { resolveInspectedNodeData } from './dagSelection';
+import { resolveInspectedNodeSelections } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import {
@@ -286,6 +287,7 @@ const FlowLayout = ({
   const { fitView } = useReactFlow();
   const setSelectedNodeIds = useSetSelectedNodeIds();
   const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const updateOperatorSelection = useOperatorSelectionActions();
   const setDagDisplayedNodeIds = useSetDagDisplayedNodeIds();
   const setSelectedNodeData = useSetSelectedNodeData();
   const selectedNodeIds = useSelectedNodeIds();
@@ -296,13 +298,33 @@ const FlowLayout = ({
   // so toggling the overlay relayouts exactly once.
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
+  const hydratedNodeIdsKey = useMemo(
+    () =>
+      [...(controlledSelectedNodeIds === undefined ? selectedNodeIds : controlledSelectedNodeIds)]
+        .sort()
+        .join('\0'),
+    [controlledSelectedNodeIds, selectedNodeIds]
+  );
 
-  // Sync controlled selectedNodeIds into the atom when provided
   useEffect(() => {
+    const operatorIds = new Set(hydratedNodeIdsKey === '' ? [] : hydratedNodeIdsKey.split('\0'));
+    const resolved = resolveInspectedNodeSelections(data.nodes, operatorIds);
     if (controlledSelectedNodeIds !== undefined) {
-      setSelectedNodeIds(new Set(controlledSelectedNodeIds));
+      updateOperatorSelection({
+        type: 'replace',
+        selections: [
+          ...resolved.selections,
+          ...[...resolved.unresolvedOperatorIds].map(selectionId => ({
+            selectionId,
+            label: data.nodes.find(node => node.id === selectionId)?.label ?? selectionId,
+            operatorIds: new Set([selectionId]),
+          })),
+        ],
+      });
+      return;
     }
-  }, [controlledSelectedNodeIds, setSelectedNodeIds]);
+    updateOperatorSelection({ type: 'hydrate', selections: resolved.selections });
+  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
 
   // Publish the set of operator IDs visible in this DAG so other consumers
   // (effective highlight/heatmap atoms) can decide whether a hover-driven
@@ -313,12 +335,6 @@ const FlowLayout = ({
       setDagDisplayedNodeIds(new Set());
     };
   }, [data.nodes, setDagDisplayedNodeIds]);
-
-  useEffect(() => {
-    const selected = resolveInspectedNodeData(data.nodes, selectedNodeIds);
-    setSelectedOperatorLabel(selected?.label ?? null);
-    setSelectedNodeData(selected);
-  }, [data.nodes, selectedNodeIds, setSelectedNodeData, setSelectedOperatorLabel]);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
