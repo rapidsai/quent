@@ -3,7 +3,7 @@
 
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 import { Provider } from 'jotai';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { QueryPlan } from '@/components/QueryPlan';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { DeepLinkBoundary } from '@/features/deep-link';
@@ -49,6 +49,10 @@ function ProfileLayout() {
   const queryId = queryMatch?.params?.queryId;
   const encodedState = queryMatch?.search?.s;
   const queryBundle = queryMatch?.loaderData;
+  const operators = useMemo(
+    () => (queryBundle ? Object.values(queryBundle.entities.operators) : undefined),
+    [queryBundle]
+  );
   const timelineMatch = useMatch({
     from: '/profile/engine/$engineId/query/$queryId/timeline',
     shouldThrow: false,
@@ -78,6 +82,7 @@ function ProfileLayout() {
         activeTab={activeTab}
         durationSeconds={queryBundle?.duration_s ?? 0}
         defaultRootResourceType={defaultRootResourceType(queryBundle)}
+        operators={operators}
         encodedState={encodedState}
         isQueryReady={isQueryReady}
       >

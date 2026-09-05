@@ -85,6 +85,54 @@ export interface DataFlowOperatorFrame {
   labelByDimension: number[];
 }
 
+/** Sums operator frames into one state-by-dimension distribution. */
+export function aggregateDataFlowOperatorFrames(
+  frames: Iterable<DataFlowOperatorFrame>,
+  stateCount: number,
+  dimensionCount: number,
+  labelsFollowMeasure: boolean
+): DataFlowOperatorFrame {
+  const matrix = Array.from({ length: stateCount }, () =>
+    Array.from({ length: dimensionCount }, () => 0)
+  );
+  const separateLabelByState = labelsFollowMeasure
+    ? null
+    : Array.from({ length: stateCount }, () => 0);
+  const separateLabelByDimension = labelsFollowMeasure
+    ? null
+    : Array.from({ length: dimensionCount }, () => 0);
+
+  for (const frame of frames) {
+    for (let stateIndex = 0; stateIndex < stateCount; stateIndex++) {
+      for (let dimensionIndex = 0; dimensionIndex < dimensionCount; dimensionIndex++) {
+        matrix[stateIndex]![dimensionIndex]! += frame.matrix[stateIndex]?.[dimensionIndex] ?? 0;
+      }
+      if (separateLabelByState) {
+        separateLabelByState[stateIndex]! += frame.labelByState[stateIndex] ?? 0;
+      }
+    }
+    if (separateLabelByDimension) {
+      for (let dimensionIndex = 0; dimensionIndex < dimensionCount; dimensionIndex++) {
+        separateLabelByDimension[dimensionIndex]! += frame.labelByDimension[dimensionIndex] ?? 0;
+      }
+    }
+  }
+
+  const byState = matrix.map(row => row.reduce((sum, value) => sum + value, 0));
+  const byDimension = Array.from({ length: dimensionCount }, (_, dimensionIndex) =>
+    matrix.reduce((sum, row) => sum + row[dimensionIndex]!, 0)
+  );
+
+  return {
+    total: byState.reduce((sum, value) => sum + value, 0),
+    byState,
+    byDimension,
+    matrix,
+    labelByState: separateLabelByState ?? byState,
+    labelByDimension: separateLabelByDimension ?? byDimension,
+  };
+}
+
 /** Snapshot of the data-flow distribution at the playhead's bin. */
 export interface DataFlowFrame {
   binIndex: number;

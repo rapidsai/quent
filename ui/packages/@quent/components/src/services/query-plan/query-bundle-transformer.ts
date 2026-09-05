@@ -3,7 +3,14 @@
 
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle, EntityRef } from '@quent/utils';
-import { Operator, Port, Plan, PlanTree } from '@quent/utils';
+import {
+  buildRelatedOperatorIdsById,
+  Operator,
+  Port,
+  Plan,
+  PlanTree,
+  Worker,
+} from '@quent/utils';
 
 interface PlanTreeNode extends PlanTree {
   query?: string | null;
@@ -52,55 +59,27 @@ const getNodeEntity = (
   return undefined;
 };
 
-const buildRelatedOperatorIdsById = (
-  operators: Operator[],
-  selectedOperatorIds: ReadonlySet<string>
-): Map<string, string[]> => {
-  const childrenByParentId = new Map<string, string[]>();
-  for (const operator of operators) {
-    for (const parentId of operator.parent_operator_ids ?? []) {
-      const children = childrenByParentId.get(parentId);
-      if (children) {
-        children.push(operator.id);
-      } else {
-        childrenByParentId.set(parentId, [operator.id]);
-      }
-    }
-  }
-
-  const relatedById = new Map<string, string[]>();
-  for (const operatorId of selectedOperatorIds) {
-    const related = new Set<string>();
-    const stack = [...(childrenByParentId.get(operatorId) ?? [])];
-    while (stack.length > 0) {
-      const childId = stack.pop()!;
-      if (childId === operatorId || related.has(childId)) {
-        continue;
-      }
-      related.add(childId);
-      stack.push(...(childrenByParentId.get(childId) ?? []));
-    }
-    relatedById.set(operatorId, [...related]);
-  }
-
-  return relatedById;
-};
-
 /**
  * Recursively transform a plan node into TreeView format and provide display data
  */
-const transformNodeForTreeView = (node: PlanTreeNode, plans: Plan[]): QueryPlanDataItem => {
+const transformNodeForTreeView = (
+  node: PlanTreeNode,
+  plans: Plan[],
+  workers: { [id: string]: Worker | undefined }
+): QueryPlanDataItem => {
   const plan = plans.find(plan => plan.id === node.id);
+  const worker = node.worker ? workers[node.worker] : undefined;
 
   return {
     id: node.id,
     name: `Query Plan: ${node.id}`,
     queryId: node.id ?? undefined,
     workerId: node.worker ?? undefined,
+    workerName: worker?.instance_name ?? undefined,
     planType: plan?.instance_name ?? undefined,
     className: 'rounded-none',
     children: node.children?.length
-      ? node.children?.map(child => transformNodeForTreeView(child, plans))
+      ? node.children?.map(child => transformNodeForTreeView(child, plans, workers))
       : undefined,
   };
 };
@@ -116,7 +95,23 @@ export const getTreeData = (bundle: QueryBundle<EntityRef>): QueryPlanDataItem[]
   const plans = Object.values(bundle.entities.plans).filter(
     (plan): plan is Plan => plan !== undefined
   );
-  return [bundle.plan_tree].map(node => transformNodeForTreeView(node, plans));
+  return [bundle.plan_tree].map(node =>
+    transformNodeForTreeView(node, plans, bundle.entities.workers ?? {})
+  );
+};
+
+export const getSelectedOperatorCountsByPlan = (
+  bundle: QueryBundle<EntityRef>,
+  selectedOperatorIds: ReadonlySet<string>
+): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const operatorId of selectedOperatorIds) {
+    const planId = bundle.entities.operators[operatorId]?.plan_id;
+    if (planId) {
+      counts.set(planId, (counts.get(planId) ?? 0) + 1);
+    }
+  }
+  return counts;
 };
 
 /**

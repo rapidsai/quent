@@ -114,6 +114,8 @@ export type { TreeDataItem } from './ui/tree-view';
 export { TreeTable } from './ui/tree-table';
 export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
 export { Badge, badgeVariants } from './ui/badge';
+export { TruncatedBadgeList } from './ui/truncated-badge-list';
+export type { TruncatedBadgeListProps } from './ui/truncated-badge-list';
 export { OptionMultiSelect } from './ui/option-multi-select';
 export type { OptionMultiSelectOption } from './ui/option-multi-select';
 export {
@@ -184,6 +186,7 @@ export {
 export {
   getPlanDAG,
   getTreeData,
+  getSelectedOperatorCountsByPlan,
   validateQueryBundle,
 } from './services/query-plan/query-bundle-transformer';
 export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/query-plan/types';

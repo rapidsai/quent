@@ -8,7 +8,7 @@ import {
   useDataFlowFrame,
   useDataFlowIsPlaying,
   useDataFlowMeta,
-  useSelectedNodeData,
+  useSelectedNodesData,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
 import { OperatorColorBar, OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
@@ -23,7 +23,7 @@ export const DAGNodeInfoPanel = ({
   isDark?: boolean;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }) => {
-  const selectedNodeData = useSelectedNodeData();
+  const selectedNodes = useSelectedNodesData();
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
@@ -31,8 +31,10 @@ export const DAGNodeInfoPanel = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('stats');
   const [closedOperatorIds, setClosedOperatorIds] = useState<Set<string>>(() => new Set());
-  const selectedNodeId = selectedNodeData?.nodeId;
-  const hasSelection = selectedNodeData != null;
+  const hasSelection = selectedNodes.length > 0;
+  const showHeaders = selectedNodes.length > 1;
+  const selectedNode = selectedNodes[0];
+  const selectedNodeIdsKey = selectedNodes.map(node => node.nodeId).join('\0');
 
   const showDataFlowTab = dataFlowEnabled && dataFlowMeta != null;
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
@@ -54,9 +56,14 @@ export const DAGNodeInfoPanel = ({
 
   useEffect(() => {
     setIsExpanded(hasSelection);
-    setActiveTab('stats');
+    if (!hasSelection) {
+      setActiveTab('stats');
+    }
+  }, [hasSelection]);
+
+  useEffect(() => {
     setClosedOperatorIds(new Set());
-  }, [hasSelection, selectedNodeId]);
+  }, [selectedNodeIdsKey]);
 
   useEffect(() => {
     if (isPlaying && isExpanded && showDataFlowTab) {
@@ -66,28 +73,36 @@ export const DAGNodeInfoPanel = ({
 
   const scrollClass = cn('px-4 pb-2 h-48 overflow-auto', thinScrollbarClass);
 
-  const statsContent = selectedNodeData ? (
+  const statsContent = hasSelection ? (
     <div className="flex flex-col gap-1 pr-2 pt-1.5">
-      <OperatorDetailsBlock
-        operator={selectedNodeData}
-        quantitySpecs={quantitySpecs}
-        isOpen={isOperatorOpen}
-        onOpenChange={setOperatorOpen}
-      />
+      {selectedNodes.map((operator, index) => (
+        <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
+          <OperatorDetailsBlock
+            operator={operator}
+            quantitySpecs={quantitySpecs}
+            isOpen={isOperatorOpen}
+            onOpenChange={setOperatorOpen}
+          />
+        </div>
+      ))}
     </div>
   ) : null;
 
   const dataFlowContent =
-    selectedNodeData && dataFlowMeta && dataFlowFrame ? (
+    dataFlowMeta && dataFlowFrame ? (
       <div className="flex flex-col">
-        <OperatorDataFlowBlock
-          operator={selectedNodeData}
-          meta={dataFlowMeta}
-          frame={dataFlowFrame}
-          isDark={isDark}
-          isOpen={isOperatorOpen}
-          onOpenChange={setOperatorOpen}
-        />
+        {selectedNodes.map((operator, index) => (
+          <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
+            <OperatorDataFlowBlock
+              operator={operator}
+              meta={dataFlowMeta}
+              frame={dataFlowFrame}
+              isDark={isDark}
+              isOpen={isOperatorOpen}
+              onOpenChange={setOperatorOpen}
+            />
+          </div>
+        ))}
       </div>
     ) : (
       <p className="pt-6 text-xs text-muted-foreground text-center">No tasks at this bin</p>
@@ -100,23 +115,27 @@ export const DAGNodeInfoPanel = ({
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">
             Operator Details
           </span>
-          {selectedNodeData && (
+          {selectedNode && (
             <>
               <span className="text-muted-foreground text-xs flex-shrink-0">·</span>
               <div
                 data-testid="operator-details-title"
                 className="flex min-w-0 items-center gap-1.5 overflow-hidden"
               >
-                <OperatorColorBar
-                  operationType={selectedNodeData.operationType}
-                  className="h-3 w-1"
-                />
-                <DataText className="text-xs font-medium truncate" title={selectedNodeData.label}>
-                  {selectedNodeData.label}
-                </DataText>
-                <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded flex-shrink-0">
-                  {selectedNodeData.operationType}
-                </DataText>
+                {selectedNodes.map((operator, index) => (
+                  <span key={operator.nodeId} className="flex min-w-0 items-center gap-1">
+                    {index > 0 && <span className="text-muted-foreground text-xs shrink-0">,</span>}
+                    <OperatorColorBar operationType={operator.operationType} className="h-3 w-1" />
+                    <DataText className="text-xs font-medium truncate" title={operator.label}>
+                      {operator.label}
+                    </DataText>
+                    {!showHeaders && (
+                      <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded flex-shrink-0">
+                        {operator.operationType}
+                      </DataText>
+                    )}
+                  </span>
+                ))}
               </div>
             </>
           )}

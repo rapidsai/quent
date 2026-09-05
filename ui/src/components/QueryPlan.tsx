@@ -1,14 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
-import { TreeView } from '@quent/components';
+import { Badge, getSelectedOperatorCountsByPlan, TreeView } from '@quent/components';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
-import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
+import {
+  useSelectedNodeIds,
+  useSelectedPlanId,
+  useSetSelectedPlanId,
+  useSetHoveredWorkerId,
+} from '@quent/hooks';
 import { DAGControls, DAGNodeInfoPanel, DagPlayhead } from '@quent/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
 import {
@@ -47,11 +52,19 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const planId = useSelectedPlanId();
   const setPlanId = useSetSelectedPlanId();
   const setHoveredWorkerId = useSetHoveredWorkerId();
+  const selectedOperatorIds = useSelectedNodeIds();
   const {
     data: queryBundle,
     isLoading: queryBundleLoading,
     error: queryBundleError,
   } = useQueryBundle({ engineId, queryId });
+  const selectedOperatorCountsByPlan = useMemo(
+    () =>
+      queryBundle
+        ? getSelectedOperatorCountsByPlan(queryBundle, selectedOperatorIds)
+        : new Map<string, number>(),
+    [queryBundle, selectedOperatorIds]
+  );
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
 
@@ -148,25 +161,42 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const singleQueryPlan = treeData.length === 1 && !treeData[0]?.children;
 
   const renderItem = ({ item, hasChildren }: { item: QueryPlanDataItem; hasChildren: boolean }) => {
+    const selectedOperatorCount = selectedOperatorCountsByPlan.get(item.id) ?? 0;
+    const selectedOperatorLabel = `${selectedOperatorCount} selected operator${
+      selectedOperatorCount === 1 ? '' : 's'
+    } in this plan`;
+
     return (
       <div className="flex flex-col items-start py-0.5 pl-1">
-        {singleQueryPlan ? (
-          <span className="text-xs">
-            Query: <DataText>{item.queryId}</DataText>
-          </span>
-        ) : (
-          <span className="text-xs">
-            <DataText className="capitalize">{item.planType}</DataText>
-            {!hasChildren && (
-              <span>
-                : <DataText>{item.id}</DataText>
-              </span>
-            )}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {singleQueryPlan ? (
+            <span className="text-xs">
+              Query: <DataText>{item.queryId}</DataText>
+            </span>
+          ) : (
+            <span className="text-xs">
+              <DataText className="capitalize">{item.planType}</DataText>
+              {!hasChildren && (
+                <span>
+                  : <DataText>{item.id}</DataText>
+                </span>
+              )}
+            </span>
+          )}
+          {selectedOperatorCount > 0 && (
+            <Badge
+              variant="secondary"
+              className="h-4 min-w-4 rounded-full px-1 py-0 text-[10px] leading-none"
+              aria-label={selectedOperatorLabel}
+              title={selectedOperatorLabel}
+            >
+              {selectedOperatorCount}
+            </Badge>
+          )}
+        </div>
         {item.workerId && (
           <span className="text-xs text-muted-foreground">
-            <DataText>Worker: {item.workerId}</DataText>
+            <DataText>Worker: {item.workerName ?? item.workerId}</DataText>
           </span>
         )}
         {hasChildren && (

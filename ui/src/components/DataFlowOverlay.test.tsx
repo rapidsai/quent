@@ -49,6 +49,20 @@ const RESPONSE: DataFlowTimelineBinned = {
   },
 };
 
+const AGGREGATE_RESPONSE: DataFlowTimelineBinned = {
+  ...RESPONSE,
+  operators: {
+    ...RESPONSE.operators,
+    'op-2': {
+      values: {
+        tasks: {
+          queueing: { memory: [2, 0, 0, 0] },
+        },
+      },
+    },
+  },
+};
+
 // Same op-1 as RESPONSE plus a huge op-2: the window max (1000) squeezes
 // op-1's segments below label width (1/1000 of the ~168px track).
 const NARROW_RESPONSE: DataFlowTimelineBinned = {
@@ -397,7 +411,8 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
 
   function renderPanel(
     selectedDimensions: ReadonlySet<string> | null,
-    operator: InspectedNodeData = selectedOperator
+    operator: InspectedNodeData = selectedOperator,
+    response: DataFlowTimelineBinned = RESPONSE
   ) {
     function SelectNode({ value }: { value: InspectedNodeData }) {
       const setSelectedNodeData = useSetSelectedNodeData();
@@ -408,7 +423,7 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
     }
     return render(
       <Provider>
-        <Harness response={RESPONSE} selectedDimensions={selectedDimensions}>
+        <Harness response={response} selectedDimensions={selectedDimensions}>
           <>
             <DagPlayhead />
             <SelectNode value={operator} />
@@ -441,23 +456,36 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
     expect(within(screen.getByRole('table')).getAllByText('0')).toHaveLength(9);
   });
 
-  it('renders matrices for a higher-level operator and its nested operators', () => {
-    renderPanel(null, {
-      nodeId: 'logical',
-      label: 'Logical operator',
-      operationType: 'join',
-      statistics: [],
-      relatedOperators: [selectedOperator],
-    });
+  it('aggregates nested operator matrices into the higher-level operator', () => {
+    renderPanel(
+      null,
+      {
+        nodeId: 'logical',
+        label: 'Logical operator',
+        operationType: 'join',
+        statistics: [],
+        relatedOperators: [
+          selectedOperator,
+          {
+            nodeId: 'op-2',
+            label: 'Op 2',
+            operationType: 'scan',
+            statistics: [],
+          },
+        ],
+      },
+      AGGREGATE_RESPONSE
+    );
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
 
     const parent = screen.getByTestId('operator-accordion-logical');
     expect(within(parent).getByRole('button', { name: 'Toggle Op 1 details' })).toBeInTheDocument();
 
     const matrices = screen.getAllByRole('table');
-    expect(matrices).toHaveLength(2);
-    expect(within(matrices[0]).getAllByText('0')).toHaveLength(9);
+    expect(matrices).toHaveLength(3);
+    expect(within(matrices[0]).getAllByText('3.0')).not.toHaveLength(0);
     expect(within(matrices[1]).getAllByText('1.0')).not.toHaveLength(0);
+    expect(within(matrices[2]).getAllByText('2.0')).not.toHaveLength(0);
   });
 });
 

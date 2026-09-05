@@ -11,6 +11,11 @@ export {
   useSelectedOperatorLabel,
   useSetSelectedOperatorLabel,
 } from './dag/useSelectedOperatorLabel';
+export {
+  useOperatorSelection,
+  useOperatorSelectionActions,
+  type OperatorSelectionAction,
+} from './dag/useOperatorSelection';
 export { useSelectedPlanId, useSetSelectedPlanId } from './dag/useSelectedPlanId';
 export { useHoveredWorkerId, useSetHoveredWorkerId } from './dag/useHoveredWorkerId';
 
@@ -85,6 +90,7 @@ export {
   useSelectedDagLayoutDirection,
   useSelectedNodeData,
   useSetSelectedNodeData,
+  useSelectedNodesData,
   useHighlightedNodeIds,
   useSetHighlightedNodeIds,
   useEffectiveHighlightedNodeIds,
@@ -93,12 +99,8 @@ export {
   useSetHoveredStat,
   useSetDagDisplayedNodeIds,
 } from './dag/dagControlSelectors';
-export type {
-  HoveredStatInfo,
-  HighlightedNodeIdsState,
-  InspectedOperatorData,
-  InspectedNodeData,
-} from './atoms/dagControls';
+export type { HoveredStatInfo, HighlightedNodeIdsState } from './atoms/dagControls';
+export type { InspectedNodeData, InspectedOperatorData } from '@quent/utils';
 
 // Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)
 export {
@@ -127,6 +129,7 @@ export {
   resolveDataFlowMeasure,
   resolveDataFlowLabelMeasure,
   resolveDataFlowDimensions,
+  aggregateDataFlowOperatorFrames,
   formatDataFlowValue,
   formatDataFlowValueCompact,
   fitDataFlowSegmentLabel,
