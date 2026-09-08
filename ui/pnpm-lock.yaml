@@ -199,7 +199,7 @@ importers:
         specifier: 'catalog:'
         version: 19.2.18
       '@types/react-dom':
-        specifier: 19.2.5
+        specifier: 'catalog:'
         version: 19.2.5(@types/react@19.2.18)
       '@vitejs/plugin-react':
         specifier: ^5.2.0
