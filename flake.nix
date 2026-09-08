@@ -31,6 +31,7 @@
               pkgs.rustfmt
               pkgs.nodejs
               pkgs.pnpm
+              pkgs.python311
             ];
           };
         }
