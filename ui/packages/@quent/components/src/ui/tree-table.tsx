@@ -1,0 +1,1089 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import * as AccordionPrimitive from '@radix-ui/react-accordion';
+import { ChevronRight } from 'lucide-react';
+import { cva } from 'class-variance-authority';
+import { cn } from '@quent/utils';
+
+// Tree-table specific styling variants
+const treeVariants = cva(
+  'group hover:before:opacity-100 before:absolute before:left-0 before:w-full before:opacity-0 before:h-[2rem] before:-z-10'
+);
+
+const selectedTreeVariants = cva('before:opacity-100 text-accent-foreground');
+
+export type IconComponent = React.ComponentType<{ className?: string }>;
+interface TreeTableDataItem {
+  id: string;
+  name?: string;
+  icon?: IconComponent;
+  selectedIcon?: IconComponent;
+  openIcon?: IconComponent;
+  children?: TreeTableDataItem[];
+  actions?: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
+type TreeTableRenderItemParams = {
+  item: TreeTableDataItem;
+  level: number;
+  isLeaf: boolean;
+  isSelected: boolean;
+  isOpen?: boolean;
+  hasChildren: boolean;
+};
+
+type FlatTreeRow = {
+  item: TreeTableDataItem;
+  level: number;
+  hasChildren: boolean;
+  isOpen: boolean;
+};
+
+const rowSurfaceClasses =
+  'relative cursor-pointer transition-colors hover:bg-secondary/10 data-[selected=true]:bg-secondary/70';
+
+// Tree-table specific AccordionTrigger with level-based positioning.
+// Rendered as a <div> via asChild to avoid nesting <button> inside <button>
+// (the column content may contain interactive controls like Select).
+const AccordionTrigger = React.forwardRef<
+  HTMLDivElement,
+  Omit<React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>, 'asChild'> & {
+    level?: number;
+    isSelected?: boolean;
+    isOpen?: boolean;
+  }
+>(({ className, children, level = 0, isOpen, isSelected: _isSelected, ...props }, ref) => {
+  const chevronLeft = 10 + level * 20;
+
+  const chevronAttr = isOpen ? 'true' : 'false';
+  const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
+
+  return (
+    <AccordionPrimitive.Header className="w-full relative">
+      <AccordionPrimitive.Trigger asChild {...props}>
+        <div
+          ref={ref}
+          className={cn(
+            `group flex items-center transition-all text-foreground w-full min-w-0 overflow-hidden px-0 relative outline-none ${rowSurfaceClasses}`,
+            className
+          )}
+          tabIndex={0}
+        >
+          <div className="w-2.5 shrink-0" />
+          <ChevronRight
+            className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
+            data-open={chevronAttr}
+            style={{
+              left: `${chevronLeft}px`,
+              transform: chevronTransform,
+            }}
+          />
+          <div className="ml-6 flex-1 min-w-0 overflow-hidden">{children}</div>
+        </div>
+      </AccordionPrimitive.Trigger>
+    </AccordionPrimitive.Header>
+  );
+});
+AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
+
+const AccordionContent = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <AccordionPrimitive.Content
+    ref={ref}
+    className={cn(
+      'overflow-hidden text-sm transition-all data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
+      className
+    )}
+    {...props}
+  >
+    <div className="pt-0">{children}</div>
+  </AccordionPrimitive.Content>
+));
+AccordionContent.displayName = AccordionPrimitive.Content.displayName;
+
+const TreeIcon = ({
+  item,
+  isOpen,
+  isSelected,
+  default: defaultIcon,
+}: {
+  item: TreeTableDataItem;
+  isOpen?: boolean;
+  isSelected?: boolean;
+  default?: IconComponent;
+}) => {
+  let Icon: IconComponent | undefined = defaultIcon;
+  if (isSelected && item.selectedIcon) {
+    Icon = item.selectedIcon;
+  } else if (isOpen && item.openIcon) {
+    Icon = item.openIcon;
+  } else if (item.icon) {
+    Icon = item.icon;
+  }
+  return Icon ? <Icon className="h-4 w-4 shrink-0 mr-2" /> : null;
+};
+
+const TreeActions = ({
+  children,
+  isSelected,
+}: {
+  children: React.ReactNode;
+  isSelected: boolean;
+}) => {
+  return (
+    <div className={cn(isSelected ? 'block' : 'hidden', 'absolute right-3 group-hover:block')}>
+      {children}
+    </div>
+  );
+};
+
+// Tree-table specific TreeNode
+const TreeNode = ({
+  item,
+  handleSelectChange,
+  expandedItemIds,
+  controlledExpandedIds,
+  selectedItemId,
+  defaultNodeIcon,
+  defaultLeafIcon,
+  renderItem,
+  onExpandChange,
+  highlightedItemIds,
+  level = 0,
+}: {
+  item: TreeTableDataItem;
+  handleSelectChange: (item: TreeTableDataItem | undefined) => void;
+  expandedItemIds: string[];
+  /**
+   * When provided, the node's expanded state is fully controlled by this set
+   * (the parent is the source of truth). Without it, the node manages its own
+   * expansion via local state, seeded from `expandedItemIds` once at mount.
+   */
+  controlledExpandedIds?: Set<string>;
+  selectedItemId?: string;
+  defaultNodeIcon?: IconComponent;
+  defaultLeafIcon?: IconComponent;
+  renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+  onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  highlightedItemIds?: Set<string>;
+  level?: number;
+}) => {
+  const itemExpanded = (item as { expanded?: boolean }).expanded;
+  const shouldExpandByDefault = expandedItemIds.includes(item.id) || itemExpanded === true;
+  const [uncontrolledValue, setUncontrolledValue] = useState(
+    shouldExpandByDefault ? [item.id] : []
+  );
+  const isControlled = controlledExpandedIds !== undefined;
+  const value = useMemo(
+    () =>
+      isControlled
+        ? controlledExpandedIds.has(item.id) || itemExpanded === true
+          ? [item.id]
+          : []
+        : uncontrolledValue,
+    [isControlled, controlledExpandedIds, item.id, itemExpanded, uncontrolledValue]
+  );
+  const hasChildren = !!item.children?.length;
+  const isSelected = selectedItemId === item.id;
+  const isOpen = value.includes(item.id);
+  const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
+  const handleValueChange = useCallback(
+    (newValue: string[]) => {
+      const wasExpanded = value.includes(item.id);
+      const isNowExpanded = newValue.includes(item.id);
+      if (!isControlled) {
+        setUncontrolledValue(newValue);
+      }
+      if (wasExpanded !== isNowExpanded) {
+        onExpandChange?.(item.id, isNowExpanded);
+      }
+    },
+    [value, item.id, onExpandChange, isControlled]
+  );
+
+  return (
+    <AccordionPrimitive.Root type="multiple" value={value} onValueChange={handleValueChange}>
+      <AccordionPrimitive.Item value={item.id}>
+        <AccordionTrigger
+          level={level}
+          isSelected={isSelected}
+          isOpen={isOpen}
+          className={cn(
+            treeVariants(),
+            isSelected && selectedTreeVariants(),
+            isHighlighted && 'bg-primary/10 hover:bg-primary/10'
+          )}
+          onClick={() => {
+            handleSelectChange(item);
+            item.onClick?.();
+          }}
+        >
+          {renderItem ? (
+            renderItem({
+              item,
+              level,
+              isLeaf: false,
+              isSelected,
+              isOpen,
+              hasChildren,
+            })
+          ) : (
+            <>
+              <TreeIcon
+                item={item}
+                isSelected={isSelected}
+                isOpen={isOpen}
+                default={defaultNodeIcon}
+              />
+              <span className="text-sm truncate text-foreground">{item.name}</span>
+              <TreeActions isSelected={isSelected}>{item.actions}</TreeActions>
+            </>
+          )}
+        </AccordionTrigger>
+        <AccordionContent>
+          <TreeItem
+            data={item.children ? item.children : item}
+            selectedItemId={selectedItemId}
+            handleSelectChange={handleSelectChange}
+            expandedItemIds={expandedItemIds}
+            controlledExpandedIds={controlledExpandedIds}
+            defaultLeafIcon={defaultLeafIcon}
+            defaultNodeIcon={defaultNodeIcon}
+            renderItem={renderItem}
+            onExpandChange={onExpandChange}
+            highlightedItemIds={highlightedItemIds}
+            level={level + 1}
+          />
+        </AccordionContent>
+      </AccordionPrimitive.Item>
+    </AccordionPrimitive.Root>
+  );
+};
+
+// Tree-table specific TreeLeaf with spacing divs
+const TreeLeaf = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & {
+    item: TreeTableDataItem;
+    level: number;
+    selectedItemId?: string;
+    handleSelectChange: (item: TreeTableDataItem | undefined) => void;
+    defaultLeafIcon?: IconComponent;
+    renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+    highlightedItemIds?: Set<string>;
+  }
+>(
+  (
+    {
+      className,
+      item,
+      level,
+      selectedItemId,
+      handleSelectChange,
+      defaultLeafIcon,
+      renderItem,
+      highlightedItemIds,
+      ...props
+    },
+    ref
+  ) => {
+    const isSelected = selectedItemId === item.id;
+    const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          `flex text-left items-center before:right-1 text-foreground w-full min-w-0 px-0 relative outline-none ${rowSurfaceClasses}`,
+          treeVariants(),
+          className,
+          isSelected && selectedTreeVariants(),
+          isHighlighted && 'bg-primary/10 hover:bg-primary/10',
+          item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
+        )}
+        onClick={() => {
+          if (item.disabled) {
+            return;
+          }
+          handleSelectChange(item);
+          item.onClick?.();
+        }}
+        {...props}
+      >
+        {renderItem ? (
+          <>
+            <div className="w-2.5 shrink-0" />
+            <div className="w-6 shrink-0" />
+            <div className="flex-1 min-w-0 overflow-hidden">
+              {renderItem({
+                item,
+                level,
+                isLeaf: true,
+                isSelected,
+                hasChildren: false,
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <TreeIcon item={item} isSelected={isSelected} default={defaultLeafIcon} />
+            <span className="flex-grow text-sm truncate text-foreground">{item.name}</span>
+            <TreeActions isSelected={isSelected && !item.disabled}>{item.actions}</TreeActions>
+          </>
+        )}
+      </div>
+    );
+  }
+);
+TreeLeaf.displayName = 'TreeLeaf';
+
+// Tree-table specific TreeItem that uses custom TreeNode and TreeLeaf
+type TreeItemProps = {
+  data: TreeTableDataItem[] | TreeTableDataItem;
+  selectedItemId?: string;
+  handleSelectChange: (item: TreeTableDataItem | undefined) => void;
+  expandedItemIds: string[];
+  controlledExpandedIds?: Set<string>;
+  defaultNodeIcon?: IconComponent;
+  defaultLeafIcon?: IconComponent;
+  renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+  onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  highlightedItemIds?: Set<string>;
+  level?: number;
+  className?: string;
+};
+
+const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
+  (
+    {
+      className,
+      data,
+      selectedItemId,
+      handleSelectChange,
+      expandedItemIds,
+      controlledExpandedIds,
+      defaultNodeIcon,
+      defaultLeafIcon,
+      renderItem,
+      onExpandChange,
+      highlightedItemIds,
+      level,
+      ...props
+    },
+    ref
+  ) => {
+    if (!(data instanceof Array)) {
+      data = [data];
+    }
+    return (
+      <div ref={ref} role="tree" className={className} {...props}>
+        <ul>
+          {data.map(item => (
+            <li key={item.id}>
+              {item.children?.length ? (
+                <TreeNode
+                  item={item}
+                  level={level ?? 0}
+                  selectedItemId={selectedItemId}
+                  expandedItemIds={expandedItemIds}
+                  controlledExpandedIds={controlledExpandedIds}
+                  handleSelectChange={handleSelectChange}
+                  defaultNodeIcon={defaultNodeIcon}
+                  defaultLeafIcon={defaultLeafIcon}
+                  renderItem={renderItem}
+                  onExpandChange={onExpandChange}
+                  highlightedItemIds={highlightedItemIds}
+                />
+              ) : (
+                <TreeLeaf
+                  item={item}
+                  level={level ?? 0}
+                  selectedItemId={selectedItemId}
+                  handleSelectChange={handleSelectChange}
+                  defaultLeafIcon={defaultLeafIcon}
+                  renderItem={renderItem}
+                  highlightedItemIds={highlightedItemIds}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+);
+TreeItem.displayName = 'TreeItem';
+
+// Tree-table specific TreeView that uses custom TreeItem
+type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
+  data: TreeTableDataItem[] | TreeTableDataItem;
+  initialSelectedItemId?: string;
+  onSelectChange?: (item: TreeTableDataItem | undefined) => void;
+  onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  expandAll?: boolean;
+  defaultNodeIcon?: IconComponent;
+  defaultLeafIcon?: IconComponent;
+  renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+  highlightedItemIds?: Set<string>;
+  /**
+   * Required when `virtualized` is true: the scroll container whose `scrollTop`
+   * and `clientHeight` drive the visible row window.
+   */
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
+  /**
+   * When provided, takes over expansion state for the whole tree. Pair with
+   * `onExpandChange` to keep this set in sync with user interactions.
+   */
+  controlledExpandedIds?: Set<string>;
+  /**
+   * When true, the tree renders as a flat virtualized list driven by the
+   * supplied `scrollContainerRef`. When false (default), it renders as a
+   * recursive accordion that mounts every row at once.
+   */
+  virtualized?: boolean;
+  /**
+   * Estimated row height in pixels. Used by the virtualized renderer to
+   * compute the visible window and the spacer heights. Should match the
+   * actual rendered row height as closely as possible.
+   */
+  rowHeight?: number;
+  /**
+   * Number of extra rows to render above and below the visible window so
+   * scrolling doesn't reveal blank space before the next render. Only used
+   * when `virtualized` is true.
+   */
+  overscanRows?: number;
+};
+
+// Timeline rows render at ~75px; keep virtualization estimate aligned with actual row height.
+const DEFAULT_TREE_ROW_HEIGHT = 75;
+const DEFAULT_TREE_OVERSCAN_ROWS = 4;
+
+function normalizeTreeData(data: TreeTableDataItem[] | TreeTableDataItem): TreeTableDataItem[] {
+  return data instanceof Array ? data : [data];
+}
+
+function collectInitialExpandedIds(
+  items: TreeTableDataItem[],
+  targetId: string | undefined,
+  expandAll: boolean | undefined
+): Set<string> {
+  const ids = new Set<string>();
+  if (expandAll) {
+    const walkAll = (nodes: TreeTableDataItem[]) => {
+      for (const node of nodes) {
+        if (node.children?.length) {
+          ids.add(node.id);
+          walkAll(node.children);
+        }
+      }
+    };
+    walkAll(items);
+    return ids;
+  }
+
+  if (!targetId) {
+    return ids;
+  }
+
+  const walkPath = (nodes: TreeTableDataItem[]): boolean => {
+    for (const node of nodes) {
+      if (node.id === targetId) {
+        return true;
+      }
+      if (node.children?.length && walkPath(node.children)) {
+        ids.add(node.id);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  walkPath(items);
+  return ids;
+}
+
+function flattenVisibleRows(items: TreeTableDataItem[], expandedIds: Set<string>): FlatTreeRow[] {
+  const rows: FlatTreeRow[] = [];
+  const walk = (nodes: TreeTableDataItem[], level: number) => {
+    for (const node of nodes) {
+      const hasChildren = !!node.children?.length;
+      const isOpen = hasChildren && expandedIds.has(node.id);
+      rows.push({ item: node, level, hasChildren, isOpen });
+      if (isOpen) {
+        walk(node.children!, level + 1);
+      }
+    }
+  };
+  walk(items, 0);
+  return rows;
+}
+
+const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
+  (
+    {
+      data,
+      initialSelectedItemId,
+      onSelectChange,
+      onExpandChange,
+      expandAll,
+      defaultLeafIcon: _defaultLeafIcon,
+      defaultNodeIcon: _defaultNodeIcon,
+      className,
+      renderItem,
+      highlightedItemIds,
+      scrollContainerRef,
+      controlledExpandedIds,
+      virtualized: _virtualized,
+      rowHeight = DEFAULT_TREE_ROW_HEIGHT,
+      overscanRows = DEFAULT_TREE_OVERSCAN_ROWS,
+      ...props
+    },
+    ref
+  ) => {
+    const normalizedData = useMemo(() => normalizeTreeData(data), [data]);
+    const [selectedItemId, setSelectedItemId] = useState<string | undefined>(initialSelectedItemId);
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
+      collectInitialExpandedIds(normalizedData, initialSelectedItemId, expandAll)
+    );
+
+    const handleSelectChange = useCallback(
+      (item: TreeTableDataItem | undefined) => {
+        setSelectedItemId(item?.id);
+        if (onSelectChange) {
+          onSelectChange(item);
+        }
+      },
+      [onSelectChange]
+    );
+
+    const initialExpandedIds = useMemo(
+      () => collectInitialExpandedIds(normalizedData, initialSelectedItemId, expandAll),
+      [normalizedData, initialSelectedItemId, expandAll]
+    );
+
+    useEffect(() => {
+      setExpandedIds(initialExpandedIds);
+    }, [initialExpandedIds]);
+
+    const effectiveExpandedIds = controlledExpandedIds ?? expandedIds;
+    const isControlled = controlledExpandedIds !== undefined;
+
+    const visibleRows = useMemo(
+      () => flattenVisibleRows(normalizedData, effectiveExpandedIds),
+      [normalizedData, effectiveExpandedIds]
+    );
+
+    // Key measurements by item id so cached sizes survive expand/collapse reorderings.
+    const rowVirtualizer = useVirtualizer({
+      count: visibleRows.length,
+      getScrollElement: () => scrollContainerRef?.current ?? null,
+      estimateSize: () => rowHeight,
+      overscan: overscanRows,
+      getItemKey: index => visibleRows[index]?.item.id ?? index,
+    });
+
+    const virtualItems = rowVirtualizer.getVirtualItems();
+
+    return (
+      <div className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}>
+        {/* Total-height sentinel tells the scroll container the real content height */}
+        <div
+          ref={ref}
+          role="tree"
+          style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
+          {...props}
+        >
+          {virtualItems.map(virtualRow => {
+            const { item, level, hasChildren, isOpen } = visibleRows[virtualRow.index]!;
+            const isSelected = selectedItemId === item.id;
+            const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
+            const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
+            const chevronLeft = 10 + level * 20;
+
+            return (
+              <div
+                key={item.id}
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
+                className={cn(
+                  `flex text-left items-center text-foreground w-full min-w-0 px-0 outline-none ${rowSurfaceClasses}`,
+                  treeVariants(),
+                  isSelected && selectedTreeVariants(),
+                  isHighlighted && 'bg-primary/10 hover:bg-primary/10',
+                  item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
+                )}
+                style={{
+                  // Inline position overrides the `relative` in rowSurfaceClasses
+                  // so Tailwind's stylesheet order cannot flip us back to flow layout.
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  minHeight: `${rowHeight}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                onClick={() => {
+                  if (item.disabled) {
+                    return;
+                  }
+                  handleSelectChange(item);
+                  if (hasChildren) {
+                    const nextIsOpen = !isOpen;
+                    if (!isControlled) {
+                      setExpandedIds(prev => {
+                        const next = new Set(prev);
+                        if (nextIsOpen) {
+                          next.add(item.id);
+                        } else {
+                          next.delete(item.id);
+                        }
+                        return next;
+                      });
+                    }
+                    onExpandChange?.(item.id, nextIsOpen);
+                  }
+                  item.onClick?.();
+                }}
+              >
+                <div className="w-2.5 shrink-0" />
+                {hasChildren ? (
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
+                    data-open={isOpen ? 'true' : 'false'}
+                    style={{
+                      left: `${chevronLeft}px`,
+                      transform: chevronTransform,
+                    }}
+                  />
+                ) : (
+                  <div className="w-6 shrink-0" />
+                )}
+                <div className={cn(hasChildren ? 'ml-6' : '', 'flex-1 min-w-0 overflow-hidden')}>
+                  {renderItem
+                    ? renderItem({
+                        item,
+                        level,
+                        isLeaf: !hasChildren,
+                        isSelected,
+                        isOpen,
+                        hasChildren,
+                      })
+                    : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+);
+VirtualizedTreeView.displayName = 'VirtualizedTreeView';
+
+const RecursiveTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
+  (
+    {
+      data,
+      initialSelectedItemId,
+      onSelectChange,
+      onExpandChange,
+      expandAll,
+      defaultLeafIcon,
+      defaultNodeIcon,
+      className,
+      renderItem,
+      highlightedItemIds,
+      controlledExpandedIds,
+      // Virtualization-only props are not used here but should not leak onto
+      // the underlying DOM via {...props}.
+      scrollContainerRef: _scrollContainerRef,
+      virtualized: _virtualized,
+      rowHeight: _rowHeight,
+      overscanRows: _overscanRows,
+      ...props
+    },
+    ref
+  ) => {
+    const normalizedData = useMemo(() => normalizeTreeData(data), [data]);
+    const [selectedItemId, setSelectedItemId] = useState<string | undefined>(initialSelectedItemId);
+
+    const expandedItemIdsArray = useMemo(
+      () => Array.from(collectInitialExpandedIds(normalizedData, initialSelectedItemId, expandAll)),
+      [normalizedData, initialSelectedItemId, expandAll]
+    );
+
+    const handleSelectChange = useCallback(
+      (item: TreeTableDataItem | undefined) => {
+        setSelectedItemId(item?.id);
+        onSelectChange?.(item);
+      },
+      [onSelectChange]
+    );
+
+    return (
+      <div className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}>
+        <TreeItem
+          ref={ref}
+          data={normalizedData}
+          selectedItemId={selectedItemId}
+          handleSelectChange={handleSelectChange}
+          expandedItemIds={expandedItemIdsArray}
+          controlledExpandedIds={controlledExpandedIds}
+          defaultLeafIcon={defaultLeafIcon}
+          defaultNodeIcon={defaultNodeIcon}
+          renderItem={renderItem}
+          onExpandChange={onExpandChange}
+          highlightedItemIds={highlightedItemIds}
+          {...props}
+        />
+      </div>
+    );
+  }
+);
+RecursiveTreeView.displayName = 'RecursiveTreeView';
+
+const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>((props, ref) => {
+  if (props.virtualized) {
+    return <VirtualizedTreeView ref={ref} {...props} />;
+  }
+  return <RecursiveTreeView ref={ref} {...props} />;
+});
+TreeView.displayName = 'TreeView';
+
+export type ColumnComponent<I> = ({
+  item,
+  level,
+  isSelected,
+}: {
+  item: I;
+  level: number;
+  isSelected: boolean;
+}) => React.ReactNode;
+
+export type Column<I> = {
+  key: string;
+  label: string;
+  widthIndex: number;
+  isFirst?: boolean;
+  render: ColumnComponent<I>;
+  /** Optional content to render as the primary header row for this column */
+  headerContent?: React.ReactNode;
+  /** Optional content to render in a sub-header row below the header */
+  subHeaderContent?: React.ReactNode;
+};
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+type ColumnWidth = number | 'auto';
+const DEFAULT_COLUMN_WIDTHS: ColumnWidth[] = [280, 500];
+
+/** Resizable tree table with sticky headers, column drag-to-resize, and custom row rendering. */
+export function TreeTable<I extends TreeTableDataItem>({
+  data,
+  columns,
+  columnWidths = DEFAULT_COLUMN_WIDTHS,
+  ...treeViewProps
+}: {
+  data: I[];
+  columns: Column<I>[];
+  columnWidths?: ColumnWidth[];
+} & TreeViewProps) {
+  const [treeData, setTreeData] = useState<I[]>(data);
+  const [currentColumnWidths, setCurrentColumnWidths] = useState<ColumnWidth[]>(columnWidths);
+  const [hasUserResized, setHasUserResized] = useState(false);
+
+  useEffect(() => {
+    setTreeData(data);
+  }, [data]);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+
+  // Calculate total width of fixed columns only ('auto' columns are flexible)
+  const totalFixedWidth = currentColumnWidths.reduce<number>(
+    (sum, w) => sum + (typeof w === 'number' ? w : 0),
+    0
+  );
+
+  useIsomorphicLayoutEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateWidth = () => {
+      // clientWidth excludes classic scrollbar gutters from the content budget.
+      const next = node.clientWidth;
+      setContainerWidth(next);
+      if (!isLayoutReady) {
+        setIsLayoutReady(true);
+      }
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth);
+      return () => window.removeEventListener('resize', updateWidth);
+    }
+
+    const observer = new ResizeObserver(entries => {
+      if (entries[0]) {
+        setContainerWidth(node.clientWidth);
+        if (!isLayoutReady) {
+          setIsLayoutReady(true);
+        }
+      }
+    });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isLayoutReady]);
+
+  const baseContainerWidth = containerWidth || 0;
+  const hasAutoColumns = currentColumnWidths.some(w => w === 'auto');
+  const effectiveWidth = useMemo(() => {
+    // If we have auto columns, use container width; otherwise use max of fixed total and container
+    return hasAutoColumns ? baseContainerWidth : Math.max(totalFixedWidth, baseContainerWidth);
+  }, [baseContainerWidth, totalFixedWidth, hasAutoColumns]);
+
+  const displayColumnWidths = useMemo((): ColumnWidth[] => {
+    // If there are auto columns, keep them as 'auto'
+    if (hasAutoColumns) {
+      return currentColumnWidths;
+    }
+
+    // No auto columns: distribute extra width to last column
+    const extraWidth = Math.max(baseContainerWidth - totalFixedWidth, 0);
+    if (extraWidth <= 0) {
+      return currentColumnWidths;
+    }
+
+    const next = [...currentColumnWidths];
+    const fillIndex = next.length - 1;
+    if (fillIndex >= 0 && typeof next[fillIndex] === 'number') {
+      next[fillIndex] = (next[fillIndex] as number) + extraWidth;
+    }
+    return next;
+  }, [currentColumnWidths, baseContainerWidth, totalFixedWidth, hasAutoColumns]);
+
+  const leftSpacing = 10;
+  const chevronSpace = 24;
+  const totalLeftSpacing = leftSpacing + chevronSpace;
+  const indentPerLevel = 20;
+
+  const firstColWidth = displayColumnWidths[0];
+  const firstColumnBodyWidth =
+    firstColWidth === 'auto' ? 200 : Math.max((firstColWidth ?? 0) - totalLeftSpacing, 0);
+  const renderItemTotalWidth = Math.max(effectiveWidth - totalLeftSpacing, 0);
+
+  const columnLayoutWidths = useMemo(
+    (): ColumnWidth[] =>
+      displayColumnWidths.map((width, index) => {
+        if (width === 'auto') {
+          return 'auto';
+        }
+        return index === 0 ? Math.max(width - totalLeftSpacing, 0) : width;
+      }),
+    [displayColumnWidths, totalLeftSpacing]
+  );
+
+  const gridTemplateColumns = useMemo(
+    () => columnLayoutWidths.map(width => (width === 'auto' ? '1fr' : `${width}px`)).join(' '),
+    [columnLayoutWidths]
+  );
+
+  const rowStyle = useMemo(
+    () =>
+      ({
+        width: `${renderItemTotalWidth}px`,
+        minWidth: `${renderItemTotalWidth}px`,
+        gridTemplateColumns,
+      }) satisfies React.CSSProperties,
+    [renderItemTotalWidth, gridTemplateColumns]
+  );
+
+  const renderItem = ({ item, level, isSelected }: TreeTableRenderItemParams) => {
+    const extended = item as I;
+    const indentWidth = Math.max(
+      Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0)),
+      0
+    );
+    const firstCellPaddingLeft = indentWidth;
+
+    return (
+      <div className="grid text-sm text-foreground" style={rowStyle}>
+        {columns.map(column => {
+          if (column.isFirst) {
+            return (
+              <div
+                key={column.key}
+                className="flex min-w-0 items-center overflow-hidden pr-1"
+                style={{
+                  paddingLeft: `${firstCellPaddingLeft}px`,
+                  paddingRight: '6px',
+                }}
+              >
+                <span className="flex-1 truncate text-left text-sm text-foreground">
+                  {column.render({ item: extended, level, isSelected })}
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={column.key}
+              className="min-w-0 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+            >
+              {column.render({ item: extended, level, isSelected })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const handleColumnResizeStart = (index: number, e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (currentColumnWidths[index] === 'auto') {
+      return;
+    }
+    const startX = e.clientX;
+    const initialWidths = hasUserResized ? currentColumnWidths : displayColumnWidths;
+    const startWidths = [...initialWidths];
+    const minWidth = 80;
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const next = [...startWidths];
+      const currentWidth = startWidths[index];
+      if (currentWidth === 'auto') {
+        return;
+      }
+      let newLeft = currentWidth + delta;
+      if (newLeft < minWidth) {
+        newLeft = minWidth;
+      }
+      next[index] = newLeft;
+      setCurrentColumnWidths(next);
+      if (index !== columns.length - 1) {
+        setHasUserResized(true);
+      }
+    };
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  return (
+    <div className="h-full w-full min-w-0 select-none">
+      <div
+        className={cn(
+          'h-full min-w-0 bg-transparent transition-opacity duration-100 ease-out',
+          isLayoutReady ? 'opacity-100' : 'opacity-0'
+        )}
+      >
+        <div
+          ref={scrollContainerRef}
+          className="w-full min-w-0 max-h-full overflow-x-auto overflow-y-auto overscroll-none"
+        >
+          <div style={{ minWidth: `${effectiveWidth}px` }}>
+            {/* Sticky header container */}
+            <div
+              className="bg-background"
+              style={{
+                width: `${effectiveWidth}px`,
+                minWidth: `${effectiveWidth}px`,
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+              }}
+            >
+              {/* Header row */}
+              {columns.some(col => col.headerContent) && (
+                <div
+                  className="flex bg-background shadow-md relative z-[1]"
+                  style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}
+                >
+                  <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />
+                  <div className="shrink-0" style={{ width: `${chevronSpace}px` }} />
+                  {columns.map((column, index) => {
+                    const columnWidth = columnLayoutWidths[column.widthIndex];
+                    const isAutoColumn = columnWidth === 'auto';
+                    const isNotLast = index < columns.length - 1;
+                    return (
+                      <div
+                        className={cn('overflow-hidden relative', {
+                          'shrink-0': !isAutoColumn,
+                        })}
+                        key={`header-${column.key}`}
+                        style={isAutoColumn ? { flex: 1, minWidth: 0 } : { width: columnWidth }}
+                      >
+                        {column.headerContent}
+                        {isNotLast && !isAutoColumn && (
+                          <div
+                            className="absolute top-0 bottom-0 flex w-6 cursor-col-resize items-center justify-center group/resize"
+                            style={{ right: '-2px' }}
+                            onMouseDown={e => handleColumnResizeStart(index, e)}
+                          >
+                            <div className="h-6 w-px rounded-full bg-muted-foreground/40 transition-all group-hover/resize:h-8 group-hover/resize:bg-muted-foreground/80" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Sub-header row */}
+              {columns.some(col => col.subHeaderContent) && (
+                <div
+                  className="flex bg-background pt-[10px]"
+                  style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}
+                >
+                  <div className="shrink-0" style={{ width: `${leftSpacing}px` }} />
+                  <div className="shrink-0" style={{ width: `${chevronSpace}px` }} />
+                  {columns.map(column => {
+                    const columnWidth = columnLayoutWidths[column.widthIndex];
+                    const isAutoColumn = columnWidth === 'auto';
+                    return (
+                      <div
+                        className={cn('overflow-hidden', !isAutoColumn && 'shrink-0')}
+                        key={`subheader-${column.key}`}
+                        style={isAutoColumn ? { flex: 1, minWidth: 0 } : { width: columnWidth }}
+                      >
+                        {column.subHeaderContent}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
+              <TreeView
+                data={treeData}
+                renderItem={renderItem}
+                scrollContainerRef={scrollContainerRef}
+                {...treeViewProps}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export { TreeView };

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Telemetry analysis functionality based on modeling primitives.
 
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
@@ -6,11 +9,11 @@ use uuid::Uuid;
 pub use crate::error::AnalyzerError;
 use crate::resource::{ResourceGroup, collection::ResourceCollection, tree::ResourceTreeNode};
 
+pub mod entity;
 pub mod error;
 pub mod fsm;
 pub mod resource;
 pub mod timeline;
-pub mod trace;
 
 pub type AnalyzerResult<T> = std::result::Result<T, AnalyzerError>;
 

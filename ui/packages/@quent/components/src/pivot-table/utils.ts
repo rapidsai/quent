@@ -1,0 +1,405 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { inferFieldFormatter, isNumericValue } from '@quent/utils';
+import type { StatValue, ContinuousPaletteName } from '@quent/utils';
+import { continuousColor } from '@quent/utils';
+import type { GroupedDataTableSortFn } from './GroupedDataTable';
+
+// Re-exported for consumers that still import it from here; defined in `@quent/utils`
+export { isNumericValue };
+
+import type {
+  StatGroupExpandedRow,
+  GroupKeyEntry,
+  PivotedRow,
+  PivotedRowAgg,
+  AggMode,
+  PivotedStatTableSchema,
+} from './types';
+
+/**
+ * Defines how a single grouping dimension maps a StatGroupExpandedRow
+ * to its key/label values.
+ */
+export interface GroupIndexDef {
+  key: string;
+  getId: (row: StatGroupExpandedRow) => string;
+  getLabel: (row: StatGroupExpandedRow) => string;
+}
+
+export function formatNumericStat(n: number | bigint | null, statName: string): string {
+  if (n === null) {
+    return '-';
+  }
+  return inferFieldFormatter(statName)(n);
+}
+
+export const numericSortingFn: GroupedDataTableSortFn<PivotedRow> = (rowA, rowB, columnId) => {
+  const a = rowA.getValue<number | bigint | undefined>(columnId);
+  const b = rowB.getValue<number | bigint | undefined>(columnId);
+  if (a === b) {
+    return 0;
+  }
+  if (a == null) {
+    return 1;
+  }
+  if (b == null) {
+    return -1;
+  }
+  if (typeof a === typeof b) {
+    return a < b ? -1 : 1;
+  }
+  return (a as number) < (b as number) ? -1 : 1;
+};
+
+/**
+ * Returns true when any id in `items` is present in `target`. Equivalent to
+ * `[...items].some(id => target.has(id))` but without allocating an
+ * intermediate array — important for hot render paths that compare per-row
+ * item-id sets against highlight/selection sets.
+ */
+export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>): boolean {
+  for (const id of items) {
+    if (target.has(id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function formatStatValue(value: StatValue, statName: string): string {
+  if (value === null || value === undefined) {
+    return '-';
+  }
+  if (isNumericValue(value)) {
+    return formatNumericStat(value, statName);
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (Array.isArray(value)) {
+    return value.join(', ');
+  }
+  return String(value);
+}
+
+// --- color gradient ---
+
+export function gradientBg(
+  value: number | bigint,
+  min: number | bigint,
+  max: number | bigint,
+  palette: ContinuousPaletteName = 'blue',
+  darkMode = false
+): string | undefined {
+  const vn = Number(value);
+  const mn = Number(min);
+  const mx = Number(max);
+  if (mn === mx) {
+    return undefined;
+  }
+  const t = (vn - mn) / (mx - mn);
+  return continuousColor(t, palette, darkMode);
+}
+
+export function rowGroupKey(row: StatGroupExpandedRow, indices: GroupIndexDef[]): string {
+  return indices.map(def => def.getId(row)).join('\0');
+}
+
+export function getGroupKeys(row: StatGroupExpandedRow, indices: GroupIndexDef[]): GroupKeyEntry[] {
+  return indices.map(def => ({ key: def.key, id: def.getId(row), label: def.getLabel(row) }));
+}
+
+export function getUniqueStatNames(rows: StatGroupExpandedRow[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const row of rows) {
+    if (seen.has(row.statisticName)) {
+      continue;
+    }
+    seen.add(row.statisticName);
+    names.push(row.statisticName);
+  }
+  return names;
+}
+
+export function getSchemaStatNames<TRow>(
+  rows: TRow[],
+  schema: PivotedStatTableSchema<TRow>
+): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const row of rows) {
+    const stats = schema.stats(row);
+    for (const statName of Object.keys(stats)) {
+      if (seen.has(statName)) {
+        continue;
+      }
+      seen.add(statName);
+      names.push(statName);
+    }
+  }
+  return names;
+}
+
+export function expandRowsFromSchema<TRow>(
+  rows: TRow[],
+  schema: PivotedStatTableSchema<TRow>
+): StatGroupExpandedRow[] {
+  const expanded: StatGroupExpandedRow[] = [];
+  for (const row of rows) {
+    const groups: Record<string, { id: string; label: string }> = {};
+    for (const [groupKey, selector] of Object.entries(schema.groups)) {
+      const id = selector.id(row);
+      groups[groupKey] = { id, label: selector.label?.(row) ?? id };
+    }
+    const itemId = schema.itemId(row);
+    const scopeId = schema.scopeId(row);
+    const itemType =
+      schema.itemType?.(row) ??
+      groups.item_type?.id ??
+      groups.item?.id ??
+      groups.partition?.id ??
+      '-';
+    for (const [statisticName, value] of Object.entries(schema.stats(row))) {
+      expanded.push({
+        groups,
+        itemType,
+        itemId,
+        scopeId,
+        statisticName,
+        value,
+      });
+    }
+  }
+  return expanded;
+}
+
+/** Row type constraint for computeRowSpans: only groupKeys with id is used. */
+export type RowWithGroupKeys = { groupKeys: Array<{ id: string }> };
+
+export function computeRowSpans<T extends RowWithGroupKeys>(rows: T[]): (number | null)[][] {
+  const numCols = rows[0]?.groupKeys.length ?? 0;
+  const spans: (number | null)[][] = rows.map(() => new Array(numCols).fill(null));
+  if (rows.length === 0) {
+    return spans;
+  }
+
+  for (let col = 0; col < numCols; col++) {
+    let start = 0;
+    for (let i = 1; i <= rows.length; i++) {
+      const changed =
+        i === rows.length ||
+        rows[i].groupKeys.slice(0, col + 1).some((gk, j) => gk.id !== rows[i - 1].groupKeys[j]?.id);
+      const parentChanged =
+        col > 0 &&
+        i < rows.length &&
+        rows[i].groupKeys.slice(0, col).some((gk, j) => gk.id !== rows[start].groupKeys[j]?.id);
+      if (changed || parentChanged) {
+        spans[start][col] = i - start;
+        start = i;
+      }
+    }
+  }
+  return spans;
+}
+
+/** Extract the numeric sort value for a stat from a pivoted row. */
+export function getSortValue(
+  row: PivotedRow,
+  stat: string,
+  isAgg: boolean,
+  aggMode: AggMode
+): number | bigint | null {
+  if (!isAgg) {
+    const v = row.values.get(stat);
+    if (v === undefined) {
+      return null;
+    }
+    return isNumericValue(v) ? v : null;
+  }
+  const agg = row.aggs.get(stat);
+  if (!agg || !agg.isNumeric) {
+    return null;
+  }
+  switch (aggMode) {
+    case 'sum':
+      return agg.sum;
+    case 'mean':
+      return agg.mean;
+    case 'min':
+      return agg.min;
+    case 'max':
+      return agg.max;
+    case 'stdev':
+      return agg.stdev;
+    default:
+      return agg.sum;
+  }
+}
+
+type Accumulator = {
+  keys: GroupKeyEntry[];
+  rowKey: string;
+  values: Map<string, StatValue>;
+  aggBuckets: Map<string, { nums: number[]; bigints: bigint[]; count: number }>;
+  itemIds: Set<string>;
+  itemScopeIds: Map<string, string>;
+  itemType: string;
+};
+
+/**
+ * Build pivoted (and optionally aggregated) rows from flat rows.
+ *
+ * Output ordering: rows are clustered so that same-id runs along the group-key
+ * hierarchy are contiguous (which is what `computeRowSpans` needs to merge
+ * cells). Within each cluster, ties are broken by the order each distinct id
+ * first appeared in `flatRows`, so callers that feed rows in a meaningful
+ * sequence (e.g. operator pipeline / execution order) keep that sequence.
+ *
+ * For already-contiguous inputs (like the operator panels, which feed rows
+ * clustered by `partition → item_type → item` naturally) this reordering is a
+ * no-op — the stable sort runs over monotonically non-decreasing ranks.
+ * For datasets where the natural row order interleaves groups (e.g. a CSV of
+ * cars where `Ford, Hyundai, BMW, Hyundai, Honda, BMW, …` alternates brands),
+ * it produces the expected grouped view without requiring the caller to
+ * pre-sort.
+ */
+export function buildPivotedRows(
+  flatRows: StatGroupExpandedRow[],
+  activeIndices: GroupIndexDef[],
+  isAggregating: boolean
+): PivotedRow[] {
+  const groups = new Map<string, Accumulator>();
+
+  for (const row of flatRows) {
+    const rk = rowGroupKey(row, activeIndices);
+    let group = groups.get(rk);
+    if (!group) {
+      group = {
+        keys: getGroupKeys(row, activeIndices),
+        rowKey: rk,
+        values: new Map(),
+        aggBuckets: new Map(),
+        itemIds: new Set(),
+        itemScopeIds: new Map(),
+        itemType: row.itemType,
+      };
+      groups.set(rk, group);
+    }
+    // Used to highlight the table when the DAG is hovered
+    group.itemIds.add(row.itemId);
+    group.itemScopeIds.set(row.itemId, row.scopeId);
+
+    if (!isAggregating) {
+      group.values.set(row.statisticName, row.value);
+    } else {
+      let bucket = group.aggBuckets.get(row.statisticName);
+      if (!bucket) {
+        bucket = { nums: [], bigints: [], count: 0 };
+        group.aggBuckets.set(row.statisticName, bucket);
+      }
+      bucket.count++;
+      if (typeof row.value === 'bigint') {
+        bucket.bigints.push(row.value);
+      } else if (typeof row.value === 'number') {
+        bucket.nums.push(row.value);
+      }
+    }
+  }
+
+  const result: PivotedRow[] = [];
+  for (const group of groups.values()) {
+    const aggs = new Map<string, PivotedRowAgg>();
+    if (isAggregating) {
+      for (const [stat, bucket] of group.aggBuckets) {
+        const onlyBigints = bucket.bigints.length > 0 && bucket.nums.length === 0;
+        const allNums = onlyBigints
+          ? bucket.bigints.map(Number)
+          : [...bucket.nums, ...bucket.bigints.map(Number)];
+        const hasNum = allNums.length > 0;
+
+        let sum: number | bigint | null = null;
+        let min: number | bigint | null = null;
+        let max: number | bigint | null = null;
+        let mean: number | null = null;
+        let stdev: number | null = null;
+
+        if (hasNum) {
+          if (onlyBigints) {
+            // Use bigint arithmetic for sum/min/max
+            sum = bucket.bigints.reduce((a, b) => a + b, 0n);
+            min = bucket.bigints.reduce((a, b) => (a < b ? a : b));
+            max = bucket.bigints.reduce((a, b) => (a > b ? a : b));
+            mean = Number(sum) / bucket.bigints.length;
+          } else {
+            sum = allNums.reduce((a, b) => a + b, 0);
+            min = Math.min(...allNums);
+            max = Math.max(...allNums);
+            mean = sum / allNums.length;
+          }
+          if (allNums.length > 1) {
+            const variance =
+              allNums.reduce((acc, v) => acc + (v - mean!) ** 2, 0) / (allNums.length - 1);
+            stdev = Math.sqrt(variance);
+          }
+        }
+
+        aggs.set(stat, { sum, mean, min, max, stdev, count: bucket.count, isNumeric: hasNum });
+      }
+    }
+    result.push({
+      groupKeys: group.keys,
+      rowKey: group.rowKey,
+      values: group.values,
+      aggs,
+      itemIds: group.itemIds,
+      itemScopeIds: group.itemScopeIds,
+      itemType: group.itemType,
+    });
+  }
+
+  // Cluster rows along the group-key hierarchy without re-sorting them into
+  // an alien order. For every column we assign each distinct ancestor-path
+  // prefix (col 0 id, then col-0+col-1 ids joined, ...) a rank equal to its
+  // first-appearance index among rows seen so far; then we stably sort by
+  // the tuple of those ranks. Ranks are scoped by full prefix rather than
+  // bare id so within-parent order is preserved even when a child value
+  // reappears across parents (e.g. `Sort` shows up in multiple plans but
+  // each plan's pipeline order stays intact). For inputs that are already
+  // clustered — which is the common case for operator-panel data feeding
+  // rows in `partition → item_type → item` order — the stable sort runs
+  // over monotonically non-decreasing ranks and is a no-op.
+  if (activeIndices.length > 0 && result.length > 1) {
+    const pathKey = (row: PivotedRow, c: number): string => {
+      let out = row.groupKeys[0].id;
+      for (let i = 1; i <= c; i++) {
+        out += '\0' + row.groupKeys[i].id;
+      }
+      return out;
+    };
+    const rankByCol: Array<Map<string, number>> = activeIndices.map(() => new Map());
+    for (const row of result) {
+      for (let c = 0; c < row.groupKeys.length; c++) {
+        const ranks = rankByCol[c];
+        const k = pathKey(row, c);
+        if (!ranks.has(k)) {
+          ranks.set(k, ranks.size);
+        }
+      }
+    }
+    result.sort((a, b) => {
+      for (let c = 0; c < a.groupKeys.length; c++) {
+        const ra = rankByCol[c].get(pathKey(a, c))!;
+        const rb = rankByCol[c].get(pathKey(b, c))!;
+        if (ra !== rb) {
+          return ra - rb;
+        }
+      }
+      return 0;
+    });
+  }
+
+  return result;
+}

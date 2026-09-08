@@ -1,0 +1,25 @@
+name: License Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  license-headers:
+    name: License Headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Shallow clone makes the hook fall back to HEAD and check nothing.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - name: Check SPDX license headers
+        run: pixi run pre-commit run verify-copyright --all-files -c .pre-commit-config.ci.yaml

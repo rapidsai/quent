@@ -1,0 +1,71 @@
+name: Python
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/*.py"
+      - "**/CMakeLists.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/pyproject.toml"
+      - "pixi.toml"
+      - ".github/workflows/python.yml"
+  pull_request:
+    paths:
+      - "**/*.rs"
+      - "**/*.py"
+      - "**/CMakeLists.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/pyproject.toml"
+      - "pixi.toml"
+      - ".github/workflows/python.yml"
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Build legacy Python integration example
+        run: |
+          pixi run maturin develop --uv -m examples/legacy/python-integration/bridge/Cargo.toml
+      - name: Run legacy Python integration example
+        run: |
+          pixi run python examples/legacy/python-integration/main.py
+      - name: Type check legacy Python integration example
+        run: |
+          pixi run ty check examples/legacy/python-integration/
+      - name: Build Python query engine bridge test
+        run: |
+          pixi run maturin develop --uv -m domains/query_engine/tests/python/bridge/Cargo.toml
+      - name: Run Python query engine bridge test
+        run: |
+          pixi run pytest -v domains/query_engine/tests/python/
+      - name: Type check query engine bridge test
+        run: |
+          pixi run ty check domains/query_engine/tests/python/

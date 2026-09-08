@@ -1,0 +1,208 @@
+# Generated entirely by coding agents from prompts without human review or refinement.
+quent: alpha
+model: QueryEngineSimulator
+doc: Query-engine simulator with task scheduling and resource usage.
+
+records:
+  WorkerConfig:
+    fields:
+      threads: u16
+      labels: { list: string }
+      attributes: dynamic
+  PortEdge:
+    fields:
+      source: { ref: Port }
+      target: { ref: Port }
+      kind: string
+
+entities:
+  Engine:
+    events:
+      initialized:
+        attributes:
+          engine_id: uuid
+          implementation: string
+      exited: {}
+
+  Worker:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          worker_id: uuid
+          config: WorkerConfig
+
+  QueryGroup:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          group_id: uuid
+          label: string
+
+  Plan:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Query }
+          plan_id: uuid
+          kind: string
+          logical_parent: { option: { ref: Plan } }
+          worker: { option: { ref: Worker } }
+          edges: { list: PortEdge }
+
+  Operator:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Plan }
+          operator_id: uuid
+          parents: { list: { ref: Operator } }
+          implementation: dynamic
+      statistics_updated:
+        multi: true
+        attributes:
+          rows: u64
+          elapsed_ns: u64
+
+  Port:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Operator }
+          port_id: uuid
+          direction: string
+          peer: { option: { ref: Port } }
+
+  ThreadPool:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          pool_id: uuid
+          size: u16
+
+  Network:
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          network_id: uuid
+          topology: string
+
+  Processor:
+    resource:
+      cores: { kind: occupancy, known-bounds: true }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: ThreadPool }
+          resource_id: uuid
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+  Memory:
+    resource:
+      bytes: { kind: occupancy, known-bounds: true }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          resource_id: uuid
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+  Storage:
+    resource:
+      bytes: { kind: occupancy, known-bounds: true }
+      bytes_per_second: { kind: rate, known-bounds: true }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Engine }
+          resource_id: uuid
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+  Channel:
+    resource:
+      bytes_per_second: { kind: rate, known-bounds: true }
+    events:
+      declared:
+        attributes:
+          parent: { scope-ref: Network }
+          resource_id: uuid
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds: { sets-resource-bounds: true }
+
+fsms:
+  Query:
+    states:
+      registered:
+        initial: true
+        attributes:
+          parent: { scope-ref: QueryGroup }
+          query_id: uuid
+          sql: string
+        to: [planning, cancelled]
+      planning:
+        attributes:
+          worker: { ref: Worker }
+        to: [executing, cancelled]
+      executing:
+        attributes:
+          plan: { ref: Plan }
+        to: [finished, cancelled]
+      finished:
+        attributes: { rows: u64 }
+        to: [exit]
+      cancelled:
+        attributes: { reason: { option: string } }
+        to: [exit]
+      exit: {}
+
+  Task:
+    doc: Simulator task lifecycle based on the existing simulator model.
+    states:
+      queueing:
+        initial: true
+        attributes:
+          parent: { scope-ref: Operator }
+          priority: u16
+        to: [allocating]
+      allocating:
+        attributes:
+          processor: { uses: Processor }
+        to: [loading, computing]
+      loading:
+        attributes:
+          processor: { uses: Processor }
+          channel: { uses: Channel }
+          memory: { uses: Memory }
+        to: [computing]
+      computing:
+        attributes:
+          processor: { uses: Processor }
+          memory: { uses: Memory }
+        to: [sending, spilling, finished]
+      spilling:
+        attributes:
+          storage: { uses: Storage }
+          channel: { uses: Channel }
+        to: [allocating]
+      sending:
+        attributes:
+          channel: { uses: Channel }
+        to: [queueing]
+      finished:
+        attributes: { rows: u64 }
+        to: [exit]
+      exit: {}

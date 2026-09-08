@@ -1,3 +1,5 @@
+exclude = [".cargo", "CONTRIBUTING.md", "SECURITY.md"]
+
 [MD013]
 code-blocks = false
 tables = false

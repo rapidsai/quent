@@ -1,14 +1,49 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Types shared with the UI.
 
+mod data_flow;
+pub use data_flow::DataFlowTimelineBinned;
+mod server;
+pub use server::ServerContract;
+
 use quent_analyzer::fsm::FsmTypeDecl;
-use quent_attributes::{Attribute, Value};
-use quent_query_engine_events as qe;
-use quent_time::{TimeSec, TimeUnixNanoSec};
-use quent_ui::{Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl};
-use serde::Serialize;
-use std::collections::HashMap;
+use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
+use quent_query_engine_model as qe;
+use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
+use quent_ui::{
+    Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
+    quantity::QuantitySpec,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
 use ts_rs::TS;
 use uuid::Uuid;
+
+/// Quent contexts whose streams contribute to one engine view.
+///
+/// This is intentionally an inventory only. It does not claim that every
+/// context contains a particular query or NVTX stream.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EngineContexts {
+    pub engine_id: Uuid,
+    /// Resource-group entities observed in each context, keyed by context ID.
+    pub context_resources: BTreeMap<Uuid, Vec<Uuid>>,
+}
+
+/// Global timeline-request parameter identifying the query to report on.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct QueryFilter {
+    pub query_id: Uuid,
+}
+
+/// Per-entry timeline-request parameter; restricts a resource timeline to the
+/// given operators, or all operators when empty.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct OperatorFilter {
+    pub operator_ids: Vec<Uuid>,
+}
 
 /// Attributes describing details about the implementation of this Engine
 #[derive(TS, Debug, Serialize)]
@@ -18,7 +53,7 @@ pub struct EngineImplementationAttributes {
     /// The version of this Engine implementation, e.g. "13.3.7"
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: Vec<DynamicAttribute>,
 }
 
 impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationAttributes {
@@ -26,7 +61,7 @@ impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationA
         Self {
             name: value.name.clone(),
             version: value.version.clone(),
-            custom_attributes: value.custom_attributes.clone(),
+            custom_attributes: value.custom_attributes.0.clone(),
         }
     }
 }
@@ -78,7 +113,7 @@ pub struct QueryGroup {
 pub struct Query {
     /// The ID of this [`Query`].
     pub id: Uuid,
-    /// The ID of the [`super::query_group::QueryGroup`] this query is part of.
+    /// The ID of the `QueryGroup` this query is part of.
     pub query_group_id: Uuid,
     /// A name for this [`Query`].
     pub instance_name: Option<String>,
@@ -133,7 +168,7 @@ pub struct Plan {
     pub instance_name: Option<String>,
     /// The ID of the parent [`Plan`], if any.
     pub parent: Option<Uuid>,
-    /// The ID of the [`super::worker::Worker`] that executed this [`Plan`].
+    /// The ID of the `Worker` that executed this [`Plan`].
     ///
     /// If this level of [`Plan`] was not directly executed by a [`Worker`],
     /// then this is set to None.
@@ -143,9 +178,18 @@ pub struct Plan {
 }
 
 #[derive(TS, Debug, Serialize)]
+pub struct OperatorStatistic {
+    /// The value of this statistic.
+    pub value: Option<DynamicValue>,
+    /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
+    /// to display this statistic.
+    pub quantity: Option<String>,
+}
+
+#[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistics {
-    /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
+    /// Custom statistics.
+    pub custom_statistics: HashMap<String, OperatorStatistic>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -162,19 +206,28 @@ pub struct Operator {
     /// The name of this type of [`Operator`].
     pub operator_type_name: Option<String>,
 
-    /// The custom attributes of this [`Operator`].
-    pub custom_attributes: HashMap<String, Option<Value>>,
+    /// The dynamic attributes of this [`Operator`].
+    pub custom_attributes: HashMap<String, Option<DynamicValue>>,
     /// The statistics of this [`Operator`].
     ///
     /// These are attributes that are typically gathered after the work
     /// described by an [`Operator`] has completed.
     pub statistics: Option<OperatorStatistics>,
+
+    /// The span of time between the first moment an operator started processing
+    /// an input, and the latest moment at which an operator finished producing
+    /// an output (excluding any potential back-pressure).
+    ///
+    /// There may have been gaps in this span in which this operator was not
+    /// actively using any resources. Thus, this span of time does NOT represent
+    /// e.g. "CPU time" spent.
+    pub active_span: Option<SpanSec>,
 }
 
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
     /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
+    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -266,6 +319,9 @@ pub struct QueryBundle<E> {
 
     /// A list of unique operator type names.
     pub unique_operator_names: Vec<String>,
+
+    /// Quantity specifications for displaying values, keyed by quantity name.
+    pub quantity_specs: HashMap<String, QuantitySpec>,
 
     /// The number of nanoseconds passed since the Unix epoch at which the
     /// engine started executing this query.

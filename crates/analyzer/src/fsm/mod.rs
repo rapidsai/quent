@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! FSM-related functionality
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{Timestamp, span::SpanUnixNanoSec};
 #[cfg(feature = "ts")]
 use serde::Serialize;
@@ -10,15 +13,21 @@ use ts_rs::TS;
 use crate::{AnalyzerResult, Entity, Span, error::AnalyzerError, resource::Usage};
 
 pub mod collection;
+pub mod events;
 pub mod runtime;
 
-/// Trait for types that represent an [`Fsm`] [`State`] transition.
+/// Trait for types that represent an [`Fsm`] `State` transition.
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-    /// Return an iterator over arbitrary key-value attributes associated with
-    /// this transition.
-    fn attributes(&self) -> impl Iterator<Item = &Attribute>;
+    /// Return the key-value attributes of this transition converted to
+    /// dynamically-typed ones.
+    ///
+    /// May be computed on demand — call only when the attributes will be
+    /// used.
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        vec![]
+    }
 }
 
 /// Trait for types that represent a Finite State Machine (FSM).
@@ -85,7 +94,7 @@ pub trait FsmUsages<'a>: Fsm {
 
 impl<U> Span for U
 where
-    U: Fsm + std::fmt::Debug,
+    U: Fsm,
 {
     fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
         if let Some(start) = self.first().map(|s| s.span().start())
@@ -94,7 +103,9 @@ where
             Ok(SpanUnixNanoSec::try_new(start, end)?)
         } else {
             Err(AnalyzerError::IncompleteEntity(format!(
-                "fsm is incomplete: {self:?}"
+                "fsm '{}' (id={}) is incomplete",
+                self.type_name(),
+                self.id()
             )))
         }
     }
@@ -125,7 +136,7 @@ where
         SpanUnixNanoSec::try_new(start, end).unwrap()
     }
 
-    pub fn attributes(&self) -> impl Iterator<Item = &Attribute> {
+    pub fn attributes(&self) -> Vec<DynamicAttribute> {
         self.fsm.transition(self.index).unwrap().attributes()
     }
 }
@@ -143,7 +154,7 @@ pub struct FsmStateTypeDecl {
     pub name: String,
     // TODO(johanpel): figure out how to best do this
     // The attributes this FSM state can have.
-    // pub attributes: Vec<Attribute>,
+    // pub attributes: Vec<DynamicAttribute>,
     /// The names of the resource types this FSM state can use.
     pub usages: Vec<String>,
 }

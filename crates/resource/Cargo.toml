@@ -1,0 +1,18 @@
+[package]
+name = "quent-resource"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-schema = { path = "../schema", features = ["serde", "visitor"] }
+quent-constraints = { path = "../constraints" }
+quent-fsm = { path = "../fsm" }
+serde = { workspace = true }
+serde_json.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+rustc-hash.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }

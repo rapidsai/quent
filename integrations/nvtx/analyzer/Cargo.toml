@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-analyzer"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Enables `tests/roundtrip.rs`, which reconstructs a real in-process capture.
+#
+# Off by default so `cargo test -p nvtx-analyzer` stays hermetic: the test links
+# `nvtx-example` -> `nvtx-injection`, whose build script runs bindgen against the
+# pixi-pinned `nvtx-c` headers. Run it with
+# `pixi run cargo test -p nvtx-analyzer --features real-capture-tests`.
+real-capture-tests = ["dep:nvtx-example", "dep:quent-instrumentation"]
+
+[dependencies]
+# Framework-free: the NVTX vocabulary, the Quent event envelope, and the shared
+# time primitives. The shared analysis/modelling crates are excluded by design,
+# keeping the panic-prone FSM runtime off this crate's path.
+nvtx-events = { path = "../events" }
+nvtx-bridge = { path = "../bridge" }
+quent-events = { path = "../../../crates/events" }
+quent-time = { path = "../../../crates/time" }
+# Same hasher the shared analyzer uses. These keys are process-local NVTX
+# handles, never attacker-chosen, so HashDoS resistance buys nothing here.
+rustc-hash = { workspace = true }
+tracing = { workspace = true }
+
+# Roundtrip-test-only. Optional *regular* dependencies rather than
+# dev-dependencies because Cargo does not allow `optional` in
+# `[dev-dependencies]`; nothing in `src/` references either.
+nvtx-example = { path = "../example", optional = true }
+# `io-callback` selects the callback exporter the roundtrip collects through.
+quent-instrumentation = { path = "../../../crates/instrumentation", features = [
+    "io-callback",
+], optional = true }
+
+[dev-dependencies]
+uuid = { workspace = true }

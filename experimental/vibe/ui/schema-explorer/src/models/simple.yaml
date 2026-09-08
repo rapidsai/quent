@@ -1,0 +1,72 @@
+# Generated entirely by coding agents from prompts without human review or refinement.
+quent: alpha
+model: AsyncExecutor
+doc: A minimal async executor showing one entity of each major kind.
+
+entities:
+  Executor:
+    doc: Schedules asynchronous tasks across worker threads.
+    events:
+      started:
+        attributes:
+          name: string
+          worker_count: u16
+      shut_down:
+        attributes:
+          reason: string
+
+  WorkerThread:
+    doc: A worker thread that polls ready tasks.
+    resource:
+      task_slots:
+        kind: occupancy
+        known-bounds: true
+    events:
+      declared:
+        attributes:
+          parent:
+            scope-ref: Executor
+          index: u16
+      bounds_changed:
+        multi: true
+        attributes:
+          bounds:
+            sets-resource-bounds: true
+
+fsms:
+  Task:
+    doc: An asynchronous task alternating between ready, polling, and waiting.
+    states:
+      spawned:
+        initial: true
+        attributes:
+          parent:
+            scope-ref: Executor
+          name: string
+        to: [ready, cancelled]
+      ready:
+        attributes:
+          priority: u16
+        to: [polling, cancelled]
+      polling:
+        attributes:
+          worker:
+            uses: WorkerThread
+        to: [waiting, completed, failed]
+      waiting:
+        attributes:
+          wakeup_source: string
+        to: [ready, cancelled]
+      completed:
+        attributes:
+          result: string
+        to: [exit]
+      cancelled:
+        attributes:
+          reason: string
+        to: [exit]
+      failed:
+        attributes:
+          error: string
+        to: [exit]
+      exit: {}

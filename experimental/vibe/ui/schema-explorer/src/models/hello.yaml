@@ -1,0 +1,8 @@
+# Generated entirely by coding agents from prompts without human review or refinement.
+quent: alpha
+model: Hello
+
+entities:
+  App:
+    events:
+      started: {}

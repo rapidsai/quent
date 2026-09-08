@@ -1,13 +1,17 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
     routing::{get, post},
 };
 
-use quent_analyzer::AnalyzerResult;
-use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
-use quent_query_engine_ui as ui;
+use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_ui::{self as ui, ServerContract};
+use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
+    categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
@@ -75,12 +79,7 @@ async fn list_engines<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    if query.with_metadata {
-        Ok(Json(state.analyzers.list_with_metadata().await?))
-    } else {
-        let ids = state.analyzers.list()?;
-        Ok(Json(ids.into_iter().map(ui::Engine::new).collect()))
-    }
+    Ok(Json(state.list_engines(query.with_metadata).await?))
 }
 
 /// Get details for a specific engine.
@@ -103,8 +102,30 @@ async fn engine<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(analyzer.query_engine_model().engine()?.to_ui()?))
+    Ok(Json(state.engine(engine_id).await?))
+}
+
+/// List every Quent context attributed to an engine.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/api/engines/{engine_id}/contexts",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    responses(
+        (status = 200, description = "Contexts contributing telemetry to the engine", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn engine_contexts<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+) -> ServerResult<Json<ui::EngineContexts>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    Ok(Json(state.engine_contexts(engine_id).await?))
 }
 
 // TODO(johanpel): pagination
@@ -128,14 +149,7 @@ async fn list_query_groups<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(
-        analyzer
-            .query_engine_model()
-            .query_groups()
-            .map(QueryGroup::to_ui)
-            .collect::<Vec<_>>(),
-    ))
+    Ok(Json(state.query_groups(engine_id).await?))
 }
 
 // TODO(johanpel): pagination
@@ -160,14 +174,7 @@ async fn list_queries<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    let queries = analyzer
-        .query_engine_model()
-        .queries()
-        .filter(|q| q.query_group_id == query_group_id)
-        .map(|q| q.to_ui())
-        .collect::<AnalyzerResult<_>>()?;
-    Ok(Json(queries))
+    Ok(Json(state.queries(engine_id, query_group_id).await?))
 }
 
 /// Fetch the query plan for a given query.
@@ -191,9 +198,7 @@ async fn query<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    let query_bundle = analyzer.query_bundle(query_id)?;
-    Ok(Json(query_bundle))
+    Ok(Json(state.query(engine_id, query_id).await?))
 }
 
 /// Fetch a single resource or resource-group timeline.
@@ -213,25 +218,12 @@ where
 async fn single_timeline<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
-    Json(request): Json<
-        SingleTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
-    >,
+    Json(request): Json<SingleTimelineRequest<ui::QueryFilter, ui::OperatorFilter>>,
 ) -> ServerResult<Json<SingleTimelineResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: serde::Serialize + Clone,
-    <A as UiAnalyzer>::TimelineParams: serde::Serialize + Clone,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    Ok(Json(
-        state
-            .timelines
-            .cached_single_timeline(&*analyzer, engine_id, request)
-            .await?,
-    ))
+    Ok(Json(state.single_timeline(engine_id, request).await?))
 }
 
 /// Fetch multiple resource/resource-group timelines in one request.
@@ -251,22 +243,66 @@ where
 async fn bulk_timelines<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
-    Json(request): Json<
-        BulkTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
-    >,
+    Json(request): Json<BulkTimelineRequest<ui::QueryFilter, ui::OperatorFilter>>,
 ) -> ServerResult<Json<BulkTimelinesResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + 'static,
 {
-    let analyzer = state.analyzers.get(engine_id).await?;
-    let response =
-        tokio::task::spawn_blocking(move || analyzer.bulk_resource_timeline(request)).await??;
-    Ok(Json(response))
+    Ok(Json(state.bulk_timelines(engine_id, request).await?))
+}
+
+/// Fetch the per-operator data-flow distribution timeline for a query.
+///
+/// Not cached in v1; the response shape is `combine_chunks`-compatible
+/// (`BinnedSpanSec` config with `Vec<f64>` leaves), so chunked caching à la
+/// `timeline_cache` can be added later without a protocol change.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/timeline/data-flow",
+    tag = "timelines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Per-operator categorical data-flow timeline; 501 when the analyzer does not support it", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn data_flow_timeline<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<CategoricalTimelineRequest<ui::QueryFilter>>,
+) -> ServerResult<Json<ui::DataFlowTimelineBinned>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    Ok(Json(state.data_flow_timeline(engine_id, request).await?))
+}
+
+/// List the entities of a resource or resource group, ranked and paged.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/entities",
+    tag = "entities",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Ranked, paged list of entities", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn entities<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<EntityListRequest<ui::QueryFilter, ui::OperatorFilter>>,
+) -> ServerResult<Json<EntityListResponse>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    Ok(Json(state.entities(engine_id, request).await?))
 }
 
 #[cfg(feature = "swagger")]
@@ -275,15 +311,19 @@ where
     paths(
         list_engines,
         engine,
+        engine_contexts,
         list_query_groups,
         list_queries,
         query,
         single_timeline,
         bulk_timelines,
+        data_flow_timeline,
+        entities,
     ),
     tags(
         (name = "engines", description = "Engine, query group, and query management"),
         (name = "timelines", description = "Resource timeline data"),
+        (name = "entities", description = "Entity list queries"),
     )
 )]
 pub(crate) struct ApiDoc;
@@ -292,14 +332,11 @@ pub fn routes<A>(state: ServiceState<A>) -> Router<()>
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
-    for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
-    for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
 {
     Router::new()
         .route("/", get(list_engines))
         .route("/{engine_id}", get(engine))
+        .route("/{engine_id}/contexts", get(engine_contexts))
         .route("/{engine_id}/query-groups", get(list_query_groups))
         .route(
             "/{engine_id}/query_group/{query_group_id}/queries",
@@ -308,5 +345,7 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route("/{engine_id}/timeline/data-flow", post(data_flow_timeline))
+        .route("/{engine_id}/entities", post(entities))
         .with_state(state)
 }

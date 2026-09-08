@@ -1,0 +1,12 @@
+[package]
+name = "quent-io-types"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+quent-events = { path = "../../events" }
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true

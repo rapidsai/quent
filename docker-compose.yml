@@ -12,8 +12,8 @@ services:
     volumes:
       - ./data:/quent/data
     environment:
-      QUENT_ANALYZER_CORS_ADDRESS: "http://localhost:5173"
-    command: "/quent/quent-simulator-server --log-level debug --cors-address http://localhost:5173"
+      QUENT_ANALYZER_CORS_ADDRESS: "http://localhost:5173,http://localhost:3000"
+    command: "/quent/quent-simulator-server --log-level debug --cors-address http://localhost:5173,http://localhost:3000"
 
   simulator:
     image: quent

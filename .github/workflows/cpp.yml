@@ -1,0 +1,63 @@
+name: C++
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "pixi.toml"
+      - ".github/workflows/cpp.yml"
+  pull_request:
+    paths:
+      - "**/*.rs"
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "pixi.toml"
+      - ".github/workflows/cpp.yml"
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+jobs:
+  cpp:
+    name: C++ Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Build legacy C++ integration example
+        run: |
+          pixi run cmake -B examples/legacy/cpp-integration/cpp/build -S examples/legacy/cpp-integration/cpp
+          pixi run cmake --build examples/legacy/cpp-integration/cpp/build
+      - name: Run legacy C++ integration example
+        run: ./examples/legacy/cpp-integration/cpp/build/example
+      - name: Build C++ query engine bridge test
+        run: |
+          pixi run cmake -B domains/query_engine/tests/cpp/cpp/build -S domains/query_engine/tests/cpp/cpp
+          pixi run cmake --build domains/query_engine/tests/cpp/cpp/build
+      - name: Run C++ query engine bridge test
+        run: ./domains/query_engine/tests/cpp/cpp/build/example

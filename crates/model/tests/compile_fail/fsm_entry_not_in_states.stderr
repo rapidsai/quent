@@ -1,0 +1,5 @@
+error: entry state not found in states list
+  --> tests/compile_fail/fsm_entry_not_in_states.rs:12:16
+   |
+12 |         entry: nonexistent,
+   |                ^^^^^^^^^^^

@@ -1,0 +1,237 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAtomValue, useStore } from 'jotai';
+import { fetchBulkTimelines, DEFAULT_STALE_TIME } from '@quent/client';
+import type { QueryEntities, TimelineRequest, OperatorFilter, ZoomRange } from '@quent/utils';
+import { MAX_TIMELINE_BINS } from '@quent/utils';
+import { getResourceTypeName, getFsmTypeName } from './timeline.utils';
+import {
+  timelineCacheKey,
+  timelineDataMapAtom,
+  zoomRangeAtom,
+  debouncedZoomRangeAtom,
+  visibleEntriesAtom,
+} from '../atoms/timeline';
+import { selectedNodeIdsAtom } from '../atoms/dag';
+import {
+  useBulkTimelineFetch,
+  buildMergedBulkEntries,
+  applyBulkTimelineResponse,
+} from './useBulkTimelineFetch';
+
+/**
+ * Minimal tree node interface.
+ * App code can pass TreeTableItem directly — structural typing ensures compatibility.
+ */
+export interface TreeNode {
+  id: string;
+  children?: TreeNode[];
+}
+
+const ZOOM_DEBOUNCE_MS = 150;
+
+/**
+ * useBulkTimelines — manages bulk fetching via Jotai atoms + TanStack Query.
+ *
+ * App-layer utilities that depend on TreeTableItem are injected to avoid
+ * coupling this package to the component layer.
+ */
+export function useBulkTimelines<T extends TreeNode>({
+  engineId,
+  queryId,
+  rootItem,
+  expandedIds,
+  selectedTypes,
+  groupFsmFilters,
+  entities,
+  collectVisibleEntriesFn,
+  buildBulkParamsFn,
+  findItemByIdFn,
+}: {
+  engineId: string;
+  queryId: string;
+  rootItem: T;
+  expandedIds: Set<string>;
+  selectedTypes: Map<string, string>;
+  groupFsmFilters?: Map<string, string | null>;
+  entities: QueryEntities;
+  collectVisibleEntriesFn: (
+    items: T[],
+    expandedIds: Set<string>,
+    selectedTypes: Map<string, string>,
+    entities: QueryEntities,
+    config: { num_bins: number; start: number; end: number },
+    groupFsmFilters?: Map<string, string | null>
+  ) => Record<string, TimelineRequest<OperatorFilter>>;
+  buildBulkParamsFn: (
+    item: T,
+    selectedTypes: Map<string, string>,
+    entities: QueryEntities,
+    config: { num_bins: number; start: number; end: number },
+    groupFsmFilters?: Map<string, string | null>
+  ) => TimelineRequest<OperatorFilter>;
+  findItemByIdFn: (root: T, id: string) => T | undefined;
+}) {
+  const store = useStore();
+  const queryClient = useQueryClient();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const operatorIds = useMemo(() => [...selectedNodeIds].sort(), [selectedNodeIds]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
+  const bulkConfig = useMemo(
+    () => ({
+      num_bins: MAX_TIMELINE_BINS,
+      start: debouncedZoomRange.start,
+      end: debouncedZoomRange.end,
+    }),
+    [debouncedZoomRange]
+  );
+
+  const baseVisibleEntries = useMemo(
+    () =>
+      collectVisibleEntriesFn(
+        [rootItem],
+        expandedIds,
+        selectedTypes,
+        entities,
+        bulkConfig,
+        groupFsmFilters
+      ),
+
+    [
+      rootItem,
+      expandedIds,
+      selectedTypes,
+      entities,
+      bulkConfig,
+      groupFsmFilters,
+      collectVisibleEntriesFn,
+    ]
+  );
+
+  useEffect(() => {
+    store.set(visibleEntriesAtom, baseVisibleEntries);
+  }, [baseVisibleEntries, store]);
+
+  useBulkTimelineFetch({
+    engineId,
+    queryId,
+    debouncedZoomRange,
+    entries: baseVisibleEntries,
+    operatorIds,
+  });
+
+  // Zoom change handler — stable, uses store imperatively
+  const handleZoomChange = useCallback(
+    (range: ZoomRange) => {
+      store.set(zoomRangeAtom, range);
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        store.set(debouncedZoomRangeAtom, range);
+        debounceTimerRef.current = null;
+      }, ZOOM_DEBOUNCE_MS);
+    },
+    [store]
+  );
+
+  // Expand handler — fetches base + operator data for newly expanded children
+  const handleExpand = useCallback(
+    async (itemId: string, isExpanded: boolean) => {
+      if (!isExpanded) {
+        return;
+      }
+
+      const item = findItemByIdFn(rootItem, itemId);
+      if (!item?.children) {
+        return;
+      }
+
+      const zoom = store.get(debouncedZoomRangeAtom);
+      const expandConfig = {
+        num_bins: MAX_TIMELINE_BINS,
+        start: zoom.start,
+        end: zoom.end,
+      };
+
+      const newBaseEntries: Record<string, TimelineRequest<OperatorFilter>> = {};
+      for (const child of item.children as T[]) {
+        const params = buildBulkParamsFn(
+          child,
+          selectedTypes,
+          entities,
+          expandConfig,
+          groupFsmFilters
+        );
+        const resourceTypeName = getResourceTypeName(params);
+        const fsmTypeName = getFsmTypeName(params);
+        const baseKey = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
+        const operatorKey = timelineCacheKey({
+          resourceId: child.id,
+          resourceTypeName,
+          operatorIds,
+          fsmTypeName,
+        });
+        const timelineData = store.get(timelineDataMapAtom);
+        if (!timelineData[baseKey] || (operatorIds.length > 0 && !timelineData[operatorKey])) {
+          newBaseEntries[child.id] = params;
+        }
+      }
+
+      if (Object.keys(newBaseEntries).length === 0) {
+        return;
+      }
+
+      const {
+        entries: expandEntries,
+        idToMeta: expandIdToMeta,
+        requestKey: expandRequestKey,
+      } = buildMergedBulkEntries(newBaseEntries, operatorIds);
+
+      try {
+        const response = await queryClient.fetchQuery({
+          queryKey: ['bulkTimelines', engineId, queryId, zoom, expandRequestKey],
+          queryFn: () =>
+            fetchBulkTimelines(engineId, {
+              entries: expandEntries,
+              app_params: { query_id: queryId },
+            }),
+          staleTime: DEFAULT_STALE_TIME,
+        });
+
+        applyBulkTimelineResponse(response, expandIdToMeta, store);
+      } catch {
+        // Individual ResourceTimeline components will fall back to self-fetch
+      }
+    },
+    [
+      rootItem,
+      store,
+      selectedTypes,
+      groupFsmFilters,
+      entities,
+      queryClient,
+      engineId,
+      queryId,
+      operatorIds,
+      buildBulkParamsFn,
+      findItemByIdFn,
+    ]
+  );
+
+  return { handleZoomChange, handleExpand } as const;
+}

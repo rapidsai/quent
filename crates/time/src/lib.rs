@@ -1,11 +1,28 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Time-related types and utilities.
 use std::sync::OnceLock;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use thiserror::Error;
 
+#[cfg(feature = "__test-clock-override")]
+use std::cell::Cell;
+
 pub mod bin;
 pub mod span;
+
+#[cfg(feature = "__test-clock-override")]
+thread_local!(static TIMESTAMP_OVERRIDE: Cell<Option<TimeUnixNanoSec>> = const { Cell::new(None) });
+
+/// Arm the next [`timestamp()`] read on this thread to return `ts`.
+/// The override is consumed on read.
+#[cfg(feature = "__test-clock-override")]
+#[doc(hidden)]
+pub fn set_timestamp(ts: TimeUnixNanoSec) {
+    TIMESTAMP_OVERRIDE.with(|c| c.set(Some(ts)));
+}
 
 pub use span::{SpanNanoSec, SpanSec};
 
@@ -43,6 +60,10 @@ pub type Result<T> = std::result::Result<T, TimeError>;
 /// aggressive, the system is most likely very misconfigured.
 #[inline]
 pub fn timestamp() -> TimeUnixNanoSec {
+    #[cfg(feature = "__test-clock-override")]
+    if let Some(ts) = TIMESTAMP_OVERRIDE.with(|c| c.take()) {
+        return ts;
+    }
     static EPOCH: OnceLock<(Instant, u64)> = OnceLock::new();
     let (instant, epoch_unix_ns) = EPOCH.get_or_init(|| {
         (
@@ -102,6 +123,8 @@ pub trait Timestamp {
 /// Optimized for when the common case is that items arrive in timestamp order,
 /// in which case [`Self::push`] is O(1). Out-of-order items are inserted via
 /// binary search (O(log n) search + O(n) insertion).
+///
+/// Stable: items with equal timestamps keep their arrival order.
 pub struct TimeOrderedCollector<T>(Vec<T>);
 
 impl<T> Default for TimeOrderedCollector<T> {
@@ -120,9 +143,11 @@ where
         {
             self.0.push(state);
         } else {
+            // `<=` (upper bound): late arrivals land after ties, matching the fast path.
+            // `<` (lower bound) would insert before ties, reversing arrival order.
             let pos = self
                 .0
-                .partition_point(|s| s.timestamp() < state.timestamp());
+                .partition_point(|s| s.timestamp() <= state.timestamp());
             self.0.insert(pos, state);
         }
     }
@@ -140,5 +165,103 @@ where
         for transition in iter {
             self.push(transition)
         }
+    }
+}
+
+#[cfg(test)]
+mod collector_tests {
+    use super::*;
+
+    /// Carries its timestamp plus a tag, so equal-timestamp ordering is visible.
+    #[derive(Debug, PartialEq, Eq)]
+    struct Tagged(TimeUnixNanoSec, &'static str);
+
+    impl Timestamp for Tagged {
+        fn timestamp(&self) -> TimeUnixNanoSec {
+            self.0
+        }
+    }
+
+    fn collect(items: impl IntoIterator<Item = Tagged>) -> Vec<(TimeUnixNanoSec, &'static str)> {
+        let mut collector = TimeOrderedCollector::default();
+        collector.extend(items);
+        collector
+            .into_inner()
+            .into_iter()
+            .map(|Tagged(ts, tag)| (ts, tag))
+            .collect()
+    }
+
+    #[test]
+    fn in_order_arrivals_are_sorted() {
+        assert_eq!(
+            collect([Tagged(10, "a"), Tagged(20, "b"), Tagged(30, "c")]),
+            [(10, "a"), (20, "b"), (30, "c")]
+        );
+    }
+
+    #[test]
+    fn late_arrivals_are_sorted_into_place() {
+        assert_eq!(
+            collect([Tagged(30, "c"), Tagged(10, "a"), Tagged(20, "b")]),
+            [(10, "a"), (20, "b"), (30, "c")]
+        );
+    }
+
+    #[test]
+    fn equal_timestamps_keep_arrival_order_on_the_fast_path() {
+        assert_eq!(
+            collect([Tagged(10, "first"), Tagged(10, "second")]),
+            [(10, "first"), (10, "second")]
+        );
+    }
+
+    /// Regression: `<` predicate (lower bound) reversed arrival order on the slow path.
+    #[test]
+    fn equal_timestamps_keep_arrival_order_on_the_slow_path() {
+        // t=20 "later" triggers the slow path for the subsequent t=10 "second".
+        assert_eq!(
+            collect([
+                Tagged(10, "first"),
+                Tagged(20, "later"),
+                Tagged(10, "second"),
+            ]),
+            [(10, "first"), (10, "second"), (20, "later")]
+        );
+    }
+
+    #[test]
+    fn equal_timestamps_keep_arrival_order_across_a_run() {
+        assert_eq!(
+            collect([
+                Tagged(10, "a"),
+                Tagged(10, "b"),
+                Tagged(20, "later"),
+                Tagged(10, "c"),
+                Tagged(10, "d"),
+            ]),
+            [(10, "a"), (10, "b"), (10, "c"), (10, "d"), (20, "later")]
+        );
+    }
+}
+
+#[cfg(all(test, feature = "__test-clock-override"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn override_consumed_on_read() {
+        set_timestamp(42);
+        assert_eq!(timestamp(), 42);
+        // Override consumed by the read — next call returns wall-clock,
+        // well above any post-1970 nanosecond count we'd collide with.
+        let now = timestamp();
+        assert!(
+            now > 1_600_000_000_000_000_000,
+            "expected wall-clock ns, got {now}"
+        );
+        // Re-arming works.
+        set_timestamp(43);
+        assert_eq!(timestamp(), 43);
     }
 }

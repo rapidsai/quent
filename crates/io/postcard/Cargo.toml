@@ -1,0 +1,15 @@
+[package]
+name = "quent-io-postcard"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+postcard.workspace = true
+quent-events = { path = "../../events", features = ["serde"]}
+quent-io-types = { path = "../types" }
+serde.workspace = true
+tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
+tracing.workspace = true
+uuid.workspace = true

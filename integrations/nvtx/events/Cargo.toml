@@ -1,0 +1,15 @@
+[package]
+name = "nvtx-events"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+# Derive serde `Serialize`/`Deserialize` for the vocabulary types. Optional
+# because a consumer that only needs the in-memory types (e.g. a callback sink)
+# does not require serde.
+serde = ["dep:serde"]

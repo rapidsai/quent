@@ -1,12 +1,18 @@
-use quent_analyzer::{
-    self as a, AnalyzerResult, Entity, Model,
-    resource::{CapacityType, tree::ResourceTreeNode},
-};
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+use std::collections::HashMap;
+
+use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
+pub mod entities;
+pub mod paginate;
+pub mod quantity;
 pub mod timeline;
 
 /// A type of [`Resource`].
@@ -15,7 +21,7 @@ pub struct ResourceTypeDecl {
     /// The unique type name for this type of Resource.
     pub name: String,
     /// The capacities of this type of Resource.
-    pub capacities: Vec<String>,
+    pub capacities: Vec<quantity::CapacityDecl>,
     /// The type names of the entities that used this Resource.
     pub used_by: Vec<String>,
 }
@@ -27,9 +33,13 @@ impl From<&a::resource::ResourceTypeDecl> for ResourceTypeDecl {
             capacities: value
                 .capacities
                 .iter()
-                .map(|cap| match cap.kind {
-                    CapacityType::Occupancy => cap.name.clone(),
-                    CapacityType::Rate => format!("{}/s", cap.name),
+                .map(|cap| quantity::CapacityDecl {
+                    name: cap.name.clone(),
+                    kind: match cap.kind {
+                        a::resource::CapacityType::Occupancy => quantity::CapacityKind::Occupancy,
+                        a::resource::CapacityType::Rate => quantity::CapacityKind::Rate,
+                    },
+                    quantity: cap.name.clone(),
                 })
                 .collect(),
             used_by: value.used_by.iter().cloned().collect(),
@@ -200,6 +210,11 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
+    /// Attributes recorded by the application's instrumentation.
+    pub attributes: Vec<DynamicAttribute>,
+    /// Attributes computed by the application's analyzer (e.g. a per-span
+    /// rate), rendered separately from the recorded ones.
+    pub derived_attributes: Vec<DynamicAttribute>,
 }
 
 impl FsmTransition {
@@ -211,6 +226,8 @@ impl FsmTransition {
             name: value.name.clone(),
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
+            attributes: value.attributes.clone(),
+            derived_attributes: vec![],
         })
     }
 }
@@ -242,6 +259,58 @@ impl FiniteStateMachine {
                 .iter()
                 .map(|t| FsmTransition::try_from_rt(t, epoch))
                 .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+
+    /// Build from any application FSM via the [`FsmUsages`](a::fsm::FsmUsages)
+    /// interface.
+    ///
+    /// Usages are grouped onto their state's transition by state name, which is
+    /// unique within an FSM.
+    pub fn try_from_fsm<'a, F>(
+        fsm: &'a F,
+        epoch: TimeUnixNanoSec,
+    ) -> Result<Self, quent_time::TimeError>
+    where
+        F: a::fsm::FsmUsages<'a>,
+    {
+        use a::fsm::Transition;
+        use a::resource::Usage;
+        use quent_time::Timestamp;
+
+        let mut usages_by_state: HashMap<String, Vec<FsmUsage>> = HashMap::new();
+        for (state_name, usage) in fsm.usages_with_state_names() {
+            usages_by_state
+                .entry(state_name.to_owned())
+                .or_default()
+                .push(FsmUsage {
+                    resource: usage.resource_id(),
+                    capacities: usage
+                        .capacities()
+                        .map(|c| (c.name.to_string(), c.value))
+                        .collect(),
+                });
+        }
+
+        // 0..=len covers every transition including the exit transition.
+        let transitions = (0..=fsm.len())
+            .filter_map(|i| fsm.transition(i))
+            .map(|t| {
+                Ok(FsmTransition {
+                    name: t.name().to_owned(),
+                    usages: usages_by_state.remove(t.name()).unwrap_or_default(),
+                    timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
+                    attributes: t.attributes(),
+                    derived_attributes: vec![],
+                })
+            })
+            .collect::<Result<Vec<_>, quent_time::TimeError>>()?;
+
+        Ok(Self {
+            id: fsm.id(),
+            type_name: fsm.type_name().to_owned(),
+            instance_name: fsm.instance_name().to_owned(),
+            transitions,
         })
     }
 }

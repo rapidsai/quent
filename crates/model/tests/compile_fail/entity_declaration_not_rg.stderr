@@ -1,0 +1,12 @@
+error: `declaration` is only valid on resource group entities (use `: ResourceGroup`)
+  --> tests/compile_fail/entity_declaration_not_rg.rs:8:1
+   |
+ 8 | / quent_model::entity! {
+ 9 | |     Bad {
+10 | |         events: {
+11 | |             a: MyEvent,
+...  |
+15 | | }
+   | |_^
+   |
+   = note: this error originates in the macro `quent_model::entity` (in Nightly builds, run with -Z macro-backtrace for more info)

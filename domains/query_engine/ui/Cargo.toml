@@ -2,11 +2,13 @@
 name = "quent-query-engine-ui"
 version.workspace = true
 edition.workspace =  true
+publish.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 quent-analyzer = { path = "../../../crates/analyzer", features = ["ts"] }
-quent-attributes = { path = "../../../crates/attributes" }
-quent-query-engine-events = { path = "../events" }
+quent-dynamic-attributes = { path = "../../../crates/dynamic-attributes", features = ["ts"] }
+quent-query-engine-model = { path = "../model" }
 quent-time = { path = "../../../crates/time", features = ["ts"] }
 quent-ui = { path = "../../../crates/ui" }
 serde.workspace = true

@@ -1,14 +1,10 @@
-import { useMemo } from 'react';
-import type { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
-import type { QueryPlanDataItem, DAGNode, DAGEdge } from '@/services/query-plan/types';
-import { getTreeData, getPlanDAG } from '@/services/query-plan/query-bundle-transformer';
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 
-interface DAGData {
-  nodes: DAGNode[];
-  edges: DAGEdge[];
-  queryData: QueryPlanDataItem[];
-}
+import { useMemo } from 'react';
+import type { QueryBundle, EntityRef } from '@quent/utils';
+import type { QueryPlanDataItem, DAGData } from '@quent/components';
+import { getTreeData, getPlanDAG } from '@quent/components';
 
 interface UseQueryPlanVisualizationResult {
   dagData: DAGData;
@@ -41,7 +37,7 @@ export const useQueryPlanVisualization = (
     try {
       const dag = getPlanDAG(queryBundle, planId);
       return {
-        dagData: { ...dag, queryData: treeData },
+        dagData: { ...dag, queryData: treeData, quantitySpecs: queryBundle.quantity_specs },
         treeData,
         error: null,
       };

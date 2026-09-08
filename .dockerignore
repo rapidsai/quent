@@ -1,4 +1,21 @@
+# Rust build outputs
 target/
-server/data/*.ndjson
+.pixi/
+
+# Generated/runtime data the server writes to a mounted volume
 data/
-ui/node_modules
+server/data/*.ndjson
+
+# Generic noise that should never enter a Docker build context.
+**/node_modules/
+**/dist/
+**/.pnpm-store/
+**/.cache/
+**/.turbo/
+.git/
+.github/
+.vscode/
+.idea/
+.claude/
+**/.DS_Store
+*.log

@@ -1,0 +1,1466 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! CXX bridge code generator.
+//!
+//! Generates Rust `#[cxx::bridge]` modules from model definitions. The output
+//! is Rust source code that CXX compiles into C++ headers.
+//!
+//! Uses `quote!` to build token streams and `prettyplease` for formatting.
+//! The `#[cxx::bridge]` `ffi` module itself is built as a formatted string
+//! because CXX bridge syntax (e.g. `type Alias = path;` in extern blocks)
+//! is not representable in standard Rust AST and cannot be formatted by
+//! `prettyplease`.
+
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
+
+use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, ValueType};
+
+use crate::common::{
+    pretty_print, quent_path, remap_module_path, resource_operating_attrs, to_pascal_case,
+};
+use crate::{CxxOptions, GeneratedFile};
+
+/// Checks whether attributes contain [`ValueType::DynamicAttributes`].
+fn attrs_use_dynamic_attributes(attrs: &[AttributeDef]) -> bool {
+    attrs.iter().any(|a| match &a.value_type {
+        ValueType::DynamicAttributes => true,
+        ValueType::Struct(_, inner) => attrs_use_dynamic_attributes(inner),
+        ValueType::List(inner) => match inner.as_ref() {
+            ValueType::Struct(_, inner_attrs) => attrs_use_dynamic_attributes(inner_attrs),
+            _ => false,
+        },
+        _ => false,
+    })
+}
+
+/// C++ reserved keywords that cannot be used as namespace names.
+const CXX_RESERVED_KEYWORDS: &[&str] = &[
+    "alignas",
+    "alignof",
+    "and",
+    "and_eq",
+    "asm",
+    "auto",
+    "bitand",
+    "bitor",
+    "bool",
+    "break",
+    "case",
+    "catch",
+    "char",
+    "char8_t",
+    "char16_t",
+    "char32_t",
+    "class",
+    "compl",
+    "concept",
+    "const",
+    "consteval",
+    "constexpr",
+    "constinit",
+    "const_cast",
+    "continue",
+    "co_await",
+    "co_return",
+    "co_yield",
+    "decltype",
+    "default",
+    "delete",
+    "do",
+    "double",
+    "dynamic_cast",
+    "else",
+    "enum",
+    "explicit",
+    "export",
+    "extern",
+    "false",
+    "float",
+    "for",
+    "friend",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "mutable",
+    "namespace",
+    "new",
+    "noexcept",
+    "not",
+    "not_eq",
+    "nullptr",
+    "operator",
+    "or",
+    "or_eq",
+    "private",
+    "protected",
+    "public",
+    "register",
+    "reinterpret_cast",
+    "requires",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "static_assert",
+    "static_cast",
+    "struct",
+    "switch",
+    "template",
+    "this",
+    "thread_local",
+    "throw",
+    "true",
+    "try",
+    "typedef",
+    "typeid",
+    "typename",
+    "union",
+    "unsigned",
+    "using",
+    "virtual",
+    "void",
+    "volatile",
+    "wchar_t",
+    "while",
+    "xor",
+    "xor_eq",
+];
+
+/// If a name is a C++ reserved keyword, append an underscore and warn.
+fn cxx_safe_name(name: &str) -> String {
+    if CXX_RESERVED_KEYWORDS.contains(&name) {
+        println!(
+            "cargo:warning=model component `{name}` is a C++ reserved keyword — \
+             C++ namespace will be `{name}_`"
+        );
+        format!("{name}_")
+    } else {
+        name.to_string()
+    }
+}
+
+/// Map a Quent `ValueType` to a CXX-compatible Rust type string.
+/// Returns None if the type is not representable in CXX.
+fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
+    let base = match ty {
+        ValueType::Bool => "bool".to_string(),
+        ValueType::Uuid => "UUID".to_string(),
+        ValueType::String => "String".to_string(),
+        ValueType::U8 => "u8".to_string(),
+        ValueType::U16 => "u16".to_string(),
+        ValueType::U32 => "u32".to_string(),
+        ValueType::U64 => "u64".to_string(),
+        ValueType::I8 => "i8".to_string(),
+        ValueType::I16 => "i16".to_string(),
+        ValueType::I32 => "i32".to_string(),
+        ValueType::I64 => "i64".to_string(),
+        ValueType::F32 => "f32".to_string(),
+        ValueType::F64 => "f64".to_string(),
+        ValueType::Ref(_) => "UUID".to_string(),
+        ValueType::DynamicAttributes => "DynamicAttributes".to_string(),
+        ValueType::List(inner) => {
+            let inner_cxx = value_type_to_cxx(inner, false)?;
+            format!("Vec<{inner_cxx}>")
+        }
+        // Nested structs are handled by generating separate shared structs.
+        ValueType::Struct(_, _) => return None,
+    };
+    // For optional types, CXX uses the base type with sentinels:
+    // Option<Ref<T>> → UUID (nil = None)
+    // Option<String> → String (empty = None)
+    // Other optional types are not supported
+    if optional {
+        // CXX doesn't support Option<T> in shared structs.
+        // Sentinels: nil UUID = None, empty String = None.
+        // Optional numerics: use base type, conversion wraps in Some().
+        Some(base)
+    } else {
+        Some(base)
+    }
+}
+
+/// Generate CXX bridge files for all model components.
+pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
+    let mut files = Vec::new();
+
+    // Generate UUID bridge (shared type used by all bridges)
+    files.push(emit_uuid_bridge(model, &model.name, options));
+
+    // The bridge is only needed by models containing dynamic attributes.
+    let uses_dynamic_attrs = model.entities.iter().any(|e| {
+        e.events
+            .iter()
+            .any(|ev| attrs_use_dynamic_attributes(&ev.attributes))
+    }) || model.fsms.iter().any(|f| {
+        f.states
+            .iter()
+            .any(|s| attrs_use_dynamic_attributes(&s.attributes))
+    });
+    if uses_dynamic_attrs {
+        files.push(emit_dynamic_attributes_bridge(&model.name, options));
+    }
+
+    // Generate context bridge
+    files.push(emit_context_bridge(model, &model.name, options));
+
+    // Generate entity bridges
+    for entity in &model.entities {
+        files.push(emit_entity_bridge(entity, &model.name, options));
+    }
+
+    // Generate FSM bridges
+    for fsm in &model.fsms {
+        files.push(emit_fsm_bridge(model, fsm, &model.name, options));
+    }
+
+    files
+}
+
+/// Generates the CXX bridge for dynamic attributes.
+fn emit_dynamic_attributes_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
+    let q = quent_path(model_name, options);
+
+    let tokens = quote! {
+        #[cxx::bridge(namespace = "quent")]
+        pub mod ffi {
+            unsafe extern "C++" {
+                include!("rust/cxx.h");
+            }
+
+            #[derive(Debug, Default)]
+            pub struct StringAttr {
+                pub key: String,
+                pub value: String,
+            }
+
+            #[derive(Debug, Default)]
+            pub struct I64Attr {
+                pub key: String,
+                pub value: i64,
+            }
+
+            #[derive(Debug, Default)]
+            pub struct F64Attr {
+                pub key: String,
+                pub value: f64,
+            }
+
+            #[derive(Debug, Default)]
+            pub struct DynamicAttributes {
+                pub string_attrs: Vec<StringAttr>,
+                pub i64_attrs: Vec<I64Attr>,
+                pub f64_attrs: Vec<F64Attr>,
+            }
+        }
+
+        impl ffi::DynamicAttributes {
+            pub fn into_model(self) -> #q::attributes::DynamicAttributes {
+                let mut attrs = #q::attributes::DynamicAttributes::new();
+                for a in self.string_attrs {
+                    attrs.add_string(a.key, a.value);
+                }
+                for a in self.i64_attrs {
+                    attrs.add_i64(a.key, a.value);
+                }
+                for a in self.f64_attrs {
+                    attrs.add_f64(a.key, a.value);
+                }
+                attrs
+            }
+        }
+    };
+
+    GeneratedFile {
+        name: "dynamic_attributes.rs".to_string(),
+        content: pretty_print(tokens),
+    }
+}
+
+/// Generate the UUID shared type bridge.
+fn emit_uuid_bridge(model: &ModelBuilder, model_name: &str, options: &CxxOptions) -> GeneratedFile {
+    let q = quent_path(model_name, options);
+    // Check if any model component uses Vec<UUID> (Vec<Ref<_>> or Vec<Uuid>)
+    let needs_vec_uuid = model.entities.iter().any(|e| {
+        e.events.iter().any(|ev| {
+            ev.attributes.iter().any(|a| {
+                matches!(
+                    &a.value_type,
+                    ValueType::List(inner) if matches!(inner.as_ref(), ValueType::Ref(_) | ValueType::Uuid)
+                )
+            })
+        })
+    }) || model.fsms.iter().any(|f| {
+        f.states.iter().any(|s| {
+            s.attributes.iter().any(|a| {
+                matches!(
+                    &a.value_type,
+                    ValueType::List(inner) if matches!(inner.as_ref(), ValueType::Ref(_) | ValueType::Uuid)
+                )
+            })
+        })
+    });
+
+    // If Vec<UUID> is needed in other bridge modules, expose a dummy function
+    // in the uuid bridge so CXX generates the ImplVec trait for UUID.
+    let (vec_uuid_ffi, vec_uuid_impl) = if needs_vec_uuid {
+        (
+            quote! {
+                fn uuid_vec_noop(_v: &Vec<UUID>);
+            },
+            quote! {
+                #[allow(unused)]
+                fn uuid_vec_noop(_v: &Vec<ffi::UUID>) {}
+            },
+        )
+    } else {
+        (quote! {}, quote! {})
+    };
+
+    let tokens = quote! {
+        #[cxx::bridge(namespace = "uuid")]
+        pub mod ffi {
+            unsafe extern "C++" {
+                include!("rust/cxx.h");
+            }
+
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+            pub struct UUID {
+                pub high_bits: u64,
+                pub low_bits: u64,
+            }
+
+            extern "Rust" {
+                #[cxx_name = "now_v7"]
+                fn uuid_now_v7() -> UUID;
+
+                #[cxx_name = "new_nil"]
+                fn uuid_new_nil() -> UUID;
+
+                #[cxx_name = "to_string"]
+                fn uuid_to_string(id: &UUID) -> String;
+
+                #vec_uuid_ffi
+            }
+        }
+
+        #vec_uuid_impl
+
+        fn uuid_to_string(id: &ffi::UUID) -> String {
+            #q::uuid::Uuid::from(*id).to_string()
+        }
+
+        fn uuid_now_v7() -> ffi::UUID {
+            let id = #q::uuid::Uuid::now_v7();
+            let (high, low) = id.as_u64_pair();
+            ffi::UUID {
+                high_bits: high,
+                low_bits: low,
+            }
+        }
+
+        fn uuid_new_nil() -> ffi::UUID {
+            ffi::UUID {
+                high_bits: 0,
+                low_bits: 0,
+            }
+        }
+
+        impl From<ffi::UUID> for #q::uuid::Uuid {
+            fn from(u: ffi::UUID) -> Self {
+                #q::uuid::Uuid::from_u64_pair(u.high_bits, u.low_bits)
+            }
+        }
+
+        impl From<#q::uuid::Uuid> for ffi::UUID {
+            fn from(u: #q::uuid::Uuid) -> Self {
+                let (high, low) = u.as_u64_pair();
+                ffi::UUID {
+                    high_bits: high,
+                    low_bits: low,
+                }
+            }
+        }
+    };
+
+    GeneratedFile {
+        name: "uuid.rs".to_string(),
+        content: pretty_print(tokens),
+    }
+}
+
+/// Deterministic name of the per-entity/per-fsm observer accessor on `Context`,
+/// shared between the context bridge (definition) and the entity/fsm bridges
+/// (call site).
+fn observer_handle_method(name: &str) -> syn::Ident {
+    format_ident!("{}_observer_handle", name)
+}
+
+/// Generate the context bridge module.
+///
+/// The cxx `Context` holds one observer per entity/FSM; the inner quent context
+/// is used only to build them and is dropped after construction. C++ callers
+/// retain the returned `Box<Context>` and pass a reference to each observer/FSM
+/// factory, which clones the relevant observer from it. A stream flushes when
+/// its last clone drops — the field stored here, plus any the caller still holds.
+fn emit_context_bridge(
+    model: &ModelBuilder,
+    model_name: &str,
+    options: &CxxOptions,
+) -> GeneratedFile {
+    let ns = &options.namespace;
+    let q = quent_path(model_name, options);
+    let model_type: syn::Type = syn::parse_str(&options.model_type(model_name)).unwrap();
+    let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
+    let context_type_id = format!("{ns}::Context");
+
+    struct ObserverField {
+        field: syn::Ident,
+        method: syn::Ident,
+        stored_ty: TokenStream,
+        /// The entity event type for `Context::observer::<_>()`.
+        event_ty: TokenStream,
+        /// Constructor applied to the freshly built `Observer` to produce the
+        /// stored value (`Arc::new` or an FSM observer facade's `new`).
+        wrap: TokenStream,
+    }
+
+    let observer_fields: Vec<ObserverField> = model
+        .entities
+        .iter()
+        .map(|entity| {
+            let field = format_ident!("{}", entity.name);
+            let method = observer_handle_method(&entity.name);
+            let component_mod: syn::Path =
+                syn::parse_str(&remap_module_path(&entity.module_path, options)).unwrap();
+            let entity_event_enum = format_ident!("{}Event", to_pascal_case(&entity.name));
+            ObserverField {
+                field,
+                method,
+                stored_ty: quote! { Arc<#q::Observer<#component_mod::#entity_event_enum>> },
+                event_ty: quote! { #component_mod::#entity_event_enum },
+                wrap: quote! { Arc::new },
+            }
+        })
+        .chain(model.fsms.iter().map(|fsm| {
+            let field = format_ident!("{}", fsm.name);
+            let method = observer_handle_method(&fsm.name);
+            let component_mod: syn::Path =
+                syn::parse_str(&remap_module_path(&fsm.module_path, options)).unwrap();
+            let pascal = to_pascal_case(&fsm.name);
+            let facade = format_ident!("{}Observer", pascal);
+            let fsm_event = format_ident!("{}Event", pascal);
+            ObserverField {
+                field,
+                method,
+                stored_ty: quote! { #component_mod::#facade },
+                event_ty: quote! { #component_mod::#fsm_event },
+                wrap: quote! { #component_mod::#facade::new },
+            }
+        }))
+        .collect();
+
+    let struct_fields: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            let stored_ty = &o.stored_ty;
+            quote! { #field: #stored_ty }
+        })
+        .collect();
+
+    let build_fields: Vec<&syn::Ident> = observer_fields.iter().map(|o| &o.field).collect();
+    let build_event_tys: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.event_ty).collect();
+    let build_wraps: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.wrap).collect();
+    let field_inits: Vec<syn::Ident> = observer_fields.iter().map(|o| o.field.clone()).collect();
+
+    let nvtx_imports = model.nvtx.then(|| {
+        quote! {
+            use nvtx_bridge;
+            use nvtx_injection;
+        }
+    });
+    let nvtx_struct_field = model.nvtx.then(|| {
+        quote! {
+            _nvtx_pipeline: Option<Box<dyn std::any::Any + Send + Sync>>
+        }
+    });
+    let nvtx_tuple_binding = model.nvtx.then(|| quote! { _nvtx_pipeline, });
+    let nvtx_noop_value = model.nvtx.then(|| quote! { None, });
+    let nvtx_active_setup = model.nvtx.then(|| {
+        quote! {
+            let pipeline = inner
+                .observer::<nvtx_bridge::NvtxEventEntity>(&options)
+                .await
+                .map_err(|e| e.to_string())?;
+            let sender = pipeline.sender();
+            let context_id = id;
+            // The injection hook is process-global and one-shot. A later
+            // generated context keeps its own pipeline alive but cannot replace
+            // the first context's capture destination.
+            let _ = nvtx_injection::install_hook(move |event| {
+                sender.emit(context_id, nvtx_bridge::NvtxEventEntity::from(event))
+            })
+            .ok();
+            let _nvtx_pipeline: Option<Box<dyn std::any::Any + Send + Sync>> =
+                Some(Box::new(pipeline));
+        }
+    });
+    let nvtx_active_value = model.nvtx.then(|| quote! { _nvtx_pipeline, });
+    let nvtx_field_init = model.nvtx.then(|| quote! { _nvtx_pipeline, });
+
+    let accessors: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            let method = &o.method;
+            let stored_ty = &o.stored_ty;
+            quote! {
+                pub fn #method(&self) -> #stored_ty {
+                    self.#field.clone()
+                }
+            }
+        })
+        .collect();
+
+    // Rust impl part — formatted via prettyplease.
+    let impl_tokens = quote! {
+        #nvtx_imports
+        use std::sync::Arc;
+
+        pub struct ExporterOptions {
+            inner: Option<#q::io::ExporterOptions>,
+        }
+
+        impl ExporterOptions {
+            pub fn none() -> Box<Self> {
+                Box::new(Self { inner: None })
+            }
+
+            pub fn ndjson(output_dir: String) -> Box<Self> {
+                Self::filesystem(
+                    #q::io::filesystem::Format::Ndjson,
+                    output_dir,
+                )
+            }
+
+            pub fn msgpack(output_dir: String) -> Box<Self> {
+                Self::filesystem(
+                    #q::io::filesystem::Format::Msgpack,
+                    output_dir,
+                )
+            }
+
+            pub fn postcard(output_dir: String) -> Box<Self> {
+                Self::filesystem(
+                    #q::io::filesystem::Format::Postcard,
+                    output_dir,
+                )
+            }
+
+            pub fn collector(address: String) -> Result<Box<Self>, String> {
+                Ok(Box::new(Self {
+                    inner: Some(#q::io::ExporterOptions::Collector(
+                        #q::io::CollectorExporterOptions::try_new(&address)
+                            .map_err(|err| err.to_string())?,
+                    )),
+                }))
+            }
+
+            fn filesystem(
+                format: #q::io::filesystem::Format,
+                output_dir: String,
+            ) -> Box<Self> {
+                Box::new(Self {
+                    inner: Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options::new(
+                            format,
+                            std::path::PathBuf::from(output_dir),
+                        ),
+                    )),
+                })
+            }
+        }
+
+        pub struct Context {
+            #(#struct_fields,)*
+            #nvtx_struct_field
+        }
+
+        impl Context {
+            #(#accessors)*
+        }
+
+        // Shared across bridges: other bridge modules declare `type Context;`
+        // and CXX uses this `ExternType` impl to point at the C++ class
+        // generated here instead of emitting a duplicate.
+        unsafe impl ::cxx::ExternType for Context {
+            type Id = ::cxx::type_id!(#context_type_id);
+            type Kind = ::cxx::kind::Opaque;
+        }
+
+        pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
+            let id = #q::uuid::Uuid::now_v7();
+            // Single sync/async bridge: build every entity's observer (each
+            // constructing its exporter from the options, bound to the id)
+            // concurrently on the context's runtime, block until done. The
+            // observers keep the runtime alive; `inner` drops here.
+            let (#(#build_fields,)* #nvtx_tuple_binding) = match options.inner {
+                None => (
+                    #(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*
+                    #nvtx_noop_value
+                ),
+                Some(options) => {
+                    let inner = #q::ContextInner::try_new(id).map_err(|e| e.to_string())?;
+                    #q::write_sidecar(
+                        &options,
+                        id,
+                        <#model_type as #q::events::Model>::model_info(),
+                    );
+                    inner.block_on(async {
+                        let (#(#build_fields,)*) = #q::tokio::try_join!(
+                            #(inner.observer::<#build_event_tys>(&options),)*
+                        )
+                        .map_err(|e| e.to_string())?;
+                        #nvtx_active_setup
+                        Ok::<_, String>((
+                            #(#build_wraps(#build_fields),)*
+                            #nvtx_active_value
+                        ))
+                    })?
+                }
+            };
+            Ok(Box::new(Context {
+                #(#field_inits,)*
+                #nvtx_field_init
+            }))
+        }
+    };
+
+    // CXX bridge block uses string formatting (type aliases aren't standard Rust).
+    let ffi_block = format!(
+        r#"#[cxx::bridge(namespace = "{ns}")]
+pub mod ffi {{
+    unsafe extern "C++" {{
+        include!("rust/cxx.h");
+    }}
+
+    #[namespace = "uuid"]
+    unsafe extern "C++" {{
+        include!("{uuid_include}");
+        type UUID = crate::bridge::uuid::ffi::UUID;
+    }}
+
+    extern "Rust" {{
+        type ExporterOptions;
+        #[Self = "ExporterOptions"]
+        fn none() -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn ndjson(output_dir: String) -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn msgpack(output_dir: String) -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn postcard(output_dir: String) -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn collector(address: String) -> Result<Box<ExporterOptions>>;
+
+        type Context;
+        fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;
+    }}
+}}
+"#
+    );
+
+    let content = format!("{}\n{}", ffi_block, pretty_print(impl_tokens));
+
+    GeneratedFile {
+        name: "context.rs".to_string(),
+        content,
+    }
+}
+
+/// Build the `#[cxx::bridge] pub mod ffi { ... }` block as a formatted string.
+///
+/// CXX bridge syntax contains constructs like `type UUID = crate::path;` inside
+/// `unsafe extern "C++"` blocks that are not standard Rust. `prettyplease` cannot
+/// format these, so the ffi module is built as a string.
+fn build_ffi_module_string(
+    ns: &str,
+    context_ns: &str,
+    include_path: &str,
+    shared_structs: &str,
+    extern_rust_body: &str,
+    uses_dynamic_attrs: bool,
+) -> String {
+    let ca_include = include_path.replace("uuid.rs.h", "dynamic_attributes.rs.h");
+    let context_include = include_path.replace("uuid.rs.h", "context.rs.h");
+    let dynamic_attrs_types = if uses_dynamic_attrs {
+        format!(
+            r#"
+    #[namespace = "quent"]
+    unsafe extern "C++" {{
+        include!("{ca_include}");
+        type StringAttr = crate::bridge::dynamic_attributes::ffi::StringAttr;
+        type I64Attr = crate::bridge::dynamic_attributes::ffi::I64Attr;
+        type F64Attr = crate::bridge::dynamic_attributes::ffi::F64Attr;
+        type DynamicAttributes = crate::bridge::dynamic_attributes::ffi::DynamicAttributes;
+    }}
+"#
+        )
+    } else {
+        String::new()
+    };
+
+    // Context is an opaque Rust type owned by the context bridge. Other
+    // bridges reference it via extern "C++" + an ExternType impl in
+    // context.rs; declaring it here as extern "Rust" would duplicate the
+    // `RustType` impl and fail to compile.
+    let context_alias = format!(
+        r#"
+    #[namespace = "{context_ns}"]
+    unsafe extern "C++" {{
+        include!("{context_include}");
+        type Context = crate::bridge::context::Context;
+    }}
+"#
+    );
+
+    format!(
+        r#"#[cxx::bridge(namespace = "{ns}")]
+pub mod ffi {{
+    unsafe extern "C++" {{
+        include!("rust/cxx.h");
+    }}
+
+    #[namespace = "uuid"]
+    unsafe extern "C++" {{
+        include!("{include_path}");
+        type UUID = crate::bridge::uuid::ffi::UUID;
+    }}
+{dynamic_attrs_types}{context_alias}
+{shared_structs}    extern "Rust" {{
+{extern_rust_body}    }}
+}}
+"#
+    )
+}
+
+/// Generate a CXX shared struct definition string for a set of attributes.
+/// Recursively generates nested struct definitions for `ValueType::Struct` fields.
+/// Returns (field definitions string, additional struct definitions string).
+fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (String, String) {
+    let mut fields_str = String::new();
+    let mut nested_structs = String::new();
+
+    for attr in attrs {
+        if let ValueType::Struct(_, inner_attrs) = &attr.value_type {
+            // Generate a nested struct with PascalCase name from the field name
+            let nested_name = to_pascal_case(&attr.name);
+            let (inner_fields, more_nested) = generate_cxx_struct_fields(inner_attrs, &nested_name);
+            nested_structs.push_str(&more_nested);
+            nested_structs.push_str(&format!(
+                "    #[derive(Debug, Default)]\n    pub struct {nested_name} {{\n{inner_fields}    }}\n\n"
+            ));
+
+            if attr.optional {
+                // Optional nested struct: include a has_ flag
+                fields_str.push_str(&format!("        pub has_{}: bool,\n", attr.name));
+            }
+
+            // Vec<Struct> or plain struct
+            if let ValueType::List(_) = &attr.value_type {
+                fields_str.push_str(&format!(
+                    "        pub {}: Vec<{}>,\n",
+                    attr.name, nested_name
+                ));
+            } else {
+                fields_str.push_str(&format!("        pub {}: {},\n", attr.name, nested_name));
+            }
+        } else if let ValueType::List(inner) = &attr.value_type {
+            if let ValueType::Struct(_, inner_attrs) = inner.as_ref() {
+                let nested_name = to_pascal_case(&attr.name);
+                let (inner_fields, more_nested) =
+                    generate_cxx_struct_fields(inner_attrs, &nested_name);
+                nested_structs.push_str(&more_nested);
+                nested_structs.push_str(&format!(
+                    "    #[derive(Debug, Default)]\n    pub struct {nested_name} {{\n{inner_fields}    }}\n\n"
+                ));
+                fields_str.push_str(&format!(
+                    "        pub {}: Vec<{}>,\n",
+                    attr.name, nested_name
+                ));
+            } else {
+                let cxx_type =
+                    value_type_to_cxx(&attr.value_type, attr.optional).unwrap_or_else(|| {
+                        panic!(
+                            "field `{}` on `{}` has type not representable in CXX",
+                            attr.name, parent_name,
+                        )
+                    });
+                fields_str.push_str(&format!("        pub {}: {},\n", attr.name, cxx_type));
+            }
+        } else {
+            let cxx_type =
+                value_type_to_cxx(&attr.value_type, attr.optional).unwrap_or_else(|| {
+                    panic!(
+                        "field `{}` on `{}` has type not representable in CXX",
+                        attr.name, parent_name,
+                    )
+                });
+            fields_str.push_str(&format!("        pub {}: {},\n", attr.name, cxx_type));
+        }
+    }
+
+    (fields_str, nested_structs)
+}
+
+/// Generate a field conversion expression for an attribute: `name: <conversion>(data.name)`.
+/// `component_mod` is the path prefix for model types (e.g., the entity's module path).
+fn emit_field_conversion_tokens(
+    attr: &AttributeDef,
+    q: &syn::Path,
+    component_mod: &syn::Path,
+) -> TokenStream {
+    let name = format_ident!("{}", attr.name);
+
+    if attr.optional {
+        // Optional field: CXX uses sentinels
+        return match &attr.value_type {
+            ValueType::Ref(_) | ValueType::Uuid => quote! {
+                #name: {
+                    let uuid = #q::uuid::Uuid::from(data.#name);
+                    if uuid.is_nil() { None } else { Some(#q::Ref::new(uuid)) }
+                },
+            },
+            ValueType::String => quote! {
+                #name: if data.#name.is_empty() { None } else { Some(data.#name) },
+            },
+            _ => quote! {
+                #name: data.#name,
+            },
+        };
+    }
+
+    match &attr.value_type {
+        ValueType::Uuid => quote! {
+            #name: #q::uuid::Uuid::from(data.#name),
+        },
+        ValueType::Ref(_) => quote! {
+            #name: #q::Ref::new(#q::uuid::Uuid::from(data.#name)),
+        },
+        ValueType::DynamicAttributes => quote! {
+            #name: data.#name.into_model(),
+        },
+        ValueType::Struct(type_path, inner_attrs) => {
+            let conversion = emit_struct_conversion(type_path, inner_attrs, q, component_mod);
+            quote! {
+                #name: {
+                    let data = data.#name;
+                    #conversion
+                },
+            }
+        }
+        ValueType::List(inner) => match inner.as_ref() {
+            ValueType::Ref(_) => quote! {
+                #name: data.#name.into_iter().map(|u| #q::Ref::new(#q::uuid::Uuid::from(u))).collect(),
+            },
+            ValueType::Uuid => quote! {
+                #name: data.#name.into_iter().map(|u| #q::uuid::Uuid::from(u)).collect(),
+            },
+            ValueType::Struct(type_path, inner_attrs) => {
+                let conversion = emit_struct_conversion(type_path, inner_attrs, q, component_mod);
+                quote! {
+                    #name: data.#name.into_iter().map(|data| {
+                        #conversion
+                    }).collect(),
+                }
+            }
+            _ => quote! {
+                #name: data.#name,
+            },
+        },
+        _ => quote! {
+            #name: data.#name,
+        },
+    }
+}
+
+/// Generate a conversion expression from CXX shared struct to a Rust model struct.
+/// `data` is assumed to be in scope as the CXX shared struct value.
+/// `component_mod` qualifies the struct type (e.g., the entity's module path).
+fn emit_struct_conversion(
+    type_path: &str,
+    attrs: &[AttributeDef],
+    q: &syn::Path,
+    component_mod: &syn::Path,
+) -> TokenStream {
+    let struct_path = qualify_struct_path(type_path, component_mod);
+    let field_conversions: Vec<TokenStream> = attrs
+        .iter()
+        .map(|a| emit_field_conversion_tokens(a, q, component_mod))
+        .collect();
+    quote! {
+        #struct_path {
+            #(#field_conversions)*
+        }
+    }
+}
+
+/// Resolve a model struct path into the facade path used by generated CXX bridge code.
+///
+/// Attribute metadata stores the path as it appeared at the declaration site. For
+/// example, an FSM in `my_instrumentation::task` can refer to local structs as
+/// `MemorySpaceId`, child-module structs as `attrs::MemorySpaceId`, or sibling
+/// module structs as `super::attrs::MemorySpaceId`. Generated bridge code lives
+/// outside that module, so relative paths must be qualified with the remapped
+/// component module path before constructing the real model struct.
+fn qualify_struct_path(type_path: &str, component_mod: &syn::Path) -> syn::Path {
+    let parsed: syn::Path = syn::parse_str(type_path).unwrap();
+    if parsed.leading_colon.is_some() {
+        return parsed;
+    }
+
+    let component_root = component_mod
+        .segments
+        .first()
+        .expect("component module path must not be empty")
+        .ident
+        .to_string();
+    if parsed
+        .segments
+        .first()
+        .is_some_and(|seg| seg.ident == component_root.as_str())
+    {
+        return parsed;
+    }
+
+    let mut prefix: Vec<syn::PathSegment> = component_mod.segments.iter().cloned().collect();
+    let mut suffix: Vec<syn::PathSegment> = parsed.segments.iter().cloned().collect();
+
+    if suffix.first().is_some_and(|seg| seg.ident == "crate") {
+        prefix.truncate(1);
+        suffix.remove(0);
+    } else if suffix.first().is_some_and(|seg| seg.ident == "self") {
+        suffix.remove(0);
+    }
+
+    while suffix.first().is_some_and(|seg| seg.ident == "super") {
+        prefix
+            .pop()
+            .expect("struct path cannot escape instrumentation facade");
+        suffix.remove(0);
+    }
+
+    let mut segments = syn::punctuated::Punctuated::<syn::PathSegment, syn::token::PathSep>::new();
+    for segment in prefix.into_iter().chain(suffix) {
+        segments.push(segment);
+    }
+
+    syn::Path {
+        leading_colon: None,
+        segments,
+    }
+}
+
+/// Generate a CXX bridge for an entity with events.
+fn emit_entity_bridge(
+    entity: &quent_model::EntityDef,
+    model_name: &str,
+    options: &CxxOptions,
+) -> GeneratedFile {
+    let entity_name = &entity.name;
+    let safe_name = cxx_safe_name(entity_name);
+    let ns = format!("{}::{}", options.namespace, safe_name);
+    let pascal_name = to_pascal_case(entity_name);
+    let observer_name_str = format!("{pascal_name}Observer");
+    let observer_name = format_ident!("{}", observer_name_str);
+    let q = quent_path(model_name, options);
+    let remapped = remap_module_path(&entity.module_path, options);
+    let component_mod: syn::Path = syn::parse_str(&remapped).unwrap();
+    let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
+
+    // Derive the entity event enum name: e.g., "Job" -> "JobEvent"
+    let entity_event_enum = format_ident!("{}Event", pascal_name);
+    let observer_accessor = observer_handle_method(entity_name);
+
+    // Strings for ffi module (CXX-specific syntax)
+    let mut shared_structs_str = String::new();
+    let mut extern_rust_body = String::new();
+    extern_rust_body.push_str(&format!("        type {observer_name_str};\n\n"));
+    extern_rust_body.push_str(&format!(
+        "        fn create_observer(ctx: &Context) -> Box<{observer_name_str}>;\n"
+    ));
+
+    // Token streams for impl code (standard Rust)
+    let mut observer_impl_methods: Vec<TokenStream> = Vec::new();
+
+    for event in &entity.events {
+        let event_method = format_ident!("{}", event.name);
+        let event_pascal_str = to_pascal_case(&event.name);
+        let event_pascal = format_ident!("{}", event_pascal_str);
+
+        if event.attributes.is_empty() {
+            // Unit event -- method takes only id
+            extern_rust_body.push_str(&format!("        fn {}(&self, id: UUID);\n", event.name,));
+            observer_impl_methods.push(quote! {
+                pub fn #event_method(&self, id: ffi::UUID) {
+                    let model_event = #component_mod::#event_pascal;
+                    self.inner.send(#q::Event::new_now(
+                        #q::uuid::Uuid::from(id),
+                        #component_mod::#entity_event_enum::from(model_event),
+                    ));
+                }
+            });
+        } else {
+            // Struct event -- generate shared struct and conversion
+            let (fields_str, nested_structs) =
+                generate_cxx_struct_fields(&event.attributes, &event_pascal_str);
+            shared_structs_str.push_str(&nested_structs);
+            shared_structs_str.push_str(&format!(
+                "    #[derive(Debug)]\n    pub struct {event_pascal_str} {{\n{fields_str}    }}\n\n"
+            ));
+
+            extern_rust_body.push_str(&format!(
+                "        fn {}(&self, id: UUID, data: {event_pascal_str});\n",
+                event.name,
+            ));
+
+            let field_conversions: Vec<TokenStream> = event
+                .attributes
+                .iter()
+                .map(|a| emit_field_conversion_tokens(a, &q, &component_mod))
+                .collect();
+
+            observer_impl_methods.push(quote! {
+                pub fn #event_method(&self, id: ffi::UUID, data: ffi::#event_pascal) {
+                    let model_event = #component_mod::#event_pascal {
+                        #(#field_conversions)*
+                    };
+                    self.inner.send(#q::Event::new_now(
+                        #q::uuid::Uuid::from(id),
+                        #component_mod::#entity_event_enum::from(model_event),
+                    ));
+                }
+            });
+        }
+    }
+
+    let entity_uses_dynamic_attrs = entity
+        .events
+        .iter()
+        .any(|ev| attrs_use_dynamic_attributes(&ev.attributes));
+    let ffi_module = build_ffi_module_string(
+        &ns,
+        &options.namespace,
+        &include_path,
+        &shared_structs_str,
+        &extern_rust_body,
+        entity_uses_dynamic_attrs,
+    );
+
+    // Build impl code via quote! + prettyplease
+    let impl_tokens = quote! {
+        use std::sync::Arc;
+
+        pub struct #observer_name {
+            inner: Arc<#q::Observer<#component_mod::#entity_event_enum>>,
+        }
+
+        impl #observer_name {
+            #(#observer_impl_methods)*
+        }
+
+        pub fn create_observer(ctx: &super::context::Context) -> Box<#observer_name> {
+            Box::new(#observer_name {
+                inner: ctx.#observer_accessor(),
+            })
+        }
+    };
+    let impl_code = pretty_print(impl_tokens);
+
+    GeneratedFile {
+        name: format!("{entity_name}.rs"),
+        content: format!("{ffi_module}\n{impl_code}"),
+    }
+}
+
+/// Generate tokens for converting FFI struct fields to a model state struct.
+/// Emit flat argument expressions for a state's attributes and usages.
+///
+/// Returns (conversion_stmts, flat_args) where:
+/// - conversion_stmts: any needed let-bindings or type aliases
+/// - flat_args: the flat argument expressions matching the state callback signature
+///
+/// The state callback signature is: instance_name, attrs..., usages...
+/// where usages are `Option<Usage<T>>`.
+fn emit_state_flat_args(
+    model: &ModelBuilder,
+    state: &StateDef,
+    q: &syn::Path,
+    component_mod_str: &str,
+    options: &CxxOptions,
+) -> (TokenStream, Vec<TokenStream>) {
+    let mut stmts = Vec::new();
+    let mut args = Vec::new();
+
+    // FSM state attributes can include model structs. The CXX bridge receives
+    // its own ffi::Struct copy, but the model callback expects the real struct
+    // under the instrumentation crate facade.
+    let component_mod: syn::Path = syn::parse_str(component_mod_str).unwrap();
+
+    // Attributes become flat args — instance_name first (as &str), then others
+    for attr in &state.attributes {
+        let field_name = format_ident!("{}", attr.name);
+        match &attr.value_type {
+            ValueType::String if attr.name == "instance_name" => {
+                args.push(quote! { data.#field_name.as_str() });
+            }
+            ValueType::String if attr.optional => {
+                args.push(quote! {
+                    if data.#field_name.is_empty() { None } else { Some(data.#field_name.clone()) }
+                });
+            }
+            ValueType::String => {
+                args.push(quote! { data.#field_name.clone() });
+            }
+            ValueType::Uuid if attr.optional => {
+                args.push(quote! {
+                    {
+                        let uuid = #q::uuid::Uuid::from(data.#field_name);
+                        if uuid.is_nil() { None } else { Some(uuid) }
+                    }
+                });
+            }
+            ValueType::Uuid => {
+                args.push(quote! { #q::uuid::Uuid::from(data.#field_name) });
+            }
+            ValueType::Ref(ref_type) => {
+                let ref_ident: syn::Type = syn::parse_str(ref_type)
+                    .unwrap_or_else(|e| panic!("failed to parse Ref type `{ref_type}`: {e}"));
+                if attr.optional {
+                    args.push(quote! {
+                        {
+                            let uuid = #q::uuid::Uuid::from(data.#field_name);
+                            if uuid.is_nil() { None } else { Some(#q::Ref::<#ref_ident>::new(uuid)) }
+                        }
+                    });
+                } else {
+                    args.push(quote! { #q::Ref::new(#q::uuid::Uuid::from(data.#field_name)) });
+                }
+            }
+            ValueType::DynamicAttributes if !attr.optional => {
+                // Keep FSM state conversion aligned with entity/event payload
+                // conversion before calling the model callback.
+                args.push(quote! { data.#field_name.into_model() });
+            }
+            ValueType::Struct(type_path, inner_attrs) if !attr.optional => {
+                // Convert ffi::SomeStruct into instrumentation_crate::module::SomeStruct.
+                // Without this, Rust sees two distinct structs with identical fields.
+                let conversion = emit_struct_conversion(type_path, inner_attrs, q, &component_mod);
+                args.push(quote! {
+                    {
+                        let data = data.#field_name;
+                        #conversion
+                    }
+                });
+            }
+            ValueType::List(inner) if !attr.optional => match inner.as_ref() {
+                ValueType::Ref(_) => {
+                    args.push(quote! {
+                        data.#field_name
+                            .into_iter()
+                            .map(|u| #q::Ref::new(#q::uuid::Uuid::from(u)))
+                            .collect()
+                    });
+                }
+                ValueType::Uuid => {
+                    args.push(quote! {
+                        data.#field_name
+                            .into_iter()
+                            .map(|u| #q::uuid::Uuid::from(u))
+                            .collect()
+                    });
+                }
+                ValueType::Struct(type_path, inner_attrs) => {
+                    let conversion =
+                        emit_struct_conversion(type_path, inner_attrs, q, &component_mod);
+                    args.push(quote! {
+                        data.#field_name.into_iter().map(|data| { #conversion }).collect()
+                    });
+                }
+                _ => args.push(quote! { data.#field_name }),
+            },
+            _ => {
+                if attr.optional {
+                    // Optional numeric: always wrap in Some — C++ provides concrete values.
+                    args.push(quote! { Some(data.#field_name) });
+                } else {
+                    args.push(quote! { data.#field_name });
+                }
+            }
+        }
+    }
+
+    // Usages become Option<Usage<T>> args — always Some for bridge calls
+    // (C++ always provides a resource_id; nil UUID means no usage).
+    for usage in &state.usages {
+        let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
+        let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
+        let capacity_attrs = resource_operating_attrs(model, usage);
+
+        // Resource type paths may be bare names (e.g., "Queue") for types in the
+        // same crate, or qualified (e.g., "quent_stdlib::processor::Processor").
+        // The bridge should depend on the instrumentation crate facade, so
+        // qualified paths are remapped through that facade:
+        //
+        //   quent_stdlib::memory::Memory
+        //
+        // becomes instrumentation_crate::memory::Memory.
+        let resource_ty: syn::Type = {
+            let path = &usage.resource_type_path;
+            let resource_path = if path.contains("::") {
+                remap_module_path(path, options)
+            } else {
+                format!("{}::{}", component_mod_str, path)
+            };
+
+            syn::parse_str(&resource_path).unwrap()
+        };
+
+        stmts.push(quote! {
+            type #alias = <#resource_ty as #q::Resource>::CapacityValue;
+        });
+
+        let capacity_expr = if capacity_attrs.is_empty() {
+            quote! { #alias::default() }
+        } else {
+            let values = capacity_attrs.iter().map(|attr| {
+                let field = format_ident!("{}_{}", usage.field_name, attr.name);
+                quote! { data.#field }
+            });
+            quote! { #alias::from((#(#values,)*)) }
+        };
+
+        args.push(quote! {
+            {
+                let uuid = #q::uuid::Uuid::from(data.#resource_id_field);
+                if uuid.is_nil() {
+                    None
+                } else {
+                    Some(#q::Usage {
+                        resource_id: #q::Ref::new(uuid),
+                        capacity: #capacity_expr,
+                    })
+                }
+            }
+        });
+    }
+
+    (quote! { #(#stmts)* }, args)
+}
+
+/// Generate a CXX bridge for an FSM.
+fn emit_fsm_bridge(
+    model: &ModelBuilder,
+    fsm: &FsmDef,
+    model_name: &str,
+    options: &CxxOptions,
+) -> GeneratedFile {
+    let fsm_name = &fsm.name;
+    let safe_name = cxx_safe_name(fsm_name);
+    let ns = format!("{}::{}", options.namespace, safe_name);
+    let pascal_name = to_pascal_case(fsm_name);
+    let handle_name_str = format!("{pascal_name}Handle");
+    let handle_name = format_ident!("{}", handle_name_str);
+    let q = quent_path(model_name, options);
+    let remapped = remap_module_path(&fsm.module_path, options);
+    let include_path = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
+
+    let observer_accessor = observer_handle_method(fsm_name);
+    let model_handle: syn::Type = {
+        let s = format!("{remapped}::{pascal_name}Handle");
+        syn::parse_str(&s).unwrap()
+    };
+
+    // Determine the entry state from the FsmDef's entry field
+    let entry_state = fsm
+        .states
+        .iter()
+        .find(|s| s.name == fsm.entry)
+        .unwrap_or_else(|| {
+            panic!(
+                "entry state `{}` not found in FSM `{}`",
+                fsm.entry, fsm.name
+            )
+        });
+    let entry_pascal_str = to_pascal_case(&entry_state.name);
+    let entry_pascal = format_ident!("{}", entry_pascal_str);
+    let entry_name = format_ident!("{}", entry_state.name);
+    let has_entry_data = !entry_state.attributes.is_empty() || !entry_state.usages.is_empty();
+
+    // Build ffi module shared structs as string
+    let mut shared_structs_str = String::new();
+    for state in &fsm.states {
+        if state.attributes.is_empty() && state.usages.is_empty() {
+            continue;
+        }
+        let state_pascal = to_pascal_case(&state.name);
+        let (attr_fields_str, nested_structs) =
+            generate_cxx_struct_fields(&state.attributes, &state_pascal);
+        shared_structs_str.push_str(&nested_structs);
+        let mut fields_str = attr_fields_str;
+        for usage in &state.usages {
+            fields_str.push_str(&format!(
+                "        pub {}_resource_id: UUID,\n",
+                usage.field_name
+            ));
+
+            for attr in resource_operating_attrs(model, usage) {
+                let cxx_type = value_type_to_cxx(&attr.value_type, attr.optional)
+                          .unwrap_or_else(|| {
+                              panic!(
+                                  "usage capacity `{}` for usage `{}` on state `{}` has type not representable in CXX",
+                                  attr.name, usage.field_name, state.name
+                              )
+                          });
+
+                fields_str.push_str(&format!(
+                    "        pub {}_{}: {},\n",
+                    usage.field_name, attr.name, cxx_type
+                ));
+            }
+        }
+        shared_structs_str.push_str(&format!(
+            "    #[derive(Debug)]\n    pub struct {state_pascal} {{\n{fields_str}    }}\n\n"
+        ));
+    }
+
+    // Build extern "Rust" body as string
+    let mut extern_rust_body = String::new();
+    extern_rust_body.push_str(&format!("        type {handle_name_str};\n\n"));
+
+    // Factory method
+    if has_entry_data {
+        extern_rust_body.push_str(&format!(
+            "        fn create(ctx: &Context, data: {entry_pascal_str}) -> Box<{handle_name_str}>;\n"
+        ));
+    } else {
+        extern_rust_body.push_str(&format!(
+            "        fn create(ctx: &Context) -> Box<{handle_name_str}>;\n"
+        ));
+    }
+
+    // Transition methods (skip entry state — handled by factory)
+    for state in &fsm.states {
+        if state.name == fsm.entry {
+            continue;
+        }
+        let state_pascal = to_pascal_case(&state.name);
+        if state.attributes.is_empty() && state.usages.is_empty() {
+            extern_rust_body.push_str(&format!("        fn {}(&mut self);\n", state.name));
+        } else {
+            extern_rust_body.push_str(&format!(
+                "        fn {}(&mut self, data: {state_pascal});\n",
+                state.name,
+            ));
+        }
+    }
+    extern_rust_body.push_str("        fn exit(&mut self);\n");
+    extern_rust_body.push_str("        fn uuid(&self) -> UUID;\n");
+
+    let fsm_uses_dynamic_attrs = fsm
+        .states
+        .iter()
+        .any(|s| attrs_use_dynamic_attributes(&s.attributes));
+    let ffi_module = build_ffi_module_string(
+        &ns,
+        &options.namespace,
+        &include_path,
+        &shared_structs_str,
+        &extern_rust_body,
+        fsm_uses_dynamic_attrs,
+    );
+
+    // Build impl code via quote! + prettyplease.
+    // Calls flat-arg named methods (e.g., handle.running(Some(usage), None)).
+    // Skip the entry state — it's handled by the factory function, not as a
+    // handle transition method.
+    let impl_transition_methods: Vec<TokenStream> = fsm
+        .states
+        .iter()
+        .filter(|state| state.name != fsm.entry)
+        .map(|state| {
+            let method_name = format_ident!("{}", state.name);
+            let state_pascal_ident = format_ident!("{}", to_pascal_case(&state.name));
+            if state.attributes.is_empty() && state.usages.is_empty() {
+                quote! {
+                    pub fn #method_name(&mut self) {
+                        self.inner.#method_name();
+                    }
+                }
+            } else {
+                let (stmts, args) = emit_state_flat_args(model, state, &q, &remapped, options);
+                quote! {
+                    pub fn #method_name(&mut self, data: ffi::#state_pascal_ident) {
+                        #stmts
+                        self.inner.#method_name(#(#args),*);
+                    }
+                }
+            }
+        })
+        .collect();
+
+    let factory_fn = if has_entry_data {
+        let (stmts, args) = emit_state_flat_args(model, entry_state, &q, &remapped, options);
+        quote! {
+            pub fn create(ctx: &super::context::Context, data: ffi::#entry_pascal) -> Box<#handle_name> {
+                #stmts
+                let obs = ctx.#observer_accessor();
+                let id = #q::uuid::Uuid::now_v7();
+                Box::new(#handle_name {
+                    inner: obs.#entry_name(id, #(#args),*),
+                })
+            }
+        }
+    } else {
+        quote! {
+            pub fn create(ctx: &super::context::Context) -> Box<#handle_name> {
+                let obs = ctx.#observer_accessor();
+                let id = #q::uuid::Uuid::now_v7();
+                Box::new(#handle_name {
+                    inner: obs.#entry_name(id),
+                })
+            }
+        }
+    };
+
+    let impl_tokens = quote! {
+        pub struct #handle_name {
+            inner: #model_handle,
+        }
+
+        impl #handle_name {
+            #(#impl_transition_methods)*
+
+            pub fn exit(&mut self) {
+                self.inner.exit();
+            }
+
+            pub fn uuid(&self) -> ffi::UUID {
+                self.inner.uuid().into()
+            }
+        }
+
+        #factory_fn
+    };
+    let impl_code = pretty_print(impl_tokens);
+
+    GeneratedFile {
+        name: format!("{fsm_name}.rs"),
+        content: format!("{ffi_module}\n{impl_code}"),
+    }
+}

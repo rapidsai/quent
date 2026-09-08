@@ -1,217 +1,116 @@
-//! Quent Instrumentation API
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Backing structures for generated instrumentation libraries.
 //!
-use quent_events::Event;
-use quent_exporter::{ExporterOptions, create_exporter};
-use quent_exporter_types::Exporter;
-use serde::Serialize;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
-use tokio::{
-    runtime::{Handle, Runtime},
-    sync::mpsc::{UnboundedSender, unbounded_channel},
-    task::JoinHandle,
-};
-use tokio_util::sync::CancellationToken;
-use tracing::{debug, warn};
-use uuid::Uuid;
+//! Instrumented application code should not import this crate directly unless
+//! there is a very special reason. Instead, it should interact with the
+//! generated instrumentation library only.
 
-pub mod resource;
-pub mod trace;
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub mod collector;
+mod context;
+mod entity;
+mod handle;
+mod model;
+mod noop;
+mod observer;
+mod sidecar;
 
-/// Wrapper around an optional channel sender. When the inner sender is `None`
-/// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
-/// channel or event-forwarding overhead.
-#[derive(Debug)]
-pub struct EventSender<T> {
-    tx: Option<UnboundedSender<Event<T>>>,
-    /// Flag shared across clones to prevent potentially massive log spam from
-    /// subseQUENT sender errors after the first.
-    disable_error_log: Arc<AtomicBool>,
-}
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub use collector::{CollectorRouter, CollectorSink, deserialize_event, serialize_event};
+pub use context::ContextInner;
+pub use entity::{InstrumentedEntity, Observer};
+pub use handle::{HandleError, HandleInner};
+pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
+pub use noop::Noop;
+pub use observer::{EventSender, ObserverInner};
+pub use sidecar::{ContextExporter, write_sidecar};
 
-impl<T> Clone for EventSender<T> {
-    fn clone(&self) -> Self {
-        Self {
-            tx: self.tx.clone(),
-            disable_error_log: Arc::clone(&self.disable_error_log),
-        }
-    }
-}
+// Re-export everything the generated instrumentation code references, so a
+// consumer needs only the `quent-instrumentation` dependency, selecting an
+// exporter backend through its `io-*` features.
+pub use quent_build_info as build_info;
+pub use quent_dynamic_attributes::DynamicAttributes;
+#[doc(hidden)]
+pub use quent_events as events;
+pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
+pub use quent_io::{ExporterOptions, ExporterProvider};
+#[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
+pub use quent_io::{FileSystemExporterOptions, FileSystemFormat};
+pub use uuid::Uuid;
 
-impl<T> EventSender<T> {
-    pub fn send(&self, event: Event<T>) {
-        if let Some(tx) = &self.tx
-            && tx.send(event).is_err()
-            && !self.disable_error_log.swap(true, Ordering::Relaxed)
-        {
-            tracing::error!("unable to send event, suppressing further errors");
-        }
-    }
-}
-
-pub struct Context<T>
-where
-    T: Serialize + Send + std::fmt::Debug + 'static,
-{
-    handle: Option<Handle>,
-    events_sender: EventSender<T>,
-    exporter: Option<Arc<dyn Exporter<T>>>,
-    cancellation_token: CancellationToken,
-    forwarder_handle: Option<JoinHandle<()>>,
-
-    // The runtime should be the last field, so it is dropped the last
-    // (see https://doc.rust-lang.org/reference/destructors.html for
-    // drop order of structs) because other tasks for exporters and
-    // forwarders rely on this runtime.
-    _runtime: Option<tokio::runtime::Runtime>,
-}
-
-impl<T> Context<T>
-where
-    T: Serialize + Send + std::fmt::Debug + 'static,
-{
-    pub fn try_new(
-        exporter: Option<ExporterOptions>,
-        id: Uuid,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let kind = match exporter {
-            None => {
-                debug!("using noop exporter");
-                return Ok(Context {
-                    handle: None,
-                    events_sender: EventSender {
-                        tx: None,
-                        disable_error_log: Arc::new(AtomicBool::new(false)),
-                    },
-                    exporter: None,
-                    cancellation_token: CancellationToken::new(),
-                    forwarder_handle: None,
-                    _runtime: None,
-                });
-            }
-            Some(kind) => kind,
-        };
-
-        let (runtime, handle) = if let Ok(handle) = Handle::try_current() {
-            debug!("using existing async runtime");
-            (None, handle)
-        } else {
-            debug!("spawning new async runtime");
-            if let Ok(runtime) = Runtime::new() {
-                let handle = runtime.handle().clone();
-                (Some(runtime), handle)
-            } else {
-                return Err("unable to spawn async runtime")?;
-            }
-        };
-
-        let (events_sender, mut events_receiver) = unbounded_channel();
-
-        debug!("constructing exporter");
-        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind, id))?;
-
-        let cancellation_token = CancellationToken::new();
-        let cloned_token = cancellation_token.clone();
-
-        let forwarder_handle = handle.spawn({
-            let exporter: Arc<dyn Exporter<T>> = Arc::clone(&exporter);
-            async move {
-                loop {
-                    tokio::select! {
-                        Some(event) = events_receiver.recv() => {
-                            match exporter.push(event).await {
-                                Ok(_) => (), // successfully pushed to exporter,
-                                Err(e) => warn!("unable to export event: {e}"),
-                            }
-                        },
-                        () = cloned_token.cancelled() => {
-                            events_receiver.close();
-                            // drain events that are buffered
-                            while let Some(event) = events_receiver.recv().await {
-                                match exporter.push(event).await {
-                                    Ok(_) => (), // successfully pushed to exporter,
-                                    Err(e) => warn!("unable to export event: {e}"),
-                                }
-                            }
-                            break
-                        },
-                        else => {
-                            // we only enter here when the events_receiver
-                            // channel has been closed (.recv() returns None)
-                            // so no messages to receive or push to the
-                            // exporter, so simply break.
-                            break
-                        }
-                    }
-                }
-            }
-        });
-
-        Ok(Context {
-            handle: Some(handle),
-            events_sender: EventSender {
-                tx: Some(events_sender),
-                disable_error_log: Arc::new(AtomicBool::new(false)),
-            },
-            exporter: Some(exporter),
-            cancellation_token,
-            forwarder_handle: Some(forwarder_handle),
-            _runtime: runtime,
-        })
-    }
-
-    pub fn events_sender(&self) -> EventSender<T> {
-        self.events_sender.clone()
-    }
-}
-
-impl<T> Drop for Context<T>
-where
-    T: Serialize + Send + std::fmt::Debug + 'static,
-{
-    fn drop(&mut self) {
-        self.cancellation_token.cancel();
-
-        if let Some(handle) = &self.handle {
-            // Wait for the forwarder to finish processing remaining events
-            if let Some(forwarder_handle) = self.forwarder_handle.take()
-                && let Err(e) = handle.block_on(forwarder_handle)
-            {
-                warn!("forwarder task failed: {e}");
-            }
-
-            // Flush the exporter to ensure all events are sent
-            if let Some(exporter) = &self.exporter
-                && let Err(e) = handle.block_on(exporter.force_flush())
-            {
-                warn!("failed to flush exporter: {e}");
-            }
-        }
-    }
-}
+/// A caller-supplied typed event sink, selected via the `io-callback` feature.
+#[cfg(feature = "io-callback")]
+pub use quent_io_callback::EventCallback;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quent_build_info::ModelSource;
+    use quent_events::{EntityEvent, Event};
+    use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+    use uuid::Uuid;
+
+    struct TestModel;
+
+    impl ModelSource for TestModel {
+        fn package() -> &'static str {
+            "quent-instrumentation"
+        }
+        fn source() -> quent_build_info::BuildInfo {
+            quent_build_info::BuildInfo::unknown()
+        }
+    }
 
     #[derive(Debug, serde::Serialize)]
     struct TestEvent;
 
+    impl EntityEvent for TestEvent {
+        const NAME: &'static str = "TestEvent";
+    }
+
+    impl Model for TestModel {
+        const NAME: &'static str = "Test";
+    }
+
     #[test]
-    fn noop_exporter() {
-        let ctx = Context::<TestEvent>::try_new(None, Uuid::now_v7()).unwrap();
-        assert!(ctx.handle.is_none());
-        assert!(ctx.exporter.is_none());
-        assert!(ctx.forwarder_handle.is_none());
-        assert!(ctx._runtime.is_none());
+    fn e2e_filesystem_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let id = Uuid::now_v7();
+        let ctx = ContextInner::try_new(id).unwrap();
+        let options = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            dir.path().to_path_buf(),
+        ));
+        write_sidecar(&options, id, TestModel::model_info());
 
-        let sender = ctx.events_sender();
-        assert!(sender.tx.is_none());
+        let context_dir = dir.path().join(id.to_string());
 
-        sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
-        sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
-        drop(ctx);
+        {
+            let observer = ctx
+                .block_on(async { ctx.observer::<TestEvent>(&options).await })
+                .unwrap();
+            observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
+            // Drop the observer to drain and flush before asserting.
+        }
+
+        assert!(
+            context_dir.join("model.qmi").is_file(),
+            "sidecar should sit in the context directory"
+        );
+        let ndjson_files: Vec<_> = std::fs::read_dir(context_dir.join("TestEvent"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("ndjson"))
+            .collect();
+        assert_eq!(
+            ndjson_files.len(),
+            1,
+            "one UUID-named ndjson batch file in the entity subdirectory"
+        );
     }
 }

@@ -1,0 +1,15 @@
+[package]
+name = "quent-dynamic-attributes"
+version.workspace = true
+edition.workspace =  true
+publish.workspace = true
+
+[features]
+default = []
+serde = ["dep:serde"]
+ts = ["serde", "dep:ts-rs"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+thiserror.workspace = true
+ts-rs = {workspace = true, optional = true, features = ["uuid-impl", "serde-json-impl"] }

@@ -1,0 +1,645 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Context-keyed NVTX reconstruction cache and Axum routes.
+
+use std::error::Error;
+use std::fmt;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use moka::{future::Cache as AsyncCache, sync::Cache as SyncCache};
+use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
+use nvtx_bridge::NvtxEventEntity;
+use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
+use quent_events::{EntityEvent, Event};
+use quent_io::filesystem::{self, Format};
+use quent_io::{ImporterOptions, ImporterProvider};
+use tokio::sync::Semaphore;
+use uuid::Uuid;
+
+const MAX_BODY_BYTES: usize = 64 * 1024;
+const MAX_DOMAIN_FILTERS: usize = 256;
+const MAX_CATEGORY_FILTERS: usize = 4096;
+const MAX_CATALOG_ORIGINS: u64 = 32;
+const MAX_CONCURRENT_MODEL_TASKS: usize = 4;
+
+/// A redacted importer failure. Details are logged server-side and are never
+/// copied into an HTTP response.
+#[derive(Debug, Clone)]
+pub struct NvtxImporterError(String);
+
+impl NvtxImporterError {
+    pub fn new(error: impl fmt::Display) -> Self {
+        Self(error.to_string())
+    }
+}
+
+impl fmt::Display for NvtxImporterError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Error for NvtxImporterError {}
+
+pub type NvtxImporterResult<T> = Result<T, NvtxImporterError>;
+
+/// Loads only one context's NVTX entity stream. `None` means the stream is not
+/// available; `Some(Vec::new())` is a present but empty stream.
+pub type NvtxImporterFn =
+    dyn Fn(Uuid) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> + Send + Sync;
+
+/// Import one context's NVTX stream from the standard filesystem layout.
+pub fn import_context_events(
+    root: &Path,
+    context_id: Uuid,
+) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> {
+    let context_dir = root.join(context_id.to_string());
+    let stream_dir = context_dir.join(<NvtxEventEntity as EntityEvent>::NAME);
+    if !stream_dir.is_dir() {
+        return Ok(None);
+    }
+    let mut stream_entries = std::fs::read_dir(&stream_dir).map_err(NvtxImporterError::new)?;
+    match stream_entries.next() {
+        None => return Ok(Some(Vec::new())),
+        Some(Err(error)) => return Err(NvtxImporterError::new(error)),
+        Some(Ok(_)) => {}
+    }
+    let format = Format::detect(&context_dir)
+        .ok_or_else(|| NvtxImporterError::new("unable to detect context stream format"))?;
+    let importer = <ImporterOptions as ImporterProvider<NvtxEventEntity>>::create_importer(
+        &ImporterOptions::FileSystem(filesystem::importer::Options {
+            format,
+            path: stream_dir,
+        }),
+    )
+    .map_err(NvtxImporterError::new)?;
+    importer
+        .collect::<quent_io::ImporterResult<Vec<_>>>()
+        .map(Some)
+        .map_err(NvtxImporterError::new)
+}
+
+struct CachedNvtx {
+    model: NvtxModel,
+    catalogs: SyncCache<u64, Arc<NvtxCatalog>>,
+}
+
+impl CachedNvtx {
+    fn new(model: NvtxModel) -> Self {
+        Self {
+            model,
+            catalogs: SyncCache::builder()
+                .max_capacity(MAX_CATALOG_ORIGINS)
+                .build(),
+        }
+    }
+
+    /// Return the catalog whose relative times use `query_start` as their origin.
+    fn catalog(&self, query_start: u64) -> Arc<NvtxCatalog> {
+        self.catalogs.get_with(query_start, || {
+            Arc::new(NvtxCatalog::from_model(&self.model, query_start))
+        })
+    }
+}
+
+/// Applies backpressure before scheduling expensive NVTX work on Tokio's
+/// blocking pool.
+#[derive(Clone)]
+struct NvtxTaskLimiter {
+    permits: Arc<Semaphore>,
+}
+
+impl NvtxTaskLimiter {
+    fn new(max_concurrency: usize) -> Self {
+        Self {
+            permits: Arc::new(Semaphore::new(max_concurrency)),
+        }
+    }
+
+    /// Wait for capacity, then retain that capacity until the blocking task exits.
+    async fn run<T>(&self, task: impl FnOnce() -> T + Send + 'static) -> Result<T, NvtxServerError>
+    where
+        T: Send + 'static,
+    {
+        let permit = Arc::clone(&self.permits)
+            .acquire_owned()
+            .await
+            .map_err(|error| NvtxServerError::Internal(error.to_string()))?;
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            task()
+        })
+        .await
+        .map_err(|error| NvtxServerError::Internal(error.to_string()))
+    }
+}
+
+#[derive(Clone)]
+struct NvtxModelCache {
+    models: AsyncCache<Uuid, Arc<CachedNvtx>>,
+    importer: Arc<NvtxImporterFn>,
+    tasks: NvtxTaskLimiter,
+}
+
+impl NvtxModelCache {
+    fn new(importer: Box<NvtxImporterFn>) -> Self {
+        Self {
+            models: AsyncCache::builder()
+                .max_capacity(128)
+                .time_to_idle(Duration::from_hours(24))
+                .build(),
+            importer: Arc::from(importer),
+            tasks: NvtxTaskLimiter::new(MAX_CONCURRENT_MODEL_TASKS),
+        }
+    }
+
+    /// Load and reconstruct one context, coalescing concurrent misses by ID.
+    async fn get(&self, context_id: Uuid) -> Result<Arc<CachedNvtx>, NvtxServerError> {
+        let importer = Arc::clone(&self.importer);
+        let tasks = self.tasks.clone();
+        self.models
+            .entry(context_id)
+            .or_try_insert_with(async move {
+                tasks
+                    .run(move || match importer(context_id) {
+                        Ok(Some(events)) => {
+                            let model = NvtxModelBuilder::build(events);
+                            Ok(Arc::new(CachedNvtx::new(model)))
+                        }
+                        Ok(None) => Err(NvtxServerError::NotFound),
+                        Err(error) => Err(NvtxServerError::Internal(error.to_string())),
+                    })
+                    .await?
+            })
+            .await
+            .map(|entry| entry.into_value())
+            .map_err(|error: Arc<NvtxServerError>| (*error).clone())
+    }
+}
+
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+struct NvtxTimeOrigin {
+    query_start: u64,
+}
+
+#[derive(Debug, Clone)]
+enum NvtxServerError {
+    BadRequest(String),
+    NotFound,
+    Internal(String),
+}
+
+impl IntoResponse for NvtxServerError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::BadRequest(message) => (StatusCode::BAD_REQUEST, message).into_response(),
+            Self::NotFound => (StatusCode::NOT_FOUND, "NVTX stream not found").into_response(),
+            Self::Internal(error) => {
+                tracing::error!(%error, "NVTX context load failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "NVTX data could not be loaded",
+                )
+                    .into_response()
+            }
+        }
+    }
+}
+
+/// Return stable metadata for a context relative to one query origin.
+async fn catalog(
+    State(cache): State<NvtxModelCache>,
+    AxumPath(context_id): AxumPath<Uuid>,
+    Query(origin): Query<NvtxTimeOrigin>,
+) -> Result<Json<NvtxCatalog>, NvtxServerError> {
+    let cached = cache.get(context_id).await?;
+    cache
+        .tasks
+        .run(move || Ok(Json((*cached.catalog(origin.query_start)).clone())))
+        .await?
+}
+
+/// Build lanes and statistics for one relative-time viewport.
+async fn viewport(
+    State(cache): State<NvtxModelCache>,
+    AxumPath(context_id): AxumPath<Uuid>,
+    Query(origin): Query<NvtxTimeOrigin>,
+    Json(request): Json<NvtxViewportRequest>,
+) -> Result<Json<NvtxViewportResponse>, NvtxServerError> {
+    validate_filter_count(&request)?;
+    let cached = cache.get(context_id).await?;
+    cache
+        .tasks
+        .run(move || {
+            let catalog = cached.catalog(origin.query_start);
+            NvtxViewportResponse::from_model_with_catalog(&cached.model, &catalog, request)
+                .map(Json)
+                .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
+        })
+        .await?
+}
+
+/// Reject requests whose selector lists could cause disproportionate work.
+fn validate_filter_count(request: &NvtxViewportRequest) -> Result<(), NvtxServerError> {
+    if request.selections.len() > MAX_DOMAIN_FILTERS {
+        return Err(NvtxServerError::BadRequest(
+            "too many domain filters".to_owned(),
+        ));
+    }
+    let category_count = request
+        .selections
+        .iter()
+        .try_fold(0_usize, |total, selection| {
+            total.checked_add(selection.category_ids.len())
+        })
+        .ok_or_else(|| NvtxServerError::BadRequest("too many category filters".to_owned()))?;
+    if category_count > MAX_CATEGORY_FILTERS {
+        return Err(NvtxServerError::BadRequest(
+            "too many category filters".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Context-keyed NVTX API routes.
+///
+/// Catalog and viewport requests require a `query_start` query parameter in
+/// Unix nanoseconds. Public viewport times are seconds relative to that origin.
+pub fn routes(importer: Box<NvtxImporterFn>) -> Router {
+    Router::new()
+        .route("/api/nvtx/contexts/{context_id}/catalog", get(catalog))
+        .route("/api/nvtx/contexts/{context_id}/viewport", post(viewport))
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .with_state(NvtxModelCache::new(importer))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Display;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    use axum::body::{Body, to_bytes};
+    use axum::http::Request;
+    use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+    use tempfile::tempdir;
+    use tower::ServiceExt;
+
+    use super::*;
+
+    const QUERY_START: u64 = 2_000_000_000;
+    const RANGE_END: u64 = 3_000_000_000;
+
+    fn catalog_uri(context_id: impl Display, query_start: u64) -> String {
+        format!("/api/nvtx/contexts/{context_id}/catalog?query_start={query_start}")
+    }
+
+    fn viewport_uri(context_id: impl Display) -> String {
+        format!("/api/nvtx/contexts/{context_id}/viewport?query_start={QUERY_START}")
+    }
+
+    fn range_events(context_id: Uuid) -> Vec<Event<NvtxEventEntity>> {
+        let attributes = NvtxEventAttributes {
+            message: Some(NvtxMessage::String("work".to_owned())),
+            ..Default::default()
+        };
+        vec![
+            Event::new(
+                context_id,
+                QUERY_START,
+                NvtxEventEntity(NvtxEvent::RangeStart {
+                    domain: 4,
+                    range_id: 9,
+                    attributes,
+                }),
+            ),
+            Event::new(
+                context_id,
+                RANGE_END,
+                NvtxEventEntity(NvtxEvent::RangeEnd {
+                    domain: 4,
+                    range_id: 9,
+                }),
+            ),
+        ]
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn model_work_runs_off_the_async_executor() {
+        let limiter = NvtxTaskLimiter::new(1);
+        let executor_thread = std::thread::current().id();
+        let model_thread = limiter.run(|| std::thread::current().id()).await.unwrap();
+
+        assert_ne!(model_thread, executor_thread);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn model_work_waits_for_capacity_before_entering_the_blocking_pool() {
+        let limiter = NvtxTaskLimiter::new(1);
+        let (first_started_tx, first_started_rx) = tokio::sync::oneshot::channel();
+        let (release_first_tx, release_first_rx) = std::sync::mpsc::channel();
+        let first_limiter = limiter.clone();
+        let first = tokio::spawn(async move {
+            first_limiter
+                .run(move || {
+                    first_started_tx.send(()).unwrap();
+                    release_first_rx.recv().unwrap();
+                })
+                .await
+                .unwrap();
+        });
+        first_started_rx.await.unwrap();
+
+        let (second_started_tx, mut second_started_rx) = tokio::sync::oneshot::channel();
+        let second = tokio::spawn(async move {
+            limiter
+                .run(move || second_started_tx.send(()).unwrap())
+                .await
+                .unwrap();
+        });
+        tokio::task::yield_now().await;
+        assert!(matches!(
+            second_started_rx.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+
+        release_first_tx.send(()).unwrap();
+        first.await.unwrap();
+        second_started_rx.await.unwrap();
+        second.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn model_and_query_relative_catalogs_are_cached_end_to_end() {
+        let present = Uuid::from_u128(1);
+        let loads = Arc::new(AtomicUsize::new(0));
+        let importer_loads = Arc::clone(&loads);
+        let app = routes(Box::new(move |context_id| {
+            importer_loads.fetch_add(1, Ordering::SeqCst);
+            Ok((context_id == present).then(|| range_events(context_id)))
+        }));
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(present, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let catalog: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(catalog["trace_start"], 0.0);
+        assert_eq!(catalog["trace_end"], 1.0);
+        assert!(catalog.get("query_start").is_none());
+
+        let alternate_origin = QUERY_START + 500_000_000;
+        let alternate = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(present, alternate_origin))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = to_bytes(alternate.into_body(), usize::MAX).await.unwrap();
+        let alternate: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(alternate["trace_start"], -0.5);
+        assert_eq!(alternate["trace_end"], 0.5);
+
+        let request = NvtxViewportRequest {
+            viewport: nvtx_ui::NvtxViewportWindow {
+                start: 0.0,
+                end: 1.0,
+            },
+            selections: vec![nvtx_ui::NvtxDomainSelection {
+                domain_id: 4,
+                category_ids: vec![],
+                include_uncategorized: true,
+            }],
+        };
+        let response = app
+            .oneshot(
+                Request::post(viewport_uri(present))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let viewport: NvtxViewportResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(viewport.statistics[0].total_duration, 1.0);
+        assert_eq!(
+            loads.load(Ordering::SeqCst),
+            1,
+            "one reconstruction per context"
+        );
+    }
+
+    #[tokio::test]
+    async fn absent_and_empty_streams_are_distinct() {
+        let empty = Uuid::from_u128(2);
+        let absent = Uuid::from_u128(3);
+        let app = routes(Box::new(move |context_id| {
+            Ok((context_id == empty).then(Vec::new))
+        }));
+
+        let empty_response = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(empty, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(empty_response.status(), StatusCode::OK);
+
+        let absent_response = app
+            .oneshot(
+                Request::get(catalog_uri(absent, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(absent_response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn absent_stream_is_retried_and_cached_after_it_becomes_available() {
+        let context_id = Uuid::from_u128(9);
+        let available = Arc::new(AtomicBool::new(false));
+        let loads = Arc::new(AtomicUsize::new(0));
+        let importer_available = Arc::clone(&available);
+        let importer_loads = Arc::clone(&loads);
+        let app = routes(Box::new(move |requested_context_id| {
+            importer_loads.fetch_add(1, Ordering::SeqCst);
+            Ok(
+                (requested_context_id == context_id && importer_available.load(Ordering::SeqCst))
+                    .then(|| range_events(requested_context_id)),
+            )
+        }));
+
+        let missing = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(context_id, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        available.store(true, Ordering::SeqCst);
+        for _ in 0..2 {
+            let present = app
+                .clone()
+                .oneshot(
+                    Request::get(catalog_uri(context_id, QUERY_START))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(present.status(), StatusCode::OK);
+        }
+        assert_eq!(loads.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn filesystem_importer_recognizes_an_empty_present_stream() {
+        let root = tempdir().unwrap();
+        let context_id = Uuid::from_u128(8);
+        std::fs::create_dir_all(
+            root.path()
+                .join(context_id.to_string())
+                .join(<NvtxEventEntity as EntityEvent>::NAME),
+        )
+        .unwrap();
+
+        let imported = import_context_events(root.path(), context_id).unwrap();
+        assert!(imported.is_some_and(|events| events.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn invalid_selector_is_a_bounded_bad_request() {
+        let present = Uuid::from_u128(4);
+        let app = routes(Box::new(move |context_id| {
+            Ok((context_id == present).then(|| range_events(context_id)))
+        }));
+        let request = NvtxViewportRequest {
+            viewport: nvtx_ui::NvtxViewportWindow {
+                start: 0.0,
+                end: 1.0,
+            },
+            selections: vec![nvtx_ui::NvtxDomainSelection {
+                domain_id: 4,
+                category_ids: vec![],
+                include_uncategorized: false,
+            }],
+        };
+        let response = app
+            .oneshot(
+                Request::post(viewport_uri(present))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn malformed_paths_and_oversized_requests_are_rejected() {
+        let present = Uuid::from_u128(5);
+        let app = routes(Box::new(move |context_id| {
+            Ok((context_id == present).then(|| range_events(context_id)))
+        }));
+
+        let invalid_uuid = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri("not-a-uuid", QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(invalid_uuid.status(), StatusCode::BAD_REQUEST);
+
+        let missing_origin = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/api/nvtx/contexts/{present}/catalog"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing_origin.status(), StatusCode::BAD_REQUEST);
+
+        let oversized = app
+            .oneshot(
+                Request::post(viewport_uri(present))
+                    .header("content-type", "application/json")
+                    .body(Body::from(vec![b' '; MAX_BODY_BYTES + 1]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(oversized.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn importer_failures_are_redacted_and_isolated_by_context() {
+        let failing = Uuid::from_u128(6);
+        let present = Uuid::from_u128(7);
+        let app = routes(Box::new(move |context_id| {
+            if context_id == failing {
+                Err(NvtxImporterError::new(
+                    "/secret/capture/path could not be read",
+                ))
+            } else {
+                Ok((context_id == present).then(|| range_events(context_id)))
+            }
+        }));
+
+        let failed = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(failing, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(failed.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let failed_body = to_bytes(failed.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(&failed_body[..], b"NVTX data could not be loaded");
+
+        let healthy = app
+            .oneshot(
+                Request::get(catalog_uri(present, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(healthy.status(), StatusCode::OK);
+    }
+}

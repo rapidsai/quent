@@ -1,0 +1,124 @@
+name: Bug report
+description: Report a reproducible problem in Quent.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        Please include enough detail for a maintainer to reproduce the issue from a fresh checkout. If a field does not apply, write "N/A".
+
+        Do not report security vulnerabilities in public issues. Please follow the repository security policy instead.
+
+        https://github.com/rapidsai/quent/blob/main/SECURITY.md
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong? Include the user-visible symptom or failing command.
+      placeholder: "Example: The simulator UI shows an empty operator timeline after loading the sample dataset."
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: The current HEAD commit where you saw the issue. From a checkout, run `git rev-parse HEAD`.
+      placeholder: "Example: 0123456789abcdef0123456789abcdef01234567"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Recreation / reproduction steps
+      description: List the smallest sequence of steps that triggers the issue.
+      placeholder: |
+        1. Clone the repository and check out ...
+        2. Run ...
+        3. Open ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the tools that are relevant to the affected area.
+      value: |
+        - OS and architecture:
+        - Rust: `rustc --version`
+        - Cargo: `cargo --version`
+        - Node.js: `node --version`
+        - pnpm: `pnpm --version`
+        - Browser and version:
+        - Docker / Docker Compose version:
+        - Using `pixi shell`? yes/no
+    validations:
+      required: false
+
+  - type: textarea
+    id: rust_details
+    attributes:
+      label: Rust details
+      description: For Rust, generated bindings, analyzer, collector, server, C++, or Python bridge issues.
+      placeholder: |
+        - Crate/package:
+        - Feature flags:
+        - Command that failed:
+        - Does it reproduce with `RUST_BACKTRACE=1`?
+        - Relevant model, generated code, event payload, or dataset:
+        - Full compiler/runtime output or backtrace:
+    validations:
+      required: false
+
+  - type: textarea
+    id: ui_details
+    attributes:
+      label: UI details
+      description: For UI, visualization, browser, API, or static-page issues.
+      placeholder: |
+        - Route or view:
+        - Browser:
+        - Viewport size:
+        - Backend setup: Docker Compose / Vite dev server / static server / other
+        - Dataset or API response involved:
+        - Console errors:
+        - Network errors or failing requests:
+    validations:
+      required: false
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or video
+      description: Required for UI-related issues when possible. Drag screenshots, videos, or logs here.
+      placeholder: "Attach files here, or write N/A if this is not UI-related."
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Additional logs or context
+      description: Add anything else that would help reproduce or diagnose the issue. Please remove secrets, credentials, and private data.
+      placeholder: |
+        - Relevant server logs:
+        - Relevant browser console logs:
+        - Related issues or pull requests:
+        - Workaround, if any:
+    validations:
+      required: false

@@ -1,0 +1,27 @@
+{
+  "name": "quent-schema-explorer-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.11.0",
+    "pnpm": ">=11.6.0"
+  },
+  "packageManager": "pnpm@11.6.0",
+  "scripts": {
+    "bindings": "pnpm --dir ../../../crates/schema/ts build",
+    "check": "pnpm --filter @quent/schema-viewer check && pnpm --filter @quent-experimental/schema-explorer check",
+    "lint": "pnpm --filter @quent/schema-viewer lint && pnpm --filter @quent-experimental/schema-explorer lint",
+    "test": "cargo test --manifest-path yaml-wasm/Cargo.toml && pnpm --filter @quent/schema-viewer test && pnpm --filter @quent-experimental/schema-explorer wasm:test",
+    "build": "pnpm --filter @quent/schema-viewer build && pnpm --filter @quent-experimental/schema-explorer build",
+    "schema:ci": "pnpm lint && pnpm check && pnpm test && pnpm build",
+    "explorer": "pnpm --filter @quent-experimental/schema-explorer dev",
+    "wasm:build": "pnpm --filter @quent-experimental/schema-explorer wasm:build"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

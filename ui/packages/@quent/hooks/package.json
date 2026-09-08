@@ -1,0 +1,39 @@
+{
+  "name": "@quent/hooks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "prebuild": "pnpm --workspace-root bindings",
+    "build": "tsdown",
+    "build:ci": "tsdown",
+    "pretypecheck": "pnpm --workspace-root bindings",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quent/client": "workspace:*",
+    "@quent/utils": "workspace:*",
+    "jotai-family": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-table": "^8.0.0",
+    "jotai": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@types/react": "catalog:",
+    "jotai": "catalog:",
+    "react": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  }
+}

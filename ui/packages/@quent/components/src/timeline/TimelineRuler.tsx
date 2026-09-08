@@ -1,0 +1,168 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { useMemo } from 'react';
+import { EChartsReactCore } from '../lib/echartsReactCore';
+import { echarts } from '../lib/echarts';
+import type { EChartsOption } from '../lib/echarts';
+import { useZoomRange } from '@quent/hooks';
+import { formatDurationForAxisInterval } from '@quent/utils';
+import { getTimelineXAxisIntervalMs, MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
+import { useChartResize } from '../lib/useChartResize';
+import {
+  useTimelineEchartsTheme,
+  TIMELINE_MONO_FONT,
+  TIMELINE_LABEL_FONT_SIZE,
+} from './timelineEchartsTheme';
+import { TIMELINE_SPACING } from './types';
+import { TimelinePointerArea } from './TimelinePointerArea';
+
+const RULER_HEIGHT = 22;
+const RULER_TARGET_TICKS = 7;
+// Space above the grid for axis labels + ticks.
+const RULER_GRID_TOP = 20;
+const ENDPOINT_CHIP_INSET = 2;
+
+/**
+ * `absolute`: elapsed time from query start (e.g. "20.00ms", "40.00ms").
+ * `relative`: offset from the start of the current zoom window, always begins near 0 (e.g. "+0.00ms", "+20.00µs").
+ */
+export type TimelineRulerMode = 'absolute' | 'relative';
+
+type TimelineRulerProps = {
+  isDark: boolean;
+  mode?: TimelineRulerMode;
+};
+
+/** Sticky axis ruler showing elapsed time for the current zoom window. */
+export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps) {
+  const { themeName, axisTickColor, axisLabelColor, solidLabelBackgroundColor } =
+    useTimelineEchartsTheme(isDark);
+  const { handleChartReady } = useChartResize();
+  const zoomRange = useZoomRange();
+
+  const zoomedStartMs = zoomRange.start * 1000;
+  const zoomedEndMs = zoomRange.end * 1000;
+  const zoomedSpanMs = Math.max(zoomedEndMs - zoomedStartMs, MIN_ZOOM_WINDOW_S * 1000);
+
+  const interval = useMemo(
+    () => getTimelineXAxisIntervalMs(zoomedSpanMs, RULER_TARGET_TICKS),
+    [zoomedSpanMs]
+  );
+
+  const option: EChartsOption = useMemo(() => {
+    const formatLabel = (value: number): string => {
+      const absoluteMs = value;
+      const relativeMs = value - zoomedStartMs;
+      const isMin = value === zoomedStartMs;
+      const isMax = value === zoomedEndMs;
+      const isMinMax = isMin || isMax;
+
+      let text: string;
+      if (mode === 'relative') {
+        const relStr = `+${formatDurationForAxisInterval(relativeMs, interval)}`;
+        text = isMinMax ? `${formatDurationForAxisInterval(absoluteMs, interval)}` : relStr;
+      } else {
+        text = formatDurationForAxisInterval(absoluteMs, interval);
+      }
+
+      if (!isMinMax) {
+        return text;
+      }
+      const chip = `{chip|${text}}`;
+      return isMin ? `{chipInset|}${chip}` : `${chip}{chipInset|}`;
+    };
+
+    return {
+      animation: false,
+      grid: {
+        ...TIMELINE_SPACING,
+        top: RULER_GRID_TOP,
+        bottom: 0,
+      },
+      xAxis: {
+        type: 'value',
+        show: true,
+        position: 'top',
+        min: zoomedStartMs,
+        max: zoomedEndMs,
+        interval,
+        boundaryGap: [0, 0] as [number, number],
+        // Re-enable ticks (theme disables them by default); prominent color + extra length.
+        axisTick: {
+          show: true,
+          alignWithLabel: true,
+          length: 8,
+          lineStyle: { color: axisTickColor },
+        },
+        axisLabel: {
+          hideOverlap: true,
+          showMinLabel: true,
+          showMaxLabel: true,
+          alignMinLabel: 'left',
+          alignMaxLabel: 'right',
+          formatter: formatLabel,
+          rich: {
+            chipInset: {
+              width: ENDPOINT_CHIP_INSET,
+              fontSize: 0,
+              lineHeight: TIMELINE_LABEL_FONT_SIZE,
+            },
+            chip: {
+              color: axisLabelColor,
+              backgroundColor: solidLabelBackgroundColor,
+              borderColor: axisLabelColor,
+              borderWidth: 1,
+              borderRadius: 2,
+              padding: [1, 4, 1, 4],
+              fontSize: TIMELINE_LABEL_FONT_SIZE,
+              fontFamily: TIMELINE_MONO_FONT,
+              lineHeight: TIMELINE_LABEL_FONT_SIZE,
+            },
+          },
+        },
+        splitLine: { show: false },
+        axisPointer: { show: false },
+      },
+      yAxis: { type: 'value', show: false, min: 0, max: 1 },
+      // Dummy series to give echarts a data domain to anchor the axis.
+      series: [
+        {
+          type: 'line',
+          data: [
+            [zoomedStartMs, 0],
+            [zoomedEndMs, 0],
+          ],
+          lineStyle: { opacity: 0 },
+          symbol: 'none',
+          silent: true,
+          animation: false,
+        },
+      ],
+    };
+  }, [
+    zoomedStartMs,
+    zoomedEndMs,
+    interval,
+    axisTickColor,
+    axisLabelColor,
+    solidLabelBackgroundColor,
+    mode,
+  ]);
+
+  return (
+    <TimelinePointerArea className="h-full w-full">
+      <EChartsReactCore
+        echarts={echarts}
+        theme={themeName}
+        option={option}
+        style={{ width: '100%', height: `${RULER_HEIGHT}px` }}
+        onChartReady={handleChartReady}
+        notMerge={false}
+        lazyUpdate={false}
+        opts={{ renderer: 'svg' }}
+        autoResize={false}
+      />
+    </TimelinePointerArea>
+  );
+}

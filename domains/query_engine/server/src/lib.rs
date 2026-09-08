@@ -1,13 +1,17 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Utilities for server implementations
 
 use crate::{analyzer_cache::AnalyzerCache, state::ServiceState, timeline_cache::TimelineCache};
 use axum::Router as AxumRouter;
-use quent_collector::server::{CollectorService, CollectorServiceOptions};
+use quent_collector::server::CollectorService;
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
-use serde::{Deserialize, Serialize};
+
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
+use uuid::Uuid;
 
 pub mod analyzer_cache;
 pub mod error;
@@ -37,14 +41,12 @@ pub fn initialize_tracing(log_level: &str) {
         .init();
 }
 
-pub fn collector_service<E>(
-    options: CollectorServiceOptions,
-) -> Result<Router, Box<dyn std::error::Error>>
+pub fn collector_service<C, F>(make: F) -> Result<Router, Box<dyn std::error::Error>>
 where
-    E: Serialize + Send + Sync + std::fmt::Debug + 'static,
-    for<'de> E: Deserialize<'de>,
+    C: quent_collector::CollectorSink + Send + Sync + 'static,
+    F: Fn(Uuid) -> Result<C, String> + Send + Sync + 'static,
 {
-    let collector = CollectorService::<E>::new(options);
+    let collector = CollectorService::<C>::new(make);
     Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))
 }
 
@@ -56,17 +58,30 @@ pub fn analyzer_service_router<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
     <A as UiAnalyzer>::EntityRef: serde::Serialize,
-    <A as UiAnalyzer>::TimelineGlobalParams: Send + Sync + Clone + serde::Serialize + 'static,
-    <A as UiAnalyzer>::TimelineParams: Send + Sync + Clone + serde::Serialize + 'static,
-    for<'de> <A as UiAnalyzer>::TimelineGlobalParams: serde::Deserialize<'de>,
-    for<'de> <A as UiAnalyzer>::TimelineParams: serde::Deserialize<'de>,
+{
+    analyzer_service_router_with_routes::<A>(importer, lister, cors, AxumRouter::new())
+}
+
+/// Build the analyzer router and merge integration-owned routes before common
+/// CORS and embedded-UI fallback layers are installed.
+pub fn analyzer_service_router_with_routes<A>(
+    importer: Box<analyzer_cache::ImporterFn<A>>,
+    lister: Box<analyzer_cache::ListerFn>,
+    cors: Option<String>,
+    additional_routes: AxumRouter,
+) -> Result<AxumRouter, Box<dyn std::error::Error>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+    <A as UiAnalyzer>::EntityRef: serde::Serialize,
 {
     let state = ServiceState {
         analyzers: AnalyzerCache::<A>::new(importer, lister),
         timelines: TimelineCache::new(),
     };
 
-    let mut http_routes = axum::Router::new().nest("/api/engines", ui::routes(state));
+    let mut http_routes = axum::Router::new()
+        .nest("/api/engines", ui::routes(state))
+        .merge(additional_routes);
 
     #[cfg(feature = "swagger")]
     {

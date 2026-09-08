@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-server"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+real-capture-tests = ["nvtx-analyzer/real-capture-tests"]
+
+[dependencies]
+axum = { version = "0.8.7" }
+moka = { version = "0.12.13", features = ["future", "sync"] }
+nvtx-analyzer = { path = "../analyzer" }
+nvtx-bridge = { path = "../bridge" }
+nvtx-ui = { path = "../ui" }
+quent-events = { path = "../../../crates/events" }
+quent-io = { path = "../../../crates/io" }
+serde.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "sync"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+nvtx-events = { path = "../events" }
+serde_json.workspace = true
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

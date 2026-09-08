@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::HashMap, num::NonZero};
 
 use quent_time::{
@@ -8,7 +11,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 /// Configuration of the window and number of bins of a timeline.
-#[derive(TS, Debug, Clone, Serialize, Deserialize)]
+#[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TimelineConfig {
     /// The number of bins for binned timelines.
     pub num_bins: u16,
@@ -56,6 +59,8 @@ pub struct ResourceTimelineRequest<TimelineParams> {
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
     pub application: TimelineParams,
+    /// The configuration of the window and number of bins.
+    pub config: TimelineConfig,
 }
 
 /// Parameters for requesting a resource group timeline.
@@ -73,6 +78,8 @@ pub struct ResourceGroupTimelineRequest<TimelineParams> {
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
     pub app_params: TimelineParams,
+    /// The configuration of the window and number of bins.
+    pub config: TimelineConfig,
 }
 
 /// Timeline request parameters unrelated to timing or binning.
@@ -84,11 +91,27 @@ pub enum TimelineRequest<TimelineParams> {
     ResourceGroup(ResourceGroupTimelineRequest<TimelineParams>),
 }
 
+impl<T> TimelineRequest<T> {
+    pub fn config(&self) -> &TimelineConfig {
+        match self {
+            Self::Resource(r) => &r.config,
+            Self::ResourceGroup(rg) => &rg.config,
+        }
+    }
+
+    pub fn with_config(self, config: TimelineConfig) -> Self {
+        match self {
+            Self::Resource(r) => Self::Resource(ResourceTimelineRequest { config, ..r }),
+            Self::ResourceGroup(rg) => {
+                Self::ResourceGroup(ResourceGroupTimelineRequest { config, ..rg })
+            }
+        }
+    }
+}
+
 /// Request for a single timeline.
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct SingleTimelineRequest<GlobalParams, TimelineParams> {
-    /// The configuration of the window and number of bins.
-    pub config: TimelineConfig,
     /// The timeline requested.
     pub entry: TimelineRequest<TimelineParams>,
     /// Global application-specific parameters, e.g. filters.
@@ -98,10 +121,22 @@ pub struct SingleTimelineRequest<GlobalParams, TimelineParams> {
 /// Request for a bulk of timelines.
 #[derive(TS, Debug, Deserialize)]
 pub struct BulkTimelineRequest<GlobalParams, TimelineParams> {
-    /// The configuration of the window and number of bins.
-    pub config: TimelineConfig,
     /// The list of timelines requested.
     pub entries: HashMap<String, TimelineRequest<TimelineParams>>,
+    /// Global application-specific parameters, e.g. filters.
+    pub app_params: GlobalParams,
+}
+
+/// Bulk request that asks for multiple time windows per entry in a single
+/// analyzer call.
+///
+/// The embedded `config` on each `TimelineRequest` is ignored — the actual
+/// time windows come from the top-level `configs` vector and apply to every
+/// entry. See `UiAnalyzer::bulk_chunked_resource_timeline`.
+#[derive(Debug, Clone)]
+pub struct BulkChunkedTimelineRequest<GlobalParams, TimelineParams> {
+    pub entries: HashMap<String, TimelineRequest<TimelineParams>>,
+    pub configs: Vec<TimelineConfig>,
     /// Global application-specific parameters, e.g. filters.
     pub app_params: GlobalParams,
 }

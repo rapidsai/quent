@@ -1,0 +1,5 @@
+error: `rate` is a reserved keyword in capacity blocks (used to set the capacity kind); choose a different field name
+ --> tests/compile_fail/resource_reserved_keyword.rs:7:33
+  |
+7 |         capacity: { slots: u64, rate: u64 },
+  |                                 ^^^^

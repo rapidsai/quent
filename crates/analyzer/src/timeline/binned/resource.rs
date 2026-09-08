@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Binned timelines for resource utilization.
 
 use std::hash::Hash;
@@ -171,76 +174,35 @@ mod tests {
             runtime::{RtFsm, RtFsmStateUsage, RtFsmTransition},
         },
         resource::{
-            CapacityDecl, Using,
+            CapacityDecl, ResourceCapacities, Using,
             collection::{InMemoryResourcesBuilder, ResourceCollection},
-            runtime::RtResource,
+            runtime::{RtResource, RtResourceTransition},
             tree::ResourceTreeNode,
         },
     };
 
     use super::*;
 
-    use quent_events::{
-        Event,
-        resource::{self, GroupEvent, ResourceEvent},
-    };
     use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
     const ROOT_RESOURCE_ID: Uuid = Uuid::from_u64_pair(0, 1);
 
-    fn root_resource_event() -> [Event<ResourceEvent>; 1] {
-        [Event::new(
-            ROOT_RESOURCE_ID,
+    // Populate the builder with a root group and a memory resource with
+    // Init(0) -> Operating(0, 1000 bytes) -> Finalizing(1000) -> Exit(1000).
+    fn build_root_and_memory(builder: &mut InMemoryResourcesBuilder, resource_id: Uuid) {
+        builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
+        builder.insert_memory_resource("test");
+        let bld = builder.try_builder(resource_id).unwrap();
+        bld.push(RtResourceTransition::Init(0));
+        bld.set_type_name("test".to_owned());
+        bld.set_instance_name(Some("test_inst".to_owned()));
+        bld.set_parent_group_id(ROOT_RESOURCE_ID);
+        bld.push(RtResourceTransition::Operating(
             0,
-            ResourceEvent::Group(GroupEvent {
-                type_name: "test".into(),
-                instance_name: "test".into(),
-                parent_group_id: None,
-            }),
-        )]
-    }
-
-    fn memory_events(resource_id: Uuid) -> [Event<ResourceEvent>; 4] {
-        [
-            Event::new(
-                resource_id,
-                0,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Init(
-                    resource::memory::Init {
-                        resource: resource::Resource {
-                            instance_name: "test_inst".to_string(),
-                            type_name: "test".to_string(),
-                            parent_group_id: ROOT_RESOURCE_ID,
-                        },
-                    },
-                )),
-            ),
-            Event::new(
-                resource_id,
-                0,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Operating(
-                    resource::memory::Operating {
-                        capacity_bytes: 1000,
-                    },
-                )),
-            ),
-            Event::new(
-                resource_id,
-                1000,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Finalizing(
-                    resource::memory::Finalizing {
-                        unreclaimed_bytes: 0,
-                    },
-                )),
-            ),
-            Event::new(
-                resource_id,
-                1000,
-                ResourceEvent::Memory(resource::memory::MemoryEvent::Exit(
-                    resource::memory::Exit {},
-                )),
-            ),
-        ]
+            ResourceCapacities(vec![CapacityValue::new("capacity_bytes", 1000)]),
+        ));
+        bld.push(RtResourceTransition::Finalizing(1000));
+        bld.push(RtResourceTransition::Exit(1000));
     }
 
     #[test]
@@ -248,16 +210,10 @@ mod tests {
         let resource_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
@@ -274,7 +230,7 @@ mod tests {
                             name: "using".into(),
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -313,10 +269,10 @@ mod tests {
         // Config shouldn't be modified.
         assert_eq!(timeline.config, config);
 
-        // We should have bin datapoints for the "bytes" capacity.
-        assert!(timeline.data.contains_key("bytes"));
+        // We should have bin datapoints for the "capacity_bytes" capacity.
+        assert!(timeline.data.contains_key("capacity_bytes"));
 
-        let values = timeline.data.get("bytes").unwrap();
+        let values = timeline.data.get("capacity_bytes").unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -336,17 +292,11 @@ mod tests {
         let resource_b_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_a_id))
-                    .chain(memory_events(resource_b_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_a_id);
+        build_root_and_memory(&mut resources, resource_b_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs
         for i in 0..4 {
@@ -367,7 +317,7 @@ mod tests {
                                 } else {
                                     resource_b_id
                                 },
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -412,7 +362,7 @@ mod tests {
             .unwrap();
         let timeline = builder.build();
 
-        let values = timeline.data.get("bytes").unwrap();
+        let values = timeline.data.get("capacity_bytes").unwrap();
 
         // Aggregated, it should produce the same result as
         // test_resource_timeline_aggregated
@@ -428,13 +378,11 @@ mod tests {
     fn test_resource_timeline_aggregated_multi_capacity() {
         let resource_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(root_resource_event().into_iter())
-            .unwrap();
-        let mut resources = resources.try_build().unwrap();
+        let mut builder = InMemoryResourcesBuilder::default();
+        builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
+        let mut resources = builder.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Add a resource with 2 capacities.
         resources.insert_type(ResourceTypeDecl::new(
@@ -533,16 +481,10 @@ mod tests {
         let resource_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce triangle-ish memory utilization using 4 FSMs with 2 usage states
         for i in 0..4 {
@@ -559,7 +501,7 @@ mod tests {
                             name: "state_a".into(),
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -568,7 +510,7 @@ mod tests {
                             name: "state_b".into(),
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
-                                [CapacityValue::new("bytes", 42)],
+                                [CapacityValue::new("capacity_bytes", 42)],
                             )],
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
@@ -615,8 +557,8 @@ mod tests {
 
         // For each capacity, we should have values per state
 
-        let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();
-        let state_b_bytes = timeline.data.get(&("state_b", "bytes")).unwrap();
+        let state_a_bytes = timeline.data.get(&("state_a", "capacity_bytes")).unwrap();
+        let state_b_bytes = timeline.data.get(&("state_b", "capacity_bytes")).unwrap();
 
         // Check whether the "trianglish" utilization is correct after aggregation:
         assert_eq!(
@@ -659,17 +601,11 @@ mod tests {
         let resource_b_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_a_id))
-                    .chain(memory_events(resource_b_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_a_id);
+        build_root_and_memory(&mut resources, resource_b_id);
         let resources = resources.try_build().unwrap();
 
-        let mut fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
 
         // Produce the same utilization as previous test but spread it out across two leaf resources.
         for i in 0..4 {
@@ -690,7 +626,7 @@ mod tests {
                                 } else {
                                     resource_b_id
                                 },
-                                [CapacityValue::new("bytes", 250)],
+                                [CapacityValue::new("capacity_bytes", 250)],
                             )],
                             timestamp: start,
                             attributes: vec![],
@@ -703,7 +639,7 @@ mod tests {
                                 } else {
                                     resource_b_id
                                 },
-                                [CapacityValue::new("bytes", 42)],
+                                [CapacityValue::new("capacity_bytes", 42)],
                             )],
                             timestamp: start + (end - start) / 2,
                             attributes: vec![],
@@ -751,8 +687,8 @@ mod tests {
         }
         let timeline = builder.build();
 
-        let state_a_bytes = timeline.data.get(&("state_a", "bytes")).unwrap();
-        let state_b_bytes = timeline.data.get(&("state_b", "bytes")).unwrap();
+        let state_a_bytes = timeline.data.get(&("state_a", "capacity_bytes")).unwrap();
+        let state_b_bytes = timeline.data.get(&("state_b", "capacity_bytes")).unwrap();
 
         // If we aggregate over both resources we should get the same answer as
         // in test_resource_timeline_aggregated_multi_state
@@ -794,13 +730,7 @@ mod tests {
         let resource_id = Uuid::now_v7();
 
         let mut resources = InMemoryResourcesBuilder::default();
-        resources
-            .try_extend(
-                root_resource_event()
-                    .into_iter()
-                    .chain(memory_events(resource_id)),
-            )
-            .unwrap();
+        build_root_and_memory(&mut resources, resource_id);
         let resources = resources.try_build().unwrap();
 
         // Config window: [1000, 2000], threshold: 100 ns (all spans below exceed it)
@@ -825,7 +755,7 @@ mod tests {
                         name: "using".into(),
                         usages: vec![RtFsmStateUsage::new(
                             resource_id,
-                            [CapacityValue::new("bytes", 1)],
+                            [CapacityValue::new("capacity_bytes", 1)],
                         )],
                         timestamp: start,
                         attributes: vec![],
@@ -841,7 +771,7 @@ mod tests {
             .unwrap()
         };
 
-        let mut outside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut outside_fsms = InMemoryFsms::<RtFsm>::new();
         outside_fsms.insert(make_fsm(0, 500));
         outside_fsms.insert(make_fsm(2500, 3000));
 
@@ -850,7 +780,7 @@ mod tests {
         outside_builder.try_extend(outside_fsms.usages()).unwrap();
         assert!(!outside_builder.build().long_entities.contains(&resource_id));
 
-        let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
+        let mut inside_fsms = InMemoryFsms::<RtFsm>::new();
         inside_fsms.insert(make_fsm(500, 1500));
         inside_fsms.insert(make_fsm(1100, 1900));
 

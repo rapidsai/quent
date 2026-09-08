@@ -1,0 +1,76 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { cn } from '@quent/utils';
+
+export interface InlineSelectorOption {
+  value: string;
+  label: string;
+}
+
+interface InlineSelectorProps {
+  id: string;
+  label?: string;
+  value: string;
+  options: Array<string | InlineSelectorOption>;
+  onChange: (itemId: string, type: string) => void;
+  className?: string;
+}
+
+/** Compact inline select used inside resource tree rows. */
+export const InlineSelector = ({
+  id,
+  label = 'Type',
+  value,
+  options,
+  onChange,
+  className,
+}: InlineSelectorProps): React.ReactNode => {
+  return (
+    <div
+      className={cn('flex items-center gap-1.5', className)}
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <label
+        id={`type-select-label-${id}`}
+        className="text-[11px] leading-none text-muted-foreground shrink-0"
+      >
+        {label}:
+      </label>
+      <Select value={value} onValueChange={value => onChange(id, value)}>
+        <SelectTrigger
+          id={`type-select-${id}`}
+          aria-labelledby={`type-select-label-${id}`}
+          className={cn(
+            'h-auto w-auto min-w-0 max-w-80 border-0 border-b border-dashed border-muted-foreground/60 rounded-none bg-transparent px-0 py-0 text-[11px] leading-none font-mono shadow-none cursor-pointer',
+            'focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+            'data-[placeholder]:text-muted-foreground',
+            '[&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0 [&>svg]:translate-y-px [&>svg]:opacity-70'
+          )}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          className="max-h-[--radix-select-content-available-height] min-w-[var(--radix-select-trigger-width)]"
+        >
+          {options.map(option => {
+            const value = typeof option === 'string' ? option : option.value;
+            const label = typeof option === 'string' ? option : option.label;
+            return (
+              <SelectItem
+                key={value}
+                value={value}
+                className="text-xs font-mono py-1.5 pl-8 pr-2 cursor-pointer"
+              >
+                {label}
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};

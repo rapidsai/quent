@@ -1,24 +1,24 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Run-time defined FSMs (in analysis)
 
 use std::collections::HashSet;
 
 use rustc_hash::FxHashMap as HashMap;
 
-use quent_attributes::Attribute;
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult, Entity,
-    fsm::{
-        Fsm, FsmStateRef, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmUsages, Transition,
-        collection::InMemoryFsms,
-    },
-    resource::{CapacityValue, Usage, Using, collection::ResourceCollection},
+    fsm::{Fsm, FsmStateRef, FsmUsages, Transition, collection::InMemoryFsms},
+    resource::{CapacityValue, Usage, Using},
 };
 
-/// A run-time defined [`Usage`] of a [`Resource`] in an [`Fsm`] [`State`].
+/// A run-time defined [`Usage`] of a `Resource` in an [`Fsm`] `State`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtFsmStateUsage {
     pub resource: Uuid,
@@ -41,12 +41,12 @@ impl RtFsmStateUsage {
     }
 }
 
-/// A run-time defined [`StateTransition`] of an [`Fsm`].
+/// A run-time defined `StateTransition` of an [`Fsm`].
 pub struct RtFsmTransition {
     pub name: String,
     pub usages: Vec<RtFsmStateUsage>,
     pub timestamp: TimeUnixNanoSec,
-    pub attributes: Vec<Attribute>,
+    pub attributes: Vec<DynamicAttribute>,
 }
 
 impl Timestamp for RtFsmTransition {
@@ -59,12 +59,12 @@ impl Transition for RtFsmTransition {
     fn name(&self) -> &str {
         self.name.as_str()
     }
-    fn attributes(&self) -> impl Iterator<Item = &Attribute> {
-        self.attributes.iter()
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        self.attributes.clone()
     }
 }
 
-/// Builder for run-time defined [`Fsm`]s with [`State`]s of type T.
+/// Builder for run-time defined [`Fsm`]s with `State`s of type T.
 pub struct RtFsmBuilder<T> {
     id: Uuid,
     type_name: Option<String>,
@@ -174,49 +174,6 @@ impl RtFsm {
     pub fn transitions(&self) -> &[RtFsmTransition] {
         &self.transitions
     }
-
-    pub fn try_declaration(
-        &self,
-        resources: &impl ResourceCollection,
-    ) -> AnalyzerResult<FsmTypeDecl> {
-        let mut state_decls: HashMap<&str, FsmStateTypeDecl> = HashMap::default();
-
-        for transition in &self.transitions {
-            let entry = state_decls
-                .entry(transition.name.as_str())
-                .or_insert_with(|| FsmStateTypeDecl {
-                    name: transition.name.clone(),
-                    usages: Vec::new(),
-                });
-            for usage in &transition.usages {
-                let resource = resources.resource(usage.resource)?;
-                let resource_type_name = &resources.resource_type(resource.type_name())?.name;
-                if !entry.usages.contains(resource_type_name) {
-                    entry.usages.push(resource_type_name.clone());
-                }
-            }
-        }
-
-        let mut transitions = Vec::new();
-        if let Some(first_transition) = self.transitions.first() {
-            transitions.push(FsmTransitionDecl::Entry(first_transition.name.clone()));
-        }
-        for window in self.transitions.windows(2) {
-            transitions.push(FsmTransitionDecl::Transition(
-                window[0].name.clone(),
-                window[1].name.clone(),
-            ));
-        }
-        if let Some(last_transition) = self.transitions.last() {
-            transitions.push(FsmTransitionDecl::Exit(last_transition.name.clone()));
-        }
-
-        Ok(FsmTypeDecl {
-            name: self.type_name.clone(),
-            states: state_decls.into_values().collect(),
-            transitions,
-        })
-    }
 }
 
 #[cfg(test)]
@@ -297,7 +254,7 @@ impl RtFsmsBuilder {
             .push(transition);
     }
 
-    pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm, RtFsmTransition>> {
+    pub fn try_build(self) -> AnalyzerResult<InMemoryFsms<RtFsm>> {
         // Build all FSMs.
         let mut fsms: HashMap<Uuid, RtFsm> =
             HashMap::with_capacity_and_hasher(self.fsms.capacity(), Default::default());

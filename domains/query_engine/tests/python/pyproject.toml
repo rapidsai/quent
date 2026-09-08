@@ -1,0 +1,16 @@
+[build-system]
+requires = ["maturin>=1.10,<2"]
+build-backend = "maturin"
+
+[project]
+name = "quent-qe"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.maturin]
+manifest-path = "bridge/Cargo.toml"
+module-name = "quent_qe"
+include = [
+  { path = "quent_qe/__init__.pyi", from = "out-dir", to = "" },
+  { path = "quent_qe/py.typed", from = "out-dir", to = "" },
+]

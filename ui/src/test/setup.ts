@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
@@ -29,6 +32,12 @@ class ResizeObserverMock {
 
 // Mock scrollIntoView for Radix UI Select components
 Element.prototype.scrollIntoView = vi.fn();
+
+// jsdom doesn't implement pointer capture; Radix UI Select calls these during
+// open/select interactions.
+Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(false);
+Element.prototype.setPointerCapture = vi.fn();
+Element.prototype.releasePointerCapture = vi.fn();
 
 // Start MSW server before all tests
 beforeAll(() => {
