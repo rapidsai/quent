@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import type { NvtxMarkItem, NvtxRangeItem } from '@quent/utils';
+import type { NvtxLane, NvtxMarkItem, NvtxRangeItem } from '@quent/utils';
 import {
   mergeNvtxGanttData,
   NVTX_BAR_MERGE_MIN_COUNT,
   nvtxItemsAtTimestamp,
+  nvtxLanesToGanttData,
   nvtxMergedBarCountLabel,
   nvtxTooltipModel,
   type NvtxGanttDatum,
@@ -102,6 +103,35 @@ function markDatum(message: string, timestampMs = 0): NvtxGanttDatum {
   };
   return { value: [timestampMs, timestampMs, 0], mark };
 }
+
+function threadLane(depth: number, ranges: NvtxRangeItem[] = []): NvtxLane {
+  return {
+    id: `thread-42-depth-${depth}`,
+    label: `worker 42 depth ${depth}`,
+    identity: { kind: 'thread', thread_id: 42, depth },
+    ranges,
+    marks: [],
+  };
+}
+
+describe('NVTX Gantt lanes', () => {
+  it('compacts populated lanes instead of preserving empty depth gaps', () => {
+    const data = nvtxLanesToGanttData([
+      threadLane(0, [rangeDatum('outer', 0).range!]),
+      threadLane(1),
+      threadLane(2, [rangeDatum('inner', 2).range!]),
+    ]);
+
+    expect(data.map(datum => [datum.range?.message, datum.value[2]])).toEqual([
+      ['outer', 0],
+      ['inner', 1],
+    ]);
+  });
+
+  it('returns no chart lanes when the thread row is empty', () => {
+    expect(nvtxLanesToGanttData([threadLane(0), threadLane(1)])).toEqual([]);
+  });
+});
 
 describe('NVTX Gantt tooltip', () => {
   it('includes the thread and orders ranges by chart depth', () => {

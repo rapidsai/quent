@@ -311,8 +311,7 @@ Out-of-the-box `@quent/*` packages publish a **`tsup`-built `dist/`** as their
 in-repo `link:` shape instead points `main` at `src/index.ts`, so Grafana's
 `swc-loader` (or `ts-loader`) ends up transpiling the TypeScript on the fly —
 make sure the loader rule does NOT exclude `node_modules/@quent/*` (e.g.
-`exclude: /node_modules\/(?!@quent\/)/` as in this repo's
-`quent-pivot-table-panel/webpack.config.cjs`). Keep `transpileOnly: true`
+`exclude: /node_modules\/(?!@quent\/)/`). Keep `transpileOnly: true`
 either way so cross-package types are not re-checked inside the plugin build.
 
 #### Styles

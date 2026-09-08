@@ -33,11 +33,13 @@ function buildSegments(
   colorFsm: (stateName: string) => string,
   resourceIdsForFilter?: ReadonlySet<string> | null
 ): LongEntitySegment[] {
-  return fsm.transitions
+  return (fsm.transitions ?? [])
     .slice(0, -1)
     .map((transition, i): LongEntitySegment | null => {
       const next = fsm.transitions[i + 1];
-      if (!next) return null;
+      if (!next) {
+        return null;
+      }
       if (
         resourceIdsForFilter != null &&
         !transition.usages?.some(usage => resourceIdsForFilter.has(usage.resource))
@@ -46,7 +48,9 @@ function buildSegments(
       }
       const startMs = transition.timestamp * 1000;
       const endMs = next.timestamp * 1000;
-      if (endMs <= startMs) return null;
+      if (endMs <= startMs) {
+        return null;
+      }
       return {
         stateName: transition.name,
         startMs,
@@ -80,7 +84,9 @@ export function buildLongEntityEntries(
   const entries: LongEntityEntry[] = [];
   for (const fsm of items) {
     const segments = buildSegments(fsm, colorFsm, resourceIdsForFilter);
-    if (segments.length === 0) continue;
+    if (segments.length === 0) {
+      continue;
+    }
     const startMs = segments[0]!.startMs;
     const endMs = segments[segments.length - 1]!.endMs;
     entries.push({

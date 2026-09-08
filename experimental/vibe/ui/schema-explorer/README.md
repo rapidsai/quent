@@ -16,6 +16,18 @@ pixi run --frozen pnpm --dir experimental/vibe/ui explorer
 
 Open the local URL printed by Vite, normally `http://localhost:5173`.
 
+## Example links
+
+Open a built-in model directly with the `example` query parameter, for example:
+
+```text
+https://rapidsai.github.io/quent/schema/?example=simple
+```
+
+Available values are `simple`, `hello`, `dynamo-inference`, `simulator`, and
+`sirius`. Selecting another example updates the current URL without reloading
+the page.
+
 ## YAML WebAssembly
 
 The editor parses YAML through a browser build of `quent-yaml`. Regenerate the

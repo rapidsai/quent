@@ -59,7 +59,9 @@ export function NvtxGantt({
 
   useLayoutEffect(() => {
     const element = containerRef.current;
-    if (!element || typeof ResizeObserver === 'undefined') return;
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return;
+    }
     const update = () => setPlotWidthPx(Math.max(0, element.clientWidth - TIMELINE_SPACING.right));
     update();
     const observer = new ResizeObserver(update);
@@ -106,13 +108,17 @@ export function NvtxGantt({
   const renderItem: GanttRenderItem = useCallback(
     (params, api) => {
       const datum = customSeriesData[params.dataIndex];
-      if (!datum) return null;
+      if (!datum) {
+        return null;
+      }
       const layout = layoutGanttBar(params, api, {
         barHeight: BAR_HEIGHT,
         minWidth: NVTX_MIN_BAR_WIDTH_PX,
         allowInstant: true,
       });
-      if (!layout) return null;
+      if (!layout) {
+        return null;
+      }
       const { clippedShape } = layout;
       const color = rgbHex(datum.range?.color ?? datum.mark?.color ?? '#2563eb');
       const merged = (datum.mergedCount ?? 1) > 1;

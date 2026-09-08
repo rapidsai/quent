@@ -15,9 +15,13 @@ export function collectResourceTypesFromTree(items: TreeTableItem[]): string[] {
     items.forEach(item => {
       if ('type_name' in item.entity && !item.children?.length) {
         const typeName = item.entity.type_name;
-        if (typeName) types.add(typeName);
+        if (typeName) {
+          types.add(typeName);
+        }
       }
-      if (item.children?.length) collect(item.children);
+      if (item.children?.length) {
+        collect(item.children);
+      }
     });
   };
 

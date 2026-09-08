@@ -16,7 +16,9 @@ export function observeGanttHover(
 ): () => void {
   const dom = instance.getDom();
   const onPointerMove = (event: PointerEvent) => {
-    if (instance.isDisposed?.()) return;
+    if (instance.isDisposed?.()) {
+      return;
+    }
     const rect = dom.getBoundingClientRect();
     const point: [number, number] = [event.clientX - rect.left, event.clientY - rect.top];
     if (!instance.containPixel({ gridIndex: 0 }, point)) {
@@ -25,7 +27,9 @@ export function observeGanttHover(
     }
     try {
       const value = instance.convertFromPixel({ xAxisIndex: 0 }, point[0]);
-      if (value == null || !Number.isFinite(value as number)) return;
+      if (value == null || !Number.isFinite(value as number)) {
+        return;
+      }
       onChange({
         timestampMs: value as number,
         clientX: event.clientX,

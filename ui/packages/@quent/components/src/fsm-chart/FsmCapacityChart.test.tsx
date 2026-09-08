@@ -233,10 +233,12 @@ describe('FsmCapacityChart', () => {
 
     it('resets the capacity selection when the resource changes', async () => {
       const getCapacityDecl = (_id: string, name: string) => {
-        if (name === 'capacity_bytes')
+        if (name === 'capacity_bytes') {
           return { name: 'capacity_bytes', kind: 'Occupancy' as const, quantity: 'bytes' };
-        if (name === 'rate_bytes')
+        }
+        if (name === 'rate_bytes') {
           return { name: 'rate_bytes', kind: 'Rate' as const, quantity: 'rate' };
+        }
         return undefined;
       };
 

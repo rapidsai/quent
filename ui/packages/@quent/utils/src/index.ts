@@ -79,6 +79,9 @@ export type {
   DAGEdge,
 } from './dagTypes';
 
+export { AGG_MODES } from './aggMode';
+export type { AggMode } from './aggMode';
+
 // Operator timeline row ID utilities
 export const OPERATOR_TIMELINE_ROW_TYPE = 'operator-timeline';
 const OPERATOR_TIMELINE_ROW_ID_PREFIX = '__operator_timeline__';

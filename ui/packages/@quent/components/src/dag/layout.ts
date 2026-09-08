@@ -33,13 +33,17 @@ export async function calculateLayout<TData extends Record<string, unknown>>(
 ): Promise<{ nodes: Node<TData>[]; edges: Edge[] }> {
   const grf = graph<string, undefined>();
   const nodeById = new Map<string, ReturnType<typeof grf.node>>();
-  for (const n of nodes) nodeById.set(n.id, grf.node(n.id));
+  for (const n of nodes) {
+    nodeById.set(n.id, grf.node(n.id));
+  }
   // sugiyama layers link sources above targets, so flip links to put the root on top
   const flip = direction === DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP;
   for (const e of edges) {
     const src = nodeById.get(e.source);
     const tgt = nodeById.get(e.target);
-    if (src && tgt) grf.link(flip ? tgt : src, flip ? src : tgt, undefined);
+    if (src && tgt) {
+      grf.link(flip ? tgt : src, flip ? src : tgt, undefined);
+    }
   }
 
   // nodeSize encodes center-to-center distance per axis:

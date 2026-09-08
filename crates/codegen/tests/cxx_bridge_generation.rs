@@ -177,7 +177,39 @@ fn generate_query_engine_cxx_bridge() {
             .content
             .contains("io::ExporterOptions::Collector")
     );
+    assert!(context_file.content.contains("use nvtx_bridge;"));
+    assert!(context_file.content.contains("use nvtx_injection;"));
+    assert!(
+        context_file
+            .content
+            .contains("_nvtx_pipeline: Option<Box<dyn std::any::Any + Send + Sync>>")
+    );
+    assert!(
+        context_file
+            .content
+            .contains("observer::<nvtx_bridge::NvtxEventEntity>(&options)")
+    );
+    assert!(
+        context_file
+            .content
+            .contains("nvtx_injection::install_hook")
+    );
+    assert!(context_file.content.contains("_nvtx_pipeline,"));
     assert!(!context_file.content.contains("exporter: String"));
+}
+
+#[test]
+fn cxx_bridge_can_opt_out_of_nvtx() {
+    let mut builder = quent_query_engine_model::QueryEngineModel::build("QueryEngine");
+    builder.nvtx = false;
+
+    let files = emit_cxx(&builder, &CxxOptions::default());
+    let context = files.iter().find(|file| file.name == "context.rs").unwrap();
+
+    assert!(!context.content.contains("nvtx_bridge"));
+    assert!(!context.content.contains("nvtx_injection"));
+    assert!(!context.content.contains("_nvtx_pipeline"));
+    syn::parse_file(&context.content).unwrap();
 }
 
 #[test]

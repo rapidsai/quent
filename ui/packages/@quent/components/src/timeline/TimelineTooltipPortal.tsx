@@ -29,8 +29,12 @@ export function TimelineTooltipPortal({
   const zoomRange = useZoomRange();
   const isOwned = hover?.sourceId === ownerId;
 
-  if (!isOwned || !hover) return null;
-  if (timestamps.length === 0) return null;
+  if (!isOwned || !hover) {
+    return null;
+  }
+  if (timestamps.length === 0) {
+    return null;
+  }
 
   // Defensive clamp: a stale `dataIndex` from a previous render could exceed
   // the current array length

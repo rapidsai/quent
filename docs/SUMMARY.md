@@ -1,6 +1,6 @@
 # Summary
 
-[Introduction](./README.md)
+[Outdated documentation](./README.md)
 
 - [Event Model](./event_model.md)
 - [FAQ](./faq.md)

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { screen, renderWithRouter, waitFor, fireEvent } from '@/test/test-utils';
@@ -9,6 +9,10 @@ import { screen, renderWithRouter, waitFor, fireEvent } from '@/test/test-utils'
 const API_BASE = 'http://localhost:8000/api';
 
 describe('EngineSelectionPage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     // Set up default handlers for the profile page API endpoints
     server.use(
@@ -177,6 +181,39 @@ describe('EngineSelectionPage', () => {
         expect(screen.queryByText('engine-2')).not.toBeInTheDocument();
         expect(screen.queryByText('engine-3')).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Overflow labels', () => {
+    it('shows item hover cards without opening one when focus returns to the trigger', async () => {
+      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(400);
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100);
+
+      renderWithRouter({ initialPath: '/profile' });
+
+      const trigger = await screen.findByText('Select Engine');
+      fireEvent.click(trigger);
+
+      const label = 'engine-1';
+      const item = await screen.findByRole('option', { name: label });
+      expect(item.children[1]).toHaveClass('min-w-0', 'flex-1', 'truncate');
+      fireEvent.pointerEnter(item);
+      expect(screen.getAllByText(label)).toHaveLength(1);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(label)).toHaveLength(2);
+      });
+
+      fireEvent.pointerLeave(item);
+      fireEvent.click(item);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(label)).toHaveLength(1);
+      });
+
+      fireEvent.focus(screen.getAllByRole('combobox')[0]);
+
+      expect(screen.getAllByText(label)).toHaveLength(1);
     });
   });
 

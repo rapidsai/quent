@@ -51,6 +51,16 @@ quent_model::model! {
     },
 }
 
+quent_model::model! {
+    name: TestWithoutNvtx,
+    root: TestRoot,
+    entities: {
+        SimpleFsm,
+        SimpleEntity,
+    },
+    nvtx: false,
+}
+
 #[test]
 fn define_model_generates_event_enum() {
     // The enum TestEvent should have variants for each component
@@ -62,9 +72,17 @@ fn define_model_generates_event_enum() {
 
 #[test]
 fn define_model_generates_model_type() {
+    assert!(quent_model::ModelBuilder::default().nvtx);
     let builder = TestModel::build("Test");
     assert_eq!(builder.fsms.len(), 1);
     assert_eq!(builder.entities.len(), 2); // TestRoot + SimpleEntity
+    assert!(builder.nvtx);
+}
+
+#[test]
+fn define_model_can_disable_nvtx() {
+    let builder = TestWithoutNvtxModel::build("TestWithoutNvtx");
+    assert!(!builder.nvtx);
 }
 
 #[test]

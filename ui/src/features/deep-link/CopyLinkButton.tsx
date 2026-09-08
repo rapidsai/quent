@@ -26,13 +26,17 @@ export function CopyLinkButton() {
 
   useEffect(
     () => () => {
-      if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+      if (resetTimer.current !== null) {
+        window.clearTimeout(resetTimer.current);
+      }
     },
     []
   );
 
   const handleCopy = async () => {
-    if (!deepLink) return;
+    if (!deepLink) {
+      return;
+    }
     setFeedback({ kind: 'working', message: 'Copying…' });
     const result = await deepLink.copyLink();
     setFeedback(
@@ -50,7 +54,9 @@ export function CopyLinkButton() {
       });
     }
 
-    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+    if (resetTimer.current !== null) {
+      window.clearTimeout(resetTimer.current);
+    }
     resetTimer.current = window.setTimeout(() => setFeedback({ kind: 'idle', message: '' }), 3000);
   };
 
@@ -61,7 +67,9 @@ export function CopyLinkButton() {
   const statusMessage = feedback.message || intakeMessage || '';
   const title = statusMessage || 'Copy Link';
 
-  if (!portalTarget) return null;
+  if (!portalTarget) {
+    return null;
+  }
   return createPortal(
     <>
       <Button

@@ -196,7 +196,7 @@ checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -779,7 +779,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scratch",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -793,7 +793,7 @@ dependencies = [
  "indexmap",
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -811,7 +811,7 @@ dependencies = [
  "indexmap",
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -1365,9 +1365,9 @@ dependencies = [
 
 [[package]]
 name = "granit-parser"
-version = "0.0.7"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d03f81ad4732830d85cfd417a9f62cde6dadda4354d37d078a6084a19560aa2d"
+checksum = "4ccd1be9ebf2bd5520dbfcfb72b70ef492f654061299a097056f3e73410e38ec"
 dependencies = [
  "arraydeque",
  "smallvec",
@@ -1804,11 +1804,12 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.85"
+version = "0.3.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c942ebf8e95485ca0d52d97da7c5a2c387d0e7f0ba4c35e93bfcaee045955b3"
+checksum = "0e0c1080212aad755ea003d18543e8768dd432c48819efd73a7bf1e39b7a5a3a"
 dependencies = [
- "once_cell",
+ "cfg-if",
+ "futures-util",
  "wasm-bindgen",
 ]
 
@@ -1881,9 +1882,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.33"
+version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "logos"
@@ -2161,11 +2162,14 @@ dependencies = [
 
 [[package]]
 name = "nvtx"
-version = "1.3.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad2e855e8019f99e4b94ac33670eb4e4f570a2e044f3749a0b2c7f83b841e52c"
+checksum = "2d1e5e2177aff9fd71177136dffc40d44d10e9228cf4584ba6ecaa60f77b214e"
 dependencies = [
- "cc",
+ "libc",
+ "nvtx-sys",
+ "spin",
+ "widestring",
 ]
 
 [[package]]
@@ -2203,6 +2207,7 @@ dependencies = [
 name = "nvtx-example"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "nvtx",
  "nvtx-bridge",
  "nvtx-events",
@@ -2241,6 +2246,17 @@ dependencies = [
  "tower",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "nvtx-sys"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9d27db0c4b06b35ff598e53093f6c050df4b10dbda5f397f5ee39fbc5890498"
+dependencies = [
+ "bindgen",
+ "cc",
+ "widestring",
 ]
 
 [[package]]
@@ -2287,9 +2303,9 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "open"
-version = "5.4.1"
+version = "5.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9cfef937e9c486488c7e3d949ae31c0f1d06bdacd75b99c086cb35356e30408"
+checksum = "ade3be4664bc1ef537ce133015f04c176b737815c2ba9fd60edf212d6e90dd55"
 dependencies = [
  "is-wsl",
  "libc",
@@ -2547,7 +2563,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
 dependencies = [
  "proc-macro2",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -2760,8 +2776,10 @@ version = "0.1.0"
 dependencies = [
  "cxx",
  "cxx-build",
+ "nvtx-bridge",
+ "nvtx-injection",
  "quent-codegen",
- "quent-readme-example",
+ "quent-legacy-readme-example",
 ]
 
 [[package]]
@@ -2779,13 +2797,13 @@ dependencies = [
  "convert_case",
  "prettyplease 0.3.0",
  "proc-macro2",
+ "quent-legacy-readme-example",
  "quent-model",
  "quent-query-engine-model",
- "quent-readme-example",
  "quent-simulator-instrumentation",
  "quote",
  "serde",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -2881,6 +2899,7 @@ dependencies = [
  "pprof",
  "quent-build-info",
  "quent-collector",
+ "quent-collector-client",
  "quent-collector-proto",
  "quent-dynamic-attributes",
  "quent-events",
@@ -2908,8 +2927,18 @@ dependencies = [
  "quent-ref-target",
  "quent-schema",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
  "thiserror",
+]
+
+[[package]]
+name = "quent-instrumentation-build-example"
+version = "0.1.0"
+dependencies = [
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
+ "serde",
 ]
 
 [[package]]
@@ -2926,6 +2955,8 @@ dependencies = [
  "quent-io-postcard",
  "quent-io-types",
  "serde",
+ "tempfile",
+ "tokio",
  "uuid",
 ]
 
@@ -3009,6 +3040,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-legacy-readme-example"
+version = "0.1.0"
+dependencies = [
+ "quent-model",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-model"
 version = "0.1.0"
 dependencies = [
@@ -3035,7 +3075,7 @@ dependencies = [
  "convert_case",
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -3056,7 +3096,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "syn 3.0.3",
+ "syn 3.0.5",
  "tar",
  "tempfile",
  "thiserror",
@@ -3074,6 +3114,8 @@ version = "0.1.0"
 dependencies = [
  "cxx",
  "cxx-build",
+ "nvtx-bridge",
+ "nvtx-injection",
  "quent-codegen",
  "quent-qe-cpp-instrumentation",
  "quent-stdlib",
@@ -3154,6 +3196,7 @@ dependencies = [
 name = "quent-query-engine-server"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "mime_guess",
  "moka",
@@ -3185,6 +3228,7 @@ dependencies = [
 name = "quent-query-engine-ui"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-query-engine-model",
@@ -3199,9 +3243,10 @@ dependencies = [
 name = "quent-readme-example"
 version = "0.1.0"
 dependencies = [
- "quent-model",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
  "serde",
- "uuid",
 ]
 
 [[package]]
@@ -3210,7 +3255,7 @@ version = "0.1.0"
 dependencies = [
  "pyo3",
  "quent-codegen",
- "quent-readme-example",
+ "quent-legacy-readme-example",
 ]
 
 [[package]]
@@ -3350,11 +3395,72 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-simulator-wasm"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "postcard",
+ "quent-events",
+ "quent-model",
+ "quent-query-engine-analyzer",
+ "quent-query-engine-ui",
+ "quent-simulator",
+ "quent-simulator-analyzer",
+ "quent-simulator-instrumentation",
+ "quent-ui",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "quent-stdlib"
 version = "0.1.0"
 dependencies = [
  "quent-model",
  "uuid",
+]
+
+[[package]]
+name = "quent-store"
+version = "0.1.0"
+dependencies = [
+ "quent-build-info",
+ "quent-events",
+ "quent-io",
+ "serde",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-store-build"
+version = "0.1.0"
+dependencies = [
+ "prettyplease 0.3.0",
+ "quent-instrumentation-build",
+ "quent-schema",
+ "quote",
+ "syn 3.0.5",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "quent-store-build-example"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "quent-instrumentation-build-example",
+ "quent-store",
+ "quent-store-build",
+ "quent-yaml",
+ "serde",
+ "tempfile",
 ]
 
 [[package]]
@@ -3896,15 +4002,13 @@ dependencies = [
 
 [[package]]
 name = "serde-saphyr"
-version = "0.0.29"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bd22781911de0ca6debda95f073c8f18bec65d1a94f1fa9573f3102e514cea4"
+checksum = "a1ec1f5cac0eb96063c64b28705255a7ed6e7d77f95c1d25e9f8b8c928006ce1"
 dependencies = [
- "ahash",
  "annotate-snippets",
  "base64",
  "encoding_rs_io",
- "getrandom 0.3.4",
  "granit-parser",
  "nohash-hasher",
  "num-traits",
@@ -3930,7 +4034,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -4316,9 +4420,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.3"
+version = "3.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+checksum = "12df2e0110f65b775f769bb17ef989067a1d931b2eb822bd4346631eeada89f9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4422,7 +4526,7 @@ checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -4951,9 +5055,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.24.0"
+version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
+checksum = "f053576934f05a761a402421fbbe3d425d9366f75f978806a037b3ca481abecc"
 dependencies = [
  "getrandom 0.4.1",
  "js-sys",
@@ -5018,9 +5122,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.108"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64024a30ec1e37399cf85a7ffefebdb72205ca1c972291c51512360d90bd8566"
+checksum = "1b70935747edd64d89de3efa29d73789b806c15798f8e7dca4d8ac356b50ce70"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -5031,23 +5135,19 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.58"
+version = "0.4.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70a6e77fd0ae8029c9ea0063f87c46fde723e7d887703d74ad2616d792e51e6f"
+checksum = "6b7777d5cc23d0e91404e53ce2d5e8ec7acae3026b16233dba62cd3246457950"
 dependencies = [
- "cfg-if",
- "futures-util",
  "js-sys",
- "once_cell",
  "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.108"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "008b239d9c740232e71bd39e8ef6429d27097518b6b30bdf9086833bd5b6d608"
+checksum = "77775f8f3f7217702089053b94958f8f54061a3f663417df76e19cbdcca29bc1"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -5055,9 +5155,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.108"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5256bae2d58f54820e6490f9839c49780dff84c65aeab9e772f15d5f0e913a55"
+checksum = "e11d33f857dc2fb11b8bc75aee111aa9cbeb12cd9f25efd3d4c2a3dd4e235284"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -5068,9 +5168,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.108"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f01b580c9ac74c8d8f0c0e4afb04eeef2acf145458e52c03845ee9cd23e3d12"
+checksum = "7ef64dbcc55df09c7e5a46182d181c2cfa3e925f3da937ea764728b4bbb9dcbf"
 dependencies = [
  "unicode-ident",
 ]
@@ -5111,9 +5211,9 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.85"
+version = "0.3.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "312e32e551d92129218ea9a2452120f4aabc03529ef03e4d0d82fb2780608598"
+checksum = "c435338968042f4f59a557f690a253676d47ce13ceb55d70100e7facf6620a30"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -5128,6 +5228,12 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "widestring"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72069c3113ab32ab29e5584db3c6ec55d416895e60715417b5b883a357c3e471"
 
 [[package]]
 name = "winapi"

@@ -478,6 +478,41 @@ fn emit_context_bridge(
     let build_wraps: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.wrap).collect();
     let field_inits: Vec<syn::Ident> = observer_fields.iter().map(|o| o.field.clone()).collect();
 
+    let nvtx_imports = model.nvtx.then(|| {
+        quote! {
+            use nvtx_bridge;
+            use nvtx_injection;
+        }
+    });
+    let nvtx_struct_field = model.nvtx.then(|| {
+        quote! {
+            _nvtx_pipeline: Option<Box<dyn std::any::Any + Send + Sync>>
+        }
+    });
+    let nvtx_tuple_binding = model.nvtx.then(|| quote! { _nvtx_pipeline, });
+    let nvtx_noop_value = model.nvtx.then(|| quote! { None, });
+    let nvtx_active_setup = model.nvtx.then(|| {
+        quote! {
+            let pipeline = inner
+                .observer::<nvtx_bridge::NvtxEventEntity>(&options)
+                .await
+                .map_err(|e| e.to_string())?;
+            let sender = pipeline.sender();
+            let context_id = id;
+            // The injection hook is process-global and one-shot. A later
+            // generated context keeps its own pipeline alive but cannot replace
+            // the first context's capture destination.
+            let _ = nvtx_injection::install_hook(move |event| {
+                sender.emit(context_id, nvtx_bridge::NvtxEventEntity::from(event))
+            })
+            .ok();
+            let _nvtx_pipeline: Option<Box<dyn std::any::Any + Send + Sync>> =
+                Some(Box::new(pipeline));
+        }
+    });
+    let nvtx_active_value = model.nvtx.then(|| quote! { _nvtx_pipeline, });
+    let nvtx_field_init = model.nvtx.then(|| quote! { _nvtx_pipeline, });
+
     let accessors: Vec<TokenStream> = observer_fields
         .iter()
         .map(|o| {
@@ -494,6 +529,7 @@ fn emit_context_bridge(
 
     // Rust impl part — formatted via prettyplease.
     let impl_tokens = quote! {
+        #nvtx_imports
         use std::sync::Arc;
 
         pub struct ExporterOptions {
@@ -552,6 +588,7 @@ fn emit_context_bridge(
 
         pub struct Context {
             #(#struct_fields,)*
+            #nvtx_struct_field
         }
 
         impl Context {
@@ -572,8 +609,11 @@ fn emit_context_bridge(
             // constructing its exporter from the options, bound to the id)
             // concurrently on the context's runtime, block until done. The
             // observers keep the runtime alive; `inner` drops here.
-            let (#(#build_fields,)*) = match options.inner {
-                None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
+            let (#(#build_fields,)* #nvtx_tuple_binding) = match options.inner {
+                None => (
+                    #(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*
+                    #nvtx_noop_value
+                ),
                 Some(options) => {
                     let inner = #q::ContextInner::try_new(id).map_err(|e| e.to_string())?;
                     #q::write_sidecar(
@@ -586,12 +626,17 @@ fn emit_context_bridge(
                             #(inner.observer::<#build_event_tys>(&options),)*
                         )
                         .map_err(|e| e.to_string())?;
-                        Ok::<_, String>((#(#build_wraps(#build_fields),)*))
+                        #nvtx_active_setup
+                        Ok::<_, String>((
+                            #(#build_wraps(#build_fields),)*
+                            #nvtx_active_value
+                        ))
                     })?
                 }
             };
             Ok(Box::new(Context {
                 #(#field_inits,)*
+                #nvtx_field_init
             }))
         }
     };

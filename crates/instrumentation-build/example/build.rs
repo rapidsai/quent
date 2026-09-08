@@ -21,6 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Schema -> generated Rust instrumentation source.
     let opts = Options {
+        // Filesystem exporters serialize generated events.
+        serde: true,
         // Generate `DemoEvent`, which lets one typed callback receive events
         // from every entity in the model.
         umbrella_event: true,

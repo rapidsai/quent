@@ -5,5 +5,12 @@ import { mount } from 'svelte';
 
 import App from './App.svelte';
 import './style.css';
+import {
+  applyTheme,
+  readThemePreference,
+  resolveTheme,
+} from './theme';
+
+applyTheme(resolveTheme(readThemePreference()));
 
 mount(App, { target: document.getElementById('app')! });

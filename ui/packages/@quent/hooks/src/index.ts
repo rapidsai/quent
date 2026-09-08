@@ -29,6 +29,8 @@ export {
   useSetLongEntityDensity,
   useTimelineHover,
   useSetTimelineHover,
+  useTimelinePointerRatio,
+  useTimelinePointerPublisher,
   useStartTimeMs,
   useSetStartTimeMs,
   useBulkInitialized,
@@ -138,6 +140,15 @@ export type {
 
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';
+
+export { useSerializableViewState } from './deepLink/useSerializableViewState';
+export type {
+  HydratableViewState,
+  SerializableDagControls,
+  SerializableDataFlowState,
+  SerializableOperatorTableState,
+  SerializableViewState,
+} from './deepLink/useSerializableViewState';
 
 // Pivot-table hooks
 export { useColumnDragDrop } from './pivot-table/useColumnDragDrop';

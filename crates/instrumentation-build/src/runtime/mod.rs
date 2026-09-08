@@ -35,8 +35,9 @@ pub(crate) fn entity_runtime_types(
 pub(crate) fn generate_model(
     schema: &Schema,
     namespaces: &crate::namespace::Namespace<'_>,
+    collector_sink: bool,
 ) -> TokenStream {
-    context::schema_model(schema, namespaces)
+    context::schema_model(schema, namespaces, collector_sink)
 }
 
 pub(crate) fn observer_storage(
@@ -148,7 +149,7 @@ mod tests {
         let entity_types = entity_runtime_types(&s, entity, &Options::default()).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
         let generated_model = crate::model::generate(&s, &namespaces, &Options::default()).unwrap();
-        let model = generate_model(&s, &namespaces);
+        let model = generate_model(&s, &namespaces, false);
         let src = pretty(quote! {
             #event_types
             #entity_types
@@ -172,7 +173,7 @@ mod tests {
             .unwrap();
         let namespaces = crate::namespace::Namespace::root(&schema);
 
-        let src = pretty(generate_model(&schema, &namespaces));
+        let src = pretty(generate_model(&schema, &namespaces, false));
 
         assert!(src.contains("P: ::quent_instrumentation::ExporterProvider<foo::QueryEvent>"));
         assert!(

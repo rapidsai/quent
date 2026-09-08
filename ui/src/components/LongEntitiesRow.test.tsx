@@ -168,7 +168,7 @@ describe('LongEntitiesRow', () => {
   it('keeps the previous chart visible while a new viewport timeline loads', () => {
     const previousEntity = { id: 'entity-1' };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [previousEntity], total: 1 },
+      data: { items: [{ entity: previousEntity, usage_duration_s: 0 }], total: 1 },
       isFetching: false,
       isPlaceholderData: false,
     });
@@ -242,7 +242,7 @@ describe('LongEntitiesRow', () => {
     const firstEntity = { id: 'entity-1' };
     const secondEntity = { id: 'entity-2' };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [firstEntity], total: 2 },
+      data: { items: [{ entity: firstEntity, usage_duration_s: 0 }], total: 2 },
       isFetching: false,
       isPlaceholderData: false,
     });
@@ -267,7 +267,13 @@ describe('LongEntitiesRow', () => {
 
     mocks.debouncedZoomRange = { start: 0.3, end: 0.7 };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [firstEntity, secondEntity], total: 2 },
+      data: {
+        items: [
+          { entity: firstEntity, usage_duration_s: 0 },
+          { entity: secondEntity, usage_duration_s: 0 },
+        ],
+        total: 2,
+      },
       isFetching: false,
       isPlaceholderData: false,
     });
@@ -292,7 +298,7 @@ describe('LongEntitiesRow', () => {
   it('keeps a loading button when more entities will remain', () => {
     const firstEntity = { id: 'entity-1' };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [firstEntity], total: 250 },
+      data: { items: [{ entity: firstEntity, usage_duration_s: 0 }], total: 250 },
       isFetching: false,
       isPlaceholderData: false,
     });
@@ -308,7 +314,7 @@ describe('LongEntitiesRow', () => {
     const { rerender } = render(<LongEntitiesRow {...props} />);
 
     mocks.useEntityList.mockReturnValue({
-      data: { items: [firstEntity], total: 250 },
+      data: { items: [{ entity: firstEntity, usage_duration_s: 0 }], total: 250 },
       isFetching: true,
       isPlaceholderData: true,
     });
@@ -318,7 +324,13 @@ describe('LongEntitiesRow', () => {
 
     const secondEntity = { id: 'entity-2' };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [firstEntity, secondEntity], total: 250 },
+      data: {
+        items: [
+          { entity: firstEntity, usage_duration_s: 0 },
+          { entity: secondEntity, usage_duration_s: 0 },
+        ],
+        total: 250,
+      },
       isFetching: false,
       isPlaceholderData: false,
     });
@@ -330,7 +342,7 @@ describe('LongEntitiesRow', () => {
   it('keeps the previous entities visible while a changed request loads', () => {
     const previousEntity = { id: 'entity-1' };
     mocks.useEntityList.mockReturnValue({
-      data: { items: [previousEntity], total: 2 },
+      data: { items: [{ entity: previousEntity, usage_duration_s: 0 }], total: 2 },
       isFetching: true,
       isPlaceholderData: true,
     });

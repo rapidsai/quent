@@ -1,13 +1,6 @@
-# The Dockerfile only builds the Rust simulator binaries
-# (`quent-simulator-server`, `quent-simulator`). Nothing under `ui/` is
-# referenced by the Cargo build, so excluding the whole tree keeps build
-# contexts small and prevents `pnpm install` artifacts from any UI package
-# (including `ui/examples/*/node_modules`) from being slurped into the
-# image.
-ui/
-
 # Rust build outputs
 target/
+.pixi/
 
 # Generated/runtime data the server writes to a mounted volume
 data/

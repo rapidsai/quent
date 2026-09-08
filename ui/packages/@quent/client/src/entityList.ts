@@ -76,3 +76,30 @@ export const useEntityList = (
   params: EntityListParams,
   options?: { staleTime?: number; enabled?: boolean }
 ) => useQuery(entityListQueryOptions(params, options));
+
+// Raw-request variant: accepts a pre-built EntityListRequest directly.
+// Used when the caller constructs the full request object itself.
+interface EntitiesParams {
+  engineId: string;
+  request: EntityListRequest<QueryFilter, OperatorFilter>;
+}
+
+interface EntitiesOptions {
+  staleTime?: number;
+  enabled?: boolean;
+}
+
+export const entitiesQueryOptions = (
+  { engineId, request }: EntitiesParams,
+  options?: EntitiesOptions
+) =>
+  queryOptions({
+    queryKey: ['entities', engineId, request],
+    queryFn: () => fetchEntityList(engineId, request),
+    staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,
+    enabled: options?.enabled,
+    placeholderData: keepPreviousData,
+  });
+
+export const useEntities = (params: EntitiesParams, options?: EntitiesOptions) =>
+  useQuery(entitiesQueryOptions(params, options));

@@ -29,6 +29,7 @@ import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
+import { getNodeOpacityClass } from './nodeOpacity';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -75,31 +76,6 @@ const nodeVariants = cva(
   }
 );
 
-function nodeOpacityClass({
-  hoveredStat,
-  highlightedNodeIds,
-  operatorId,
-  isDimmed,
-}: {
-  hoveredStat: { values: Map<string, number> } | null | undefined;
-  highlightedNodeIds: Set<string> | null;
-  operatorId: string;
-  isDimmed: boolean;
-}): string {
-  if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
-  // An active highlight set fully overrides the selection-based dim so that
-  // hovered (highlighted) operators are always visible, even when a DAG
-  // selection would otherwise dim them. The atom is fed through
-  // `effectiveHighlightedNodeIdsAtom`, which clears `ids` when nothing in
-  // the highlight set is actually shown — so an empty/null set here means
-  // "no meaningful highlight" and we leave everything at full opacity.
-  if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
-    return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-35';
-  }
-  if (isDimmed) return 'opacity-35';
-  return 'opacity-100';
-}
-
 /** Memoized DAG node rendered inside ReactFlow. */
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   // Writes go to the source atom so the table (which reads from it directly)
@@ -119,8 +95,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
 
   const resolvedLabel = useMemo(() => {
-    if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
-    if (nodeLabelField === NODE_LABEL_FIELD.TYPE) return data.operationType;
+    if (nodeLabelField === NODE_LABEL_FIELD.ID) {
+      return data.metadata?.rawNode?.id ?? data.nodeId;
+    }
+    if (nodeLabelField === NODE_LABEL_FIELD.TYPE) {
+      return data.operationType;
+    }
     return data.label;
   }, [nodeLabelField, data]);
 
@@ -145,19 +125,24 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
 
   const heatmapColor = useMemo(() => {
-    if (!hoveredStat) return undefined;
+    if (!hoveredStat) {
+      return undefined;
+    }
     const v = hoveredStat.values.get(operatorId);
-    if (v === undefined) return undefined;
+    if (v === undefined) {
+      return undefined;
+    }
     const range = hoveredStat.max - hoveredStat.min;
     const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
     return continuousColor(t, nodePalette, isDark);
   }, [hoveredStat, operatorId, nodePalette, isDark]);
 
-  const opacityClass = nodeOpacityClass({
-    hoveredStat,
+  const opacityClass = getNodeOpacityClass({
+    hoveredStatValues: hoveredStat?.values,
     highlightedNodeIds: highlightState.ids,
     operatorId,
     isDimmed,
+    isSelected,
   });
 
   const isActiveHighlight = isHighlighted && !isSelected;

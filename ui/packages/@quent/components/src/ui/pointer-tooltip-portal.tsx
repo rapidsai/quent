@@ -16,7 +16,9 @@ export function PointerTooltipPortal({
   hover: PointerPosition | null;
   children: ReactNode;
 }) {
-  if (!hover) return null;
+  if (!hover) {
+    return null;
+  }
   return (
     <PositionedTooltip clientX={hover.clientX} clientY={hover.clientY}>
       {children}

@@ -8,6 +8,7 @@ swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
 ui = ["dep:mime_guess", "dep:quent-simulator-ui-bindings", "dep:rust-embed"]
 
 [dependencies]
+async-trait.workspace = true
 axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future"] }
 quent-analyzer = { path = "../../../crates/analyzer" }
@@ -34,4 +35,4 @@ mime_guess = { version = "2", optional = true }
 rust-embed = { version = "8", optional = true }
 
 [build-dependencies]
-quent-simulator-ui-bindings = { path = "../../../examples/simulator/ui-bindings", optional = true }
+quent-simulator-ui-bindings = { path = "../../../experimental/vibe/simulator/ui-bindings", optional = true }

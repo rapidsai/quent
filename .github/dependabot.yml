@@ -25,7 +25,6 @@ updates:
       default-days: 14
     directories:
       - "/ui"
-      - "/ui/examples/quent-pivot-table-panel"
       - "/crates/schema/ts"
     groups:
       npm:
@@ -45,7 +44,6 @@ updates:
       default-days: 14
     directories:
       - "/"
-      - "/crates/instrumentation-build/example"
     groups:
       cargo:
         applies-to: version-updates

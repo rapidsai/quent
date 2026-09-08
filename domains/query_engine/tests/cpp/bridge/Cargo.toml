@@ -10,6 +10,8 @@ crate-type = ["staticlib"]
 
 [dependencies]
 cxx = "1"
+nvtx-bridge = { path = "../../../../../integrations/nvtx/bridge" }
+nvtx-injection = { path = "../../../../../integrations/nvtx/injection" }
 quent-qe-cpp-instrumentation = { path = "../instrumentation" }
 quent-stdlib = { path = "../../../../../crates/stdlib" }
 

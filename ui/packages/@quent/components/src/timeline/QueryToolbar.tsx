@@ -11,14 +11,13 @@ import {
 
 interface QueryToolbarProps {
   children?: React.ReactNode;
+  filters?: React.ReactNode;
 }
 
 /**
- * Generic toolbar bar that shows the currently selected operator label
- * (with a clear button) on the left, and renders any provided children on
- * the right. Used by both TimelineToolbar and PivotTableToolbar.
+ * Generic query toolbar with filter controls on the left and actions on the right.
  */
-export function QueryToolbar({ children }: QueryToolbarProps) {
+export function QueryToolbar({ children, filters }: QueryToolbarProps) {
   const operatorLabel = useSelectedOperatorLabel();
   const setSelectedNodeIds = useSetSelectedNodeIds();
   const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
@@ -31,28 +30,28 @@ export function QueryToolbar({ children }: QueryToolbarProps) {
   };
 
   return (
-    <div className="flex items-center h-6 gap-4 px-3 py-1 border-b border-border text-xs text-muted-foreground shrink-0">
-      <div className="flex items-center gap-1.5">
-        <Filter className="h-3 w-3" />
+    <div className="flex min-h-8 items-center gap-4 border-b border-border px-3 py-1 text-xs text-muted-foreground shrink-0">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        {filters}
+        <Filter className="h-3 w-3 shrink-0" />
         {operatorLabel ? (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-primary/15 text-primary px-1.5 py-0.5 font-medium">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-primary/15 text-primary px-1.5 py-0.5 font-medium">
             {operatorLabel}
             <button
+              aria-label={`Clear operator filter ${operatorLabel}`}
               onClick={clearOperator}
-              aria-label="Clear operator filter"
               className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors cursor-pointer"
+              type="button"
             >
               <X className="h-2.5 w-2.5" />
             </button>
           </span>
-        ) : (
+        ) : !filters ? (
           <span>No filters</span>
-        )}
+        ) : null}
       </div>
 
-      <div className="flex-1" />
-
-      {children}
+      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
     </div>
   );
 }

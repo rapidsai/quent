@@ -1,24 +1,36 @@
 # Simulator
 
-The simulator (`examples/simulator/`) is a simulated distributed query engine
-used for rapid development and prototyping, especially the UI, without
+The simulator (`experimental/vibe/simulator/`) is a simulated distributed query
+engine used for rapid development and prototyping, especially the UI, without
 requiring integration with a real engine. The source code also serves as a
 reference for how to apply the modeling concepts.
 
 The simulator has multiple [Workers][worker], each with a logical and physical
-[Plan][plan]. For each physical [Operator][operator], Tasks are enqueued to a
-ThreadPool. During execution, a Task may allocate [Memory][memory], spill to
-or load from a Filesystem, compute results, or send data to another Worker
-over the Network.
+[Plan][plan]. Physical operators model compressed scans, GPU decoding,
+partitioned and local joins, aggregations, filters, UDFs, sorting, a query-wide
+limit, and output. During execution, a Task may allocate [Memory][memory], load
+from or spill to storage, compute on a CPU thread, transfer data between host
+and GPU memory, or send shuffled data over the Network.
+
+The generated profile follows query-engine cardinality behavior: decoding and
+one early many-to-many join may expand data, sorting preserves it, and later
+selective joins, aggregations, filters, and projection-like UDFs reduce it. The
+limit emits at most 42 rows across all workers.
+
+The data-flow endpoint reports task and resident-byte series for physical
+operators and rolls those series up to their logical parents, so the UI
+animation is populated for both logical and physical plan views.
 
 ## Resources
 
 ### Worker-scoped
 
-- Memory: [Memory][memory]
-- Filesystem: [Memory][memory]
-- FsToMem: [Channel][channel] (Filesystem → Memory)
-- MemToFs: [Channel][channel] (Memory → Filesystem)
+- Host Memory: [Memory][memory]
+- Storage: [Memory][memory]
+- StorageToHost: [Channel][channel] (Storage → Host Memory)
+- HostToStorage: [Channel][channel] (Host Memory → Storage)
+- GPU: [Resource Group][resource-group] containing GPU Memory, HostToGpu, and
+  GpuToHost
 - Thread: [Processor][processor]
 - ThreadPool: [Resource Group][resource-group] of Threads
 
@@ -39,19 +51,19 @@ Resource usage per state:
 | `queueing`   |             |            |                    |
 | `allocating` | Computation |            |                    |
 | `spilling`   | Computation |            | Transfer (MemToFs) |
-| `loading`    | Computation | Allocation | Transfer (FsToMem) |
+| `loading`    | Computation | Allocation | Input transfer     |
 | `computing`  | Computation | Allocation |                    |
-| `sending`    | Computation | Allocation | Transfer (Link)    |
+| `sending`    | Computation |            | Transfer (Link)    |
 
 State transitions:
 
 ```text
 ⊙          -> queueing
 queueing   -> allocating
-allocating -> spilling -> allocating
 allocating -> loading -> computing
 allocating -> computing
-computing  -> sending -> ⊗
+computing  -> spilling -> allocating
+computing  -> sending -> queueing
 computing  -> ⊗
 ```
 
@@ -67,10 +79,12 @@ Every [Resource][resource] [Usage][usage] traces back to an Engine through
 resource groups:
 
 ```text
-Task -> Computation -> Thread -> ThreadPool -> Worker -> Engine
-Task -> Transfer    -> FsToMem / MemToFs  -> Worker -> Engine
-Task -> Transfer    -> Link -> Network -> Engine
-Task -> Allocation  -> Memory -> Worker -> Engine
+Task -> Computation    -> Thread -> ThreadPool -> Worker -> Engine
+Task -> Transfer       -> HostToGpu / GpuToHost -> GPU -> Worker -> Engine
+Task -> Transfer       -> StorageToHost / HostToStorage -> Worker -> Engine
+Task -> Transfer       -> Link -> Network -> Engine
+Task -> Allocation     -> GPU Memory -> GPU -> Worker -> Engine
+Task -> Allocation     -> Host Memory -> Worker -> Engine
 ```
 
 ## Example analyses

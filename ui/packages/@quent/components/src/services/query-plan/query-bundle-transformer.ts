@@ -60,8 +60,11 @@ const buildRelatedOperatorIdsById = (
   for (const operator of operators) {
     for (const parentId of operator.parent_operator_ids ?? []) {
       const children = childrenByParentId.get(parentId);
-      if (children) children.push(operator.id);
-      else childrenByParentId.set(parentId, [operator.id]);
+      if (children) {
+        children.push(operator.id);
+      } else {
+        childrenByParentId.set(parentId, [operator.id]);
+      }
     }
   }
 
@@ -71,7 +74,9 @@ const buildRelatedOperatorIdsById = (
     const stack = [...(childrenByParentId.get(operatorId) ?? [])];
     while (stack.length > 0) {
       const childId = stack.pop()!;
-      if (childId === operatorId || related.has(childId)) continue;
+      if (childId === operatorId || related.has(childId)) {
+        continue;
+      }
       related.add(childId);
       stack.push(...(childrenByParentId.get(childId) ?? []));
     }

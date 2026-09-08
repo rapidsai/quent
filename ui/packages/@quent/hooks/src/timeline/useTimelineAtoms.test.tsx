@@ -4,12 +4,13 @@
 import type { PropsWithChildren } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { OperatorFilter, SingleTimelineResponse, TimelineRequest } from '@quent/utils';
 import {
   debouncedZoomRangeAtom,
   timelineCacheKey,
   timelineDataMapAtom,
+  timelinePointerAtom,
   visibleEntriesAtom,
   zoomRangeAtom,
 } from '../atoms/timeline';
@@ -17,6 +18,8 @@ import {
   useGetZoomRange,
   useReturnedTimelineIsStale,
   useReturnedTimelineNumBins,
+  useTimelinePointerPublisher,
+  useTimelinePointerRatio,
 } from './useTimelineAtoms';
 
 describe('useGetZoomRange', () => {
@@ -39,6 +42,47 @@ describe('useGetZoomRange', () => {
 
     expect(renderCount).toBe(1);
     expect(result.current()).toEqual({ start: 25, end: 75 });
+  });
+});
+
+describe('timeline pointer', () => {
+  it('publishes a ratio and only clears the current owner', () => {
+    const store = createStore();
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    try {
+      const { result } = renderHook(
+        () => ({
+          first: useTimelinePointerPublisher(),
+          second: useTimelinePointerPublisher(),
+          ratio: useTimelinePointerRatio(),
+        }),
+        { wrapper }
+      );
+
+      act(() => result.current.first.publish(0.25));
+      expect(result.current.ratio).toBe(0.25);
+      act(() => result.current.first.clear());
+      act(() => result.current.first.publish(0.5));
+      act(() => frames.shift()?.(0));
+      expect(result.current.ratio).toBe(0.5);
+      act(() => result.current.second.publish(0.75));
+      act(() => result.current.first.clear());
+      expect(result.current.ratio).toBe(0.75);
+      act(() => result.current.second.clear());
+      act(() => frames.shift()?.(0));
+      expect(result.current.ratio).toBeNull();
+      expect(store.get(timelinePointerAtom)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

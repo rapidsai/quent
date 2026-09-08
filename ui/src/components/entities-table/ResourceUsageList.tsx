@@ -12,7 +12,9 @@ interface ResourceUsageListProps {
 }
 
 export function ResourceUsageList({ usages, resourceLabel, queryBundle }: ResourceUsageListProps) {
-  if (usages.length === 0) return null;
+  if (usages.length === 0) {
+    return null;
+  }
 
   return (
     <ul className="mt-1.5 space-y-1.5">

@@ -1,0 +1,17 @@
+[package]
+name = "quent-store-build"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+prettyplease.workspace = true
+quent-instrumentation-build = { path = "../instrumentation-build" }
+quent-schema = { path = "../schema" }
+quote = "1"
+syn.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }
+tempfile = "3"

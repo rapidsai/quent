@@ -24,7 +24,9 @@ export function PositionedTooltip({
 
   useLayoutEffect(() => {
     const element = hostRef.current;
-    if (!element) return;
+    if (!element) {
+      return;
+    }
     const rect = element.getBoundingClientRect();
     let left = clientX + POINTER_OFFSET;
     let top = clientY + POINTER_OFFSET;

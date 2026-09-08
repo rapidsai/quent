@@ -23,7 +23,9 @@ export function GanttTooltipPortal({
   hover: GanttHover | null;
   items: GanttTooltipItem[];
 }) {
-  if (!hover || items.length === 0) return null;
+  if (!hover || items.length === 0) {
+    return null;
+  }
   const visibleItems = items.slice(0, TOOLTIP_ITEM_LIMIT);
   const hiddenCount = items.length - visibleItems.length;
   return (

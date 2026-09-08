@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useRef } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play, Square } from 'lucide-react';
 import { cn, formatDurationForWindow } from '@quent/utils';
 import {
   useDataFlowEnabled,
@@ -11,6 +11,7 @@ import {
   useSetDataFlowIsPlaying,
   usePlayheadTimeS,
   useSetPlayheadTimeS,
+  usePlayheadLineTimeMs,
   useSetPlayheadLineTimeMs,
 } from '@quent/hooks';
 
@@ -24,7 +25,9 @@ interface DagPlayheadProps {
 }
 
 function formatTimeLabel(timeS: number, windowS: number): string {
-  if (timeS === 0) return '0s';
+  if (timeS === 0) {
+    return '0s';
+  }
   return formatDurationForWindow(timeS * 1000, Math.max(windowS, Number.EPSILON) * 1000);
 }
 
@@ -42,6 +45,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const setPlayheadTimeS = useSetPlayheadTimeS();
   const isPlaying = useDataFlowIsPlaying();
   const setIsPlaying = useSetDataFlowIsPlaying();
+  const playheadLineTimeMs = usePlayheadLineTimeMs();
   const setPlayheadLineTimeMs = useSetPlayheadLineTimeMs();
 
   const trackRef = useRef<HTMLDivElement>(null);
@@ -54,7 +58,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const clampTime = useCallback(
     (timeS: number): number => {
-      if (!bin) return timeS;
+      if (!bin) {
+        return timeS;
+      }
       return Math.min(Math.max(timeS, bin.startS), bin.endS);
     },
     [bin]
@@ -63,9 +69,13 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const applyClientX = useCallback(
     (clientX: number) => {
       const track = trackRef.current;
-      if (!track || !bin) return;
+      if (!track || !bin) {
+        return;
+      }
       const rect = track.getBoundingClientRect();
-      if (rect.width <= 0) return;
+      if (rect.width <= 0) {
+        return;
+      }
       const t = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
       const timeS = bin.startS + t * (bin.endS - bin.startS);
       setPlayheadTimeS(timeS);
@@ -84,31 +94,35 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        return;
+      }
       pendingClientXRef.current = event.clientX;
-      if (rafRef.current != null) return;
+      if (rafRef.current != null) {
+        return;
+      }
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        if (pendingClientXRef.current != null) applyClientX(pendingClientXRef.current);
+        if (pendingClientXRef.current != null) {
+          applyClientX(pendingClientXRef.current);
+        }
         pendingClientXRef.current = null;
       });
     },
     [applyClientX]
   );
 
-  const handlePointerEnd = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-      setPlayheadLineTimeMs(null);
-    },
-    [setPlayheadLineTimeMs]
-  );
+  const handlePointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
 
   const stepBy = useCallback(
     (bins: number) => {
-      if (!bin) return;
+      if (!bin) {
+        return;
+      }
       const current = playheadRef.current ?? bin.startS;
       setPlayheadTimeS(clampTime(current + bins * bin.binDurationS));
     },
@@ -117,7 +131,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!bin) return;
+      if (!bin) {
+        return;
+      }
       const step = event.shiftKey ? KEYBOARD_FAST_STEP_BINS : KEYBOARD_STEP_BINS;
       switch (event.key) {
         case 'ArrowLeft':
@@ -143,52 +159,74 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   );
 
   const togglePlay = useCallback(() => {
-    if (!bin) return;
+    if (!bin) {
+      return;
+    }
     setIsPlaying(playing => {
       if (!playing) {
         // Restart from the window start when play is pressed at the end.
         const current = playheadRef.current ?? bin.startS;
-        if (current >= bin.endS) setPlayheadTimeS(bin.startS);
+        if (current >= bin.endS) {
+          setPlayheadTimeS(bin.startS);
+          setPlayheadLineTimeMs(bin.startS * 1000);
+        } else {
+          setPlayheadLineTimeMs(current * 1000);
+        }
       }
       return !playing;
     });
-  }, [bin, setPlayheadTimeS]);
+  }, [bin, setIsPlaying, setPlayheadTimeS, setPlayheadLineTimeMs]);
+
+  const stopLine = useCallback(() => {
+    setIsPlaying(false);
+    setPlayheadLineTimeMs(null);
+  }, [setIsPlaying, setPlayheadLineTimeMs]);
 
   // Stop playback when the overlay is disabled or the bin metadata goes away:
   // the component stays mounted while rendering null, so a live play interval
   // would otherwise keep advancing the playhead invisibly.
   useEffect(() => {
-    if (enabled && bin) return;
+    if (enabled && bin) {
+      return;
+    }
     setIsPlaying(false);
     setPlayheadLineTimeMs(null);
-  }, [enabled, bin, setPlayheadLineTimeMs]);
+  }, [enabled, bin, setIsPlaying, setPlayheadLineTimeMs]);
 
-  // Advance one bin per tick while playing; stop at the window end.
+  // Advance one bin per tick while playing; stop at the window end. The line
+  // is only cleared here (playback finished), not on manual pause, so the
+  // last position stays visible until the user resumes, scrubs, or restarts.
   useEffect(() => {
-    if (!isPlaying || !bin) return;
+    if (!isPlaying || !bin) {
+      return;
+    }
     const { startS, endS, binDurationS } = bin;
     const id = window.setInterval(() => {
       const current = playheadRef.current ?? startS;
       const next = Math.min(current + binDurationS, endS);
       setPlayheadTimeS(next);
-      setPlayheadLineTimeMs(next * 1000);
-      if (next >= endS) setIsPlaying(false);
+      if (next >= endS) {
+        setPlayheadLineTimeMs(null);
+        setIsPlaying(false);
+      } else {
+        setPlayheadLineTimeMs(next * 1000);
+      }
     }, PLAY_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [isPlaying, bin, setPlayheadTimeS, setPlayheadLineTimeMs]);
-
-  useEffect(() => {
-    if (!isPlaying) setPlayheadLineTimeMs(null);
-  }, [isPlaying, setPlayheadLineTimeMs]);
+  }, [isPlaying, bin, setIsPlaying, setPlayheadTimeS, setPlayheadLineTimeMs]);
 
   useEffect(() => {
     return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+      }
       setPlayheadLineTimeMs(null);
     };
   }, [setPlayheadLineTimeMs]);
 
-  if (!enabled || !meta || !bin) return null;
+  if (!enabled || !meta || !bin) {
+    return null;
+  }
 
   const windowS = Math.max(bin.endS - bin.startS, Number.EPSILON);
   const timeS = clampTime(playheadTimeS ?? bin.startS);
@@ -204,6 +242,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       data-testid="dag-playhead"
     >
       <button
+        type="button"
         onClick={togglePlay}
         aria-label={isPlaying ? 'Pause data flow' : 'Play data flow'}
         title={isPlaying ? 'Pause' : 'Play'}
@@ -214,6 +253,16 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
         ) : (
           <Play className="h-3 w-3 text-muted-foreground" />
         )}
+      </button>
+      <button
+        type="button"
+        onClick={stopLine}
+        disabled={!isPlaying && playheadLineTimeMs == null}
+        aria-label="Stop and clear playhead line"
+        title="Stop"
+        className="rounded p-1 hover:bg-muted transition-colors cursor-pointer flex-shrink-0 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <Square className="h-3 w-3 text-muted-foreground" />
       </button>
       <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
         {formatTimeLabel(bin.startS, windowS)}
@@ -228,7 +277,10 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
       >
         <div className="absolute top-1/2 -translate-y-1/2 h-1 w-full rounded-full bg-muted" />
         <div
-          className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full bg-primary/40"
+          className={cn(
+            'absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary/40',
+            isPlaying && 'transition-[width] duration-100 ease-linear motion-reduce:transition-none'
+          )}
           style={{ width: `${positionPct}%` }}
         />
         <div
@@ -240,7 +292,10 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
           aria-valuenow={timeS}
           aria-valuetext={currentLabel}
           onKeyDown={handleKeyDown}
-          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            isPlaying && 'transition-[left] duration-100 ease-linear motion-reduce:transition-none'
+          )}
           style={{ left: `${positionPct}%` }}
         />
       </div>

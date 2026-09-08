@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 /// The runtime an active context's observers run on.
 #[derive(Clone)]
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) enum Runtime {
     /// A handle to a runtime owned elsewhere (`#[tokio::main]`, a caller-managed
     /// one) and kept alive by that owner.
@@ -154,6 +155,10 @@ impl ContextInner {
 /// Resolve the runtime observers run on: borrow an ambient one if present,
 /// otherwise spawn a fresh owned runtime.
 fn resolve_runtime() -> Result<Runtime, Box<dyn std::error::Error>> {
+    #[cfg(target_arch = "wasm32")]
+    return Err("active instrumentation contexts are unsupported on wasm32".into());
+
+    #[cfg(not(target_arch = "wasm32"))]
     if let Ok(handle) = Handle::try_current() {
         debug!("using existing async runtime");
         Ok(Runtime::Borrowed(handle))
@@ -176,11 +181,11 @@ fn resolve_runtime() -> Result<Runtime, Box<dyn std::error::Error>> {
 /// # Panics
 /// On a current-thread runtime, this panics.
 pub(crate) fn drive<F: Future>(handle: &Handle, fut: F) -> F::Output {
+    #[cfg(not(target_arch = "wasm32"))]
     if Handle::try_current().is_ok() {
-        tokio::task::block_in_place(|| handle.block_on(fut))
-    } else {
-        handle.block_on(fut)
+        return tokio::task::block_in_place(|| handle.block_on(fut));
     }
+    handle.block_on(fut)
 }
 
 #[cfg(test)]

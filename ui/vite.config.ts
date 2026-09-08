@@ -38,11 +38,21 @@ function vendorChunk(id: string) {
   if (includesPackage('react') || includesPackage('react-dom') || includesPackage('scheduler')) {
     return 'react-vendor';
   }
-  if (includesPackage('@tanstack')) return 'tanstack';
-  if (includesPackage('@radix-ui')) return 'ui-vendor';
-  if (includesPackage('@xyflow')) return 'xyflow';
-  if (includesPackage('zrender')) return 'echarts-zrender';
-  if (includesPackage('echarts')) return 'echarts-core';
+  if (includesPackage('@tanstack')) {
+    return 'tanstack';
+  }
+  if (includesPackage('@radix-ui')) {
+    return 'ui-vendor';
+  }
+  if (includesPackage('@xyflow')) {
+    return 'xyflow';
+  }
+  if (includesPackage('zrender')) {
+    return 'echarts-zrender';
+  }
+  if (includesPackage('echarts')) {
+    return 'echarts-core';
+  }
 }
 
 // https://vitejs.dev/config/
@@ -51,6 +61,8 @@ export default defineConfig({
     react(),
     vitePluginScriptPriority(),
     TanStackRouterVite({
+      routesDirectory: path.resolve(__dirname, 'src/routes'),
+      generatedRouteTree: path.resolve(__dirname, 'src/routeTree.gen.ts'),
       routeFileIgnorePattern: '.test.|.spec.',
     }),
     tailwindcss(),

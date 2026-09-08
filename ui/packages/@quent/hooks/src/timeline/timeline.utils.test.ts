@@ -111,7 +111,9 @@ describe('setOperatorOnEntry', () => {
   it('preserves other Resource fields when setting operator_ids', () => {
     const entry = makeResourceRequest('r1', 'Fsm', null);
     const result = setOperatorOnEntry(entry, ['op-1']);
-    if (!('Resource' in result)) throw new Error('expected Resource');
+    if (!('Resource' in result)) {
+      throw new Error('expected Resource');
+    }
     expect(result.Resource.resource_id).toBe('r1');
     expect(result.Resource.entity_filter.entity_type_name).toBe('Fsm');
   });
@@ -139,7 +141,9 @@ describe('setOperatorOnEntry', () => {
   it('preserves other ResourceGroup fields when setting operator_ids', () => {
     const entry = makeGroupRequest('g1', 'GPU', 'Worker', null);
     const result = setOperatorOnEntry(entry, ['op-2']);
-    if (!('ResourceGroup' in result)) throw new Error('expected ResourceGroup');
+    if (!('ResourceGroup' in result)) {
+      throw new Error('expected ResourceGroup');
+    }
     expect(result.ResourceGroup.resource_group_id).toBe('g1');
     expect(result.ResourceGroup.resource_type_name).toBe('GPU');
     expect(result.ResourceGroup.entity_filter.entity_type_name).toBe('Worker');

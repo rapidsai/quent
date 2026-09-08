@@ -159,7 +159,9 @@ function NodeLegendContent({
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
-  if (!coloring || !field) return null;
+  if (!coloring || !field) {
+    return null;
+  }
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
@@ -188,7 +190,9 @@ function EdgeLegendContent({
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
-  if (!coloring || !field) return null;
+  if (!coloring || !field) {
+    return null;
+  }
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
@@ -226,7 +230,9 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
   // Data-flow overlay legends: FSM states (colored like the timeline view)
   // and the server-declared dimension keys (colored like capacity series).
   const dataFlowStateLegend = useMemo(() => {
-    if (!dataFlowMeta) return null;
+    if (!dataFlowMeta) {
+      return null;
+    }
     const colorFn = createDataFlowStateColorFn(
       dataFlowMeta.fsmType,
       dataFlowMeta.stateNames,
@@ -236,7 +242,9 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
   }, [dataFlowMeta, paletteTheme]);
 
   const dataFlowDimensionLegend = useMemo(() => {
-    if (!dataFlowMeta) return null;
+    if (!dataFlowMeta) {
+      return null;
+    }
     const keys = dataFlowMeta.decl.dimension_keys;
     const colorFn = createCapacitiesColorFn(
       keys.map(k => k.key),
@@ -248,7 +256,9 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
   // Deselected tiers stay listed but greyed-out, so the user can see what
   // the tier filter is currently hiding.
   const dimmedDimensionLabels = useMemo(() => {
-    if (!dataFlowMeta) return undefined;
+    if (!dataFlowMeta) {
+      return undefined;
+    }
     return new Set(
       dataFlowMeta.decl.dimension_keys
         .filter(k => !dataFlowMeta.dimensionSelection.has(k.key))
@@ -261,7 +271,9 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
   const hasDataFlow =
     dataFlowEnabled && !!dataFlowMeta && !!dataFlowStateLegend && !!dataFlowDimensionLegend;
 
-  if (!hasNode && !hasEdge && !hasDataFlow) return null;
+  if (!hasNode && !hasEdge && !hasDataFlow) {
+    return null;
+  }
 
   return (
     <Panel position="bottom-left">

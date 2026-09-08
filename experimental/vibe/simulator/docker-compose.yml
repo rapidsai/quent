@@ -1,0 +1,19 @@
+services:
+  server:
+    build:
+      context: ../../..
+      dockerfile: experimental/vibe/simulator/Dockerfile
+    image: quent-simulator-example
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    command: "/quent/quent-simulator-server --log-level debug"
+
+  simulator:
+    image: quent-simulator-example
+    depends_on:
+      - server
+    restart: "no"
+    environment:
+      QUENT_COLLECTOR_ADDRESS: "http://server:7836"
+    command: "/quent/quent-simulator --num-query-groups 1 --num-queries 1 --num-workers 4 --num-threads 8 --num-tasks 64"

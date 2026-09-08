@@ -24,3 +24,7 @@ quent-io-ndjson = { path = "ndjson", optional = true }
 quent-io-postcard = { path = "postcard", optional = true }
 serde = { workspace = true, optional = true }
 uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -23,7 +23,7 @@
     "@quent/client": "workspace:*",
     "@quent/hooks": "workspace:*",
     "@quent/utils": "workspace:*",
-    "d3-dag": "^1.2.1",
+    "d3-dag": "^1.2.2",
     "vaul": "^1.1.2"
   },
   "peerDependencies": {

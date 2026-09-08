@@ -36,8 +36,11 @@ function findInsertionIndex(intervals: PackedInterval[], startMs: number): numbe
   let high = intervals.length;
   while (low < high) {
     const mid = Math.floor((low + high) / 2);
-    if (intervals[mid]!.startMs < startMs) low = mid + 1;
-    else high = mid;
+    if (intervals[mid]!.startMs < startMs) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
   }
   return low;
 }
@@ -65,7 +68,9 @@ export function stackIntervalsIntoRows<
       row++;
     }
 
-    if (row === rows.length) rows.push([]);
+    if (row === rows.length) {
+      rows.push([]);
+    }
     const stackedEntry = { ...entry, rowIndex: row };
     rows[row]!.splice(insertionIndex, 0, stackedEntry);
     stackedEntries.push(stackedEntry);
@@ -77,7 +82,9 @@ export function stackIntervalsIntoRows<
 /** Grid clip rect from an ECharts custom-series `coordSys`, or `null` if unknown. */
 export function ganttClipBound(coordSys: unknown): GanttRect | null {
   const coord = coordSys as { x?: number; y?: number; width?: number; height?: number };
-  if (typeof coord.width !== 'number' || typeof coord.height !== 'number') return null;
+  if (typeof coord.width !== 'number' || typeof coord.height !== 'number') {
+    return null;
+  }
   return { x: coord.x ?? 0, y: coord.y ?? 0, width: coord.width, height: coord.height };
 }
 
@@ -105,14 +112,20 @@ export function layoutGanttBar(
   const startMs = api.value(0) as number;
   const endMs = api.value(1) as number;
   const rowIndex = api.value(2) as number;
-  if (endMs < startMs) return null;
-  if (endMs === startMs && !options.allowInstant) return null;
+  if (endMs < startMs) {
+    return null;
+  }
+  if (endMs === startMs && !options.allowInstant) {
+    return null;
+  }
   const startPoint = api.coord([startMs, rowIndex]) as [number, number];
   const endPoint = api.coord([endMs, rowIndex]) as [number, number];
   const rectShape = ganttBarShape(startPoint, endPoint, options.barHeight, options.minWidth ?? 1);
   const clipBound = ganttClipBound(params.coordSys);
   const clippedShape = clipBound ? clipRectByRect(rectShape, clipBound) : rectShape;
-  if (!clippedShape) return null;
+  if (!clippedShape) {
+    return null;
+  }
   return { startMs, endMs, rowIndex, clippedShape };
 }
 

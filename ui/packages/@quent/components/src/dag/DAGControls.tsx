@@ -84,10 +84,14 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const dimensionKeys = dataFlowMeta?.decl.dimension_keys ?? [];
   const dimensionSelection = dataFlowMeta?.dimensionSelection;
   const toggleDimension = (key: string) => {
-    if (!dimensionSelection) return;
+    if (!dimensionSelection) {
+      return;
+    }
     const next = new Set(dimensionSelection);
     if (next.has(key)) {
-      if (next.size <= 1) return;
+      if (next.size <= 1) {
+        return;
+      }
       next.delete(key);
     } else {
       next.add(key);

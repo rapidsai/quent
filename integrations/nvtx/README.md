@@ -63,9 +63,9 @@ let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).awa
 let sender = observer.sender();
 nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
 
-// 3. Ordinary app code, annotated with the NVTX Rust API.
-nvtx::mark!("startup");
-let range = nvtx::range!("phase-1");
+// 3. Ordinary app code, annotated with NVIDIA's NVTX Rust API.
+nvtx::mark(c"startup");
+let range = nvtx::Range::new(c"phase-1");
 drop(range); // end the range before flushing
 
 // 4. Flush by dropping the observer.
@@ -76,6 +76,7 @@ drop(observer);
 
 ```toml
 nvtx-injection = { path = "…/injection", features = ["static-injection"] }
+nvtx = { version = "2", default-features = false, features = ["std"] }
 ```
 
 The bundled example uses a **callback exporter** to debug-print each captured
@@ -130,6 +131,6 @@ bump. Building outside pixi fails fast (needs `CONDA_PREFIX`).
 ## Upstreaming
 
 `nvtx-events` and `nvtx-injection` are kept application-agnostic so they can be
-contributed upstream to the NVTX Rust crates (`nvtx-sys` is producer-only
-today). If that lands, this repo depends on them instead of vendoring — a clean
-swap. Parallel effort, not a blocker.
+contributed upstream alongside the producer bindings in NVIDIA/NVTX. If that
+lands, this repo depends on them instead of vendoring — a clean swap. Parallel
+effort, not a blocker.

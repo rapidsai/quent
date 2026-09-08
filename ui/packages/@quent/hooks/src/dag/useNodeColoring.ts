@@ -34,10 +34,14 @@ export function useNodeColoring(operatorId: string, isDark: boolean): NodeColori
   const isSelected = selectedNodeIds.has(operatorId);
 
   const { fieldColor, fieldDimmed } = useMemo(() => {
-    if (!nodeColoring) return { fieldColor: undefined, fieldDimmed: false };
+    if (!nodeColoring) {
+      return { fieldColor: undefined, fieldDimmed: false };
+    }
     if (nodeColoring.type === 'continuous') {
       const v = nodeColoring.values.get(operatorId);
-      if (v === undefined) return { fieldColor: undefined, fieldDimmed: true };
+      if (v === undefined) {
+        return { fieldColor: undefined, fieldDimmed: true };
+      }
       const t =
         nodeColoring.max > nodeColoring.min
           ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)

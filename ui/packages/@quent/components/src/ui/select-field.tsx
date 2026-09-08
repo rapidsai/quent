@@ -16,6 +16,8 @@ import { ScrollArea } from './scroll-area';
 export interface SelectFieldOption {
   value: string;
   label?: string;
+  /** Optional secondary text */
+  description?: string;
 }
 
 export interface SelectFieldProps {
@@ -63,7 +65,7 @@ export const SelectField = ({
         aria-label={ariaLabel ?? label}
         className={cn('min-w-0 flex-1 pr-1.5 text-left [&>svg]:shrink-0', triggerClassName)}
       >
-        <span className="min-w-0 flex-1 truncate text-left">
+        <span className="min-w-0 flex-1 truncate text-left text-xs">
           <SelectValue placeholder={placeholder} />
         </span>
         {clearable && value && (

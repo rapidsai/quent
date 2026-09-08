@@ -131,7 +131,7 @@ fn request(
 }
 
 fn ids(resp: &EntityListResponse) -> Vec<Uuid> {
-    resp.items.iter().map(|fsm| fsm.id).collect()
+    resp.items.iter().map(|item| item.entity.id).collect()
 }
 
 #[test]
@@ -143,6 +143,7 @@ fn lists_all_tasks_on_a_resource_ranked_by_uuid_tiebreak() {
 
     assert_eq!(resp.total, 8);
     assert_eq!(ids(&resp), MEMORY_W0_TASKS);
+    assert!(resp.items.iter().all(|item| item.usage_duration_s == 0.75));
 }
 
 #[test]
@@ -209,6 +210,95 @@ fn pagination_slices_the_ranked_set_with_stable_total() {
         .unwrap();
     assert_eq!(page2.total, 8);
     assert_eq!(ids(&page2), MEMORY_W0_TASKS[6..8]);
+}
+
+#[test]
+fn unscoped_window_excludes_entities_whose_span_never_overlaps() {
+    let analyzer = fixed_analyzer();
+
+    // The window is relative to the query's own epoch (1.0s absolute in this
+    // fixture). No task's lifecycle (first event to last event) reaches
+    // [6.5, 7.0) relative (7.5-8.0s absolute): the latest event of any task is
+    // TASK_10/TASK_11's exit at 6.0s absolute (5.0s relative). With no scope
+    // and no min-usage filter, the window alone must still exclude entities
+    // whose lifecycle never overlaps it.
+    let request = EntityListRequest {
+        entry: EntityListEntry {
+            window: TimeWindow {
+                start: 6.5,
+                end: 7.0,
+            },
+            ..entry(None, None, None, Vec::new())
+        },
+        app_params: QueryFilter {
+            query_id: fixed::QUERY,
+        },
+    };
+    let resp = analyzer.list_entities(request).unwrap();
+
+    assert_eq!(resp.total, 0);
+    assert!(resp.items.is_empty());
+}
+
+#[test]
+fn unscoped_window_includes_entities_whose_span_overlaps() {
+    let analyzer = fixed_analyzer();
+
+    // The window is relative to the query's own epoch (its `init` transition,
+    // at 1.0s absolute in this fixture). TASK_0..3 run 2.0-3.0s absolute, i.e.
+    // [1.0, 2.0) relative; every other task's lifecycle starts at 3.0s
+    // absolute (2.0s relative) or later, so only TASK_0..3 overlap [1.0, 1.3).
+    let request = EntityListRequest {
+        entry: EntityListEntry {
+            window: TimeWindow {
+                start: 1.0,
+                end: 1.3,
+            },
+            ..entry(None, None, None, Vec::new())
+        },
+        app_params: QueryFilter {
+            query_id: fixed::QUERY,
+        },
+    };
+    let resp = analyzer.list_entities(request).unwrap();
+
+    let mut got = ids(&resp);
+    got.sort();
+    let mut want = vec![fixed::TASK_0, fixed::TASK_1, fixed::TASK_2, fixed::TASK_3];
+    want.sort();
+    assert_eq!(resp.total, 4);
+    assert_eq!(got, want);
+}
+
+#[test]
+fn unscoped_window_includes_entities_even_without_an_event_inside_it() {
+    let analyzer = fixed_analyzer();
+
+    // TASK_4..7 (PartialAggregate) run 3.0-4.0s absolute (2.0-3.0s relative).
+    // A window strictly between their `computing`/`sending` events and their
+    // `exit` contains none of their individual event timestamps, but their
+    // overall lifecycle still overlaps it, so they must still be included —
+    // this is the exact case the window filter previously got wrong.
+    let request = EntityListRequest {
+        entry: EntityListEntry {
+            window: TimeWindow {
+                start: 2.6,
+                end: 2.7,
+            },
+            ..entry(None, None, None, Vec::new())
+        },
+        app_params: QueryFilter {
+            query_id: fixed::QUERY,
+        },
+    };
+    let resp = analyzer.list_entities(request).unwrap();
+
+    let mut got = ids(&resp);
+    got.sort();
+    let mut want = vec![fixed::TASK_4, fixed::TASK_5, fixed::TASK_6, fixed::TASK_7];
+    want.sort();
+    assert_eq!(resp.total, 4);
+    assert_eq!(got, want);
 }
 
 #[test]

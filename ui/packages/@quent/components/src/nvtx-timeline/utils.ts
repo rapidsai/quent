@@ -70,7 +70,7 @@ function treeItem(
   return { id, type, entity, ...(children?.length ? { children } : {}) };
 }
 
-/** NVTX lanes for one domain, or domain sub-trees when all domains are selected. */
+/** Domain sub-trees for the visible domains; headers stay so category filters have a row. */
 export function buildNvtxTree(
   catalog: Pick<NvtxCatalog, 'domains'>,
   laneRowIds: ReadonlySet<string>,
@@ -79,7 +79,9 @@ export function buildNvtxTree(
   const visibleDomains = catalog.domains.filter(
     domain => selectedDomainId == null || domain.domain_id === selectedDomainId
   );
-  if (visibleDomains.length === 0) return null;
+  if (visibleDomains.length === 0) {
+    return null;
+  }
   const domainLanes = visibleDomains.map(domain => {
     const threadRows = domain.threads.map(thread =>
       treeItem(nvtxThreadRowId(domain.domain_id, thread.thread_id), NVTX_LANE_ROW_TYPE, {
@@ -107,29 +109,23 @@ export function buildNvtxTree(
     }
     return [...threadRows, ...extraRows];
   });
-  const children =
-    selectedDomainId == null
-      ? visibleDomains.flatMap((domain, index) => {
-          const lanes = domainLanes[index] ?? [];
-          return lanes.length > 0
-            ? [
-                treeItem(
-                  nvtxDomainRowId(domain.domain_id),
-                  NVTX_DOMAIN_ROW_TYPE,
-                  { nvtxKind: 'domain', domain },
-                  lanes
-                ),
-              ]
-            : [];
-        })
-      : (domainLanes[0] ?? []);
+  const children = visibleDomains.map((domain, index) =>
+    treeItem(
+      nvtxDomainRowId(domain.domain_id),
+      NVTX_DOMAIN_ROW_TYPE,
+      { nvtxKind: 'domain', domain },
+      domainLanes[index]
+    )
+  );
   return treeItem(NVTX_SECTION_ID, NVTX_SECTION_ROW_TYPE, { nvtxKind: 'section' }, children);
 }
 
 /** Map tree row id → viewport lanes (thread depths grouped, process/marks as one lane). */
 export function indexNvtxLanes(viewport: NvtxViewportResponse | null): Map<string, NvtxLane[]> {
   const lanesByRowId = new Map<string, NvtxLane[]>();
-  if (!viewport) return lanesByRowId;
+  if (!viewport) {
+    return lanesByRowId;
+  }
   for (const domain of viewport.domains) {
     const byThread = new Map<number, NvtxLane[]>();
     for (const lane of domain.lanes) {
@@ -156,21 +152,102 @@ export function indexNvtxLanes(viewport: NvtxViewportResponse | null): Map<strin
 }
 
 export function isNvtxTreeEntity(entity: unknown): entity is NvtxTreeEntity {
-  if (typeof entity !== 'object' || entity === null || !('nvtxKind' in entity)) return false;
+  if (typeof entity !== 'object' || entity === null || !('nvtxKind' in entity)) {
+    return false;
+  }
   return ['section', 'domain', 'thread', 'process', 'marks'].includes(String(entity.nvtxKind));
 }
 
 export function nvtxDomainMeta(entity: NvtxTreeEntity): { name: string; color: string } | null {
-  if (entity.nvtxKind !== 'domain') return null;
+  if (entity.nvtxKind !== 'domain') {
+    return null;
+  }
   return { name: entity.domain.name, color: rgbHex(entity.domain.color) };
 }
 
 export function nvtxLaneLabel(entity: NvtxTreeEntity, includeDomain = false): string {
-  if (entity.nvtxKind === 'section' || entity.nvtxKind === 'domain') return '';
+  if (entity.nvtxKind === 'section' || entity.nvtxKind === 'domain') {
+    return '';
+  }
   const prefix = includeDomain ? `${entity.domain.name} · ` : '';
-  if (entity.nvtxKind === 'process') return `${prefix}Process ranges`;
-  if (entity.nvtxKind === 'marks') return `${prefix}Marks`;
+  if (entity.nvtxKind === 'process') {
+    return `${prefix}Process ranges`;
+  }
+  if (entity.nvtxKind === 'marks') {
+    return `${prefix}Marks`;
+  }
   return `${prefix}${entity.thread.name}`;
+}
+
+export interface NvtxTreeFilterResult {
+  directMatchIds: Set<string>;
+  filteredTree: NvtxTreeItem | null;
+  isActive: boolean;
+  matchCount: number;
+}
+
+function nvtxItemSearchLabel(item: NvtxTreeItem): string {
+  const { entity } = item;
+  if (entity.nvtxKind === 'section') {
+    return `${item.id} NVTX`;
+  }
+  if (entity.nvtxKind === 'domain') {
+    return `${item.id} ${entity.domain.domain_id} ${entity.domain.name}`;
+  }
+  if (entity.nvtxKind === 'thread') {
+    return `${item.id} ${entity.domain.name} ${entity.thread.thread_id} ${entity.thread.name}`;
+  }
+  return `${item.id} ${nvtxLaneLabel(entity, true)}`;
+}
+
+function matchesNvtxSearch(item: NvtxTreeItem, search: string): boolean {
+  const termGroups = search
+    .split(',')
+    .map(group => group.trim().toLowerCase().split(/\s+/).filter(Boolean))
+    .filter(group => group.length > 0);
+  if (termGroups.length === 0) {
+    return true;
+  }
+  const label = nvtxItemSearchLabel(item).toLowerCase();
+  return termGroups.some(group => group.every(term => label.includes(term)));
+}
+
+/** Filters NVTX labels while preserving each matching row's ancestor path. */
+export function filterNvtxTree(root: NvtxTreeItem, search: string): NvtxTreeFilterResult {
+  const directMatchIds = new Set<string>();
+  const isActive = search.trim().length > 0;
+  let matchCount = 0;
+
+  if (!isActive) {
+    return {
+      directMatchIds,
+      filteredTree: root,
+      isActive,
+      matchCount,
+    };
+  }
+
+  const visit = (item: NvtxTreeItem): NvtxTreeItem | null => {
+    const isDirectMatch = matchesNvtxSearch(item, search);
+    const matchedChildren =
+      item.children?.map(visit).filter((child): child is NvtxTreeItem => child != null) ?? [];
+
+    if (!isDirectMatch && matchedChildren.length === 0) {
+      return null;
+    }
+    if (isDirectMatch) {
+      directMatchIds.add(item.id);
+      matchCount += 1;
+    }
+    return { ...item, children: matchedChildren };
+  };
+
+  return {
+    directMatchIds,
+    filteredTree: visit(root),
+    isActive,
+    matchCount,
+  };
 }
 
 export type NvtxGanttDatum = {
@@ -191,11 +268,11 @@ export interface NvtxPixelBudget {
 
 export const NVTX_MIN_BAR_WIDTH_PX = 2;
 
-/** Flatten viewport lanes into Gantt datums. Thread depth is the row index. */
+/** Flatten populated viewport lanes into contiguous Gantt rows. */
 export function nvtxLanesToGanttData(lanes: NvtxLane[]): NvtxGanttDatum[] {
   const data: NvtxGanttDatum[] = [];
-  for (const lane of lanes) {
-    const rowIndex = isThreadIdentity(lane.identity) ? lane.identity.depth : 0;
+  const populatedLanes = lanes.filter(lane => lane.ranges.length > 0 || lane.marks.length > 0);
+  for (const [rowIndex, lane] of populatedLanes.entries()) {
     for (const range of lane.ranges) {
       data.push({
         value: [range.display_start * 1_000, range.display_end * 1_000, rowIndex],
@@ -224,14 +301,19 @@ export function mergeNvtxGanttData(
   budget: NvtxPixelBudget
 ): NvtxGanttDatum[] {
   const spanMs = budget.visibleEndMs - budget.visibleStartMs;
-  if (data.length <= 1 || budget.plotWidthPx <= 0 || spanMs <= 0) return data;
+  if (data.length <= 1 || budget.plotWidthPx <= 0 || spanMs <= 0) {
+    return data;
+  }
   const msPerPx = spanMs / budget.plotWidthPx;
   const groups = new Map<string, NvtxGanttDatum[]>();
   for (const datum of data) {
     const key = nvtxBarMergeKey(datum);
     const group = groups.get(key);
-    if (group) group.push(datum);
-    else groups.set(key, [datum]);
+    if (group) {
+      group.push(datum);
+    } else {
+      groups.set(key, [datum]);
+    }
   }
   const merged: NvtxGanttDatum[] = [];
   for (const group of groups.values()) {
@@ -251,7 +333,9 @@ function mergeNvtxBarGroup(
   originMs: number,
   msPerPx: number
 ): NvtxGanttDatum[] {
-  if (group.length <= 1) return group;
+  if (group.length <= 1) {
+    return group;
+  }
   const sorted = [...group].sort((left, right) => left.value[0] - right.value[0]);
   const out: NvtxGanttDatum[] = [];
   let run = [sorted[0]!];
@@ -282,7 +366,9 @@ function condenseNvtxBarRun(
   startMs: number,
   endMs: number
 ): NvtxGanttDatum[] {
-  if (run.length < NVTX_BAR_MERGE_MIN_COUNT) return run;
+  if (run.length < NVTX_BAR_MERGE_MIN_COUNT) {
+    return run;
+  }
   return [nvtxMergedDatum(run, startMs, endMs)];
 }
 
@@ -296,7 +382,9 @@ function nvtxMergedDatum(run: NvtxGanttDatum[], startMs: number, endMs: number):
   const counts = new Map<string, number>();
   for (const item of run) {
     const label = item.range?.message ?? item.mark?.message;
-    if (label) counts.set(label, (counts.get(label) ?? 0) + 1);
+    if (label) {
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
   }
   return {
     ...datum,
@@ -348,7 +436,9 @@ export function nvtxToSummaryMark(datum: NvtxGanttDatum): ActiveMark {
 
 function nvtxToSummaryMarks(datum: NvtxGanttDatum): ActiveMark[] {
   const typeCounts = datum.mergedTypeCounts;
-  if (!typeCounts?.length) return [nvtxToSummaryMark(datum)];
+  if (!typeCounts?.length) {
+    return [nvtxToSummaryMark(datum)];
+  }
   const isMark = datum.mark != null;
   const color = rgbHex(datum.mark?.color ?? datum.range?.color ?? '');
   return typeCounts.map(({ label, count }) => ({
@@ -408,7 +498,9 @@ export function nvtxTooltipModel(data: NvtxGanttDatum[]): NvtxTooltipModel {
 export function nvtxToActiveMark(datum: NvtxGanttDatum): ActiveMark {
   const mergedCount = datum.mergedCount ?? 1;
   if (datum.mark) {
-    if (mergedCount > 1) return nvtxToSummaryMark(datum);
+    if (mergedCount > 1) {
+      return nvtxToSummaryMark(datum);
+    }
     return {
       label: datum.mark.domain_name,
       stateName: datum.mark.message,
@@ -462,7 +554,9 @@ export function nvtxMergedBarCountLabel(
   kind: 'mark' | 'range'
 ): Array<{ type: 'text'; silent: true; style: object }> {
   const text = `(${count} ${count === 1 ? kind : `${kind}s`})`;
-  if (shape.width < text.length * MERGED_COUNT_CHARACTER_WIDTH + MERGED_COUNT_PADDING) return [];
+  if (shape.width < text.length * MERGED_COUNT_CHARACTER_WIDTH + MERGED_COUNT_PADDING) {
+    return [];
+  }
   const cy = shape.y + shape.height / 2;
   return [
     {
@@ -483,8 +577,12 @@ export function nvtxMergedBarCountLabel(
 }
 
 export function nvtxKindLabel(kind: NvtxRangeItem['kind'] | 'mark'): string {
-  if (kind === 'mark') return 'mark';
-  if (kind === 'push_pop') return 'push/pop range';
+  if (kind === 'mark') {
+    return 'mark';
+  }
+  if (kind === 'push_pop') {
+    return 'push/pop range';
+  }
   return 'start/end range';
 }
 

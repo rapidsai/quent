@@ -29,8 +29,12 @@ export function workerIdFromOperatorTimelineRowId(id: string): string | null {
 export function getWorkerIdsFromPlanTree(planTree: PlanTree): string[] {
   const workerIds = new Set<string>();
   function walk(node: PlanTree) {
-    if (node.worker != null && node.worker !== '') workerIds.add(node.worker);
-    for (const child of node.children ?? []) walk(child);
+    if (node.worker != null && node.worker !== '') {
+      workerIds.add(node.worker);
+    }
+    for (const child of node.children ?? []) {
+      walk(child);
+    }
   }
   walk(planTree);
   return Array.from(workerIds);
@@ -40,8 +44,12 @@ export function getWorkerIdsFromPlanTree(planTree: PlanTree): string[] {
 export function getPlanIdsForWorker(planTree: PlanTree, workerId: string): string[] {
   const planIds: string[] = [];
   function walk(node: PlanTree) {
-    if (node.worker === workerId) planIds.push(node.id);
-    for (const child of node.children ?? []) walk(child);
+    if (node.worker === workerId) {
+      planIds.push(node.id);
+    }
+    for (const child of node.children ?? []) {
+      walk(child);
+    }
   }
   walk(planTree);
   return planIds;
@@ -77,7 +85,9 @@ function buildOperatorActiveSpanEntry(
   fallbackPlanId?: string
 ): OperatorActiveSpanEntry | null {
   const span = op.active_span;
-  if (span == null) return null;
+  if (span == null) {
+    return null;
+  }
 
   const { startMs, endMs } = spanToMs(span);
   const typeName = op.operator_type_name ?? '';
@@ -105,8 +115,12 @@ export function operatorsWithActiveSpans(
   planId?: string | null
 ): OperatorActiveSpanEntry[] {
   const operators = queryBundle.entities.operators;
-  if (!operators) return [];
-  if (planId == null || planId === '') return [];
+  if (!operators) {
+    return [];
+  }
+  if (planId == null || planId === '') {
+    return [];
+  }
 
   const entries: OperatorActiveSpanEntry[] = [];
   const sorted = Object.entries(operators)
@@ -116,7 +130,9 @@ export function operatorsWithActiveSpans(
 
   for (const [operatorId, op] of sorted) {
     const entry = buildOperatorActiveSpanEntry(operatorId, op, planId);
-    if (entry) entries.push(entry);
+    if (entry) {
+      entries.push(entry);
+    }
   }
 
   return stackIntervalsIntoRows(entries);
@@ -132,10 +148,14 @@ export function operatorsWithActiveSpansForWorker(
   workerId: string
 ): OperatorActiveSpanEntry[] {
   const operators = queryBundle.entities.operators;
-  if (!operators) return [];
+  if (!operators) {
+    return [];
+  }
 
   const planIds = new Set(getPlanIdsForWorker(queryBundle.plan_tree, workerId));
-  if (planIds.size === 0) return [];
+  if (planIds.size === 0) {
+    return [];
+  }
 
   const entries: OperatorActiveSpanEntry[] = [];
   const sorted = Object.entries(operators)
@@ -145,7 +165,9 @@ export function operatorsWithActiveSpansForWorker(
 
   for (const [operatorId, op] of sorted) {
     const entry = buildOperatorActiveSpanEntry(operatorId, op);
-    if (entry) entries.push(entry);
+    if (entry) {
+      entries.push(entry);
+    }
   }
 
   return stackIntervalsIntoRows(entries);

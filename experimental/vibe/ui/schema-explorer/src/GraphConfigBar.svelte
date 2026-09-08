@@ -6,13 +6,22 @@
 
   interface Props {
     config: ResolvedEntityGraphConfig;
+    expanded: boolean;
+    onCollapse?: () => void;
     onChange: <Key extends keyof ResolvedEntityGraphConfig>(
       key: Key,
       value: ResolvedEntityGraphConfig[Key],
     ) => void;
+    onToggleExpanded: () => void;
   }
 
-  let { config, onChange }: Props = $props();
+  let {
+    config,
+    expanded,
+    onCollapse,
+    onChange,
+    onToggleExpanded,
+  }: Props = $props();
 </script>
 
 <div
@@ -20,7 +29,21 @@
   data-role="graph-configuration"
   aria-label="Entity graph configuration"
 >
-  <details class="dropdown dropdown-top order-last ml-auto shrink-0">
+  <div class="order-last ml-auto flex shrink-0 items-center gap-2">
+    {#if onCollapse}
+      <button class="btn btn-xs btn-ghost" type="button" onclick={onCollapse}>
+        Hide pane
+      </button>
+    {/if}
+    <button
+      class="btn btn-xs"
+      type="button"
+      aria-pressed={expanded}
+      onclick={onToggleExpanded}
+    >
+      {expanded ? 'Restore' : 'Expand graph'}
+    </button>
+    <details class="dropdown dropdown-top dropdown-end">
     <summary class="btn btn-xs">Layout</summary>
     <div
       class="dropdown-content z-30 grid w-96 max-w-[80vw] grid-cols-2 gap-3 rounded-box border border-base-300 bg-base-100 p-3 shadow-lg"
@@ -155,7 +178,8 @@
         Make room around high-degree nodes
       </label>
     </div>
-  </details>
+    </details>
+  </div>
   <fieldset class="grid shrink-0 gap-1">
     <legend class="text-[0.65rem] font-medium">References</legend>
     <div class="join" aria-label="Reference filter">

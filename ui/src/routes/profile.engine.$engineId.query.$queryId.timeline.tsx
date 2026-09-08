@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createFileRoute } from '@tanstack/react-router';
-import { QueryResourceTree } from '@/components/QueryResourceTree';
+import { QueryResourceTree } from '@/components/timeline-tree';
 import { Route as QueryRoute } from './profile.engine.$engineId.query.$queryId';
 import { useDeepLink } from '@/features/deep-link';
 

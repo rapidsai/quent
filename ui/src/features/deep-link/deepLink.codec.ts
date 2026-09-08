@@ -3,12 +3,18 @@
 
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 import {
-  DeepLinkStateV1Schema,
+  SUPPORTED_DEEP_LINK_SCHEMAS,
+  type DeepLinkVersion,
+  type VersionedDeepLinkState,
+} from './deepLink.fields';
+import {
+  DeepLinkStateV2Schema,
   MAX_ENCODED_STATE_LENGTH,
-  type DeepLinkStateV1,
+  type DeepLinkStateV2,
 } from './deepLink.schema';
 
-export const DEEP_LINK_VERSION = 'v1';
+export const CURRENT_DEEP_LINK_VERSION: DeepLinkVersion = 'v2';
+export const SUPPORTED_DEEP_LINK_VERSIONS = SUPPORTED_DEEP_LINK_SCHEMAS.map(entry => entry.version);
 export const DEEP_LINK_SEARCH_KEY = 's';
 export const MAX_DEEP_LINK_URL_LENGTH = 2048;
 export const MAX_DECOMPRESSED_STATE_LENGTH = 64 * 1024;
@@ -30,12 +36,16 @@ function failure(code: DeepLinkErrorCode, message: string): DeepLinkResult<never
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
   return btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
 }
 
 function base64UrlToBytes(value: string): Uint8Array | null {
-  if (!/^[A-Za-z0-9_-]+$/u.test(value)) return null;
+  if (!/^[A-Za-z0-9_-]+$/u.test(value)) {
+    return null;
+  }
   const padding = '='.repeat((4 - (value.length % 4)) % 4);
   try {
     const binary = atob(value.replace(/-/gu, '+').replace(/_/gu, '/') + padding);
@@ -45,15 +55,15 @@ function base64UrlToBytes(value: string): Uint8Array | null {
   }
 }
 
-export function encodeDeepLinkState(state: DeepLinkStateV1): DeepLinkResult<string> {
-  const parsed = DeepLinkStateV1Schema.safeParse(state);
+export function encodeDeepLinkState(state: DeepLinkStateV2): DeepLinkResult<string> {
+  const parsed = DeepLinkStateV2Schema.safeParse(state);
   if (!parsed.success) {
-    return failure('invalid-state', 'The current timeline viewport is invalid.');
+    return failure('invalid-state', 'The current shared view state is invalid.');
   }
 
   const json = JSON.stringify(parsed.data);
   const compressed = gzipSync(strToU8(json), { level: 9, mtime: 0 });
-  const encoded = `${DEEP_LINK_VERSION}.${bytesToBase64Url(compressed)}`;
+  const encoded = `${CURRENT_DEEP_LINK_VERSION}.${bytesToBase64Url(compressed)}`;
 
   if (encoded.length > MAX_ENCODED_STATE_LENGTH) {
     return failure('payload-too-large', 'The encoded deep-link state is too large.');
@@ -61,7 +71,7 @@ export function encodeDeepLinkState(state: DeepLinkStateV1): DeepLinkResult<stri
   return { ok: true, value: encoded };
 }
 
-export function decodeDeepLinkState(encoded: string): DeepLinkResult<DeepLinkStateV1> {
+export function decodeDeepLinkState(encoded: string): DeepLinkResult<VersionedDeepLinkState> {
   if (encoded.length > MAX_ENCODED_STATE_LENGTH) {
     return failure('payload-too-large', 'The deep-link state exceeds the supported size.');
   }
@@ -72,7 +82,8 @@ export function decodeDeepLinkState(encoded: string): DeepLinkResult<DeepLinkSta
   }
 
   const version = encoded.slice(0, separator);
-  if (version !== DEEP_LINK_VERSION) {
+  const versionedSchema = SUPPORTED_DEEP_LINK_SCHEMAS.find(entry => entry.version === version);
+  if (!versionedSchema) {
     return failure('unsupported-version', `Unsupported deep-link version: ${version}`);
   }
 
@@ -89,11 +100,11 @@ export function decodeDeepLinkState(encoded: string): DeepLinkResult<DeepLinkSta
     }
 
     const json = JSON.parse(strFromU8(decompressed)) as unknown;
-    const parsed = DeepLinkStateV1Schema.safeParse(json);
+    const parsed = versionedSchema.schema.safeParse(json);
     if (!parsed.success) {
-      return failure('invalid-state', 'The deep-link state does not match the v1 schema.');
+      return failure('invalid-state', `The deep-link state does not match the ${version} schema.`);
     }
-    return { ok: true, value: parsed.data };
+    return { ok: true, value: { version: versionedSchema.version, data: parsed.data } };
   } catch {
     return failure('invalid-encoding', 'The deep-link state could not be decoded.');
   }
@@ -101,10 +112,12 @@ export function decodeDeepLinkState(encoded: string): DeepLinkResult<DeepLinkSta
 
 export function buildDeepLinkUrl(
   currentUrl: string,
-  state: DeepLinkStateV1
+  state: DeepLinkStateV2
 ): DeepLinkResult<string> {
   const encoded = encodeDeepLinkState(state);
-  if (!encoded.ok) return encoded;
+  if (!encoded.ok) {
+    return encoded;
+  }
 
   const isAbsolute = /^[A-Za-z][A-Za-z\d+.-]*:/u.test(currentUrl);
   let url: URL;

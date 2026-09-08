@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import EChartsReactCore from 'echarts-for-react/lib/core';
+import { EChartsReactCore } from '../lib/echartsReactCore';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import { useZoomRange } from '@quent/hooks';
@@ -15,6 +15,7 @@ import {
   TIMELINE_LABEL_FONT_SIZE,
 } from './timelineEchartsTheme';
 import { TIMELINE_SPACING } from './types';
+import { TimelinePointerArea } from './TimelinePointerArea';
 
 const RULER_HEIGHT = 22;
 const RULER_TARGET_TICKS = 7;
@@ -65,7 +66,9 @@ export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps)
         text = formatDurationForAxisInterval(absoluteMs, interval);
       }
 
-      if (!isMinMax) return text;
+      if (!isMinMax) {
+        return text;
+      }
       const chip = `{chip|${text}}`;
       return isMin ? `{chipInset|}${chip}` : `${chip}{chipInset|}`;
     };
@@ -148,16 +151,18 @@ export function TimelineRuler({ isDark, mode = 'relative' }: TimelineRulerProps)
   ]);
 
   return (
-    <EChartsReactCore
-      echarts={echarts}
-      theme={themeName}
-      option={option}
-      style={{ width: '100%', height: `${RULER_HEIGHT}px` }}
-      onChartReady={handleChartReady}
-      notMerge={false}
-      lazyUpdate={false}
-      opts={{ renderer: 'svg' }}
-      autoResize={false}
-    />
+    <TimelinePointerArea className="h-full w-full">
+      <EChartsReactCore
+        echarts={echarts}
+        theme={themeName}
+        option={option}
+        style={{ width: '100%', height: `${RULER_HEIGHT}px` }}
+        onChartReady={handleChartReady}
+        notMerge={false}
+        lazyUpdate={false}
+        opts={{ renderer: 'svg' }}
+        autoResize={false}
+      />
+    </TimelinePointerArea>
   );
 }

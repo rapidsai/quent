@@ -5,6 +5,8 @@
 
 mod data_flow;
 pub use data_flow::DataFlowTimelineBinned;
+mod server;
+pub use server::ServerContract;
 
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};

@@ -109,10 +109,14 @@ export function LongEntitiesGantt({
       const datum = customSeriesData[params.dataIndex];
       const entry = datum ? entries[datum.entryIndex] : undefined;
       const segment = entry?.segments[datum!.segmentIndex];
-      if (!entry || !segment) return null;
+      if (!entry || !segment) {
+        return null;
+      }
 
       const layout = layoutGanttBar(params, api, { barHeight: BAR_HEIGHT });
-      if (!layout) return null;
+      if (!layout) {
+        return null;
+      }
       const { clippedShape } = layout;
 
       const hasSelection = selectedEntityId != null;
@@ -169,14 +173,22 @@ export function LongEntitiesGantt({
   );
 
   const onEvents = useMemo(() => {
-    if (!onEntityClick) return undefined;
+    if (!onEntityClick) {
+      return undefined;
+    }
     return {
       click: (params: { dataIndex: number; seriesName?: string }) => {
-        if (params.seriesName !== SERIES_NAME) return;
+        if (params.seriesName !== SERIES_NAME) {
+          return;
+        }
         const datum = customSeriesData[params.dataIndex];
-        if (!datum) return;
+        if (!datum) {
+          return;
+        }
         const entry = entries[datum.entryIndex];
-        if (entry) onEntityClick(entry);
+        if (entry) {
+          onEntityClick(entry);
+        }
       },
     };
   }, [onEntityClick, customSeriesData, entries]);

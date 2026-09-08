@@ -54,8 +54,9 @@ mod runtime;
 
 use std::path::PathBuf;
 
-use quent_constraints::{BaseConstraintsError, Report, validate};
-use quent_schema::{Path, Schema};
+use convert_case::Case;
+use quent_constraints::{BaseConstraintsError, Report};
+use quent_schema::{Entity, Path, Schema};
 use quote::quote;
 
 /// Options controlling event and instrumentation source generation.
@@ -96,6 +97,12 @@ pub struct Options {
 
     /// Cargo package providing the analyzer for this model.
     pub analyzer_package: Option<String>,
+
+    /// Generate collector dispatch for the model context.
+    ///
+    /// Requires [`Self::serde`]. The generated crate must expose a `collector`
+    /// feature that enables `quent-instrumentation/io-collector`.
+    pub collector_sink: bool,
 }
 
 impl Default for Options {
@@ -110,6 +117,7 @@ impl Default for Options {
             file_name: None,
             umbrella_event: false,
             analyzer_package: None,
+            collector_sink: false,
         }
     }
 }
@@ -155,6 +163,8 @@ pub enum GenerateError {
         /// The schema type whose generated name conflicts.
         schema_path: Path,
     },
+    #[error("`collector_sink` requires serde generation")]
+    CollectorSinkRequiresSerde,
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
     #[error("failed to write generated file")]
@@ -166,19 +176,39 @@ pub struct GenerateInfo {
     pub warnings: Vec<String>,
 }
 
-/// Generate event source and, when enabled, instrumentation source for `schema`.
-pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
+/// Validates the schema requirements shared by generated event models.
+///
+/// Returns constraint names without registered validators as warnings.
+pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
     let Report {
         base_constraints,
         unregistered_constraints,
-        results: _, // unused for now, but built-in constraints go here later
-                    // and will add to either errors or warnings.
-    } = validate::<()>(schema);
+        results: _,
+    } = quent_constraints::validate::<()>(schema);
 
-    let warnings = unregistered_constraints;
-
-    // Fail if base constraints aren't met.
     base_constraints?;
+    Ok(unregistered_constraints)
+}
+
+/// Returns the model path generated for `schema` relative to the generated module root.
+pub fn generated_model_path(schema: &Schema) -> proc_macro2::TokenStream {
+    let model = common::raw_ident(common::to_case(schema.name(), Case::Pascal));
+    quote! { #model }
+}
+
+/// Returns the entity marker path generated relative to the generated module root.
+pub fn generated_entity_path(entity: &Entity) -> proc_macro2::TokenStream {
+    common::relative_type_path(entity.path(), &[], "")
+}
+
+/// Returns the entity event path generated relative to the generated module root.
+pub fn generated_entity_event_path(entity: &Entity) -> proc_macro2::TokenStream {
+    common::relative_type_path(entity.path(), &[], "Event")
+}
+
+/// Generate event source and, when enabled, instrumentation source for `schema`.
+pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
+    let warnings = validate_schema(schema)?;
 
     let file_name = opts
         .file_name
@@ -197,6 +227,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// schema type, a field type exceeds the supported nesting depth, a derive
 /// entry is not a parseable Rust path, or the generated code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    if opts.collector_sink && !opts.serde {
+        return Err(GenerateError::CollectorSinkRequiresSerde);
+    }
     let namespaces = namespace::Namespace::root(schema);
 
     let reexports = if opts.instrumentation {
@@ -208,7 +241,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let types = generate_namespace(schema, opts, &namespaces)?;
     let observable = opts
         .instrumentation
-        .then(|| runtime::generate_model(schema, &namespaces));
+        .then(|| runtime::generate_model(schema, &namespaces, opts.collector_sink));
     let file = syn::parse2::<syn::File>(quote! {
         #reexports
         #entity_types

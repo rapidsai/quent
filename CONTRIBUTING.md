@@ -4,10 +4,12 @@ Thank you for your interest in contributing to Quent!
 
 ## Issue Tracking
 
-All bug fixes, enhancements, and other changes must begin with the creation of a
-[GitHub Issue](https://github.com/NVIDIA/quent/issues). The issue must be
-reviewed and approved by a Quent maintainer before code review begins on any
-associated pull request.
+Contributors who are not Quent maintainers must first open a
+[GitHub issue](https://github.com/NVIDIA/quent/issues) for substantial work,
+such as new features, architectural changes, or large refactors. The issue must
+be reviewed and approved by a Quent maintainer before an associated pull request
+is opened. Small, self-contained bug fixes may be submitted directly as pull
+requests.
 
 ## Pull Requests
 
@@ -101,29 +103,8 @@ will not be accepted.
 - Do not introduce warnings — Rust CI runs `cargo clippy` with `-D warnings`.
 - New components should include accompanying tests.
 
-### Rust
-
-Format and lint your changes before pushing:
-
-```bash
-# Format
-pixi run cargo fmt --all
-
-# Lint
-pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-
-# Test
-pixi run cargo test --workspace --all-features --locked --all-targets
-```
-
-### UI
-
-Format, lint, and test your changes before pushing:
-
-```bash
-cd ui
-pnpm ci:check
-```
+Before pushing, run the canonical local checks described in the
+[development guide](DEVELOPMENT.md#repository-checks).
 
 ## CI Checks
 

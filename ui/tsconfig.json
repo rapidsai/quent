@@ -24,9 +24,11 @@
     /* Path aliases */
     "paths": {
       "@/*": ["./src/*"],
-      "~quent/types/*": ["./generated/ts-bindings/*"]
+      "~quent/types/*": ["./generated/ts-bindings/*"],
+      "@quent/components/ui": ["./packages/@quent/components/src/ui"],
+      "@quent/components/ui/*": ["./packages/@quent/components/src/ui/*"]
     }
   },
-  "include": ["src", "generated/ts-bindings"],
+  "include": ["src", "simulator", "generated/ts-bindings"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

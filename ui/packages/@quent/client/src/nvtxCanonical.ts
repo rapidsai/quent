@@ -9,7 +9,9 @@ export function canonicalizeNvtxSelections(
   const seen = new Set<string>();
   const canonical = selections.map(selection => {
     const domainKey = BigInt(selection.domain_id).toString(10);
-    if (seen.has(domainKey)) throw new Error(`duplicate NVTX domain ${domainKey}`);
+    if (seen.has(domainKey)) {
+      throw new Error(`duplicate NVTX domain ${domainKey}`);
+    }
     seen.add(domainKey);
     const category_ids = [...new Set(selection.category_ids)].sort((left, right) => left - right);
     if (category_ids.length === 0 && !selection.include_uncategorized) {

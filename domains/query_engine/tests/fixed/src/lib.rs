@@ -16,7 +16,7 @@
 //! FinalAggregate over a channel.
 //!
 //! UUIDs and timestamps are plain numeric literals — grep them. Sibling:
-//! `examples/simulator/` (same model, runtime entropy).
+//! `experimental/vibe/simulator/` (same model, runtime entropy).
 
 use quent_dynamic_attributes::DynamicAttribute;
 use quent_model::{Ref, usage};

@@ -16,6 +16,12 @@
     type SchemaPath,
     type SchemaSelection,
   } from '@quent/schema-viewer';
+  import {
+    Pane,
+    PaneGroup,
+    PaneResizer,
+    type PaneAPI,
+  } from 'paneforge';
 
   import EntityNode from './EntityNode.svelte';
   import GraphConfigBar from './GraphConfigBar.svelte';
@@ -29,13 +35,25 @@
     parseYamlSchema,
     parserErrorMessage,
   } from './yaml-schema';
+  import {
+    observeTheme,
+    readThemePreference,
+    saveThemePreference,
+    type ThemePreference,
+  } from './theme';
 
   type ModelSelectionId = ExampleModelId | 'loaded';
 
-  let modelId = $state<ModelSelectionId>('simple');
+  const initialModel =
+    yamlExampleModels.find(
+      ({ id }) =>
+        id === new URLSearchParams(window.location.search).get('example'),
+    ) ?? yamlExampleModels[0]!;
+
+  let modelId = $state<ModelSelectionId>(initialModel.id);
   let loadedFileName = $state<string | null>(null);
   let yamlFileInput = $state<HTMLInputElement | null>(null);
-  let yamlSource = $state(yamlExampleModels[0]!.source);
+  let yamlSource = $state(initialModel.source);
   let schema = $state<Schema | null>(null);
   let parserStatus = $state<'parsing' | 'valid' | 'invalid'>('parsing');
   let parserError = $state<string | null>(null);
@@ -43,6 +61,14 @@
   let hoverSelection = $state<SchemaSelection | null>(null);
   let breadcrumbPreview = $state<SchemaSelection | null>(null);
   let activeView = $state<EntityGraphView>('graph');
+  let graphExpanded = $state(false);
+  let editorCollapsed = $state(false);
+  let graphCollapsed = $state(false);
+  let selectionsCollapsed = $state(false);
+  let editorPane = $state<PaneAPI | null>(null);
+  let graphPane = $state<PaneAPI | null>(null);
+  let selectionsPane = $state<PaneAPI | null>(null);
+  let themePreference = $state<ThemePreference>(readThemePreference());
   let config = $state<ResolvedEntityGraphConfig>({
     ...DEFAULT_ENTITY_GRAPH_CONFIG,
   });
@@ -84,6 +110,12 @@
       hoverSelection === null &&
       breadcrumbPreview === null,
   );
+
+  $effect(() => {
+    const preference = themePreference;
+    saveThemePreference(preference);
+    return observeTheme(preference);
+  });
 
   $effect(() => {
     const source = yamlSource;
@@ -161,6 +193,20 @@
     config = { ...config, [key]: value };
   }
 
+  function toggleGraphExpanded(): void {
+    graphExpanded = !graphExpanded;
+  }
+
+  function collapseGraphPane(): void {
+    graphPane?.collapse();
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && graphExpanded) {
+      graphExpanded = false;
+    }
+  }
+
   function changeModel(event: Event): void {
     const nextId = (event.currentTarget as HTMLSelectElement).value;
     const next = yamlExampleModels.find(
@@ -170,6 +216,7 @@
     modelId = next.id;
     loadedFileName = null;
     yamlSource = next.source;
+    setExampleUrl(next.id);
     selection = null;
     hoverSelection = null;
     breadcrumbPreview = null;
@@ -184,12 +231,23 @@
       yamlSource = await file.text();
       loadedFileName = file.name;
       modelId = 'loaded';
+      setExampleUrl(null);
       selection = null;
       hoverSelection = null;
       breadcrumbPreview = null;
     } finally {
       input.value = '';
     }
+  }
+
+  function setExampleUrl(example: ExampleModelId | null): void {
+    const url = new URL(window.location.href);
+    if (example) {
+      url.searchParams.set('example', example);
+    } else {
+      url.searchParams.delete('example');
+    }
+    window.history.replaceState(window.history.state, '', url);
   }
 
   function downloadYaml(): void {
@@ -218,177 +276,346 @@
   <title>Quent Schema Explorer</title>
 </svelte:head>
 
-<main class="grid h-dvh min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden bg-base-200 p-4 text-base-content">
-  <header class="flex min-w-0 flex-wrap items-center gap-3">
-    <h1 class="truncate text-xl font-semibold">
-      Quent Schema Explorer
-    </h1>
-    <label class="flex shrink-0 items-center gap-2">
-      <span class="text-xs font-medium">Example</span>
-      <select
-        class="select select-bordered select-sm w-48"
-        value={modelId}
-        onchange={changeModel}
-      >
-        {#if loadedFileName}
-          <option value="loaded">{loadedFileName}</option>
-        {/if}
-        {#each yamlExampleModels as candidate}
-          <option value={candidate.id}>{candidate.label}</option>
-        {/each}
-      </select>
-    </label>
-    <input
-      class="hidden"
-      type="file"
-      accept=".yaml,.yml,application/yaml,text/yaml"
-      bind:this={yamlFileInput}
-      onchange={loadYamlFile}
-    />
-    <div class="join shrink-0">
-      <button
-        class="btn btn-sm join-item"
-        type="button"
-        onclick={() => yamlFileInput?.click()}
-      >
-        Load
-      </button>
-      <button
-        class="btn btn-sm join-item"
-        type="button"
-        aria-label="Download current YAML"
-        onclick={downloadYaml}
-      >
-        Save
-      </button>
-    </div>
-  </header>
+<svelte:window onkeydown={handleWindowKeydown} />
 
-  <div class="grid min-h-0 min-w-0 grid-cols-[minmax(18rem,min(42vw,80ch))_minmax(0,1fr)] gap-3 max-lg:grid-cols-1 max-lg:grid-rows-2">
+{#snippet graphWorkspace()}
+  <div
+    class={[
+      'grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto]',
+      !graphExpanded && 'gap-3',
+    ]}
+  >
     <section
-      class="card card-border grid min-h-0 w-full max-w-[80ch] grid-rows-[auto_minmax(0,1fr)_8rem] overflow-hidden bg-base-100"
-      aria-label="Quent YAML editor"
+      class="card card-border min-h-0 overflow-hidden bg-base-100"
+      aria-label="Schema visualization"
     >
-      <div class="flex items-center justify-between gap-3 border-b border-base-300 px-3 py-2">
-        <strong class="text-sm">Schema YAML</strong>
-        <span
-          class={[
-            'badge badge-sm uppercase',
-            parserStatus === 'valid' && 'badge-success',
-            parserStatus === 'invalid' && 'badge-error',
-            parserStatus === 'parsing' && 'badge-ghost',
-          ].filter(Boolean).join(' ')}
-          data-state={parserStatus}
-        >
-          {parserStatus}
-        </span>
-      </div>
-      <YamlEditor bind:value={yamlSource} />
-      <div
-        class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border-t border-base-300 bg-base-200/50"
-        aria-label="YAML errors"
-      >
-        <div class="flex items-center justify-between px-3 py-1.5">
-          <span class="text-xs font-medium">Errors</span>
-          {#if parserError}
-            <span class="badge badge-error badge-xs">1</span>
-          {/if}
-        </div>
-        {#if parserError}
-          <pre class="min-h-0 overflow-auto bg-error/10 px-3 py-2 font-mono text-xs whitespace-pre-wrap text-error" role="alert">{parserError}</pre>
-        {:else}
-          <p class="px-3 py-2 text-xs text-base-content/45">
-            {parserStatus === 'parsing' ? 'Checking YAML…' : 'No errors.'}
-          </p>
-        {/if}
+      <div class="schema-explorer-graph min-h-0 h-full overflow-hidden">
+        <quent-entity-graph
+          class="block h-full min-h-0"
+          {schema}
+          {selection}
+          {config}
+          nodeComponent={EntityNode}
+          onquent-hover={handleHover}
+          onquent-hover-end={handleHoverEnd}
+          onquent-select={handleSelection}
+          onquent-view-change={handleViewChange}
+        ></quent-entity-graph>
       </div>
     </section>
 
-    <div
-      class="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_minmax(28rem,34rem)] gap-3 max-xl:grid-cols-[minmax(0,1fr)_24rem]"
-      aria-label="Schema explorer"
-    >
-      <div class="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
-        <section
-          class="card card-border min-h-0 overflow-hidden bg-base-100"
-          aria-label="Schema visualization"
-        >
-          <div class="schema-explorer-graph min-h-0 h-full overflow-hidden">
-            <quent-entity-graph
-              class="block h-full min-h-0"
-              {schema}
-              {selection}
-              {config}
-              nodeComponent={EntityNode}
-              onquent-hover={handleHover}
-              onquent-hover-end={handleHoverEnd}
-              onquent-select={handleSelection}
-              onquent-view-change={handleViewChange}
-            ></quent-entity-graph>
-          </div>
-        </section>
-
-        {#if activeView === 'graph'}
-          <GraphConfigBar {config} onChange={setConfig} />
-        {/if}
-      </div>
-
-      <aside
-        class="card card-border grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-base-100"
-        aria-label="Selections"
-        aria-live="polite"
+    {#if activeView === 'graph'}
+      <GraphConfigBar
+        {config}
+        expanded={graphExpanded}
+        onCollapse={graphExpanded ? undefined : collapseGraphPane}
+        onChange={setConfig}
+        onToggleExpanded={toggleGraphExpanded}
+      />
+    {:else}
+      <div
+        class="card card-border flex-row justify-end gap-2 bg-base-100 p-2"
+        aria-label="View pane controls"
       >
-        <header class="border-b border-base-300 px-3 py-2">
-          <h2 class="text-sm font-semibold">Selections</h2>
-        </header>
-        {#if tooltipSelection}
-          <SelectionBreadcrumbs
-            selection={tooltipSelection}
-            entityKind={selectedEntityKind}
-            onSelect={selectElement}
-            onPreview={previewBreadcrumb}
-            onPreviewEnd={endBreadcrumbPreview}
-          />
-        {:else}
-          <div></div>
+        {#if !graphExpanded}
+          <button
+            class="btn btn-xs btn-ghost"
+            type="button"
+            onclick={collapseGraphPane}
+          >Hide pane</button>
         {/if}
-        <div class="min-h-0 min-w-0 overflow-auto p-3">
-          {#if detailKind === 'fsm'}
-            <quent-fsm-details
-              {schema}
-              path={detailPath}
-              selection={paneSelection}
-              isolateState={isolateFsmState}
-              onquent-select={handleSelection}
-            ></quent-fsm-details>
-          {:else if detailKind === 'resource'}
-            <quent-resource-details
-              {schema}
-              path={detailPath}
-              selection={paneSelection}
-              onquent-select={handleSelection}
-            ></quent-resource-details>
-          {:else if detailKind === 'record'}
-            <quent-record-details
-              {schema}
-              path={detailPath}
-              selection={paneSelection}
-              onquent-select={handleSelection}
-            ></quent-record-details>
-          {:else if detailKind === 'events'}
-            <quent-entity-events
-              {schema}
-              path={detailPath}
-              selection={paneSelection}
-              onquent-select={handleSelection}
-            ></quent-entity-events>
-          {:else}
-            <p class="m-auto max-w-48 text-center text-sm text-base-content/50">
-              Select or hover over an element to inspect it.
-            </p>
-          {/if}
-        </div>
-      </aside>
-    </div>
+        <button
+          class="btn btn-xs"
+          type="button"
+          aria-pressed={graphExpanded}
+          onclick={toggleGraphExpanded}
+        >{graphExpanded ? 'Restore' : 'Expand view'}</button>
+      </div>
+    {/if}
   </div>
+{/snippet}
+
+<main
+  class={[
+    'grid h-dvh min-h-0 overflow-hidden bg-base-200 text-base-content',
+    graphExpanded
+      ? 'grid-rows-[minmax(0,1fr)]'
+      : 'grid-rows-[auto_minmax(0,1fr)] gap-3 p-4',
+  ]}
+>
+  {#if !graphExpanded}
+    <header class="flex min-w-0 flex-wrap items-center gap-3">
+      <h1 class="truncate text-xl font-semibold">
+        Quent Schema Explorer
+      </h1>
+      <label class="flex shrink-0 items-center gap-2">
+        <span class="text-xs font-medium">Example</span>
+        <select
+          class="select select-bordered select-sm w-48"
+          value={modelId}
+          onchange={changeModel}
+        >
+          {#if loadedFileName}
+            <option value="loaded">{loadedFileName}</option>
+          {/if}
+          {#each yamlExampleModels as candidate}
+            <option value={candidate.id}>{candidate.label}</option>
+          {/each}
+        </select>
+      </label>
+      <input
+        class="hidden"
+        type="file"
+        accept=".yaml,.yml,application/yaml,text/yaml"
+        bind:this={yamlFileInput}
+        onchange={loadYamlFile}
+      />
+      <div class="join shrink-0">
+        <button
+          class="btn btn-sm join-item"
+          type="button"
+          onclick={() => yamlFileInput?.click()}
+        >
+          Load
+        </button>
+        <button
+          class="btn btn-sm join-item"
+          type="button"
+          aria-label="Download current YAML"
+          onclick={downloadYaml}
+        >
+          Save
+        </button>
+      </div>
+      <label class="ml-auto flex shrink-0 items-center gap-2">
+        <span class="text-xs font-medium">Theme</span>
+        <select
+          class="select select-bordered select-sm w-28"
+          bind:value={themePreference}
+          aria-label="Color theme"
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </header>
+  {/if}
+
+  {#if graphExpanded}
+    {@render graphWorkspace()}
+  {:else}
+    <PaneGroup
+      class="min-h-0 min-w-0"
+      direction="horizontal"
+      autoSaveId="quent-schema-explorer-main"
+    >
+      <Pane
+        id="yaml-pane"
+        bind:this={editorPane}
+        class="min-h-0 min-w-0"
+        defaultSize={32}
+        minSize={15}
+        maxSize={45}
+        collapsible
+        collapsedSize={3}
+        onCollapse={() => (editorCollapsed = true)}
+        onExpand={() => (editorCollapsed = false)}
+      >
+        {#if editorCollapsed}
+          <button
+            class="btn btn-ghost h-full min-h-0 w-full rounded-none px-0"
+            type="button"
+            aria-label="Expand YAML editor"
+            onclick={() => editorPane?.expand()}
+          >
+            <span class="rotate-180 text-xs [writing-mode:vertical-rl]">YAML</span>
+          </button>
+        {:else}
+          <section
+            class="card card-border grid h-full min-h-0 w-full max-w-[80ch] grid-rows-[auto_minmax(0,1fr)_8rem] overflow-hidden bg-base-100"
+            aria-label="Quent YAML editor"
+          >
+            <div class="flex items-center justify-between gap-3 border-b border-base-300 px-3 py-2">
+              <strong class="text-sm">Schema YAML</strong>
+              <div class="flex items-center gap-2">
+                <span
+                  class={[
+                    'badge badge-sm uppercase',
+                    parserStatus === 'valid' && 'badge-success',
+                    parserStatus === 'invalid' && 'badge-error',
+                    parserStatus === 'parsing' && 'badge-ghost',
+                  ].filter(Boolean).join(' ')}
+                  data-state={parserStatus}
+                >
+                  {parserStatus}
+                </span>
+                <button
+                  class="btn btn-xs btn-ghost"
+                  type="button"
+                  onclick={() => editorPane?.collapse()}
+                >Hide</button>
+              </div>
+            </div>
+            <YamlEditor bind:value={yamlSource} />
+            <div
+              class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border-t border-base-300 bg-base-200/50"
+              aria-label="YAML errors"
+            >
+              <div class="flex items-center justify-between px-3 py-1.5">
+                <span class="text-xs font-medium">Errors</span>
+                {#if parserError}
+                  <span class="badge badge-error badge-xs">1</span>
+                {/if}
+              </div>
+              {#if parserError}
+                <pre class="min-h-0 overflow-auto bg-error/10 px-3 py-2 font-mono text-xs whitespace-pre-wrap text-error" role="alert">{parserError}</pre>
+              {:else}
+                <p class="px-3 py-2 text-xs text-base-content/45">
+                  {parserStatus === 'parsing' ? 'Checking YAML…' : 'No errors.'}
+                </p>
+              {/if}
+            </div>
+          </section>
+        {/if}
+      </Pane>
+
+      <PaneResizer
+        class="group flex w-3 shrink-0 items-center justify-center outline-none"
+        aria-label="Resize YAML and explorer panes"
+      >
+        <span class="pointer-events-none h-12 w-1 rounded-full bg-base-300 group-hover:bg-primary group-focus-visible:bg-primary group-data-[active=pointer]:bg-primary"></span>
+      </PaneResizer>
+
+      <Pane
+        id="explorer-pane"
+        class="min-h-0 min-w-0"
+        defaultSize={68}
+        minSize={30}
+      >
+        <PaneGroup
+          class="min-h-0 min-w-0"
+          direction="horizontal"
+          autoSaveId="quent-schema-explorer-details"
+        >
+          <Pane
+            id="graph-pane"
+            bind:this={graphPane}
+            class="min-h-0 min-w-0"
+            defaultSize={65}
+            minSize={25}
+            collapsible
+            collapsedSize={4}
+            onCollapse={() => (graphCollapsed = true)}
+            onExpand={() => (graphCollapsed = false)}
+          >
+            {#if graphCollapsed}
+              <button
+                class="btn btn-ghost h-full min-h-0 w-full rounded-none px-0"
+                type="button"
+                aria-label="Expand graph pane"
+                onclick={() => graphPane?.expand()}
+              >
+                <span class="rotate-180 text-xs [writing-mode:vertical-rl]">Explorer</span>
+              </button>
+            {:else}
+              {@render graphWorkspace()}
+            {/if}
+          </Pane>
+
+          <PaneResizer
+            class="group flex w-3 shrink-0 items-center justify-center outline-none"
+            aria-label="Resize graph and selections panes"
+          >
+            <span class="pointer-events-none h-12 w-1 rounded-full bg-base-300 group-hover:bg-primary group-focus-visible:bg-primary group-data-[active=pointer]:bg-primary"></span>
+          </PaneResizer>
+
+          <Pane
+            id="selections-pane"
+            bind:this={selectionsPane}
+            class="min-h-0 min-w-0"
+            defaultSize={35}
+            minSize={15}
+            collapsible
+            collapsedSize={4}
+            onCollapse={() => (selectionsCollapsed = true)}
+            onExpand={() => (selectionsCollapsed = false)}
+          >
+            {#if selectionsCollapsed}
+              <button
+                class="btn btn-ghost h-full min-h-0 w-full rounded-none px-0"
+                type="button"
+                aria-label="Expand selections pane"
+                onclick={() => selectionsPane?.expand()}
+              >
+                <span class="rotate-180 text-xs [writing-mode:vertical-rl]">Selections</span>
+              </button>
+            {:else}
+              <aside
+                class="card card-border grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-base-100"
+                aria-label="Selections"
+                aria-live="polite"
+              >
+                <header class="flex items-center justify-between gap-2 border-b border-base-300 px-3 py-2">
+                  <h2 class="text-sm font-semibold">Selections</h2>
+                  <button
+                    class="btn btn-xs btn-ghost"
+                    type="button"
+                    onclick={() => selectionsPane?.collapse()}
+                  >Hide</button>
+                </header>
+                {#if tooltipSelection}
+                  <SelectionBreadcrumbs
+                    selection={tooltipSelection}
+                    entityKind={selectedEntityKind}
+                    onSelect={selectElement}
+                    onPreview={previewBreadcrumb}
+                    onPreviewEnd={endBreadcrumbPreview}
+                  />
+                {:else}
+                  <div></div>
+                {/if}
+                <div class="min-h-0 min-w-0 overflow-auto p-3">
+                  {#if detailKind === 'fsm'}
+                    <quent-fsm-details
+                      {schema}
+                      path={detailPath}
+                      selection={paneSelection}
+                      isolateState={isolateFsmState}
+                      onquent-select={handleSelection}
+                    ></quent-fsm-details>
+                  {:else if detailKind === 'resource'}
+                    <quent-resource-details
+                      {schema}
+                      path={detailPath}
+                      selection={paneSelection}
+                      onquent-select={handleSelection}
+                    ></quent-resource-details>
+                  {:else if detailKind === 'record'}
+                    <quent-record-details
+                      {schema}
+                      path={detailPath}
+                      selection={paneSelection}
+                      onquent-select={handleSelection}
+                    ></quent-record-details>
+                  {:else if detailKind === 'events'}
+                    <quent-entity-events
+                      {schema}
+                      path={detailPath}
+                      selection={paneSelection}
+                      onquent-select={handleSelection}
+                    ></quent-entity-events>
+                  {:else}
+                    <p class="m-auto max-w-48 text-center text-sm text-base-content/50">
+                      Select or hover over an element to inspect it.
+                    </p>
+                  {/if}
+                </div>
+              </aside>
+            {/if}
+          </Pane>
+        </PaneGroup>
+      </Pane>
+    </PaneGroup>
+  {/if}
 </main>

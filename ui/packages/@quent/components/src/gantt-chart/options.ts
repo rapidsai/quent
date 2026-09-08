@@ -37,16 +37,7 @@ export function buildGanttOption<T extends GanttDatum>({
 }: BuildGanttOptionParams<T>): EChartsOption {
   return {
     animation: false,
-    // Crosshair only — React portals own tooltip content (`showContent: false`).
-    tooltip: {
-      show: true,
-      showContent: false,
-      trigger: 'axis',
-      transitionDuration: 0,
-    },
-    axisPointer: {
-      link: [{ xAxisIndex: 'all' }],
-    },
+    tooltip: { show: false },
     grid: {
       ...gridSpacing,
       width: undefined,
@@ -58,12 +49,7 @@ export function buildGanttOption<T extends GanttDatum>({
       max: durationSeconds * 1_000,
       show: true,
       axisLabel: { show: false },
-      axisPointer: {
-        show: true,
-        type: 'line',
-        animation: false,
-        label: { show: false },
-      },
+      axisPointer: { show: false },
       ...TIMELINE_X_AXIS_ANIMATION,
     },
     yAxis: {

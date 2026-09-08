@@ -9,10 +9,19 @@ import { Button } from './button';
 import { Input } from './input';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
+export interface OptionMultiSelectOption {
+  value: string;
+  label?: string;
+  description?: string;
+}
+
 interface OptionMultiSelectProps {
-  label: string;
+  /** Prefix label rendered before the trigger, e.g. "Columns:". Omit when the field already has an external label (e.g. via a wrapping <FieldWrapper>). */
+  label?: string;
+  /** Accessible label for the trigger button when the visible label is rendered externally. */
+  ariaLabel?: string;
   triggerText: string;
-  options: string[];
+  options: OptionMultiSelectOption[];
   selectedOptionIds: Set<string> | null;
   onToggleOption: (optionId: string) => void;
   onSelectAllOptions: () => void;
@@ -22,10 +31,19 @@ interface OptionMultiSelectProps {
   noneSelectedText?: string;
   maxVisibleBadges?: number;
   showSelectedBadges?: boolean;
+  className?: string;
+  triggerClassName?: string;
+  /** className applied to each option's label and its selected badge. */
+  optionClassName?: string;
+}
+
+function optionLabel(option: OptionMultiSelectOption): string {
+  return option.label ?? option.value;
 }
 
 export function OptionMultiSelect({
   label,
+  ariaLabel,
   triggerText,
   options,
   selectedOptionIds,
@@ -37,28 +55,54 @@ export function OptionMultiSelect({
   noneSelectedText = 'None selected',
   maxVisibleBadges = 6,
   showSelectedBadges = true,
+  className,
+  triggerClassName,
+  optionClassName,
 }: OptionMultiSelectProps) {
   const [search, setSearch] = useState('');
 
-  const isSelected = (option: string): boolean =>
-    selectedOptionIds ? selectedOptionIds.has(option) : true;
+  const isSelected = (value: string): boolean =>
+    selectedOptionIds ? selectedOptionIds.has(value) : true;
 
-  const selectedOptions = useMemo(() => options.filter(isSelected), [options, selectedOptionIds]);
+  const selectedOptions = useMemo(
+    () =>
+      options.filter(option => (selectedOptionIds ? selectedOptionIds.has(option.value) : true)),
+    [options, selectedOptionIds]
+  );
   const visibleSelectedOptions = selectedOptions.slice(0, maxVisibleBadges);
   const hiddenSelectedCount = Math.max(0, selectedOptions.length - visibleSelectedOptions.length);
 
   const filteredOptions = useMemo(() => {
-    if (!search) return options;
+    if (!search) {
+      return options;
+    }
     const needle = search.toLowerCase();
-    return options.filter(option => option.toLowerCase().includes(needle));
+    return options.filter(option =>
+      `${optionLabel(option)} ${option.description ?? ''}`.toLowerCase().includes(needle)
+    );
   }, [options, search]);
 
+  const triggerLabel =
+    selectedOptions.length === 0
+      ? triggerText
+      : selectedOptions.length === 1
+        ? optionLabel(selectedOptions[0])
+        : `${selectedOptions.length} selected`;
+
   return (
-    <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border/50">
-      <span className="text-xs text-muted-foreground shrink-0 mr-1">{label}:</span>
+    <div
+      className={cn(
+        'flex items-center gap-1',
+        label ? 'px-3 py-1.5 border-t border-border/50' : 'min-w-0',
+        className
+      )}
+    >
+      {label && <label className="text-xs text-muted-foreground shrink-0 mr-1">{label}:</label>}
       <Popover
         onOpenChange={open => {
-          if (!open) setSearch('');
+          if (!open) {
+            setSearch('');
+          }
         }}
       >
         <PopoverTrigger asChild>
@@ -66,13 +110,30 @@ export function OptionMultiSelect({
             variant="outline"
             size="sm"
             role="combobox"
-            className="h-7 min-w-36 justify-between gap-2 px-2 text-xs font-normal"
+            aria-label={ariaLabel ?? label}
+            className={cn(
+              'h-7 min-w-36 cursor-pointer justify-between gap-2 px-2 text-xs font-normal hover:bg-background hover:text-foreground',
+              triggerClassName
+            )}
           >
-            <span className="truncate">
-              {selectedOptions.length > 0
-                ? `${triggerText} (${selectedOptions.length})`
-                : triggerText}
-            </span>
+            <span className="flex-1 truncate text-left">{triggerLabel}</span>
+            {selectedOptions.length > 0 && (
+              <span
+                role="button"
+                aria-label={`Clear ${ariaLabel ?? label ?? triggerText}`}
+                className="shrink-0 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                onPointerDown={e => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                onClick={e => {
+                  e.stopPropagation();
+                  onSelectNoOptions();
+                }}
+              >
+                <X className="size-3!" />
+              </span>
+            )}
             <ChevronDown className="text-muted-foreground shrink-0 opacity-70" />
           </Button>
         </PopoverTrigger>
@@ -83,6 +144,7 @@ export function OptionMultiSelect({
               type="search"
               className="h-7 pl-7 pr-2 text-xs md:text-xs"
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
               value={search}
               onChange={e => setSearch(e.target.value)}
               autoFocus
@@ -110,17 +172,17 @@ export function OptionMultiSelect({
           </div>
           <div role="listbox" aria-multiselectable className="max-h-52 overflow-y-auto space-y-0.5">
             {filteredOptions.map(option => {
-              const checked = isSelected(option);
+              const checked = isSelected(option.value);
               return (
                 <button
-                  key={option}
+                  key={option.value}
                   type="button"
                   role="option"
                   aria-selected={checked}
                   data-state={checked ? 'checked' : 'unchecked'}
-                  onClick={() => onToggleOption(option)}
+                  onClick={() => onToggleOption(option.value)}
                   className={cn(
-                    'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-xs font-mono outline-none',
+                    'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-xs outline-none',
                     'transition-colors hover:bg-accent hover:text-accent-foreground',
                     'focus-visible:bg-accent focus-visible:text-accent-foreground'
                   )}
@@ -128,7 +190,7 @@ export function OptionMultiSelect({
                   <span
                     aria-hidden
                     className={cn(
-                      'flex size-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors',
+                      'mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors',
                       checked
                         ? 'bg-primary border-primary text-primary-foreground'
                         : 'border-input bg-background'
@@ -136,7 +198,16 @@ export function OptionMultiSelect({
                   >
                     {checked && <Check className="size-2.5" strokeWidth={3} />}
                   </span>
-                  <span className="truncate">{option}</span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className={cn('block truncate', optionClassName)}>
+                      {optionLabel(option)}
+                    </span>
+                    {option.description && (
+                      <span className="block truncate text-[10px] text-muted-foreground">
+                        {option.description}
+                      </span>
+                    )}
+                  </span>
                 </button>
               );
             })}
@@ -154,18 +225,21 @@ export function OptionMultiSelect({
             <div className="flex flex-wrap items-center gap-1">
               {visibleSelectedOptions.map(option => (
                 <Badge
-                  key={option}
+                  key={option.value}
                   variant="outline"
-                  className="px-1.5 py-0 font-mono text-data bg-primary/10 border-primary/40 hover:bg-primary/15"
+                  className={cn(
+                    'px-1.5 py-0 text-data bg-primary/10 border-primary/40 hover:bg-primary/15',
+                    optionClassName
+                  )}
                 >
-                  <span className="truncate">{option}</span>
+                  <span className="truncate">{optionLabel(option)}</span>
                   <button
                     type="button"
                     onClick={e => {
                       e.stopPropagation();
-                      onToggleOption(option);
+                      onToggleOption(option.value);
                     }}
-                    aria-label={`Remove ${option}`}
+                    aria-label={`Remove ${optionLabel(option)}`}
                     className="ml-0.5 rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
                   >
                     <X className="size-2.5" />

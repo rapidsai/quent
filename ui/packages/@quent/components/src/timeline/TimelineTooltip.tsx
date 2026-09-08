@@ -280,7 +280,9 @@ function ActiveMarksSection({
   itemLimit?: number;
   itemNoun?: TooltipItemNoun;
 }) {
-  if (marks.length === 0) return null;
+  if (marks.length === 0) {
+    return null;
+  }
   const visibleMarks = marks.slice(0, itemLimit);
   const hiddenCount = marks.length - visibleMarks.length;
 

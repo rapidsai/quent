@@ -18,6 +18,7 @@
     "@codemirror/view": "^6.43.6",
     "@quent/schema-viewer": "workspace:*",
     "codemirror": "^6.0.2",
+    "paneforge": "1.0.2",
     "svelte": "catalog:"
   },
   "devDependencies": {

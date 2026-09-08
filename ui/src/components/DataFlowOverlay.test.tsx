@@ -5,13 +5,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { useEffect } from 'react';
 import { Provider } from 'jotai';
 import { ReactFlowProvider } from '@xyflow/react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import {
   useDataFlowSync,
   useSetDataFlowEnabled,
   useSetDataFlowLabelMeasure,
   useSetDataFlowSelectedDimensions,
   useSetSelectedNodeData,
+  type InspectedNodeData,
 } from '@quent/hooks';
 import { DagPlayhead, DAGLegend, DAGNodeInfoPanel, NodeFlowBar } from '@quent/components';
 import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
@@ -387,23 +388,31 @@ describe('tier (dimension) selection', () => {
 });
 
 describe('DAGNodeInfoPanel matrix under tier selection', () => {
-  function renderPanel(selectedDimensions: ReadonlySet<string> | null) {
-    function SelectNode() {
+  const selectedOperator: InspectedNodeData = {
+    nodeId: 'op-1',
+    label: 'Op 1',
+    operationType: 'scan',
+    statistics: [],
+  };
+
+  function renderPanel(
+    selectedDimensions: ReadonlySet<string> | null,
+    operator: InspectedNodeData = selectedOperator
+  ) {
+    function SelectNode({ value }: { value: InspectedNodeData }) {
       const setSelectedNodeData = useSetSelectedNodeData();
       useEffect(() => {
-        setSelectedNodeData({
-          nodeId: 'op-1',
-          label: 'Op 1',
-          operationType: 'scan',
-          statistics: [],
-        });
-      }, [setSelectedNodeData]);
+        setSelectedNodeData(value);
+      }, [setSelectedNodeData, value]);
       return <DAGNodeInfoPanel />;
     }
     return render(
       <Provider>
         <Harness response={RESPONSE} selectedDimensions={selectedDimensions}>
-          <SelectNode />
+          <>
+            <DagPlayhead />
+            <SelectNode value={operator} />
+          </>
         </Harness>
       </Provider>
     );
@@ -421,6 +430,34 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
     expect(screen.getByText('Memory')).toBeInTheDocument();
     expect(screen.queryByText('Filesystem')).not.toBeInTheDocument();
+  });
+
+  it('keeps a zero-filled matrix visible at an all-zero bin', () => {
+    renderPanel(null);
+    fireEvent.keyDown(screen.getByRole('slider'), { key: 'End' });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
+
+    expect(screen.queryByText('No tasks at this bin')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getAllByText('0')).toHaveLength(9);
+  });
+
+  it('renders matrices for a higher-level operator and its nested operators', () => {
+    renderPanel(null, {
+      nodeId: 'logical',
+      label: 'Logical operator',
+      operationType: 'join',
+      statistics: [],
+      relatedOperators: [selectedOperator],
+    });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
+
+    const parent = screen.getByTestId('operator-accordion-logical');
+    expect(within(parent).getByRole('button', { name: 'Toggle Op 1 details' })).toBeInTheDocument();
+
+    const matrices = screen.getAllByRole('table');
+    expect(matrices).toHaveLength(2);
+    expect(within(matrices[0]).getAllByText('0')).toHaveLength(9);
+    expect(within(matrices[1]).getAllByText('1.0')).not.toHaveLength(0);
   });
 });
 

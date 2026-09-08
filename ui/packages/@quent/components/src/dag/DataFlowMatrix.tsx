@@ -32,7 +32,7 @@ export const DataFlowMatrix = ({
 }: {
   meta: DataFlowMeta;
   frame: DataFlowFrame;
-  operatorFrame: DataFlowOperatorFrame;
+  operatorFrame?: DataFlowOperatorFrame;
   isDark: boolean;
 }) => {
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
@@ -106,12 +106,12 @@ export const DataFlowMatrix = ({
               {dimensionColumns.map(({ key: k, index: dimensionIndex }) => (
                 <td key={k.key} className="text-right px-1.5 text-muted-foreground">
                   <DataText>
-                    {fmt(operatorFrame.matrix[stateIndex]?.[dimensionIndex] ?? 0)}
+                    {fmt(operatorFrame?.matrix[stateIndex]?.[dimensionIndex] ?? 0)}
                   </DataText>
                 </td>
               ))}
               <td className="text-right pl-1.5">
-                <DataText>{fmt(operatorFrame.byState[stateIndex] ?? 0)}</DataText>
+                <DataText>{fmt(operatorFrame?.byState[stateIndex] ?? 0)}</DataText>
               </td>
             </tr>
           ))}
@@ -121,11 +121,11 @@ export const DataFlowMatrix = ({
             </th>
             {dimensionColumns.map(({ key: k, index: dimensionIndex }) => (
               <td key={k.key} className="text-right px-1.5 pt-0.5">
-                <DataText>{fmt(operatorFrame.byDimension[dimensionIndex] ?? 0)}</DataText>
+                <DataText>{fmt(operatorFrame?.byDimension[dimensionIndex] ?? 0)}</DataText>
               </td>
             ))}
             <td className="text-right pl-1.5 pt-0.5 font-medium">
-              <DataText>{fmt(operatorFrame.total)}</DataText>
+              <DataText>{fmt(operatorFrame?.total ?? 0)}</DataText>
             </td>
           </tr>
         </tbody>

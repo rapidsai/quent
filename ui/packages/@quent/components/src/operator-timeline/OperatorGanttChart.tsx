@@ -80,9 +80,13 @@ export function OperatorGanttChart({
   );
   const operatorFieldStyles = useMemo(() => {
     const styles = new Map<string, { stroke?: string; fieldDimmed: boolean }>();
-    if (!nodeColoring) return styles;
+    if (!nodeColoring) {
+      return styles;
+    }
     for (const op of operators) {
-      if (styles.has(op.operatorId)) continue;
+      if (styles.has(op.operatorId)) {
+        continue;
+      }
       if (nodeColoring.type === 'continuous') {
         const v = nodeColoring.values.get(op.operatorId);
         if (v === undefined) {
@@ -109,7 +113,9 @@ export function OperatorGanttChart({
       const layout = layoutGanttBar(params, api, {
         barHeight: Math.max(1, BAR_HEIGHT - BAR_GAP),
       });
-      if (!layout) return null;
+      if (!layout) {
+        return null;
+      }
       const { clippedShape } = layout;
 
       const op = operators[params.dataIndexInside];
@@ -160,9 +166,13 @@ export function OperatorGanttChart({
   const handleClick = useMemo(
     () => ({
       click: (params: { dataIndex: number; seriesName?: string }) => {
-        if (params.seriesName !== 'operator-span') return;
+        if (params.seriesName !== 'operator-span') {
+          return;
+        }
         const op = operators[params.dataIndex];
-        if (!op) return;
+        if (!op) {
+          return;
+        }
         if (selectedNodeIds.size === 1 && selectedNodeIds.has(op.operatorId)) {
           setSelectedNodeIds(new Set());
           setSelectedOperatorLabel(null);

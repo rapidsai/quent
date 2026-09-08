@@ -3,15 +3,78 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@quent/client';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@quent/components';
+import {
+  DataText,
+  HoverCard,
+  HoverCardTrigger,
+  OverflowHoverCardContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  useOverflowHoverCard,
+} from '@quent/components';
 import { cn } from '@quent/utils';
+
+function OverflowingSelectTrigger({
+  label,
+  placeholder,
+}: {
+  label: string | undefined;
+  placeholder: string;
+}) {
+  const valueRef = useRef<HTMLSpanElement>(null);
+  const { open, handlePointerEnter, handlePointerLeave } = useOverflowHoverCard(valueRef, !!label);
+
+  return (
+    <HoverCard open={open}>
+      <HoverCardTrigger asChild>
+        <SelectTrigger
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
+          onBlur={handlePointerLeave}
+        >
+          <span ref={valueRef} className="min-w-0 flex-1 truncate text-left">
+            <SelectValue placeholder={placeholder}>{label}</SelectValue>
+          </span>
+        </SelectTrigger>
+      </HoverCardTrigger>
+      {label && <OverflowHoverCardContent label={label} />}
+    </HoverCard>
+  );
+}
+
+function OverflowingSelectItem({ value, label }: { value: string; label: string }) {
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const { open, handlePointerEnter, handlePointerLeave } = useOverflowHoverCard(labelRef);
+
+  return (
+    <HoverCard open={open}>
+      <HoverCardTrigger asChild>
+        <SelectItem
+          value={value}
+          className="min-w-0"
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
+        >
+          <span ref={labelRef} className="block w-full min-w-0 truncate">
+            <DataText>{label}</DataText>
+          </span>
+        </SelectItem>
+      </HoverCardTrigger>
+      <OverflowHoverCardContent label={label} />
+    </HoverCard>
+  );
+}
 
 export function EngineSelectionPage() {
   const navigate = useNavigate();
   const [engineId, setEngineId] = useState<string>('');
   const [coordinatorId, setCoordinatorId] = useState<string>('');
+  const [queryId, setQueryId] = useState<string>('');
 
   const enginesList = useQuery({
     queryKey: ['list_engines'],
@@ -34,13 +97,16 @@ export function EngineSelectionPage() {
   const handleEngineChange = (value: string) => {
     setEngineId(value);
     setCoordinatorId('');
+    setQueryId('');
   };
 
   const handleCoordinatorChange = (value: string) => {
     setCoordinatorId(value);
+    setQueryId('');
   };
 
   const handleQuerySelect = (queryId: string) => {
+    setQueryId(queryId);
     if (engineId && queryId) {
       navigate({
         to: '/profile/engine/$engineId/query/$queryId',
@@ -49,6 +115,30 @@ export function EngineSelectionPage() {
       });
     }
   };
+
+  const engineOptions = [
+    ...(enginesList.data?.map(engine => ({
+      id: engine.id,
+      name: engine.instance_name ?? engine.id,
+    })) ?? []),
+  ];
+  const coordinatorOptions = [
+    ...(coordinatorsList.data?.map(coordinator => ({
+      id: coordinator.id,
+      name: coordinator.instance_name ?? coordinator.id,
+    })) ?? []),
+  ];
+  const queryOptions = [
+    ...(queryList.data?.map(query => ({
+      id: query.id,
+      name: query.instance_name ?? query.id,
+    })) ?? []),
+  ];
+  const engineLabel = engineOptions.find(engine => engine.id === engineId)?.name;
+  const coordinatorLabel = coordinatorOptions.find(
+    coordinator => coordinator.id === coordinatorId
+  )?.name;
+  const queryLabel = queryOptions.find(query => query.id === queryId)?.name;
 
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[400px] space-y-6">
@@ -63,10 +153,8 @@ export function EngineSelectionPage() {
             Engine
           </label>
           <Select value={engineId} onValueChange={handleEngineChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Engine" />
-            </SelectTrigger>
-            <SelectContent>
+            <OverflowingSelectTrigger label={engineLabel ?? engineId} placeholder="Select Engine" />
+            <SelectContent className="max-h-64 w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] overflow-y-auto">
               {enginesList.isLoading ? (
                 <SelectItem value="_loading" disabled>
                   Loading engines...
@@ -77,9 +165,11 @@ export function EngineSelectionPage() {
                 </SelectItem>
               ) : (
                 enginesList.data?.map(engine => (
-                  <SelectItem key={engine.id} value={engine.id}>
-                    {engine.instance_name ?? engine.id}
-                  </SelectItem>
+                  <OverflowingSelectItem
+                    key={engine.id}
+                    value={engine.id}
+                    label={engine.instance_name ?? engine.id}
+                  />
                 ))
               )}
             </SelectContent>
@@ -92,10 +182,11 @@ export function EngineSelectionPage() {
             Query Group
           </label>
           <Select value={coordinatorId} onValueChange={handleCoordinatorChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Query Group" />
-            </SelectTrigger>
-            <SelectContent>
+            <OverflowingSelectTrigger
+              label={coordinatorLabel ?? coordinatorId}
+              placeholder="Select Query Group"
+            />
+            <SelectContent className="max-h-64 w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] overflow-y-auto">
               {coordinatorsList.isLoading ? (
                 <SelectItem value="_loading" disabled>
                   Loading Query Groups...
@@ -106,9 +197,11 @@ export function EngineSelectionPage() {
                 </SelectItem>
               ) : (
                 coordinatorsList.data?.map(coordinator => (
-                  <SelectItem key={coordinator.id} value={coordinator.id}>
-                    {coordinator.instance_name ?? coordinator.id}
-                  </SelectItem>
+                  <OverflowingSelectItem
+                    key={coordinator.id}
+                    value={coordinator.id}
+                    label={coordinator.instance_name ?? coordinator.id}
+                  />
                 ))
               )}
             </SelectContent>
@@ -120,11 +213,9 @@ export function EngineSelectionPage() {
           <label htmlFor="queryId" className="block text-sm font-medium mb-1">
             Query
           </label>
-          <Select onValueChange={handleQuerySelect}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Query" />
-            </SelectTrigger>
-            <SelectContent>
+          <Select value={queryId} onValueChange={handleQuerySelect}>
+            <OverflowingSelectTrigger label={queryLabel} placeholder="Select Query" />
+            <SelectContent className="max-h-64 w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] overflow-y-auto">
               {queryList.isLoading ? (
                 <SelectItem value="_loading" disabled>
                   Loading queries...
@@ -135,9 +226,11 @@ export function EngineSelectionPage() {
                 </SelectItem>
               ) : (
                 queryList.data?.map(query => (
-                  <SelectItem key={query.id} value={query.id}>
-                    {query.instance_name ?? query.id}
-                  </SelectItem>
+                  <OverflowingSelectItem
+                    key={query.id}
+                    value={query.id}
+                    label={query.instance_name ?? query.id}
+                  />
                 ))
               )}
             </SelectContent>

@@ -49,12 +49,12 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - name: Build C++ integration example
+      - name: Build legacy C++ integration example
         run: |
-          pixi run cmake -B examples/cpp-integration/cpp/build -S examples/cpp-integration/cpp
-          pixi run cmake --build examples/cpp-integration/cpp/build
-      - name: Run C++ integration example
-        run: ./examples/cpp-integration/cpp/build/example
+          pixi run cmake -B examples/legacy/cpp-integration/cpp/build -S examples/legacy/cpp-integration/cpp
+          pixi run cmake --build examples/legacy/cpp-integration/cpp/build
+      - name: Run legacy C++ integration example
+        run: ./examples/legacy/cpp-integration/cpp/build/example
       - name: Build C++ query engine bridge test
         run: |
           pixi run cmake -B domains/query_engine/tests/cpp/cpp/build -S domains/query_engine/tests/cpp/cpp

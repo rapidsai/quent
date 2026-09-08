@@ -66,7 +66,9 @@ describe('computeNodeColoring', () => {
     ];
     const result = computeNodeColoring(nodes, 'rows', 'light');
     expect(result?.type).toBe('continuous');
-    if (result?.type !== 'continuous') return;
+    if (result?.type !== 'continuous') {
+      return;
+    }
     expect(result.min).toBe(10);
     expect(result.max).toBe(50);
     expect(result.values.get('n1')).toBe(10);
@@ -78,7 +80,9 @@ describe('computeNodeColoring', () => {
     const nodes = [makeNode('n1', { rows: tagged('UInt64', 7) })];
     const result = computeNodeColoring(nodes, 'rows', 'light');
     expect(result?.type).toBe('continuous');
-    if (result?.type !== 'continuous') return;
+    if (result?.type !== 'continuous') {
+      return;
+    }
     expect(result.min).toBe(7);
     expect(result.max).toBe(7);
   });
@@ -91,7 +95,9 @@ describe('computeNodeColoring', () => {
     ];
     const result = computeNodeColoring(nodes, 'state', 'light');
     expect(result?.type).toBe('categorical');
-    if (result?.type !== 'categorical') return;
+    if (result?.type !== 'categorical') {
+      return;
+    }
     // 'active' and 'idle' must have colors; n1 and n3 should share the same color
     expect(result.colorMap.get('n1')).toBe(result.colorMap.get('n3'));
     expect(result.colorMap.get('n1')).not.toBe(result.colorMap.get('n2'));
@@ -105,7 +111,9 @@ describe('computeNodeColoring', () => {
     ];
     const result = computeNodeColoring(nodes, 'state', 'light');
     expect(result?.type).toBe('categorical');
-    if (result?.type !== 'categorical') return;
+    if (result?.type !== 'categorical') {
+      return;
+    }
     expect(result.categoryMap.get('alpha')).toBe(palette[0]);
     expect(result.categoryMap.get('beta')).toBe(palette[1]);
   });
@@ -117,7 +125,9 @@ describe('computeNodeColoring', () => {
     ];
     const result = computeNodeColoring(nodes, 'rows', 'light');
     expect(result?.type).toBe('continuous');
-    if (result?.type !== 'continuous') return;
+    if (result?.type !== 'continuous') {
+      return;
+    }
     expect(result.values.has('n1')).toBe(true);
     expect(result.values.has('n2')).toBe(false);
   });
@@ -152,7 +162,9 @@ describe('computeEdgeColoring', () => {
     ];
     const result = computeEdgeColoring(edges, 'rows', 'light');
     expect(result?.type).toBe('continuous');
-    if (result?.type !== 'continuous') return;
+    if (result?.type !== 'continuous') {
+      return;
+    }
     expect(result.min).toBe(10);
     expect(result.max).toBe(40);
     expect(result.values.get('e1')).toBe(10);
@@ -167,7 +179,9 @@ describe('computeEdgeColoring', () => {
     ];
     const result = computeEdgeColoring(edges, 'rows', 'light');
     expect(result?.type).toBe('continuous');
-    if (result?.type !== 'continuous') return;
+    if (result?.type !== 'continuous') {
+      return;
+    }
     expect(result.min).toBe(10);
     expect(result.max).toBe(40);
     expect(result.values.get('e1')).toBe(10);
@@ -182,7 +196,9 @@ describe('computeEdgeColoring', () => {
     ];
     const result = computeEdgeColoring(edges, 'type', 'light');
     expect(result?.type).toBe('categorical');
-    if (result?.type !== 'categorical') return;
+    if (result?.type !== 'categorical') {
+      return;
+    }
     expect(result.colorMap.has('e1')).toBe(true);
     expect(result.colorMap.has('e2')).toBe(true);
     expect(result.colorMap.get('e1')).not.toBe(result.colorMap.get('e2'));
@@ -195,7 +211,9 @@ describe('computeEdgeColoring', () => {
     ];
     const result = computeEdgeColoring(edges, 'type', 'light');
     expect(result?.type).toBe('categorical');
-    if (result?.type !== 'categorical') return;
+    if (result?.type !== 'categorical') {
+      return;
+    }
     expect(result.labelMap.get('e1')).toBe('hash');
     expect(result.labelMap.get('e2')).toBe('merge');
   });
@@ -207,7 +225,9 @@ describe('computeEdgeColoring', () => {
     ];
     const result = computeEdgeColoring(edges, 'rows', 'light');
     expect(result?.type).toBe('continuous');
-    if (result?.type !== 'continuous') return;
+    if (result?.type !== 'continuous') {
+      return;
+    }
     expect(result.values.has('e1')).toBe(true);
     expect(result.values.has('e2')).toBe(false);
   });
