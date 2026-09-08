@@ -64,7 +64,14 @@ export function LongEntitiesRow({
   const returnedNumBins = useReturnedTimelineNumBins(resourceId);
   const returnedTimelineIsStale = useReturnedTimelineIsStale(resourceId);
   const zeroUtilizationResourceIds = useZeroUtilizationResourceIds();
-  const hasNoUsagesInWindow = zeroUtilizationResourceIds.has(resourceId);
+  const previousHasNoUsagesInWindow = useRef(false);
+  // Retain the previous value while this resource's timeline bins haven't caught up to the
+  // active zoom span yet, so the empty-state message doesn't flicker between "no entities in
+  // range" and "no matching entities" every time the debounced zoom range ticks during a scroll.
+  if (!returnedTimelineIsStale) {
+    previousHasNoUsagesInWindow.current = zeroUtilizationResourceIds.has(resourceId);
+  }
+  const hasNoUsagesInWindow = previousHasNoUsagesInWindow.current;
   const previousMinUsageSeconds = useRef<number | null>(null);
   const [maxEntities, setMaxEntities] = useState(ENTITIES_PER_PAGE);
   const operatorIds = useMemo(() => [...selectedNodeIds], [selectedNodeIds]);

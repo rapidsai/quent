@@ -383,6 +383,43 @@ describe('LongEntitiesRow', () => {
     );
   });
 
+  it('retains the previous noUsagesInRange while the timeline bins for this resource are stale', () => {
+    mocks.zeroUtilizationResourceIds = new Set(['resource-1']);
+    mocks.returnedTimelineIsStale = false;
+
+    const props = {
+      engineId: 'engine-1',
+      queryId: 'query-1',
+      resourceId: 'resource-1',
+      durationSeconds: 1,
+      fsmTypes: {},
+      isDark: false,
+    };
+    const { rerender } = render(<LongEntitiesRow {...props} />);
+
+    expect(
+      mocks.longEntitiesGantt.mock.calls[mocks.longEntitiesGantt.mock.calls.length - 1]?.[0]
+    ).toEqual(expect.objectContaining({ noUsagesInRange: true }));
+
+    // Zoom range moved: bins for this resource haven't caught up yet, but the
+    // set no longer reflects zero utilization for the new span.
+    mocks.returnedTimelineIsStale = true;
+    mocks.zeroUtilizationResourceIds = new Set();
+    rerender(<LongEntitiesRow {...props} />);
+
+    expect(
+      mocks.longEntitiesGantt.mock.calls[mocks.longEntitiesGantt.mock.calls.length - 1]?.[0]
+    ).toEqual(expect.objectContaining({ noUsagesInRange: true }));
+
+    // Bins catch up and confirm nonzero utilization for the new span.
+    mocks.returnedTimelineIsStale = false;
+    rerender(<LongEntitiesRow {...props} />);
+
+    expect(
+      mocks.longEntitiesGantt.mock.calls[mocks.longEntitiesGantt.mock.calls.length - 1]?.[0]
+    ).toEqual(expect.objectContaining({ noUsagesInRange: false }));
+  });
+
   it('keeps the previous entities visible while a changed request loads', () => {
     const previousEntity = { id: 'entity-1' };
     mocks.useEntityList.mockReturnValue({
