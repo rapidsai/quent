@@ -9,7 +9,7 @@ pixi shell
 ```
 
 Pixi is the canonical development environment and provides the required Rust,
-Node.js, pnpm, and protoc versions. Use another approach at your own risk.
+Node.js, and pnpm versions. Use another approach at your own risk.
 
 ## Repository checks
 

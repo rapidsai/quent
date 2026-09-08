@@ -31,7 +31,6 @@
               pkgs.rustfmt
               pkgs.nodejs
               pkgs.pnpm
-              pkgs.protobuf
             ];
           };
         }
