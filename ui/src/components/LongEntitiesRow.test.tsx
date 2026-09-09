@@ -420,6 +420,56 @@ describe('LongEntitiesRow', () => {
     ).toEqual(expect.objectContaining({ noUsagesInRange: false }));
   });
 
+  it('retains the previous noUsagesInRange while the entity list is still fetching the new window, even once bins are fresh', () => {
+    mocks.zeroUtilizationResourceIds = new Set(['resource-1']);
+    mocks.returnedTimelineIsStale = false;
+    mocks.useEntityList.mockReturnValue({
+      data: { items: [], total: 0 },
+      isFetching: false,
+      isPlaceholderData: false,
+    });
+
+    const props = {
+      engineId: 'engine-1',
+      queryId: 'query-1',
+      resourceId: 'resource-1',
+      durationSeconds: 1,
+      fsmTypes: {},
+      isDark: false,
+    };
+    const { rerender } = render(<LongEntitiesRow {...props} />);
+
+    expect(
+      mocks.longEntitiesGantt.mock.calls[mocks.longEntitiesGantt.mock.calls.length - 1]?.[0]
+    ).toEqual(expect.objectContaining({ noUsagesInRange: true }));
+
+    // Bins resolve first and now show nonzero utilization for the new window, but the entity
+    // list query is still in flight (keepPreviousData is still showing the old, empty window).
+    mocks.zeroUtilizationResourceIds = new Set();
+    mocks.useEntityList.mockReturnValue({
+      data: { items: [], total: 0 },
+      isFetching: true,
+      isPlaceholderData: true,
+    });
+    rerender(<LongEntitiesRow {...props} />);
+
+    expect(
+      mocks.longEntitiesGantt.mock.calls[mocks.longEntitiesGantt.mock.calls.length - 1]?.[0]
+    ).toEqual(expect.objectContaining({ noUsagesInRange: true }));
+
+    // Entity list catches up with real entities for the new window.
+    mocks.useEntityList.mockReturnValue({
+      data: { items: [{ entity: { id: 'entity-1' }, usage_duration_s: 0 }], total: 1 },
+      isFetching: false,
+      isPlaceholderData: false,
+    });
+    rerender(<LongEntitiesRow {...props} />);
+
+    expect(
+      mocks.longEntitiesGantt.mock.calls[mocks.longEntitiesGantt.mock.calls.length - 1]?.[0]
+    ).toEqual(expect.objectContaining({ noUsagesInRange: false }));
+  });
+
   it('keeps the previous entities visible while a changed request loads', () => {
     const previousEntity = { id: 'entity-1' };
     mocks.useEntityList.mockReturnValue({

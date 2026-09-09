@@ -65,13 +65,6 @@ export function LongEntitiesRow({
   const returnedTimelineIsStale = useReturnedTimelineIsStale(resourceId);
   const zeroUtilizationResourceIds = useZeroUtilizationResourceIds();
   const previousHasNoUsagesInWindow = useRef(false);
-  // Retain the previous value while this resource's timeline bins haven't caught up to the
-  // active zoom span yet, so the empty-state message doesn't flicker between "no entities in
-  // range" and "no matching entities" every time the debounced zoom range ticks during a scroll.
-  if (!returnedTimelineIsStale) {
-    previousHasNoUsagesInWindow.current = zeroUtilizationResourceIds.has(resourceId);
-  }
-  const hasNoUsagesInWindow = previousHasNoUsagesInWindow.current;
   const previousMinUsageSeconds = useRef<number | null>(null);
   const [maxEntities, setMaxEntities] = useState(ENTITIES_PER_PAGE);
   const operatorIds = useMemo(() => [...selectedNodeIds], [selectedNodeIds]);
@@ -107,6 +100,15 @@ export function LongEntitiesRow({
     },
     { enabled: numBins != null }
   );
+
+  // Retain the previous empty-state signal until both the timeline bins and the entity list
+  // itself have caught up to the active zoom window. Bins and entities resolve at different
+  // times while panning/zooming (entities keep showing the previous window's data in the
+  // meantime), and updating from just one of them flashes the wrong empty-state message.
+  if (!returnedTimelineIsStale && !isFetching) {
+    previousHasNoUsagesInWindow.current = zeroUtilizationResourceIds.has(resourceId);
+  }
+  const hasNoUsagesInWindow = previousHasNoUsagesInWindow.current;
 
   const entities = useMemo(() => (data?.items ?? []).map(item => item.entity), [data]);
   const entries = useMemo(
