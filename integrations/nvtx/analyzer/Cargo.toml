@@ -11,9 +11,8 @@ publish.workspace = true
 default = []
 # Enables `tests/roundtrip.rs`, which reconstructs a real in-process capture.
 #
-# Off by default so `cargo test -p nvtx-analyzer` stays hermetic: the test links
-# `nvtx-example` -> `nvtx-injection`, whose build script runs bindgen against the
-# pixi-pinned `nvtx-c` headers. Run it with
+# Off by default so the analyzer's normal tests do not need the native
+# `nvtx-sys` build toolchain (`libclang` and a C compiler). Run it with
 # `pixi run cargo test -p nvtx-analyzer --features real-capture-tests`.
 real-capture-tests = ["dep:nvtx-example", "dep:quent-instrumentation"]
 

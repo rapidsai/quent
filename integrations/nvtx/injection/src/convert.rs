@@ -25,9 +25,9 @@ use nvtx_events::{
     NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
 };
 
-use crate::bindings::{
+use nvtx_sys::ffi::{
     nvtxColorType_t, nvtxEventAttributes_t, nvtxEventAttributes_v2, nvtxMessageType_t,
-    nvtxPayloadType_t, nvtxResourceAttributes_t,
+    nvtxPayloadType_t, nvtxResourceAttributes_t, wchar_t,
 };
 
 /// Convert a `DomainRangePop` call to a verbatim [`NvtxEvent::RangePop`].
@@ -357,26 +357,26 @@ unsafe fn read_payload(base: *const u8, size: usize) -> Option<NvtxPayload> {
     }
     // The payload is an 8-byte union; read exactly the width the tag names so a
     // 32-bit member never pulls in the union's (possibly uninitialized) upper
-    // four bytes. `offset` is the union's start; on the only supported target
-    // (x86-64 LE) each member occupies the low bytes.
+    // four bytes. `offset` is the union's start; on the supported little-endian
+    // x86-64 and aarch64 Linux targets each member occupies the low bytes.
     let offset = offset_of!(nvtxEventAttributes_v2, payload);
-    let value = match payload_type as u32 {
-        nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT64 => {
+    let value = match payload_type {
+        value if value == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT64 as i32 => {
             NvtxPayloadValue::UnsignedInt64(unsafe { read_present::<u64>(base, size, offset) }?)
         }
-        nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64 => {
+        value if value == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64 as i32 => {
             NvtxPayloadValue::Int64(unsafe { read_present::<i64>(base, size, offset) }?)
         }
-        nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_DOUBLE => {
+        value if value == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_DOUBLE as i32 => {
             NvtxPayloadValue::Double(unsafe { read_present::<f64>(base, size, offset) }?)
         }
-        nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32 => {
+        value if value == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32 as i32 => {
             NvtxPayloadValue::UnsignedInt32(unsafe { read_present::<u32>(base, size, offset) }?)
         }
-        nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32 => {
+        value if value == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32 as i32 => {
             NvtxPayloadValue::Int32(unsafe { read_present::<i32>(base, size, offset) }?)
         }
-        nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_FLOAT => {
+        value if value == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_FLOAT as i32 => {
             NvtxPayloadValue::Float(unsafe { read_present::<f32>(base, size, offset) }?)
         }
         // Unknown/future tag of unknown width: capture the full 8-byte slot
@@ -403,7 +403,7 @@ unsafe fn read_message(base: *const u8, size: usize) -> Option<NvtxMessage> {
     // (the "no message" default) says the union is absent, and a caller that
     // leaves it uninitialized would otherwise have those bytes read. Mirrors the
     // `read_payload` guard.
-    if message_type as u32 == nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN {
+    if message_type == nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32 {
         return None;
     }
     // The message union is pointer-sized; capture the raw pointer bits.
@@ -424,22 +424,22 @@ unsafe fn read_message(base: *const u8, size: usize) -> Option<NvtxMessage> {
 /// valid for this call. If `NVTX_MESSAGE_TYPE_UNICODE`, `bits` must be a
 /// `const wchar_t*` valid for this call. Both are copied before returning.
 unsafe fn decode_message(message_type: i32, bits: usize) -> Option<NvtxMessage> {
-    match message_type as u32 {
-        nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII => {
+    match message_type {
+        value if value == nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32 => {
             // SAFETY: NVTX guarantees the const char* is valid for the call; the
             // bytes are copied into an owned String before returning.
             Some(NvtxMessage::String(unsafe {
                 copy_cstr(bits as *const c_char)
             }))
         }
-        nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE => {
+        value if value == nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE as i32 => {
             // SAFETY: NVTX guarantees the const wchar_t* is valid for the call;
             // the code points are copied into an owned String before returning.
             Some(NvtxMessage::String(unsafe {
-                copy_wchar(bits as *const libc::wchar_t)
+                copy_wchar(bits as *const wchar_t)
             }))
         }
-        nvtxMessageType_t::NVTX_MESSAGE_TYPE_REGISTERED => {
+        value if value == nvtxMessageType_t::NVTX_MESSAGE_TYPE_REGISTERED as i32 => {
             Some(NvtxMessage::RegisteredHandle(bits as u64))
         }
         // The default "no message" sentinel — silently absent, not an
@@ -458,7 +458,7 @@ unsafe fn decode_message(message_type: i32, bits: usize) -> Option<NvtxMessage> 
 /// `(0, 0, None)` so the resource is still captured (never dropped), keeping the
 /// synthesized handle paired with a later `ResourceDestroy`.
 unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Option<NvtxMessage>) {
-    use crate::bindings::nvtxResourceAttributes_v0 as Res;
+    use nvtx_sys::ffi::nvtxResourceAttributes_v0 as Res;
 
     if attr.is_null() {
         return (0, 0, None);
@@ -480,7 +480,7 @@ unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Opt
         // Only read the union for a tag that carries a value; `UNKNOWN` (the
         // "no message" default) says it is absent, and a caller may leave the
         // union uninitialized. Mirrors the event-attribute `read_message` guard.
-        Some(message_type) if message_type as u32 != nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN => {
+        Some(message_type) if message_type != nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32 => {
             // SAFETY: the message union is pointer-sized; guarded by `size`.
             match unsafe { read_present::<usize>(base, size, offset_of!(Res, message)) } {
                 // SAFETY: `bits` is the message union for `message_type`.
@@ -537,7 +537,7 @@ unsafe fn copy_cstr(ptr: *const c_char) -> String {
 ///
 /// # Safety
 /// See [`copy_wchar`].
-pub(crate) unsafe fn copy_wchar_pub(ptr: *const libc::wchar_t) -> String {
+pub(crate) unsafe fn copy_wchar_pub(ptr: *const wchar_t) -> String {
     // SAFETY: forwarded from the caller's contract on `ptr`.
     unsafe { copy_wchar(ptr) }
 }
@@ -555,7 +555,7 @@ pub(crate) unsafe fn copy_wchar_pub(ptr: *const libc::wchar_t) -> String {
 /// # Safety
 /// `ptr` must be null or a valid NUL-terminated `wchar_t` array readable for
 /// this call; the code points are copied into an owned `String` before returning.
-unsafe fn copy_wchar(ptr: *const libc::wchar_t) -> String {
+unsafe fn copy_wchar(ptr: *const wchar_t) -> String {
     if ptr.is_null() {
         return String::new();
     }
@@ -580,9 +580,7 @@ unsafe fn copy_wchar(ptr: *const libc::wchar_t) -> String {
 /// # Safety
 /// `message` must be null or a valid NUL-terminated `wchar_t` array readable
 /// for this call; the code points are copied before returning.
-pub(crate) unsafe fn message_only_attributes_w(
-    message: *const libc::wchar_t,
-) -> NvtxEventAttributes {
+pub(crate) unsafe fn message_only_attributes_w(message: *const wchar_t) -> NvtxEventAttributes {
     NvtxEventAttributes {
         // SAFETY: forwarded from the caller's contract on `message`.
         message: Some(NvtxMessage::String(unsafe { copy_wchar(message) })),
@@ -595,7 +593,7 @@ pub(crate) unsafe fn message_only_attributes_w(
 ///
 /// # Safety
 /// See [`message_only_attributes_w`].
-pub(crate) unsafe fn mark_w(message: *const libc::wchar_t) -> NvtxEvent {
+pub(crate) unsafe fn mark_w(message: *const wchar_t) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
     NvtxEvent::Mark {
@@ -609,7 +607,7 @@ pub(crate) unsafe fn mark_w(message: *const libc::wchar_t) -> NvtxEvent {
 ///
 /// # Safety
 /// See [`message_only_attributes_w`].
-pub(crate) unsafe fn range_push_w(message: *const libc::wchar_t, thread_id: u32) -> NvtxEvent {
+pub(crate) unsafe fn range_push_w(message: *const wchar_t, thread_id: u32) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
     NvtxEvent::RangePush {
@@ -624,7 +622,7 @@ pub(crate) unsafe fn range_push_w(message: *const libc::wchar_t, thread_id: u32)
 ///
 /// # Safety
 /// See [`message_only_attributes_w`].
-pub(crate) unsafe fn range_start_w(range_id: u64, message: *const libc::wchar_t) -> NvtxEvent {
+pub(crate) unsafe fn range_start_w(range_id: u64, message: *const wchar_t) -> NvtxEvent {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
     NvtxEvent::RangeStart {
@@ -659,10 +657,10 @@ mod tests {
         NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
     };
 
-    use crate::bindings::{
+    use nvtx_sys::ffi::{
         nvtxColorType_t, nvtxEventAttributes_v2, nvtxEventAttributes_v2_payload_t,
         nvtxMessageType_t, nvtxMessageValue_t, nvtxPayloadType_t, nvtxResourceAttributes_v0,
-        nvtxResourceAttributes_v0_identifier_t, nvtxStringHandle_t,
+        nvtxResourceAttributes_v0_identifier_t, nvtxStringHandle_t, wchar_t,
     };
 
     use super::{range_pop, range_push};
@@ -1251,8 +1249,8 @@ mod tests {
     /// Build a NUL-terminated `wchar_t` array from a Rust string slice.
     ///
     /// On Linux `wchar_t` is `i32` (UTF-32); each `char` maps to one code unit.
-    fn wchar_literal(s: &str) -> Vec<libc::wchar_t> {
-        let mut v: Vec<libc::wchar_t> = s.chars().map(|c| c as libc::wchar_t).collect();
+    fn wchar_literal(s: &str) -> Vec<wchar_t> {
+        let mut v: Vec<wchar_t> = s.chars().map(|c| c as wchar_t).collect();
         v.push(0);
         v
     }
@@ -1345,7 +1343,8 @@ mod tests {
             messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE as i32,
             message: nvtxMessageValue_t {
                 // The unicode union member is a *const wchar_t; store as ascii
-                // field (same union, pointer width) since bindgen aliases them.
+                // field (same union, pointer width) since the generated binding
+                // aliases both views.
                 ascii: wide.as_ptr().cast(),
             },
             ..full_attr()

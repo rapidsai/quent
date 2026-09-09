@@ -15,13 +15,13 @@ crate-type = ["rlib"]
 [dependencies]
 libc = "0.2"
 nvtx-events = { path = "../events" }
+# `tools` exposes NVTX's callback-subscription and injection ABI.
+nvtx-sys = { workspace = true, features = ["tools"] }
 thiserror = { workspace = true }
 
 [build-dependencies]
-# `build.rs` runs bindgen over the NVTX injection ABI into `$OUT_DIR`. The NVTX
-# headers and libclang come from the pixi-pinned `nvtx-c` / `libclang` packages
-# (see `pixi.toml`), so a `pixi run cargo …` build is hermetic.
-bindgen = { workspace = true }
+# Only Quent's own build script needs this direct `cc` dependency, for the
+# `static-injection` strong-symbol shim. `nvtx-sys` also compiles bundled C code.
 cc = { workspace = true, optional = true }
 
 [features]

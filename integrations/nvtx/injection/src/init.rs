@@ -5,20 +5,28 @@
 //! hook installation surface.
 
 use std::mem::transmute;
-use std::os::raw::{c_char, c_int, c_uint, c_void};
+use std::os::raw::{c_int, c_uint};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nvtx_events::NvtxEvent;
 use thiserror::Error;
 
-use crate::bindings::{
+use crate::callbacks;
+use nvtx_sys::ffi::{
     NvtxCallbackIdCore, NvtxCallbackIdCore2, NvtxCallbackModule, NvtxExportTableCallbacks,
     NvtxExportTableID, NvtxFunctionPointer, NvtxFunctionTable, NvtxGetExportTableFunc_t,
-    nvtxDomainHandle_t, nvtxEventAttributes_t, nvtxRangeId_t, nvtxResourceAttributes_t,
-    nvtxResourceHandle_t, nvtxStringHandle_t,
+    nvtxDomainCreateA_impl_fntype, nvtxDomainDestroy_impl_fntype, nvtxDomainMarkEx_impl_fntype,
+    nvtxDomainNameCategoryA_impl_fntype, nvtxDomainRangeEnd_impl_fntype,
+    nvtxDomainRangePop_impl_fntype, nvtxDomainRangePushEx_impl_fntype,
+    nvtxDomainRangeStartEx_impl_fntype, nvtxDomainRegisterStringA_impl_fntype,
+    nvtxDomainResourceCreate_impl_fntype, nvtxDomainResourceDestroy_impl_fntype,
+    nvtxMarkA_impl_fntype, nvtxMarkEx_impl_fntype, nvtxMarkW_impl_fntype,
+    nvtxNameCategoryA_impl_fntype, nvtxNameCategoryW_impl_fntype, nvtxNameOsThreadA_impl_fntype,
+    nvtxNameOsThreadW_impl_fntype, nvtxRangeEnd_impl_fntype, nvtxRangePop_impl_fntype,
+    nvtxRangePushA_impl_fntype, nvtxRangePushEx_impl_fntype, nvtxRangePushW_impl_fntype,
+    nvtxRangeStartA_impl_fntype, nvtxRangeStartEx_impl_fntype, nvtxRangeStartW_impl_fntype,
 };
-use crate::callbacks;
 
 /// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
 type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
@@ -202,7 +210,7 @@ pub unsafe extern "C" fn initialize_injection_nvtx2(
 
 /// The `GetModuleFunctionTable` accessor type from [`NvtxExportTableCallbacks`].
 type GetModuleTableFn = unsafe extern "C" fn(
-    callback_module: NvtxCallbackModule::Type,
+    callback_module: NvtxCallbackModule,
     out_table: *mut NvtxFunctionTable,
     out_size: *mut c_uint,
 ) -> c_int;
@@ -215,12 +223,14 @@ type GetModuleTableFn = unsafe extern "C" fn(
 /// Expands to a `bool`: whether the callback was installed (see [`set_callback`]).
 macro_rules! subscribe {
     ($table:expr, $size:expr, $cbid:expr, $cb:path, $sig:ty) => {{
-        // SAFETY: fn pointers are all the same width; the callee's real signature
-        // (`$sig`) matches what NVTX invokes for `$cbid`.
-        let erased: NvtxFunctionPointer =
-            Some(unsafe { transmute::<$sig, unsafe extern "C" fn()>($cb) });
+        // Binding through the upstream slot alias makes Rust check the
+        // callback's full signature before it is erased for the NVTX table.
+        let typed: $sig = Some($cb);
+        // SAFETY: NVTX defines every slot alias as an optional C function
+        // pointer, the same representation as its generic function pointer.
+        let erased = unsafe { transmute::<$sig, NvtxFunctionPointer>(typed) };
         // SAFETY: `$table` has `$size` slots per the ABI contract.
-        unsafe { set_callback($table, $size, $cbid, erased) }
+        unsafe { set_callback($table, $size, $cbid as c_uint, erased) }
     }};
 }
 
@@ -234,11 +244,10 @@ macro_rules! subscribe {
 /// the classic default-domain ASCII CORE surface
 /// (`nvtxMarkA`/`nvtxMarkEx`, `nvtxRangePushA`/`nvtxRangePushEx`, `nvtxRangePop`,
 /// `nvtxRangeStartA`/`nvtxRangeStartEx`/`nvtxRangeEnd`, `nvtxNameCategoryA`,
-/// `nvtxNameOsThreadA`), captured on the default domain (`0`). The wide-char
-/// (`*W` / Unicode) variants are subscribed with warn-once stubs — Unicode
-/// capture is still deferred, but the calls emit a one-time diagnostic (see
-/// [`callbacks`] `warn_wide_surface_once`) and keep range nesting/ids valid
-/// instead of silently becoming no-ops.
+/// `nvtxNameOsThreadA`), captured on the default domain (`0`). The corresponding
+/// default-domain wide-char (`*W`) calls are converted to UTF-8 and captured as
+/// well. Domain-scoped wide-name calls (`DomainCreateW`, `DomainRegisterStringW`,
+/// and `DomainNameCategoryW`) are not yet subscribed.
 ///
 /// # Safety
 /// `get_export_table` must be the accessor NVTX passes to
@@ -249,8 +258,9 @@ unsafe fn install_callbacks(get_export_table: NvtxGetExportTableFunc_t) -> bool 
     };
 
     // SAFETY: NVTX ABI — NVTX_ETID_CALLBACKS yields a `*const NvtxExportTableCallbacks`.
-    let callbacks_table = unsafe { get_export_table(NvtxExportTableID::NVTX_ETID_CALLBACKS) }
-        .cast::<NvtxExportTableCallbacks>();
+    let callbacks_table =
+        unsafe { get_export_table(NvtxExportTableID::NVTX_ETID_CALLBACKS as u32) }
+            .cast::<NvtxExportTableCallbacks>();
     if callbacks_table.is_null() {
         return false;
     }
@@ -274,7 +284,7 @@ unsafe fn install_callbacks(get_export_table: NvtxGetExportTableFunc_t) -> bool 
 /// `get_module_table` must be the NVTX `GetModuleFunctionTable` accessor.
 unsafe fn module_table(
     get_module_table: GetModuleTableFn,
-    module: NvtxCallbackModule::Type,
+    module: NvtxCallbackModule,
 ) -> Option<(NvtxFunctionTable, c_uint)> {
     let mut table: NvtxFunctionTable = std::ptr::null_mut();
     let mut size: c_uint = 0;
@@ -308,80 +318,77 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
             size,
             Cb::NVTX_CBID_CORE2_DomainMarkEx,
             callbacks::on_domain_mark_ex,
-            extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t)
+            nvtxDomainMarkEx_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainRangeStartEx,
             callbacks::on_domain_range_start_ex,
-            extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t) -> nvtxRangeId_t
+            nvtxDomainRangeStartEx_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainRangeEnd,
             callbacks::on_domain_range_end,
-            extern "C" fn(nvtxDomainHandle_t, nvtxRangeId_t)
+            nvtxDomainRangeEnd_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainRangePushEx,
             callbacks::on_domain_range_push_ex,
-            extern "C" fn(nvtxDomainHandle_t, *const nvtxEventAttributes_t) -> c_int
+            nvtxDomainRangePushEx_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainRangePop,
             callbacks::on_domain_range_pop,
-            extern "C" fn(nvtxDomainHandle_t) -> c_int
+            nvtxDomainRangePop_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainResourceCreate,
             callbacks::on_domain_resource_create,
-            extern "C" fn(
-                nvtxDomainHandle_t,
-                *const nvtxResourceAttributes_t,
-            ) -> nvtxResourceHandle_t
+            nvtxDomainResourceCreate_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainResourceDestroy,
             callbacks::on_domain_resource_destroy,
-            extern "C" fn(nvtxResourceHandle_t)
+            nvtxDomainResourceDestroy_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainNameCategoryA,
             callbacks::on_domain_name_category_a,
-            extern "C" fn(nvtxDomainHandle_t, u32, *const c_char)
+            nvtxDomainNameCategoryA_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainRegisterStringA,
             callbacks::on_domain_register_string_a,
-            extern "C" fn(nvtxDomainHandle_t, *const c_char) -> nvtxStringHandle_t
+            nvtxDomainRegisterStringA_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainCreateA,
             callbacks::on_domain_create_a,
-            extern "C" fn(*const c_char) -> nvtxDomainHandle_t
+            nvtxDomainCreateA_impl_fntype
         ),
         subscribe!(
             table,
             size,
             Cb::NVTX_CBID_CORE2_DomainDestroy,
             callbacks::on_domain_destroy,
-            extern "C" fn(nvtxDomainHandle_t)
+            nvtxDomainDestroy_impl_fntype
         ),
     ];
 
@@ -408,10 +415,10 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
 ///
 /// The classic NVTX API (`nvtxMarkA`, `nvtxRangePushA`, `nvtxRangePop`, …)
 /// dispatches through this table, not the CORE2 domain surface, so we capture it
-/// on the default domain (`0`). The wide-char (`*W`) entries are subscribed with
-/// warn-once stubs so they signal instead of silently becoming no-ops; ASCII is
-/// captured. Best-effort: if the CORE table is unavailable, the default-domain
-/// surface simply isn't hooked (the domain surface is what gates init success).
+/// on the default domain (`0`). Both ASCII and wide-char (`*W`) strings are
+/// copied into owned UTF-8 strings. Best-effort: if the CORE table is
+/// unavailable, the default-domain surface simply isn't hooked (the domain
+/// surface is what gates init success).
 ///
 /// # Safety
 /// See [`module_table`].
@@ -435,108 +442,108 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
         size,
         Cb::NVTX_CBID_CORE_MarkEx,
         callbacks::on_mark_ex,
-        extern "C" fn(*const nvtxEventAttributes_t)
+        nvtxMarkEx_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_MarkA,
         callbacks::on_mark_a,
-        extern "C" fn(*const c_char)
+        nvtxMarkA_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangeStartEx,
         callbacks::on_range_start_ex,
-        extern "C" fn(*const nvtxEventAttributes_t) -> nvtxRangeId_t
+        nvtxRangeStartEx_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangeStartA,
         callbacks::on_range_start_a,
-        extern "C" fn(*const c_char) -> nvtxRangeId_t
+        nvtxRangeStartA_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangeEnd,
         callbacks::on_range_end,
-        extern "C" fn(nvtxRangeId_t)
+        nvtxRangeEnd_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangePushEx,
         callbacks::on_range_push_ex,
-        extern "C" fn(*const nvtxEventAttributes_t) -> c_int
+        nvtxRangePushEx_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangePushA,
         callbacks::on_range_push_a,
-        extern "C" fn(*const c_char) -> c_int
+        nvtxRangePushA_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangePop,
         callbacks::on_range_pop,
-        extern "C" fn() -> c_int
+        nvtxRangePop_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_NameCategoryA,
         callbacks::on_name_category_a,
-        extern "C" fn(u32, *const c_char)
+        nvtxNameCategoryA_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_NameOsThreadA,
         callbacks::on_name_os_thread_a,
-        extern "C" fn(u32, *const c_char)
+        nvtxNameOsThreadA_impl_fntype
     );
 
-    // Wide-char (Unicode) surface: subscribed with warn-once stubs so the calls
-    // signal and keep range nesting/ids valid instead of silently no-op'ing.
+    // Wide-char (Unicode) surface: copied into owned UTF-8 strings while
+    // preserving range nesting and synthesized ids.
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_MarkW,
         callbacks::on_mark_w,
-        extern "C" fn(*const c_void)
+        nvtxMarkW_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangeStartW,
         callbacks::on_range_start_w,
-        extern "C" fn(*const c_void) -> nvtxRangeId_t
+        nvtxRangeStartW_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_RangePushW,
         callbacks::on_range_push_w,
-        extern "C" fn(*const c_void) -> c_int
+        nvtxRangePushW_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_NameCategoryW,
         callbacks::on_name_category_w,
-        extern "C" fn(u32, *const c_void)
+        nvtxNameCategoryW_impl_fntype
     );
     subscribe!(
         table,
         size,
         Cb::NVTX_CBID_CORE_NameOsThreadW,
         callbacks::on_name_os_thread_w,
-        extern "C" fn(u32, *const c_void)
+        nvtxNameOsThreadW_impl_fntype
     );
 }
 

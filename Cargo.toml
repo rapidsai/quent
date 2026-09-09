@@ -128,7 +128,6 @@ repository = "https://github.com/rapidsai/quent"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
-bindgen = "0.72"
 bitcode = { version = "0.6.9", features = ["serde"] }
 cargo_metadata = "0.23"
 cc = "1.2"
@@ -136,6 +135,7 @@ http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
 nvtx = { version = "2", default-features = false, features = ["std"] }
+nvtx-sys = { version = "2", default-features = false }
 petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"

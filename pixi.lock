@@ -84,7 +84,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/mdbook-0.5.4-hb17b654_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ncurses-6.6-hdb14827_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/nodejs-26.5.1-hc039f44_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/nvtx-c-3.5.0-h54a6638_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pnpm-11.19.0-h245e063_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/python-3.14.6-habeac84_100_cp314.conda
@@ -197,7 +196,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/mdbook-0.5.4-h069e38c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ncurses-6.6-hf8d1292_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/nodejs-26.5.1-hb82d7cf_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/nvtx-c-3.5.0-h7ac5ae9_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/openssl-3.6.3-h546c87b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/pnpm-11.19.0-h985d126_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/python-3.14.6-hc679e19_100_cp314.conda
@@ -1293,15 +1291,6 @@ packages:
     - nodejs >=26.5.1,<27.0a0
   size: 19950889
   timestamp: 1785507188344
-- conda: https://conda.anaconda.org/conda-forge/linux-64/nvtx-c-3.5.0-h54a6638_1.conda
-  sha256: b308ff7681d1b5d6211673627a76726d0fd9964515c774afb169d495b4d7e36b
-  md5: b9abfbd4ab976d7d96f493dbf0db84f6
-  license: Apache-2.0 WITH LLVM-exception
-  license_family: APACHE
-  purls: []
-  run_exports: {}
-  size: 99937
-  timestamp: 1773885215056
 - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
   sha256: d48f5c22b9897c01e4dff3680f1f57ceb02711ab9c62f74339b080419dfad34b
   md5: 79dd2074b5cd5c5c6b2930514a11e22d
@@ -2437,15 +2426,6 @@ packages:
     - nodejs >=26.5.1,<27.0a0
   size: 26124454
   timestamp: 1785507236727
-- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/nvtx-c-3.5.0-h7ac5ae9_1.conda
-  sha256: 688f97329bc4ecdc68da4eac5b9dde868674c2bc6bf7fe8ea79c6e0ca38e1f2e
-  md5: db0f3ec0ef94fd0adb6cd6cd366e71ac
-  license: Apache-2.0 WITH LLVM-exception
-  license_family: APACHE
-  purls: []
-  run_exports: {}
-  size: 100886
-  timestamp: 1773885220020
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/openssl-3.6.3-h546c87b_0.conda
   sha256: da4a5df42614166b69c2f6d8602fc1425f7aaa699f77c3bafb5c7fe69b3d9fb7
   md5: fa6260b3e6eababf6ca85a7eb3336383

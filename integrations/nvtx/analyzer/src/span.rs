@@ -92,8 +92,8 @@ impl SpanKind {
 /// `"<identifier_type {n}>"`, interpolating only the raw integer, so an
 /// unrecognized type can never render as a recognized one.
 fn label_identifier_type(identifier_type: i32) -> String {
-    // Confirmed against the pixi-pinned nvtx-c headers, the same ones
-    // `nvtx-injection`'s bindgen build reads.
+    // Confirmed against the upstream NVTX headers bundled by `nvtx-sys`, the
+    // same definitions used by `nvtx-injection` through its `tools` feature.
     let label = match identifier_type {
         // `NVTX_RESOURCE_TYPE_UNKNOWN`, also what the capture layer records for
         // an attribute struct too short to contain the field — a legitimate

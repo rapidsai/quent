@@ -26,13 +26,12 @@ mdbook = "0.5.4.*"
 rumdl = "*"
 
 [target.linux-64.dependencies]
-nvtx-c = ">=3.5.0"
+# `nvtx-sys` runs bindgen against its bundled headers during consumer builds.
 libclang = ">=18"
 
 [target.linux-aarch64.dependencies]
-nvtx-c = ">=3.5.0"
 libclang = ">=18"
-# `libclang` ships no compiler resource headers (`lib/clang/<ver>/include`), and
-# on aarch64 clang does not fall back to the conda GCC ones, so bindgen fails to
-# find `stddef.h`. `clang` pulls `clang-<major>`, which provides them.
+# Native aarch64 bindgen needs compiler resource headers. `libclang` does not
+# ship them and does not fall back to the conda GCC headers there;
+# `clang` pulls `clang-<major>`, which provides them.
 clang = ">=18"

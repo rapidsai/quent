@@ -12,14 +12,14 @@
 //!   message copy-in required for safety; serialization lives on the
 //!   downstream drain thread in the bridge.
 
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_int};
 use std::panic::AssertUnwindSafe;
 
-use crate::bindings::{
-    nvtxDomainHandle_t, nvtxEventAttributes_t, nvtxRangeId_t, nvtxResourceAttributes_t,
-    nvtxResourceHandle_t, nvtxStringHandle_t,
-};
 use crate::{convert, init};
+use nvtx_sys::ffi::{
+    nvtxDomainHandle_t, nvtxEventAttributes_t, nvtxRangeId_t, nvtxResourceAttributes_t,
+    nvtxResourceHandle_t, nvtxStringHandle_t, wchar_t,
+};
 
 /// CORE2 `DomainRangePushEx` subscriber.
 ///
@@ -164,7 +164,7 @@ pub(crate) extern "C" fn on_name_os_thread_a(thread_id: u32, name: *const c_char
 /// handle.
 pub(crate) extern "C" fn on_domain_resource_create(
     domain: nvtxDomainHandle_t,
-    attr: *const nvtxResourceAttributes_t,
+    attr: *mut nvtxResourceAttributes_t,
 ) -> nvtxResourceHandle_t {
     let handle = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
@@ -298,23 +298,23 @@ pub(crate) extern "C" fn on_name_category_a(category: u32, name: *const c_char) 
 // are needed downstream.
 
 /// CORE `MarkW` subscriber — wide-char instantaneous marker on the default domain.
-pub(crate) extern "C" fn on_mark_w(message: *const c_void) {
+pub(crate) extern "C" fn on_mark_w(message: *const wchar_t) {
     let _ = std::panic::catch_unwind(|| {
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call; copy_wchar copies before returning.
-        let event = unsafe { convert::mark_w(message.cast()) };
+        let event = unsafe { convert::mark_w(message) };
         init::dispatch(event);
     });
 }
 
 /// CORE `RangeStartW` subscriber — synthesizes and RETURNS a process-unique id,
 /// then captures the wide-char label converted to UTF-8.
-pub(crate) extern "C" fn on_range_start_w(message: *const c_void) -> nvtxRangeId_t {
+pub(crate) extern "C" fn on_range_start_w(message: *const wchar_t) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call.
-        let event = unsafe { convert::range_start_w(range_id, message.cast()) };
+        let event = unsafe { convert::range_start_w(range_id, message) };
         init::dispatch(event);
     });
     range_id
@@ -322,25 +322,25 @@ pub(crate) extern "C" fn on_range_start_w(message: *const c_void) -> nvtxRangeId
 
 /// CORE `RangePushW` subscriber — returns the 0-based default-domain nesting
 /// level of the range being started, capturing the wide-char label as UTF-8.
-pub(crate) extern "C" fn on_range_push_w(message: *const c_void) -> c_int {
+pub(crate) extern "C" fn on_range_push_w(message: *const wchar_t) -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
         let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call.
-        let event = unsafe { convert::range_push_w(message.cast(), thread_id) };
+        let event = unsafe { convert::range_push_w(message, thread_id) };
         init::dispatch(event);
     }));
     level
 }
 
 /// CORE `NameCategoryW` subscriber — wide-char category name on the default domain.
-pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const c_void) {
+pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const wchar_t) {
     let _ = std::panic::catch_unwind(|| {
         // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
         // wchar_t array for this call.
-        let name = unsafe { convert::copy_wchar_pub(name.cast()) };
+        let name = unsafe { convert::copy_wchar_pub(name) };
         init::dispatch(nvtx_events::NvtxEvent::NameCategory {
             domain: 0,
             category,
@@ -350,11 +350,11 @@ pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const c_void) 
 }
 
 /// CORE `NameOsThreadW` subscriber — wide-char thread name.
-pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const c_void) {
+pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const wchar_t) {
     let _ = std::panic::catch_unwind(|| {
         // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
         // wchar_t array for this call.
-        let name = unsafe { convert::copy_wchar_pub(name.cast()) };
+        let name = unsafe { convert::copy_wchar_pub(name) };
         init::dispatch(nvtx_events::NvtxEvent::NameThread { thread_id, name });
     });
 }

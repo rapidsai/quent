@@ -7,8 +7,8 @@
 //! with each other about what a capture looks like. This one closes that loop by
 //! running the actual injection layer and reconstructing whatever comes out.
 //!
-//! Gated behind `real-capture-tests` because it links the injection cdylib,
-//! whose build script runs bindgen against the pixi-pinned NVTX headers.
+//! Gated behind `real-capture-tests` because it links the real injection layer,
+//! whose `nvtx-sys` dependency runs bindgen and native C compilation.
 #![cfg(feature = "real-capture-tests")]
 
 use std::sync::{Arc, Mutex};
