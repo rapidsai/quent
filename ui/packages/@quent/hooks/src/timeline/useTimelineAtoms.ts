@@ -16,6 +16,7 @@ import {
   longEntityDensityAtom,
   timelineCacheKey,
 } from '../atoms/timeline';
+import { selectedNodeIdsAtom } from '../atoms/dag';
 import {
   getFsmTypeName,
   getResourceTypeName,
@@ -77,13 +78,16 @@ export function useZeroUtilizationResourceIds(): ReadonlySet<string> {
   const timelineDataMap = useAtomValue(timelineDataMapAtom);
   const visibleEntries = useAtomValue(visibleEntriesAtom);
   const activeSpan = useAtomValue(debouncedZoomRangeAtom);
+  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
 
   return useMemo(() => {
+    const operatorIds = [...selectedNodeIds];
     const zeroResourceIds = new Set<string>();
     for (const [resourceId, request] of Object.entries(visibleEntries)) {
       const key = timelineCacheKey({
         resourceId,
         resourceTypeName: getResourceTypeName(request),
+        operatorIds,
         fsmTypeName: getFsmTypeName(request),
       });
       const data = timelineDataMap[key];
@@ -99,7 +103,7 @@ export function useZeroUtilizationResourceIds(): ReadonlySet<string> {
       }
     }
     return zeroResourceIds;
-  }, [timelineDataMap, visibleEntries, activeSpan]);
+  }, [timelineDataMap, visibleEntries, activeSpan, selectedNodeIds]);
 }
 
 export const useZoomRange = () => useAtomValue(zoomRangeAtom);

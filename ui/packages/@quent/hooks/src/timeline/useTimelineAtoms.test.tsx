@@ -6,6 +6,7 @@ import { act, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
 import type { OperatorFilter, SingleTimelineResponse, TimelineRequest } from '@quent/utils';
+import { selectedNodeIdsAtom } from '../atoms/dag';
 import {
   debouncedZoomRangeAtom,
   timelineCacheKey,
@@ -249,6 +250,32 @@ describe('useZeroUtilizationResourceIds', () => {
     const { result } = renderHook(() => useZeroUtilizationResourceIds(), { wrapper });
 
     expect(result.current.has('zero-resource')).toBe(false);
+  });
+
+  it('checks operator-filtered utilization, not the unfiltered base timeline, when operators are selected', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, { 'worker-resource': makeRequest('worker-resource') });
+    store.set(selectedNodeIdsAtom, new Set(['op-1']));
+    store.set(timelineDataMapAtom, {
+      // Base (unfiltered) timeline is busy...
+      [timelineCacheKey({ resourceId: 'worker-resource', resourceTypeName: '' })]: makeResponse([
+        0, 3, 0,
+      ]),
+      // ...but the operator-filtered timeline has zero utilization.
+      [timelineCacheKey({
+        resourceId: 'worker-resource',
+        resourceTypeName: '',
+        operatorIds: ['op-1'],
+      })]: makeResponse([0, 0, 0]),
+    });
+    store.set(debouncedZoomRangeAtom, { start: 0, end: 1 });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useZeroUtilizationResourceIds(), { wrapper });
+
+    expect(result.current.has('worker-resource')).toBe(true);
   });
 
   it('returns an empty set when no timeline data has been fetched yet', () => {
