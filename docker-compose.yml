@@ -23,4 +23,4 @@ services:
     restart: "no"
     environment:
       QUENT_COLLECTOR_ADDRESS: "http://server:7836"
-    command: "/quent/quent-simulator --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 2 --num-tasks 128"
+    command: "/quent/quent-simulator --exporter collector --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 2 --num-tasks 128"

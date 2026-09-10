@@ -27,6 +27,7 @@ impl EntityId for EntityRef {
     fn is_resource(&self) -> bool {
         matches!(self, EntityRef::Resource(_))
     }
+
     fn is_resource_group(&self) -> bool {
         matches!(self, EntityRef::ResourceGroup(_))
     }
