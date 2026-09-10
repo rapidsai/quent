@@ -19,22 +19,54 @@
 use std::collections::HashSet;
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
+    AnalyzerError, AnalyzerResult, Entity, EntityId, Model, Span,
     fsm::Fsm,
     resource::{ResourceGroup, Using},
 };
-use quent_query_engine_model::plan::{Edge, PlanParent};
 use quent_query_engine_ui as qe_ui;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
-// Storage implementations
-pub mod plain;
 pub mod plan_tree;
 
 // UI related mods
 pub mod entities;
 pub mod ui;
+
+/// Entity ID with query-engine entity type information.
+pub enum QueryEngineEntityId {
+    Engine(Uuid),
+    Worker(Uuid),
+    QueryGroup(Uuid),
+    Query(Uuid),
+    Plan(Uuid),
+    Operator(Uuid),
+    Port(Uuid),
+}
+
+impl EntityId for QueryEngineEntityId {
+    fn is_resource(&self) -> bool {
+        false
+    }
+
+    fn is_resource_group(&self) -> bool {
+        true
+    }
+}
+
+impl From<QueryEngineEntityId> for Uuid {
+    fn from(value: QueryEngineEntityId) -> Self {
+        match value {
+            QueryEngineEntityId::Engine(id)
+            | QueryEngineEntityId::Worker(id)
+            | QueryEngineEntityId::QueryGroup(id)
+            | QueryEngineEntityId::Query(id)
+            | QueryEngineEntityId::Plan(id)
+            | QueryEngineEntityId::Operator(id)
+            | QueryEngineEntityId::Port(id) => id,
+        }
+    }
+}
 
 /// Read-only analyzer API for an engine entity.
 pub trait EngineEntity: Entity + Span + ResourceGroup {
@@ -59,9 +91,10 @@ pub trait QueryEntity: Fsm + Using + ResourceGroup {
 
 /// Read-only analyzer API for a plan entity.
 pub trait PlanEntity: Entity + ResourceGroup {
-    fn parent(&self) -> Option<&PlanParent>;
+    fn parent_query_id(&self) -> Option<Uuid>;
+    fn parent_plan_id(&self) -> Option<Uuid>;
     fn worker_id(&self) -> Option<Uuid>;
-    fn edges(&self) -> &[Edge];
+    fn edges(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_;
     fn to_ui(&self) -> qe_ui::Plan;
 }
 

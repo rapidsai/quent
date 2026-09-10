@@ -1,16 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
-use quent_events::{EntityEvent, Event};
-use quent_io::filesystem::{self, Format};
-use quent_io::{ImporterOptions, ImporterProvider};
+use quent_analyzer::context::{ContextId, ContextIndex, ContextInventory};
+use quent_events::Event;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
-use quent_query_engine_model::{engine::EngineEvent, worker::WorkerEvent};
 use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
@@ -23,99 +20,18 @@ pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Ev
     + Send
     + Sync;
 
-/// Produces the [`EngineIndex`] of available engines and the contexts backing
-/// each.
-pub type ListerFn = dyn Fn() -> ServerResult<EngineIndex> + Send + Sync;
+/// Produces the [`ContextIndex`] used to locate the contexts backing each analysis target.
+pub type ListerFn = dyn Fn() -> ServerResult<ContextIndex> + Send + Sync;
 
-/// Which contexts make up each query-engine instance's telemetry.
+/// Scans every `<output_dir>/<ctx>/` directory and indexes its entities.
 ///
-/// An engine instance spans multiple processes — the engine itself and its
-/// workers — each of which may hold its own context. This index ties them
-/// together by engine id: the engine's own context plus every context in which
-/// a worker of that engine appears.
-///
-/// Built by scanning context directories (see [`index_query_engines`]).
-#[derive(Debug, Default)]
-pub struct EngineIndex {
-    /// Engine id to the contexts holding its telemetry (its own and its
-    /// workers'). `BTreeSet` so it is deduplicated and deterministically ordered.
-    contexts: HashMap<Uuid, BTreeSet<Uuid>>,
-    /// Engine id to its workers and the context each was found in.
-    workers: HashMap<Uuid, Vec<(Uuid, Uuid)>>,
-    /// Resource-group entities observed in each context, by engine ID.
-    context_resources: HashMap<Uuid, BTreeMap<Uuid, BTreeSet<Uuid>>>,
-}
-
-impl EngineIndex {
-    fn attribute_context(&mut self, engine_id: Uuid, context_id: Uuid) {
-        self.contexts
-            .entry(engine_id)
-            .or_default()
-            .insert(context_id);
-    }
-
-    fn add_worker(&mut self, engine_id: Uuid, worker_id: Uuid, context_id: Uuid) {
-        self.attribute_resource(engine_id, context_id, worker_id);
-        self.workers
-            .entry(engine_id)
-            .or_default()
-            .push((worker_id, context_id));
-    }
-
-    fn attribute_resource(&mut self, engine_id: Uuid, context_id: Uuid, resource_id: Uuid) {
-        self.attribute_context(engine_id, context_id);
-        self.context_resources
-            .entry(engine_id)
-            .or_default()
-            .entry(context_id)
-            .or_default()
-            .insert(resource_id);
-    }
-
-    /// All known engine ids.
-    pub fn engine_ids(&self) -> impl Iterator<Item = Uuid> + '_ {
-        self.contexts.keys().copied()
-    }
-
-    /// The contexts whose events make up `engine_id`'s telemetry (engine plus
-    /// workers).
-    pub fn contexts_of(&self, engine_id: Uuid) -> Vec<Uuid> {
-        self.contexts
-            .get(&engine_id)
-            .map(|set| set.iter().copied().collect())
-            .unwrap_or_default()
-    }
-
-    /// `engine_id`'s workers as `(worker_id, context_id)` pairs.
-    pub fn workers_of(&self, engine_id: Uuid) -> &[(Uuid, Uuid)] {
-        self.workers.get(&engine_id).map_or(&[], Vec::as_slice)
-    }
-
-    /// Resource-group entity IDs observed in each context of `engine_id`.
-    pub fn context_resources_of(&self, engine_id: Uuid) -> BTreeMap<Uuid, Vec<Uuid>> {
-        let mut resources: BTreeMap<Uuid, Vec<Uuid>> = self
-            .contexts_of(engine_id)
-            .into_iter()
-            .map(|context_id| (context_id, Vec::new()))
-            .collect();
-        if let Some(by_context) = self.context_resources.get(&engine_id) {
-            for (&context_id, resource_ids) in by_context {
-                resources.insert(context_id, resource_ids.iter().copied().collect());
-            }
-        }
-        resources
-    }
-}
-
-/// A dumb lister for query-engine-domain models: scan every `<output_dir>/<ctx>/`
-/// directory and, from its engine and worker streams, index each engine to the
-/// contexts that make up its telemetry (the engine's own context plus the
-/// contexts of its workers, found via each worker's `parent_engine_id`).
-///
-/// "Dumb" because it re-scans and rebuilds from scratch on every call — a real
-/// history/indexing service replaces this later.
-pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
-    let mut index = EngineIndex::default();
+/// The inventory callback determines how entities and analysis targets are identified for the
+/// application's event schema. The index is rebuilt from scratch on every call.
+pub fn index_contexts(
+    output_dir: &Path,
+    inventory: impl Fn(Uuid) -> ServerResult<ContextInventory>,
+) -> ServerResult<ContextIndex> {
+    let mut index = ContextIndex::default();
     for entry in std::fs::read_dir(output_dir)? {
         let context_dir = entry?.path();
         let Some(context_id) = context_dir
@@ -125,48 +41,8 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
         else {
             continue;
         };
-        // Each context's serialization format is detected from its own streams.
-        let Some(format) = Format::detect(&context_dir) else {
-            continue;
-        };
 
-        // Engines living in this context.
-        let engine_dir = context_dir.join(<EngineEvent as EntityEvent>::NAME);
-        if engine_dir.is_dir() {
-            let importer = <ImporterOptions as ImporterProvider<EngineEvent>>::create_importer(
-                &ImporterOptions::FileSystem(filesystem::importer::Options {
-                    format,
-                    path: engine_dir,
-                }),
-            )?;
-            let mut seen = HashSet::new();
-            for event in importer {
-                let event = event?;
-                if seen.insert(event.id) {
-                    index.attribute_resource(event.id, context_id, event.id);
-                }
-            }
-        }
-
-        // Workers living in this context attribute it to their parent engine.
-        let worker_dir = context_dir.join(<WorkerEvent as EntityEvent>::NAME);
-        if worker_dir.is_dir() {
-            let importer = <ImporterOptions as ImporterProvider<WorkerEvent>>::create_importer(
-                &ImporterOptions::FileSystem(filesystem::importer::Options {
-                    format,
-                    path: worker_dir,
-                }),
-            )?;
-            let mut seen = HashSet::new();
-            for event in importer {
-                let event = event?;
-                if let WorkerEvent::Init(init) = &event.data
-                    && seen.insert(event.id)
-                {
-                    index.add_worker(init.parent_engine_id.uuid(), event.id, context_id);
-                }
-            }
-        }
+        index.add_inventory(context_id.into(), inventory(context_id)?);
     }
     Ok(index)
 }
@@ -174,7 +50,7 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
 /// Chain one source-importer call per context into a single event stream.
 fn chain_context_events<A: UiAnalyzer>(
     importer: &ImporterFn<A>,
-    context_ids: &[Uuid],
+    context_ids: &[ContextId],
 ) -> ServerResult<Box<dyn Iterator<Item = Event<A::Event>>>>
 where
     A::Event: 'static,
@@ -182,7 +58,7 @@ where
     let mut streams: Vec<Box<dyn Iterator<Item = Event<A::Event>>>> =
         Vec::with_capacity(context_ids.len());
     for &context_id in context_ids {
-        streams.push(importer(context_id)?);
+        streams.push(importer(context_id.into_uuid())?);
     }
     Ok(Box::new(streams.into_iter().flatten()))
 }
@@ -226,7 +102,7 @@ where
     }
 
     pub(crate) fn list(&self) -> ServerResult<Vec<Uuid>> {
-        Ok((self.lister)()?.engine_ids().collect())
+        Ok((self.lister)()?.analysis_target_ids().collect())
     }
 
     /// List an engine's contributing contexts without blocking the async executor.
@@ -236,7 +112,11 @@ where
             let index = lister()?;
             Ok(ui::EngineContexts {
                 engine_id,
-                context_resources: index.context_resources_of(engine_id),
+                context_ids: index
+                    .contexts_of_analysis_target(engine_id)
+                    .into_iter()
+                    .map(ContextId::into_uuid)
+                    .collect(),
             })
         })
         .await
@@ -250,10 +130,12 @@ where
             let _span = info_span!("list_with_metadata").entered();
             let index = lister()?;
             index
-                .engine_ids()
+                .analysis_target_ids()
                 .map(|engine_id| {
-                    let events =
-                        chain_context_events::<A>(&*importer, &index.contexts_of(engine_id))?;
+                    let events = chain_context_events::<A>(
+                        &*importer,
+                        &index.contexts_of_analysis_target(engine_id),
+                    )?;
                     Ok(A::extract_engine(engine_id, events)?)
                 })
                 .collect()
@@ -270,7 +152,7 @@ where
             .or_try_insert_with(async {
                 tokio::task::spawn_blocking(move || -> ServerResult<Arc<A>> {
                     let _span = info_span!("load_engine", %engine_id).entered();
-                    let context_ids = lister()?.contexts_of(engine_id);
+                    let context_ids = lister()?.contexts_of_analysis_target(engine_id);
                     let events = chain_context_events::<A>(&*importer, &context_ids)?;
                     Ok(A::try_new(engine_id, events).map(Arc::new)?)
                 })
@@ -286,37 +168,52 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn engine_context_inventory_is_deduplicated_and_sorted() {
         let engine_id = Uuid::from_u128(1);
         let earlier = Uuid::from_u128(2);
         let later = Uuid::from_u128(3);
-        let mut index = EngineIndex::default();
-        index.attribute_context(engine_id, later);
-        index.attribute_context(engine_id, earlier);
-        index.attribute_context(engine_id, later);
+        let mut index = ContextIndex::default();
+        let inventory = || ContextInventory {
+            analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
+        };
+        index.add_inventory(later.into(), inventory());
+        index.add_inventory(earlier.into(), inventory());
+        index.add_inventory(later.into(), inventory());
 
-        assert_eq!(index.contexts_of(engine_id), vec![earlier, later]);
-        assert!(index.contexts_of(Uuid::from_u128(4)).is_empty());
+        assert_eq!(
+            index.contexts_of_analysis_target(engine_id),
+            vec![earlier.into(), later.into()]
+        );
+        assert!(
+            index
+                .contexts_of_analysis_target(Uuid::from_u128(4))
+                .is_empty()
+        );
     }
 
     #[test]
-    fn context_inventory_retains_resource_ownership() {
+    fn context_inventory_associates_all_contexts_with_the_analysis_target() {
         let engine_id = Uuid::from_u128(1);
         let engine_context = Uuid::from_u128(2);
         let worker_context = Uuid::from_u128(3);
-        let worker_id = Uuid::from_u128(4);
-        let mut index = EngineIndex::default();
-        index.attribute_resource(engine_id, engine_context, engine_id);
-        index.add_worker(engine_id, worker_id, worker_context);
+        let mut index = ContextIndex::default();
+        index.add_inventory(
+            engine_context.into(),
+            ContextInventory {
+                analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
+            },
+        );
+        index.add_inventory(
+            worker_context.into(),
+            ContextInventory {
+                analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
+            },
+        );
 
         assert_eq!(
-            index.context_resources_of(engine_id),
-            BTreeMap::from([
-                (engine_context, vec![engine_id]),
-                (worker_context, vec![worker_id]),
-            ])
+            index.contexts_of_analysis_target(engine_id),
+            vec![engine_context.into(), worker_context.into()]
         );
     }
 }

@@ -1,0 +1,20 @@
+[package]
+name = "quent-simulator-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-analyzer = { path = "../../../../crates/analyzer" }
+quent-events = { workspace = true, features = ["serde"] }
+quent-store = { path = "../../../../crates/store", features = [
+    "io-msgpack",
+    "io-ndjson",
+    "io-postcard",
+] }
+serde = { workspace = true, features = ["derive"] }
+smallvec.workspace = true
+
+[build-dependencies]
+quent-store-build = { path = "../../../../crates/store-build" }
+quent-yaml = { path = "../../../../crates/yaml" }

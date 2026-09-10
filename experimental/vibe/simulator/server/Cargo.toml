@@ -12,9 +12,16 @@ axum = { version = "0.8.7" }
 clap = { version = "4.5", features = ["derive", "env"] }
 nvtx-server = { path = "../../../../integrations/nvtx/server" }
 quent-io = { path = "../../../../crates/io" }
+quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
 quent-query-engine-server = { path = "../../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-instrumentation = { path = "../instrumentation", features = ["collector"] }
+quent-simulator-store = { path = "../store" }
+quent-store = { path = "../../../../crates/store", features = [
+    "io-msgpack",
+    "io-ndjson",
+    "io-postcard",
+] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true

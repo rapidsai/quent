@@ -18,12 +18,12 @@ import {
 import { useBulkTimelines, useHighlightedItemIds } from '@quent/hooks';
 import {
   type EntityRef,
-  type EntityRefKey,
   type OperatorFilter,
   type QueryBundle,
   type QueryFilter,
   type ResourceTree,
   type SingleTimelineRequest,
+  unpackEntityRef,
 } from '@quent/utils';
 import {
   resourceFilterAtom,
@@ -47,8 +47,7 @@ function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string |
   if (!('ResourceGroup' in resourceTree)) {
     return null;
   }
-  const [, entityId] = Object.entries(resourceTree.ResourceGroup.id)[0] as [EntityRefKey, string];
-  return entityId;
+  return unpackEntityRef(resourceTree.ResourceGroup.id).id;
 }
 
 export interface ResourceTimelinesTreeModel extends TimelineTreeModel, TimelineTreeControls {

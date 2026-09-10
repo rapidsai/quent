@@ -194,7 +194,7 @@ where
 async fn query<A>(
     State(state): State<ServiceState<A>>,
     Path((engine_id, query_id)): Path<(Uuid, Uuid)>,
-) -> ServerResult<Json<ui::QueryBundle<<A as UiAnalyzer>::EntityRef>>>
+) -> ServerResult<Json<ui::QueryBundle>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
@@ -331,7 +331,6 @@ pub(crate) struct ApiDoc;
 pub fn routes<A>(state: ServiceState<A>) -> Router<()>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::EntityRef: serde::Serialize,
 {
     Router::new()
         .route("/", get(list_engines))

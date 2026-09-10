@@ -585,17 +585,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codespan-reporting"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
-dependencies = [
- "serde",
- "termcolor",
- "unicode-width 0.2.2",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -750,68 +739,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
 dependencies = [
  "hybrid-array",
-]
-
-[[package]]
-name = "cxx"
-version = "1.0.199"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824894a4a85dca76d4c95c2b9098c036f5a29f627b30c12780774f6654e60974"
-dependencies = [
- "cc",
- "cxx-build",
- "cxxbridge-cmd",
- "cxxbridge-flags",
- "cxxbridge-macro",
- "foldhash 0.2.0",
- "link-cplusplus",
-]
-
-[[package]]
-name = "cxx-build"
-version = "1.0.199"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1ae0b651ea5b0000b19513aef5a03f194d7e3486f2d9258b658da8677fe9036"
-dependencies = [
- "cc",
- "codespan-reporting",
- "indexmap",
- "proc-macro2",
- "quote",
- "scratch",
- "syn 3.0.5",
-]
-
-[[package]]
-name = "cxxbridge-cmd"
-version = "1.0.199"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb05f91d3fb8435d9bab6ac5ce6ac1868be774325fb7fb2a91be39393b21388e"
-dependencies = [
- "clap",
- "codespan-reporting",
- "indexmap",
- "proc-macro2",
- "quote",
- "syn 3.0.5",
-]
-
-[[package]]
-name = "cxxbridge-flags"
-version = "1.0.199"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf293202e0e3e98495785745389e8d0755b217e66f19194a5c695c25e03282ef"
-
-[[package]]
-name = "cxxbridge-macro"
-version = "1.0.199"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca001d746947c7249ed9d332a10f7a59daedbafeb0ec68c5c18a7db7a93f6ccc"
-dependencies = [
- "indexmap",
- "proc-macro2",
- "quote",
- "syn 3.0.5",
 ]
 
 [[package]]
@@ -1178,12 +1105,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
-name = "foldhash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
-
-[[package]]
 name = "form_urlencoded"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1421,7 +1342,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash 0.1.5",
+ "foldhash",
 ]
 
 [[package]]
@@ -1848,15 +1769,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f02ab6bace2054fb888a3c16f990117b579d14a3088e472d63c6011fa185c9d3"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "link-cplusplus"
-version = "1.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f78c730aaa7d0b9336a299029ea49f9ee53b0ed06e9202e8cb7db9bae7b8c82"
-dependencies = [
- "cc",
 ]
 
 [[package]]
@@ -2698,69 +2610,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "pyo3"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4688ddedf473e32662b9b067670129a8afb8c18e351482c70d62ba4a88171e8b"
-dependencies = [
- "libc",
- "once_cell",
- "portable-atomic",
- "pyo3-build-config",
- "pyo3-ffi",
- "pyo3-macros",
-]
-
-[[package]]
-name = "pyo3-build-config"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f41027e41b4bd03f6e60f9f417fe24a6341a6bb744edd62b6f709f2a52ea30e9"
-dependencies = [
- "target-lexicon",
-]
-
-[[package]]
-name = "pyo3-ffi"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e591a95526fead067432c3b3a33fc74770b87b1e04e73671090d9c2055a2b327"
-dependencies = [
- "libc",
- "pyo3-build-config",
-]
-
-[[package]]
-name = "pyo3-macros"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73225868fc1cd84eef2c3c230ddb91273bf1de46aeb8a4248da76d32a0924a1c"
-dependencies = [
- "proc-macro2",
- "pyo3-macros-backend",
- "quote",
- "syn 2.0.118",
-]
-
-[[package]]
-name = "pyo3-macros-backend"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "571575aa3749fa6216757dd47d2a3e7ef360f329a40f0666a9fbd14889024952"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.118",
-]
-
-[[package]]
 name = "quent-analyzer"
 version = "0.1.0"
 dependencies = [
  "quent-dynamic-attributes",
  "quent-events",
- "quent-model",
  "quent-time",
  "rustc-hash",
  "serde",
@@ -2771,39 +2625,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-bridge"
-version = "0.1.0"
-dependencies = [
- "cxx",
- "cxx-build",
- "nvtx-bridge",
- "nvtx-injection",
- "quent-codegen",
- "quent-legacy-readme-example",
-]
-
-[[package]]
 name = "quent-build-info"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "quent-codegen"
-version = "0.1.0"
-dependencies = [
- "convert_case",
- "prettyplease 0.3.0",
- "proc-macro2",
- "quent-legacy-readme-example",
- "quent-model",
- "quent-query-engine-model",
- "quent-simulator-instrumentation",
- "quote",
- "serde",
- "syn 3.0.5",
 ]
 
 [[package]]
@@ -3041,45 +2867,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-legacy-readme-example"
-version = "0.1.0"
-dependencies = [
- "quent-model",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "quent-model"
-version = "0.1.0"
-dependencies = [
- "quent-build-info",
- "quent-collector-client",
- "quent-dynamic-attributes",
- "quent-events",
- "quent-instrumentation",
- "quent-io",
- "quent-model-macros",
- "quent-stdlib",
- "quent-time",
- "serde",
- "serde_json",
- "tokio",
- "trybuild",
- "uuid",
-]
-
-[[package]]
-name = "quent-model-macros"
-version = "0.1.0"
-dependencies = [
- "convert_case",
- "proc-macro2",
- "quote",
- "syn 3.0.5",
-]
-
-[[package]]
 name = "quent-open"
 version = "0.1.0"
 dependencies = [
@@ -3110,86 +2897,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-qe-bridge"
-version = "0.1.0"
-dependencies = [
- "cxx",
- "cxx-build",
- "nvtx-bridge",
- "nvtx-injection",
- "quent-codegen",
- "quent-qe-cpp-instrumentation",
- "quent-stdlib",
-]
-
-[[package]]
-name = "quent-qe-cpp-instrumentation"
-version = "0.1.0"
-dependencies = [
- "quent-model",
- "quent-query-engine-model",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "quent-qe-python"
-version = "0.1.0"
-dependencies = [
- "pyo3",
- "quent-codegen",
- "quent-qe-python-instrumentation",
-]
-
-[[package]]
-name = "quent-qe-python-instrumentation"
-version = "0.1.0"
-dependencies = [
- "quent-model",
- "quent-query-engine-model",
-]
-
-[[package]]
 name = "quent-query-engine-analyzer"
 version = "0.1.0"
 dependencies = [
  "quent-analyzer",
- "quent-dynamic-attributes",
  "quent-events",
- "quent-model",
- "quent-query-engine-model",
+ "quent-io",
  "quent-query-engine-ui",
  "quent-time",
  "quent-ui",
  "rustc-hash",
- "uuid",
-]
-
-[[package]]
-name = "quent-query-engine-fixed"
-version = "0.1.0"
-dependencies = [
- "clap",
- "quent-dynamic-attributes",
- "quent-io",
- "quent-model",
- "quent-query-engine-analyzer",
- "quent-query-engine-model",
- "quent-query-engine-ui",
- "quent-simulator-analyzer",
- "quent-simulator-instrumentation",
- "quent-stdlib",
- "quent-time",
- "quent-ui",
- "uuid",
-]
-
-[[package]]
-name = "quent-query-engine-model"
-version = "0.1.0"
-dependencies = [
- "quent-model",
- "serde",
  "uuid",
 ]
 
@@ -3207,9 +2924,8 @@ dependencies = [
  "quent-events",
  "quent-io",
  "quent-query-engine-analyzer",
- "quent-query-engine-model",
  "quent-query-engine-ui",
- "quent-simulator-ui-bindings",
+ "quent-query-engine-ui-bindings",
  "quent-time",
  "quent-ui",
  "rust-embed",
@@ -3232,12 +2948,21 @@ dependencies = [
  "async-trait",
  "quent-analyzer",
  "quent-dynamic-attributes",
- "quent-query-engine-model",
  "quent-time",
  "quent-ui",
  "serde",
  "ts-rs",
  "uuid",
+]
+
+[[package]]
+name = "quent-query-engine-ui-bindings"
+version = "0.1.0"
+dependencies = [
+ "nvtx-ui",
+ "quent-query-engine-ui",
+ "quent-ui",
+ "ts-rs",
 ]
 
 [[package]]
@@ -3248,15 +2973,6 @@ dependencies = [
  "quent-instrumentation-build",
  "quent-yaml",
  "serde",
-]
-
-[[package]]
-name = "quent-readme-python"
-version = "0.1.0"
-dependencies = [
- "pyo3",
- "quent-codegen",
- "quent-legacy-readme-example",
 ]
 
 [[package]]
@@ -3315,10 +3031,7 @@ dependencies = [
  "petgraph",
  "quent-dynamic-attributes",
  "quent-io",
- "quent-model",
- "quent-query-engine-model",
  "quent-simulator-instrumentation",
- "quent-stdlib",
  "rand 0.10.2",
  "tracing",
  "tracing-subscriber",
@@ -3332,13 +3045,11 @@ dependencies = [
  "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
- "quent-model",
+ "quent-io",
  "quent-query-engine-analyzer",
- "quent-query-engine-model",
  "quent-query-engine-ui",
- "quent-simulator-instrumentation",
- "quent-simulator-ui",
- "quent-stdlib",
+ "quent-simulator-store",
+ "quent-store",
  "quent-time",
  "quent-ui",
  "rustc-hash",
@@ -3348,12 +3059,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-simulator-fixed"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quent-dynamic-attributes",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-io",
+ "quent-query-engine-analyzer",
+ "quent-query-engine-ui",
+ "quent-simulator-analyzer",
+ "quent-simulator-instrumentation",
+ "quent-simulator-store",
+ "quent-store",
+ "quent-time",
+ "quent-ui",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
- "quent-model",
- "quent-query-engine-model",
- "quent-stdlib",
+ "quent-collector-client",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
  "serde",
  "uuid",
 ]
@@ -3366,33 +3100,28 @@ dependencies = [
  "clap",
  "nvtx-server",
  "quent-io",
+ "quent-query-engine-analyzer",
  "quent-query-engine-server",
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
+ "quent-simulator-store",
+ "quent-store",
  "tokio",
  "tracing",
  "uuid",
 ]
 
 [[package]]
-name = "quent-simulator-ui"
+name = "quent-simulator-store"
 version = "0.1.0"
 dependencies = [
  "quent-analyzer",
+ "quent-events",
+ "quent-store",
+ "quent-store-build",
+ "quent-yaml",
  "serde",
- "ts-rs",
- "uuid",
-]
-
-[[package]]
-name = "quent-simulator-ui-bindings"
-version = "0.1.0"
-dependencies = [
- "nvtx-ui",
- "quent-query-engine-ui",
- "quent-simulator-ui",
- "quent-ui",
- "ts-rs",
+ "smallvec",
 ]
 
 [[package]]
@@ -3402,26 +3131,21 @@ dependencies = [
  "async-trait",
  "postcard",
  "quent-events",
- "quent-model",
+ "quent-instrumentation",
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
  "quent-simulator",
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
+ "quent-simulator-store",
+ "quent-store",
  "quent-ui",
  "serde",
  "serde_json",
+ "tempfile",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "quent-stdlib"
-version = "0.1.0"
-dependencies = [
- "quent-model",
- "uuid",
 ]
 
 [[package]]
@@ -3951,12 +3675,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
-name = "scratch"
-version = "1.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68f2ec51b097e4c1a75b681a8bec621909b5e91f15bb7b840c4f2f7b01148b2"
-
-[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4468,18 +4186,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "target-lexicon"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
-
-[[package]]
-name = "target-triple"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "591ef38edfb78ca4771ee32cf494cb8771944bee237a9b91fc9c1424ac4b777b"
-
-[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4884,21 +4590,6 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
-
-[[package]]
-name = "trybuild"
-version = "1.0.120"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e605bf6b39357663d8ba4e984f8be8da8df6bb32e81031d6889024ea8fd68e4"
-dependencies = [
- "glob",
- "serde",
- "serde_derive",
- "serde_json",
- "target-triple",
- "termcolor",
- "toml",
-]
 
 [[package]]
 name = "ts-rs"

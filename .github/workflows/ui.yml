@@ -153,10 +153,15 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - run: pixi run cargo run -p quent-simulator-ui-bindings --locked
+      - run: pixi run cargo run -p quent-query-engine-ui-bindings --locked
       - name: Generate base bindings
         run: |
-          if [ -d base/experimental/vibe/simulator/ui-bindings ] || \
+          if [ -d base/domains/query_engine/ui-bindings ]; then
+            pixi run --locked --manifest-path base/pixi.toml cargo run \
+              --manifest-path base/Cargo.toml \
+              -p quent-query-engine-ui-bindings \
+              --locked
+          elif [ -d base/experimental/vibe/simulator/ui-bindings ] || \
              [ -d base/examples/simulator/ui-bindings ]; then
             pixi run --locked --manifest-path base/pixi.toml cargo run \
               --manifest-path base/Cargo.toml \

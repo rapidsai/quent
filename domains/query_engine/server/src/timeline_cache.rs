@@ -9,7 +9,7 @@ use std::{
 };
 
 use moka::future::Cache;
-use quent_analyzer::Span;
+use quent_analyzer::{AnalyzerResult, Span};
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
 use quent_query_engine_ui::{OperatorFilter, QueryFilter};
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan, to_nanosecs, to_secs_relative};
@@ -19,8 +19,9 @@ use quent_ui::timeline::{
         TimelineRequest,
     },
     response::{
-        BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
-        ResourceTimelineBinned, ResourceTimelineBinnedByState, SingleTimelineResponse,
+        BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
+        ResourceTimeline, ResourceTimelineBinned, ResourceTimelineBinnedByState,
+        SingleTimelineResponse,
     },
 };
 use tracing::{debug, trace};
@@ -30,6 +31,80 @@ use crate::error::{ServerError, ServerResult};
 
 /// Target number of chunks visible in the current view range.
 const TARGET_CHUNKS_PER_VIEW: u64 = 2;
+
+/// Analyzer operations required by the timeline cache.
+pub(crate) trait TimelineAnalyzer {
+    fn engine_span(&self) -> AnalyzerResult<quent_time::span::SpanUnixNanoSec>;
+
+    fn single_resource_timeline(
+        &self,
+        request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<SingleTimelineResponse>;
+
+    fn bulk_resource_timeline(
+        &self,
+        request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<BulkTimelinesResponse>;
+
+    fn bulk_chunked_resource_timeline(
+        &self,
+        request: BulkChunkedTimelineRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<BulkChunkedTimelinesResponse> {
+        let mut entries: HashMap<String, Vec<BulkTimelinesResponseEntry>> = request
+            .entries
+            .keys()
+            .map(|key| (key.clone(), Vec::with_capacity(request.configs.len())))
+            .collect();
+
+        for config in &request.configs {
+            let chunk_entries = request
+                .entries
+                .iter()
+                .map(|(key, entry)| (key.clone(), entry.clone().with_config(*config)))
+                .collect();
+            let mut response = self.bulk_resource_timeline(BulkTimelineRequest {
+                entries: chunk_entries,
+                app_params: request.app_params.clone(),
+            })?;
+            for (key, slots) in &mut entries {
+                slots.push(response.entries.remove(key).unwrap_or_else(|| {
+                    BulkTimelinesResponseEntry::Error {
+                        message: format!("missing entry '{key}' in chunked fallback"),
+                    }
+                }));
+            }
+        }
+
+        Ok(BulkChunkedTimelinesResponse { entries })
+    }
+}
+
+impl<A: UiAnalyzer> TimelineAnalyzer for A {
+    fn engine_span(&self) -> AnalyzerResult<quent_time::span::SpanUnixNanoSec> {
+        self.query_engine_model().engine()?.span()
+    }
+
+    fn single_resource_timeline(
+        &self,
+        request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<SingleTimelineResponse> {
+        UiAnalyzer::single_resource_timeline(self, request)
+    }
+
+    fn bulk_resource_timeline(
+        &self,
+        request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<BulkTimelinesResponse> {
+        UiAnalyzer::bulk_resource_timeline(self, request)
+    }
+
+    fn bulk_chunked_resource_timeline(
+        &self,
+        request: BulkChunkedTimelineRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<BulkChunkedTimelinesResponse> {
+        UiAnalyzer::bulk_chunked_resource_timeline(self, request)
+    }
+}
 
 /// Newtype wrapper for `f64` that provides `Hash` and `Eq` via bit representation.
 /// Two floats are considered equal when their bits are identical (NaN == NaN).
@@ -167,7 +242,7 @@ impl TimelineCache {
         request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> ServerResult<BulkTimelinesResponse>
     where
-        A: UiAnalyzer + Send + Sync + 'static,
+        A: TimelineAnalyzer + Send + Sync + 'static,
     {
         let Some(geometry) = compute_chunk_geometry(&*analyzer, &request)? else {
             return Ok(tokio::task::spawn_blocking(move || {
@@ -266,7 +341,7 @@ impl TimelineCache {
         error_entries: &mut HashMap<String, BulkTimelinesResponseEntry>,
     ) -> ServerResult<()>
     where
-        A: UiAnalyzer + Send + Sync + 'static,
+        A: TimelineAnalyzer + Send + Sync + 'static,
     {
         // Union of missed chunk indices, sorted for stable response slot ordering.
         let mut miss_chunk_indices: Vec<u64> = chunk_misses.keys().copied().collect();
@@ -390,9 +465,9 @@ impl TimelineCache {
         request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> ServerResult<SingleTimelineResponse>
     where
-        A: UiAnalyzer + Send + Sync + 'static,
+        A: TimelineAnalyzer + Send + Sync + 'static,
     {
-        let engine_span = analyzer.query_engine_model().engine()?.span()?;
+        let engine_span = analyzer.engine_span()?;
         let engine_duration = engine_span.duration();
         let epoch = engine_span.start();
 
@@ -518,9 +593,9 @@ fn compute_chunk_geometry<A>(
     request: &BulkTimelineRequest<QueryFilter, OperatorFilter>,
 ) -> ServerResult<Option<ChunkGeometry>>
 where
-    A: UiAnalyzer,
+    A: TimelineAnalyzer,
 {
-    let engine_span = analyzer.query_engine_model().engine()?.span()?;
+    let engine_span = analyzer.engine_span()?;
     let engine_duration = engine_span.duration();
     let epoch = engine_span.start();
 
@@ -810,13 +885,7 @@ mod tests {
     };
 
     use quent_analyzer::AnalyzerResult;
-    use quent_events::Event;
-    use quent_query_engine_analyzer::{
-        QueryEngineModel,
-        plain::legacy::{Engine, InMemoryQueryEngineModel},
-        ui::UiAnalyzer,
-    };
-    use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
+    use quent_time::span::SpanUnixNanoSec;
     use quent_ui::{
         FiniteStateMachine, FsmTransition,
         timeline::{
@@ -844,7 +913,7 @@ mod tests {
 
     struct TestAnalyzer {
         engine_id: Uuid,
-        model: InMemoryQueryEngineModel,
+        engine_span: SpanUnixNanoSec,
         calls: Mutex<Vec<Vec<BulkCallEntry>>>,
         // Per-entry series offset, keyed by entry key (missing key defaults to
         // 0). Distinguishes each entry's output series and, via the sentinel
@@ -861,25 +930,9 @@ mod tests {
 
         fn with_series_offsets(series_offsets: HashMap<String, u32>) -> Self {
             let engine_id = Uuid::from_u128(1);
-            let mut engine = Engine::new(engine_id).unwrap();
-            engine.push(Event::new(engine_id, 0, EngineEvent::Init(Init::default())));
-            engine.push(Event::new(
-                engine_id,
-                100_000_000_000,
-                EngineEvent::Exit(Exit),
-            ));
-
             Self {
                 engine_id,
-                model: InMemoryQueryEngineModel {
-                    engine,
-                    workers: Default::default(),
-                    query_groups: Default::default(),
-                    queries: Default::default(),
-                    plans: Default::default(),
-                    operators: Default::default(),
-                    ports: Default::default(),
-                },
+                engine_span: SpanUnixNanoSec::try_new(0, 100_000_000_000).unwrap(),
                 calls: Mutex::new(Vec::new()),
                 series_offsets,
             }
@@ -923,46 +976,9 @@ mod tests {
         }
     }
 
-    impl UiAnalyzer for TestAnalyzer {
-        type Event = ();
-        type EntityRef = ();
-
-        fn try_new(
-            _engine_id: Uuid,
-            _events: impl Iterator<Item = Event<Self::Event>>,
-        ) -> AnalyzerResult<Self>
-        where
-            Self: Sized,
-        {
-            unimplemented!("not needed by timeline cache tests")
-        }
-
-        fn extract_engine(
-            _engine_id: Uuid,
-            _events: impl Iterator<Item = Event<Self::Event>>,
-        ) -> AnalyzerResult<quent_query_engine_ui::Engine>
-        where
-            Self: Sized,
-        {
-            unimplemented!("not needed by timeline cache tests")
-        }
-
-        fn query_bundle(
-            &self,
-            _query_id: Uuid,
-        ) -> AnalyzerResult<quent_query_engine_ui::QueryBundle<Self::EntityRef>> {
-            unimplemented!("not needed by timeline cache tests")
-        }
-
-        fn query_engine_model(&self) -> &impl QueryEngineModel {
-            &self.model
-        }
-
-        fn list_entities(
-            &self,
-            _request: quent_ui::entities::request::EntityListRequest<QueryFilter, OperatorFilter>,
-        ) -> AnalyzerResult<quent_ui::entities::response::EntityListResponse> {
-            unimplemented!("not needed by timeline cache tests")
+    impl TimelineAnalyzer for TestAnalyzer {
+        fn engine_span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
+            Ok(self.engine_span)
         }
 
         fn single_resource_timeline(

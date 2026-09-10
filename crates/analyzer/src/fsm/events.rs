@@ -1,74 +1,127 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generic analyzed FSM reconstructed from model-generated events.
-//!
-//! `FsmEvents<T>` works with any transition enum that implements
-//! `TransitionInfo`, providing all the analyzer trait impls (`Entity`, `Fsm`,
-//! `FsmUsages`, `Using`, `FsmTypeDeclaration`) without per-FSM boilerplate.
+//! Generic analyzed FSM reconstructed from event data.
 
-use quent_dynamic_attributes::DynamicAttribute;
+pub use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
-use quent_model::{FsmEvent, ModelBuilder, analyze::TransitionInfo};
 use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult, Entity,
-    fsm::{Fsm, FsmTypeDecl, FsmTypeDeclaration, FsmUsages, Transition},
+    fsm::{Fsm, FsmUsages, Transition},
     resource::{CapacityValue, Usage, Using},
 };
 
-/// A single transition in an analyzed FSM.
-pub struct TransitionEvent<T> {
-    /// Per-instance transition sequence number.
-    pub seq: u16,
+/// Provides the data needed to analyze a stored FSM transition.
+///
+/// This trait applies to the schema-specific transition payload inside an
+/// [`Event`]. [`FsmEventsBuilder`] stores the payload with its event timestamp and
+/// cached usages in an [`AnalyzedTransition<T>`]. The wrapper implements
+/// [`Transition`] for FSM analysis, while [`FsmEvents`] exposes its usages for
+/// resource analysis.
+///
+/// Implementations map schema-specific payloads to data used by analysis APIs,
+/// e.g. FSM views and resource timelines. Usages are cached because creating
+/// them may allocate. This avoids repeating those allocations across UI requests,
+/// such as when requesting a timeline at different zoom levels. Other data is
+/// read from the payload when needed.
+// TODO(johanpel): Split this adapter into semantic-module-specific traits and
+// generate their implementations from the schema.
+pub trait AnalyzableTransition: quent_events::EntityEvent {
+    /// Returns the entity type name exposed by analysis APIs.
+    fn entity_type_name() -> &'static str;
+
+    /// Returns the per-entity ordering key for equal timestamps.
+    fn sequence(&self) -> u16;
+
+    /// Returns whether this transition ends the FSM's dynamic lifetime.
+    fn is_final(&self) -> bool;
+
+    /// Returns the canonical name of the state entered by this transition.
+    fn state_name(&self) -> &'static str;
+
+    /// Returns the FSM instance name when this transition declares it.
+    fn instance_name(&self) -> Option<String> {
+        None
+    }
+
+    /// Returns resources held until the next transition.
+    fn usages(&self) -> SmallVec<[AnalyzedUsage; 1]> {
+        SmallVec::new()
+    }
+
+    /// Returns attributes exposed through [`Transition::attributes`].
+    fn dynamic_attributes(&self) -> Vec<DynamicAttribute> {
+        Vec::new()
+    }
+}
+
+/// Stores a transition payload with its resource usages cached for analysis.
+///
+/// Caching usages during ingestion avoids repeated allocations across UI
+/// requests, e.g. timelines requested at different zoom levels. Ordering, state
+/// identity, and attributes are read from the payload when needed and require no
+/// additional storage.
+pub struct AnalyzedTransition<T> {
+    /// Time at which the transition entered its state.
     timestamp: TimeUnixNanoSec,
-    state_name: &'static str,
-    pub usages: SmallVec<[AnalyzedUsage; 1]>,
-    /// The original model transition data.
+    /// Resources held until the next transition.
+    usages: SmallVec<[AnalyzedUsage; 1]>,
+    /// Original payload retained for application-specific analysis.
     pub data: T,
 }
 
-impl<T> std::fmt::Debug for TransitionEvent<T> {
+impl<T: AnalyzableTransition> std::fmt::Debug for AnalyzedTransition<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TransitionEvent")
-            .field("seq", &self.seq)
+        f.debug_struct("AnalyzedTransition")
+            .field("seq", &self.data.sequence())
             .field("timestamp", &self.timestamp)
-            .field("state_name", &self.state_name)
+            .field("state_name", &self.data.state_name())
             .field("usages", &self.usages)
             .finish_non_exhaustive()
     }
 }
 
+/// Analyzer representation of one resource usage.
 #[derive(Debug)]
 pub struct AnalyzedUsage {
+    /// Resource used during the state.
     pub resource_id: Uuid,
+    /// Capacity values reserved from the resource.
     pub capacities: SmallVec<[CapacityValue; 3]>,
 }
 
-impl<T> Timestamp for TransitionEvent<T> {
+impl<T> Timestamp for AnalyzedTransition<T> {
     fn timestamp(&self) -> TimeUnixNanoSec {
         self.timestamp
     }
 }
 
-impl<T> OrderKey for TransitionEvent<T> {
+impl<T: AnalyzableTransition> OrderKey for AnalyzedTransition<T> {
     type Key = (TimeUnixNanoSec, u16);
 
     fn order_key(&self) -> Self::Key {
-        (self.timestamp, self.seq)
+        (self.timestamp, self.data.sequence())
     }
 }
 
-impl<T: TransitionInfo> Transition for TransitionEvent<T> {
+impl<T: AnalyzableTransition> Transition for AnalyzedTransition<T> {
     fn name(&self) -> &str {
-        self.state_name
+        self.data.state_name()
     }
 
     fn attributes(&self) -> Vec<DynamicAttribute> {
-        self.data.attributes()
+        self.data.dynamic_attributes()
+    }
+}
+
+impl<T> AnalyzedTransition<T> {
+    /// Returns resources held for the state ending at the next transition.
+    pub fn usages(&self) -> &[AnalyzedUsage] {
+        &self.usages
     }
 }
 
@@ -94,13 +147,13 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
 }
 
 /// Builder for reconstructing an `FsmEvents` from model events.
-pub struct FsmEventsBuilder<T: TransitionInfo> {
+pub struct FsmEventsBuilder<T> {
     id: Uuid,
     instance_name: String,
-    transitions: OrderedCollector<TransitionEvent<T>>,
+    transitions: OrderedCollector<AnalyzedTransition<T>>,
 }
 
-impl<T: TransitionInfo> FsmEventsBuilder<T> {
+impl<T: AnalyzableTransition> FsmEventsBuilder<T> {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
@@ -120,38 +173,44 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
         self.id
     }
 
-    pub fn push(&mut self, event: Event<FsmEvent<T>>) {
-        let FsmEvent { seq, state } = event.data;
-        let state_name = state.state_name();
+    /// Adds one typed transition using its analyzer mapping.
+    pub fn push_transition(&mut self, event: Event<T>) {
+        let transition = event.data;
         // Capture instance name from the first transition that provides one.
         if self.instance_name.is_empty()
-            && let Some(name) = state.instance_name()
+            && let Some(name) = transition.instance_name()
         {
-            self.instance_name = name.to_owned();
+            self.instance_name = name;
         }
-        let extracted = state.usages();
-        let usages: SmallVec<[AnalyzedUsage; 1]> = extracted
-            .into_iter()
-            .map(|u| AnalyzedUsage {
-                resource_id: u.resource_id,
-                capacities: u
-                    .capacities
-                    .into_iter()
-                    .map(|c| CapacityValue::new(c.name, c.value.unwrap_or(0)))
-                    .collect(),
-            })
-            .collect();
-        self.transitions.push(TransitionEvent {
-            seq,
+        self.transitions.push(AnalyzedTransition {
             timestamp: event.timestamp,
-            state_name,
-            usages,
-            data: state,
+            usages: transition.usages(),
+            data: transition,
         });
     }
 
+    /// Builds an FSM from the collected transitions.
+    ///
+    /// Missing intermediate events cannot be detected and may produce inaccurate
+    /// state spans.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AnalyzerError::IncompleteFsm`] if no final transition was
+    /// collected.
     pub fn try_build(self) -> AnalyzerResult<FsmEvents<T>> {
-        let transitions: SmallVec<[TransitionEvent<T>; 4]> = self.transitions.into_inner().into();
+        let transitions: SmallVec<[AnalyzedTransition<T>; 4]> =
+            self.transitions.into_inner().into();
+        if !transitions
+            .last()
+            .is_some_and(|transition| transition.data.is_final())
+        {
+            return Err(AnalyzerError::IncompleteFsm(format!(
+                "fsm '{}' (id={}) has no final transition",
+                T::entity_type_name(),
+                self.id
+            )));
+        }
         Ok(FsmEvents {
             id: self.id,
             instance_name: self.instance_name,
@@ -160,20 +219,16 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
     }
 }
 
-/// A generic analyzed FSM reconstructed from model-generated events.
+/// A generic analyzed FSM reconstructed from model-specific transition data.
 ///
-/// `T` is the transition enum (e.g., `TaskTransition`), which implements
-/// `TransitionInfo`. Application-specific data can be accessed via
-/// `transitions()` and pattern matching on `T` variants.
-///
-/// Implements `Entity`, `Fsm`, `FsmUsages`, `Using`, and `FsmTypeDeclaration`.
+/// Application-specific data remains available through [`Self::transitions`].
 pub struct FsmEvents<T> {
     id: Uuid,
     instance_name: String,
-    transitions: SmallVec<[TransitionEvent<T>; 4]>,
+    transitions: SmallVec<[AnalyzedTransition<T>; 4]>,
 }
 
-impl<T> std::fmt::Debug for FsmEvents<T> {
+impl<T: AnalyzableTransition> std::fmt::Debug for FsmEvents<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FsmEvents")
             .field("id", &self.id)
@@ -183,8 +238,8 @@ impl<T> std::fmt::Debug for FsmEvents<T> {
     }
 }
 
-impl<T: TransitionInfo> FsmEvents<T> {
-    pub fn transitions(&self) -> &[TransitionEvent<T>] {
+impl<T> FsmEvents<T> {
+    pub fn transitions(&self) -> &[AnalyzedTransition<T>] {
         &self.transitions
     }
 
@@ -192,22 +247,17 @@ impl<T: TransitionInfo> FsmEvents<T> {
     pub fn first_data(&self) -> Option<&T> {
         self.transitions.first().map(|t| &t.data)
     }
-}
-
-impl<T: TransitionInfo> Entity for FsmEvents<T> {
-    fn id(&self) -> Uuid {
+    pub fn id(&self) -> Uuid {
         self.id
     }
-    fn type_name(&self) -> &str {
-        T::fsm_type_name()
-    }
-    fn instance_name(&self) -> &str {
+
+    pub fn instance_name(&self) -> &str {
         &self.instance_name
     }
 }
 
-impl<T: TransitionInfo> Fsm for FsmEvents<T> {
-    type TransitionType = TransitionEvent<T>;
+impl<T: AnalyzableTransition> Fsm for FsmEvents<T> {
+    type TransitionType = AnalyzedTransition<T>;
     fn len(&self) -> usize {
         self.transitions.len().saturating_sub(1)
     }
@@ -216,10 +266,24 @@ impl<T: TransitionInfo> Fsm for FsmEvents<T> {
     }
 }
 
-impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for FsmEvents<T> {
+impl<T: AnalyzableTransition> Entity for FsmEvents<T> {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
+    fn type_name(&self) -> &str {
+        T::entity_type_name()
+    }
+
+    fn instance_name(&self) -> &str {
+        &self.instance_name
+    }
+}
+
+impl<'a, T: AnalyzableTransition + 'a> FsmUsages<'a> for FsmEvents<T> {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
         self.transitions.windows(2).flat_map(move |window| {
-            let name = window[0].state_name;
+            let name = window[0].name();
             let start = window[0].timestamp();
             let end = window[1].timestamp();
             let span = SpanUnixNanoSec::try_new(start, end).unwrap();
@@ -237,7 +301,7 @@ impl<'a, T: TransitionInfo + 'a> FsmUsages<'a> for FsmEvents<T> {
     }
 }
 
-impl<T: TransitionInfo> Using for FsmEvents<T> {
+impl<T: AnalyzableTransition> Using for FsmEvents<T> {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         self.transitions.windows(2).flat_map(move |window| {
             let start = window[0].timestamp();
@@ -252,111 +316,67 @@ impl<T: TransitionInfo> Using for FsmEvents<T> {
     }
 }
 
-impl<T: TransitionInfo> FsmTypeDeclaration for FsmEvents<T> {
-    fn fsm_type_declaration() -> FsmTypeDecl {
-        use crate::fsm::{FsmStateTypeDecl, FsmTransitionDecl};
-
-        let mut builder = ModelBuilder::new("");
-        T::collect_model(&mut builder);
-        let fsm_def = builder.fsms.into_iter().next().unwrap();
-
-        let states = fsm_def
-            .states
-            .into_iter()
-            .map(|s| FsmStateTypeDecl {
-                name: s.name,
-                usages: s.usages.iter().map(|u| u.field_name.clone()).collect(),
-            })
-            .collect();
-
-        let mut transitions = Vec::new();
-        for t in &fsm_def.transitions {
-            use quent_model::TransitionEndpoint as TE;
-            match (&t.from, &t.to) {
-                (TE::Entry, TE::State(to)) => {
-                    transitions.push(FsmTransitionDecl::Entry(to.clone()));
-                }
-                (TE::State(from), TE::State(to)) => {
-                    transitions.push(FsmTransitionDecl::Transition(from.clone(), to.clone()));
-                }
-                (TE::State(from), TE::Exit) => {
-                    transitions.push(FsmTransitionDecl::Transition(
-                        from.clone(),
-                        "exit".to_string(),
-                    ));
-                    transitions.push(FsmTransitionDecl::Exit("exit".to_string()));
-                }
-                _ => {}
-            }
-        }
-
-        FsmTypeDecl {
-            name: T::fsm_type_name().to_string(),
-            states,
-            transitions,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq)]
-    struct TestTransition(u8);
+    struct TestTransition {
+        sequence: u16,
+        is_final: bool,
+    }
 
-    impl TransitionInfo for TestTransition {
+    impl quent_events::EntityEvent for TestTransition {
+        const NAME: &'static str = "TestTransition";
+    }
+
+    impl AnalyzableTransition for TestTransition {
+        fn entity_type_name() -> &'static str {
+            "test"
+        }
+
+        fn sequence(&self) -> u16 {
+            self.sequence
+        }
+
+        fn is_final(&self) -> bool {
+            self.is_final
+        }
+
         fn state_name(&self) -> &'static str {
             "test"
         }
-
-        fn usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> {
-            Vec::new()
-        }
-
-        fn instance_name(&self) -> Option<&str> {
-            None
-        }
-
-        fn parent_group_id(&self) -> Option<Uuid> {
-            None
-        }
-
-        fn fsm_type_name() -> &'static str {
-            "test"
-        }
-
-        fn collect_model(_: &mut ModelBuilder) {}
     }
 
     #[test]
     fn equal_timestamp_transitions_are_ordered_by_sequence() {
         let id = Uuid::from_u128(1);
         let mut builder = FsmEventsBuilder::try_new(id).unwrap();
-        builder.push(Event::new(
+        builder.push_transition(Event::new(
             id,
             100,
-            FsmEvent {
-                seq: 1,
-                state: TestTransition(1),
+            TestTransition {
+                sequence: 1,
+                is_final: true,
             },
         ));
-        builder.push(Event::new(
+        builder.push_transition(Event::new(
             id,
             100,
-            FsmEvent {
-                seq: 0,
-                state: TestTransition(0),
+            TestTransition {
+                sequence: 0,
+                is_final: false,
             },
         ));
 
         let fsm = builder.try_build().unwrap();
+        assert_eq!(fsm.type_name(), "test");
         assert_eq!(
             fsm.transitions()
                 .iter()
-                .map(|transition| (transition.seq, transition.data.0))
+                .map(|transition| transition.data.sequence())
                 .collect::<Vec<_>>(),
-            [(0, 0), (1, 1)]
+            [0, 1]
         );
     }
 
@@ -364,20 +384,20 @@ mod tests {
     fn sequence_wrap_is_ordered_by_timestamp() {
         let id = Uuid::from_u128(1);
         let mut builder = FsmEventsBuilder::try_new(id).unwrap();
-        builder.push(Event::new(
+        builder.push_transition(Event::new(
             id,
             101,
-            FsmEvent {
-                seq: 0,
-                state: TestTransition(0),
+            TestTransition {
+                sequence: 0,
+                is_final: true,
             },
         ));
-        builder.push(Event::new(
+        builder.push_transition(Event::new(
             id,
             100,
-            FsmEvent {
-                seq: u16::MAX,
-                state: TestTransition(1),
+            TestTransition {
+                sequence: u16::MAX,
+                is_final: false,
             },
         ));
 
@@ -385,9 +405,28 @@ mod tests {
         assert_eq!(
             fsm.transitions()
                 .iter()
-                .map(|transition| (transition.timestamp(), transition.seq))
+                .map(|transition| (transition.timestamp(), transition.data.sequence()))
                 .collect::<Vec<_>>(),
             [(100, u16::MAX), (101, 0)]
         );
+    }
+
+    #[test]
+    fn incomplete_fsm_is_rejected() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 0,
+                is_final: false,
+            },
+        ));
+
+        assert!(matches!(
+            builder.try_build(),
+            Err(AnalyzerError::IncompleteFsm(_))
+        ));
     }
 }

@@ -49,15 +49,5 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - name: Build legacy C++ integration example
-        run: |
-          pixi run cmake -B examples/legacy/cpp-integration/cpp/build -S examples/legacy/cpp-integration/cpp
-          pixi run cmake --build examples/legacy/cpp-integration/cpp/build
-      - name: Run legacy C++ integration example
-        run: ./examples/legacy/cpp-integration/cpp/build/example
-      - name: Build C++ query engine bridge test
-        run: |
-          pixi run cmake -B domains/query_engine/tests/cpp/cpp/build -S domains/query_engine/tests/cpp/cpp
-          pixi run cmake --build domains/query_engine/tests/cpp/cpp/build
-      - name: Run C++ query engine bridge test
-        run: ./domains/query_engine/tests/cpp/cpp/build/example
+      - name: Test schema codegen C++ example
+        run: pixi run cargo test --manifest-path experimental/vibe/codegen/Cargo.toml -p quent-demo-cpp-bridge --locked

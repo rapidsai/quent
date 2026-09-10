@@ -11,7 +11,7 @@ use quent_query_engine_ui::{
     self as ui, EngineContexts, OperatorFilter, QueryFilter, ServerContract,
 };
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_store::SimulatorEvent;
 use quent_ui::{
     entities::request::EntityListRequest,
     timeline::{
@@ -136,7 +136,6 @@ impl DemoServer {
 #[async_trait::async_trait]
 impl ServerContract for DemoServer {
     type Error = ApiError;
-    type EntityRef = <SimulatorUiAnalyzer as UiAnalyzer>::EntityRef;
 
     async fn list_engines(&self, with_metadata: bool) -> Result<Vec<ui::Engine>, ApiError> {
         if with_metadata {
@@ -158,7 +157,7 @@ impl ServerContract for DemoServer {
         self.analyzer(engine_id)?;
         Ok(EngineContexts {
             engine_id,
-            context_resources: Default::default(),
+            context_ids: Vec::new(),
         })
     }
 
@@ -185,11 +184,7 @@ impl ServerContract for DemoServer {
             .map_err(Into::into)
     }
 
-    async fn query(
-        &self,
-        engine_id: Uuid,
-        query_id: Uuid,
-    ) -> Result<ui::QueryBundle<Self::EntityRef>, ApiError> {
+    async fn query(&self, engine_id: Uuid, query_id: Uuid) -> Result<ui::QueryBundle, ApiError> {
         self.analyzer(engine_id)?
             .query_bundle(query_id)
             .map_err(Into::into)

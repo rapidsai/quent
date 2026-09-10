@@ -165,7 +165,7 @@ export function useNvtxStream(
   }
 ) {
   const contextsQuery = useEngineContexts(engineId);
-  const contextIds = Object.keys(contextsQuery.data?.context_resources ?? {});
+  const contextIds = contextsQuery.data?.context_ids ?? [];
   const catalogQueries = useQueries({
     queries: contextIds.map(contextId => nvtxCatalogQueryOptions(contextId, queryStartUnixNs)),
   });

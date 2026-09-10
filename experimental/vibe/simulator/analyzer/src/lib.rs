@@ -11,7 +11,7 @@ use quent_query_engine_analyzer::{
     WorkerEntity, entities, ui::UiAnalyzer,
 };
 use quent_query_engine_ui::{
-    DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
+    DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
 };
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
@@ -39,6 +39,7 @@ use tracing::debug;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, Span,
+    context::ContextInventory,
     fsm::{FsmTypeDeclaration, FsmUsages, Transition},
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
@@ -51,10 +52,8 @@ use quent_analyzer::{
         },
     },
 };
-#[cfg(not(target_arch = "wasm32"))]
-use quent_simulator_instrumentation::Simulator;
-use quent_simulator_instrumentation::SimulatorEvent;
-use quent_simulator_ui::EntityRef;
+use quent_simulator_store::{self as schema, Simulator, SimulatorEvent};
+use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use uuid::Uuid;
 
@@ -64,6 +63,7 @@ use crate::{
 };
 
 pub mod model;
+mod query_engine;
 pub mod task;
 pub mod view;
 
@@ -106,8 +106,7 @@ const SECOND_OPERATOR_STATISTICS: &[&str] = &[
 ];
 /// Data-flow dimension key for states that hold no memory resource.
 const DIMENSION_NONE: &str = "none";
-/// Type name of stdlib memory resources as recorded by the model.
-const MEMORY_TYPE_NAME: &str = "memory";
+const MEMORY_TYPE_NAMES: &[&str] = &["host_memory", "gpu_memory"];
 
 fn operator_statistic_quantity(name: &str) -> Option<&'static str> {
     BYTE_OPERATOR_STATISTICS
@@ -156,13 +155,68 @@ pub struct Viewer;
 impl QuentViewer for Viewer {
     type Analyzer = SimulatorUiAnalyzer;
 
+    fn context_inventory(dir: &std::path::Path) -> quent_io::ImporterResult<ContextInventory> {
+        let (context_id, root) = context_location(dir)?;
+        let store = Store::<Simulator>::new(root);
+        let engine_ids = store
+            .entity_events::<schema::Engine>(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .map(|event| event.map(|event| event.id))
+            .collect::<Result<HashSet<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
+        let worker_analysis_target_ids = store
+            .entity_events::<schema::Worker>(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .filter_map(|event| match event {
+                Ok(Event {
+                    data:
+                        schema::WorkerEvent::Init {
+                            parent_engine_id, ..
+                        },
+                    ..
+                }) => Some(Ok(parent_engine_id.target)),
+                Ok(_) => None,
+                Err(error) => Some(Err(error)),
+            })
+            .collect::<Result<HashSet<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
+
+        Ok(ContextInventory {
+            analysis_target_ids: engine_ids
+                .into_iter()
+                .chain(worker_analysis_target_ids)
+                .collect(),
+        })
+    }
+
     fn import_events(
         dir: &std::path::Path,
-    ) -> quent_model::io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
-        let events =
-            Simulator::import_events(dir)?.collect::<quent_model::io::ImporterResult<Vec<_>>>()?;
+    ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+        let (context_id, root) = context_location(dir)?;
+        let events = Store::<Simulator>::new(root)
+            .events(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
         Ok(Box::new(events.into_iter()))
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn context_location(dir: &std::path::Path) -> quent_io::ImporterResult<(Uuid, &std::path::Path)> {
+    let invalid_path = || {
+        quent_io::ImporterError::other(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("context directory must end in a UUID: {}", dir.display()),
+        ))
+    };
+    let context_id = dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| Uuid::parse_str(name).ok())
+        .ok_or_else(invalid_path)?;
+    let root = dir.parent().ok_or_else(invalid_path)?;
+    Ok((context_id, root))
 }
 
 struct PlainBuilderSlot<'a> {
@@ -197,25 +251,27 @@ struct PerStateEntry<'a> {
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
-    type EntityRef = EntityRef;
 
     fn extract_engine(
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
-        use quent_query_engine_model::engine::EngineEvent;
         for event in events {
-            if let SimulatorEvent::Engine(EngineEvent::Init(init)) = event.data {
+            if let SimulatorEvent::Engine(schema::EngineEvent::Init {
+                implementation,
+                instance_name,
+            }) = event.data
+            {
                 return Ok(quent_query_engine_ui::Engine {
                     id: engine_id,
                     start_time_unix_ns: Some(event.timestamp),
                     duration_s: None,
-                    instance_name: init.instance_name,
-                    implementation: Some(
-                        quent_query_engine_ui::EngineImplementationAttributes::from(
-                            &init.implementation,
-                        ),
-                    ),
+                    instance_name,
+                    implementation: Some(quent_query_engine_ui::EngineImplementationAttributes {
+                        name: implementation.name,
+                        version: implementation.version,
+                        custom_attributes: implementation.custom_attributes.0,
+                    }),
                 });
             }
         }
@@ -256,7 +312,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         Ok(Self { model })
     }
 
-    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle<EntityRef>> {
+    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle> {
         debug!("constructing view");
         // TODO(johanpel): A query view could be cached in an analyzer so
         // subsequent calls into the analyzer for that query could benefit from
@@ -933,7 +989,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .model
             .arbitrary_resources
             .resources()
-            .filter(|r| r.type_name() == MEMORY_TYPE_NAME)
+            .filter(|resource| MEMORY_TYPE_NAMES.contains(&resource.type_name()))
             .map(|r| (r.id(), r.instance_name()))
             .collect();
 
@@ -965,7 +1021,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 };
                 let state = from.name();
                 let memory_usage = from
-                    .usages
+                    .usages()
                     .iter()
                     .find(|u| memory_names.contains_key(&u.resource_id));
                 let dimension =
@@ -990,7 +1046,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         .map(|u| {
                             u.capacities
                                 .iter()
-                                .filter(|c| c.name == "capacity_bytes")
+                                .filter(|capacity| capacity.name == "bytes")
                                 .filter_map(|c| c.value)
                                 .sum()
                         })

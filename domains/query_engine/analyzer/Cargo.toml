@@ -5,10 +5,8 @@ edition.workspace =  true
 publish.workspace = true
 [dependencies]
 quent-analyzer = { path = "../../../crates/analyzer" }
-quent-dynamic-attributes = { path = "../../../crates/dynamic-attributes" }
 quent-events = { path = "../../../crates/events" }
-quent-model = { path = "../../../crates/model" }
-quent-query-engine-model = { path = "../model" }
+quent-io = { path = "../../../crates/io" }
 quent-query-engine-ui = { path = "../ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui"}

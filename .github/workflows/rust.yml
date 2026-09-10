@@ -66,6 +66,9 @@ jobs:
       - run: pixi run cargo fmt --manifest-path crates/yaml/examples/Cargo.toml -- --check
       - run: pixi run cargo clippy --manifest-path crates/yaml/examples/Cargo.toml --bins --locked -- -D warnings
       - run: pixi run cargo check --manifest-path crates/yaml/examples/Cargo.toml --bins --locked
+      - run: pixi run cargo fmt --manifest-path experimental/vibe/codegen/Cargo.toml --all -- --check
+      - run: pixi run cargo clippy --manifest-path experimental/vibe/codegen/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: pixi run env LD_LIBRARY_PATH="$PWD/.pixi/envs/default/lib" cargo test --manifest-path experimental/vibe/codegen/Cargo.toml --workspace --all-targets --locked
 
   # Regression gate for `quent-open` backward compatibility: build a viewer for
   # a sidecar pinning the previous quent commit (the PR's base commit, or the

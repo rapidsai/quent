@@ -57,7 +57,6 @@ pub fn analyzer_service_router<A>(
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::EntityRef: serde::Serialize,
 {
     analyzer_service_router_with_routes::<A>(importer, lister, cors, AxumRouter::new())
 }
@@ -72,7 +71,6 @@ pub fn analyzer_service_router_with_routes<A>(
 ) -> Result<AxumRouter, Box<dyn std::error::Error>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
-    <A as UiAnalyzer>::EntityRef: serde::Serialize,
 {
     let state = ServiceState {
         analyzers: AnalyzerCache::<A>::new(importer, lister),

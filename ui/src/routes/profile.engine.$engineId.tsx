@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { QueryPlan } from '@/components/QueryPlan';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { DeepLinkBoundary } from '@/features/deep-link';
+import { unpackEntityRef } from '@quent/utils';
 import type { EntityRef, QueryBundle, ResourceTree } from '@quent/utils';
 
 export const Route = createFileRoute('/profile/engine/$engineId')({
@@ -14,7 +15,7 @@ export const Route = createFileRoute('/profile/engine/$engineId')({
 });
 
 function entityRefId(ref: EntityRef): string {
-  return Object.values(ref)[0]!;
+  return unpackEntityRef(ref).id;
 }
 
 function firstResourceId(tree: ResourceTree<EntityRef>): string | null {

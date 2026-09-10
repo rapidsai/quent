@@ -15,15 +15,12 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_dynamic_attributes::DynamicAttribute;
 use quent_io::clap::ExporterArgs;
-use quent_model::{Ref, usage};
-use quent_query_engine_model::{
-    engine::{self, EngineImplementationAttributes},
-    operator, plan, port, query_group, worker,
-};
-use quent_simulator_instrumentation::SimulatorContext;
+use quent_simulator_instrumentation as instr;
 use rand::{RngExt, rng};
 use tracing::info;
 use uuid::Uuid;
+
+type SimulatorContext = instr::Context<instr::Simulator>;
 
 const ENGINE_ID: Uuid = Uuid::from_u128(0x01a07b4c86ab797197c124879c41910e);
 const QUERY_ID_BASE: u128 = 0x01a07b4c86ab797197c128ffb10dde0d;
@@ -129,8 +126,8 @@ fn sleep_storage_io_variable(bytes: u64) {
 }
 
 struct Operator<T: Debug> {
-    id: Uuid,
-    parents: Vec<Uuid>,
+    handle: instr::Handle<instr::Operator>,
+    parents: Vec<instr::EntityRef<instr::Operator>>,
     kind: T,
     tasks_processed: AtomicU64,
     batches_in: AtomicU64,
@@ -149,9 +146,13 @@ where
         format!("{:?}", self.kind)
     }
 
-    fn new(kind: T, parents: Vec<Uuid>) -> Self {
+    fn new(
+        context: &SimulatorContext,
+        kind: T,
+        parents: Vec<instr::EntityRef<instr::Operator>>,
+    ) -> Self {
         Self {
-            id: Uuid::now_v7(),
+            handle: context.observer::<instr::Operator>().handle(),
             parents,
             kind,
             tasks_processed: AtomicU64::new(0),
@@ -174,13 +175,11 @@ where
     }
 }
 
-#[derive(Debug)]
 struct Port {
-    id: Uuid,
+    handle: instr::Handle<instr::Port>,
     name: &'static str,
 }
 
-#[derive(Debug)]
 struct Edge {
     source: Port,
     target: Port,
@@ -188,19 +187,20 @@ struct Edge {
 
 impl Display for Edge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "{} -> {}", self.source.name, self.target.name)
     }
 }
 
 impl Edge {
-    fn new(source: &'static str, target: &'static str) -> Edge {
+    fn new(context: &SimulatorContext, source: &'static str, target: &'static str) -> Edge {
+        let port_obs = context.observer::<instr::Port>();
         Edge {
             source: Port {
-                id: Uuid::now_v7(),
+                handle: port_obs.handle(),
                 name: source,
             },
             target: Port {
-                id: Uuid::now_v7(),
+                handle: port_obs.handle(),
                 name: target,
             },
         }
@@ -320,86 +320,59 @@ struct Plan<T>
 where
     T: Debug,
 {
-    id: Uuid,
+    handle: instr::Handle<instr::Plan>,
     name: String,
-    query_id: Uuid,
-    parent_plan_id: Option<Uuid>,
+    query: instr::EntityRef<instr::Query>,
+    parent_plan: Option<instr::EntityRef<instr::Plan>>,
     dag: Graph<Operator<T>, Edge, Directed>,
 }
 
 impl<T: Debug> Plan<T> {
-    pub fn declare(&self, context: &SimulatorContext, worker_id: Option<Uuid>) {
-        let plan_obs = context.plan_observer();
-        let operator_obs = context.operator_observer();
-        let port_obs = context.port_observer();
-
-        plan_obs.declaration(
-            self.id,
-            plan::Declaration {
-                instance_name: self.name.clone(),
-                parent: match self.parent_plan_id {
-                    None => plan::PlanParent {
-                        query_id: Some(Ref::new(self.query_id)),
-                        plan_id: None,
-                    },
-                    Some(parent_id) => plan::PlanParent {
-                        query_id: None,
-                        plan_id: Some(Ref::new(parent_id)),
-                    },
+    pub fn declare(&mut self, worker: Option<instr::EntityRef<instr::Worker>>) {
+        self.handle
+            .declaration(
+                instr::PlanParent {
+                    query_id: self.query.clone(),
+                    plan_id: self.parent_plan.clone(),
                 },
-                worker_id: worker_id.map(Ref::new),
-                edges: self
-                    .dag
+                self.name.clone(),
+                self.dag
                     .edge_references()
-                    .map(|edge| plan::Edge {
-                        source: Ref::new(edge.weight().source.id),
-                        target: Ref::new(edge.weight().target.id),
+                    .map(|edge| instr::Edge {
+                        source: edge.weight().source.handle.as_entity_ref(),
+                        target: edge.weight().target.handle.as_entity_ref(),
                     })
                     .collect(),
-            },
-        );
+                worker,
+            )
+            .unwrap();
 
-        // Declare all operators
-        for node_idx in self.dag.node_indices() {
-            let op = &self.dag[node_idx];
-            let op_handle = operator_obs.create(op.id);
-            op_handle.declaration(operator::Declaration {
-                plan_id: Ref::new(self.id),
-                parent_operator_ids: op.parents.iter().copied().map(Ref::new).collect(),
-                instance_name: format!("{}:{}", node_idx.index(), op.name()),
-                type_name: op.name(),
-                custom_attributes: Default::default(),
-            });
-
-            // Declare operator ports
-            for (id, event) in self
-                .dag
-                .edges_directed(node_idx, petgraph::Direction::Incoming)
-                .map(|edge| {
-                    (
-                        edge.weight().target.id,
-                        port::Declaration {
-                            operator_id: Ref::new(op.id),
-                            instance_name: edge.weight().target.name.to_string(),
-                        },
-                    )
-                })
-                .chain(
-                    self.dag
-                        .edges_directed(node_idx, petgraph::Direction::Outgoing)
-                        .map(|edge| {
-                            (
-                                edge.weight().source.id,
-                                port::Declaration {
-                                    operator_id: Ref::new(op.id),
-                                    instance_name: edge.weight().source.name.to_string(),
-                                },
-                            )
-                        }),
+        for node_idx in self.dag.node_indices().collect::<Vec<_>>() {
+            let op = &mut self.dag[node_idx];
+            op.handle
+                .declaration(
+                    self.handle.as_entity_ref(),
+                    op.parents.clone(),
+                    format!("{}:{}", node_idx.index(), op.name()),
+                    op.name(),
+                    Default::default(),
                 )
-            {
-                port_obs.create(id).declaration(event)
-            }
+                .unwrap();
+        }
+
+        for edge_idx in self.dag.edge_indices().collect::<Vec<_>>() {
+            let (source_idx, target_idx) = self.dag.edge_endpoints(edge_idx).unwrap();
+            let source_operator = self.dag[source_idx].handle.as_entity_ref();
+            let target_operator = self.dag[target_idx].handle.as_entity_ref();
+            let edge = &mut self.dag[edge_idx];
+            edge.source
+                .handle
+                .declaration(source_operator, edge.source.name.to_owned())
+                .unwrap();
+            edge.target
+                .handle
+                .declaration(target_operator, edge.target.name.to_owned())
+                .unwrap();
         }
     }
 }
@@ -410,86 +383,94 @@ impl<T: Debug> Plan<T> {
 // Scan -> Project /                        Scan -> Project /                                     -> Join -> Filter -> Udf -> Aggregate -> Sort -> Limit -> Output
 //                                                                                Scan -> Project /
 // Each Scan -> Project lowers to: FileSystemScan -> GpuDecode
-fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
-    fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
-        let scan = plan.add_node(Operator::new(Logical::Scan, vec![]));
-        let project = plan.add_node(Operator::new(Logical::Project, vec![]));
-        plan.add_edge(scan, project, Edge::new("out", "in"));
+fn make_logical_plan(
+    context: &SimulatorContext,
+    query: instr::EntityRef<instr::Query>,
+    name: String,
+) -> Plan<Logical> {
+    fn add_scan_project_branch(
+        context: &SimulatorContext,
+        plan: &mut Graph<Operator<Logical>, Edge, Directed>,
+    ) -> NodeIndex {
+        let scan = plan.add_node(Operator::new(context, Logical::Scan, vec![]));
+        let project = plan.add_node(Operator::new(context, Logical::Project, vec![]));
+        plan.add_edge(scan, project, Edge::new(context, "out", "in"));
         project
     }
 
     fn add_join(
+        context: &SimulatorContext,
         plan: &mut Graph<Operator<Logical>, Edge, Directed>,
         left: NodeIndex,
         right: NodeIndex,
     ) -> NodeIndex {
-        let join = plan.add_node(Operator::new(Logical::Join, vec![]));
-        plan.add_edge(left, join, Edge::new("out", "left"));
-        plan.add_edge(right, join, Edge::new("out", "right"));
+        let join = plan.add_node(Operator::new(context, Logical::Join, vec![]));
+        plan.add_edge(left, join, Edge::new(context, "out", "left"));
+        plan.add_edge(right, join, Edge::new(context, "out", "right"));
         join
     }
 
     let mut dag = Graph::new();
 
     // Left branch: join scans A and B, then pre-aggregate
-    let project_a = add_scan_project_branch(&mut dag);
-    let project_b = add_scan_project_branch(&mut dag);
-    let join_left = add_join(&mut dag, project_a, project_b);
-    let agg_left = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
-    dag.add_edge(join_left, agg_left, Edge::new("out", "in"));
+    let project_a = add_scan_project_branch(context, &mut dag);
+    let project_b = add_scan_project_branch(context, &mut dag);
+    let join_left = add_join(context, &mut dag, project_a, project_b);
+    let agg_left = dag.add_node(Operator::new(context, Logical::Aggregate, vec![]));
+    dag.add_edge(join_left, agg_left, Edge::new(context, "out", "in"));
 
     // Right branch: join scans C and D, then pre-aggregate
-    let project_c = add_scan_project_branch(&mut dag);
-    let project_d = add_scan_project_branch(&mut dag);
-    let join_right = add_join(&mut dag, project_c, project_d);
-    let agg_right = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
-    dag.add_edge(join_right, agg_right, Edge::new("out", "in"));
+    let project_c = add_scan_project_branch(context, &mut dag);
+    let project_d = add_scan_project_branch(context, &mut dag);
+    let join_right = add_join(context, &mut dag, project_c, project_d);
+    let agg_right = dag.add_node(Operator::new(context, Logical::Aggregate, vec![]));
+    dag.add_edge(join_right, agg_right, Edge::new(context, "out", "in"));
 
     // Final join combining pre-aggregated sides
-    let join_final = add_join(&mut dag, agg_left, agg_right);
+    let join_final = add_join(context, &mut dag, agg_left, agg_right);
 
-    let aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
-    dag.add_edge(join_final, aggregate, Edge::new("out", "in"));
+    let aggregate = dag.add_node(Operator::new(context, Logical::Aggregate, vec![]));
+    dag.add_edge(join_final, aggregate, Edge::new(context, "out", "in"));
 
-    let filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
-    dag.add_edge(aggregate, filter, Edge::new("out", "in"));
+    let filter = dag.add_node(Operator::new(context, Logical::Filter, vec![]));
+    dag.add_edge(aggregate, filter, Edge::new(context, "out", "in"));
 
-    let udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
-    dag.add_edge(filter, udf, Edge::new("out", "in"));
+    let udf = dag.add_node(Operator::new(context, Logical::Udf, vec![]));
+    dag.add_edge(filter, udf, Edge::new(context, "out", "in"));
 
     // Late-stage dimension table lookup join
-    let project_e = add_scan_project_branch(&mut dag);
-    let join_lookup = add_join(&mut dag, udf, project_e);
+    let project_e = add_scan_project_branch(context, &mut dag);
+    let join_lookup = add_join(context, &mut dag, udf, project_e);
 
     // Post-join processing before final sort
-    let post_filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
-    dag.add_edge(join_lookup, post_filter, Edge::new("out", "in"));
+    let post_filter = dag.add_node(Operator::new(context, Logical::Filter, vec![]));
+    dag.add_edge(join_lookup, post_filter, Edge::new(context, "out", "in"));
 
-    let post_udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
-    dag.add_edge(post_filter, post_udf, Edge::new("out", "in"));
+    let post_udf = dag.add_node(Operator::new(context, Logical::Udf, vec![]));
+    dag.add_edge(post_filter, post_udf, Edge::new(context, "out", "in"));
 
-    let post_aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
-    dag.add_edge(post_udf, post_aggregate, Edge::new("out", "in"));
+    let post_aggregate = dag.add_node(Operator::new(context, Logical::Aggregate, vec![]));
+    dag.add_edge(post_udf, post_aggregate, Edge::new(context, "out", "in"));
 
-    let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
-    dag.add_edge(post_aggregate, sort, Edge::new("out", "in"));
+    let sort = dag.add_node(Operator::new(context, Logical::Sort, vec![]));
+    dag.add_edge(post_aggregate, sort, Edge::new(context, "out", "in"));
 
-    let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
-    dag.add_edge(sort, limit, Edge::new("out", "in"));
+    let limit = dag.add_node(Operator::new(context, Logical::Limit, vec![]));
+    dag.add_edge(sort, limit, Edge::new(context, "out", "in"));
 
-    let output = dag.add_node(Operator::new(Logical::Output, vec![]));
-    dag.add_edge(limit, output, Edge::new("out", "in"));
+    let output = dag.add_node(Operator::new(context, Logical::Output, vec![]));
+    dag.add_edge(limit, output, Edge::new(context, "out", "in"));
 
     Plan {
-        id: Uuid::now_v7(),
+        handle: context.observer::<instr::Plan>().handle(),
         name,
-        query_id,
-        parent_plan_id: None,
+        query,
+        parent_plan: None,
         dag,
     }
 }
 
-fn simulate_planning(logical: &Plan<Logical>) -> Plan<Physical> {
+fn simulate_planning(context: &SimulatorContext, logical: &Plan<Logical>) -> Plan<Physical> {
     // Find the output node
     let output = logical
         .dag
@@ -501,19 +482,20 @@ fn simulate_planning(logical: &Plan<Logical>) -> Plan<Physical> {
 
     // Build a physical plan
     let mut physical = Plan {
-        id: Uuid::now_v7(),
+        handle: context.observer::<instr::Plan>().handle(),
         name: "physical".into(),
-        query_id: logical.query_id,
-        parent_plan_id: Some(logical.id),
+        query: logical.query.clone(),
+        parent_plan: Some(logical.handle.as_entity_ref()),
         dag: Graph::new(),
     };
 
-    lower_logical(logical, &mut physical, output, None);
+    lower_logical(context, logical, &mut physical, output, None);
 
     physical
 }
 
 fn lower_logical(
+    context: &SimulatorContext,
     logical: &Plan<Logical>,
     physical: &mut Plan<Physical>,
     logical_current_idx: NodeIndex,
@@ -534,18 +516,27 @@ fn lower_logical(
             {
                 let scan_op = &logical.dag[scan_edge.source()];
                 let scan = physical.dag.add_node(Operator::new(
+                    context,
                     Physical::FileSystemScan,
-                    vec![current_logical_op.id, scan_op.id],
+                    vec![
+                        current_logical_op.handle.as_entity_ref(),
+                        scan_op.handle.as_entity_ref(),
+                    ],
                 ));
                 let decode = physical.dag.add_node(Operator::new(
+                    context,
                     Physical::GpuDecode,
-                    vec![current_logical_op.id],
+                    vec![current_logical_op.handle.as_entity_ref()],
                 ));
-                physical.dag.add_edge(scan, decode, Edge::new("out", "in"));
+                physical
+                    .dag
+                    .add_edge(scan, decode, Edge::new(context, "out", "in"));
                 if let Some((target_node, target_port)) = physical_target_idx_port {
-                    physical
-                        .dag
-                        .add_edge(decode, target_node, Edge::new(target_port, "in"));
+                    physical.dag.add_edge(
+                        decode,
+                        target_node,
+                        Edge::new(context, target_port, "in"),
+                    );
                 }
             } else {
                 unimplemented!("this shouldn't happen in this simulator, yet");
@@ -554,21 +545,25 @@ fn lower_logical(
         Logical::Join => {
             // split up in a partition stage and join stage
             let partition = physical.dag.add_node(Operator::new(
+                context,
                 Physical::JoinPartition,
-                vec![current_logical_op.id],
+                vec![current_logical_op.handle.as_entity_ref()],
             ));
             let local = physical.dag.add_node(Operator::new(
+                context,
                 Physical::JoinLocal,
-                vec![current_logical_op.id],
+                vec![current_logical_op.handle.as_entity_ref()],
             ));
-            physical
-                .dag
-                .add_edge(partition, local, Edge::new("out", "partitioned_in"));
+            physical.dag.add_edge(
+                partition,
+                local,
+                Edge::new(context, "out", "partitioned_in"),
+            );
 
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(local, target_node, Edge::new("out", target_port));
+                    .add_edge(local, target_node, Edge::new(context, "out", target_port));
             }
 
             // Recurse up both branches
@@ -577,6 +572,7 @@ fn lower_logical(
                 .edges_directed(logical_current_idx, Direction::Incoming)
             {
                 lower_logical(
+                    context,
                     logical,
                     physical,
                     input_edge.source(),
@@ -592,13 +588,15 @@ fn lower_logical(
                 Logical::Sort => Physical::Sort,
                 _ => unreachable!(),
             };
-            let node = physical
-                .dag
-                .add_node(Operator::new(physical_kind, vec![current_logical_op.id]));
+            let node = physical.dag.add_node(Operator::new(
+                context,
+                physical_kind,
+                vec![current_logical_op.handle.as_entity_ref()],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(node, target_node, Edge::new("out", target_port));
+                    .add_edge(node, target_node, Edge::new(context, "out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -606,6 +604,7 @@ fn lower_logical(
                 .next()
                 .unwrap();
             lower_logical(
+                context,
                 logical,
                 physical,
                 input_edge.source(),
@@ -613,13 +612,15 @@ fn lower_logical(
             );
         }
         Logical::Limit => {
-            let limit = physical
-                .dag
-                .add_node(Operator::new(Physical::Limit, vec![current_logical_op.id]));
+            let limit = physical.dag.add_node(Operator::new(
+                context,
+                Physical::Limit,
+                vec![current_logical_op.handle.as_entity_ref()],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(limit, target_node, Edge::new("out", target_port));
+                    .add_edge(limit, target_node, Edge::new(context, "out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -627,6 +628,7 @@ fn lower_logical(
                 .next()
                 .unwrap();
             lower_logical(
+                context,
                 logical,
                 physical,
                 input_edge.source(),
@@ -634,13 +636,15 @@ fn lower_logical(
             );
         }
         Logical::Output => {
-            let output = physical
-                .dag
-                .add_node(Operator::new(Physical::Output, vec![current_logical_op.id]));
+            let output = physical.dag.add_node(Operator::new(
+                context,
+                Physical::Output,
+                vec![current_logical_op.handle.as_entity_ref()],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(output, target_node, Edge::new("out", target_port));
+                    .add_edge(output, target_node, Edge::new(context, "out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -648,6 +652,7 @@ fn lower_logical(
                 .next()
                 .unwrap();
             lower_logical(
+                context,
                 logical,
                 physical,
                 input_edge.source(),
@@ -657,12 +662,13 @@ fn lower_logical(
     }
 }
 
-#[derive(Debug)]
 struct Gpu {
     id: Uuid,
     memory: Uuid,
     host_mem_to_gpu: Uuid,
     gpu_to_host_mem: Uuid,
+    memory_handle: Option<instr::FsmHandle<instr::GpuMemory, instr::gpu_memory_state::Operating>>,
+    pcie_handles: Vec<instr::FsmHandle<instr::PcieChannel, instr::pcie_channel_state::Operating>>,
     /// Tracks current GPU memory usage in bytes for spill decisions.
     memory_used: AtomicU64,
 }
@@ -674,6 +680,8 @@ impl Gpu {
             memory: Uuid::now_v7(),
             host_mem_to_gpu: Uuid::now_v7(),
             gpu_to_host_mem: Uuid::now_v7(),
+            memory_handle: None,
+            pcie_handles: Vec::new(),
             memory_used: AtomicU64::new(0),
         }
     }
@@ -690,6 +698,130 @@ struct Batch {
     in_storage: bool,
 }
 
+enum TaskHandle {
+    Queueing(instr::FsmHandle<instr::Task, instr::task_state::Queueing>),
+    Allocating(instr::FsmHandle<instr::Task, instr::task_state::Allocating>),
+    Loading(instr::FsmHandle<instr::Task, instr::task_state::Loading>),
+    Computing(instr::FsmHandle<instr::Task, instr::task_state::Computing>),
+    Spilling(instr::FsmHandle<instr::Task, instr::task_state::Spilling>),
+    Sending(instr::FsmHandle<instr::Task, instr::task_state::Sending>),
+    Transitioning,
+}
+
+impl TaskHandle {
+    fn take(&mut self) -> Self {
+        std::mem::replace(self, Self::Transitioning)
+    }
+
+    fn allocating(
+        &mut self,
+        use_thread: instr::EntityRef<instr::TaskExecutorThread, instr::TaskExecutorThreadUsage>,
+    ) {
+        *self = match self.take() {
+            Self::Queueing(handle) => Self::Allocating(handle.allocating(use_thread)),
+            Self::Spilling(handle) => Self::Allocating(handle.allocating(use_thread)),
+            _ => unreachable!("invalid task transition to allocating"),
+        };
+    }
+
+    fn loading(
+        &mut self,
+        use_thread: instr::EntityRef<instr::TaskExecutorThread, instr::TaskExecutorThreadUsage>,
+        use_storage_channel: Option<
+            instr::EntityRef<instr::StorageChannel, instr::StorageChannelUsage>,
+        >,
+        use_pcie_channel: Option<instr::EntityRef<instr::PcieChannel, instr::PcieChannelUsage>>,
+        use_host_memory: Option<instr::EntityRef<instr::HostMemory, instr::HostMemoryUsage>>,
+        use_gpu_memory: Option<instr::EntityRef<instr::GpuMemory, instr::GpuMemoryUsage>>,
+    ) {
+        *self = match self.take() {
+            Self::Allocating(handle) => Self::Loading(handle.loading(
+                use_thread,
+                use_storage_channel,
+                use_pcie_channel,
+                use_host_memory,
+                use_gpu_memory,
+            )),
+            Self::Loading(handle) => Self::Loading(handle.loading(
+                use_thread,
+                use_storage_channel,
+                use_pcie_channel,
+                use_host_memory,
+                use_gpu_memory,
+            )),
+            _ => unreachable!("invalid task transition to loading"),
+        };
+    }
+
+    fn computing(
+        &mut self,
+        instance_name: String,
+        input_bytes: u64,
+        use_thread: instr::EntityRef<instr::TaskExecutorThread, instr::TaskExecutorThreadUsage>,
+        use_host_memory: Option<instr::EntityRef<instr::HostMemory, instr::HostMemoryUsage>>,
+        use_gpu_memory: Option<instr::EntityRef<instr::GpuMemory, instr::GpuMemoryUsage>>,
+    ) {
+        *self = match self.take() {
+            Self::Allocating(handle) => Self::Computing(handle.computing(
+                instance_name,
+                input_bytes,
+                use_thread,
+                use_host_memory,
+                use_gpu_memory,
+            )),
+            Self::Loading(handle) => Self::Computing(handle.computing(
+                instance_name,
+                input_bytes,
+                use_thread,
+                use_host_memory,
+                use_gpu_memory,
+            )),
+            _ => unreachable!("invalid task transition to computing"),
+        };
+    }
+
+    fn spilling(
+        &mut self,
+        use_thread: instr::EntityRef<instr::TaskExecutorThread, instr::TaskExecutorThreadUsage>,
+        use_storage_channel: instr::EntityRef<instr::StorageChannel, instr::StorageChannelUsage>,
+    ) {
+        *self = match self.take() {
+            Self::Computing(handle) => {
+                Self::Spilling(handle.spilling(use_thread, use_storage_channel))
+            }
+            _ => unreachable!("invalid task transition to spilling"),
+        };
+    }
+
+    fn sending(
+        &mut self,
+        use_thread: instr::EntityRef<instr::TaskExecutorThread, instr::TaskExecutorThreadUsage>,
+        use_network_channel: instr::EntityRef<instr::NetworkChannel, instr::NetworkChannelUsage>,
+    ) {
+        *self = match self.take() {
+            Self::Computing(handle) => {
+                Self::Sending(handle.sending(use_thread, use_network_channel))
+            }
+            _ => unreachable!("invalid task transition to sending"),
+        };
+    }
+
+    fn queueing(&mut self, instance_name: String, operator_id: instr::EntityRef<instr::Operator>) {
+        *self = match self.take() {
+            Self::Sending(handle) => Self::Queueing(handle.queueing(instance_name, operator_id)),
+            _ => unreachable!("invalid task transition to queueing"),
+        };
+    }
+
+    fn exit(mut self) {
+        match self.take() {
+            Self::Computing(handle) => drop(handle.exit()),
+            Self::Sending(handle) => drop(handle.exit()),
+            _ => unreachable!("invalid task transition to exit"),
+        }
+    }
+}
+
 struct Worker {
     id: Uuid,
     name: String,
@@ -702,9 +834,14 @@ struct Worker {
     host_to_storage: Uuid,
     threads: Vec<Uuid>,
     gpus: Vec<Gpu>,
-    memory_handles: Vec<quent_stdlib::memory::MemoryHandle>,
-    channel_handles: Vec<quent_stdlib::channel::ChannelHandle>,
-    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle>,
+    host_memory_handle:
+        Option<instr::FsmHandle<instr::HostMemory, instr::host_memory_state::Operating>>,
+    storage_handle: Option<instr::FsmHandle<instr::Storage, instr::storage_state::Operating>>,
+    storage_channel_handles:
+        Vec<instr::FsmHandle<instr::StorageChannel, instr::storage_channel_state::Operating>>,
+    thread_handles: Vec<
+        instr::FsmHandle<instr::TaskExecutorThread, instr::task_executor_thread_state::Operating>,
+    >,
 }
 
 impl Worker {
@@ -722,93 +859,97 @@ impl Worker {
                 .take(num_threads)
                 .collect(),
             gpus: std::iter::repeat_with(Gpu::new).take(num_gpus).collect(),
-            memory_handles: Vec::new(),
-            channel_handles: Vec::new(),
-            processor_handles: Vec::new(),
+            host_memory_handle: None,
+            storage_handle: None,
+            storage_channel_handles: Vec::new(),
+            thread_handles: Vec::new(),
         }
     }
 
     fn spawn(&mut self, context: &SimulatorContext, parent_engine_id: Uuid) {
-        let worker_obs = context.worker_observer();
-        worker_obs.create(self.id).init(worker::Init {
-            parent_engine_id: Ref::new(parent_engine_id),
-            instance_name: self.name.clone(),
-        });
-
-        let memory_obs = context.memory_observer();
-        let channel_obs = context.channel_observer();
-        let processor_obs = context.processor_observer();
-
-        let mut host_memory = memory_obs.initializing(self.host_memory, "Host Memory", self.id);
-        host_memory.operating(Some(0));
-        self.memory_handles.push(host_memory);
-
-        let mut storage = memory_obs.initializing(self.storage, "Storage", self.id);
-        storage.operating(Some(0));
-        self.memory_handles.push(storage);
-
-        let mut storage_to_host = channel_obs.initializing(
-            self.storage_to_host,
-            "Storage -> Host",
-            self.id,
-            self.storage,
-            self.host_memory,
-        );
-        storage_to_host.operating(None);
-        self.channel_handles.push(storage_to_host);
-
-        let mut host_to_storage = channel_obs.initializing(
-            self.host_to_storage,
-            "Host -> Storage",
-            self.id,
-            self.host_memory,
-            self.storage,
-        );
-        host_to_storage.operating(None);
-        self.channel_handles.push(host_to_storage);
-
         context
-            .thread_pool_observer()
-            .thread_pool(self.thread_pool, "Thread Pool", self.id);
-        for (index, thread_id) in self.threads.iter().enumerate() {
-            let mut thread = processor_obs.initializing(
-                *thread_id,
-                &format!("Thread {index}"),
-                self.thread_pool,
-            );
-            thread.operating();
-            self.processor_handles.push(thread);
+            .observer::<instr::Worker>()
+            .handle_with_id(self.id)
+            .init(
+                instr::EntityRef::new(parent_engine_id, ()),
+                self.name.clone(),
+            )
+            .unwrap();
+
+        let host_memory = context
+            .observer::<instr::HostMemory>()
+            .handle_with_id(self.host_memory)
+            .initializing("Host Memory".to_owned(), instr::EntityRef::new(self.id, ()))
+            .operating();
+        self.host_memory_handle = Some(host_memory);
+
+        let storage = context
+            .observer::<instr::Storage>()
+            .handle_with_id(self.storage)
+            .initializing("Storage".to_owned(), instr::EntityRef::new(self.id, ()))
+            .operating();
+        self.storage_handle = Some(storage);
+
+        for (id, name) in [
+            (self.storage_to_host, "Storage -> Host"),
+            (self.host_to_storage, "Host -> Storage"),
+        ] {
+            let channel = context
+                .observer::<instr::StorageChannel>()
+                .handle_with_id(id)
+                .initializing(name.to_owned(), instr::EntityRef::new(self.id, ()))
+                .operating();
+            self.storage_channel_handles.push(channel);
         }
 
-        for (index, gpu) in self.gpus.iter().enumerate() {
+        context
+            .observer::<instr::TaskExecutor>()
+            .handle_with_id(self.thread_pool)
+            .declaration(
+                "Task Executor".to_owned(),
+                instr::EntityRef::new(self.id, ()),
+            )
+            .unwrap();
+        for (index, thread_id) in self.threads.iter().enumerate() {
+            let thread = context
+                .observer::<instr::TaskExecutorThread>()
+                .handle_with_id(*thread_id)
+                .initializing(
+                    format!("Thread {index}"),
+                    instr::EntityRef::new(self.thread_pool, ()),
+                )
+                .operating();
+            self.thread_handles.push(thread);
+        }
+
+        for (index, gpu) in self.gpus.iter_mut().enumerate() {
             context
-                .gpu_observer()
-                .gpu(gpu.id, &format!("GPU {index}"), self.id);
+                .observer::<instr::Gpu>()
+                .handle_with_id(gpu.id)
+                .declaration(format!("GPU {index}"), instr::EntityRef::new(self.id, ()))
+                .unwrap();
 
-            let mut gpu_memory =
-                memory_obs.initializing(gpu.memory, &format!("GPU {index} Memory"), gpu.id);
-            gpu_memory.operating(Some(0));
-            self.memory_handles.push(gpu_memory);
+            let gpu_memory = context
+                .observer::<instr::GpuMemory>()
+                .handle_with_id(gpu.memory)
+                .initializing(
+                    format!("GPU {index} Memory"),
+                    instr::EntityRef::new(gpu.id, ()),
+                )
+                .operating();
+            gpu.memory_handle = Some(gpu_memory);
 
-            let mut host_to_gpu = channel_obs.initializing(
-                gpu.host_mem_to_gpu,
-                &format!("Host -> GPU {index}"),
-                gpu.id,
-                self.host_memory,
-                gpu.memory,
-            );
-            host_to_gpu.operating(None);
-            self.channel_handles.push(host_to_gpu);
-
-            let mut gpu_to_host = channel_obs.initializing(
-                gpu.gpu_to_host_mem,
-                &format!("GPU {index} -> Host"),
-                gpu.id,
-                gpu.memory,
-                self.host_memory,
-            );
-            gpu_to_host.operating(None);
-            self.channel_handles.push(gpu_to_host);
+            for (id, name) in [
+                (gpu.host_mem_to_gpu, format!("Host -> GPU {index}")),
+                (gpu.gpu_to_host_mem, format!("GPU {index} -> Host")),
+            ] {
+                let channel = context
+                    .observer::<instr::PcieChannel>()
+                    .handle_with_id(id)
+                    .initializing(name, instr::EntityRef::new(gpu.id, ()))
+                    .operating();
+                gpu.pcie_handles.push(channel);
+            }
         }
     }
 
@@ -823,11 +964,10 @@ impl Worker {
         thread: Uuid,
     ) -> Vec<Batch> {
         let operator = work.operator;
-        let mut task = context.task_observer().queueing(
-            Uuid::now_v7(),
-            &format!("task-{}", work.task_index),
-            operator.id,
-        );
+        let mut task = TaskHandle::Queueing(context.observer::<instr::Task>().handle().queueing(
+            format!("task-{}", work.task_index),
+            operator.handle.as_entity_ref(),
+        ));
         sleep_fixed(50);
 
         let mut input_batches = if operator.kind == Physical::FileSystemScan {
@@ -866,7 +1006,11 @@ impl Worker {
         let gpu_index =
             (uses_gpu && !self.gpus.is_empty()).then(|| work.task_index as usize % self.gpus.len());
         let gpu = gpu_index.and_then(|index| self.gpus.get(index));
-        let thread_usage = || Some(usage(Ref::new(thread)));
+        let thread_usage = || instr::EntityRef::new(thread, instr::TaskExecutorThreadUsage);
+        let host_memory_usage =
+            |bytes| instr::EntityRef::new(self.host_memory, instr::HostMemoryUsage { bytes });
+        let gpu_memory_usage =
+            |id, bytes| instr::EntityRef::new(id, instr::GpuMemoryUsage { bytes });
 
         task.allocating(thread_usage());
         sleep_fixed(25);
@@ -875,8 +1019,13 @@ impl Worker {
         if reads_storage {
             task.loading(
                 thread_usage(),
-                Some(usage((Ref::new(self.storage_to_host), input_bytes))),
-                Some(usage((Ref::new(self.host_memory), input_bytes))),
+                Some(instr::EntityRef::new(
+                    self.storage_to_host,
+                    instr::StorageChannelUsage { bytes: input_bytes },
+                )),
+                None,
+                Some(host_memory_usage(input_bytes)),
+                None,
             );
             sleep_storage_io_variable(input_bytes);
             for batch in &mut input_batches {
@@ -901,11 +1050,15 @@ impl Worker {
                 let source_gpu = &self.gpus[source_gpu_index];
                 task.loading(
                     thread_usage(),
-                    Some(usage((
-                        Ref::new(source_gpu.gpu_to_host_mem),
-                        transfer_bytes,
-                    ))),
-                    Some(usage((Ref::new(self.host_memory), transfer_bytes))),
+                    None,
+                    Some(instr::EntityRef::new(
+                        source_gpu.gpu_to_host_mem,
+                        instr::PcieChannelUsage {
+                            bytes: transfer_bytes,
+                        },
+                    )),
+                    Some(host_memory_usage(transfer_bytes)),
+                    None,
                 );
                 sleep_pcie(transfer_bytes);
                 saturating_sub(&source_gpu.memory_used, transfer_bytes);
@@ -927,11 +1080,15 @@ impl Worker {
                 let target_gpu = &self.gpus[target_gpu_index];
                 task.loading(
                     thread_usage(),
-                    Some(usage((
-                        Ref::new(target_gpu.host_mem_to_gpu),
-                        host_to_gpu_bytes,
-                    ))),
-                    Some(usage((Ref::new(target_gpu.memory), host_to_gpu_bytes))),
+                    None,
+                    Some(instr::EntityRef::new(
+                        target_gpu.host_mem_to_gpu,
+                        instr::PcieChannelUsage {
+                            bytes: host_to_gpu_bytes,
+                        },
+                    )),
+                    None,
+                    Some(gpu_memory_usage(target_gpu.memory, host_to_gpu_bytes)),
                 );
                 sleep_pcie(host_to_gpu_bytes);
                 saturating_sub(&self.host_memory_used, host_to_gpu_bytes);
@@ -957,11 +1114,15 @@ impl Worker {
                 let source_gpu = &self.gpus[source_gpu_index];
                 task.loading(
                     thread_usage(),
-                    Some(usage((
-                        Ref::new(source_gpu.gpu_to_host_mem),
-                        transfer_bytes,
-                    ))),
-                    Some(usage((Ref::new(self.host_memory), transfer_bytes))),
+                    None,
+                    Some(instr::EntityRef::new(
+                        source_gpu.gpu_to_host_mem,
+                        instr::PcieChannelUsage {
+                            bytes: transfer_bytes,
+                        },
+                    )),
+                    Some(host_memory_usage(transfer_bytes)),
+                    None,
                 );
                 sleep_pcie(transfer_bytes);
                 saturating_sub(&source_gpu.memory_used, transfer_bytes);
@@ -974,7 +1135,6 @@ impl Worker {
                 }
             }
         }
-        let memory = gpu.map_or(self.host_memory, |device| device.memory);
         let working_bytes = (input_bytes / 2).clamp(1024 * 1024, 2 * 1024 * 1024 * 1024);
         if let Some(device) = gpu {
             device
@@ -985,10 +1145,11 @@ impl Worker {
                 .fetch_add(working_bytes, Ordering::Relaxed);
         }
         task.computing(
-            &operator.name(),
+            operator.name(),
             input_bytes,
             thread_usage(),
-            Some(usage((Ref::new(memory), working_bytes))),
+            gpu.is_none().then(|| host_memory_usage(working_bytes)),
+            gpu.map(|device| gpu_memory_usage(device.memory, working_bytes)),
         );
         let compute_multiplier = match operator.kind {
             Physical::JoinLocal => 3,
@@ -1013,15 +1174,19 @@ impl Worker {
             if input_bytes > 0 {
                 task.spilling(
                     thread_usage(),
-                    Some(usage((Ref::new(self.host_to_storage), input_bytes))),
+                    instr::EntityRef::new(
+                        self.host_to_storage,
+                        instr::StorageChannelUsage { bytes: input_bytes },
+                    ),
                 );
                 sleep_storage_io(input_bytes);
                 task.allocating(thread_usage());
                 task.computing(
-                    "finalize output",
+                    "finalize output".to_owned(),
                     0,
                     thread_usage(),
-                    Some(usage((Ref::new(self.host_memory), 0))),
+                    Some(host_memory_usage(0)),
+                    None,
                 );
             }
             task.exit();
@@ -1079,19 +1244,31 @@ impl Worker {
             if engine.workers.len() > 1
                 && let Some(other) = engine.workers.keys().find(|id| **id != self.id)
             {
-                let link = engine.network_links[&(self.id, *other)];
+                let link = &engine.network_links[&(self.id, *other)];
                 let network_bytes = output_bytes
                     .saturating_mul(engine.workers.len().saturating_sub(1) as u64)
                     / engine.workers.len() as u64;
-                task.sending(thread_usage(), Some(usage((Ref::new(link), network_bytes))));
+                task.sending(
+                    thread_usage(),
+                    instr::EntityRef::new(
+                        link.uuid(),
+                        instr::NetworkChannelUsage {
+                            bytes: network_bytes,
+                        },
+                    ),
+                );
                 sleep_network(network_bytes);
-                task.queueing("network completion", operator.id);
+                task.queueing(
+                    "network completion".to_owned(),
+                    operator.handle.as_entity_ref(),
+                );
                 task.allocating(thread_usage());
                 task.computing(
-                    "finalize shuffle",
+                    "finalize shuffle".to_owned(),
                     0,
                     thread_usage(),
-                    Some(usage((Ref::new(memory), 0))),
+                    gpu.is_none().then(|| host_memory_usage(0)),
+                    gpu.map(|device| gpu_memory_usage(device.memory, 0)),
                 );
             }
             task.exit();
@@ -1137,8 +1314,8 @@ impl Worker {
             result_rows,
             phase_barrier,
         } = execution;
-        let physical_plan = simulate_planning(logical_plan);
-        physical_plan.declare(context, Some(self.id));
+        let mut physical_plan = simulate_planning(context, logical_plan);
+        physical_plan.declare(Some(instr::EntityRef::new(self.id, ())));
         let nodes = petgraph::algo::toposort(&physical_plan.dag, None).unwrap();
         let first_join = nodes
             .iter()
@@ -1201,9 +1378,8 @@ impl Worker {
             }
         });
 
-        let op_obs = context.operator_observer();
         for &node in &nodes {
-            let operator = &physical_plan.dag[node];
+            let operator = &mut physical_plan.dag[node];
             let input_batches = operator.batches_in.load(Ordering::Relaxed);
             let input_bytes = operator.bytes_in.load(Ordering::Relaxed);
             let input_rows = operator.rows_in.load(Ordering::Relaxed);
@@ -1256,69 +1432,80 @@ impl Worker {
                 }
                 Physical::Udf | Physical::Sort => {}
             }
-            op_obs.create(operator.id).statistics(operator::Statistics {
-                custom_attributes: attributes.into(),
-            });
+            operator.handle.statistics(attributes.into()).unwrap();
         }
 
-        let port_obs = context.port_observer();
-        for edge in physical_plan.dag.edge_references() {
-            let source = &physical_plan.dag[edge.source()];
+        for edge_idx in physical_plan.dag.edge_indices().collect::<Vec<_>>() {
+            let (source_idx, _) = physical_plan.dag.edge_endpoints(edge_idx).unwrap();
+            let source = &physical_plan.dag[source_idx];
+            let bytes = source.bytes_out.load(Ordering::Relaxed);
+            let rows = source.rows_out.load(Ordering::Relaxed);
             let attributes = || {
                 vec![
-                    DynamicAttribute::u64("bytes", source.bytes_out.load(Ordering::Relaxed)),
-                    DynamicAttribute::u64("rows", source.rows_out.load(Ordering::Relaxed)),
+                    DynamicAttribute::u64("bytes", bytes),
+                    DynamicAttribute::u64("rows", rows),
                 ]
                 .into()
             };
-            port_obs
-                .create(edge.weight().source.id)
-                .statistics(port::Statistics {
-                    custom_attributes: attributes(),
-                });
-            port_obs
-                .create(edge.weight().target.id)
-                .statistics(port::Statistics {
-                    custom_attributes: attributes(),
-                });
+            let edge = &mut physical_plan.dag[edge_idx];
+            edge.source.handle.statistics(attributes()).unwrap();
+            edge.target.handle.statistics(attributes()).unwrap();
         }
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        for handle in &mut self.memory_handles {
-            handle.finalizing();
-            handle.exit();
+        if let Some(handle) = self.host_memory_handle.take() {
+            drop(handle.finalizing().exit());
             sleep_fixed(25);
         }
-        for handle in &mut self.channel_handles {
-            handle.finalizing();
-            handle.exit();
+        if let Some(handle) = self.storage_handle.take() {
+            drop(handle.finalizing().exit());
             sleep_fixed(25);
         }
-        for handle in &mut self.processor_handles {
-            handle.finalizing();
-            handle.exit();
+        for gpu in &mut self.gpus {
+            if let Some(handle) = gpu.memory_handle.take() {
+                drop(handle.finalizing().exit());
+                sleep_fixed(25);
+            }
+            for handle in gpu.pcie_handles.drain(..) {
+                drop(handle.finalizing().exit());
+                sleep_fixed(25);
+            }
         }
-        context.worker_observer().create(self.id).exit(worker::Exit);
+        for handle in self.storage_channel_handles.drain(..) {
+            drop(handle.finalizing().exit());
+            sleep_fixed(25);
+        }
+        for thread in self.thread_handles.drain(..) {
+            drop(thread.finalizing().exit());
+        }
+        context
+            .observer::<instr::Worker>()
+            .handle_with_id(self.id)
+            .exit()
+            .unwrap();
     }
 }
 
 struct Engine {
-    id: Uuid,
+    handle: instr::Handle<instr::Engine>,
     workers: HashMap<Uuid, Worker>,
-    network: Uuid,
-    network_links: HashMap<(Uuid, Uuid), Uuid>,
-    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle>,
+    network: instr::Handle<instr::Network>,
+    network_links: HashMap<
+        (Uuid, Uuid),
+        instr::FsmHandle<instr::NetworkChannel, instr::network_channel_state::Operating>,
+    >,
 }
 
 impl Engine {
-    fn new() -> Self {
+    fn new(context: &SimulatorContext) -> Self {
         Self {
-            id: ENGINE_ID,
+            handle: context
+                .observer::<instr::Engine>()
+                .handle_with_id(ENGINE_ID),
             workers: Default::default(),
-            network: Uuid::now_v7(),
+            network: context.observer::<instr::Network>().handle(),
             network_links: Default::default(),
-            network_link_handles: Vec::new(),
         }
     }
 
@@ -1329,16 +1516,17 @@ impl Engine {
         num_threads: usize,
         num_gpus: usize,
     ) {
-        info!("Simulating Engine {}", self.id);
-        let engine_obs = context.engine_observer();
-        engine_obs.create(self.id).init(engine::Init {
-            instance_name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
-            implementation: EngineImplementationAttributes {
-                name: Some("Simulator".into()),
-                version: Some("vibe".into()),
-                custom_attributes: Default::default(),
-            },
-        });
+        info!("Simulating Engine {}", self.handle.uuid());
+        self.handle
+            .init(
+                instr::EngineImplementationAttributes {
+                    name: Some("Simulator".into()),
+                    version: Some("vibe".into()),
+                    custom_attributes: Default::default(),
+                },
+                Some(format!("holodeck-{:04x}", rng().random::<u32>())),
+            )
+            .unwrap();
 
         // Workers
         let worker_ids = std::iter::repeat_with(Uuid::now_v7)
@@ -1352,54 +1540,46 @@ impl Engine {
                 num_threads,
                 num_gpus,
             );
-            worker.spawn(context, self.id);
+            worker.spawn(context, self.handle.uuid());
             self.workers.insert(*worker_id, worker);
         }
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        context
-            .network_observer()
-            .network(self.network, "Network", self.id);
-        let channel_obs = context.channel_observer();
+        self.network
+            .declaration("Network".to_owned(), self.handle.as_entity_ref())
+            .unwrap();
+        let channel_obs = context.observer::<instr::NetworkChannel>();
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
-                let up_link_id = Uuid::now_v7();
-                let mut up_link = channel_obs.initializing(
-                    up_link_id,
-                    &format!("worker {worker_index} -> {other_worker_index}"),
-                    self.network,
-                    self.workers[&worker_id].host_memory,
-                    self.workers[&other_worker_id].host_memory,
-                );
-                up_link.operating(None);
-                self.network_link_handles.push(up_link);
-
-                let down_link_id = Uuid::now_v7();
-                let mut down_link = channel_obs.initializing(
-                    down_link_id,
-                    &format!("worker {other_worker_index} -> {worker_index}"),
-                    self.network,
-                    self.workers[&other_worker_id].host_memory,
-                    self.workers[&worker_id].host_memory,
-                );
-                down_link.operating(None);
-                self.network_link_handles.push(down_link);
-
+                let up_link = channel_obs
+                    .handle()
+                    .initializing(
+                        format!("worker {worker_index} -> {other_worker_index}"),
+                        self.network.as_entity_ref(),
+                    )
+                    .operating();
                 self.network_links
-                    .insert((worker_id, other_worker_id), up_link_id);
+                    .insert((worker_id, other_worker_id), up_link);
+
+                let down_link = channel_obs
+                    .handle()
+                    .initializing(
+                        format!("worker {other_worker_index} -> {worker_index}"),
+                        self.network.as_entity_ref(),
+                    )
+                    .operating();
                 self.network_links
-                    .insert((other_worker_id, worker_id), down_link_id);
+                    .insert((other_worker_id, worker_id), down_link);
             }
         }
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        for handle in &mut self.network_link_handles {
-            handle.finalizing();
-            handle.exit();
+        for (_, handle) in self.network_links.drain() {
+            drop(handle.finalizing().exit());
         }
 
         // Tear down workers
@@ -1407,7 +1587,7 @@ impl Engine {
             worker.shut_down(context);
         }
 
-        context.engine_observer().create(self.id).exit(engine::Exit);
+        self.handle.exit().unwrap();
         info!("Simulated engine shut down.")
     }
 }
@@ -1444,7 +1624,7 @@ impl Default for SimulationConfig {
 
 /// Emits a simulator run through `context`.
 pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
-    let mut engine = Engine::new();
+    let mut engine = Engine::new(&context);
     engine.spawn(
         &context,
         config.num_workers,
@@ -1452,18 +1632,14 @@ pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
         config.num_gpus,
     );
 
-    for (query_group_index, query_group_id) in std::iter::repeat_with(Uuid::now_v7)
-        .take(config.num_query_groups)
-        .enumerate()
-    {
-        let query_group_obs = context.query_group_observer();
-        query_group_obs.declaration(
-            query_group_id,
-            query_group::Declaration {
-                engine_id: engine.id,
-                instance_name: format!("Simulated workload (run {query_group_index})"),
-            },
-        );
+    for query_group_index in 0..config.num_query_groups {
+        let mut query_group = context.observer::<instr::QueryGroup>().handle();
+        query_group
+            .declaration(
+                format!("Simulated workload (run {query_group_index})"),
+                engine.handle.as_entity_ref(),
+            )
+            .unwrap();
 
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..config.num_queries {
@@ -1474,12 +1650,14 @@ pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
             const QUERY_NUMBERS: &[u32] = &[42, 1337, 7, 404, 256, 99, 13, 1024, 69, 314];
             let n = QUERY_NUMBERS[query_index % QUERY_NUMBERS.len()];
             let query_name = format!("Q{n}");
-            let query_obs = context.query_observer();
-            let mut query = query_obs.init(query_id, &query_name, Ref::new(query_group_id));
-            query.planning();
-            let l_plan = make_logical_plan(query_id, "logical".into());
-            l_plan.declare(&context, None);
-            query.executing();
+            let query = context
+                .observer::<instr::Query>()
+                .handle_with_id(query_id)
+                .init(query_name, query_group.as_entity_ref())
+                .planning();
+            let mut l_plan = make_logical_plan(&context, query.as_entity_ref(), "logical".into());
+            l_plan.declare(None);
+            let query = query.executing();
 
             let workers: Vec<_> = engine.workers.values().collect();
             let result_rows = AtomicU64::new(0);
@@ -1505,7 +1683,7 @@ pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
                 }
             });
 
-            query.exit();
+            drop(query.done());
         }
     }
 
@@ -1537,7 +1715,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let context = match args.exporter.into_options() {
         Some(provider) => SimulatorContext::try_new(provider)?,
-        None => SimulatorContext::try_new(quent_model::Noop)?,
+        None => SimulatorContext::try_new(instr::Noop)?,
     };
     simulate(context, config);
     Ok(())

@@ -8,13 +8,15 @@ publish.workspace = true
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
 quent-events = { path = "../../../../crates/events" }
+quent-io = { path = "../../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
-quent-query-engine-model = { path = "../../../../domains/query_engine/model" }
 quent-query-engine-ui = { path = "../../../../domains/query_engine/ui" }
-quent-model = { path = "../../../../crates/model" }
-quent-simulator-instrumentation = { path = "../instrumentation" }
-quent-simulator-ui = { path = "../ui" }
-quent-stdlib = { path = "../../../../crates/stdlib" }
+quent-simulator-store = { path = "../store" }
+quent-store = { path = "../../../../crates/store", features = [
+    "io-msgpack",
+    "io-ndjson",
+    "io-postcard",
+] }
 quent-time = { path = "../../../../crates/time" }
 quent-ui = { path = "../../../../crates/ui" }
 rustc-hash.workspace = true

@@ -59,8 +59,8 @@ export type { ZoomRange } from './types/ZoomRange';
 export const MAX_TIMELINE_BINS = 200;
 
 // Entity types (from ui/src/types.ts)
-export { EntityTypeKey } from './entityTypes';
-export type { EntityTypeValue, SingleEntity, EntityRefKey } from './entityTypes';
+export { EntityTypeKey, unpackEntityRef } from './entityTypes';
+export type { EntityTypeValue, SingleEntity, EntityRefKey, EntityRefParts } from './entityTypes';
 
 // DAG coloring types (shared between @quent/hooks and @quent/components)
 export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from './dagTypes';

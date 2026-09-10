@@ -11,6 +11,7 @@ import {
   withOpacity,
   createCapacitiesColorFn,
   createFsmTypeColorFn,
+  unpackEntityRef,
 } from '@quent/utils';
 import type {
   ResourceTimeline,
@@ -470,7 +471,7 @@ const lookupEntity = (
   const entityKey = entityRefToEntitiesKey(entityType);
   if (!entityKey) {
     return undefined;
-  } // handles Task and future unknown EntityRef variants
+  }
 
   const entityValue = entities[entityKey];
 
@@ -489,29 +490,29 @@ export const transformResourceTree = (
 ): TreeTableItem => {
   if ('ResourceGroup' in resourceTree) {
     const node = resourceTree.ResourceGroup;
-    const [entityType, entityId] = Object.entries(node.id)[0] as [EntityRefKey, string];
-    const entity = lookupEntity(entities, entityType, entityId);
+    const { variant, typeName, id } = unpackEntityRef(node.id);
+    const entity = lookupEntity(entities, variant, id);
     const children = node.children.map(child => transformResourceTree(entities, child));
     const availableResourceTypes = collectResourceTypesFromTree(children);
 
     return {
-      id: entityId,
-      type: entityType,
+      id,
+      type: typeName,
       entity: entity as EntityTypeValue,
-      icon: getIconForType(entityType),
+      icon: getIconForType(typeName),
       children,
       availableResourceTypes,
     };
   }
 
-  const [entityType, entityId] = Object.entries(resourceTree.Resource)[0] as [EntityRefKey, string];
-  const entity = lookupEntity(entities, entityType, entityId);
+  const { variant, typeName, id } = unpackEntityRef(resourceTree.Resource);
+  const entity = lookupEntity(entities, variant, id);
 
   return {
-    id: entityId,
-    type: entityType,
+    id,
+    type: typeName,
     entity: entity as EntityTypeValue,
-    icon: getIconForType(entityType),
+    icon: getIconForType(typeName),
     children: [],
     availableResourceTypes: undefined,
   };

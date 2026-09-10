@@ -51,21 +51,12 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - name: Build legacy Python integration example
+      - name: Build schema codegen Python example
         run: |
-          pixi run maturin develop --uv -m examples/legacy/python-integration/bridge/Cargo.toml
-      - name: Run legacy Python integration example
+          pixi run maturin develop --uv -m experimental/vibe/codegen/python/example/bridge/Cargo.toml
+      - name: Run schema codegen Python example
         run: |
-          pixi run python examples/legacy/python-integration/main.py
-      - name: Type check legacy Python integration example
+          pixi run python experimental/vibe/codegen/python/example/main.py
+      - name: Type check schema codegen Python example
         run: |
-          pixi run ty check examples/legacy/python-integration/
-      - name: Build Python query engine bridge test
-        run: |
-          pixi run maturin develop --uv -m domains/query_engine/tests/python/bridge/Cargo.toml
-      - name: Run Python query engine bridge test
-        run: |
-          pixi run pytest -v domains/query_engine/tests/python/
-      - name: Type check query engine bridge test
-        run: |
-          pixi run ty check domains/query_engine/tests/python/
+          pixi run ty check experimental/vibe/codegen/python/example/

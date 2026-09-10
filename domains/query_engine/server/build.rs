@@ -61,7 +61,7 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     };
 
-    quent_simulator_ui_bindings::generate(&bindings_dir)?;
+    quent_query_engine_ui_bindings::generate(&bindings_dir)?;
     run_pnpm(&["install", "--frozen-lockfile"])?;
     run_pnpm(&["ci:build"])?;
 

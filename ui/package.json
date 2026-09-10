@@ -14,7 +14,7 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "bindings": "cargo run --manifest-path ../Cargo.toml --package quent-simulator-ui-bindings",
+    "bindings": "cargo run --manifest-path ../Cargo.toml --package quent-query-engine-ui-bindings",
     "predev": "pnpm bindings",
     "dev": "vite",
     "prestart": "pnpm bindings",

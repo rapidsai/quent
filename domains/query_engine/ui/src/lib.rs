@@ -8,18 +8,45 @@ pub use data_flow::DataFlowTimelineBinned;
 mod server;
 pub use server::ServerContract;
 
-use quent_analyzer::fsm::FsmTypeDecl;
+use quent_analyzer::{EntityId, fsm::FsmTypeDecl};
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
-use quent_query_engine_model as qe;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
     Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
     quantity::QuantitySpec,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use ts_rs::TS;
 use uuid::Uuid;
+
+/// A reference to an entity included in a query-engine view.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntityRef {
+    Engine(Uuid),
+    Worker(Uuid),
+    QueryGroup(Uuid),
+    Query(Uuid),
+    Plan(Uuid),
+    Operator(Uuid),
+    Port(Uuid),
+    Resource(Uuid),
+    ResourceGroup(Uuid),
+    // TODO(johanpel): Change `type_name` to `&'static str` after runtime-defined
+    // entity types are removed and every application entity type is statically declared. This
+    // also requires removing `Deserialize` from `EntityRef` or interning deserialized names.
+    Application { type_name: String, id: Uuid },
+}
+
+impl EntityId for EntityRef {
+    fn is_resource(&self) -> bool {
+        matches!(self, Self::Resource(_))
+    }
+
+    fn is_resource_group(&self) -> bool {
+        matches!(self, Self::ResourceGroup(_))
+    }
+}
 
 /// Quent contexts whose streams contribute to one engine view.
 ///
@@ -28,8 +55,8 @@ use uuid::Uuid;
 #[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineContexts {
     pub engine_id: Uuid,
-    /// Resource-group entities observed in each context, keyed by context ID.
-    pub context_resources: BTreeMap<Uuid, Vec<Uuid>>,
+    /// Contexts whose telemetry contributes to this engine view.
+    pub context_ids: Vec<Uuid>,
 }
 
 /// Global timeline-request parameter identifying the query to report on.
@@ -54,16 +81,6 @@ pub struct EngineImplementationAttributes {
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
     pub custom_attributes: Vec<DynamicAttribute>,
-}
-
-impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationAttributes {
-    fn from(value: &qe::engine::EngineImplementationAttributes) -> Self {
-        Self {
-            name: value.name.clone(),
-            version: value.version.clone(),
-            custom_attributes: value.custom_attributes.0.clone(),
-        }
-    }
 }
 
 /// The engine that executed a [`Query`].
@@ -306,7 +323,7 @@ pub struct QueryEntities {
 }
 
 #[derive(TS, Serialize)]
-pub struct QueryBundle<E> {
+pub struct QueryBundle<E = EntityRef> {
     /// The ID of the query.
     pub query_id: Uuid,
     /// Maps with entities that are involved in this query.
@@ -328,4 +345,38 @@ pub struct QueryBundle<E> {
     pub start_time_unix_ns: TimeUnixNanoSec,
     /// The duration of this query, in seconds.
     pub duration_s: TimeSec,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entity_ref_resource_predicates_exclude_application_entities() {
+        let id = Uuid::now_v7();
+        let cases = [
+            (EntityRef::Engine(id), false, false),
+            (EntityRef::Worker(id), false, false),
+            (EntityRef::QueryGroup(id), false, false),
+            (EntityRef::Query(id), false, false),
+            (EntityRef::Plan(id), false, false),
+            (EntityRef::Operator(id), false, false),
+            (EntityRef::Port(id), false, false),
+            (EntityRef::Resource(id), true, false),
+            (EntityRef::ResourceGroup(id), false, true),
+            (
+                EntityRef::Application {
+                    type_name: "task".to_owned(),
+                    id,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        for (entity, is_resource, is_resource_group) in cases {
+            assert_eq!(entity.is_resource(), is_resource);
+            assert_eq!(entity.is_resource_group(), is_resource_group);
+        }
+    }
 }

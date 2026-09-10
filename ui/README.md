@@ -99,7 +99,7 @@ pnpm test:e2e
 Playwright starts the Vite dev server on `http://127.0.0.1:5173` automatically
 unless `PLAYWRIGHT_BASE_URL` is set. The E2E global setup also starts
 `quent-simulator-server` on `http://127.0.0.1:18080`, runs the deterministic
-`quent-query-engine-fixed` emitter into its collector on `127.0.0.1:17836`, and
+`quent-simulator-fixed` emitter into its collector on `127.0.0.1:17836`, and
 stores generated event data in `ui/.e2e-data/`.
 
 In CI only, Playwright writes an HTML report and screenshots failures; the

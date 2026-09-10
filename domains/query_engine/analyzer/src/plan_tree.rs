@@ -44,11 +44,7 @@ impl PlanTree {
 
         let children = plans
             .values()
-            .filter(|p| {
-                p.parent()
-                    .and_then(|parent| parent.plan_id)
-                    .is_some_and(|r| r.uuid() == current_plan_id)
-            })
+            .filter(|plan| plan.parent_plan_id() == Some(current_plan_id))
             .map(|p| Self::build(p.id(), plans))
             .collect::<AnalyzerResult<Vec<_>>>()?;
 
@@ -76,11 +72,7 @@ impl PlanTree {
 
         let root_plans: Vec<_> = plans
             .values()
-            .filter(|p| {
-                p.parent()
-                    .and_then(|parent| parent.query_id)
-                    .is_some_and(|r| r.uuid() == query_id)
-            })
+            .filter(|plan| plan.parent_query_id() == Some(query_id))
             .collect();
 
         if root_plans.is_empty() {
@@ -130,27 +122,78 @@ impl<'a> Iterator for PlanTreeIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use quent_events::Event;
-    use quent_model::Ref;
-    use quent_query_engine_model::plan::{Declaration, PlanEvent, PlanParent};
-    use quent_time::TimeUnixNanoSec;
+    use quent_analyzer::{Entity, resource::ResourceGroup};
 
     use super::*;
-    use crate::plain::legacy::Plan;
+    use crate::PlanEntity;
 
-    fn make_plan(id: Uuid, parent: PlanParent, worker_id: Option<Uuid>) -> Plan {
-        let mut plan = Plan::try_new(id).unwrap();
-        plan.push(Event::new(
-            id,
-            TimeUnixNanoSec::default(),
-            PlanEvent::Declaration(Declaration {
-                parent,
-                instance_name: String::new(),
+    struct TestPlan {
+        id: Uuid,
+        parent_query_id: Option<Uuid>,
+        parent_plan_id: Option<Uuid>,
+        worker_id: Option<Uuid>,
+    }
+
+    impl Entity for TestPlan {
+        fn id(&self) -> Uuid {
+            self.id
+        }
+
+        fn type_name(&self) -> &str {
+            "plan"
+        }
+
+        fn instance_name(&self) -> &str {
+            ""
+        }
+    }
+
+    impl ResourceGroup for TestPlan {
+        fn parent_group_id(&self) -> Option<Uuid> {
+            self.parent_plan_id.or(self.parent_query_id)
+        }
+    }
+
+    impl PlanEntity for TestPlan {
+        fn parent_query_id(&self) -> Option<Uuid> {
+            self.parent_query_id
+        }
+
+        fn parent_plan_id(&self) -> Option<Uuid> {
+            self.parent_plan_id
+        }
+
+        fn worker_id(&self) -> Option<Uuid> {
+            self.worker_id
+        }
+
+        fn edges(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_ {
+            std::iter::empty()
+        }
+
+        fn to_ui(&self) -> ui::Plan {
+            ui::Plan {
+                id: self.id,
+                instance_name: None,
+                parent: self.parent_group_id(),
+                worker_id: self.worker_id,
                 edges: Vec::new(),
-                worker_id: worker_id.map(Ref::new),
-            }),
-        ));
-        plan
+            }
+        }
+    }
+
+    fn make_plan(
+        id: Uuid,
+        parent_query_id: Option<Uuid>,
+        parent_plan_id: Option<Uuid>,
+        worker_id: Option<Uuid>,
+    ) -> TestPlan {
+        TestPlan {
+            id,
+            parent_query_id,
+            parent_plan_id,
+            worker_id,
+        }
     }
 
     // Create a tree with a tunk of two plans, then split out into 3
@@ -166,38 +209,17 @@ mod tests {
 
         plans.insert(
             trunk_ids[0],
-            make_plan(
-                trunk_ids[0],
-                PlanParent {
-                    query_id: Some(Ref::new(query_id)),
-                    plan_id: None,
-                },
-                None,
-            ),
+            make_plan(trunk_ids[0], Some(query_id), None, None),
         );
         plans.insert(
             trunk_ids[1],
-            make_plan(
-                trunk_ids[1],
-                PlanParent {
-                    query_id: None,
-                    plan_id: Some(Ref::new(trunk_ids[0])),
-                },
-                None,
-            ),
+            make_plan(trunk_ids[1], None, Some(trunk_ids[0]), None),
         );
 
         for i in 0..3 {
             plans.insert(
                 leaf_ids[i],
-                make_plan(
-                    leaf_ids[i],
-                    PlanParent {
-                        query_id: None,
-                        plan_id: Some(Ref::new(trunk_ids[1])),
-                    },
-                    Some(worker_ids[i]),
-                ),
+                make_plan(leaf_ids[i], None, Some(trunk_ids[1]), Some(worker_ids[i])),
             );
         }
 
@@ -226,17 +248,7 @@ mod tests {
         let plan_id = Uuid::now_v7();
 
         let mut plans = HashMap::default();
-        plans.insert(
-            plan_id,
-            make_plan(
-                plan_id,
-                PlanParent {
-                    query_id: Some(Ref::new(query_id)),
-                    plan_id: None,
-                },
-                None,
-            ),
-        );
+        plans.insert(plan_id, make_plan(plan_id, Some(query_id), None, None));
 
         let result = PlanTree::try_new(plans.values(), query_id);
 
