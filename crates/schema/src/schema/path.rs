@@ -33,6 +33,22 @@ pub enum PathError {
 }
 
 impl Path {
+    /// Constructs a path from identifier segments.
+    pub fn try_new<S>(segments: impl IntoIterator<Item = S>) -> Result<Self, PathError>
+    where
+        S: AsRef<str>,
+    {
+        segments
+            .into_iter()
+            .enumerate()
+            .map(|(index, segment)| {
+                Identifier::try_new(segment.as_ref())
+                    .map_err(|source| PathError::InvalidSegment { index, source })
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+    }
+
     /// Returns the segments preceding the path name.
     pub fn namespace(&self) -> &[Identifier] {
         &self.namespace
@@ -80,15 +96,7 @@ impl FromStr for Path {
         if value.is_empty() {
             return Err(PathError::Empty);
         }
-        value
-            .split("::")
-            .enumerate()
-            .map(|(index, segment)| {
-                Identifier::try_new(segment)
-                    .map_err(|source| PathError::InvalidSegment { index, source })
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .try_into()
+        Self::try_new(value.split("::"))
     }
 }
 
@@ -145,6 +153,18 @@ mod tests {
         assert_eq!(path.namespace(), &[ident("Foo")]);
         assert_eq!(path.name(), "Query");
         assert_eq!(path.with_name(ident("Result")).to_string(), "Foo::Result");
+    }
+
+    #[test]
+    fn constructs_paths_from_string_segments() {
+        let path = Path::try_new(["Foo", "Query"]).unwrap();
+
+        assert_eq!(path.to_string(), "Foo::Query");
+        assert_eq!(Path::try_new([] as [&str; 0]), Err(PathError::Empty));
+        assert!(matches!(
+            Path::try_new(["Foo", "bad-name"]),
+            Err(PathError::InvalidSegment { index: 1, .. })
+        ));
     }
 
     #[test]

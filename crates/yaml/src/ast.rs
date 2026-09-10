@@ -153,12 +153,31 @@ pub(crate) enum TypeExpr {
     List(ListType),
     /// An optional value of another type.
     Option(OptionType),
+
+    // Module-specific syntax.
+    /// A canonical operating-system identity record.
+    Os(OsType),
     /// A targeted entity reference with optional data.
     Ref(RefForm),
     /// A tree-forming entity reference with optional data.
     Scope(ScopeForm),
     /// A reference claiming capacity from a resource.
     Uses(UsesForm),
+}
+
+/// An operating-system identity type.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct OsType {
+    pub(crate) os: OsRole,
+}
+
+/// The operating-system identity represented by a field.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum OsRole {
+    Process,
+    Thread,
 }
 
 /// The bare names that stand for a built-in type. Each is written lowercase in

@@ -1,0 +1,16 @@
+[package]
+name = "quent-os"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-constraints = { path = "../constraints" }
+quent-ref-target = { path = "../ref-target" }
+quent-ref-tree = { path = "../ref-tree" }
+quent-schema = { path = "../schema", features = ["serde", "visitor"] }
+rustc-hash.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }
