@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import type { DataFlowTimelineBinned, FsmTypeDecl, QuantitySpec } from '@quent/utils';
 import {
+  aggregateDataFlowOperatorFrames,
   buildDataFlowMeta,
   computeWindowMax,
   extractBinConfig,
@@ -20,9 +21,56 @@ import {
   resolveDataFlowWindow,
   timeToBinIndex,
   type DataFlowBinConfig,
+  type DataFlowOperatorFrame,
 } from './dataFlow.utils';
 
 const NUM_BINS = 4;
+
+describe('aggregateDataFlowOperatorFrames', () => {
+  const first: DataFlowOperatorFrame = {
+    total: 6,
+    byState: [3, 3],
+    byDimension: [1, 5],
+    matrix: [
+      [1, 2],
+      [0, 3],
+    ],
+    labelByState: [10, 30],
+    labelByDimension: [10, 30],
+  };
+  const second: DataFlowOperatorFrame = {
+    total: 9,
+    byState: [4, 5],
+    byDimension: [9, 0],
+    matrix: [
+      [4, 0],
+      [5, 0],
+    ],
+    labelByState: [40, 50],
+    labelByDimension: [90, 0],
+  };
+
+  it('sums state, dimension, matrix, and label values', () => {
+    expect(aggregateDataFlowOperatorFrames([first, second], 2, 2, false)).toEqual({
+      total: 15,
+      byState: [7, 8],
+      byDimension: [10, 5],
+      matrix: [
+        [5, 2],
+        [5, 3],
+      ],
+      labelByState: [50, 80],
+      labelByDimension: [100, 30],
+    });
+  });
+
+  it('aliases label totals when labels follow the displayed measure', () => {
+    const result = aggregateDataFlowOperatorFrames([first, second], 2, 2, true);
+
+    expect(result.labelByState).toBe(result.byState);
+    expect(result.labelByDimension).toBe(result.byDimension);
+  });
+});
 
 /** 4 bins over [0, 8) seconds; two dimension keys; two measures. */
 function makeBinned(operators: DataFlowTimelineBinned['operators'] = {}): DataFlowTimelineBinned {
