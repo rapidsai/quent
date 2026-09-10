@@ -96,6 +96,7 @@ export type {
   SelectedOperatorData,
   SelectedOperatorGroupData,
 } from './operatorTypes';
+export { operatorLocationDescription, operatorWorkerLabel } from './operatorTypes';
 export {
   buildRelatedOperatorIdsById,
   resolveOperatorSelectionCandidates,

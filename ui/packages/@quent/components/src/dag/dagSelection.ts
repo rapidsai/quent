@@ -33,11 +33,13 @@ function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
     label: node.label,
     operationType: node.type,
     statistics: parseCustomStatistics(metadata?.rawNode),
+    workerLabel: metadata?.operatorWorkerLabels?.[node.id],
     relatedOperators: metadata?.relatedOperators?.map(operator => ({
       nodeId: operator.id,
       label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
       operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
       statistics: parseCustomStatistics(operator),
+      workerLabel: metadata?.operatorWorkerLabels?.[operator.id],
     })),
   };
 }

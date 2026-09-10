@@ -36,13 +36,21 @@ export const OperatorAccordion = ({
         className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 my-1 text-left hover:bg-muted/50"
         aria-label={`Toggle ${operator.label} details`}
       >
-        <DataText className="min-w-0 truncate text-xs font-medium" title={operator.label}>
+        <DataText className="min-w-0 flex-1 truncate text-xs font-medium" title={operator.label}>
           {operator.label}
         </DataText>
-        <DataText className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs capitalize text-muted-foreground">
+        <DataText className="shrink-0 rounded bg-muted px-1.5 pt-0.5 pb-px text-xs leading-none capitalize text-muted-foreground">
           {operator.operationType}
         </DataText>
-        <ChevronDown className="ml-auto h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+        {operator.workerLabel && (
+          <DataText
+            className="min-w-0 shrink truncate text-[10px] text-muted-foreground"
+            title={`Worker: ${operator.workerLabel}`}
+          >
+            {operator.workerLabel}
+          </DataText>
+        )}
+        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>{children}</CollapsibleContent>
     </div>
