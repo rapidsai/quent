@@ -12,6 +12,8 @@
 //! is not representable in standard Rust AST and cannot be formatted by
 //! `prettyplease`.
 
+use std::collections::BTreeMap;
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -752,19 +754,27 @@ pub mod ffi {{
 /// Generate a CXX shared struct definition string for a set of attributes.
 /// Recursively generates nested struct definitions for `ValueType::Struct` fields.
 /// Returns (field definitions string, additional struct definitions string).
-fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (String, String) {
+fn generate_cxx_struct_fields(
+    attrs: &[AttributeDef],
+    parent_name: &str,
+    emitted_structs: &mut BTreeMap<String, String>,
+) -> (String, String) {
     let mut fields_str = String::new();
     let mut nested_structs = String::new();
 
     for attr in attrs {
-        if let ValueType::Struct(_, inner_attrs) = &attr.value_type {
-            // Generate a nested struct with PascalCase name from the field name
-            let nested_name = to_pascal_case(&attr.name);
-            let (inner_fields, more_nested) = generate_cxx_struct_fields(inner_attrs, &nested_name);
+        if let ValueType::Struct(type_path, inner_attrs) = &attr.value_type {
+            let nested_name = cxx_struct_name(type_path, &attr.name, emitted_structs);
+            let (inner_fields, more_nested) =
+                generate_cxx_struct_fields(inner_attrs, &nested_name, emitted_structs);
             nested_structs.push_str(&more_nested);
-            nested_structs.push_str(&format!(
-                "    #[derive(Debug, Default)]\n    pub struct {nested_name} {{\n{inner_fields}    }}\n\n"
-            ));
+            append_cxx_struct_definition(
+                &mut nested_structs,
+                emitted_structs,
+                &nested_name,
+                type_path,
+                &inner_fields,
+            );
 
             if attr.optional {
                 // Optional nested struct: include a has_ flag
@@ -781,14 +791,18 @@ fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (Str
                 fields_str.push_str(&format!("        pub {}: {},\n", attr.name, nested_name));
             }
         } else if let ValueType::List(inner) = &attr.value_type {
-            if let ValueType::Struct(_, inner_attrs) = inner.as_ref() {
-                let nested_name = to_pascal_case(&attr.name);
+            if let ValueType::Struct(type_path, inner_attrs) = inner.as_ref() {
+                let nested_name = cxx_struct_name(type_path, &attr.name, emitted_structs);
                 let (inner_fields, more_nested) =
-                    generate_cxx_struct_fields(inner_attrs, &nested_name);
+                    generate_cxx_struct_fields(inner_attrs, &nested_name, emitted_structs);
                 nested_structs.push_str(&more_nested);
-                nested_structs.push_str(&format!(
-                    "    #[derive(Debug, Default)]\n    pub struct {nested_name} {{\n{inner_fields}    }}\n\n"
-                ));
+                append_cxx_struct_definition(
+                    &mut nested_structs,
+                    emitted_structs,
+                    &nested_name,
+                    type_path,
+                    &inner_fields,
+                );
                 fields_str.push_str(&format!(
                     "        pub {}: Vec<{}>,\n",
                     attr.name, nested_name
@@ -816,6 +830,38 @@ fn generate_cxx_struct_fields(attrs: &[AttributeDef], parent_name: &str) -> (Str
     }
 
     (fields_str, nested_structs)
+}
+
+fn append_cxx_struct_definition(
+    output: &mut String,
+    emitted_structs: &mut BTreeMap<String, String>,
+    name: &str,
+    type_path: &str,
+    fields: &str,
+) {
+    if let Some(existing_path) = emitted_structs.get(name) {
+        assert_eq!(
+            existing_path, type_path,
+            "model types `{existing_path}` and `{type_path}` both map to CXX struct `{name}`"
+        );
+        return;
+    }
+
+    emitted_structs.insert(name.to_string(), type_path.to_string());
+    output.push_str(&format!(
+        "    #[derive(Debug, Default)]\n    pub struct {name} {{\n{fields}    }}\n\n"
+    ));
+}
+
+fn cxx_struct_name(
+    type_path: &str,
+    field_name: &str,
+    emitted_structs: &BTreeMap<String, String>,
+) -> String {
+    emitted_structs
+        .iter()
+        .find_map(|(name, emitted_path)| (emitted_path == type_path).then(|| name.clone()))
+        .unwrap_or_else(|| to_pascal_case(field_name))
 }
 
 /// Generate a field conversion expression for an attribute: `name: <conversion>(data.name)`.
@@ -898,7 +944,7 @@ fn emit_struct_conversion(
     q: &syn::Path,
     component_mod: &syn::Path,
 ) -> TokenStream {
-    let struct_path = qualify_struct_path(type_path, component_mod);
+    let struct_path = type_from_model_path(type_path, component_mod);
     let field_conversions: Vec<TokenStream> = attrs
         .iter()
         .map(|a| emit_field_conversion_tokens(a, q, component_mod))
@@ -910,60 +956,16 @@ fn emit_struct_conversion(
     }
 }
 
-/// Resolve a model struct path into the facade path used by generated CXX bridge code.
-///
-/// Attribute metadata stores the path as it appeared at the declaration site. For
-/// example, an FSM in `my_instrumentation::task` can refer to local structs as
-/// `MemorySpaceId`, child-module structs as `attrs::MemorySpaceId`, or sibling
-/// module structs as `super::attrs::MemorySpaceId`. Generated bridge code lives
-/// outside that module, so relative paths must be qualified with the remapped
-/// component module path before constructing the real model struct.
-fn qualify_struct_path(type_path: &str, component_mod: &syn::Path) -> syn::Path {
-    let parsed: syn::Path = syn::parse_str(type_path).unwrap();
-    if parsed.leading_colon.is_some() {
-        return parsed;
-    }
-
-    let component_root = component_mod
+fn type_from_model_path(type_path: &str, component_mod: &syn::Path) -> syn::Path {
+    let (_, relative_path) = type_path
+        .split_once("::")
+        .expect("struct type name must be fully qualified");
+    let instrumentation_crate = &component_mod
         .segments
         .first()
         .expect("component module path must not be empty")
-        .ident
-        .to_string();
-    if parsed
-        .segments
-        .first()
-        .is_some_and(|seg| seg.ident == component_root.as_str())
-    {
-        return parsed;
-    }
-
-    let mut prefix: Vec<syn::PathSegment> = component_mod.segments.iter().cloned().collect();
-    let mut suffix: Vec<syn::PathSegment> = parsed.segments.iter().cloned().collect();
-
-    if suffix.first().is_some_and(|seg| seg.ident == "crate") {
-        prefix.truncate(1);
-        suffix.remove(0);
-    } else if suffix.first().is_some_and(|seg| seg.ident == "self") {
-        suffix.remove(0);
-    }
-
-    while suffix.first().is_some_and(|seg| seg.ident == "super") {
-        prefix
-            .pop()
-            .expect("struct path cannot escape instrumentation facade");
-        suffix.remove(0);
-    }
-
-    let mut segments = syn::punctuated::Punctuated::<syn::PathSegment, syn::token::PathSep>::new();
-    for segment in prefix.into_iter().chain(suffix) {
-        segments.push(segment);
-    }
-
-    syn::Path {
-        leading_colon: None,
-        segments,
-    }
+        .ident;
+    syn::parse_str(&format!("{instrumentation_crate}::{relative_path}")).unwrap()
 }
 
 /// Generate a CXX bridge for an entity with events.
@@ -989,6 +991,7 @@ fn emit_entity_bridge(
 
     // Strings for ffi module (CXX-specific syntax)
     let mut shared_structs_str = String::new();
+    let mut emitted_structs = BTreeMap::new();
     let mut extern_rust_body = String::new();
     extern_rust_body.push_str(&format!("        type {observer_name_str};\n\n"));
     extern_rust_body.push_str(&format!(
@@ -1017,8 +1020,11 @@ fn emit_entity_bridge(
             });
         } else {
             // Struct event -- generate shared struct and conversion
-            let (fields_str, nested_structs) =
-                generate_cxx_struct_fields(&event.attributes, &event_pascal_str);
+            let (fields_str, nested_structs) = generate_cxx_struct_fields(
+                &event.attributes,
+                &event_pascal_str,
+                &mut emitted_structs,
+            );
             shared_structs_str.push_str(&nested_structs);
             shared_structs_str.push_str(&format!(
                 "    #[derive(Debug)]\n    pub struct {event_pascal_str} {{\n{fields_str}    }}\n\n"
@@ -1304,13 +1310,14 @@ fn emit_fsm_bridge(
 
     // Build ffi module shared structs as string
     let mut shared_structs_str = String::new();
+    let mut emitted_structs = BTreeMap::new();
     for state in &fsm.states {
         if state.attributes.is_empty() && state.usages.is_empty() {
             continue;
         }
         let state_pascal = to_pascal_case(&state.name);
         let (attr_fields_str, nested_structs) =
-            generate_cxx_struct_fields(&state.attributes, &state_pascal);
+            generate_cxx_struct_fields(&state.attributes, &state_pascal, &mut emitted_structs);
         shared_structs_str.push_str(&nested_structs);
         let mut fields_str = attr_fields_str;
         for usage in &state.usages {

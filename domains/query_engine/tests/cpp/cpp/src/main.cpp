@@ -167,13 +167,26 @@ int main() {
                                  .custom_attributes = std::move(op_custom),
                              });
 
-  // Operator: statistics with custom attributes.
+  // Operator: statistics with information and a port relation.
   quent::DynamicAttributes op_stats;
   op_stats.i64_attrs.push_back({"rows_processed", 10000});
   op_stats.f64_attrs.push_back({"elapsed_ms", 42.5});
 
   op_obs->statistics(op_id, quent::operator_::Statistics{
-                                .custom_attributes = std::move(op_stats),
+                                .information =
+                                    {
+                                        quent::operator_::Information{
+                                            .heading = "Runtime",
+                                            .items = std::move(op_stats),
+                                        },
+                                    },
+                                .port_relations =
+                                    {
+                                        quent::operator_::PortRelations{
+                                            .port_id = port_src,
+                                            .role = "build",
+                                        },
+                                    },
                             });
 
   // Port: declaration with operator reference.
@@ -184,12 +197,18 @@ int main() {
                                      .instance_name = "output-0",
                                  });
 
-  // Port: statistics with custom attributes.
+  // Port: statistics with information.
   quent::DynamicAttributes port_stats;
   port_stats.i64_attrs.push_back({"bytes_transferred", 1048576});
 
   port_obs->statistics(port_id, quent::port::Statistics{
-                                    .custom_attributes = std::move(port_stats),
+                                    .information =
+                                        {
+                                            quent::port::Information{
+                                                .heading = "Transfer",
+                                                .items = std::move(port_stats),
+                                            },
+                                        },
                                 });
 
   // Worker: exit.

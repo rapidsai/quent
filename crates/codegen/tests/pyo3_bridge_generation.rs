@@ -174,6 +174,16 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
     assert!(
         bridge
             .content
+            .contains("quent_qe_python_instrumentation::information::InformationGroup")
+    );
+    assert!(
+        bridge
+            .content
+            .contains("quent_qe_python_instrumentation::operator::PortRelation")
+    );
+    assert!(
+        bridge
+            .content
             .contains("worker_id: Option<PyRef<'_, PyUuid>>")
     );
     assert!(!bridge.content.contains("self.inner.init("));
@@ -193,6 +203,18 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
             .contains("custom_attributes: Mapping[str, bool | int | float | str | None]")
     );
     assert!(stubs.content.contains("class PlanParentDict"));
+    assert!(stubs.content.contains("class InformationGroupDict"));
+    assert!(stubs.content.contains("class PortRelationDict"));
+    assert!(
+        stubs
+            .content
+            .contains("information: list[InformationGroupDict]")
+    );
+    assert!(
+        stubs
+            .content
+            .contains("port_relations: list[PortRelationDict]")
+    );
     assert!(
         stubs
             .content

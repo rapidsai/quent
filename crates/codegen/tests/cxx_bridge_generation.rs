@@ -122,6 +122,22 @@ fn generate_query_engine_cxx_bridge() {
         "plan.rs should contain Edges shared struct (from Vec<Edge>)"
     );
 
+    let operator_file = files.iter().find(|f| f.name == "operator.rs").unwrap();
+    assert_eq!(
+        operator_file
+            .content
+            .matches("pub struct PortRelations")
+            .count(),
+        1,
+        "operator.rs should reuse PortRelations across events"
+    );
+    assert!(operator_file.content.contains("pub struct Information"));
+    assert!(
+        operator_file
+            .content
+            .contains("port_relations: Vec<PortRelations>")
+    );
+
     let engine_file = files.iter().find(|f| f.name == "engine.rs").unwrap();
     assert!(
         engine_file.content.contains("pub struct Implementation"),

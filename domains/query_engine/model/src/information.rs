@@ -19,8 +19,8 @@ pub enum InformationGroupError {
 /// A producer-defined heading and its information items, in display order.
 #[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct InformationGroup {
-    heading: String,
-    items: DynamicAttributes,
+    pub heading: String,
+    pub items: DynamicAttributes,
 }
 
 impl InformationGroup {

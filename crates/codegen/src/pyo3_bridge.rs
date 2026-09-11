@@ -92,11 +92,15 @@ fn event_enum_ident(component_name: &str) -> syn::Ident {
 }
 
 fn type_from_model_path(type_path: &str, component_mod: &syn::Path) -> syn::Type {
-    if type_path.contains("::") {
-        syn::parse_str(type_path).unwrap()
-    } else {
-        syn::parse_str(&format!("{}::{}", quote!(#component_mod), type_path)).unwrap()
-    }
+    let (_, relative_path) = type_path
+        .split_once("::")
+        .expect("struct type name must be fully qualified");
+    let instrumentation_crate = &component_mod
+        .segments
+        .first()
+        .expect("component module path must not be empty")
+        .ident;
+    syn::parse_str(&format!("{instrumentation_crate}::{relative_path}")).unwrap()
 }
 
 fn value_type_rust_extract(ty: &ValueType) -> TokenStream {
