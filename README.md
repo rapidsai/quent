@@ -205,6 +205,8 @@ Built-in mods include things useful for a wide variety of applications:
     that checks whether resources were saturated above some threshold for a
     certain duration, or it can generate data for a resource utilization
     timeline visualization.
+- [`quent-log`](crates/log/): defines entity-scoped logging sinks with ordered
+  severity levels and optional facade-provided target and source attributes.
 - [`quent-ref-target`](crates/ref-target/): constrains references to other
   entities to be of a certain type.
 - [`quent-ref-tree`](crates/ref-tree/): allows forming hierarchies of

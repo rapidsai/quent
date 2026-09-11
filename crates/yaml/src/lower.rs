@@ -16,6 +16,7 @@
 use indexmap::IndexMap;
 use quent_constraints::Constraint;
 use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
+use quent_log::{LevelDecl, LogConstraint, LogEntityBuilder, SourceFields};
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_resource::{Capacity, Resource, ResourceBuilder};
@@ -171,8 +172,32 @@ fn entity_of(
         anns = anns.with_constraint(Resource::NAME, Some(data));
     }
 
+    if entity.events.present && entity.log.is_some() {
+        sink.error(
+            &path,
+            "`events:` and `log:` are mutually exclusive on an entity",
+            None,
+        );
+        return None;
+    }
+
+    let annotations = build_or_diagnose(anns.build(), &path, sink).unwrap_or_default();
+    if let Some(log) = &entity.log {
+        let entity = log_entity_of(
+            id?,
+            log,
+            annotations,
+            &path,
+            bounds_record.as_ref(),
+            resources,
+            sink,
+        );
+        return entity.map(|entity| (entity, records));
+    }
+
     let events: Vec<_> = entity
         .events
+        .entries
         .iter()
         .filter_map(|(event_name, event)| {
             event_of(
@@ -187,7 +212,7 @@ fn entity_of(
         .collect();
     match EntityBuilder::new(id?)
         .with_events(events)
-        .with_annotations(build_or_diagnose(anns.build(), &path, sink).unwrap_or_default())
+        .with_annotations(annotations)
         .build()
     {
         Ok(entity) => Some((entity, records)),
@@ -201,6 +226,82 @@ fn entity_of(
         }
         Err(error) => {
             sink.error(&path, error.to_string(), None);
+            None
+        }
+    }
+}
+
+/// Lower a `log:` block into one repeatable event per declared level.
+fn log_entity_of(
+    id: Identifier,
+    log: &ast::LogSpec,
+    annotations: Annotations,
+    entity_path: &str,
+    bounds_record: Option<&Path>,
+    resources: &ResourceLowerer,
+    sink: &mut Diagnostics,
+) -> Option<Entity> {
+    let log_path = format!("{entity_path}.log");
+    let source = match &log.source {
+        None | Some(ast::LogSource::All(false)) => SourceFields::default(),
+        Some(ast::LogSource::All(true)) => SourceFields::all(),
+        Some(ast::LogSource::Detailed(source)) => {
+            SourceFields::new(source.file, source.line, source.module)
+        }
+    };
+    let common = event_fields(
+        &log.attributes,
+        &format!("{log_path}.attributes"),
+        bounds_record,
+        resources,
+        sink,
+    );
+
+    let mut levels = Vec::new();
+    let mut complete = true;
+    for (rank, level) in log.levels.iter().enumerate() {
+        let level_path = format!("{log_path}.levels.{rank}");
+        let Some(name) = ident(&level.name, &format!("{level_path}.name"), sink) else {
+            complete = false;
+            continue;
+        };
+        let attributes = event_fields(
+            &level.attributes,
+            &format!("{level_path}.attributes"),
+            bounds_record,
+            resources,
+            sink,
+        );
+        let event_annotations = match &level.doc {
+            Some(doc) => AnnotationsBuilder::new().with_docs(doc).build(),
+            None => AnnotationsBuilder::new().build(),
+        };
+        let Some(event_annotations) = build_or_diagnose(event_annotations, &level_path, sink)
+        else {
+            complete = false;
+            continue;
+        };
+        levels.push(LevelDecl {
+            name,
+            annotations: event_annotations,
+            attributes,
+        });
+    }
+    if !complete {
+        return None;
+    }
+
+    match LogEntityBuilder::new(id)
+        .with_annotations(annotations)
+        .with_target(log.target)
+        .with_source(source)
+        .with_attributes(common)
+        .with_levels(levels)
+        .build()
+    {
+        Ok(entity) => Some(entity),
+        Err(error) => {
+            sink.error(&log_path, error.to_string(), None);
             None
         }
     }
@@ -558,6 +659,14 @@ fn annotations_builder(
             sink.error(
                 path,
                 "the resource constraint is set from a `resource:` block, not written directly",
+                None,
+            );
+            continue;
+        }
+        if name == LogConstraint::NAME {
+            sink.error(
+                path,
+                "the log constraint is set from a `log:` block, not written directly",
                 None,
             );
             continue;

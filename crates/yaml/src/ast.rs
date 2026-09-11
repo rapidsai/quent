@@ -21,6 +21,16 @@ use serde::Deserialize;
 /// mapping, is rejected while reading.
 pub(crate) type AnnotationMap = IndexMap<String, Option<String>>;
 
+/// Deserialize a present optional field without accepting YAML `null` as
+/// equivalent to absence.
+fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
 /// A whole model file.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -95,9 +105,76 @@ pub(crate) struct Entity {
     #[serde(default)]
     pub(crate) metadata: AnnotationMap,
     #[serde(default)]
-    pub(crate) events: IndexMap<String, Event>,
+    pub(crate) events: EventMap,
+    #[serde(default, deserialize_with = "present")]
+    pub(crate) log: Option<LogSpec>,
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+}
+
+/// Entity events together with whether the `events:` key was present.
+///
+/// Presence is retained so an empty `events: {}` still conflicts with `log:`.
+#[derive(Debug, Default)]
+pub(crate) struct EventMap {
+    pub(crate) present: bool,
+    pub(crate) entries: IndexMap<String, Event>,
+}
+
+impl<'de> Deserialize<'de> for EventMap {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self {
+            present: true,
+            entries: IndexMap::deserialize(deserializer)?,
+        })
+    }
+}
+
+/// A log sink: standard fields, common attributes, and ordered levels.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct LogSpec {
+    #[serde(default)]
+    pub(crate) target: bool,
+    #[serde(default, deserialize_with = "present")]
+    pub(crate) source: Option<LogSource>,
+    #[serde(default)]
+    pub(crate) attributes: IndexMap<String, Field>,
+    pub(crate) levels: Vec<LogLevel>,
+}
+
+/// Source-field selection, either all fields or an independent selection.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum LogSource {
+    All(bool),
+    Detailed(LogSourceFields),
+}
+
+/// Individually selected log source fields.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct LogSourceFields {
+    #[serde(default)]
+    pub(crate) file: bool,
+    #[serde(default)]
+    pub(crate) line: bool,
+    #[serde(default)]
+    pub(crate) module: bool,
+}
+
+/// One log level and its event-specific additions.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct LogLevel {
+    pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) doc: Option<String>,
+    #[serde(default)]
+    pub(crate) attributes: IndexMap<String, Field>,
 }
 
 /// An entity event.
