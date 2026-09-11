@@ -2,21 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import type { QueryBundle, EntityRef, Plan, Operator, Port, PlanTree } from '@quent/utils';
+import type { QueryBundle, EntityRef, Plan, Operator, Port, PlanTree, Worker } from '@quent/utils';
 import { validateQueryBundle, getTreeData, getPlanDAG } from './query-bundle-transformer';
 
 // ---- Helpers ---------------------------------------------------------------
 
 function makePlan(
   id: string,
-  opts: { instanceName?: string | null; edges?: Plan['edges'] } = {}
+  opts: { instanceName?: string | null; edges?: Plan['edges']; workerId?: string | null } = {}
 ): Plan {
   return {
     id,
     instance_name: opts.instanceName ?? null,
     parent: null,
-    worker_id: null,
+    worker_id: opts.workerId ?? null,
     edges: opts.edges ?? [],
+  };
+}
+
+function makeWorker(id: string, instanceName: string | null = null): Worker {
+  return {
+    id,
+    parent_engine_id: null,
+    instance_name: instanceName,
+    start_unix_ns: null,
+    end_unix_ns: null,
   };
 }
 
@@ -58,6 +68,7 @@ function makeBundle(
   opts: {
     operators?: Record<string, Operator | undefined>;
     ports?: Record<string, Port | undefined>;
+    workers?: Record<string, Worker | undefined>;
     planTree?: PlanTree;
   } = {}
 ): QueryBundle<EntityRef> {
@@ -66,6 +77,7 @@ function makeBundle(
       plans,
       operators: opts.operators ?? {},
       ports: opts.ports ?? {},
+      workers: opts.workers ?? {},
     },
     plan_tree: opts.planTree ?? makePlanTree(Object.keys(plans)[0] ?? 'p1'),
   } as unknown as QueryBundle<EntityRef>;
@@ -369,6 +381,74 @@ describe('getPlanDAG', () => {
     const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.rawNode).toBe(op1);
+  });
+
+  it('attaches the resolved worker label to node metadata', () => {
+    const op1 = makeOperator('op1', { typeName: 'Scan', planId: 'p1' });
+    const op2 = makeOperator('op2', { typeName: 'Join' });
+    const port1 = makePort('port1', 'op1');
+    const port2 = makePort('port2', 'op2');
+    const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }], workerId: 'w1' });
+    const worker = makeWorker('w1', 'drone-1');
+    const bundle = makeBundle(
+      { p1: plan },
+      { operators: { op1, op2 }, ports: { port1, port2 }, workers: { w1: worker } }
+    );
+    const result = getPlanDAG(bundle, 'p1');
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
+      op1: 'drone-1',
+    });
+  });
+
+  it('sets the worker label to undefined when the operator has no plan or worker', () => {
+    const op1 = makeOperator('op1', { typeName: 'Scan' }); // no planId
+    const op2 = makeOperator('op2', { typeName: 'Join' });
+    const port1 = makePort('port1', 'op1');
+    const port2 = makePort('port2', 'op2');
+    const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
+    const result = getPlanDAG(bundle, 'p1');
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
+      op1: undefined,
+    });
+  });
+
+  it('attaches worker labels for related operators, keyed by their own id', () => {
+    const logical = makeOperator('logical', {
+      typeName: 'LogicalJoin',
+      planId: 'logical-plan',
+    });
+    const sibling = makeOperator('sibling', { typeName: 'LogicalScan', planId: 'logical-plan' });
+    const physical = makeOperator('physical', {
+      typeName: 'HashJoin',
+      planId: 'physical-plan',
+      parentOperatorIds: ['logical'],
+    });
+    const logicalPort = makePort('logical-port', 'logical');
+    const siblingPort = makePort('sibling-port', 'sibling');
+    const logicalPlan = makePlan('logical-plan', {
+      edges: [{ source: 'logical-port', target: 'sibling-port' }],
+      workerId: 'w-logical',
+    });
+    const physicalPlan = makePlan('physical-plan', { workerId: 'w-physical' });
+    const bundle = makeBundle(
+      { 'logical-plan': logicalPlan, 'physical-plan': physicalPlan },
+      {
+        operators: { logical, sibling, physical },
+        ports: { 'logical-port': logicalPort, 'sibling-port': siblingPort },
+        workers: {
+          'w-logical': makeWorker('w-logical', 'drone-logical'),
+          'w-physical': makeWorker('w-physical', 'drone-physical'),
+        },
+      }
+    );
+
+    const result = getPlanDAG(bundle, 'logical-plan');
+
+    expect(result.nodes.find(n => n.id === 'logical')!.metadata!.operatorWorkerLabels).toEqual({
+      logical: 'drone-logical',
+      physical: 'drone-physical',
+    });
   });
 
   it('attaches related lower-level operator IDs from parent_operator_ids', () => {

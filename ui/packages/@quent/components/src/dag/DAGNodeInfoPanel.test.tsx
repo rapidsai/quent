@@ -262,6 +262,15 @@ describe('DAGNodeInfoPanel', () => {
     await screen.findAllByText('Table scan');
     expect(screen.getByText('worker-1')).toBeInTheDocument();
     expect(screen.getByText('worker-2')).toBeInTheDocument();
+
+    // Each toggle must have a distinct accessible name, otherwise screen readers
+    // and role-based queries can't tell same-named operators apart.
+    expect(
+      screen.getByRole('button', { name: 'Toggle Table scan (worker-1) details' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Toggle Table scan (worker-2) details' })
+    ).toBeInTheDocument();
   });
 
   it('collapses related child operators independently', async () => {
