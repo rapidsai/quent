@@ -29,7 +29,6 @@ export interface SelectedOperatorGroupData extends SelectedOperatorData {
   relatedOperators?: SelectedOperatorData[];
 }
 
-/** Resolves the plan and worker an operator ran on, if known. */
 function resolveOperatorWorker(
   operator: Operator,
   plans: Record<string, Plan>,
@@ -40,7 +39,6 @@ function resolveOperatorWorker(
   return { plan, worker };
 }
 
-/** Builds a "Plan / Worker" subtitle so operators sharing the same name can be told apart. */
 export function operatorLocationDescription(
   operator: Operator,
   plans: Record<string, Plan>,
@@ -55,7 +53,6 @@ export function operatorLocationDescription(
   return workerLabel ? `Plan: ${planLabel} · Worker: ${workerLabel}` : `Plan: ${planLabel}`;
 }
 
-/** Resolves just the worker name for an operator, so operators sharing the same name can be told apart. */
 export function operatorWorkerLabel(
   operator: Operator,
   plans: Record<string, Plan>,
