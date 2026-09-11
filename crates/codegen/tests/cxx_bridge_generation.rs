@@ -132,6 +132,7 @@ fn generate_query_engine_cxx_bridge() {
         "operator.rs should reuse PortRelations across events"
     );
     assert!(operator_file.content.contains("pub struct Information"));
+    assert!(operator_file.content.contains("items: DynamicAttributes"));
     assert!(
         operator_file
             .content

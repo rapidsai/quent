@@ -25,8 +25,7 @@ function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
             {
               heading: 'Summary',
               items: Object.entries(stats).map(([key, value]) => ({
-                key,
-                value,
+                attribute: { key, value },
                 quantity: null,
               })),
             },

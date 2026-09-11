@@ -76,8 +76,7 @@ function makeOperator(statistics: Record<string, unknown> | undefined) {
               {
                 heading: 'Summary',
                 items: Object.entries(statistics).map(([key, value]) => ({
-                  key,
-                  value,
+                  attribute: { key, value },
                   quantity: null,
                 })),
               },
@@ -115,7 +114,12 @@ describe('parseCustomStatistics', () => {
         information: [
           {
             heading: 'Summary',
-            items: [{ key: 'bytes', value: makeTagged('UInt64', 1024), quantity: 'bytes' }],
+            items: [
+              {
+                attribute: { key: 'bytes', value: makeTagged('UInt64', 1024) },
+                quantity: 'bytes',
+              },
+            ],
           },
         ],
         port_relations: [],
@@ -180,11 +184,11 @@ describe('parseCustomStatistics', () => {
         information: [
           {
             heading: 'Second',
-            items: [{ key: 'repeat', value: 2, quantity: null }],
+            items: [{ attribute: { key: 'repeat', value: 2 }, quantity: null }],
           },
           {
             heading: 'First',
-            items: [{ key: 'repeat', value: 1, quantity: null }],
+            items: [{ attribute: { key: 'repeat', value: 1 }, quantity: null }],
           },
         ],
         port_relations: [{ port_id: 'port-1', role: 'build' }],
@@ -233,8 +237,7 @@ function makePort(statistics: Record<string, unknown> | undefined) {
               {
                 heading: 'Summary',
                 items: Object.entries(statistics).map(([key, value]) => ({
-                  key,
-                  value,
+                  attribute: { key, value },
                   quantity: null,
                 })),
               },

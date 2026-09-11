@@ -47,7 +47,7 @@ function parseInformation(
 
   return information.map(group => ({
     heading: group.heading,
-    items: group.items.map(({ key, value, quantity }) => ({
+    items: group.items.map(({ attribute: { key, value }, quantity }) => ({
       key,
       value: value == null ? null : unwrapTaggedValue(value),
       ...(quantity != null ? { quantity } : {}),

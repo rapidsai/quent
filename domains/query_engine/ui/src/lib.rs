@@ -179,12 +179,10 @@ pub struct Plan {
 
 #[derive(TS, Debug, Serialize)]
 pub struct InformationItem {
-    /// The producer-defined key of this item.
-    pub key: String,
-    /// The value of this item.
-    pub value: Option<DynamicValue>,
+    /// The producer-defined attribute displayed by this item.
+    pub attribute: DynamicAttribute,
     /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
-    /// to display this statistic.
+    /// to display this item.
     pub quantity: Option<String>,
 }
 

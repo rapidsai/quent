@@ -103,9 +103,9 @@ impl OperatorEntity for Operator {
                     items: group
                         .items()
                         .iter()
-                        .map(|DynamicAttribute { key, value }| ui::InformationItem {
-                            key: key.clone(),
-                            value: value.clone(),
+                        .cloned()
+                        .map(|attribute| ui::InformationItem {
+                            attribute,
                             quantity: None,
                         })
                         .collect(),

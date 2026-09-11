@@ -208,6 +208,11 @@ fn generate_query_engine_pyo3_bridge_and_stubs() {
     assert!(
         stubs
             .content
+            .contains("items: Mapping[str, bool | int | float | str | None]")
+    );
+    assert!(
+        stubs
+            .content
             .contains("information: list[InformationGroupDict]")
     );
     assert!(

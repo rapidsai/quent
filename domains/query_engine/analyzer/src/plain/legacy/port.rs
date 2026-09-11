@@ -49,9 +49,9 @@ impl PortEntity for Port {
                         items: group
                             .items()
                             .iter()
-                            .map(|item| ui::InformationItem {
-                                key: item.key.clone(),
-                                value: item.value.clone(),
+                            .cloned()
+                            .map(|attribute| ui::InformationItem {
+                                attribute,
                                 quantity: None,
                             })
                             .collect(),

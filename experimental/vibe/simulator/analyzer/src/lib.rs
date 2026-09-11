@@ -286,11 +286,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 if let Some(statistics) = &mut ui_operator.statistics {
                     for group in &mut statistics.information {
                         for statistic in &mut group.items {
-                            let name = std::mem::take(&mut statistic.key);
+                            let name = std::mem::take(&mut statistic.attribute.key);
                             let name = if let Some(value) =
-                                scale_operator_statistic(&name, &statistic.value)
+                                scale_operator_statistic(&name, &statistic.attribute.value)
                             {
-                                statistic.value = Some(value);
+                                statistic.attribute.value = Some(value);
                                 statistic.quantity = Some(QUANTITY_SECONDS.to_owned());
                                 scaled_operator_statistic_name(name)
                             } else {
@@ -298,7 +298,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                                     operator_statistic_quantity(&name).map(str::to_owned);
                                 name
                             };
-                            statistic.key = name;
+                            statistic.attribute.key = name;
                         }
                     }
                 }
