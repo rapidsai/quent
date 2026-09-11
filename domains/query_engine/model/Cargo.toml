@@ -7,4 +7,5 @@ publish.workspace = true
 [dependencies]
 quent-model = { path = "../../../crates/model" }
 serde.workspace = true
+thiserror.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }

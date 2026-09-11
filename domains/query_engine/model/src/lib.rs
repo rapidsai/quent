@@ -6,6 +6,7 @@
 use quent_model::model;
 
 pub mod engine;
+pub mod information;
 pub mod operator;
 pub mod plan;
 pub mod port;

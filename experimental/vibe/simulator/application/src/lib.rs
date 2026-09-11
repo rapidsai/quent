@@ -18,6 +18,7 @@ use quent_io::clap::ExporterArgs;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
+    information::InformationGroup,
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
@@ -1257,7 +1258,10 @@ impl Worker {
                 Physical::Udf | Physical::Sort => {}
             }
             op_obs.create(operator.id).statistics(operator::Statistics {
-                custom_attributes: attributes.into(),
+                information: vec![
+                    InformationGroup::try_new("Execution", attributes.into()).unwrap(),
+                ],
+                port_relations: Vec::new(),
             });
         }
 
@@ -1274,12 +1278,12 @@ impl Worker {
             port_obs
                 .create(edge.weight().source.id)
                 .statistics(port::Statistics {
-                    custom_attributes: attributes(),
+                    information: vec![InformationGroup::try_new("Volume", attributes()).unwrap()],
                 });
             port_obs
                 .create(edge.weight().target.id)
                 .statistics(port::Statistics {
-                    custom_attributes: attributes(),
+                    information: vec![InformationGroup::try_new("Volume", attributes()).unwrap()],
                 });
         }
     }

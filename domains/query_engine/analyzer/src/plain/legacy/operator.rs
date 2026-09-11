@@ -16,6 +16,7 @@ use crate::{OperatorEntity, OperatorEntityMut};
 #[derive(Debug)]
 pub struct Operator {
     inner: EntityEvents<operator::Operator>,
+    observations: Vec<Event<operator::Observation>>,
     active_span: Option<SpanUnixNanoSec>,
 }
 
@@ -23,12 +24,27 @@ impl Operator {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
             inner: EntityEvents::new(id)?,
+            observations: Vec::new(),
             active_span: None,
         })
     }
 
     pub fn push(&mut self, event: Event<operator::OperatorEvent>) {
-        self.inner.push(event);
+        let Event {
+            id,
+            timestamp,
+            data,
+        } = event;
+        match data {
+            operator::OperatorEvent::Observation(observation) => {
+                let position = self
+                    .observations
+                    .partition_point(|existing| existing.timestamp <= timestamp);
+                self.observations
+                    .insert(position, Event::new(id, timestamp, observation));
+            }
+            data => self.inner.push(Event::new(id, timestamp, data)),
+        }
     }
 }
 
@@ -79,20 +95,50 @@ impl OperatorEntity for Operator {
             .unwrap_or_default();
 
         let statistics = d.statistics.as_ref().map(|s| ui::OperatorStatistics {
-            custom_statistics: s
-                .custom_attributes
+            information: s
+                .information
                 .iter()
-                .map(|DynamicAttribute { key, value }| {
-                    (
-                        key.clone(),
-                        ui::OperatorStatistic {
+                .map(|group| ui::InformationGroup {
+                    heading: group.heading().to_string(),
+                    items: group
+                        .items()
+                        .iter()
+                        .map(|DynamicAttribute { key, value }| ui::InformationItem {
+                            key: key.clone(),
                             value: value.clone(),
                             quantity: None,
-                        },
-                    )
+                        })
+                        .collect(),
+                })
+                .collect(),
+            port_relations: s
+                .port_relations
+                .iter()
+                .map(|relation| ui::PortRelation {
+                    port_id: relation.port_id.uuid(),
+                    role: relation.role.clone(),
                 })
                 .collect(),
         });
+
+        let observations = self
+            .observations
+            .iter()
+            .map(|event| ui::OperatorObservation {
+                time_s: quent_time::to_secs_relative(event.timestamp, epoch),
+                kind: event.data.kind.clone(),
+                custom_attributes: event.data.custom_attributes.0.clone(),
+                port_relations: event
+                    .data
+                    .port_relations
+                    .iter()
+                    .map(|relation| ui::PortRelation {
+                        port_id: relation.port_id.uuid(),
+                        role: relation.role.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
 
         ui::Operator {
             id: self.inner.id(),
@@ -104,6 +150,7 @@ impl OperatorEntity for Operator {
                 .map(|decl| decl.instance_name.clone()),
             operator_type_name: d.declaration.as_ref().map(|decl| decl.type_name.clone()),
             custom_attributes,
+            observations,
             statistics,
             active_span: self
                 .active_span()

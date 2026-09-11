@@ -284,24 +284,23 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .map(|operator| {
                 let mut ui_operator = operator.to_ui(epoch);
                 if let Some(statistics) = &mut ui_operator.statistics {
-                    statistics.custom_statistics =
-                        std::mem::take(&mut statistics.custom_statistics)
-                            .into_iter()
-                            .map(|(name, mut statistic)| {
-                                let name = if let Some(value) =
-                                    scale_operator_statistic(&name, &statistic.value)
-                                {
-                                    statistic.value = Some(value);
-                                    statistic.quantity = Some(QUANTITY_SECONDS.to_owned());
-                                    scaled_operator_statistic_name(name)
-                                } else {
-                                    statistic.quantity =
-                                        operator_statistic_quantity(&name).map(str::to_owned);
-                                    name
-                                };
-                                (name, statistic)
-                            })
-                            .collect();
+                    for group in &mut statistics.information {
+                        for statistic in &mut group.items {
+                            let name = std::mem::take(&mut statistic.key);
+                            let name = if let Some(value) =
+                                scale_operator_statistic(&name, &statistic.value)
+                            {
+                                statistic.value = Some(value);
+                                statistic.quantity = Some(QUANTITY_SECONDS.to_owned());
+                                scaled_operator_statistic_name(name)
+                            } else {
+                                statistic.quantity =
+                                    operator_statistic_quantity(&name).map(str::to_owned);
+                                name
+                            };
+                            statistic.key = name;
+                        }
+                    }
                 }
                 (operator.id(), ui_operator)
             })

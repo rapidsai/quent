@@ -178,8 +178,10 @@ pub struct Plan {
 }
 
 #[derive(TS, Debug, Serialize)]
-pub struct OperatorStatistic {
-    /// The value of this statistic.
+pub struct InformationItem {
+    /// The producer-defined key of this item.
+    pub key: String,
+    /// The value of this item.
     pub value: Option<DynamicValue>,
     /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
     /// to display this statistic.
@@ -187,9 +189,39 @@ pub struct OperatorStatistic {
 }
 
 #[derive(TS, Debug, Serialize)]
+pub struct InformationGroup {
+    /// Producer-defined group heading.
+    pub heading: String,
+    /// Producer-defined items in display order.
+    pub items: Vec<InformationItem>,
+}
+
+#[derive(TS, Debug, Serialize)]
+pub struct PortRelation {
+    /// The related port.
+    pub port_id: Uuid,
+    /// The producer-defined role of the port.
+    pub role: String,
+}
+
+#[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistics {
-    /// Custom statistics.
-    pub custom_statistics: HashMap<String, OperatorStatistic>,
+    /// Producer-defined information groups in display order.
+    pub information: Vec<InformationGroup>,
+    /// Producer-defined structural relations to this operator's ports.
+    pub port_relations: Vec<PortRelation>,
+}
+
+#[derive(TS, Debug, Serialize)]
+pub struct OperatorObservation {
+    /// Time of the observation relative to the query epoch.
+    pub time_s: TimeSec,
+    /// Producer-defined observation kind.
+    pub kind: String,
+    /// Arbitrary producer-defined attributes.
+    pub custom_attributes: Vec<DynamicAttribute>,
+    /// Producer-defined structural relations to this operator's ports.
+    pub port_relations: Vec<PortRelation>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -208,6 +240,8 @@ pub struct Operator {
 
     /// The dynamic attributes of this [`Operator`].
     pub custom_attributes: HashMap<String, Option<DynamicValue>>,
+    /// Timestamped producer-defined observations, ordered by event time.
+    pub observations: Vec<OperatorObservation>,
     /// The statistics of this [`Operator`].
     ///
     /// These are attributes that are typically gathered after the work
@@ -226,8 +260,8 @@ pub struct Operator {
 
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
-    /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
+    /// Producer-defined information groups in display order.
+    pub information: Vec<InformationGroup>,
 }
 
 #[derive(TS, Debug, Serialize)]

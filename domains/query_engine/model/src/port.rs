@@ -16,7 +16,7 @@ pub struct Declaration {
 
 #[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Statistics {
-    pub custom_attributes: quent_model::attributes::DynamicAttributes,
+    pub information: Vec<super::information::InformationGroup>,
 }
 
 entity! {

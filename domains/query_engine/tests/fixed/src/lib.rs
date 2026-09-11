@@ -22,6 +22,7 @@ use quent_dynamic_attributes::DynamicAttribute;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
+    information::InformationGroup,
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
@@ -234,6 +235,7 @@ pub fn emit(ctx: &SimulatorContext) {
 
     // Statistics at 6.1s (op + port stats share one timestamp).
     emit_operator_statistics(ctx);
+    emit_operator_observations(ctx);
     emit_port_statistics(ctx);
 
     // Teardown: query exit @ 6.3s; all resource finalizing @ 6.5s; all
@@ -566,10 +568,41 @@ fn emit_operator_statistics(ctx: &SimulatorContext) {
         ts!(
             6_100_000_000,
             op_obs.create(op_id).statistics(operator::Statistics {
-                custom_attributes: vec![DynamicAttribute::string("type", type_name)].into(),
+                information: vec![
+                    InformationGroup::try_new(
+                        "type",
+                        vec![DynamicAttribute::string("name", type_name)].into(),
+                    )
+                    .unwrap(),
+                ],
+                port_relations: Vec::new(),
             })
         );
     }
+}
+
+// Producer-defined observations intentionally arrive out of timestamp order.
+fn emit_operator_observations(ctx: &SimulatorContext) {
+    let operator = ctx.operator_observer().create(PHYS_FINAL_AGG);
+    ts!(
+        3_900_000_000,
+        operator.observation(operator::Observation {
+            kind: "vendor.snapshot".to_string(),
+            custom_attributes: vec![DynamicAttribute::u64("retained_rows", 42)].into(),
+            port_relations: Vec::new(),
+        })
+    );
+    ts!(
+        3_800_000_000,
+        operator.observation(operator::Observation {
+            kind: "algorithm.choice".to_string(),
+            custom_attributes: vec![DynamicAttribute::string("choice", "left")].into(),
+            port_relations: vec![operator::PortRelation {
+                port_id: Ref::new(PORT_PHYS_FINAL_AGG_IN),
+                role: "primary".to_string(),
+            }],
+        })
+    );
 }
 
 // Port statistics — one per port (19 total), all at 6.1s (same group as op stats).
@@ -601,7 +634,7 @@ fn emit_port_statistics(ctx: &SimulatorContext) {
         ts!(
             6_100_000_000,
             port_obs.create(port_id).statistics(port::Statistics {
-                custom_attributes: Default::default(),
+                information: Vec::new(),
             })
         );
     }

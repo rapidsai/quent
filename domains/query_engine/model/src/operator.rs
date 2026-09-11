@@ -15,9 +15,25 @@ pub struct Declaration {
     pub custom_attributes: quent_model::attributes::DynamicAttributes,
 }
 
+/// A producer-defined role for one of an operator's ports.
+#[derive(Debug, Attributes, Deserialize, Serialize)]
+pub struct PortRelation {
+    pub port_id: Ref<super::port::Port>,
+    pub role: String,
+}
+
 #[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Statistics {
+    pub information: Vec<super::information::InformationGroup>,
+    pub port_relations: Vec<PortRelation>,
+}
+
+/// A timestamped, producer-defined observation about an operator.
+#[derive(Debug, Attributes, Deserialize, Serialize)]
+pub struct Observation {
+    pub kind: String,
     pub custom_attributes: quent_model::attributes::DynamicAttributes,
+    pub port_relations: Vec<PortRelation>,
 }
 
 entity! {
@@ -25,6 +41,7 @@ entity! {
         declaration: declaration,
         events: {
             declaration: Declaration,
+            observation: Observation,
             statistics: Statistics,
         },
     }

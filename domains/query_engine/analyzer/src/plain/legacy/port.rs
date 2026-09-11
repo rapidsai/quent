@@ -3,7 +3,6 @@
 
 use quent_analyzer::entity::EntityEvents;
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
-use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
 use quent_query_engine_model::port;
 use quent_query_engine_ui as ui;
@@ -42,10 +41,21 @@ impl PortEntity for Port {
             operator_id: self.operator_id(),
             instance_name: d.declaration.as_ref().map(|d| d.instance_name.clone()),
             statistics: d.statistics.as_ref().map(|s| ui::PortStatistics {
-                custom_statistics: s
-                    .custom_attributes
+                information: s
+                    .information
                     .iter()
-                    .map(|DynamicAttribute { key, value }| (key.clone(), value.clone()))
+                    .map(|group| ui::InformationGroup {
+                        heading: group.heading().to_string(),
+                        items: group
+                            .items()
+                            .iter()
+                            .map(|item| ui::InformationItem {
+                                key: item.key.clone(),
+                                value: item.value.clone(),
+                                quantity: None,
+                            })
+                            .collect(),
+                    })
                     .collect(),
             }),
         }
