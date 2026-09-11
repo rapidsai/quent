@@ -10,6 +10,7 @@ import {
 } from '@quent/hooks';
 import type { OptionMultiSelectOption, SelectFieldOption } from '@quent/components';
 import {
+  operatorLocationDescription,
   resolveSelectedOperatorSelections,
   toggleOperatorSelection as resolveOperatorSelectionToggle,
   type EntityRef,
@@ -26,7 +27,6 @@ import {
   entityRows,
   hasNonDefaultEntitySettings,
   normalizePageSize,
-  operatorLocationDescription,
   parseOptionalNumber,
   resourceLocationDescription,
   validateEntityFilters,

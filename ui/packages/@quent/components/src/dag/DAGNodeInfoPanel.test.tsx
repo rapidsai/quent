@@ -43,6 +43,37 @@ function SelectedNode() {
   return <DAGNodeInfoPanel />;
 }
 
+function SameNameOnDifferentWorkers() {
+  const updateOperatorSelection = useOperatorSelectionActions();
+
+  useEffect(() => {
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'scan',
+      label: 'Table scan',
+      operatorIds: ['scan-1', 'scan-2'],
+      selectedData: {
+        nodeId: 'scan-1',
+        label: 'Table scan',
+        operationType: 'scan',
+        statistics: [{ key: 'output_rows', value: 10 }],
+        workerLabel: 'worker-1',
+        relatedOperators: [
+          {
+            nodeId: 'scan-2',
+            label: 'Table scan',
+            operationType: 'scan',
+            statistics: [{ key: 'output_rows', value: 20 }],
+            workerLabel: 'worker-2',
+          },
+        ],
+      },
+    });
+  }, [updateOperatorSelection]);
+
+  return <DAGNodeInfoPanel />;
+}
+
 function SwitchSelectedNode() {
   const [showLogical, setShowLogical] = useState(true);
   const updateOperatorSelection = useOperatorSelectionActions();
@@ -219,6 +250,27 @@ describe('DAGNodeInfoPanel', () => {
     expect(
       await screen.findByRole('button', { name: 'Toggle Logical join details' })
     ).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('shows a worker label so same-named operators can be told apart', async () => {
+    render(
+      <Provider>
+        <SameNameOnDifferentWorkers />
+      </Provider>
+    );
+
+    await screen.findAllByText('Table scan');
+    expect(screen.getByText('worker-1')).toBeInTheDocument();
+    expect(screen.getByText('worker-2')).toBeInTheDocument();
+
+    // Each toggle must have a distinct accessible name, otherwise screen readers
+    // and role-based queries can't tell same-named operators apart.
+    expect(
+      screen.getByRole('button', { name: 'Toggle Table scan (worker-1) details' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Toggle Table scan (worker-2) details' })
+    ).toBeInTheDocument();
   });
 
   it('collapses related child operators independently', async () => {
