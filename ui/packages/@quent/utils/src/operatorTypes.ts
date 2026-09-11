@@ -29,19 +29,29 @@ export interface SelectedOperatorGroupData extends SelectedOperatorData {
   relatedOperators?: SelectedOperatorData[];
 }
 
+/** Resolves the plan and worker an operator ran on, if known. */
+function resolveOperatorWorker(
+  operator: Operator,
+  plans: Record<string, Plan>,
+  workers: Record<string, Worker>
+): { plan?: Plan; worker?: Worker } {
+  const plan = operator.plan_id ? plans[operator.plan_id] : undefined;
+  const worker = plan?.worker_id ? workers[plan.worker_id] : undefined;
+  return { plan, worker };
+}
+
 /** Builds a "Plan / Worker" subtitle so operators sharing the same name can be told apart. */
 export function operatorLocationDescription(
   operator: Operator,
   plans: Record<string, Plan>,
   workers: Record<string, Worker>
 ): string | undefined {
-  const plan = operator.plan_id ? plans[operator.plan_id] : undefined;
+  const { plan, worker } = resolveOperatorWorker(operator, plans, workers);
   if (!plan) {
     return undefined;
   }
   const planLabel = plan.instance_name ?? plan.id;
-  const worker = plan.worker_id ? workers[plan.worker_id] : undefined;
-  const workerLabel = worker ? (worker.instance_name ?? worker.id) : null;
+  const workerLabel = worker ? (worker.instance_name ?? worker.id) : undefined;
   return workerLabel ? `Plan: ${planLabel} · Worker: ${workerLabel}` : `Plan: ${planLabel}`;
 }
 
@@ -51,7 +61,6 @@ export function operatorWorkerLabel(
   plans: Record<string, Plan>,
   workers: Record<string, Worker>
 ): string | undefined {
-  const plan = operator.plan_id ? plans[operator.plan_id] : undefined;
-  const worker = plan?.worker_id ? workers[plan.worker_id] : undefined;
+  const { worker } = resolveOperatorWorker(operator, plans, workers);
   return worker ? (worker.instance_name ?? worker.id) : undefined;
 }
