@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   useDataFlowEnabled,
@@ -28,48 +28,75 @@ export const DAGNodeInfoPanel = ({
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState('stats');
-  const [closedOperatorIds, setClosedOperatorIds] = useState<Set<string>>(() => new Set());
   const hasSelection = selectedOperators.length > 0;
   const showHeaders = selectedOperators.length > 1;
   const selectedOperator = selectedOperators[0];
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
 
   const showDataFlowTab = dataFlowEnabled && dataFlowMeta != null;
+  const [panelState, setPanelState] = useState<{
+    selectedOperatorIdsKey: string;
+    hasSelection: boolean;
+    isExpanded: boolean;
+    effectIsExpanded: boolean;
+    activeTab: string;
+    isPlaying: boolean;
+    showDataFlowTab: boolean;
+    closedOperatorIds: Set<string>;
+  }>(() => ({
+    selectedOperatorIdsKey,
+    hasSelection,
+    isExpanded: hasSelection,
+    effectIsExpanded: hasSelection,
+    activeTab: isPlaying && hasSelection && showDataFlowTab ? 'data-flow' : 'stats',
+    isPlaying,
+    showDataFlowTab,
+    closedOperatorIds: new Set(),
+  }));
+
+  const selectionChanged = panelState.selectedOperatorIdsKey !== selectedOperatorIdsKey;
+  const hasSelectionChanged = panelState.hasSelection !== hasSelection;
+  const nextIsExpanded = hasSelectionChanged ? hasSelection : panelState.isExpanded;
+  const effectInputsChanged =
+    panelState.isPlaying !== isPlaying ||
+    panelState.showDataFlowTab !== showDataFlowTab ||
+    panelState.effectIsExpanded !== nextIsExpanded;
+
+  if (selectionChanged || hasSelectionChanged || effectInputsChanged) {
+    const shouldShowDataFlow = isPlaying && nextIsExpanded && showDataFlowTab;
+    setPanelState({
+      selectedOperatorIdsKey,
+      hasSelection,
+      isExpanded: nextIsExpanded,
+      effectIsExpanded: nextIsExpanded,
+      activeTab: shouldShowDataFlow
+        ? 'data-flow'
+        : hasSelectionChanged && !hasSelection
+          ? 'stats'
+          : panelState.activeTab,
+      isPlaying,
+      showDataFlowTab,
+      closedOperatorIds: selectionChanged ? new Set() : panelState.closedOperatorIds,
+    });
+  }
+
+  const { activeTab, closedOperatorIds, isExpanded } = panelState;
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
   const setOperatorOpen = (id: string, open: boolean) => {
-    setClosedOperatorIds(prev => {
-      const isClosed = prev.has(id);
+    setPanelState(prev => {
+      const isClosed = prev.closedOperatorIds.has(id);
       if (open ? !isClosed : isClosed) {
         return prev;
       }
-      const next = new Set(prev);
+      const next = new Set(prev.closedOperatorIds);
       if (open) {
         next.delete(id);
       } else {
         next.add(id);
       }
-      return next;
+      return { ...prev, closedOperatorIds: next };
     });
   };
-
-  useEffect(() => {
-    setIsExpanded(hasSelection);
-    if (!hasSelection) {
-      setActiveTab('stats');
-    }
-  }, [hasSelection]);
-
-  useEffect(() => {
-    setClosedOperatorIds(new Set());
-  }, [selectedOperatorIdsKey]);
-
-  useEffect(() => {
-    if (isPlaying && isExpanded && showDataFlowTab) {
-      setActiveTab('data-flow');
-    }
-  }, [isPlaying, isExpanded, showDataFlowTab]);
 
   const scrollClass = cn('px-4 pb-2 h-48 overflow-auto', thinScrollbarClass);
 
@@ -141,7 +168,7 @@ export const DAGNodeInfoPanel = ({
           )}
         </div>
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => setPanelState(state => ({ ...state, isExpanded: !state.isExpanded }))}
           disabled={!hasSelection}
           className="ml-2 rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
           aria-label="Toggle operator details"
@@ -159,7 +186,7 @@ export const DAGNodeInfoPanel = ({
         (showDataFlowTab ? (
           <Tabs
             value={activeTab}
-            onValueChange={setActiveTab}
+            onValueChange={value => setPanelState(state => ({ ...state, activeTab: value }))}
             className="border-t overflow-visible"
           >
             <TabsList className="h-7 py-0 px-1 rounded-none">

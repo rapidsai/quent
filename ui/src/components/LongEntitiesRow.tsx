@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useEntityList } from '@quent/client';
 import {
   useBulkInitialized,
@@ -64,9 +64,9 @@ export function LongEntitiesRow({
   const returnedNumBins = useReturnedTimelineNumBins(resourceId);
   const returnedTimelineIsStale = useReturnedTimelineIsStale(resourceId);
   const zeroUtilizationResourceIds = useZeroUtilizationResourceIds();
-  const previousHasNoUsagesInWindow = useRef(false);
-  const previousMinUsageSeconds = useRef<number | null>(null);
   const [maxEntities, setMaxEntities] = useState(ENTITIES_PER_PAGE);
+  const [retainedMinUsageSeconds, setRetainedMinUsageSeconds] = useState<number | null>(null);
+  const [retainedHasNoUsagesInWindow, setRetainedHasNoUsagesInWindow] = useState(false);
   const operatorIds = useMemo(() => [...selectedOperatorIds], [selectedOperatorIds]);
   const zoomWindow =
     debouncedZoomRange.end > debouncedZoomRange.start
@@ -82,10 +82,10 @@ export function LongEntitiesRow({
     numBins == null
       ? null
       : getLongEntitiesThreshold(zoomWindow.end - zoomWindow.start, numBins, longEntityDensity);
-  if (minUsageSeconds != null) {
-    previousMinUsageSeconds.current = minUsageSeconds;
+  const displayedMinUsageSeconds = minUsageSeconds ?? retainedMinUsageSeconds;
+  if (minUsageSeconds !== null && minUsageSeconds !== retainedMinUsageSeconds) {
+    setRetainedMinUsageSeconds(minUsageSeconds);
   }
-  const displayedMinUsageSeconds = minUsageSeconds ?? previousMinUsageSeconds.current;
 
   const { data, isFetching, isPlaceholderData } = useEntityList(
     {
@@ -105,10 +105,14 @@ export function LongEntitiesRow({
   // itself have caught up to the active zoom window. Bins and entities resolve at different
   // times while panning/zooming (entities keep showing the previous window's data in the
   // meantime), and updating from just one of them flashes the wrong empty-state message.
-  if (!returnedTimelineIsStale && !isFetching) {
-    previousHasNoUsagesInWindow.current = zeroUtilizationResourceIds.has(resourceId);
+  const canRefreshEmptyState = !returnedTimelineIsStale && !isFetching;
+  const currentHasNoUsagesInWindow = zeroUtilizationResourceIds.has(resourceId);
+  const hasNoUsagesInWindow = canRefreshEmptyState
+    ? currentHasNoUsagesInWindow
+    : retainedHasNoUsagesInWindow;
+  if (canRefreshEmptyState && currentHasNoUsagesInWindow !== retainedHasNoUsagesInWindow) {
+    setRetainedHasNoUsagesInWindow(currentHasNoUsagesInWindow);
   }
-  const hasNoUsagesInWindow = previousHasNoUsagesInWindow.current;
 
   const entities = useMemo(() => (data?.items ?? []).map(item => item.entity), [data]);
   const entries = useMemo(

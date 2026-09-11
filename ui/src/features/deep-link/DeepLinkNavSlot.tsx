@@ -3,7 +3,9 @@
 
 import { NavigationMenuItem } from '@quent/components';
 import { DEEP_LINK_NAV_SLOT_ID } from './deepLink.constants';
+import { useDeepLinkNavTarget } from './deepLinkNavTarget.context';
 
 export function DeepLinkNavSlot() {
-  return <NavigationMenuItem id={DEEP_LINK_NAV_SLOT_ID} />;
+  const { setTarget } = useDeepLinkNavTarget();
+  return <NavigationMenuItem ref={setTarget} id={DEEP_LINK_NAV_SLOT_ID} />;
 }

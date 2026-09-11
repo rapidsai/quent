@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import { usePlayheadLineTimeMs } from '@quent/hooks';
 
@@ -12,7 +12,10 @@ export function usePlayheadLinePixel(
   const [pixelX, setPixelX] = useState<number | null>(null);
   const timestampMs = usePlayheadLineTimeMs();
   const timestampMsRef = useRef(timestampMs);
-  timestampMsRef.current = timestampMs;
+
+  useLayoutEffect(() => {
+    timestampMsRef.current = timestampMs;
+  }, [timestampMs]);
 
   const recompute = useCallback(() => {
     const ts = timestampMsRef.current;

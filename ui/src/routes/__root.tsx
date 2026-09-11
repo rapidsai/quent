@@ -14,7 +14,7 @@ import {
   NavigationMenuLink,
 } from '@quent/components';
 import { cn } from '@quent/utils';
-import { DeepLinkNavSlot } from '@/features/deep-link';
+import { DeepLinkNavSlot, DeepLinkNavTargetProvider } from '@/features/deep-link';
 
 function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
   const logoUrl = `${import.meta.env.BASE_URL}logo.svg`;
@@ -105,12 +105,14 @@ function RootComponent() {
   return (
     <>
       <ThemeProvider>
-        <div className="min-h-screen flex flex-col bg-background">
-          <AppNav highlightProfile={isProfileActive} />
-          <main className="flex-1 w-full">
-            <Outlet />
-          </main>
-        </div>
+        <DeepLinkNavTargetProvider>
+          <div className="min-h-screen flex flex-col bg-background">
+            <AppNav highlightProfile={isProfileActive} />
+            <main className="flex-1 w-full">
+              <Outlet />
+            </main>
+          </div>
+        </DeepLinkNavTargetProvider>
         <Toaster />
       </ThemeProvider>
       {import.meta.env.VITE_DEBUG && !import.meta.env.TEST && <TanStackRouterDevtools />}

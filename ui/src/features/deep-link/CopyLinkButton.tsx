@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Share2 } from 'lucide-react';
 import { Button, toast } from '@quent/components';
-import { DEEP_LINK_NAV_SLOT_ID } from './deepLink.constants';
 import { useDeepLink } from './deepLink.context';
+import { useDeepLinkNavTarget } from './deepLinkNavTarget.context';
 
 type CopyFeedback =
   | { kind: 'idle'; message: '' }
@@ -16,13 +16,9 @@ type CopyFeedback =
 
 export function CopyLinkButton() {
   const deepLink = useDeepLink();
+  const { target: portalTarget } = useDeepLinkNavTarget();
   const [feedback, setFeedback] = useState<CopyFeedback>({ kind: 'idle', message: '' });
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const resetTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    setPortalTarget(document.getElementById(DEEP_LINK_NAV_SLOT_ID));
-  }, []);
 
   useEffect(
     () => () => {

@@ -68,26 +68,22 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
   onItemHover,
   ...props
 }: TreeProps<T>) {
-  const [selectedItemId, setSelectedItemId] = React.useState<string | undefined>(
-    controlledSelectedItemId ?? initialSelectedItemId
-  );
-
-  React.useEffect(() => {
-    if (controlledSelectedItemId !== undefined) {
-      setSelectedItemId(controlledSelectedItemId);
-    }
-  }, [controlledSelectedItemId]);
+  const [uncontrolledSelectedItemId, setUncontrolledSelectedItemId] =
+    React.useState(initialSelectedItemId);
+  const selectedItemId = controlledSelectedItemId ?? uncontrolledSelectedItemId;
 
   const [draggedItem, setDraggedItem] = React.useState<T | null>(null);
 
   const handleSelectChange = React.useCallback(
     (item: T | undefined) => {
-      setSelectedItemId(item?.id);
+      if (controlledSelectedItemId === undefined) {
+        setUncontrolledSelectedItemId(item?.id);
+      }
       if (onSelectChange) {
         onSelectChange(item);
       }
     },
-    [onSelectChange]
+    [controlledSelectedItemId, onSelectChange]
   );
 
   const handleDragStart = React.useCallback((item: T) => {
@@ -104,10 +100,8 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
     [draggedItem, onDocumentDrag]
   );
 
-  const activeSelectedItemId = controlledSelectedItemId ?? initialSelectedItemId;
-
   const expandedItemIds = React.useMemo(() => {
-    if (!activeSelectedItemId) {
+    if (!selectedItemId) {
       return [] as string[];
     }
 
@@ -131,9 +125,9 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
       }
     }
 
-    walkTreeItems(data, activeSelectedItemId);
+    walkTreeItems(data, selectedItemId);
     return ids;
-  }, [data, expandAll, activeSelectedItemId]);
+  }, [data, expandAll, selectedItemId]);
 
   return (
     <div className={cn('overflow-hidden relative', className)}>

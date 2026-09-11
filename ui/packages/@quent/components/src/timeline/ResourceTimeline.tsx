@@ -18,7 +18,7 @@ import { TimelineTooltipPortal } from './TimelineTooltipPortal';
 import { PlayheadLine } from './PlayheadLine';
 import { resolveOverlayData, type RetainedOverlayData } from './resourceTimeline.utils';
 import type { TimelineHoverPosition } from './Timeline';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, lazy, Suspense } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import {
   buildBinnedTimelineSeries,
@@ -117,16 +117,25 @@ export function ResourceTimeline({
     operatorIds,
   });
   const operatorTimelineData = useTimelineData(operatorCacheKey);
-  // Retain overlay data for the same operator set while its atom is reseeded.
-  const lastOverlayRef = useRef<RetainedOverlayData | null>(null);
+  const [retainedOverlay, setRetainedOverlay] = useState<RetainedOverlayData | null>(null);
+  let effectiveRetainedOverlay = retainedOverlay;
   if (operatorTimelineData !== undefined) {
-    lastOverlayRef.current = { cacheKey: operatorCacheKey, data: operatorTimelineData };
+    effectiveRetainedOverlay = { cacheKey: operatorCacheKey, data: operatorTimelineData };
+    if (
+      retainedOverlay?.cacheKey !== operatorCacheKey ||
+      retainedOverlay?.data !== operatorTimelineData
+    ) {
+      setRetainedOverlay(effectiveRetainedOverlay);
+    }
   } else if (!hasOperatorFilter) {
-    lastOverlayRef.current = null;
+    effectiveRetainedOverlay = null;
+    if (retainedOverlay !== null) {
+      setRetainedOverlay(null);
+    }
   }
   const overlayPreloadedData = resolveOverlayData(
     operatorTimelineData,
-    lastOverlayRef.current,
+    effectiveRetainedOverlay,
     operatorCacheKey,
     hasOperatorFilter
   );

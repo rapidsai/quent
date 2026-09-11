@@ -300,19 +300,15 @@ export function PivotedStatTable<TRow>({
     [rows, schema, visibleStats]
   );
 
-  useEffect(() => {
-    setTableStatOrder(prev => {
-      if (prev.length === 0) {
-        return resolvedVisibleStats;
-      }
-      const visibleSet = new Set(resolvedVisibleStats);
-      const kept = prev.filter(stat => visibleSet.has(stat));
-      const additions = resolvedVisibleStats.filter(stat => !kept.includes(stat));
-      return [...kept, ...additions];
-    });
-  }, [resolvedVisibleStats]);
-
-  const effectiveVisibleStats = tableStatOrder.length > 0 ? tableStatOrder : resolvedVisibleStats;
+  const effectiveVisibleStats = useMemo(() => {
+    if (tableStatOrder.length === 0) {
+      return resolvedVisibleStats;
+    }
+    const visibleSet = new Set(resolvedVisibleStats);
+    const kept = tableStatOrder.filter(stat => visibleSet.has(stat));
+    const additions = resolvedVisibleStats.filter(stat => !kept.includes(stat));
+    return [...kept, ...additions];
+  }, [resolvedVisibleStats, tableStatOrder]);
   const resolvedIndexLabels = useMemo(
     () =>
       indexLabels ??
@@ -472,8 +468,8 @@ export function PivotedStatTable<TRow>({
 
   const commitStatDrop = useCallback(
     (from: string, to: string, position: 'before' | 'after') => {
-      setTableStatOrder(prev => {
-        const next = prev.length > 0 ? [...prev] : [...resolvedVisibleStats];
+      setTableStatOrder(() => {
+        const next = [...effectiveVisibleStats];
         const fromIndex = next.indexOf(from);
         if (fromIndex < 0 || from === to) {
           return next;
@@ -490,7 +486,7 @@ export function PivotedStatTable<TRow>({
       // Keep optional callback for external listeners, without requiring global reordering.
       onReorderStat?.(from, to);
     },
-    [onReorderStat, resolvedVisibleStats]
+    [effectiveVisibleStats, onReorderStat]
   );
 
   const statDragDrop = useColumnDragDrop({

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useGetZoomRange } from '@quent/hooks';
@@ -51,9 +51,12 @@ export function useChartConnect({
 }: UseChartConnectOptions): UseChartConnectResult {
   const getZoomRange = useGetZoomRange();
   const durationSecondsRef = useRef(durationSeconds);
-  durationSecondsRef.current = durationSeconds;
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
+
+  useLayoutEffect(() => {
+    durationSecondsRef.current = durationSeconds;
+    onReadyRef.current = onReady;
+  }, [durationSeconds, onReady]);
 
   const { handleChartReady: handleResize, instanceRef } = useChartResize();
 

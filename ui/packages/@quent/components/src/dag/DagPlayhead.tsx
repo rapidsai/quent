@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Pause, Play, Square } from 'lucide-react';
 import { cn, formatDurationForWindow } from '@quent/utils';
 import {
@@ -52,7 +52,10 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const rafRef = useRef<number | null>(null);
   const pendingClientXRef = useRef<number | null>(null);
   const playheadRef = useRef<number | null>(playheadTimeS);
-  playheadRef.current = playheadTimeS;
+
+  useLayoutEffect(() => {
+    playheadRef.current = playheadTimeS;
+  }, [playheadTimeS]);
 
   const bin = meta?.bin ?? null;
 

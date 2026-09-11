@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useEntities, useEntityList } from '@quent/client';
 import {
   useOperatorSelection,
@@ -62,22 +62,28 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
   const [filters, setFilters] = useState<EntityFilters>(() => defaultEntityFilters(durationS));
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<FiniteStateMachine | null>(null);
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
-  // maxUsageS starts at durationS (a loose upper bound) and narrows once longestEntityQuery
-  // resolves. If a previously entered minUsageS now exceeds the narrower bound, clamp it so
-  // effectiveFilters/buildEntityRequest stay consistent with what SliderField displays. Reads
-  // filters via a ref (rather than a dependency) so this only reacts to maxUsageS narrowing,
-  // not every filter change.
-  useEffect(() => {
-    const currentMinUsageS = parseOptionalNumber(filtersRef.current.minUsageS);
-    if (currentMinUsageS === null || currentMinUsageS <= maxUsageS) {
-      return;
+  const [previousMaxUsageS, setPreviousMaxUsageS] = useState(maxUsageS);
+  const operatorIdsKey = [...operatorIds].sort().join('\0');
+  const [previousOperatorIdsKey, setPreviousOperatorIdsKey] = useState(operatorIdsKey);
+
+  // Clamp when the async maximum narrows so requests match the slider's displayed value.
+  if (previousMaxUsageS !== maxUsageS) {
+    setPreviousMaxUsageS(maxUsageS);
+    const currentMinUsageS = parseOptionalNumber(filters.minUsageS);
+    if (currentMinUsageS !== null && currentMinUsageS > maxUsageS) {
+      setFilters(previous => ({ ...previous, minUsageS: String(maxUsageS) }));
+      setPage(0);
+      setSelected(null);
     }
-    setFilters(previous => ({ ...previous, minUsageS: String(maxUsageS) }));
+  }
+
+  // Reset pagination/selection for crossfiltered operator changes.
+  if (previousOperatorIdsKey !== operatorIdsKey) {
+    setPreviousOperatorIdsKey(operatorIdsKey);
     setPage(0);
     setSelected(null);
-  }, [maxUsageS]);
+  }
+
   const operatorLabel = useCallback(
     (id: string) => {
       const operator = entities.operators[id];
@@ -85,13 +91,6 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     },
     [entities.operators]
   );
-  // Reset pagination/selection whenever the operator filter changes, regardless of whether
-  // it came from this toolbar or another crossfiltered view (DAG, operator swimlanes, etc).
-  useEffect(() => {
-    setPage(0);
-    setSelected(null);
-  }, [operatorIds]);
-
   const updateFilters = useCallback(
     (patch: Partial<EntityFilters>, options?: { preserveSelection?: boolean }) => {
       setFilters(previous => ({ ...previous, ...patch }));

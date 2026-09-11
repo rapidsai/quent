@@ -32,8 +32,9 @@ import {
 } from '@/components/operator-table/types';
 import { CopyLinkButton } from './CopyLinkButton';
 import { DeepLinkBoundary } from './DeepLinkBoundary';
+import { DeepLinkNavSlot } from './DeepLinkNavSlot';
+import { DeepLinkNavTargetProvider } from './DeepLinkNavTargetProvider';
 import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
-import { DEEP_LINK_NAV_SLOT_ID } from './deepLink.constants';
 import { useDeepLink } from './deepLink.context';
 
 const BOUNDARY_PROPS = {
@@ -475,8 +476,8 @@ describe('DeepLinkBoundary', () => {
     window.history.replaceState(null, '', '/profile/engine/e/query/q/timeline?unrelated=kept');
 
     render(
-      <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
+      <DeepLinkNavTargetProvider>
+        <DeepLinkNavSlot />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
@@ -494,7 +495,7 @@ describe('DeepLinkBoundary', () => {
             <CopyLinkButton />
           </DeepLinkBoundary>
         </JotaiProvider>
-      </>
+      </DeepLinkNavTargetProvider>
     );
 
     await waitFor(() => expect(screen.getByTestId('viewport')).toHaveTextContent('"start":20'));
@@ -535,8 +536,8 @@ describe('DeepLinkBoundary', () => {
     });
 
     render(
-      <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
+      <DeepLinkNavTargetProvider>
+        <DeepLinkNavSlot />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
@@ -551,7 +552,7 @@ describe('DeepLinkBoundary', () => {
             <CopyLinkButton />
           </DeepLinkBoundary>
         </JotaiProvider>
-      </>
+      </DeepLinkNavTargetProvider>
     );
 
     await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));
@@ -581,15 +582,15 @@ describe('DeepLinkBoundary', () => {
     const toastSpy = vi.spyOn(toast, 'add');
 
     render(
-      <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
+      <DeepLinkNavTargetProvider>
+        <DeepLinkNavSlot />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
             <CopyLinkButton />
           </DeepLinkBoundary>
         </JotaiProvider>
-      </>
+      </DeepLinkNavTargetProvider>
     );
 
     await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));

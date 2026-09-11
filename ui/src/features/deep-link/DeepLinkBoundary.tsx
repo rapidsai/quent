@@ -1,16 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStore } from 'jotai';
+import { Loader2 } from 'lucide-react';
 import {
   useReadZoomRange,
   useSerializableViewState,
@@ -95,7 +88,7 @@ export function DeepLinkBoundary({
       operatorTableGroupKeys: OPERATOR_TABLE_INDEX_ORDER,
       operators,
     });
-  const intakeRoute = useRef({ engineId, queryId, activeTab }).current;
+  const [intakeRoute] = useState(() => ({ engineId, queryId, activeTab }));
   const [isHydrated, setIsHydrated] = useState(!encodedState);
 
   const intake = useMemo((): IntakeState => {
@@ -212,86 +205,92 @@ export function DeepLinkBoundary({
     };
   }, [intake.status]);
 
-  useLayoutEffect(() => {
-    if (!intake.isResolved) {
-      return;
-    }
-    if (intake.initialZoomRange) {
-      setZoomRange(intake.initialZoomRange);
-      setDebouncedZoomRange(intake.initialZoomRange);
-    }
-    if (intake.initialExpandedResourceIds !== null) {
-      store.set(expandedIdsAtom, new Set(intake.initialExpandedResourceIds));
-    }
-    if (intake.fields) {
-      const resourceFilter = intake.fields.resources?.resourceFilter;
-      store.set(
-        resourceFilterAtom,
-        resourceFilter
-          ? {
-              fsmTypes: resourceFilter.fsmTypes ?? [],
-              resourceTypes: resourceFilter.resourceTypes ?? [],
-              search: resourceFilter.search ?? '',
-              showOthers: resourceFilter.showOthers ?? false,
-            }
-          : EMPTY_RESOURCE_FILTER
-      );
-    }
-    if (intake.fields?.resources) {
-      const resources = intake.fields.resources;
-      if (resources.rootResourceType !== undefined) {
-        store.set(rootResourceTypeAtom, resources.rootResourceType);
+  const hydrateSharedView = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node || !intake.isResolved || isHydrated) {
+        return;
       }
-      if (resources.resourceTypeSelections !== undefined) {
+      if (intake.initialZoomRange) {
+        setZoomRange(intake.initialZoomRange);
+        setDebouncedZoomRange(intake.initialZoomRange);
+      }
+      if (intake.initialExpandedResourceIds) {
+        store.set(expandedIdsAtom, new Set(intake.initialExpandedResourceIds));
+      }
+      if (intake.fields) {
+        const resourceFilter = intake.fields.resources?.resourceFilter;
         store.set(
-          selectedTypesAtom,
-          new Map(resources.resourceTypeSelections.map(entry => [entry.rowId, entry.resourceType]))
+          resourceFilterAtom,
+          resourceFilter
+            ? {
+                fsmTypes: resourceFilter.fsmTypes ?? [],
+                resourceTypes: resourceFilter.resourceTypes ?? [],
+                search: resourceFilter.search ?? '',
+                showOthers: resourceFilter.showOthers ?? false,
+              }
+            : EMPTY_RESOURCE_FILTER
         );
       }
-      if (resources.fsmSelections !== undefined) {
-        store.set(
-          selectedFsmTypesAtom,
-          new Map(resources.fsmSelections.map(entry => [entry.rowId, entry.fsmType]))
+      if (intake.fields?.resources) {
+        const resources = intake.fields.resources;
+        if (resources.rootResourceType !== undefined) {
+          store.set(rootResourceTypeAtom, resources.rootResourceType);
+        }
+        if (resources.resourceTypeSelections !== undefined) {
+          store.set(
+            selectedTypesAtom,
+            new Map(
+              resources.resourceTypeSelections.map(entry => [entry.rowId, entry.resourceType])
+            )
+          );
+        }
+        if (resources.fsmSelections !== undefined) {
+          store.set(
+            selectedFsmTypesAtom,
+            new Map(resources.fsmSelections.map(entry => [entry.rowId, entry.fsmType]))
+          );
+        }
+      }
+      if (intake.fields) {
+        hydrateSerializableViewState({
+          selection: intake.fields.selection,
+          dag: intake.fields.dag,
+          dataFlow: intake.fields.dataFlow
+            ? {
+                enabled: intake.fields.dataFlow.enabled,
+                measure: intake.fields.dataFlow.measure,
+                labelMeasure: intake.fields.dataFlow.labelMeasure,
+                dimensions: intake.fields.dataFlow.dimensions,
+                playheadS: intake.fields.dataFlow.playheadS,
+              }
+            : undefined,
+          operatorTable: intake.fields.operatorTable,
+        });
+      }
+      if (encodedState) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete(DEEP_LINK_SEARCH_KEY);
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${url.pathname}${url.search}${url.hash}`
         );
       }
-    }
-    if (intake.fields) {
-      hydrateSerializableViewState({
-        selection: intake.fields.selection,
-        dag: intake.fields.dag,
-        dataFlow: intake.fields.dataFlow
-          ? {
-              enabled: intake.fields.dataFlow.enabled,
-              measure: intake.fields.dataFlow.measure,
-              labelMeasure: intake.fields.dataFlow.labelMeasure,
-              dimensions: intake.fields.dataFlow.dimensions,
-              playheadS: intake.fields.dataFlow.playheadS,
-            }
-          : undefined,
-        operatorTable: intake.fields.operatorTable,
-      });
-    }
-    if (encodedState) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete(DEEP_LINK_SEARCH_KEY);
-      window.history.replaceState(
-        window.history.state,
-        '',
-        `${url.pathname}${url.search}${url.hash}`
-      );
-    }
-    setIsHydrated(true);
-  }, [
-    encodedState,
-    intake.initialExpandedResourceIds,
-    intake.initialZoomRange,
-    intake.isResolved,
-    intake.fields,
-    hydrateSerializableViewState,
-    setDebouncedZoomRange,
-    setZoomRange,
-    store,
-  ]);
+      setIsHydrated(true);
+    },
+    [
+      encodedState,
+      hydrateSerializableViewState,
+      intake.fields,
+      intake.initialExpandedResourceIds,
+      intake.initialZoomRange,
+      intake.isResolved,
+      isHydrated,
+      setDebouncedZoomRange,
+      setZoomRange,
+      store,
+    ]
+  );
 
   const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
     if (!queryId || !activeTab) {
@@ -471,7 +470,19 @@ export function DeepLinkBoundary({
 
   return (
     <DeepLinkContext.Provider value={value}>
-      {isHydrated ? children : null}
+      {isHydrated ? (
+        children
+      ) : (
+        <div
+          ref={hydrateSharedView}
+          role="status"
+          aria-label="Loading shared query"
+          className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center gap-2 text-muted-foreground"
+        >
+          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          <span>Loading shared view...</span>
+        </div>
+      )}
     </DeepLinkContext.Provider>
   );
 }

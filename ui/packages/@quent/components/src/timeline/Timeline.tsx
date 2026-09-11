@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EChartsReactCore } from '../lib/echartsReactCore';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
@@ -74,7 +74,11 @@ export function Timeline({
   onReady?: (instance: EChartsInstance) => void;
 }) {
   const { themeName, textColor, labelBackgroundColor } = useTimelineEchartsTheme(isDark);
-  const maxMarkCountRef = useRef(0);
+  const markCount = marks?.length ?? 0;
+  const [maxMarkCount, setMaxMarkCount] = useState(markCount);
+  if (markCount > maxMarkCount) {
+    setMaxMarkCount(markCount);
+  }
 
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
@@ -114,10 +118,7 @@ export function Timeline({
       };
     });
 
-    const markCount = marks?.length ?? 0;
-    maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
-
-    for (let i = 0; i < maxMarkCountRef.current; i++) {
+    for (let i = 0; i < maxMarkCount; i++) {
       const m = marks?.[i];
       if (m) {
         const stateColor = m.color;
@@ -180,7 +181,7 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [series, timestamps, marks, isDark]);
+  }, [series, timestamps, marks, isDark, maxMarkCount]);
 
   const formatAxisValue = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
@@ -275,14 +276,17 @@ export function Timeline({
   // those closures read the current values on every event without re-binding
   // listeners or making `onChartReady` re-run.
   const showTooltipRef = useRef(showTooltip);
-  showTooltipRef.current = showTooltip;
   const onHoverChangeRef = useRef(onHoverChange);
-  onHoverChangeRef.current = onHoverChange;
   // The listeners attached in `onChartReady` close over `timestamps` for
   // bin snapping; mirror it into a ref so they always see the current array
   // (zoom changes can replace it) without re-binding.
   const timestampsRef = useRef(timestamps);
-  timestampsRef.current = timestamps;
+
+  useLayoutEffect(() => {
+    showTooltipRef.current = showTooltip;
+    onHoverChangeRef.current = onHoverChange;
+    timestampsRef.current = timestamps;
+  }, [onHoverChange, showTooltip, timestamps]);
 
   const onChartReady = (instance: EChartsInstance) => {
     const dom = instance.getDom();

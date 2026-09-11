@@ -3,6 +3,11 @@
 
 import { Skeleton } from '../ui/skeleton';
 
+const WAVEFORM_BAR_HEIGHTS = Array.from(
+  { length: 24 },
+  (_, index) => 30 + Math.sin(index * 0.5) * 20 + ((index * 17) % 25)
+);
+
 /** Animated skeleton placeholder rendered while timeline data loads. */
 export function TimelineSkeleton() {
   return (
@@ -19,12 +24,12 @@ export function TimelineSkeleton() {
       >
         {/* Simulated waveform skeleton */}
         <div className="absolute inset-0 flex items-end overflow-hidden px-2 pb-2">
-          {Array.from({ length: 24 }).map((_, i) => (
+          {WAVEFORM_BAR_HEIGHTS.map((height, i) => (
             <Skeleton
               key={i}
               className="mx-0.5 flex-1 rounded-t-sm"
               style={{
-                height: `${30 + Math.sin(i * 0.5) * 20 + Math.random() * 25}%`,
+                height: `${height}%`,
                 animationDelay: `${i * 50}ms`,
               }}
             />

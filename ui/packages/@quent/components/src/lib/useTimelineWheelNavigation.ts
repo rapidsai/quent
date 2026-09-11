@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { EChartsOption, EChartsType } from 'echarts';
 import type { DataZoomComponentOption } from 'echarts/components';
 import { TIMELINE_SPACING } from '../timeline/types';
@@ -19,8 +19,11 @@ function getDataZoomState(instance: EChartsType): DataZoomComponentOption | unde
  */
 export function useTimelineWheelNavigation(minZoomSpanPct: number) {
   const minZoomSpanPctRef = useRef(minZoomSpanPct);
-  minZoomSpanPctRef.current = minZoomSpanPct;
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
+    minZoomSpanPctRef.current = minZoomSpanPct;
+  }, [minZoomSpanPct]);
 
   const attachWheelNavigation = useCallback(
     (instance: EChartsType, wheelTarget: HTMLElement = instance.getDom()) => {
