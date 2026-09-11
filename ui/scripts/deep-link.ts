@@ -9,15 +9,15 @@ import {
   DEEP_LINK_SEARCH_KEY,
 } from '../src/features/deep-link/deepLink.codec';
 import {
-  DeepLinkStateV2Schema,
-  type DeepLinkStateV2,
+  DeepLinkStateV3Schema,
+  type DeepLinkStateV3,
   type DeepLinkTab,
 } from '../src/features/deep-link/deepLink.schema';
 import { mergeResourceFilter } from '../src/features/deep-link/deepLink.cli';
 
 const usage = `Usage:
   pnpm deep-link create --engine ID --query ID --tab timeline --start S --end S [--resource-search TEXT] [--resource-types TYPES] [--fsm-types TYPES] [--show-others] [--base URL]
-  pnpm deep-link create --engine ID --query ID --tab timeline --state FILE [--resource-search TEXT] [--resource-types TYPES] [--fsm-types TYPES] [--show-others] [--base URL]
+  pnpm deep-link create --engine ID --query ID --tab TAB --state FILE [--resource-search TEXT] [--resource-types TYPES] [--fsm-types TYPES] [--show-others] [--base URL]
   pnpm deep-link decode URL`;
 
 function fail(message: string): never {
@@ -39,7 +39,7 @@ function parseList(value: string | boolean | undefined): string[] | undefined {
 
 async function readState(
   values: Record<string, string | boolean | undefined>,
-  route: DeepLinkStateV2['route']
+  route: DeepLinkStateV3['route']
 ) {
   let input: unknown;
   if (typeof values.state === 'string') {
@@ -73,7 +73,7 @@ async function readState(
     ...(values['show-others'] === true ? { showOthers: true } : {}),
   };
   const candidateWithFilter = mergeResourceFilter(candidate, resourceFilter);
-  const parsed = DeepLinkStateV2Schema.safeParse(candidateWithFilter);
+  const parsed = DeepLinkStateV3Schema.safeParse(candidateWithFilter);
   if (!parsed.success) {
     fail(`Invalid state: ${parsed.error.message}`);
   }
@@ -81,8 +81,8 @@ async function readState(
 }
 
 function parseTab(tab: string): DeepLinkTab {
-  if (tab !== 'timeline' && tab !== 'operators') {
-    fail('The --tab option must be "timeline" or "operators".');
+  if (tab !== 'timeline' && tab !== 'operators' && tab !== 'entities') {
+    fail('The --tab option must be "timeline", "operators", or "entities".');
   }
   return tab;
 }

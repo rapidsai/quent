@@ -4,6 +4,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
+import { StrictMode } from 'react';
 import {
   useOperatorSelection,
   useOperatorSelectionActions,
@@ -11,6 +12,7 @@ import {
 } from '@quent/hooks';
 import { DAGNodeInfoPanel } from '@quent/components';
 import type { EntityRef, Operator, QueryBundle } from '@quent/utils';
+import { entitiesTableStateAtom } from '@/atoms/entitiesTable';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { EntitiesTable } from './EntitiesTable';
 
@@ -18,8 +20,8 @@ function renderTable(
   ui: React.ReactElement,
   options: { store?: ReturnType<typeof createStore> } = {}
 ) {
-  const { store } = options;
-  const content = store ? <Provider store={store}>{ui}</Provider> : ui;
+  const store = options.store ?? createStore();
+  const content = <Provider store={store}>{ui}</Provider>;
   return render(<ThemeProvider>{content}</ThemeProvider>);
 }
 
@@ -429,6 +431,7 @@ describe('EntitiesTable', () => {
   });
 
   it('clamps min usage filter when the longest-entity bound narrows after loading', () => {
+    const store = createStore();
     useEntityList.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -438,7 +441,8 @@ describe('EntitiesTable', () => {
     });
 
     const { rerender } = renderTable(
-      <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
+      <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />,
+      { store }
     );
 
     fireEvent.change(screen.getByLabelText('Min usage (s)'), { target: { value: '8' } });
@@ -456,7 +460,9 @@ describe('EntitiesTable', () => {
 
     rerender(
       <ThemeProvider>
-        <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
+        <Provider store={store}>
+          <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
+        </Provider>
       </ThemeProvider>
     );
     act(() => vi.advanceTimersByTime(300));
@@ -481,5 +487,54 @@ describe('EntitiesTable', () => {
     const params = useEntities.mock.lastCall?.[0];
     expect(params.request.entry.application.operator_ids).toEqual(['operator-1']);
     expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent('Operator One');
+  });
+
+  it('reads entity controls from the Jotai table state', () => {
+    const store = createStore();
+    store.set(entitiesTableStateAtom, {
+      filters: {
+        entityType: 'Task',
+        resourceId: 'resource-1',
+        minUsageS: '0.2',
+        windowStart: '1',
+        windowEnd: '8',
+        sortDir: 'Asc',
+        pageSize: 100,
+      },
+      page: 0,
+      selected: null,
+      selectedEntityId: 'entity-1',
+    });
+    renderTable(
+      <StrictMode>
+        <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
+      </StrictMode>,
+      { store }
+    );
+
+    const params = useEntities.mock.lastCall?.[0];
+    expect(params.request.entry).toMatchObject({
+      window: { start: 1, end: 8 },
+      filter: {
+        scope: { Resource: { resource_id: 'resource-1' } },
+        entity_type_name: 'Task',
+        min_usage_s: 0.2,
+      },
+      sort: { key: 'UsageDuration', dir: 'Asc' },
+      page: { max: 100, page: 0 },
+      application: { operator_ids: [] },
+    });
+    expect(screen.getByText('running')).toBeInTheDocument();
+  });
+
+  it('writes entity control changes to the Jotai table state', () => {
+    const store = createStore();
+    renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />, {
+      store,
+    });
+
+    fireEvent.change(screen.getByLabelText('Min usage (s)'), { target: { value: '0.75' } });
+
+    expect(store.get(entitiesTableStateAtom).filters?.minUsageS).toBe('0.75');
   });
 });

@@ -15,6 +15,7 @@ import {
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
 import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
+import { entitiesTableStateAtom, type EntitiesTableState } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
   resourceFilterAtom,
@@ -79,6 +80,11 @@ function ViewportProbe() {
 function IntakeStatusProbe() {
   const deepLink = useDeepLink();
   return <output data-testid="intake-status">{deepLink?.intakeStatus.kind}</output>;
+}
+
+function InitialEntitiesProbe() {
+  const state = useAtomValue(entitiesTableStateAtom);
+  return <output data-testid="initial-entities">{JSON.stringify(state)}</output>;
 }
 
 function ExpandedRowsProbe() {
@@ -167,6 +173,15 @@ function SeedResourceFilter({ filter }: { filter: ResourceFilter }) {
   useLayoutEffect(() => {
     setResourceFilter(filter);
   }, [filter, setResourceFilter]);
+  return null;
+}
+
+function SeedEntitiesState({ state }: { state: EntitiesTableState }) {
+  const setEntitiesState = useSetAtom(entitiesTableStateAtom);
+
+  useLayoutEffect(() => {
+    setEntitiesState(state);
+  }, [setEntitiesState, state]);
   return null;
 }
 
@@ -413,6 +428,53 @@ describe('DeepLinkBoundary', () => {
     expect(value.resources.resourceFilter).toEqual(EMPTY_RESOURCE_FILTER);
   });
 
+  it('exposes v3 entity state before rendering the entities route', () => {
+    const entities = {
+      entityType: 'task',
+      resourceId: 'resource-a',
+      minUsageS: 0.5,
+      window: { start: 10, end: 40 },
+      sortDir: 'Asc' as const,
+      pageSize: 100,
+      page: 2,
+      selectedEntityId: 'entity-a',
+    };
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'entities' },
+      selection: { operatorNodeIds: ['operator-a'] },
+      entities,
+    });
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary {...BOUNDARY_PROPS} activeTab="entities" encodedState={encoded.value}>
+          <InitialEntitiesProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByTestId('initial-entities')).toHaveTextContent(
+      JSON.stringify({
+        filters: {
+          entityType: 'task',
+          resourceId: 'resource-a',
+          minUsageS: '0.5',
+          windowStart: '10',
+          windowEnd: '40',
+          sortDir: 'Asc',
+          pageSize: 100,
+        },
+        page: 2,
+        selected: null,
+        selectedEntityId: 'entity-a',
+      })
+    );
+  });
+
   it('does not subscribe to render-time timeline hydration', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
@@ -513,7 +575,7 @@ describe('DeepLinkBoundary', () => {
     expect(decodeDeepLinkState(encoded!)).toEqual({
       ok: true,
       value: {
-        version: 'v2',
+        version: 'v3',
         data: {
           route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
           timeline: { zoomRange: { start: 20, end: 60 } },
@@ -563,11 +625,69 @@ describe('DeepLinkBoundary', () => {
     expect(decodeDeepLinkState(encoded!)).toMatchObject({
       ok: true,
       value: {
-        version: 'v2',
+        version: 'v3',
         data: {
           resources: {
             resourceFilter: { search: 'resource', showOthers: true },
           },
+        },
+      },
+    });
+  });
+
+  it('copies entity filters without requiring timeline state', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    window.history.replaceState(null, '', '/profile/engine/e/query/q/entities');
+    const entities = {
+      entityType: 'task',
+      minUsageS: 0.5,
+      window: { start: 10, end: 40 },
+      sortDir: 'Asc' as const,
+      page: 3,
+      selectedEntityId: 'entity-a',
+    };
+    const tableState: EntitiesTableState = {
+      filters: {
+        entityType: 'task',
+        resourceId: null,
+        minUsageS: '0.5',
+        windowStart: '10',
+        windowEnd: '40',
+        sortDir: 'Asc',
+        pageSize: 50,
+      },
+      page: 3,
+      selected: null,
+      selectedEntityId: 'entity-a',
+    };
+
+    render(
+      <>
+        <div id={DEEP_LINK_NAV_SLOT_ID} />
+        <JotaiProvider>
+          <DeepLinkBoundary {...BOUNDARY_PROPS} activeTab="entities">
+            <SeedEntitiesState state={tableState} />
+            <CopyLinkButton />
+          </DeepLinkBoundary>
+        </JotaiProvider>
+      </>
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy Link' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
+
+    expect(decodeDeepLinkState(encoded!)).toEqual({
+      ok: true,
+      value: {
+        version: 'v3',
+        data: {
+          route: { engineId: 'e', queryId: 'q', tab: 'entities' },
+          entities,
         },
       },
     });

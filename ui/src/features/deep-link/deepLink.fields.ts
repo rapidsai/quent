@@ -6,20 +6,23 @@ import { z } from 'zod';
 import {
   DeepLinkStateV1Schema,
   DeepLinkStateV2Schema,
+  DeepLinkStateV3Schema,
   type DeepLinkStateV1,
   type DeepLinkStateV2,
+  type DeepLinkStateV3,
 } from './deepLink.schema';
 
 /** Canonical fields a decoded link may expose. Missing readers return `undefined`. */
 export type DeepLinkFields = {
-  route: DeepLinkStateV2['route'] | undefined;
+  route: DeepLinkStateV3['route'] | undefined;
   zoomRange: ZoomRange | undefined;
   expandedResourceIds: readonly string[] | undefined;
-  selection: DeepLinkStateV2['selection'];
-  resources: DeepLinkStateV2['resources'];
-  dag: DeepLinkStateV2['dag'];
-  dataFlow: DeepLinkStateV2['dataFlow'];
-  operatorTable: DeepLinkStateV2['operatorTable'];
+  selection: DeepLinkStateV3['selection'];
+  resources: DeepLinkStateV3['resources'];
+  dag: DeepLinkStateV3['dag'];
+  dataFlow: DeepLinkStateV3['dataFlow'];
+  operatorTable: DeepLinkStateV3['operatorTable'];
+  entities: DeepLinkStateV3['entities'];
 };
 
 export type DeepLinkFieldKey = keyof DeepLinkFields;
@@ -45,6 +48,7 @@ function readFields<TState>(readers: DeepLinkFieldReaders<TState>, state: TState
     dag: readers.dag?.(state),
     dataFlow: readers.dataFlow?.(state),
     operatorTable: readers.operatorTable?.(state),
+    entities: readers.entities?.(state),
   };
 }
 
@@ -87,10 +91,25 @@ export const SUPPORTED_DEEP_LINK_SCHEMAS = [
       operatorTable: state => state.operatorTable,
     },
   }),
+  defineDeepLinkVersion({
+    version: 'v3',
+    schema: DeepLinkStateV3Schema,
+    fields: {
+      route: state => state.route,
+      zoomRange: state => state.timeline?.zoomRange,
+      expandedResourceIds: state => state.resources?.expandedRowIds,
+      selection: state => state.selection,
+      resources: state => state.resources,
+      dag: state => state.dag,
+      dataFlow: state => state.dataFlow,
+      operatorTable: state => state.operatorTable,
+      entities: state => state.entities,
+    },
+  }),
 ] as const;
 
 export type DeepLinkVersion = (typeof SUPPORTED_DEEP_LINK_SCHEMAS)[number]['version'];
-export type DecodedDeepLinkState = DeepLinkStateV1 | DeepLinkStateV2;
+export type DecodedDeepLinkState = DeepLinkStateV1 | DeepLinkStateV2 | DeepLinkStateV3;
 
 export type VersionedDeepLinkState = {
   version: DeepLinkVersion;
