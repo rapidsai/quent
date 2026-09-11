@@ -55,6 +55,8 @@ pub(crate) struct FsmSpec {
     pub(crate) states: IndexMap<String, StateSpec>,
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+    #[serde(default)]
+    pub(crate) dag: Option<DagEntityDecl>,
 }
 
 /// One state of an FSM.
@@ -98,6 +100,29 @@ pub(crate) struct Entity {
     pub(crate) events: IndexMap<String, Event>,
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+    #[serde(default)]
+    pub(crate) dag: Option<DagEntityDecl>,
+}
+
+/// A DAG entity role and its membership target.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum DagEntityDecl {
+    Dag(bool),
+    Vertex(DagVertexDecl),
+    Edge(DagEdgeDecl),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DagVertexDecl {
+    pub(crate) vertex: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DagEdgeDecl {
+    pub(crate) edge: String,
 }
 
 /// An entity event.
@@ -122,10 +147,38 @@ pub(crate) struct Event {
 pub(crate) enum Field {
     /// An attribute carrying a resource's bounds.
     ResourceBounds(ResourceBoundsField),
+    /// A targeted DAG edge endpoint.
+    DagEndpoint(DagEndpointField),
     /// A type without annotations.
     Bare(TypeExpr),
     /// A type with annotations.
     Full(Box<FieldBody>),
+}
+
+/// A field forming one endpoint of a DAG edge.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DagEndpointField {
+    pub(crate) dag: DagEndpointDecl,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum DagEndpointDecl {
+    Source(DagSourceDecl),
+    Target(DagTargetDecl),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DagSourceDecl {
+    pub(crate) source: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DagTargetDecl {
+    pub(crate) target: String,
 }
 
 /// The mapping form of a field: a type plus annotations.
