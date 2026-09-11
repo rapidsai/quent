@@ -413,6 +413,20 @@ describe('getPlanDAG', () => {
     });
   });
 
+  it('sets the worker label to undefined when the operator has a plan with no matching worker', () => {
+    const op1 = makeOperator('op1', { typeName: 'Scan', planId: 'p1' });
+    const op2 = makeOperator('op2', { typeName: 'Join' });
+    const port1 = makePort('port1', 'op1');
+    const port2 = makePort('port2', 'op2');
+    // Plan has no worker_id, and no worker is present in the bundle either.
+    const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
+    const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
+    const result = getPlanDAG(bundle, 'p1');
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
+      op1: undefined,
+    });
+  });
+
   it('attaches worker labels for related operators, keyed by their own id', () => {
     const logical = makeOperator('logical', {
       typeName: 'LogicalJoin',
