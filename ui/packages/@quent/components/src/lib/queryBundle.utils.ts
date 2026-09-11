@@ -1,9 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { EntityRefKey, unwrapTaggedValue } from '@quent/utils';
-import { QueryEntities, Operator } from '@quent/utils';
-import { StatValue } from '../services/query-plan/types';
+import {
+  EntityRefKey,
+  unwrapTaggedValue,
+  type InspectedInformationGroup,
+  type InspectedOperatorObservation,
+  type InspectedPortRelation,
+  type Operator,
+  type Port,
+  type PortRelation,
+  type QueryEntities,
+} from '@quent/utils';
 
 // Maps entity ref string to a key in the entities object.
 // Task has no corresponding collection in QueryEntities, so it is omitted.
@@ -27,37 +35,63 @@ export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEnti
   return ENTITY_REF_TO_ENTITIES_KEY[entityRef];
 }
 
-export function parseCustomStatistics(
-  rawNode: unknown
-): Array<{ key: string; value: StatValue; quantity?: string }> {
-  const statistics = (rawNode as Operator)?.statistics?.custom_statistics;
-  if (!statistics) {
+function parseInformation(
+  information:
+    | NonNullable<Operator['statistics']>['information']
+    | NonNullable<Port['statistics']>['information']
+    | undefined
+): InspectedInformationGroup[] {
+  if (!information) {
     return [];
   }
 
-  return Object.entries(statistics).map(([key, statistic]) => {
-    const { value, quantity } = statistic;
-    return {
+  return information.map(group => ({
+    heading: group.heading,
+    items: group.items.map(({ key, value, quantity }) => ({
       key,
-      value: value ? unwrapTaggedValue(value) : null,
-      ...(quantity !== null ? { quantity } : {}),
-    };
-  });
+      value: value == null ? null : unwrapTaggedValue(value),
+      ...(quantity != null ? { quantity } : {}),
+    })),
+  }));
 }
 
-export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {
-  const port = rawPort as Record<string, unknown> | undefined;
-  const statistics = port?.statistics as
-    { custom_statistics?: Record<string, unknown> } | undefined;
-  const custom = statistics?.custom_statistics;
-  if (!custom) {
-    return [];
-  }
-
-  return Object.entries(custom).map(([key, tagged]) => ({
-    key,
-    value: tagged
-      ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0])
-      : null,
+function parsePortRelations(
+  relations: readonly PortRelation[] | undefined
+): InspectedPortRelation[] {
+  return (relations ?? []).map(relation => ({
+    portId: relation.port_id,
+    role: relation.role,
   }));
+}
+
+export function parseOperatorInformation(rawNode: unknown): InspectedInformationGroup[] {
+  return parseInformation((rawNode as Operator)?.statistics?.information);
+}
+
+export function parseOperatorPortRelations(rawNode: unknown): InspectedPortRelation[] {
+  return parsePortRelations((rawNode as Operator)?.statistics?.port_relations);
+}
+
+export function parseOperatorObservations(rawNode: unknown): InspectedOperatorObservation[] {
+  return ((rawNode as Operator)?.observations ?? []).map(observation => ({
+    timeSeconds: observation.time_s,
+    kind: observation.kind,
+    attributes: observation.custom_attributes.map(({ key, value }) => ({
+      key,
+      value: value == null ? null : unwrapTaggedValue(value),
+    })),
+    portRelations: parsePortRelations(observation.port_relations),
+  }));
+}
+
+export function parsePortInformation(rawPort: unknown): InspectedInformationGroup[] {
+  return parseInformation((rawPort as Port)?.statistics?.information);
+}
+
+export function parseCustomStatistics(rawNode: unknown) {
+  return parseOperatorInformation(rawNode).flatMap(group => group.items);
+}
+
+export function parsePortStatistics(rawPort: unknown) {
+  return parsePortInformation(rawPort).flatMap(group => group.items);
 }

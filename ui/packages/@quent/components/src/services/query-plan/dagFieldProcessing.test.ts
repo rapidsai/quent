@@ -12,17 +12,29 @@ import {
 
 // ---- Helpers ---------------------------------------------------------------
 
-/** Build a DAGNode whose rawNode carries the given custom_statistics map. */
+/** Build a DAGNode whose rawNode carries the given information items. */
 function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
-  const customStatistics = Object.fromEntries(
-    Object.entries(stats).map(([key, value]) => [key, { value, quantity: null }])
-  );
   return {
     id,
     label: id,
     type: 'operator',
     metadata: {
-      rawNode: { statistics: { custom_statistics: customStatistics } },
+      rawNode: {
+        statistics: {
+          information: [
+            {
+              heading: 'Summary',
+              items: Object.entries(stats).map(([key, value]) => ({
+                key,
+                value,
+                quantity: null,
+              })),
+            },
+          ],
+          port_relations: [],
+        },
+        observations: [],
+      },
     },
   };
 }

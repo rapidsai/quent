@@ -84,6 +84,10 @@ export type {
   OperatorSelection,
   OperatorSelectionInput,
   OperatorSelectionState,
+  InspectedInformationItem,
+  InspectedInformationGroup,
+  InspectedPortRelation,
+  InspectedOperatorObservation,
   InspectedOperatorData,
   InspectedNodeData,
 } from './operatorTypes';

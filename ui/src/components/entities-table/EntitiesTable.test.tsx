@@ -43,6 +43,7 @@ function makeOperator(
     instance_name: instanceName,
     operator_type_name: typeName,
     custom_attributes: {},
+    observations: [],
     statistics: null,
     active_span: null,
   };

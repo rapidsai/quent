@@ -6,6 +6,9 @@ import {
   entityRefToEntitiesKey,
   ENTITY_REF_TO_ENTITIES_KEY,
   parseCustomStatistics,
+  parseOperatorInformation,
+  parseOperatorObservations,
+  parseOperatorPortRelations,
   parsePortStatistics,
 } from './queryBundle.utils';
 
@@ -64,19 +67,25 @@ function makeTagged(variant: string, value: unknown) {
   return { [variant]: value };
 }
 
-function makeOperator(custom_statistics: Record<string, unknown> | undefined) {
+function makeOperator(statistics: Record<string, unknown> | undefined) {
   return {
     statistics:
-      custom_statistics !== undefined
+      statistics !== undefined
         ? {
-            custom_statistics: Object.fromEntries(
-              Object.entries(custom_statistics).map(([key, value]) => [
-                key,
-                { value, quantity: null },
-              ])
-            ),
+            information: [
+              {
+                heading: 'Summary',
+                items: Object.entries(statistics).map(([key, value]) => ({
+                  key,
+                  value,
+                  quantity: null,
+                })),
+              },
+            ],
+            port_relations: [],
           }
         : undefined,
+    observations: [],
   };
 }
 
@@ -103,10 +112,15 @@ describe('parseCustomStatistics', () => {
   it('preserves a quantity key', () => {
     const op = {
       statistics: {
-        custom_statistics: {
-          bytes: { value: makeTagged('UInt64', 1024), quantity: 'bytes' },
-        },
+        information: [
+          {
+            heading: 'Summary',
+            items: [{ key: 'bytes', value: makeTagged('UInt64', 1024), quantity: 'bytes' }],
+          },
+        ],
+        port_relations: [],
       },
+      observations: [],
     };
     expect(parseCustomStatistics(op)).toEqual([{ key: 'bytes', value: 1024, quantity: 'bytes' }]);
   });
@@ -159,13 +173,74 @@ describe('parseCustomStatistics', () => {
     expect(keys).toContain('rows');
     expect(keys).toContain('bytes');
   });
+
+  it('preserves information groups and typed port relations', () => {
+    const operator = {
+      statistics: {
+        information: [
+          {
+            heading: 'Second',
+            items: [{ key: 'repeat', value: 2, quantity: null }],
+          },
+          {
+            heading: 'First',
+            items: [{ key: 'repeat', value: 1, quantity: null }],
+          },
+        ],
+        port_relations: [{ port_id: 'port-1', role: 'build' }],
+      },
+      observations: [],
+    };
+
+    expect(parseOperatorInformation(operator)).toEqual([
+      { heading: 'Second', items: [{ key: 'repeat', value: 2 }] },
+      { heading: 'First', items: [{ key: 'repeat', value: 1 }] },
+    ]);
+    expect(parseOperatorPortRelations(operator)).toEqual([{ portId: 'port-1', role: 'build' }]);
+  });
+
+  it('parses timestamped observations and their typed port relations', () => {
+    expect(
+      parseOperatorObservations({
+        observations: [
+          {
+            time_s: 0.125,
+            kind: 'algorithm.choice',
+            custom_attributes: [{ key: 'reason', value: 'smaller' }],
+            port_relations: [{ port_id: 'port-1', role: 'build' }],
+          },
+        ],
+      })
+    ).toEqual([
+      {
+        timeSeconds: 0.125,
+        kind: 'algorithm.choice',
+        attributes: [{ key: 'reason', value: 'smaller' }],
+        portRelations: [{ portId: 'port-1', role: 'build' }],
+      },
+    ]);
+  });
 });
 
 // ---- parsePortStatistics ---------------------------------------------------
 
-function makePort(custom_statistics: Record<string, unknown> | undefined) {
+function makePort(statistics: Record<string, unknown> | undefined) {
   return {
-    statistics: custom_statistics !== undefined ? { custom_statistics } : undefined,
+    statistics:
+      statistics !== undefined
+        ? {
+            information: [
+              {
+                heading: 'Summary',
+                items: Object.entries(statistics).map(([key, value]) => ({
+                  key,
+                  value,
+                  quantity: null,
+                })),
+              },
+            ],
+          }
+        : undefined,
   };
 }
 

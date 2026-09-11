@@ -3,6 +3,29 @@
 
 import type { StatValue } from './dagTypes';
 
+export interface InspectedInformationItem {
+  key: string;
+  value: StatValue;
+  quantity?: string;
+}
+
+export interface InspectedInformationGroup {
+  heading: string;
+  items: InspectedInformationItem[];
+}
+
+export interface InspectedPortRelation {
+  portId: string;
+  role: string;
+}
+
+export interface InspectedOperatorObservation {
+  timeSeconds: number;
+  kind: string;
+  attributes: Array<{ key: string; value: StatValue }>;
+  portRelations: InspectedPortRelation[];
+}
+
 export interface OperatorSelection {
   readonly label: string;
   readonly operatorIds: ReadonlySet<string>;
@@ -21,7 +44,10 @@ export interface InspectedOperatorData {
   nodeId: string;
   label: string;
   operationType: string;
-  statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
+  statistics: InspectedInformationItem[];
+  information?: InspectedInformationGroup[];
+  observations?: InspectedOperatorObservation[];
+  portRelations?: InspectedPortRelation[];
 }
 
 export interface InspectedNodeData extends InspectedOperatorData {
