@@ -132,6 +132,13 @@ pub struct InMemoryResources {
 }
 
 impl InMemoryResourcesBuilder {
+    /// Registers a resource type declaration if its name is not already present.
+    pub fn insert_resource_type(&mut self, declaration: ResourceTypeDecl) {
+        self.resource_types
+            .entry(declaration.name.clone())
+            .or_insert(declaration);
+    }
+
     /// Get or create a resource builder for the given ID.
     pub fn try_builder(&mut self, id: Uuid) -> AnalyzerResult<&mut RtResourceBuilder> {
         if let Entry::Vacant(e) = self.resources.entry(id) {

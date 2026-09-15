@@ -45,8 +45,8 @@ pub trait Fsm: Entity {
 
     /// Return the number of states in this FSM.
     ///
-    /// This is always the number of transitions - 1, since the final transition
-    /// must be into the special exit state.
+    /// Each state spans two consecutive transitions, so this is always one less
+    /// than the number of transitions.
     fn len(&self) -> usize;
 
     /// Return true if this FSM has no states (meaning the model of whatever it

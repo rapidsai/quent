@@ -6,7 +6,7 @@ use std::path::Path;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
-use quent_model::io::ImporterResult;
+use quent_io::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
     entities::{request::EntityListRequest, response::EntityListResponse},
@@ -27,7 +27,6 @@ use crate::QueryEngineModel;
 /// visualization in a UI.
 pub trait UiAnalyzer {
     type Event;
-    type EntityRef;
 
     fn try_new(
         engine_id: Uuid,
@@ -54,7 +53,7 @@ pub trait UiAnalyzer {
 
     /// Deliver a UI-friendly `QueryBundle` with all high-level yet
     /// non-volumous information related to this query.
-    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle<Self::EntityRef>>;
+    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle>;
 
     /// Access the underlying query engine model of this analyzer.
     fn query_engine_model(&self) -> &impl QueryEngineModel;
@@ -155,6 +154,12 @@ pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>:
 pub trait QuentViewer {
     /// The analyzer that renders this model's events.
     type Analyzer: UiAnalyzer + Send + Sync + 'static;
+
+    /// Returns lightweight entity associations used to index one runtime context.
+    ///
+    /// This must avoid full event import and analyzer construction because it is called while
+    /// discovering every available context.
+    fn context_inventory(dir: &Path) -> ImporterResult<quent_analyzer::context::ContextInventory>;
 
     /// Reconstruct the model's event stream from one context directory, yielding
     /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model

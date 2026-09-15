@@ -7,7 +7,7 @@ use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model,
     fsm::collection::FsmCollection,
     resource::{
-        CapacityValue, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
+        CapacityDecl, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
         ResourceTypeDecl, Usage, Using,
         collection::{
             InMemoryResources, InMemoryResourcesBuilder, ResourceCollection,
@@ -18,22 +18,162 @@ use quent_analyzer::{
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{
-    OperatorEntityMut, QueryEngineModel, QueryEngineModelMut,
-    plain::legacy::{
-        Engine, InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder, Operator, Plan, Port,
-        Query, QueryEngineEntityId, QueryGroup, Worker,
+    OperatorEntityMut, QueryEngineEntityId, QueryEngineModel, QueryEngineModelMut,
+    model::{
+        self as query_engine, Engine, InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder,
+        Operator, Plan, Port, Query, QueryEngineEvent, QueryGroup, Worker,
     },
     plan_tree::PlanTree,
 };
-use quent_query_engine_model::QueryEngineEvent;
-use quent_simulator_instrumentation::SimulatorEvent;
-use quent_simulator_ui::EntityRef;
+use quent_query_engine_ui::EntityRef;
+use quent_simulator_store::{self as schema, SimulatorEvent};
 use uuid::Uuid;
 
 use crate::{
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
+
+trait IntoQueryEngineEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent;
+}
+
+// TODO(johanpel): Generate query-engine semantic event adapters from schema metadata. See
+// https://github.com/rapidsai/quent/issues/288.
+impl IntoQueryEngineEvent for schema::EngineEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Engine(match self {
+            Self::Init {
+                implementation,
+                instance_name,
+            } => query_engine::EngineEvent::Init {
+                implementation: query_engine::EngineImplementation {
+                    name: implementation.name,
+                    version: implementation.version,
+                    custom_attributes: implementation.custom_attributes,
+                },
+                instance_name,
+            },
+            Self::Exit => query_engine::EngineEvent::Exit,
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::WorkerEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Worker(match self {
+            Self::Init {
+                parent_engine_id,
+                instance_name,
+            } => query_engine::WorkerEvent::Init {
+                parent_engine_id: parent_engine_id.target,
+                instance_name,
+            },
+            Self::Exit => query_engine::WorkerEvent::Exit,
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::QueryGroupEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        let Self::Declaration {
+            instance_name,
+            engine_id,
+        } = self;
+        QueryEngineEvent::QueryGroup(query_engine::QueryGroupEvent {
+            instance_name,
+            engine_id: engine_id.target,
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::QueryEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Query(match self {
+            Self::Init {
+                seq,
+                instance_name,
+                query_group_id,
+            } => query_engine::QueryEvent::Init {
+                seq,
+                instance_name,
+                query_group_id: query_group_id.target,
+            },
+            Self::Planning { seq } => query_engine::QueryEvent::Planning { seq },
+            Self::Executing { seq } => query_engine::QueryEvent::Executing { seq },
+            Self::Done { seq } => query_engine::QueryEvent::Done { seq },
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::PlanEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        let Self::Declaration {
+            parent,
+            instance_name,
+            edges,
+            worker_id,
+        } = self;
+        QueryEngineEvent::Plan(query_engine::PlanEvent {
+            parent: query_engine::PlanParent {
+                query_id: parent.query_id.target,
+                plan_id: parent.plan_id.map(|plan| plan.target),
+            },
+            instance_name,
+            edges: edges
+                .into_iter()
+                .map(|edge| query_engine::Edge {
+                    source: edge.source.target,
+                    target: edge.target.target,
+                })
+                .collect(),
+            worker_id: worker_id.map(|worker| worker.target),
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::OperatorEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Operator(match self {
+            Self::Declaration {
+                plan_id,
+                parent_operator_ids,
+                instance_name,
+                type_name,
+                custom_attributes,
+            } => query_engine::OperatorEvent::Declaration {
+                plan_id: plan_id.target,
+                parent_operator_ids: parent_operator_ids
+                    .into_iter()
+                    .map(|operator| operator.target)
+                    .collect(),
+                instance_name,
+                type_name,
+                custom_attributes,
+            },
+            Self::Statistics { custom_attributes } => {
+                query_engine::OperatorEvent::Statistics { custom_attributes }
+            }
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::PortEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Port(match self {
+            Self::Declaration {
+                operator_id,
+                instance_name,
+            } => query_engine::PortEvent::Declaration {
+                operator_id: operator_id.target,
+                instance_name,
+            },
+            Self::Statistics { custom_attributes } => {
+                query_engine::PortEvent::Statistics { custom_attributes }
+            }
+        })
+    }
+}
 
 /// A model of the simulator engine
 pub struct SimulatorModel {
@@ -67,8 +207,11 @@ impl Model for SimulatorModel {
             Ok(EntityRef::ResourceGroup(entity_id))
         } else {
             self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
+                .get(&entity_id)
+                .map(|task| EntityRef::Application {
+                    type_name: task.type_name().to_owned(),
+                    id: entity_id,
+                })
                 .ok_or(AnalyzerError::InvalidId(entity_id))
         }
     }
@@ -260,187 +403,343 @@ impl SimulatorModelBuilder {
                     .tasks
                     .entry(id)
                     .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
-                task_builder.push(Event::new(id, timestamp, t));
+                task_builder.push_transition(Event::new(id, timestamp, t));
                 Ok(())
             }
-            SimulatorEvent::Engine(e) => {
-                self.query_engine
-                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Engine(e)))
-            }
-            SimulatorEvent::Worker(e) => {
-                self.query_engine
-                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Worker(e)))
-            }
-            SimulatorEvent::QueryGroup(e) => self.query_engine.try_push(Event::new(
+            SimulatorEvent::Engine(event) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::QueryGroup(e),
+                event.into_query_engine_event(),
             )),
-            SimulatorEvent::Query(e) => {
-                self.query_engine
-                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Query(e)))
+            SimulatorEvent::Worker(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::QueryGroup(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Query(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Plan(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Operator(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Port(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::HostMemory(event) => self.push_host_memory(id, timestamp, event),
+            SimulatorEvent::Storage(event) => self.push_storage(id, timestamp, event),
+            SimulatorEvent::GpuMemory(event) => self.push_gpu_memory(id, timestamp, event),
+            SimulatorEvent::TaskExecutorThread(event) => self.push_thread(id, timestamp, event),
+            SimulatorEvent::StorageChannel(event) => {
+                self.push_storage_channel(id, timestamp, event)
             }
-            SimulatorEvent::Plan(e) => {
-                self.query_engine
-                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Plan(e)))
+            SimulatorEvent::PcieChannel(event) => self.push_pcie_channel(id, timestamp, event),
+            SimulatorEvent::NetworkChannel(event) => {
+                self.push_network_channel(id, timestamp, event)
             }
-            SimulatorEvent::Operator(e) => {
-                self.query_engine
-                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Operator(e)))
-            }
-            SimulatorEvent::Port(e) => {
-                self.query_engine
-                    .try_push(Event::new(id, timestamp, QueryEngineEvent::Port(e)))
-            }
-            SimulatorEvent::Memory(m) => self.push_memory(id, timestamp, m),
-            SimulatorEvent::Processor(p) => self.push_processor(id, timestamp, p),
-            SimulatorEvent::Channel(c) => self.push_channel(id, timestamp, c),
-            SimulatorEvent::ThreadPool(
-                quent_simulator_instrumentation::ThreadPoolEvent::Declaration(d),
-            ) => {
+            SimulatorEvent::TaskExecutor(schema::TaskExecutorEvent::Declaration {
+                instance_name,
+                worker_id,
+            }) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
-                    "thread_pool",
-                    &d.instance_name,
-                    Some(d.parent_group_id),
+                    "task_executor",
+                    &instance_name,
+                    Some(worker_id.target),
                 );
                 Ok(())
             }
-            SimulatorEvent::Network(
-                quent_simulator_instrumentation::NetworkEvent::Declaration(d),
-            ) => {
+            SimulatorEvent::Network(schema::NetworkEvent::Declaration {
+                instance_name,
+                engine_id,
+            }) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
                     "network",
-                    &d.instance_name,
-                    Some(d.parent_group_id),
+                    &instance_name,
+                    Some(engine_id.target),
                 );
                 Ok(())
             }
-            SimulatorEvent::Gpu(quent_simulator_instrumentation::GpuEvent::Declaration(d)) => {
+            SimulatorEvent::Gpu(schema::GpuEvent::Declaration {
+                instance_name,
+                worker_id,
+            }) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
                     "gpu",
-                    &d.instance_name,
-                    Some(d.parent_group_id),
+                    &instance_name,
+                    Some(worker_id.target),
                 );
                 Ok(())
             }
         }
     }
 
-    fn push_memory(
+    fn initialize_resource(
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: quent_stdlib::memory::MemoryEvent,
+        type_name: &str,
+        instance_name: String,
+        parent_id: Uuid,
+        declaration: ResourceTypeDecl,
     ) -> AnalyzerResult<()> {
-        let state = event.state;
-        use quent_stdlib::memory::MemoryTransition;
-        match state {
-            MemoryTransition::MemoryInitializing(init) => {
-                self.arbitrary_resources
-                    .insert_memory_resource(&init.resource_type_name);
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name(init.resource_type_name);
-                bld.set_instance_name(Some(init.instance_name));
-                bld.set_parent_group_id(init.parent_group_id);
-            }
-            MemoryTransition::MemoryOperating(op) => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Operating(
-                    timestamp,
-                    ResourceCapacities(vec![CapacityValue::new(
-                        "capacity_bytes",
-                        op.capacity_bytes.value.unwrap_or(0),
-                    )]),
-                ));
-            }
-            MemoryTransition::MemoryFinalizing(_) => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Finalizing(timestamp));
-            }
-            MemoryTransition::Exit => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Exit(timestamp));
-            }
-        }
+        self.arbitrary_resources.insert_resource_type(declaration);
+        let builder = self.arbitrary_resources.try_builder(id)?;
+        builder.push(RtResourceTransition::Init(timestamp));
+        builder.set_type_name(type_name);
+        builder.set_instance_name(Some(instance_name));
+        builder.set_parent_group_id(parent_id);
         Ok(())
     }
 
-    fn push_processor(
+    fn push_resource_state(
         &mut self,
         id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: quent_stdlib::processor::ProcessorEvent,
+        transition: RtResourceTransition,
     ) -> AnalyzerResult<()> {
-        let state = event.state;
-        use quent_stdlib::processor::ProcessorTransition;
-        match state {
-            ProcessorTransition::ProcessorInitializing(init) => {
-                self.arbitrary_resources
-                    .insert_processor_resource(&init.resource_type_name);
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name(init.resource_type_name);
-                bld.set_instance_name(Some(init.instance_name));
-                bld.set_parent_group_id(init.parent_group_id);
-            }
-            ProcessorTransition::ProcessorOperating(_) => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Operating(
-                    timestamp,
-                    ResourceCapacities(vec![]),
-                ));
-            }
-            ProcessorTransition::ProcessorFinalizing(_) => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Finalizing(timestamp));
-            }
-            ProcessorTransition::Exit => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Exit(timestamp));
-            }
-        }
+        self.arbitrary_resources.try_builder(id)?.push(transition);
         Ok(())
     }
 
-    fn push_channel(
+    fn push_host_memory(
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: quent_stdlib::channel::ChannelEvent,
+        event: schema::HostMemoryEvent,
     ) -> AnalyzerResult<()> {
-        let state = event.state;
-        use quent_stdlib::channel::ChannelTransition;
-        match state {
-            ChannelTransition::ChannelInitializing(init) => {
-                self.arbitrary_resources
-                    .insert_channel_resource(&init.resource_type_name);
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name(init.resource_type_name);
-                bld.set_instance_name(Some(init.instance_name));
-                bld.set_parent_group_id(init.parent_group_id);
+        match event {
+            schema::HostMemoryEvent::Initializing {
+                instance_name,
+                worker_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "host_memory",
+                instance_name,
+                worker_id.target,
+                ResourceTypeDecl::new("host_memory", [CapacityDecl::new_occupancy("bytes")]),
+            ),
+            schema::HostMemoryEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::HostMemoryEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
             }
-            ChannelTransition::ChannelOperating(_) => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Operating(
-                    timestamp,
-                    ResourceCapacities(vec![]),
-                ));
-            }
-            ChannelTransition::ChannelFinalizing(_) => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Finalizing(timestamp));
-            }
-            ChannelTransition::Exit => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Exit(timestamp));
+            schema::HostMemoryEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
             }
         }
-        Ok(())
+    }
+
+    fn push_storage(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: schema::StorageEvent,
+    ) -> AnalyzerResult<()> {
+        match event {
+            schema::StorageEvent::Initializing {
+                instance_name,
+                worker_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "storage",
+                instance_name,
+                worker_id.target,
+                ResourceTypeDecl::new("storage", [CapacityDecl::new_occupancy("bytes")]),
+            ),
+            schema::StorageEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::StorageEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
+            }
+            schema::StorageEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
+            }
+        }
+    }
+
+    fn push_gpu_memory(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: schema::GpuMemoryEvent,
+    ) -> AnalyzerResult<()> {
+        match event {
+            schema::GpuMemoryEvent::Initializing {
+                instance_name,
+                gpu_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "gpu_memory",
+                instance_name,
+                gpu_id.target,
+                ResourceTypeDecl::new("gpu_memory", [CapacityDecl::new_occupancy("bytes")]),
+            ),
+            schema::GpuMemoryEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::GpuMemoryEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
+            }
+            schema::GpuMemoryEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
+            }
+        }
+    }
+
+    fn push_thread(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: schema::TaskExecutorThreadEvent,
+    ) -> AnalyzerResult<()> {
+        match event {
+            schema::TaskExecutorThreadEvent::Initializing {
+                instance_name,
+                task_executor_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "task_executor_thread",
+                instance_name,
+                task_executor_id.target,
+                ResourceTypeDecl::unit("task_executor_thread"),
+            ),
+            schema::TaskExecutorThreadEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::TaskExecutorThreadEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
+            }
+            schema::TaskExecutorThreadEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
+            }
+        }
+    }
+
+    fn push_storage_channel(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: schema::StorageChannelEvent,
+    ) -> AnalyzerResult<()> {
+        match event {
+            schema::StorageChannelEvent::Initializing {
+                instance_name,
+                worker_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "storage_channel",
+                instance_name,
+                worker_id.target,
+                ResourceTypeDecl::new("storage_channel", [CapacityDecl::new_rate("bytes")]),
+            ),
+            schema::StorageChannelEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::StorageChannelEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
+            }
+            schema::StorageChannelEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
+            }
+        }
+    }
+
+    fn push_pcie_channel(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: schema::PcieChannelEvent,
+    ) -> AnalyzerResult<()> {
+        match event {
+            schema::PcieChannelEvent::Initializing {
+                instance_name,
+                gpu_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "pcie_channel",
+                instance_name,
+                gpu_id.target,
+                ResourceTypeDecl::new("pcie_channel", [CapacityDecl::new_rate("bytes")]),
+            ),
+            schema::PcieChannelEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::PcieChannelEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
+            }
+            schema::PcieChannelEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
+            }
+        }
+    }
+
+    fn push_network_channel(
+        &mut self,
+        id: Uuid,
+        timestamp: quent_time::TimeUnixNanoSec,
+        event: schema::NetworkChannelEvent,
+    ) -> AnalyzerResult<()> {
+        match event {
+            schema::NetworkChannelEvent::Initializing {
+                instance_name,
+                network_id,
+                ..
+            } => self.initialize_resource(
+                id,
+                timestamp,
+                "network_channel",
+                instance_name,
+                network_id.target,
+                ResourceTypeDecl::new("network_channel", [CapacityDecl::new_rate("bytes")]),
+            ),
+            schema::NetworkChannelEvent::Operating { .. } => self.push_resource_state(
+                id,
+                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
+            ),
+            schema::NetworkChannelEvent::Finalizing { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
+            }
+            schema::NetworkChannelEvent::Exit { .. } => {
+                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
+            }
+        }
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<SimulatorModel> {
@@ -452,7 +751,7 @@ impl SimulatorModelBuilder {
         let mut tasks = HashMap::default();
 
         for (task_id, task_builder) in self.tasks.into_iter() {
-            let task = task_builder.try_build()?;
+            let task = Task::from_builder(task_builder)?;
             for usage in task.usages() {
                 let resource_type_name = resources
                     .resource(usage.resource_id())?

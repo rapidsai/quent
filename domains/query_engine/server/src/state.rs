@@ -49,7 +49,6 @@ where
     A: UiAnalyzer + Send + Sync + 'static,
 {
     type Error = ServerError;
-    type EntityRef = A::EntityRef;
 
     async fn list_engines(&self, with_metadata: bool) -> ServerResult<Vec<ui::Engine>> {
         if with_metadata {
@@ -96,11 +95,7 @@ where
             .map_err(Into::into)
     }
 
-    async fn query(
-        &self,
-        engine_id: Uuid,
-        query_id: Uuid,
-    ) -> ServerResult<ui::QueryBundle<Self::EntityRef>> {
+    async fn query(&self, engine_id: Uuid, query_id: Uuid) -> ServerResult<ui::QueryBundle> {
         let analyzer = self.analyzers.get(engine_id).await?;
         analyzer.query_bundle(query_id).map_err(Into::into)
     }

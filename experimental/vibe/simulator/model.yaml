@@ -1,0 +1,287 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+quent: alpha
+model: Simulator
+doc: Query-engine simulator event model.
+
+records:
+  EngineImplementationAttributes:
+    doc: Details about the simulated query engine implementation.
+    fields:
+      name: { option: string }
+      version: { option: string }
+      custom_attributes: dynamic
+
+  Edge:
+    doc: A directed edge between two operator ports.
+    fields:
+      source: { ref: Port }
+      target: { ref: Port }
+
+  PlanParent:
+    doc: The query owning a plan and its optional predecessor plan.
+    fields:
+      query_id: { scope-ref: Query }
+      plan_id: { option: { ref: Plan } }
+
+entities:
+  Engine:
+    doc: The simulated query engine and root of the reference tree.
+    events:
+      init:
+        attributes:
+          implementation: EngineImplementationAttributes
+          instance_name: { option: string }
+      exit: {}
+
+  QueryGroup:
+    doc: A group of queries submitted to an engine.
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          engine_id: { scope-ref: Engine }
+
+  Worker:
+    doc: A worker executing plans for an engine.
+    events:
+      init:
+        attributes:
+          parent_engine_id: { scope-ref: Engine }
+          instance_name: string
+      exit: {}
+
+  Plan:
+    doc: A directed acyclic graph of query operators.
+    events:
+      declaration:
+        attributes:
+          parent: PlanParent
+          instance_name: string
+          edges: { list: Edge }
+          worker_id: { option: { ref: Worker } }
+
+  Operator:
+    doc: A source, sink, or transformation within a plan.
+    events:
+      declaration:
+        attributes:
+          plan_id: { scope-ref: Plan }
+          parent_operator_ids: { list: { ref: Operator } }
+          instance_name: string
+          type_name: string
+          custom_attributes: dynamic
+      statistics:
+        attributes:
+          custom_attributes: dynamic
+
+  Port:
+    doc: An input or output of an operator.
+    events:
+      declaration:
+        attributes:
+          operator_id: { scope-ref: Operator }
+          instance_name: string
+      statistics:
+        attributes:
+          custom_attributes: dynamic
+
+  TaskExecutor:
+    doc: A worker-local executor that schedules simulator tasks across its threads.
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          worker_id: { scope-ref: Worker }
+
+  Network:
+    doc: The network connecting an engine's workers.
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          engine_id: { scope-ref: Engine }
+
+  Gpu:
+    doc: A simulated GPU attached to a worker.
+    events:
+      declaration:
+        attributes:
+          instance_name: string
+          worker_id: { scope-ref: Worker }
+
+fsms:
+  Query:
+    doc: A query progressing through planning and execution.
+    states:
+      init:
+        initial: true
+        attributes:
+          instance_name: string
+          query_group_id: { scope-ref: QueryGroup }
+        to: [planning]
+      planning:
+        to: [executing]
+      executing:
+        to: [done]
+      done: {}
+
+  HostMemory:
+    doc: Host memory owned by a worker.
+    resource:
+      bytes: { kind: occupancy }
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          worker_id: { scope-ref: Worker }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  Storage:
+    doc: Persistent storage owned by a worker.
+    resource:
+      bytes: { kind: occupancy }
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          worker_id: { scope-ref: Worker }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  GpuMemory:
+    doc: Device memory owned by a GPU.
+    resource:
+      bytes: { kind: occupancy }
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          gpu_id: { scope-ref: Gpu }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  TaskExecutorThread:
+    doc: A simulated CPU thread that executes tasks for a task executor.
+    resource: true
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          task_executor_id: { scope-ref: TaskExecutor }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  StorageChannel:
+    doc: A worker-local channel transferring bytes between storage and host memory.
+    resource:
+      bytes: { kind: rate }
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          worker_id: { scope-ref: Worker }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  PcieChannel:
+    doc: A GPU-local channel transferring bytes between host and device memory.
+    resource:
+      bytes: { kind: rate }
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          gpu_id: { scope-ref: Gpu }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  NetworkChannel:
+    doc: An engine-network channel transferring bytes between workers.
+    resource:
+      bytes: { kind: rate }
+    states:
+      initializing:
+        initial: true
+        attributes:
+          instance_name: string
+          network_id: { scope-ref: Network }
+        to: [operating]
+      operating:
+        to: [finalizing]
+      finalizing:
+        to: [exit]
+      exit: {}
+
+  Task:
+    doc: A unit of work executed for an operator.
+    states:
+      queueing:
+        initial: true
+        attributes:
+          instance_name: string
+          operator_id: { scope-ref: Operator }
+        to: [allocating]
+      allocating:
+        attributes:
+          use_thread: { uses: TaskExecutorThread }
+        to: [computing, loading]
+      loading:
+        attributes:
+          use_thread: { uses: TaskExecutorThread }
+          use_storage_channel: { option: { uses: StorageChannel } }
+          use_pcie_channel: { option: { uses: PcieChannel } }
+          use_host_memory: { option: { uses: HostMemory } }
+          use_gpu_memory: { option: { uses: GpuMemory } }
+        to: [computing, loading]
+      computing:
+        attributes:
+          instance_name: string
+          input_bytes: u64
+          use_thread: { uses: TaskExecutorThread }
+          use_host_memory: { option: { uses: HostMemory } }
+          use_gpu_memory: { option: { uses: GpuMemory } }
+        to: [sending, spilling, exit]
+      spilling:
+        attributes:
+          use_thread: { uses: TaskExecutorThread }
+          use_storage_channel: { uses: StorageChannel }
+        to: [allocating]
+      sending:
+        attributes:
+          use_thread: { uses: TaskExecutorThread }
+          use_network_channel: { uses: NetworkChannel }
+        to: [queueing, exit]
+      exit: {}

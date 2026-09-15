@@ -1,24 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generic entity event storage reconstructed from model-generated events.
+//! Generic entity event storage.
 
 use quent_events::Event;
-use quent_model::EntityData;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
 use crate::{AnalyzerError, AnalyzerResult};
 
-/// Event storage for a model-defined entity.
-///
-/// `M` is the model marker type (e.g., `engine::Engine`). The data struct
-/// `M::Data` stores one `Option<T>` per event type, populated by `push()`.
-///
-/// ```ignore
-/// let engine: EntityEvents<engine::Engine> = ...;
-/// let name = engine.data().init.as_ref().unwrap().instance_name.clone();
-/// ```
+/// Associates an entity marker with its event accumulator.
+pub trait EntityData: quent_events::Entity {
+    type Data: Default;
+
+    /// Stores an event in the accumulator.
+    fn push(data: &mut Self::Data, event: Self::Event);
+}
+
+/// Event storage for an entity.
 pub struct EntityEvents<M: EntityData> {
     id: Uuid,
     earliest_timestamp: Option<TimeUnixNanoSec>,

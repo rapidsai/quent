@@ -3,14 +3,15 @@
 
 //! Generates the browser demo's Postcard event recording.
 
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::path::PathBuf;
 
 use quent_events::Event;
-use quent_model::EventCallback;
-use quent_simulator_instrumentation::{SimulatorContext, SimulatorEvent};
+use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+use quent_simulator_instrumentation as instrumentation;
+use quent_simulator_store::{Simulator, SimulatorEvent};
+use quent_store::event::{ModelEventStore, filesystem::Store};
+
+type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args_os().skip(1);
@@ -19,17 +20,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("usage: generate-demo <output>".into());
     }
 
-    let events = Arc::new(Mutex::new(Vec::<Event<SimulatorEvent>>::new()));
-    let callback = {
-        let events = Arc::clone(&events);
-        EventCallback::new(move |event| events.lock().unwrap().push(event))
-    };
-    let context = SimulatorContext::try_new(callback)?;
+    let event_dir = tempfile::tempdir()?;
+    let context = SimulatorContext::try_new(ExporterOptions::FileSystem(
+        FileSystemExporterOptions::new(FileSystemFormat::Ndjson, event_dir.path().to_path_buf()),
+    ))?;
+    let context_id = context.id();
     quent_simulator::simulate(context, Default::default());
-
-    let events = Arc::try_unwrap(events)
-        .map_err(|_| "simulator event callback is still in use")?
-        .into_inner()?;
+    let events = Store::<Simulator>::new(event_dir.path())
+        .events(context_id)?
+        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()?;
     if let Some(parent) = output
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())

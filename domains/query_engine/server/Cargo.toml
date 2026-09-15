@@ -5,7 +5,7 @@ edition.workspace =  true
 publish.workspace = true
 [features]
 swagger = ["dep:utoipa", "dep:utoipa-swagger-ui"]
-ui = ["dep:mime_guess", "dep:quent-simulator-ui-bindings", "dep:rust-embed"]
+ui = ["dep:mime_guess", "dep:quent-query-engine-ui-bindings", "dep:rust-embed"]
 
 [dependencies]
 async-trait.workspace = true
@@ -17,7 +17,6 @@ quent-collector-proto = { path = "../../../crates/collector/proto" }
 quent-events = { path = "../../../crates/events" }
 quent-io = { path = "../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
-quent-query-engine-model = { path = "../model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
@@ -35,4 +34,4 @@ mime_guess = { version = "2", optional = true }
 rust-embed = { version = "8", optional = true }
 
 [build-dependencies]
-quent-simulator-ui-bindings = { path = "../../../experimental/vibe/simulator/ui-bindings", optional = true }
+quent-query-engine-ui-bindings = { path = "../ui-bindings", optional = true }

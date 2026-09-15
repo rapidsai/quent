@@ -1,14 +1,10 @@
 [workspace]
 resolver = "3"
 members = [
-    # Legacy PoC crates, scheduled for removal
-    "crates/model",
-    "crates/model-macros",
     # Application-agnostic crates
     "crates/analyzer",
     "crates/dynamic-attributes",
     "crates/build-info",
-    "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
@@ -22,7 +18,6 @@ members = [
     "crates/io/types",
     "crates/instrumentation",
     "crates/open",
-    "crates/stdlib",
     "crates/time",
     "crates/ui",
     # NVTX integration crates
@@ -35,35 +30,22 @@ members = [
     "integrations/nvtx/server",
     # Domain-specific crates
     "domains/query_engine/analyzer",
-    "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    # Query engine C++ bridge test
-    "domains/query_engine/tests/cpp/instrumentation",
-    "domains/query_engine/tests/cpp/bridge",
-    # Query engine Python bridge test
-    "domains/query_engine/tests/python/instrumentation",
-    "domains/query_engine/tests/python/bridge",
+    "domains/query_engine/ui-bindings",
     # README example
     "examples/readme",
-    # Legacy README example using model macros
-    "examples/legacy/readme",
-    # Legacy C++ integration example using the legacy README model
-    "examples/legacy/cpp-integration/bridge",
-    # Legacy Python integration example using the legacy README model
-    "examples/legacy/python-integration/bridge",
     # Simulator crates
     "experimental/vibe/simulator/analyzer",
     "experimental/vibe/simulator/application",
     "experimental/vibe/simulator/instrumentation",
     "experimental/vibe/simulator/server",
-    "experimental/vibe/simulator/ui",
-    "experimental/vibe/simulator/ui-bindings",
+    "experimental/vibe/simulator/store",
     "experimental/vibe/simulator/wasm",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
-    "domains/query_engine/tests/fixed",
+    "experimental/vibe/simulator/tests/fixed",
     # Unused preliminary crates of https://github.com/rapidsai/quent/issues/191
     "crates/constraints",
     "crates/schema",
@@ -87,7 +69,6 @@ default-members = [
     "crates/analyzer",
     "crates/dynamic-attributes",
     "crates/build-info",
-    "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
@@ -100,24 +81,19 @@ default-members = [
     "crates/io/postcard",
     "crates/io/types",
     "crates/instrumentation",
-    "crates/model",
-    "crates/model-macros",
     "crates/open",
-    "crates/stdlib",
     "crates/time",
     "crates/ui",
     "domains/query_engine/analyzer",
-    "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    "domains/query_engine/tests/cpp/instrumentation",
+    "domains/query_engine/ui-bindings",
     "examples/readme",
     "experimental/vibe/simulator/analyzer",
     "experimental/vibe/simulator/application",
     "experimental/vibe/simulator/instrumentation",
     "experimental/vibe/simulator/server",
-    "experimental/vibe/simulator/ui",
-    "experimental/vibe/simulator/ui-bindings",
+    "experimental/vibe/simulator/store",
 ]
 
 [workspace.package]

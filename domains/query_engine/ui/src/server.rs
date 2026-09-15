@@ -23,8 +23,6 @@ use crate::{
 pub trait ServerContract: Sync {
     /// Transport-specific failure returned by the server.
     type Error;
-    /// Application-specific entity reference embedded in query bundles.
-    type EntityRef;
 
     /// List the available engines, optionally including their metadata.
     async fn list_engines(&self, with_metadata: bool) -> Result<Vec<Engine>, Self::Error>;
@@ -41,11 +39,7 @@ pub trait ServerContract: Sync {
         query_group_id: Uuid,
     ) -> Result<Vec<Query>, Self::Error>;
     /// Return the entities and execution plan for one query.
-    async fn query(
-        &self,
-        engine_id: Uuid,
-        query_id: Uuid,
-    ) -> Result<QueryBundle<Self::EntityRef>, Self::Error>;
+    async fn query(&self, engine_id: Uuid, query_id: Uuid) -> Result<QueryBundle, Self::Error>;
     /// Build a timeline for one resource or resource group.
     async fn single_timeline(
         &self,

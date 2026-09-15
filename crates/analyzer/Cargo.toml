@@ -11,7 +11,6 @@ ts = ["serde", "ts-rs"]
 [dependencies]
 quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-events = { path = "../events" }
-quent-model = { path = "../model" }
 quent-time = { path = "../time" }
 rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
