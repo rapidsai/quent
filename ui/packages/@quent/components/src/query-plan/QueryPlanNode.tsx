@@ -40,6 +40,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
     rawNode?: Operator;
     relatedOperatorIds?: string[];
     relatedOperators?: Operator[];
+    operatorWorkerLabels?: Record<string, string | undefined>;
   };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;

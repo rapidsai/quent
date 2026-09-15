@@ -3,7 +3,14 @@
 
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle, EntityRef } from '@quent/utils';
-import { buildRelatedOperatorIdsById, Operator, Port, Plan, PlanTree } from '@quent/utils';
+import {
+  buildRelatedOperatorIdsById,
+  operatorWorkerLabel,
+  Operator,
+  Port,
+  Plan,
+  PlanTree,
+} from '@quent/utils';
 
 interface PlanTreeNode extends PlanTree {
   query?: string | null;
@@ -33,6 +40,24 @@ const getNodeEntity = (
       : undefined;
     if (operator) {
       const relatedOperatorIds = relatedOperatorIdsById.get(operator.id) ?? [];
+      const relatedOperators = relatedOperatorIds.flatMap(id => {
+        const relatedOperator = bundle.entities.operators[id];
+        return relatedOperator ? [relatedOperator] : [];
+      });
+      const operatorWorkerLabels: Record<string, string | undefined> = {
+        [operator.id]: operatorWorkerLabel(
+          operator,
+          bundle.entities.plans,
+          bundle.entities.workers
+        ),
+      };
+      for (const relatedOperator of relatedOperators) {
+        operatorWorkerLabels[relatedOperator.id] = operatorWorkerLabel(
+          relatedOperator,
+          bundle.entities.plans,
+          bundle.entities.workers
+        );
+      }
       return {
         id: operator.id,
         label: operator.instance_name ?? operator.operator_type_name ?? 'Node',
@@ -40,10 +65,8 @@ const getNodeEntity = (
         metadata: {
           rawNode: operator,
           relatedOperatorIds,
-          relatedOperators: relatedOperatorIds.flatMap(id => {
-            const relatedOperator = bundle.entities.operators[id];
-            return relatedOperator ? [relatedOperator] : [];
-          }),
+          relatedOperators,
+          operatorWorkerLabels,
         },
       };
     }
