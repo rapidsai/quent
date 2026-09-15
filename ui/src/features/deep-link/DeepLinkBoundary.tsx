@@ -71,7 +71,7 @@ function hasKeys(value: object): boolean {
 }
 
 function isOperatorGroup(value: string): value is (typeof OperatorGroupSchema.options)[number] {
-  return OperatorGroupSchema.safeParse(value).success;
+  return OperatorGroupSchema.validate(value);
 }
 
 export function DeepLinkBoundary({
