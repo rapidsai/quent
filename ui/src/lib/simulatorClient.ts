@@ -93,6 +93,7 @@ export async function installSimulatorClient(): Promise<void> {
       call<EntityListResponse>({ operation: 'entityList', engineId, request }),
     fetchNvtxCatalog: async () => null,
     fetchNvtxViewport: async () => null,
+    fetchNvtxSpanDetail: async () => null,
   };
   setApiClient(client);
 }

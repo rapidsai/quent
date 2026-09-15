@@ -40,4 +40,4 @@ pub use stats::{RangeStats, StatsKey};
 
 // Re-exported so consumers can read span attributes without depending on the
 // vocabulary crate directly. Carried verbatim, exactly as captured.
-pub use nvtx_events::{NvtxColor, NvtxPayload};
+pub use nvtx_events::{NvtxColor, NvtxPayload, NvtxPayloadValue};

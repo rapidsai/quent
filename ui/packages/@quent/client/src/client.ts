@@ -11,6 +11,7 @@ import type {
   EntityListResponse,
   EntityRef,
   NvtxCatalog,
+  NvtxSpanDetail,
   NvtxViewportRequest,
   NvtxViewportResponse,
   OperatorFilter,
@@ -34,6 +35,11 @@ export interface ApiClient {
     queryStartUnixNs: bigint,
     request: NvtxViewportRequest
   ): Promise<NvtxViewportResponse | null>;
+  fetchNvtxSpanDetail(
+    contextId: string,
+    spanId: number,
+    queryStartUnixNs: bigint
+  ): Promise<NvtxSpanDetail | null>;
   fetchListCoordinators(engineId: string): Promise<QueryGroup[]>;
   fetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]>;
   fetchSingleTimeline(

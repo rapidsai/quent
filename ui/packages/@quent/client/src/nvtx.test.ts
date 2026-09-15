@@ -3,11 +3,12 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NvtxCatalog, NvtxViewportRequest } from '@quent/utils';
-import { fetchNvtxCatalog, fetchNvtxViewport } from './api';
+import { fetchNvtxCatalog, fetchNvtxSpanDetail, fetchNvtxViewport } from './api';
 import {
   canonicalizeNvtxRequest,
   nvtxCatalogQueryOptions,
   nvtxCatalogStaleTime,
+  nvtxSpanDetailQueryOptions,
   nvtxViewportQueryOptions,
   selectNvtxDomains,
 } from './nvtx';
@@ -186,5 +187,42 @@ describe('NVTX client', () => {
     expect(viewport?.statistics[0]?.count).toBe(1n);
     expect(viewport?.statistics[0]?.observed_count).toBe(1n);
     expect(viewport?.statistics[0]?.total_duration).toBe(1.25);
+  });
+
+  it('treats span-detail 404 as optional absence and propagates other failures', async () => {
+    const fetchMock = stubFetch(new Response(null, { status: 404, statusText: 'Not Found' }));
+    await expect(fetchNvtxSpanDetail('context-1', 3, QUERY_START_UNIX_NS)).resolves.toBeNull();
+    expect(fetchMock.mock.calls[0]?.[0]).toContain(
+      `/api/nvtx/contexts/context-1/spans/3?query_start=${QUERY_START_UNIX_NS}`
+    );
+
+    stubFetch(new Response(null, { status: 500, statusText: 'Internal Server Error' }));
+    await expect(fetchNvtxSpanDetail('context-1', 3, QUERY_START_UNIX_NS)).rejects.toThrow(
+      'API Error: 500 Internal Server Error'
+    );
+  });
+
+  it('fetches and disables span detail based on a nullable span id', async () => {
+    stubFetch(
+      new Response(
+        '{"span_id":3,"message":"work","domain_id":"3","domain_name":"d","category_id":null,"category_name":null,"color":"#000000ff","kind":"push_pop","thread_id":7,"thread_name":"main","start":0,"end":1,"duration":1,"incomplete":false,"payload":null,"ancestors":[],"children":[],"statistics":null}',
+        { status: 200 }
+      )
+    );
+    const detail = await fetchNvtxSpanDetail('context-1', 3, QUERY_START_UNIX_NS);
+    expect(detail?.message).toBe('work');
+    expect(detail?.span_id).toBe(3);
+
+    const options = nvtxSpanDetailQueryOptions('context-1', 3, QUERY_START_UNIX_NS);
+    expect(options.queryKey).toEqual([
+      'nvtxSpanDetail',
+      'context-1',
+      3,
+      QUERY_START_UNIX_NS.toString(10),
+    ]);
+    expect(options.enabled).toBe(true);
+
+    const disabled = nvtxSpanDetailQueryOptions('context-1', null, QUERY_START_UNIX_NS);
+    expect(disabled.enabled).toBe(false);
   });
 });

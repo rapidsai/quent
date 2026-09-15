@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { NvtxLane } from '@quent/utils';
+import type { NvtxLane, NvtxRangeItem } from '@quent/utils';
 import { withOpacity } from '@quent/utils';
 import { useDebouncedZoomRange } from '@quent/hooks';
 import {
@@ -44,6 +44,12 @@ export interface NvtxGanttProps {
   durationSeconds: number;
   height?: number;
   isDark: boolean;
+  /** Called when the user clicks a single (unmerged) range bar. */
+  onRangeClick?: (range: NvtxRangeItem) => void;
+  /** When set, dims every range bar except the one with this span id. */
+  selectedSpanId?: number;
+  /** Called when the user clicks the chart background (not a range bar). */
+  onBackgroundClick?: () => void;
 }
 
 export function NvtxGantt({
@@ -51,6 +57,9 @@ export function NvtxGantt({
   durationSeconds,
   height = NVTX_GANTT_HEIGHT,
   isDark,
+  onRangeClick,
+  selectedSpanId,
+  onBackgroundClick,
 }: NvtxGanttProps) {
   const { textColor } = useTimelineEchartsTheme(isDark);
   const zoomRange = useDebouncedZoomRange();
@@ -123,6 +132,9 @@ export function NvtxGantt({
       const color = rgbHex(datum.range?.color ?? datum.mark?.color ?? '#2563eb');
       const merged = (datum.mergedCount ?? 1) > 1;
       const label = merged ? '' : (datum.range?.message ?? datum.mark?.message ?? '');
+      const hasSelection = selectedSpanId != null;
+      const isSelected = hasSelection && datum.range?.span_id === selectedSpanId;
+      const opacity = hasSelection && !isSelected ? 0.3 : 1;
       const rect = {
         type: 'rect' as const,
         shape: { ...clippedShape, r: datum.mark ? 0 : 2 },
@@ -130,6 +142,7 @@ export function NvtxGantt({
           fill: withOpacity(color, MARK_AREA_FILL_OPACITY),
           stroke: withOpacity(color, MARK_AREA_BORDER_OPACITY),
           lineWidth: 1,
+          opacity,
           ...(merged ? { lineDash: [2, 1] } : {}),
         },
       };
@@ -146,6 +159,7 @@ export function NvtxGantt({
                 fill: textColor,
                 overflow: 'truncate' as const,
                 width: Math.max(0, clippedShape.width - 12),
+                opacity,
               },
             }
           : null;
@@ -162,11 +176,31 @@ export function NvtxGantt({
         children: text ? [rect, text, ...marker] : [rect, ...marker],
       };
     },
-    [customSeriesData, textColor]
+    [customSeriesData, textColor, selectedSpanId]
   );
 
+  const onEvents = useMemo(() => {
+    if (!onRangeClick) {
+      return undefined;
+    }
+    return {
+      click: (params: { dataIndex: number; seriesName?: string }) => {
+        if (params.seriesName !== SERIES_NAME) {
+          return;
+        }
+        const datum = customSeriesData[params.dataIndex];
+        // Only single, unmerged range bars have an unambiguous span to open;
+        // marks have no detail view and merged bars represent many spans.
+        if (!datum?.range || (datum.mergedCount ?? 1) > 1) {
+          return;
+        }
+        onRangeClick(datum.range);
+      },
+    };
+  }, [onRangeClick, customSeriesData]);
+
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full" data-nvtx-gantt>
       <GanttChart
         data={customSeriesData}
         durationSeconds={durationSeconds}
@@ -176,6 +210,9 @@ export function NvtxGantt({
         isDark={isDark}
         seriesName={SERIES_NAME}
         renderItem={renderItem}
+        cursor={onRangeClick ? 'pointer' : undefined}
+        onEvents={onEvents}
+        onBackgroundClick={onBackgroundClick}
         expandable
         expandLabel="Expand NVTX chart"
         collapseLabel="Collapse NVTX chart"

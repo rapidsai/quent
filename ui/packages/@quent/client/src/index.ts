@@ -19,6 +19,7 @@ export {
   fetchEntityList,
   fetchEngineContexts,
   fetchNvtxCatalog,
+  fetchNvtxSpanDetail,
   fetchNvtxViewport,
 } from './api';
 
@@ -37,6 +38,7 @@ export {
   engineContextsQueryOptions,
   firstNvtxCatalog,
   nvtxCatalogQueryOptions,
+  nvtxSpanDetailQueryOptions,
   nvtxViewportQueryOptions,
   selectAllNvtxDomains,
 } from './nvtx';
@@ -51,4 +53,10 @@ export { useTimeline } from './timeline';
 export { useEntities } from './entityList';
 export { useDataFlow } from './dataFlow';
 export { useEntityList } from './entityList';
-export { useEngineContexts, useNvtxCatalog, useNvtxStream, useNvtxViewport } from './nvtx';
+export {
+  useEngineContexts,
+  useNvtxCatalog,
+  useNvtxSpanDetail,
+  useNvtxStream,
+  useNvtxViewport,
+} from './nvtx';

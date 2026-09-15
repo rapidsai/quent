@@ -24,6 +24,7 @@ import type {
   EntityListResponse,
   EngineContexts,
   NvtxCatalog,
+  NvtxSpanDetail,
   NvtxViewportRequest,
   NvtxViewportResponse,
 } from '@quent/utils';
@@ -135,6 +136,24 @@ async function httpFetchNvtxViewport(
   return normalizeNvtxViewport(parseJsonWithBigInt<NvtxViewportResponse>(await response.text()));
 }
 
+/** Fetch one range's detail, resolving a 404 to optional absence. */
+async function httpFetchNvtxSpanDetail(
+  contextId: string,
+  spanId: number,
+  queryStartUnixNs: bigint
+): Promise<NvtxSpanDetail | null> {
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/spans/${spanId}`, {
+    params: { query_start: queryStartUnixNs },
+  });
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return parseJsonWithBigInt<NvtxSpanDetail>(await response.text());
+}
+
 function asBigInt(value: bigint | number): bigint {
   return typeof value === 'bigint' ? value : BigInt(value);
 }
@@ -239,6 +258,7 @@ const httpClient: ApiClient = {
   fetchEngineContexts: httpFetchEngineContexts,
   fetchNvtxCatalog: httpFetchNvtxCatalog,
   fetchNvtxViewport: httpFetchNvtxViewport,
+  fetchNvtxSpanDetail: httpFetchNvtxSpanDetail,
   fetchListCoordinators: httpFetchListCoordinators,
   fetchListQueries: httpFetchListQueries,
   fetchSingleTimeline: httpFetchSingleTimeline,
@@ -268,6 +288,8 @@ export const fetchNvtxCatalog = (...args: Parameters<ApiClient['fetchNvtxCatalog
   getApiClient().fetchNvtxCatalog(...args);
 export const fetchNvtxViewport = (...args: Parameters<ApiClient['fetchNvtxViewport']>) =>
   getApiClient().fetchNvtxViewport(...args);
+export const fetchNvtxSpanDetail = (...args: Parameters<ApiClient['fetchNvtxSpanDetail']>) =>
+  getApiClient().fetchNvtxSpanDetail(...args);
 export const fetchListCoordinators = (...args: Parameters<ApiClient['fetchListCoordinators']>) =>
   getApiClient().fetchListCoordinators(...args);
 export const fetchListQueries = (...args: Parameters<ApiClient['fetchListQueries']>) =>

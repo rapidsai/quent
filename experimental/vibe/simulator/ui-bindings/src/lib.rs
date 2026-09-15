@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
+use nvtx_ui::{NvtxCatalog, NvtxSpanDetail, NvtxViewportRequest, NvtxViewportResponse};
 use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::{EngineContexts, OperatorFilter, QueryBundle, QueryFilter};
 use quent_simulator_ui::EntityRef;
@@ -39,6 +39,7 @@ pub fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     <NvtxCatalog as TS>::export_all(&cfg)?;
     <NvtxViewportRequest as TS>::export_all(&cfg)?;
     <NvtxViewportResponse as TS>::export_all(&cfg)?;
+    <NvtxSpanDetail as TS>::export_all(&cfg)?;
 
     <EntityListRequest<QueryFilter, OperatorFilter> as TS>::export_all(&cfg)?;
     <EntityListResponse as TS>::export_all(&cfg)?;

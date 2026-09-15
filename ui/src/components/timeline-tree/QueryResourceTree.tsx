@@ -3,8 +3,15 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { createFsmTypeColorFn } from '@quent/utils';
-import type { EntityRef, FiniteStateMachine, QueryBundle, ZoomRange } from '@quent/utils';
+import type {
+  EntityRef,
+  FiniteStateMachine,
+  NvtxRangeItem,
+  QueryBundle,
+  ZoomRange,
+} from '@quent/utils';
 import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
+import { NvtxDetailDrawer } from '@/components/NvtxDetailDrawer';
 import { THEME_DARK, THEME_LIGHT } from '@/contexts/ThemeContext';
 import { useNvtxTreeModel } from './NvtxTree';
 import { createLongEntitiesTimelineSubRow, createOperatorGanttTimelineSubRow } from './sub-rows';
@@ -34,12 +41,17 @@ export function QueryResourceTree({
   const { entities } = queryBundle;
 
   const [drawerFsm, setDrawerFsm] = useState<FiniteStateMachine | null>(null);
-  const toggleDrawerFsm = useCallback(
-    (fsm: FiniteStateMachine) =>
-      setDrawerFsm(selectedFsm => (selectedFsm?.id === fsm.id ? null : fsm)),
-    []
-  );
+  const [drawerSpanId, setDrawerSpanId] = useState<number | null>(null);
+  const toggleDrawerFsm = useCallback((fsm: FiniteStateMachine) => {
+    setDrawerSpanId(null);
+    setDrawerFsm(selectedFsm => (selectedFsm?.id === fsm.id ? null : fsm));
+  }, []);
   const closeDrawer = useCallback(() => setDrawerFsm(null), []);
+  const toggleDrawerSpan = useCallback((range: NvtxRangeItem) => {
+    setDrawerFsm(null);
+    setDrawerSpanId(selectedSpanId => (selectedSpanId === range.span_id ? null : range.span_id));
+  }, []);
+  const closeSpanDrawer = useCallback(() => setDrawerSpanId(null), []);
 
   const stateColorFn = useMemo(
     () => createFsmTypeColorFn(entities.fsm_types, isDark ? THEME_DARK : THEME_LIGHT),
@@ -103,7 +115,14 @@ export function QueryResourceTree({
     subRows: resourceSubRows ?? defaultResourceSubRows,
     seedRootExpanded,
   });
-  const nvtxTree = useNvtxTreeModel({ engineId, queryBundle, isDark });
+  const nvtxTree = useNvtxTreeModel({
+    engineId,
+    queryBundle,
+    isDark,
+    selectedSpanId: drawerSpanId ?? undefined,
+    onRangeSelect: toggleDrawerSpan,
+    onBackgroundClick: closeSpanDrawer,
+  });
   const highlightedItemIds = new Set([
     ...(resourceTree.highlightedItemIds ?? []),
     ...(nvtxTree.highlightedItemIds ?? []),
@@ -128,6 +147,13 @@ export function QueryResourceTree({
         onClose={closeDrawer}
         stateColorFn={stateColorFn}
         queryBundle={queryBundle}
+      />
+      <NvtxDetailDrawer
+        contextId={nvtxTree.contextId ?? null}
+        spanId={drawerSpanId}
+        queryStartUnixNs={queryBundle.start_time_unix_ns}
+        onClose={closeSpanDrawer}
+        onSelectSpan={setDrawerSpanId}
       />
     </TimelineTreeTable>
   );

@@ -11,7 +11,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
 
-use nvtx_analyzer::{NvtxColor, NvtxModel, NvtxSpan, SpanId, SpanKind};
+use nvtx_analyzer::{
+    NvtxColor, NvtxModel, NvtxPayload, NvtxPayloadValue, NvtxSpan, RangeStats, SpanId, SpanKind,
+    StatsKey,
+};
 use quent_time::{TimeUnixNanoSec, to_nanosecs, to_secs, to_secs_relative};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -151,6 +154,11 @@ pub enum NvtxRangeKind {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeItem {
     pub message: String,
+    /// This span's stable id within the reconstructed model — the handle a
+    /// client passes back to fetch [`NvtxSpanDetail`].
+    pub span_id: u32,
+    /// The enclosing push/pop range's [`Self::span_id`], if any.
+    pub parent_span_id: Option<u32>,
     #[serde(with = "decimal_u64")]
     #[ts(type = "string")]
     pub domain_id: u64,
@@ -170,7 +178,227 @@ pub struct NvtxRangeItem {
     pub display_end: f64,
     /// The completed range duration in seconds.
     pub observed_duration: Option<f64>,
+    /// The application-attached payload value, captured verbatim; its meaning
+    /// is defined by the instrumentation site, not this layer.
+    pub payload: Option<NvtxPayloadItem>,
     pub incomplete: bool,
+}
+
+/// A payload value attached to a range or mark, captured verbatim.
+///
+/// The instrumented application controls what this means at each call site —
+/// there is no universal label, so consumers show it as a raw typed value.
+#[derive(TS, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum NvtxPayloadItem {
+    UnsignedInt64 {
+        #[serde(with = "decimal_u64")]
+        #[ts(type = "string")]
+        value: u64,
+    },
+    Int64 {
+        #[serde(with = "decimal_i64")]
+        #[ts(type = "string")]
+        value: i64,
+    },
+    Double {
+        value: f64,
+    },
+    UnsignedInt32 {
+        value: u32,
+    },
+    Int32 {
+        value: i32,
+    },
+    Float {
+        value: f32,
+    },
+    Pointer {
+        #[serde(with = "decimal_u64")]
+        #[ts(type = "string")]
+        value: u64,
+    },
+}
+
+fn payload_item(payload: NvtxPayload) -> NvtxPayloadItem {
+    match payload.value {
+        NvtxPayloadValue::UnsignedInt64(value) => NvtxPayloadItem::UnsignedInt64 { value },
+        NvtxPayloadValue::Int64(value) => NvtxPayloadItem::Int64 { value },
+        NvtxPayloadValue::Double(value) => NvtxPayloadItem::Double { value },
+        NvtxPayloadValue::UnsignedInt32(value) => NvtxPayloadItem::UnsignedInt32 { value },
+        NvtxPayloadValue::Int32(value) => NvtxPayloadItem::Int32 { value },
+        NvtxPayloadValue::Float(value) => NvtxPayloadItem::Float { value },
+        NvtxPayloadValue::Pointer(value) => NvtxPayloadItem::Pointer { value },
+    }
+}
+
+/// A span's stable id, plus enough to place it on a timeline and label it —
+/// the shape used for [`NvtxSpanDetail`]'s ancestors and children.
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NvtxSpanSummary {
+    pub span_id: u32,
+    pub message: String,
+    pub start: f64,
+    pub end: Option<f64>,
+    pub duration: Option<f64>,
+    pub incomplete: bool,
+}
+
+/// Full detail for one range: its own attributes, its nesting context
+/// (ancestors and immediate children), and how it compares to its peers.
+#[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NvtxSpanDetail {
+    pub span_id: u32,
+    pub message: String,
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
+    pub domain_id: u64,
+    pub domain_name: String,
+    pub category_id: Option<u32>,
+    pub category_name: Option<String>,
+    pub color: String,
+    pub kind: NvtxRangeKind,
+    pub thread_id: Option<u32>,
+    pub thread_name: Option<String>,
+    pub start: f64,
+    pub end: Option<f64>,
+    pub duration: Option<f64>,
+    pub incomplete: bool,
+    pub payload: Option<NvtxPayloadItem>,
+    /// Root to immediate parent, in that order.
+    pub ancestors: Vec<NvtxSpanSummary>,
+    /// Direct children only, sorted by start.
+    pub children: Vec<NvtxSpanSummary>,
+    /// Aggregate duration stats for every range sharing this message, domain,
+    /// and category — `None` only when the model has none, which cannot
+    /// happen for a span found via [`Self::from_model`].
+    pub statistics: Option<NvtxRangeStatistics>,
+}
+
+impl NvtxSpanDetail {
+    /// Look up one range's detail view, including its nesting ancestors,
+    /// immediate children, and peer statistics.
+    ///
+    /// Returns `None` when `span_id` does not name a push/pop or start/end
+    /// range in this model — out of range, or a resource/mark span, neither of
+    /// which has a detail view.
+    pub fn from_model(model: &NvtxModel, catalog: &NvtxCatalog, span_id: u32) -> Option<Self> {
+        let index = span_id as usize;
+        let span = model.span(SpanId(index))?;
+        let kind = match span.kind {
+            SpanKind::PushPop { .. } => NvtxRangeKind::PushPop,
+            SpanKind::StartEnd => NvtxRangeKind::StartEnd,
+            SpanKind::Resource { .. } => return None,
+        };
+        let domain = catalog
+            .domains
+            .iter()
+            .find(|d| d.domain_id == span.domain)?;
+        let thread_id = span.kind.thread_id();
+
+        let mut ancestors = Vec::new();
+        let mut cursor = span.kind.parent();
+        let mut visited = 0usize;
+        while let Some(parent_id) = cursor {
+            visited += 1;
+            // A malformed/cyclic parent chain should stop rather than loop
+            // forever; it cannot legitimately exceed the model's span count.
+            if visited > model.spans().len() {
+                break;
+            }
+            let Some(parent_span) = model.span(parent_id) else {
+                break;
+            };
+            ancestors.push(span_summary(parent_id, parent_span, catalog.query_start));
+            cursor = parent_span.kind.parent();
+        }
+        ancestors.reverse();
+
+        let mut children: Vec<_> = model
+            .spans()
+            .iter()
+            .enumerate()
+            .filter(|(child_index, candidate)| {
+                candidate.kind.parent() == Some(SpanId(index)) && *child_index != index
+            })
+            .map(|(child_index, child)| {
+                span_summary(SpanId(child_index), child, catalog.query_start)
+            })
+            .collect();
+        children.sort_by(|left, right| left.start.total_cmp(&right.start));
+
+        let statistics = model
+            .range_statistics()
+            .into_iter()
+            .find(|(key, _)| {
+                key.name == span.name && key.domain == span.domain && key.category == span.category
+            })
+            .map(|(key, stats)| range_statistics_item(&key, &stats, domain));
+
+        Some(Self {
+            span_id,
+            message: span.name.clone(),
+            domain_id: domain.domain_id,
+            domain_name: domain.name.clone(),
+            category_id: span.category,
+            category_name: span
+                .category
+                .and_then(|id| model.category_name(span.domain, id)),
+            color: display_color(span.color, span.domain),
+            kind,
+            thread_id,
+            thread_name: thread_id.map(|id| model.thread_name(id)),
+            start: to_secs_relative(span.start, catalog.query_start),
+            end: span
+                .end
+                .map(|end| to_secs_relative(end, catalog.query_start)),
+            duration: span.duration().map(to_secs),
+            incomplete: span.end.is_none(),
+            payload: span.payload.map(payload_item),
+            ancestors,
+            children,
+            statistics,
+        })
+    }
+}
+
+fn span_summary(id: SpanId, span: &NvtxSpan, query_start: TimeUnixNanoSec) -> NvtxSpanSummary {
+    NvtxSpanSummary {
+        span_id: span_id_to_u32(id),
+        message: span.name.clone(),
+        start: to_secs_relative(span.start, query_start),
+        end: span.end.map(|end| to_secs_relative(end, query_start)),
+        duration: span.duration().map(to_secs),
+        incomplete: span.end.is_none(),
+    }
+}
+
+fn range_statistics_item(
+    key: &StatsKey,
+    stats: &RangeStats,
+    domain: &NvtxCatalogDomain,
+) -> NvtxRangeStatistics {
+    NvtxRangeStatistics {
+        message: key.name.clone(),
+        domain_id: key.domain,
+        domain_name: domain.name.clone(),
+        category_id: key.category,
+        category_name: key
+            .category
+            .and_then(|id| domain.categories.iter().find(|c| c.category_id == id))
+            .map(|category| category.name.clone()),
+        count: stats.count,
+        observed_count: stats.observed_count,
+        total_duration: to_secs(stats.total_duration),
+        avg_duration: to_secs(stats.avg_duration),
+        min_duration: (stats.observed_count > 0).then(|| to_secs(stats.min_duration)),
+        max_duration: (stats.observed_count > 0).then(|| to_secs(stats.max_duration)),
+        saturated: stats.saturated,
+    }
+}
+
+fn span_id_to_u32(id: SpanId) -> u32 {
+    u32::try_from(id.0).unwrap_or(u32::MAX)
 }
 
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -491,7 +719,14 @@ impl NvtxViewportResponse {
             let domain = domains_by_id
                 .get(&span.domain)
                 .expect("validated selections only reference catalog domains");
-            let Some(item) = range_item(model, domain, span, catalog.query_start, viewport) else {
+            let Some(item) = range_item(
+                model,
+                domain,
+                span,
+                SpanId(index),
+                catalog.query_start,
+                viewport,
+            ) else {
                 continue;
             };
             statistics
@@ -756,6 +991,7 @@ fn range_item(
     model: &NvtxModel,
     domain: &NvtxCatalogDomain,
     span: &NvtxSpan,
+    span_id: SpanId,
     query_start: TimeUnixNanoSec,
     viewport: AbsoluteViewport,
 ) -> Option<NvtxRangeItem> {
@@ -768,6 +1004,8 @@ fn range_item(
     };
     Some(NvtxRangeItem {
         message: span.name.clone(),
+        span_id: span_id_to_u32(span_id),
+        parent_span_id: span.kind.parent().map(span_id_to_u32),
         domain_id: span.domain,
         domain_name: domain.name.clone(),
         category_id: span.category,
@@ -783,6 +1021,7 @@ fn range_item(
         display_start: to_secs_relative(span.start.max(viewport.start), query_start),
         display_end: to_secs_relative(effective_end.min(viewport.end), query_start),
         observed_duration: span.duration().map(to_secs),
+        payload: span.payload.map(payload_item),
         incomplete: span.end.is_none(),
     })
 }
@@ -913,11 +1152,33 @@ mod decimal_u64 {
     }
 }
 
+mod decimal_i64 {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+
+    pub fn serialize<S>(value: &i64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<i64, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        value.parse().map_err(de::Error::custom)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvtx_analyzer::NvtxModelBuilder;
     use nvtx_bridge::NvtxEventEntity;
-    use nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage};
+    use nvtx_events::{
+        NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload as RawNvtxPayload,
+        NvtxPayloadValue as RawNvtxPayloadValue,
+    };
     use quent_events::Event;
     use uuid::Uuid;
 
@@ -1531,6 +1792,8 @@ mod tests {
             .expect("lane group serializes"),
             serde_json::to_value(NvtxRangeItem {
                 message: "range".to_owned(),
+                span_id: 0,
+                parent_span_id: None,
                 domain_id,
                 domain_name: "domain".to_owned(),
                 category_id: None,
@@ -1544,6 +1807,7 @@ mod tests {
                 display_start: 0.0,
                 display_end: 1.0,
                 observed_duration: Some(1.0),
+                payload: None,
                 incomplete: false,
             })
             .expect("range serializes"),
@@ -1618,5 +1882,134 @@ mod tests {
         assert!(NvtxRangeStatistics::decl(&config).contains("avg_duration: number"));
         assert!(NvtxRangeStatistics::decl(&config).contains("min_duration: number | null"));
         assert!(NvtxRangeStatistics::decl(&config).contains("max_duration: number | null"));
+    }
+
+    #[test]
+    fn range_items_carry_span_and_parent_ids() {
+        let model = model();
+        let catalog = NvtxCatalog::from_model(&model, QUERY_START_NS);
+        let response = NvtxViewportResponse::from_model_with_catalog(
+            &model,
+            &catalog,
+            NvtxViewportRequest {
+                viewport: NvtxViewportWindow {
+                    start: 0.0,
+                    end: seconds(250),
+                },
+                selections: catalog.select_all(),
+            },
+        )
+        .expect("valid viewport");
+        let ranges = response.domains[0]
+            .lanes
+            .iter()
+            .flat_map(|lane| &lane.ranges)
+            .collect::<Vec<_>>();
+        let outer = ranges
+            .iter()
+            .find(|range| range.message == "outer")
+            .unwrap();
+        let inner = ranges
+            .iter()
+            .find(|range| range.message == "inner")
+            .unwrap();
+        let instant = ranges
+            .iter()
+            .find(|range| range.message == "instant")
+            .unwrap();
+
+        assert_eq!(outer.parent_span_id, None);
+        assert_eq!(inner.parent_span_id, Some(outer.span_id));
+        assert_ne!(outer.span_id, inner.span_id);
+        // `instant` is a start/end range: it nests by id, not by thread stack,
+        // so it never carries a parent even though it overlaps `open`.
+        assert_eq!(instant.parent_span_id, None);
+    }
+
+    #[test]
+    fn span_detail_reports_ancestors_children_and_statistics() {
+        let model = model();
+        let catalog = NvtxCatalog::from_model(&model, QUERY_START_NS);
+        let response = NvtxViewportResponse::from_model_with_catalog(
+            &model,
+            &catalog,
+            NvtxViewportRequest {
+                viewport: NvtxViewportWindow {
+                    start: 0.0,
+                    end: seconds(250),
+                },
+                selections: catalog.select_all(),
+            },
+        )
+        .expect("valid viewport");
+        let ranges = response.domains[0]
+            .lanes
+            .iter()
+            .flat_map(|lane| &lane.ranges)
+            .collect::<Vec<_>>();
+        let outer_id = ranges
+            .iter()
+            .find(|range| range.message == "outer")
+            .unwrap()
+            .span_id;
+        let inner_id = ranges
+            .iter()
+            .find(|range| range.message == "inner")
+            .unwrap()
+            .span_id;
+
+        let outer_detail =
+            NvtxSpanDetail::from_model(&model, &catalog, outer_id).expect("outer span exists");
+        assert!(outer_detail.ancestors.is_empty());
+        assert_eq!(outer_detail.children.len(), 1);
+        assert_eq!(outer_detail.children[0].span_id, inner_id);
+        assert_eq!(outer_detail.children[0].message, "inner");
+        let outer_stats = outer_detail.statistics.expect("outer has statistics");
+        assert_eq!(outer_stats.count, 1);
+        assert_eq!(outer_stats.observed_count, 1);
+
+        let inner_detail =
+            NvtxSpanDetail::from_model(&model, &catalog, inner_id).expect("inner span exists");
+        assert_eq!(inner_detail.ancestors.len(), 1);
+        assert_eq!(inner_detail.ancestors[0].span_id, outer_id);
+        assert_eq!(inner_detail.ancestors[0].message, "outer");
+        assert!(inner_detail.children.is_empty());
+
+        assert!(NvtxSpanDetail::from_model(&model, &catalog, 9_999).is_none());
+    }
+
+    #[test]
+    fn span_detail_carries_payload_as_a_typed_decimal_value() {
+        let model = NvtxModelBuilder::build(vec![
+            event(
+                100,
+                NvtxEvent::RangeStart {
+                    domain: 5,
+                    range_id: 1,
+                    attributes: NvtxEventAttributes {
+                        category: 0,
+                        color: None,
+                        message: Some(NvtxMessage::String("counted".to_owned())),
+                        payload: Some(RawNvtxPayload {
+                            payload_type: 0,
+                            value: RawNvtxPayloadValue::Int64(-7),
+                        }),
+                    },
+                },
+            ),
+            event(
+                200,
+                NvtxEvent::RangeEnd {
+                    domain: 5,
+                    range_id: 1,
+                },
+            ),
+        ]);
+        let catalog = NvtxCatalog::from_model(&model, model.trace_start());
+        let detail = NvtxSpanDetail::from_model(&model, &catalog, 0).expect("span exists");
+        assert_eq!(detail.payload, Some(NvtxPayloadItem::Int64 { value: -7 }));
+        let json = serde_json::to_value(detail.payload).expect("payload serializes");
+        assert_eq!(json["type"], "int64");
+        assert_eq!(json["value"], "-7");
     }
 }

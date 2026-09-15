@@ -83,6 +83,9 @@ export type { NvtxMarkItem } from '../../../../../generated/ts-bindings/NvtxMark
 export type { NvtxRangeItem } from '../../../../../generated/ts-bindings/NvtxRangeItem';
 export type { NvtxRangeKind } from '../../../../../generated/ts-bindings/NvtxRangeKind';
 export type { NvtxRangeStatistics } from '../../../../../generated/ts-bindings/NvtxRangeStatistics';
+export type { NvtxPayloadItem } from '../../../../../generated/ts-bindings/NvtxPayloadItem';
+export type { NvtxSpanDetail } from '../../../../../generated/ts-bindings/NvtxSpanDetail';
+export type { NvtxSpanSummary } from '../../../../../generated/ts-bindings/NvtxSpanSummary';
 export type { NvtxViewportRequest } from '../../../../../generated/ts-bindings/NvtxViewportRequest';
 export type { NvtxViewportResponse } from '../../../../../generated/ts-bindings/NvtxViewportResponse';
 export type { NvtxViewportWindow } from '../../../../../generated/ts-bindings/NvtxViewportWindow';

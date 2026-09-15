@@ -73,6 +73,8 @@ describe('NVTX Gantt condensation', () => {
 function rangeDatum(message: string, depth: number, startMs = 0): NvtxGanttDatum {
   const range: NvtxRangeItem = {
     message,
+    span_id: depth,
+    parent_span_id: null,
     domain_id: 'domain-1',
     domain_name: 'Domain 1',
     category_id: null,
@@ -86,6 +88,7 @@ function rangeDatum(message: string, depth: number, startMs = 0): NvtxGanttDatum
     display_start: startMs / 1_000,
     display_end: (startMs + 1) / 1_000,
     observed_duration: 0.001,
+    payload: null,
     incomplete: false,
   };
   return { value: [startMs, startMs + 1, depth], range };

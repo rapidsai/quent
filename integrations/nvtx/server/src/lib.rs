@@ -17,7 +17,7 @@ use axum::{Json, Router};
 use moka::{future::Cache as AsyncCache, sync::Cache as SyncCache};
 use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
 use nvtx_bridge::NvtxEventEntity;
-use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
+use nvtx_ui::{NvtxCatalog, NvtxSpanDetail, NvtxViewportRequest, NvtxViewportResponse};
 use quent_events::{EntityEvent, Event};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ImporterOptions, ImporterProvider};
@@ -247,6 +247,24 @@ async fn viewport(
         .await?
 }
 
+/// Return one range's detail: nesting ancestors/children and peer statistics.
+async fn span_detail(
+    State(cache): State<NvtxModelCache>,
+    AxumPath((context_id, span_id)): AxumPath<(Uuid, u32)>,
+    Query(origin): Query<NvtxTimeOrigin>,
+) -> Result<Json<NvtxSpanDetail>, NvtxServerError> {
+    let cached = cache.get(context_id).await?;
+    cache
+        .tasks
+        .run(move || {
+            let catalog = cached.catalog(origin.query_start);
+            NvtxSpanDetail::from_model(&cached.model, &catalog, span_id)
+                .map(Json)
+                .ok_or(NvtxServerError::NotFound)
+        })
+        .await?
+}
+
 /// Reject requests whose selector lists could cause disproportionate work.
 fn validate_filter_count(request: &NvtxViewportRequest) -> Result<(), NvtxServerError> {
     if request.selections.len() > MAX_DOMAIN_FILTERS {
@@ -277,6 +295,10 @@ pub fn routes(importer: Box<NvtxImporterFn>) -> Router {
     Router::new()
         .route("/api/nvtx/contexts/{context_id}/catalog", get(catalog))
         .route("/api/nvtx/contexts/{context_id}/viewport", post(viewport))
+        .route(
+            "/api/nvtx/contexts/{context_id}/spans/{span_id}",
+            get(span_detail),
+        )
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .with_state(NvtxModelCache::new(importer))
 }
@@ -603,6 +625,45 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(oversized.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn span_detail_returns_ancestors_children_and_statistics() {
+        let present = Uuid::from_u128(11);
+        let app = routes(Box::new(move |context_id| {
+            Ok((context_id == present).then(|| range_events(context_id)))
+        }));
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/api/nvtx/contexts/{present}/spans/0?query_start={QUERY_START}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let detail: NvtxSpanDetail = serde_json::from_slice(&body).unwrap();
+        assert_eq!(detail.message, "work");
+        assert!(detail.ancestors.is_empty());
+        assert!(detail.children.is_empty());
+        assert_eq!(detail.statistics.expect("stats present").count, 1);
+
+        let missing = app
+            .oneshot(
+                Request::get(format!(
+                    "/api/nvtx/contexts/{present}/spans/999?query_start={QUERY_START}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

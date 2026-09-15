@@ -9,7 +9,12 @@ import type {
   NvtxViewportRequest,
   NvtxViewportWindow,
 } from '@quent/utils';
-import { fetchEngineContexts, fetchNvtxCatalog, fetchNvtxViewport } from './api';
+import {
+  fetchEngineContexts,
+  fetchNvtxCatalog,
+  fetchNvtxSpanDetail,
+  fetchNvtxViewport,
+} from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 export { canonicalizeNvtxRequest, canonicalizeNvtxSelections } from './nvtxCanonical';
 
@@ -125,6 +130,22 @@ export const nvtxViewportQueryOptions = (
   });
 };
 
+export const nvtxSpanDetailQueryOptions = (
+  contextId: string,
+  spanId: number | null,
+  queryStartUnixNs: bigint
+) => {
+  const queryStartKey = queryStartUnixNs.toString(10);
+  return queryOptions({
+    queryKey: ['nvtxSpanDetail', contextId, spanId, queryStartKey],
+    queryFn: () =>
+      spanId == null
+        ? Promise.resolve(null)
+        : fetchNvtxSpanDetail(contextId, spanId, queryStartUnixNs),
+    enabled: spanId != null,
+  });
+};
+
 export const useEngineContexts = (engineId: string) =>
   useQuery(engineContextsQueryOptions(engineId));
 
@@ -137,6 +158,12 @@ export const useNvtxViewport = (
   request: NvtxViewportRequest,
   options?: { enabled?: boolean; staleTime?: number }
 ) => useQuery(nvtxViewportQueryOptions(contextId, queryStartUnixNs, request, options));
+
+export const useNvtxSpanDetail = (
+  contextId: string,
+  spanId: number | null,
+  queryStartUnixNs: bigint
+) => useQuery(nvtxSpanDetailQueryOptions(contextId, spanId, queryStartUnixNs));
 
 /** First context whose catalog request returned a stream. */
 export function firstNvtxCatalog(

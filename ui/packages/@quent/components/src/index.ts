@@ -358,5 +358,7 @@ export {
   nvtxDomainMeta,
   nvtxLaneLabel,
   nvtxDefaultExpandedIds,
+  nvtxKindLabel,
+  rgbHex,
 } from './nvtx-timeline/utils';
 export type { NvtxTreeEntity, NvtxTreeFilterResult, NvtxTreeItem } from './nvtx-timeline/utils';

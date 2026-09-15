@@ -22,7 +22,7 @@ import {
   nvtxLaneLabel,
 } from '@quent/components';
 import { useDebouncedZoomRange, useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
-import type { EntityRef, NvtxCatalog, QueryBundle } from '@quent/utils';
+import type { EntityRef, NvtxCatalog, NvtxRangeItem, QueryBundle } from '@quent/utils';
 import {
   expandedIdsAtom,
   resourceFilterAtom,
@@ -115,6 +115,8 @@ function NvtxDomainLabel({
 export interface NvtxTreeModel extends TimelineTreeModel, TimelineTreeControls {
   filterMatchCount: number;
   isFilterActive: boolean;
+  /** The engine context the NVTX stream was resolved from, once loaded. */
+  contextId?: string;
 }
 
 interface NvtxTreeProps {
@@ -124,6 +126,12 @@ interface NvtxTreeProps {
 
 interface UseNvtxTreeModelProps extends NvtxTreeProps {
   isDark: boolean;
+  /** When set, dims every range bar except the one with this span id. */
+  selectedSpanId?: number;
+  /** Called when the user clicks a single (unmerged) NVTX range bar. */
+  onRangeSelect?: (range: NvtxRangeItem) => void;
+  /** Called when the user clicks NVTX Gantt background (not a range bar). */
+  onBackgroundClick?: () => void;
 }
 
 // QueryResourceTree reuses the model to combine multiple trees in one table.
@@ -132,6 +140,9 @@ export function useNvtxTreeModel({
   engineId,
   queryBundle,
   isDark,
+  selectedSpanId,
+  onRangeSelect,
+  onBackgroundClick,
 }: UseNvtxTreeModelProps): NvtxTreeModel {
   const durationSeconds = queryBundle.duration_s;
   const [selectedNvtxDomain, setSelectedNvtxDomain] = useAtom(selectedNvtxDomainAtom);
@@ -159,7 +170,7 @@ export function useNvtxTreeModel({
     }
     return filters;
   }, [selectedNvtxCategories]);
-  const { catalog, viewport } = useNvtxStream(
+  const { catalog, viewport, contextId } = useNvtxStream(
     engineId,
     queryBundle.start_time_unix_ns,
     nvtxWindow,
@@ -320,17 +331,21 @@ export function useNvtxTreeModel({
             durationSeconds={durationSeconds}
             height={NVTX_GANTT_HEIGHT}
             isDark={isDark}
+            onRangeClick={onRangeSelect}
+            selectedSpanId={selectedSpanId}
+            onBackgroundClick={onBackgroundClick}
           />
         );
       }
       return null;
     },
-    [durationSeconds, isDark, lanesByRowId]
+    [durationSeconds, isDark, lanesByRowId, onRangeSelect, selectedSpanId, onBackgroundClick]
   );
 
   return {
     filterMatchCount: filterResult?.matchCount ?? 0,
     isFilterActive: filterResult?.isActive ?? false,
+    contextId,
     trees: tree ? [tree as TimelineTreeItem] : [],
     initialSelectedItemId: tree?.id,
     expandedIds,
