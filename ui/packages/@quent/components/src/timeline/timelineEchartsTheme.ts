@@ -27,6 +27,8 @@ export const TIMELINE_LABEL_FONT_SIZE = 10;
 
 export const MARK_AREA_FILL_OPACITY = 0.12;
 export const MARK_AREA_BORDER_OPACITY = 0.75;
+/** Opacity applied to series/marks/entries outside an active operator filter. */
+export const DIMMED_OPACITY = 0.25;
 /** Mark labels sit on a colored chip; white reads well against every state color. */
 export const MARK_LABEL_TEXT_COLOR = WHITE;
 

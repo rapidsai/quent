@@ -90,6 +90,7 @@ impl TaskExt for Task {
             id: self.id(),
             type_name: self.type_name().to_string(),
             instance_name: self.instance_name().to_string(),
+            operator_id: self.operator_id(),
             transitions,
         })
     }

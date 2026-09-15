@@ -77,9 +77,11 @@ export function buildLongEntityEntries(
   items: FiniteStateMachine[],
   fsmTypes: { [key in string]?: FsmTypeDecl } | undefined,
   theme: PaletteTheme,
-  resourceIdsForFilter?: ReadonlySet<string> | null
+  resourceIdsForFilter?: ReadonlySet<string> | null,
+  selectedOperatorIds?: ReadonlySet<string> | null
 ): LongEntityEntry[] {
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
+  const hasOperatorFilter = (selectedOperatorIds?.size ?? 0) > 0;
 
   const entries: LongEntityEntry[] = [];
   for (const fsm of items) {
@@ -97,6 +99,9 @@ export function buildLongEntityEntries(
       endMs,
       rowIndex: 0,
       segments,
+      ...(hasOperatorFilter && {
+        isDimmed: fsm.operator_id == null || !selectedOperatorIds!.has(fsm.operator_id),
+      }),
     });
   }
 

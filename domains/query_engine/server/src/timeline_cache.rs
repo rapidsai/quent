@@ -1046,6 +1046,7 @@ mod tests {
                 id,
                 type_name: "task".to_string(),
                 instance_name: format!("operator-{id}"),
+                operator_id: Some(id),
                 transitions: vec![
                     FsmTransition {
                         name: "start".to_string(),

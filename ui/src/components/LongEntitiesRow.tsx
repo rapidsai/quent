@@ -67,7 +67,6 @@ export function LongEntitiesRow({
   const previousHasNoUsagesInWindow = useRef(false);
   const previousMinUsageSeconds = useRef<number | null>(null);
   const [maxEntities, setMaxEntities] = useState(ENTITIES_PER_PAGE);
-  const operatorIds = useMemo(() => [...selectedOperatorIds], [selectedOperatorIds]);
   const zoomWindow =
     debouncedZoomRange.end > debouncedZoomRange.start
       ? debouncedZoomRange
@@ -87,12 +86,14 @@ export function LongEntitiesRow({
   }
   const displayedMinUsageSeconds = minUsageSeconds ?? previousMinUsageSeconds.current;
 
+  // Entities aren't filtered by operator server-side: unrelated entities are
+  // dimmed below, mirroring how the resource timeline dims rather than
+  // removes unrelated data when an operator filter is active.
   const { data, isFetching, isPlaceholderData } = useEntityList(
     {
       engineId,
       queryId,
       window: zoomWindow,
-      operatorIds,
       minUsageSeconds,
       sortDir: 'Desc',
       maxItems: maxEntities,
@@ -117,9 +118,10 @@ export function LongEntitiesRow({
         entities,
         fsmTypes,
         isDark ? 'dark' : 'light',
-        fsmStateScope === 'resource' ? new Set([resourceId]) : null
+        fsmStateScope === 'resource' ? new Set([resourceId]) : null,
+        selectedOperatorIds
       ),
-    [entities, fsmStateScope, fsmTypes, isDark, resourceId]
+    [entities, fsmStateScope, fsmTypes, isDark, resourceId, selectedOperatorIds]
   );
   const totalEntities = data?.total ?? entities.length;
   const hasMoreEntities = entities.length < totalEntities;

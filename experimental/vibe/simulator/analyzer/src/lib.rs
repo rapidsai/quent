@@ -422,6 +422,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     query_operators.contains(&op) && operator_matches(&operator_ids, Some(op))
                 })
             },
+            |task| task.operator_id(),
             entities::ListQuery {
                 scope: scope.as_ref(),
                 window,

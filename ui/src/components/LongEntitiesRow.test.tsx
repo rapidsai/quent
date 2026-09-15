@@ -93,12 +93,12 @@ describe('LongEntitiesRow', () => {
     expect(mocks.useEntityList).toHaveBeenCalledWith(
       expect.objectContaining({
         window: { start: 0.2, end: 0.6 },
-        operatorIds: ['operator-1'],
         minUsageSeconds: 0.09,
         maxItems: 100,
       }),
       { enabled: true }
     );
+    expect(mocks.useEntityList.mock.calls[0]?.[0]).not.toHaveProperty('operatorIds');
     expect(mocks.longEntitiesGantt.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ height: 110, minUsageSeconds: 0.09 })
     );
@@ -219,7 +219,8 @@ describe('LongEntitiesRow', () => {
       [],
       {},
       'light',
-      new Set(['resource-1'])
+      new Set(['resource-1']),
+      new Set(['operator-1'])
     );
   });
 
@@ -298,7 +299,8 @@ describe('LongEntitiesRow', () => {
       [firstEntity, secondEntity],
       {},
       'light',
-      new Set(['resource-1'])
+      new Set(['resource-1']),
+      new Set(['operator-1'])
     );
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
@@ -494,7 +496,8 @@ describe('LongEntitiesRow', () => {
       [previousEntity],
       {},
       'light',
-      new Set(['resource-1'])
+      new Set(['resource-1']),
+      new Set(['operator-1'])
     );
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });

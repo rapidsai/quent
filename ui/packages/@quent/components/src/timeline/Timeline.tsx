@@ -17,6 +17,7 @@ import {
   TIMELINE_X_AXIS_ANIMATION,
 } from './types';
 import {
+  DIMMED_OPACITY,
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
   MARK_LABEL_TEXT_COLOR,
@@ -31,8 +32,6 @@ import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
 import { Opts } from 'echarts-for-react/lib/types';
 import { TimelinePointerArea } from './TimelinePointerArea';
-
-const DIMMED_OPACITY = 0.25;
 
 /**
  * Pointer position over the chart, expressed in coordinates the parent can

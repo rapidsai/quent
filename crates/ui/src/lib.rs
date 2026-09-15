@@ -243,6 +243,8 @@ pub struct FiniteStateMachine {
     pub instance_name: String,
     /// The transitions of this FSM.
     pub transitions: Vec<FsmTransition>,
+    /// The operator that caused this FSM's activity, if known.
+    pub operator_id: Option<Uuid>,
 }
 
 impl FiniteStateMachine {
@@ -254,6 +256,7 @@ impl FiniteStateMachine {
             id: value.id(),
             type_name: value.type_name().to_owned(),
             instance_name: value.instance_name().to_owned(),
+            operator_id: None,
             transitions: value
                 .transitions()
                 .iter()
@@ -270,6 +273,7 @@ impl FiniteStateMachine {
     pub fn try_from_fsm<'a, F>(
         fsm: &'a F,
         epoch: TimeUnixNanoSec,
+        operator_id: Option<Uuid>,
     ) -> Result<Self, quent_time::TimeError>
     where
         F: a::fsm::FsmUsages<'a>,
@@ -310,6 +314,7 @@ impl FiniteStateMachine {
             id: fsm.id(),
             type_name: fsm.type_name().to_owned(),
             instance_name: fsm.instance_name().to_owned(),
+            operator_id,
             transitions,
         })
     }

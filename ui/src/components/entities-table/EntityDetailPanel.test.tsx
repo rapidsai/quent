@@ -48,6 +48,7 @@ const BASE_FSM: FiniteStateMachine = {
   id: 'test-uuid-1234',
   instance_name: 'task-7',
   type_name: 'task',
+  operator_id: null,
   transitions: [
     makeTransition('queueing', 0),
     makeTransition('running', 0.001),

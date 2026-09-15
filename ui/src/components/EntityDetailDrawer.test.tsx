@@ -15,6 +15,7 @@ const fsm = {
   id: 'entity-1',
   type_name: 'Task',
   instance_name: 'Task 1',
+  operator_id: null,
   transitions: [],
 };
 const queryBundle = {} as QueryBundle<EntityRef>;

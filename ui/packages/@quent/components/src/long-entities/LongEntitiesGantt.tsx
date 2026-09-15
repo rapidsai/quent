@@ -4,8 +4,11 @@
 import { useCallback, useMemo } from 'react';
 
 import {
+  DIMMED_OPACITY,
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
+  ROLLUP_TIMELINE_COLOR_DARK,
+  ROLLUP_TIMELINE_COLOR_LIGHT,
   useTimelineEchartsTheme,
 } from '../timeline/timelineEchartsTheme';
 import { useZoomRange } from '@quent/hooks';
@@ -68,6 +71,8 @@ export function LongEntitiesGantt({
 }: LongEntitiesGanttProps) {
   const { textColor } = useTimelineEchartsTheme(isDark);
   const zoomRange = useZoomRange();
+  // Operator-filter-dimmed entities collapse to a single neutral gray
+  const rollupTimelineColor = isDark ? ROLLUP_TIMELINE_COLOR_DARK : ROLLUP_TIMELINE_COLOR_LIGHT;
   // One custom-series datum per segment, tagged with its parent entry/segment.
   const customSeriesData = useMemo<SegmentDatum[]>(() => {
     const data: SegmentDatum[] = [];
@@ -128,9 +133,9 @@ export function LongEntitiesGantt({
 
       const hasSelection = selectedEntityId != null;
       const isSelected = hasSelection && entry.entityId === selectedEntityId;
-      const opacity = hasSelection && !isSelected ? 0.3 : 1;
-
-      const color = segment.color;
+      // Selecting an entity always overrides operator-filter graying
+      const opacity = isSelected || (!entry.isDimmed && !hasSelection) ? 1 : DIMMED_OPACITY;
+      const color = entry.isDimmed && !isSelected ? rollupTimelineColor : segment.color;
       const isFirst = datum!.segmentIndex === 0;
       const isLast = datum!.segmentIndex === entry.segments.length - 1;
       // [topLeft, topRight, bottomRight, bottomLeft] — round only the run's outer corners
@@ -176,7 +181,7 @@ export function LongEntitiesGantt({
 
       return { type: 'group' as const, children: [rect, ...labelChildren] };
     },
-    [entries, customSeriesData, textColor, selectedEntityId]
+    [entries, customSeriesData, textColor, selectedEntityId, rollupTimelineColor]
   );
 
   const onEvents = useMemo(() => {

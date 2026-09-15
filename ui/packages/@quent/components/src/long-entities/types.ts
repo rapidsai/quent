@@ -32,4 +32,6 @@ export type LongEntityEntry = {
   /** Row index for the categorical y-axis (0-based), assigned by stacking. */
   rowIndex: number;
   segments: LongEntitySegment[];
+  /** True when an operator filter is active and this entity isn't part of it. */
+  isDimmed?: boolean;
 };
