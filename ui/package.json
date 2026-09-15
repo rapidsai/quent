@@ -86,7 +86,7 @@
     "react-dom": "catalog:",
     "react-resizable-panels": "^4.12.3",
     "tailwind-merge": "catalog:",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
