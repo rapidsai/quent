@@ -325,7 +325,7 @@ impl NvtxCatalog {
                 NvtxCatalogDomain {
                     domain_id: domain.domain,
                     name: domain.name.clone(),
-                    color: fallback_color(domain.domain).to_owned(),
+                    color: domain_color(model, domain.domain),
                     threads,
                     categories,
                     has_uncategorized: metadata.has_uncategorized,
@@ -797,19 +797,39 @@ fn sort_ranges(ranges: &mut [NvtxRangeItem]) {
 }
 
 fn display_color(color: Option<NvtxColor>, domain_id: u64) -> String {
-    match color {
-        Some(NvtxColor {
-            color_type: 1,
-            value,
-        }) => {
-            let alpha = value >> 24;
-            let red = (value >> 16) & 0xff;
-            let green = (value >> 8) & 0xff;
-            let blue = value & 0xff;
-            format!("#{red:02x}{green:02x}{blue:02x}{alpha:02x}")
-        }
-        _ => fallback_color(domain_id).to_owned(),
-    }
+    argb_hex(color).unwrap_or_else(|| fallback_color(domain_id).to_owned())
+}
+
+/// Same RGB the Gantt paints: first ARGB on a range/mark, else the domain fallback.
+fn domain_color(model: &NvtxModel, domain_id: u64) -> String {
+    model
+        .spans()
+        .iter()
+        .filter(|span| span.domain == domain_id && is_range(span))
+        .find_map(|span| argb_hex(span.color))
+        .or_else(|| {
+            model
+                .marks()
+                .iter()
+                .filter(|mark| mark.domain == domain_id)
+                .find_map(|mark| argb_hex(mark.color))
+        })
+        .unwrap_or_else(|| fallback_color(domain_id).to_owned())
+}
+
+fn argb_hex(color: Option<NvtxColor>) -> Option<String> {
+    let NvtxColor {
+        color_type: 1,
+        value,
+    } = color?
+    else {
+        return None;
+    };
+    let alpha = value >> 24;
+    let red = (value >> 16) & 0xff;
+    let green = (value >> 8) & 0xff;
+    let blue = value & 0xff;
+    Some(format!("#{red:02x}{green:02x}{blue:02x}{alpha:02x}"))
 }
 
 fn fallback_color(domain_id: u64) -> &'static str {
@@ -1389,6 +1409,35 @@ mod tests {
         assert_eq!(range.display_start, -seconds(75));
         assert_eq!(range.display_end, -seconds(25));
         assert_eq!(response.statistics[0].total_duration, seconds(50));
+    }
+
+    #[test]
+    fn catalog_domain_color_matches_range_argb() {
+        let catalog = NvtxCatalog::from_model(&model(), QUERY_START_NS);
+        assert_eq!(catalog.domains[0].color, "#40201080");
+    }
+
+    #[test]
+    fn catalog_domain_color_falls_back_when_ranges_have_no_argb() {
+        let model = NvtxModelBuilder::build(vec![
+            event(
+                100,
+                NvtxEvent::RangePush {
+                    domain: 1,
+                    thread_id: 7,
+                    attributes: attributes("plain", 0, None),
+                },
+            ),
+            event(
+                200,
+                NvtxEvent::RangePop {
+                    domain: 1,
+                    thread_id: 7,
+                },
+            ),
+        ]);
+        let catalog = NvtxCatalog::from_model(&model, 0);
+        assert_eq!(catalog.domains[0].color, "#7c3aed");
     }
 
     #[test]
