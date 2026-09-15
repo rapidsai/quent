@@ -796,13 +796,8 @@ export function TreeTable<I extends TreeTableDataItem>({
   columns: Column<I>[];
   columnWidths?: ColumnWidth[];
 } & TreeViewProps) {
-  const [treeData, setTreeData] = useState<I[]>(data);
   const [currentColumnWidths, setCurrentColumnWidths] = useState<ColumnWidth[]>(columnWidths);
   const [hasUserResized, setHasUserResized] = useState(false);
-
-  useEffect(() => {
-    setTreeData(data);
-  }, [data]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -1073,7 +1068,7 @@ export function TreeTable<I extends TreeTableDataItem>({
             </div>
             <div style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
               <TreeView
-                data={treeData}
+                data={data}
                 renderItem={renderItem}
                 scrollContainerRef={scrollContainerRef}
                 {...treeViewProps}

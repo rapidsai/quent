@@ -21,6 +21,7 @@ export function CopyLinkButton() {
   const resetTimer = useRef<number | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the DOM, which isn't available during render
     setPortalTarget(document.getElementById(DEEP_LINK_NAV_SLOT_ID));
   }, []);
 

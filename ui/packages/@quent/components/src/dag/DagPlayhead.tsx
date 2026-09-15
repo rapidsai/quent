@@ -52,6 +52,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const rafRef = useRef<number | null>(null);
   const pendingClientXRef = useRef<number | null>(null);
   const playheadRef = useRef<number | null>(playheadTimeS);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   playheadRef.current = playheadTimeS;
 
   const bin = meta?.bin ?? null;

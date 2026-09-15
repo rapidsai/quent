@@ -38,7 +38,6 @@ export function PivotTableRenderProvider({ value, children }: PivotTableRenderPr
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function usePivotTableRenderContext(): PivotTableRenderContextValue {
   const value = useContext(PivotTableRenderContext);
   if (value == null) {
