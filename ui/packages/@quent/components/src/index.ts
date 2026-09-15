@@ -186,6 +186,7 @@ export {
 export {
   getPlanDAG,
   getTreeData,
+  getSelectedOperatorCountsByPlan,
   validateQueryBundle,
 } from './services/query-plan/query-bundle-transformer';
 export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/query-plan/types';

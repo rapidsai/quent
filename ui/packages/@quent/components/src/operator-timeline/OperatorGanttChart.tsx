@@ -61,6 +61,11 @@ export function OperatorGanttChart({
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const barLabelTextColor = textColor;
   const selectedOperatorIds = useSelectedOperatorIds();
+  const chartLabel = `Operator Gantt chart: ${operators.map(operator => operator.label).join(', ')}`;
+  const selectedVisibleOperatorIds = operators
+    .filter(operator => selectedOperatorIds.has(operator.operatorId))
+    .map(operator => operator.operatorId)
+    .sort();
 
   const customSeriesData = useMemo(
     () =>
@@ -224,19 +229,25 @@ export function OperatorGanttChart({
   );
 
   return (
-    <GanttChart
-      data={customSeriesData}
-      durationSeconds={durationSeconds}
-      height={height}
-      maxHeight={MAX_HEIGHT}
-      rowHeight={BAR_HEIGHT}
-      isDark={isDark}
-      seriesName="operator-span"
-      renderItem={renderItem}
-      emptyMessage="No operator active spans"
-      cursor="pointer"
-      onEvents={handleClick}
-      renderTooltip={renderTooltip}
-    />
+    <div
+      role="group"
+      aria-label={chartLabel}
+      data-selected-operator-ids={selectedVisibleOperatorIds.join(' ')}
+    >
+      <GanttChart
+        data={customSeriesData}
+        durationSeconds={durationSeconds}
+        height={height}
+        maxHeight={MAX_HEIGHT}
+        rowHeight={BAR_HEIGHT}
+        isDark={isDark}
+        seriesName="operator-span"
+        renderItem={renderItem}
+        emptyMessage="No operator active spans"
+        cursor="pointer"
+        onEvents={handleClick}
+        renderTooltip={renderTooltip}
+      />
+    </div>
   );
 }
