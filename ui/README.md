@@ -44,10 +44,11 @@ pnpm install
 
 3. (Optional) Configure environment variables:
 
-Create a `.env` file in the root directory and add your API endpoint:
+Create a `.env.development.local` file in this directory and add the backend
+origin that Vite should proxy `/api` requests to:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:3000/api
+VITE_API_TARGET=http://localhost:8080
 ```
 
 ### Development
@@ -107,15 +108,38 @@ GitHub UI workflow uploads those files when the E2E job fails.
 
 ## API Integration
 
-The application includes stub API functions in `src/services/api.ts`. These
-currently return mock data with simulated delays.
+The browser uses `/api` by default. During local development, Vite proxies those
+requests to `VITE_API_TARGET`, which can be set in the shell or in
+`.env.development.local`. This keeps the requests same-origin and avoids
+requiring CORS support from the backend.
 
-To integrate with a real backend:
+### Run against `quent-open`
 
-1. Update the `VITE_API_BASE_URL` environment variable
-2. Replace the mock implementations in `src/services/api.ts` with actual API
-   calls
-3. Adjust the data types and interfaces as needed
+From the repository root, start `quent-open` without opening its embedded UI:
+
+```bash
+pixi run cargo run --package quent-open -- --no-browser local /path/to/artifacts
+```
+
+Once its backend is listening, it prints a copyable setting:
+
+```text
+UI backend: VITE_API_TARGET=http://127.0.0.1:49152
+```
+
+Use that value when starting the development UI:
+
+```bash
+VITE_API_TARGET=http://127.0.0.1:49152 pixi run pnpm --dir ui dev
+```
+
+To persist it, put the printed assignment in `ui/.env.development.local` and
+restart Vite. `quent-open` chooses a free port on each run, so update the value
+after restarting it.
+
+`VITE_API_BASE_URL` controls the browser-facing API URL and defaults to `/api`.
+Normally it should remain unchanged for local development so requests continue
+through the Vite proxy.
 
 ## Customization
 

@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { TanStackRouterVite } from '@tanstack/router-vite-plugin';
 import { visualizer } from 'rollup-plugin-visualizer';
 import tailwindcss from '@tailwindcss/vite';
-
-const API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:8080';
 
 /** Ensures JS chunks get high fetch priority so they load before competing API requests. */
 function vitePluginScriptPriority() {
@@ -56,92 +54,97 @@ function vendorChunk(id: string) {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    vitePluginScriptPriority(),
-    TanStackRouterVite({
-      routesDirectory: path.resolve(__dirname, 'src/routes'),
-      generatedRouteTree: path.resolve(__dirname, 'src/routeTree.gen.ts'),
-      routeFileIgnorePattern: '.test.|.spec.',
-    }),
-    tailwindcss(),
-    // Bundle analyzer - generates stats.html after build
-    visualizer({
-      filename: 'stats.html',
-      open: false,
-      gzipSize: true,
-      brotliSize: true,
-    }),
-  ],
-  build: {
-    chunkSizeWarningLimit: 1337,
-    rollupOptions: {
-      output: {
-        manualChunks: vendorChunk,
-      },
-    },
-  },
-  resolve: {
-    dedupe: ['react', 'react-dom', 'jotai', '@tanstack/react-query', '@tanstack/react-router'],
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      // TODO: Using ts bindings from quent for now this will need to change
-      // to get bindings from webserver when we go that direction
-      '~quent/types': path.resolve(__dirname, 'generated/ts-bindings'),
-      // Force elkjs to use bundled version (avoids web-worker module resolution issues)
-      elkjs: 'elkjs/lib/elk.bundled.js',
-    },
-  },
-  optimizeDeps: {
-    // Workspace packages must NOT be pre-bundled. Pre-bundling collapses each
-    // package's source into a single optimized chunk in `node_modules/.vite/`,
-    // which means saving any file under `packages/@quent/*/src/` triggers a
-    // full page reload ("new dependencies optimized") instead of surgical HMR.
-    // Excluding them keeps their source in Vite's on-demand transform pipeline
-    // alongside `src/`, so React Fast Refresh works across package boundaries.
-    exclude: ['@quent/components', '@quent/hooks', '@quent/client', '@quent/utils'],
-    include: [
-      // echarts-for-react is a CJS peer dep of @quent/components; must be pre-bundled
-      // here so Vite converts it to ESM with a proper default export rather than
-      // serving the raw module.exports object to the browser.
-      'echarts-for-react',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, __dirname);
+  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080';
+
+  return {
+    plugins: [
+      react(),
+      vitePluginScriptPriority(),
+      TanStackRouterVite({
+        routesDirectory: path.resolve(__dirname, 'src/routes'),
+        generatedRouteTree: path.resolve(__dirname, 'src/routeTree.gen.ts'),
+        routeFileIgnorePattern: '.test.|.spec.',
+      }),
+      tailwindcss(),
+      // Bundle analyzer - generates stats.html after build
+      visualizer({
+        filename: 'stats.html',
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+      }),
     ],
-  },
-  server: {
-    watch: {
-      followSymlinks: true,
-    },
-    proxy: {
-      '/api': {
-        target: API_TARGET,
-        changeOrigin: true,
-        secure: false,
-        followRedirects: true,
-        configure: proxy => {
-          proxy.on('proxyRes', proxyRes => {
-            // Remove CORS headers from backend since proxy handles it
-            delete proxyRes.headers['access-control-allow-origin'];
-            delete proxyRes.headers['access-control-allow-credentials'];
-          });
+    build: {
+      chunkSizeWarningLimit: 1337,
+      rollupOptions: {
+        output: {
+          manualChunks: vendorChunk,
         },
       },
     },
-  },
-  preview: {
-    proxy: {
-      '/api': {
-        target: API_TARGET,
-        changeOrigin: true,
-        secure: false,
-        followRedirects: true,
-        configure: proxy => {
-          proxy.on('proxyRes', proxyRes => {
-            delete proxyRes.headers['access-control-allow-origin'];
-            delete proxyRes.headers['access-control-allow-credentials'];
-          });
+    resolve: {
+      dedupe: ['react', 'react-dom', 'jotai', '@tanstack/react-query', '@tanstack/react-router'],
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+        // TODO: Using ts bindings from quent for now this will need to change
+        // to get bindings from webserver when we go that direction
+        '~quent/types': path.resolve(__dirname, 'generated/ts-bindings'),
+        // Force elkjs to use bundled version (avoids web-worker module resolution issues)
+        elkjs: 'elkjs/lib/elk.bundled.js',
+      },
+    },
+    optimizeDeps: {
+      // Workspace packages must NOT be pre-bundled. Pre-bundling collapses each
+      // package's source into a single optimized chunk in `node_modules/.vite/`,
+      // which means saving any file under `packages/@quent/*/src/` triggers a
+      // full page reload ("new dependencies optimized") instead of surgical HMR.
+      // Excluding them keeps their source in Vite's on-demand transform pipeline
+      // alongside `src/`, so React Fast Refresh works across package boundaries.
+      exclude: ['@quent/components', '@quent/hooks', '@quent/client', '@quent/utils'],
+      include: [
+        // echarts-for-react is a CJS peer dep of @quent/components; must be pre-bundled
+        // here so Vite converts it to ESM with a proper default export rather than
+        // serving the raw module.exports object to the browser.
+        'echarts-for-react',
+      ],
+    },
+    server: {
+      watch: {
+        followSymlinks: true,
+      },
+      proxy: {
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+          followRedirects: true,
+          configure: proxy => {
+            proxy.on('proxyRes', proxyRes => {
+              // Remove CORS headers from backend since proxy handles it
+              delete proxyRes.headers['access-control-allow-origin'];
+              delete proxyRes.headers['access-control-allow-credentials'];
+            });
+          },
         },
       },
     },
-  },
+    preview: {
+      proxy: {
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+          followRedirects: true,
+          configure: proxy => {
+            proxy.on('proxyRes', proxyRes => {
+              delete proxyRes.headers['access-control-allow-origin'];
+              delete proxyRes.headers['access-control-allow-credentials'];
+            });
+          },
+        },
+      },
+    },
+  };
 });
