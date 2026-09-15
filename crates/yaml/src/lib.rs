@@ -9,16 +9,12 @@
 
 use std::path::Path;
 
-use quent_constraints::validate;
-use quent_fsm::FsmConstraint;
-use quent_ref_target::RefTargetConstraint;
-use quent_ref_tree::RefTreeConstraint;
-use quent_resource::ResourceConstraint;
 use quent_schema::Schema;
 use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 
 mod ast;
 mod diag;
+mod extensions;
 mod lower;
 
 pub use diag::{Diagnostic, Diagnostics, Origin};
@@ -76,65 +72,10 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         return Err(Error::Invalid(sink));
     }
 
-    let report = validate::<(
-        RefTargetConstraint,
-        RefTreeConstraint,
-        FsmConstraint,
-        ResourceConstraint,
-    )>(&schema);
-    if let Err(e) = report.base_constraints {
-        for entity in e.entities_without_events {
-            sink.error(
-                &format!("entities.{entity}"),
-                format!("entity `{entity}` declares no events"),
-                Some("entities must declare at least one event".to_string()),
-            );
-        }
-        for record in e.recursive_records {
-            sink.error(
-                &format!("records.{record}"),
-                format!("record `{record}` is recursive"),
-                Some(
-                    "records cannot contain themselves, directly or through other records"
-                        .to_string(),
-                ),
-            );
-        }
-        for reference in e.invalid_references {
-            sink.error("", format!("unresolved reference: {reference}"), None);
-        }
-    }
-    let (ref_target, ref_tree, fsm, resource) = report.results;
-    if let Err(e) = ref_target {
-        sink.error("", e.to_string(), None);
-    }
-    if let Err(e) = ref_tree {
-        sink.error("", e.to_string(), None);
-    }
-    if let Err(e) = fsm {
-        sink.error("", e.to_string(), None);
-    }
-    if let Err(e) = resource {
-        sink.error("", e.to_string(), None);
-    }
-    if sink.has_errors() {
-        return Err(Error::Invalid(sink));
-    }
-
-    let warnings = report
-        .unregistered_constraints
-        .into_iter()
-        .map(|name| {
-            sink.make(
-                "",
-                format!("constraint `{name}` has no registered validator"),
-                Some(
-                    "it is passed through untouched; a downstream validator may check it"
-                        .to_string(),
-                ),
-            )
-        })
-        .collect();
+    let warnings = match extensions::validate_schema(&schema, &mut sink) {
+        Some(warnings) => warnings,
+        None => return Err(Error::Invalid(sink)),
+    };
     Ok(Parsed { schema, warnings })
 }
 

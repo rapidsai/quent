@@ -8,6 +8,7 @@ autoexamples = false
 [dependencies]
 indexmap = { workspace = true, features = ["serde"] }
 quent-constraints = { path = "../constraints" }
+quent-dag = { path = "../dag" }
 quent-fsm = { path = "../fsm" }
 quent-ref-target = { path = "../ref-target" }
 quent-ref-tree = { path = "../ref-tree" }
