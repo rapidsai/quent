@@ -271,6 +271,56 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin job-workload
 ```
 
+## Log sinks
+
+A `log:` block declares an entity-scoped logging sink. Its ordered levels become
+repeatable events with an implicit `message: string` attribute:
+
+```yaml
+entities:
+  AppLog:
+    log:
+      levels:
+        - name: trace
+        - name: debug
+        - name: info
+        - name: warning
+        - name: error
+```
+
+Common and level-specific attributes use the ordinary field syntax. A sink can
+also preserve facade-provided target and source information:
+
+```yaml
+entities:
+  AppLog:
+    doc: Application logging sink.
+    log:
+      target: true
+      source: true
+      attributes:
+        thread_name: { option: string }
+      levels:
+        - name: info
+          doc: Informational messages.
+        - name: error
+          attributes:
+            error_code: { option: u32 }
+```
+
+`source: true` enables the optional `file`, `line`, and `module` attributes.
+The mapping form selects them independently. `events:` and `log:` are mutually
+exclusive on the same entity.
+
+- [YAML model](examples/log-sink/model.yaml)
+- [Instrumentation API usage](examples/log-sink/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin log-sink
+```
+
 ## Type reference
 
 Scalar attributes support `bool`, `string`, `uuid`, `dynamic`, `u8`, `u16`,

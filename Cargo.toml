@@ -66,6 +66,7 @@ members = [
     "domains/query_engine/tests/fixed",
     # Unused preliminary crates of https://github.com/rapidsai/quent/issues/191
     "crates/constraints",
+    "crates/log",
     "crates/schema",
     "crates/ref-target",
     "crates/ref-tree",

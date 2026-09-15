@@ -1,0 +1,25 @@
+quent: alpha
+model: logging_sink
+
+entities:
+  AppLog:
+    doc: Application logging sink.
+    log:
+      target: true
+      source:
+        file: true
+        line: true
+        module: true
+      attributes:
+        thread_name: { option: string }
+      levels:
+        - name: trace
+        - name: debug
+        - name: info
+          doc: Informational messages.
+        - name: warning
+          attributes:
+            category: { option: string }
+        - name: error
+          attributes:
+            error_code: { option: u32 }

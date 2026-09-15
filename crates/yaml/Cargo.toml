@@ -9,6 +9,7 @@ autoexamples = false
 indexmap = { workspace = true, features = ["serde"] }
 quent-constraints = { path = "../constraints" }
 quent-fsm = { path = "../fsm" }
+quent-log = { path = "../log" }
 quent-ref-target = { path = "../ref-target" }
 quent-ref-tree = { path = "../ref-tree" }
 quent-resource = { workspace = true }
@@ -20,6 +21,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 
 [dev-dependencies]
+quent-instrumentation-build = { path = "../instrumentation-build" }
 quent-schema = { path = "../schema", features = ["test-utils"] }
 
 [[bin]]

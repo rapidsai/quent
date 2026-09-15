@@ -23,6 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "resource-capacity/model.yaml",
         "bounded-resource/model.yaml",
         "job-workload/model.yaml",
+        "log-sink/model.yaml",
     ] {
         let model = root.join(relative_path);
         println!("cargo:rerun-if-changed={}", model.display());

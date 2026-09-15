@@ -20,5 +20,6 @@
       - [Unit resources](instrumentation/modules/resource/unit-resources.md)
       - [Resource capacities](instrumentation/modules/resource/resource-capacities.md)
       - [Bounded resources](instrumentation/modules/resource/bounded-resources.md)
+    - [Log Sink](instrumentation/modules/log-sink/index.md)
     - [Combining modules](instrumentation/modules/combining/index.md)
 - [Analysis](analysis/index.md)
