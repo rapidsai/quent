@@ -42,6 +42,17 @@ const NVTX_ALL_DOMAINS = '__all__';
 const NVTX_ALL_CATEGORIES = '__all__';
 const NVTX_UNCATEGORIZED = '__uncategorized__';
 
+function nvtxDomainDisplayName(
+  domain: NvtxCatalog['domains'][number],
+  showSourceIds: boolean
+): string {
+  if (!showSourceIds) {
+    return domain.name;
+  }
+  const sourceLabel = domain.source_domain_ids.length === 1 ? 'source' : 'sources';
+  return `${domain.name} · ${sourceLabel} ${domain.source_domain_ids.join(', ')}`;
+}
+
 function NvtxSectionLabel({
   catalog,
   selectedDomainId,
@@ -51,9 +62,21 @@ function NvtxSectionLabel({
   selectedDomainId: string | null;
   onDomainChange: (domainId: string | null) => void;
 }) {
+  const duplicateNames = new Set(
+    catalog.domains
+      .filter((domain, index, domains) =>
+        domains.some(
+          (candidate, candidateIndex) => candidateIndex !== index && candidate.name === domain.name
+        )
+      )
+      .map(domain => domain.name)
+  );
   const options = [
     { value: NVTX_ALL_DOMAINS, label: 'All' },
-    ...catalog.domains.map(domain => ({ value: domain.domain_id, label: domain.name })),
+    ...catalog.domains.map(domain => ({
+      value: domain.domain_id,
+      label: nvtxDomainDisplayName(domain, duplicateNames.has(domain.name)),
+    })),
   ];
   return (
     <div className="flex items-center">
@@ -75,11 +98,13 @@ function NvtxSectionLabel({
 function NvtxDomainLabel({
   domain,
   color,
+  showSourceIds,
   selectedCategoryId,
   onCategoryChange,
 }: {
   domain: NvtxCatalog['domains'][number];
   color: string;
+  showSourceIds: boolean;
   selectedCategoryId: string | null;
   onCategoryChange: (categoryId: string | null) => void;
 }) {
@@ -99,7 +124,7 @@ function NvtxDomainLabel({
           className="inline-block h-2 w-2 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <span className="truncate">{domain.name}</span>
+        <span className="truncate">{nvtxDomainDisplayName(domain, showSourceIds)}</span>
       </span>
       <InlineSelector
         id={`nvtx-category-${domain.domain_id}`}
@@ -278,6 +303,12 @@ export function useNvtxTreeModel({
           <NvtxDomainLabel
             domain={entity.domain}
             color={meta.color}
+            showSourceIds={
+              catalog?.domains.some(
+                domain =>
+                  domain.domain_id !== entity.domain.domain_id && domain.name === entity.domain.name
+              ) ?? false
+            }
             selectedCategoryId={selectedNvtxCategories.get(entity.domain.domain_id) ?? null}
             onCategoryChange={categoryId => {
               setSelectedNvtxCategories(previous => {

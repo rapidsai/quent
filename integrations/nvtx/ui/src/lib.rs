@@ -55,12 +55,16 @@ pub struct NvtxCatalogAnomalies {
     pub is_faithful: bool,
 }
 
-/// Selectable metadata for one domain.
+/// Selectable metadata for one logical domain.
 #[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NvtxCatalogDomain {
     #[serde(with = "decimal_u64")]
     #[ts(type = "string")]
     pub domain_id: u64,
+    /// Sorted raw NVTX domain handles represented by this logical domain.
+    #[serde(with = "decimal_u64_vec")]
+    #[ts(type = "string[]")]
+    pub source_domain_ids: Vec<u64>,
     pub name: String,
     pub color: String,
     pub threads: Vec<NvtxCatalogThread>,
@@ -87,7 +91,7 @@ pub struct NvtxViewportWindow {
     pub end: f64,
 }
 
-/// One domain's selected categories.
+/// One logical domain's selected categories.
 #[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NvtxDomainSelection {
     #[serde(with = "decimal_u64")]
@@ -117,6 +121,10 @@ pub struct NvtxDomainLaneGroup {
     #[serde(with = "decimal_u64")]
     #[ts(type = "string")]
     pub domain_id: u64,
+    /// Sorted raw NVTX domain handles represented by this logical domain.
+    #[serde(with = "decimal_u64_vec")]
+    #[ts(type = "string[]")]
+    pub source_domain_ids: Vec<u64>,
     pub name: String,
     pub color: String,
     pub lanes: Vec<NvtxLane>,
@@ -127,9 +135,23 @@ pub struct NvtxDomainLaneGroup {
 #[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NvtxLaneIdentity {
-    Thread { thread_id: u32, depth: u32 },
-    Process,
-    Marks,
+    Thread {
+        #[serde(with = "decimal_u64")]
+        #[ts(type = "string")]
+        source_domain_id: u64,
+        thread_id: u32,
+        depth: u32,
+    },
+    Process {
+        #[serde(with = "decimal_u64")]
+        #[ts(type = "string")]
+        source_domain_id: u64,
+    },
+    Marks {
+        #[serde(with = "decimal_u64")]
+        #[ts(type = "string")]
+        source_domain_id: u64,
+    },
 }
 
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -151,9 +173,14 @@ pub enum NvtxRangeKind {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeItem {
     pub message: String,
+    /// Presentation-level logical domain identity.
     #[serde(with = "decimal_u64")]
     #[ts(type = "string")]
     pub domain_id: u64,
+    /// Raw NVTX domain handle that emitted this item.
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
+    pub source_domain_id: u64,
     pub domain_name: String,
     pub category_id: Option<u32>,
     pub category_name: Option<String>,
@@ -176,9 +203,14 @@ pub struct NvtxRangeItem {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxMarkItem {
     pub message: String,
+    /// Presentation-level logical domain identity.
     #[serde(with = "decimal_u64")]
     #[ts(type = "string")]
     pub domain_id: u64,
+    /// Raw NVTX domain handle that emitted this item.
+    #[serde(with = "decimal_u64")]
+    #[ts(type = "string")]
+    pub source_domain_id: u64,
     pub domain_name: String,
     pub category_id: Option<u32>,
     pub category_name: Option<String>,
@@ -194,9 +226,14 @@ pub struct NvtxMarkItem {
 #[derive(TS, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NvtxRangeStatistics {
     pub message: String,
+    /// Presentation-level logical domain identity.
     #[serde(with = "decimal_u64")]
     #[ts(type = "string")]
     pub domain_id: u64,
+    /// Sorted raw NVTX domain handles contributing to this aggregate.
+    #[serde(with = "decimal_u64_vec")]
+    #[ts(type = "string[]")]
+    pub source_domain_ids: Vec<u64>,
     pub domain_name: String,
     pub category_id: Option<u32>,
     pub category_name: Option<String>,
@@ -249,6 +286,25 @@ struct CatalogDomainMetadata {
     has_uncategorized: bool,
 }
 
+/// Presentation identity for a domain. Only non-default domains backed by a
+/// captured `DomainCreate` participate in name grouping. The raw-key branch is
+/// what keeps the default domain and every unresolved handle distinct even if
+/// their rendered text matches an explicitly named domain.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum CatalogDomainKey {
+    Named(String),
+    Raw(u64),
+}
+
+#[derive(Default)]
+struct CatalogDomainBuilder {
+    name: String,
+    source_domain_ids: BTreeSet<u64>,
+    thread_ids: BTreeSet<u32>,
+    category_names: BTreeMap<u32, BTreeSet<String>>,
+    has_uncategorized: bool,
+}
+
 impl NvtxCatalog {
     /// Build catalog metadata with times relative to `query_start`.
     pub fn from_model(model: &NvtxModel, query_start: TimeUnixNanoSec) -> Self {
@@ -277,26 +333,53 @@ impl NvtxCatalog {
             }
         }
 
-        let mut categories_by_domain = HashMap::<u64, Vec<NvtxCatalogCategory>>::new();
+        let mut categories_by_domain = HashMap::<u64, Vec<(u32, String)>>::new();
         for category in model.categories() {
             categories_by_domain
                 .entry(category.domain)
                 .or_default()
-                .push(NvtxCatalogCategory {
-                    category_id: category.category,
-                    name: category.name.clone(),
-                });
+                .push((category.category, category.name.clone()));
         }
 
-        let mut domains = model
-            .domains()
-            .iter()
-            .map(|domain| {
-                let metadata = metadata_by_domain
-                    .remove(&domain.domain)
-                    .unwrap_or_default();
+        let mut grouped = BTreeMap::<CatalogDomainKey, CatalogDomainBuilder>::new();
+        for domain in model.domains() {
+            let metadata = metadata_by_domain
+                .remove(&domain.domain)
+                .unwrap_or_default();
+            let key = if domain.domain != 0 && domain.created.is_some() {
+                CatalogDomainKey::Named(domain.name.clone())
+            } else {
+                CatalogDomainKey::Raw(domain.domain)
+            };
+            let group = grouped.entry(key).or_default();
+            if group.source_domain_ids.is_empty() {
+                group.name.clone_from(&domain.name);
+            }
+            group.source_domain_ids.insert(domain.domain);
+            group.thread_ids.extend(metadata.thread_ids);
+            group.has_uncategorized |= metadata.has_uncategorized;
+            for (category_id, name) in categories_by_domain
+                .remove(&domain.domain)
+                .unwrap_or_default()
+            {
+                group
+                    .category_names
+                    .entry(category_id)
+                    .or_default()
+                    .insert(name);
+            }
+        }
 
-                let mut threads: Vec<_> = metadata
+        // A recreated raw handle remains one source member because the analyzer
+        // deliberately exposes raw-domain records by handle. Recreating the same
+        // logical name with a different raw handle contributes another member,
+        // independent of whether those lifetimes overlap.
+        let mut domains = grouped
+            .into_values()
+            .map(|group| {
+                let source_domain_ids = group.source_domain_ids.into_iter().collect::<Vec<_>>();
+                let domain_id = source_domain_ids[0];
+                let mut threads = group
                     .thread_ids
                     .into_iter()
                     .map(|thread_id| NvtxCatalogThread {
@@ -306,16 +389,21 @@ impl NvtxCatalog {
                             |name| (*name).to_owned(),
                         ),
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
                 threads.sort_by(|left, right| {
                     left.name
                         .cmp(&right.name)
                         .then(left.thread_id.cmp(&right.thread_id))
                 });
 
-                let mut categories = categories_by_domain
-                    .remove(&domain.domain)
-                    .unwrap_or_default();
+                let mut categories = group
+                    .category_names
+                    .into_iter()
+                    .map(|(category_id, names)| NvtxCatalogCategory {
+                        category_id,
+                        name: category_display_name(category_id, &names),
+                    })
+                    .collect::<Vec<_>>();
                 categories.sort_by(|left, right| {
                     left.name
                         .cmp(&right.name)
@@ -323,12 +411,13 @@ impl NvtxCatalog {
                 });
 
                 NvtxCatalogDomain {
-                    domain_id: domain.domain,
-                    name: domain.name.clone(),
-                    color: fallback_color(domain.domain).to_owned(),
+                    domain_id,
+                    source_domain_ids,
+                    name: group.name,
+                    color: fallback_color(domain_id).to_owned(),
                     threads,
                     categories,
-                    has_uncategorized: metadata.has_uncategorized,
+                    has_uncategorized: group.has_uncategorized,
                 }
             })
             .collect::<Vec<_>>();
@@ -443,6 +532,16 @@ impl NvtxCatalog {
     }
 }
 
+fn category_display_name(category_id: u32, names: &BTreeSet<String>) -> String {
+    if let Some(name) = names.iter().next().filter(|_| names.len() == 1) {
+        return name.clone();
+    }
+    format!(
+        "<category {category_id} has conflicting names: {}>",
+        names.iter().cloned().collect::<Vec<_>>().join(" | ")
+    )
+}
+
 impl NvtxViewportResponse {
     /// Convert a viewport with all public times relative to `query_start`.
     pub fn from_model(
@@ -473,12 +572,25 @@ impl NvtxViewportResponse {
             .iter()
             .map(|domain| (domain.domain_id, domain))
             .collect();
+        let domains_by_source: HashMap<_, _> = catalog
+            .domains
+            .iter()
+            .flat_map(|domain| {
+                domain
+                    .source_domain_ids
+                    .iter()
+                    .map(move |source_domain_id| (*source_domain_id, domain))
+            })
+            .collect();
         let depths = span_depths(model);
         let mut statistics = BTreeMap::<StatsGroupKey, StatisticsAccumulator>::new();
         let mut items_by_domain = HashMap::<u64, DomainViewportItems>::new();
 
         for (index, span) in model.spans().iter().enumerate() {
-            let Some(selection) = selections.get(&span.domain) else {
+            let domain = domains_by_source
+                .get(&span.domain)
+                .expect("every model source domain belongs to one catalog domain");
+            let Some(selection) = selections.get(&domain.domain_id) else {
                 continue;
             };
             if !is_range(span)
@@ -488,36 +600,43 @@ impl NvtxViewportResponse {
                 continue;
             }
 
-            let domain = domains_by_id
-                .get(&span.domain)
-                .expect("validated selections only reference catalog domains");
             let Some(item) = range_item(model, domain, span, catalog.query_start, viewport) else {
                 continue;
             };
             statistics
                 .entry(StatsGroupKey {
-                    domain_id: span.domain,
+                    domain_id: domain.domain_id,
                     category_id: span.category,
+                    category_name: span
+                        .category
+                        .and_then(|id| model.category_name(span.domain, id)),
                     message: span.name.clone(),
                 })
                 .or_default()
-                .accumulate(span, viewport);
-            let domain_items = items_by_domain.entry(span.domain).or_default();
+                .accumulate(span, viewport, span.domain);
+            let domain_items = items_by_domain.entry(domain.domain_id).or_default();
             match span.kind {
                 SpanKind::PushPop { thread_id, .. } => {
                     domain_items
                         .thread_lanes
-                        .entry((thread_id, depths[index]))
+                        .entry((span.domain, thread_id, depths[index]))
                         .or_default()
                         .push(item);
                 }
-                SpanKind::StartEnd => domain_items.process_ranges.push(item),
+                SpanKind::StartEnd => domain_items
+                    .process_lanes
+                    .entry(span.domain)
+                    .or_default()
+                    .push(item),
                 SpanKind::Resource { .. } => continue,
             }
         }
 
         for mark in model.marks() {
-            let Some(selection) = selections.get(&mark.domain) else {
+            let domain = domains_by_source
+                .get(&mark.domain)
+                .expect("every model source domain belongs to one catalog domain");
+            let Some(selection) = selections.get(&domain.domain_id) else {
                 continue;
             };
             if !selected(selection, mark.category)
@@ -526,21 +645,21 @@ impl NvtxViewportResponse {
             {
                 continue;
             }
-            let domain = domains_by_id
-                .get(&mark.domain)
-                .expect("validated selections only reference catalog domains");
             items_by_domain
+                .entry(domain.domain_id)
+                .or_default()
+                .mark_lanes
                 .entry(mark.domain)
                 .or_default()
-                .marks
                 .push(NvtxMarkItem {
                     message: mark.name.clone(),
                     domain_id: domain.domain_id,
+                    source_domain_id: mark.domain,
                     domain_name: domain.name.clone(),
                     category_id: mark.category,
                     category_name: mark
                         .category
-                        .and_then(|id| model.category_name(domain.domain_id, id)),
+                        .and_then(|id| model.category_name(mark.domain, id)),
                     color: display_color(mark.color, domain.domain_id),
                     timestamp: to_secs_relative(mark.timestamp, catalog.query_start),
                 });
@@ -548,15 +667,9 @@ impl NvtxViewportResponse {
 
         let mut domains = Vec::new();
         for domain in &catalog.domains {
-            let Some(mut domain_items) = items_by_domain.remove(&domain.domain_id) else {
+            let Some(domain_items) = items_by_domain.remove(&domain.domain_id) else {
                 continue;
             };
-            let mut marks = domain_items.marks;
-            marks.sort_by(|left, right| {
-                left.timestamp
-                    .total_cmp(&right.timestamp)
-                    .then(left.message.cmp(&right.message))
-            });
 
             let thread_order: HashMap<_, _> = domain
                 .threads
@@ -566,48 +679,69 @@ impl NvtxViewportResponse {
                 .collect();
             let mut lane_entries: Vec<_> = domain_items.thread_lanes.into_iter().collect();
             lane_entries.sort_by(
-                |((left_thread, left_depth), _), ((right_thread, right_depth), _)| {
+                |((left_source, left_thread, left_depth), _),
+                 ((right_source, right_thread, right_depth), _)| {
                     thread_order
                         .get(left_thread)
                         .cmp(&thread_order.get(right_thread))
+                        .then(left_source.cmp(right_source))
                         .then(left_depth.cmp(right_depth))
                 },
             );
 
             let mut lanes = lane_entries
                 .into_iter()
-                .map(|((thread_id, depth), mut ranges)| {
+                .map(|((source_domain_id, thread_id, depth), mut ranges)| {
                     sort_ranges(&mut ranges);
                     let thread_name = model.thread_name(thread_id);
+                    let source_suffix = source_lane_suffix(domain, source_domain_id);
                     NvtxLane {
-                        id: format!("nvtx:{}:thread:{thread_id}:depth:{depth}", domain.domain_id),
+                        id: format!(
+                            "nvtx:{}:source:{source_domain_id}:thread:{thread_id}:depth:{depth}",
+                            domain.domain_id
+                        ),
                         label: if depth == 0 {
-                            thread_name
+                            format!("{thread_name}{source_suffix}")
                         } else {
-                            format!("{thread_name} · depth {depth}")
+                            format!("{thread_name} · depth {depth}{source_suffix}")
                         },
-                        identity: NvtxLaneIdentity::Thread { thread_id, depth },
+                        identity: NvtxLaneIdentity::Thread {
+                            source_domain_id,
+                            thread_id,
+                            depth,
+                        },
                         ranges,
                         marks: Vec::new(),
                     }
                 })
                 .collect::<Vec<_>>();
 
-            if !domain_items.process_ranges.is_empty() {
-                sort_ranges(&mut domain_items.process_ranges);
+            for (source_domain_id, mut ranges) in domain_items.process_lanes {
+                sort_ranges(&mut ranges);
                 lanes.push(NvtxLane {
-                    id: format!("nvtx:{}:process", domain.domain_id),
-                    label: "Process ranges".to_owned(),
-                    identity: NvtxLaneIdentity::Process,
-                    ranges: domain_items.process_ranges,
+                    id: format!(
+                        "nvtx:{}:source:{source_domain_id}:process",
+                        domain.domain_id
+                    ),
+                    label: format!(
+                        "Process ranges{}",
+                        source_lane_suffix(domain, source_domain_id)
+                    ),
+                    identity: NvtxLaneIdentity::Process { source_domain_id },
+                    ranges,
                     marks: Vec::new(),
                 });
             }
-            if !marks.is_empty() {
+            for (source_domain_id, mut marks) in domain_items.mark_lanes {
+                marks.sort_by(|left, right| {
+                    left.timestamp
+                        .total_cmp(&right.timestamp)
+                        .then(left.message.cmp(&right.message))
+                });
                 lanes.push(NvtxLane {
-                    id: format!("nvtx:{}:marks", domain.domain_id),
-                    label: "Marks".to_owned(),
-                    identity: NvtxLaneIdentity::Marks,
+                    id: format!("nvtx:{}:source:{source_domain_id}:marks", domain.domain_id),
+                    label: format!("Marks{}", source_lane_suffix(domain, source_domain_id)),
+                    identity: NvtxLaneIdentity::Marks { source_domain_id },
                     ranges: Vec::new(),
                     marks,
                 });
@@ -615,6 +749,7 @@ impl NvtxViewportResponse {
             if !lanes.is_empty() {
                 domains.push(NvtxDomainLaneGroup {
                     domain_id: domain.domain_id,
+                    source_domain_ids: domain.source_domain_ids.clone(),
                     name: domain.name.clone(),
                     color: domain.color.clone(),
                     lanes,
@@ -634,7 +769,7 @@ impl NvtxViewportResponse {
                 let domain = domains_by_id
                     .get(&key.domain_id)
                     .expect("statistics only include catalog domains");
-                accumulator.finish(&key, domain, model)
+                accumulator.finish(&key, domain)
             })
             .collect::<Vec<_>>();
         statistics.sort_by(|left, right| {
@@ -656,9 +791,17 @@ impl NvtxViewportResponse {
 
 #[derive(Default)]
 struct DomainViewportItems {
-    thread_lanes: BTreeMap<(u32, u32), Vec<NvtxRangeItem>>,
-    process_ranges: Vec<NvtxRangeItem>,
-    marks: Vec<NvtxMarkItem>,
+    thread_lanes: BTreeMap<(u64, u32, u32), Vec<NvtxRangeItem>>,
+    process_lanes: BTreeMap<u64, Vec<NvtxRangeItem>>,
+    mark_lanes: BTreeMap<u64, Vec<NvtxMarkItem>>,
+}
+
+fn source_lane_suffix(domain: &NvtxCatalogDomain, source_domain_id: u64) -> String {
+    if domain.source_domain_ids.len() > 1 {
+        format!(" · source {source_domain_id}")
+    } else {
+        String::new()
+    }
 }
 
 fn is_range(span: &NvtxSpan) -> bool {
@@ -768,13 +911,14 @@ fn range_item(
     };
     Some(NvtxRangeItem {
         message: span.name.clone(),
-        domain_id: span.domain,
+        domain_id: domain.domain_id,
+        source_domain_id: span.domain,
         domain_name: domain.name.clone(),
         category_id: span.category,
         category_name: span
             .category
             .and_then(|id| model.category_name(span.domain, id)),
-        color: display_color(span.color, span.domain),
+        color: display_color(span.color, domain.domain_id),
         kind,
         thread_id,
         thread_name: thread_id.map(|id| model.thread_name(id)),
@@ -824,11 +968,13 @@ fn fallback_color(domain_id: u64) -> &'static str {
 struct StatsGroupKey {
     domain_id: u64,
     category_id: Option<u32>,
+    category_name: Option<String>,
     message: String,
 }
 
 #[derive(Debug, Default)]
 struct StatisticsAccumulator {
+    source_domain_ids: BTreeSet<u64>,
     count: u64,
     observed_count: u64,
     total_duration: u64,
@@ -838,7 +984,8 @@ struct StatisticsAccumulator {
 }
 
 impl StatisticsAccumulator {
-    fn accumulate(&mut self, span: &NvtxSpan, viewport: AbsoluteViewport) {
+    fn accumulate(&mut self, span: &NvtxSpan, viewport: AbsoluteViewport, source_domain_id: u64) {
+        self.source_domain_ids.insert(source_domain_id);
         self.count = self.count.saturating_add(1);
         let Some(end) = span.end else {
             return;
@@ -864,21 +1011,15 @@ impl StatisticsAccumulator {
         }
     }
 
-    fn finish(
-        self,
-        key: &StatsGroupKey,
-        domain: &NvtxCatalogDomain,
-        model: &NvtxModel,
-    ) -> NvtxRangeStatistics {
+    fn finish(self, key: &StatsGroupKey, domain: &NvtxCatalogDomain) -> NvtxRangeStatistics {
         let total_duration = to_secs(self.total_duration);
         NvtxRangeStatistics {
             message: key.message.clone(),
             domain_id: key.domain_id,
+            source_domain_ids: self.source_domain_ids.into_iter().collect(),
             domain_name: domain.name.clone(),
             category_id: key.category_id,
-            category_name: key
-                .category_id
-                .and_then(|id| model.category_name(key.domain_id, id)),
+            category_name: key.category_name.clone(),
             count: self.count,
             observed_count: self.observed_count,
             total_duration,
@@ -910,6 +1051,31 @@ mod decimal_u64 {
     {
         let value = String::deserialize(deserializer)?;
         value.parse().map_err(de::Error::custom)
+    }
+}
+
+mod decimal_u64_vec {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+
+    pub fn serialize<S>(values: &[u64], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        values
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Vec::<String>::deserialize(deserializer)?
+            .into_iter()
+            .map(|value| value.parse().map_err(de::Error::custom))
+            .collect()
     }
 }
 
@@ -1026,6 +1192,626 @@ mod tests {
                 },
             ),
         ])
+    }
+
+    fn registered_attributes(handle: u64, category: u32) -> NvtxEventAttributes {
+        NvtxEventAttributes {
+            category,
+            message: Some(NvtxMessage::RegisteredHandle(handle)),
+            ..Default::default()
+        }
+    }
+
+    fn grouped_model() -> NvtxModel {
+        const REGISTERED_HANDLE: u64 = 0xCAFE;
+        NvtxModelBuilder::build(vec![
+            event(
+                10,
+                NvtxEvent::DomainCreate {
+                    domain: 5,
+                    name: "CCCL".to_owned(),
+                },
+            ),
+            event(
+                11,
+                NvtxEvent::DomainCreate {
+                    domain: 172,
+                    name: "CCCL".to_owned(),
+                },
+            ),
+            event(
+                12,
+                NvtxEvent::NameThread {
+                    thread_id: 42,
+                    name: "worker".to_owned(),
+                },
+            ),
+            event(
+                13,
+                NvtxEvent::NameCategory {
+                    domain: 5,
+                    category: 7,
+                    name: "Compute".to_owned(),
+                },
+            ),
+            event(
+                14,
+                NvtxEvent::NameCategory {
+                    domain: 172,
+                    category: 7,
+                    name: "Compute".to_owned(),
+                },
+            ),
+            event(
+                15,
+                NvtxEvent::NameCategory {
+                    domain: 5,
+                    category: 9,
+                    name: "Encode".to_owned(),
+                },
+            ),
+            event(
+                16,
+                NvtxEvent::NameCategory {
+                    domain: 172,
+                    category: 9,
+                    name: "Decode".to_owned(),
+                },
+            ),
+            event(
+                17,
+                NvtxEvent::RegisterString {
+                    domain: 5,
+                    handle: REGISTERED_HANDLE,
+                    string: "five outer".to_owned(),
+                },
+            ),
+            event(
+                18,
+                NvtxEvent::RegisterString {
+                    domain: 172,
+                    handle: REGISTERED_HANDLE,
+                    string: "one-seventy-two outer".to_owned(),
+                },
+            ),
+            event(
+                100,
+                NvtxEvent::RangePush {
+                    domain: 5,
+                    thread_id: 42,
+                    attributes: registered_attributes(REGISTERED_HANDLE, 7),
+                },
+            ),
+            event(
+                110,
+                NvtxEvent::RangePush {
+                    domain: 172,
+                    thread_id: 42,
+                    attributes: registered_attributes(REGISTERED_HANDLE, 7),
+                },
+            ),
+            event(
+                120,
+                NvtxEvent::RangePush {
+                    domain: 5,
+                    thread_id: 42,
+                    attributes: attributes("five inner", 7, None),
+                },
+            ),
+            event(
+                130,
+                NvtxEvent::RangePush {
+                    domain: 172,
+                    thread_id: 42,
+                    attributes: attributes("one-seventy-two inner", 7, None),
+                },
+            ),
+            event(
+                140,
+                NvtxEvent::RangePop {
+                    domain: 5,
+                    thread_id: 42,
+                },
+            ),
+            event(
+                150,
+                NvtxEvent::RangePop {
+                    domain: 172,
+                    thread_id: 42,
+                },
+            ),
+            event(
+                160,
+                NvtxEvent::RangePop {
+                    domain: 5,
+                    thread_id: 42,
+                },
+            ),
+            event(
+                170,
+                NvtxEvent::RangePop {
+                    domain: 172,
+                    thread_id: 42,
+                },
+            ),
+            event(
+                180,
+                NvtxEvent::RangeStart {
+                    domain: 5,
+                    range_id: 99,
+                    attributes: attributes("shared", 7, None),
+                },
+            ),
+            event(
+                181,
+                NvtxEvent::RangeStart {
+                    domain: 172,
+                    range_id: 99,
+                    attributes: attributes("shared", 7, None),
+                },
+            ),
+            event(
+                200,
+                NvtxEvent::Mark {
+                    domain: 5,
+                    attributes: attributes("five mark", 7, None),
+                },
+            ),
+            event(
+                201,
+                NvtxEvent::Mark {
+                    domain: 172,
+                    attributes: attributes("one-seventy-two mark", 7, None),
+                },
+            ),
+            event(
+                220,
+                NvtxEvent::RangeEnd {
+                    domain: 5,
+                    range_id: 99,
+                },
+            ),
+            event(
+                230,
+                NvtxEvent::RangeEnd {
+                    domain: 172,
+                    range_id: 99,
+                },
+            ),
+            event(
+                240,
+                NvtxEvent::RangeStart {
+                    domain: 5,
+                    range_id: 100,
+                    attributes: attributes("conflict", 9, None),
+                },
+            ),
+            event(
+                241,
+                NvtxEvent::RangeStart {
+                    domain: 172,
+                    range_id: 100,
+                    attributes: attributes("conflict", 9, None),
+                },
+            ),
+            event(
+                260,
+                NvtxEvent::RangeEnd {
+                    domain: 5,
+                    range_id: 100,
+                },
+            ),
+            event(
+                261,
+                NvtxEvent::RangeEnd {
+                    domain: 172,
+                    range_id: 100,
+                },
+            ),
+        ])
+    }
+
+    fn whole_trace_request(
+        model: &NvtxModel,
+        selections: Vec<NvtxDomainSelection>,
+    ) -> NvtxViewportRequest {
+        NvtxViewportRequest {
+            viewport: NvtxViewportWindow {
+                start: to_secs_relative(model.trace_start(), 0),
+                end: to_secs_relative(model.trace_end(), 0),
+            },
+            selections,
+        }
+    }
+
+    #[test]
+    fn exact_named_domains_group_after_raw_resolution_and_reconstruction() {
+        let model = grouped_model();
+        let catalog = NvtxCatalog::from_model(&model, 0);
+        assert_eq!(catalog.domains.len(), 1);
+        let domain = &catalog.domains[0];
+        assert_eq!(domain.domain_id, 5);
+        assert_eq!(domain.source_domain_ids, vec![5, 172]);
+        assert_eq!(domain.name, "CCCL");
+        assert_eq!(
+            domain.threads,
+            vec![NvtxCatalogThread {
+                thread_id: 42,
+                name: "worker".to_owned(),
+            }]
+        );
+        assert_eq!(
+            domain
+                .categories
+                .iter()
+                .find(|category| category.category_id == 7)
+                .unwrap()
+                .name,
+            "Compute"
+        );
+        assert_eq!(
+            domain
+                .categories
+                .iter()
+                .find(|category| category.category_id == 9)
+                .unwrap()
+                .name,
+            "<category 9 has conflicting names: Decode | Encode>"
+        );
+
+        let response = NvtxViewportResponse::from_model_with_catalog(
+            &model,
+            &catalog,
+            whole_trace_request(&model, catalog.select_all()),
+        )
+        .expect("grouped viewport is valid");
+        assert_eq!(response.domains.len(), 1);
+        let group = &response.domains[0];
+        assert_eq!(group.domain_id, 5);
+        assert_eq!(group.source_domain_ids, vec![5, 172]);
+
+        let ranges = group
+            .lanes
+            .iter()
+            .flat_map(|lane| &lane.ranges)
+            .collect::<Vec<_>>();
+        let marks = group
+            .lanes
+            .iter()
+            .flat_map(|lane| &lane.marks)
+            .collect::<Vec<_>>();
+        assert_eq!(ranges.len(), 8);
+        assert_eq!(marks.len(), 2);
+        assert!(ranges.iter().all(|range| range.domain_id == 5));
+        assert!(marks.iter().all(|mark| mark.domain_id == 5));
+        assert_eq!(
+            ranges
+                .iter()
+                .map(|range| range.source_domain_id)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([5, 172])
+        );
+        assert!(
+            ranges
+                .iter()
+                .any(|range| { range.source_domain_id == 5 && range.message == "five outer" })
+        );
+        assert!(ranges.iter().any(|range| {
+            range.source_domain_id == 172 && range.message == "one-seventy-two outer"
+        }));
+
+        let thread_lanes = group
+            .lanes
+            .iter()
+            .filter_map(|lane| match lane.identity {
+                NvtxLaneIdentity::Thread {
+                    source_domain_id,
+                    thread_id,
+                    depth,
+                } => Some((source_domain_id, thread_id, depth)),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            thread_lanes,
+            BTreeSet::from([(5, 42, 0), (5, 42, 1), (172, 42, 0), (172, 42, 1)])
+        );
+        assert_eq!(
+            group
+                .lanes
+                .iter()
+                .filter_map(|lane| match lane.identity {
+                    NvtxLaneIdentity::Process { source_domain_id } => Some(source_domain_id),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([5, 172])
+        );
+        assert_eq!(
+            group
+                .lanes
+                .iter()
+                .filter_map(|lane| match lane.identity {
+                    NvtxLaneIdentity::Marks { source_domain_id } => Some(source_domain_id),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([5, 172])
+        );
+        assert!(
+            group
+                .lanes
+                .iter()
+                .flat_map(|lane| lane.ranges.iter())
+                .all(|range| range.color == domain.color)
+        );
+
+        let shared = response
+            .statistics
+            .iter()
+            .find(|statistics| statistics.message == "shared")
+            .expect("matching statistics merge across sources");
+        assert_eq!(shared.domain_id, 5);
+        assert_eq!(shared.source_domain_ids, vec![5, 172]);
+        assert_eq!(shared.count, 2);
+        let conflict = response
+            .statistics
+            .iter()
+            .filter(|statistics| statistics.message == "conflict")
+            .collect::<Vec<_>>();
+        assert_eq!(conflict.len(), 2);
+        assert_eq!(
+            conflict
+                .iter()
+                .filter_map(|statistics| statistics.category_name.as_deref())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["Decode", "Encode"])
+        );
+        assert!(
+            conflict
+                .iter()
+                .all(|statistics| statistics.source_domain_ids.len() == 1)
+        );
+    }
+
+    #[test]
+    fn logical_category_selection_includes_every_raw_member() {
+        let model = grouped_model();
+        let catalog = NvtxCatalog::from_model(&model, 0);
+        let response = NvtxViewportResponse::from_model_with_catalog(
+            &model,
+            &catalog,
+            whole_trace_request(
+                &model,
+                vec![NvtxDomainSelection {
+                    domain_id: 5,
+                    category_ids: vec![7],
+                    include_uncategorized: false,
+                }],
+            ),
+        )
+        .expect("logical category selection is valid");
+        let group = &response.domains[0];
+        let selected_sources = group
+            .lanes
+            .iter()
+            .flat_map(|lane| {
+                lane.ranges
+                    .iter()
+                    .map(|range| range.source_domain_id)
+                    .chain(lane.marks.iter().map(|mark| mark.source_domain_id))
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(selected_sources, BTreeSet::from([5, 172]));
+        assert!(
+            group
+                .lanes
+                .iter()
+                .flat_map(|lane| lane.ranges.iter())
+                .all(|range| range.category_id == Some(7))
+        );
+        assert!(
+            response
+                .statistics
+                .iter()
+                .all(|statistics| statistics.category_id == Some(7))
+        );
+    }
+
+    #[test]
+    fn grouping_keeps_default_unresolved_case_and_recreated_sources_distinct() {
+        let model = NvtxModelBuilder::build(vec![
+            event(
+                10,
+                NvtxEvent::DomainCreate {
+                    domain: 5,
+                    name: "CCCL".to_owned(),
+                },
+            ),
+            event(
+                11,
+                NvtxEvent::RangeStart {
+                    domain: 5,
+                    range_id: 1,
+                    attributes: attributes("first lifetime", 0, None),
+                },
+            ),
+            event(
+                20,
+                NvtxEvent::RangeEnd {
+                    domain: 5,
+                    range_id: 1,
+                },
+            ),
+            event(21, NvtxEvent::DomainDestroy { domain: 5 }),
+            event(
+                22,
+                NvtxEvent::DomainCreate {
+                    domain: 172,
+                    name: "CCCL".to_owned(),
+                },
+            ),
+            event(
+                23,
+                NvtxEvent::RangeStart {
+                    domain: 172,
+                    range_id: 1,
+                    attributes: attributes("second lifetime", 0, None),
+                },
+            ),
+            event(
+                30,
+                NvtxEvent::RangeEnd {
+                    domain: 172,
+                    range_id: 1,
+                },
+            ),
+            event(
+                31,
+                NvtxEvent::DomainCreate {
+                    domain: 6,
+                    name: "cccl".to_owned(),
+                },
+            ),
+            event(
+                32,
+                NvtxEvent::Mark {
+                    domain: 6,
+                    attributes: attributes("case-sensitive", 0, None),
+                },
+            ),
+            event(
+                33,
+                NvtxEvent::Mark {
+                    domain: 0,
+                    attributes: attributes("default", 0, None),
+                },
+            ),
+            event(
+                34,
+                NvtxEvent::DomainCreate {
+                    domain: 9,
+                    name: "default domain".to_owned(),
+                },
+            ),
+            event(
+                35,
+                NvtxEvent::Mark {
+                    domain: 9,
+                    attributes: attributes("explicit default text", 0, None),
+                },
+            ),
+            event(
+                36,
+                NvtxEvent::Mark {
+                    domain: 40,
+                    attributes: attributes("unresolved forty", 0, None),
+                },
+            ),
+            event(
+                37,
+                NvtxEvent::Mark {
+                    domain: 41,
+                    attributes: attributes("unresolved forty-one", 0, None),
+                },
+            ),
+            event(
+                40,
+                NvtxEvent::DomainCreate {
+                    domain: 88,
+                    name: "repeat".to_owned(),
+                },
+            ),
+            event(
+                41,
+                NvtxEvent::RangeStart {
+                    domain: 88,
+                    range_id: 1,
+                    attributes: attributes("before recreation", 0, None),
+                },
+            ),
+            event(
+                42,
+                NvtxEvent::RangeEnd {
+                    domain: 88,
+                    range_id: 1,
+                },
+            ),
+            event(43, NvtxEvent::DomainDestroy { domain: 88 }),
+            event(
+                44,
+                NvtxEvent::DomainCreate {
+                    domain: 88,
+                    name: "repeat".to_owned(),
+                },
+            ),
+            event(
+                45,
+                NvtxEvent::RangeStart {
+                    domain: 88,
+                    range_id: 2,
+                    attributes: attributes("after recreation", 0, None),
+                },
+            ),
+            event(
+                46,
+                NvtxEvent::RangeEnd {
+                    domain: 88,
+                    range_id: 2,
+                },
+            ),
+        ]);
+        let catalog = NvtxCatalog::from_model(&model, 0);
+        assert_eq!(catalog.domains.len(), 7);
+
+        let by_sources = |sources: &[u64]| {
+            catalog
+                .domains
+                .iter()
+                .find(|domain| domain.source_domain_ids == sources)
+                .unwrap_or_else(|| panic!("missing catalog domain for sources {sources:?}"))
+        };
+        assert_eq!(by_sources(&[5, 172]).name, "CCCL");
+        assert_eq!(by_sources(&[6]).name, "cccl");
+        assert_eq!(by_sources(&[0]).name, "default domain");
+        assert_eq!(by_sources(&[9]).name, "default domain");
+        assert_eq!(by_sources(&[40]).name, "<domain 0x28>");
+        assert_eq!(by_sources(&[41]).name, "<domain 0x29>");
+        assert_eq!(by_sources(&[88]).name, "repeat");
+
+        let response = NvtxViewportResponse::from_model_with_catalog(
+            &model,
+            &catalog,
+            whole_trace_request(&model, catalog.select_all()),
+        )
+        .expect("edge-case viewport is valid");
+        let cccl = response
+            .domains
+            .iter()
+            .find(|domain| domain.source_domain_ids == [5, 172])
+            .expect("sequential CCCL sources remain present");
+        assert_eq!(
+            cccl.lanes
+                .iter()
+                .flat_map(|lane| lane.ranges.iter())
+                .map(|range| range.message.as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["first lifetime", "second lifetime"])
+        );
+        let recreated = response
+            .domains
+            .iter()
+            .find(|domain| domain.source_domain_ids == [88])
+            .expect("recreated raw handle remains one presentation source");
+        assert_eq!(
+            recreated
+                .lanes
+                .iter()
+                .flat_map(|lane| lane.ranges.iter())
+                .map(|range| range.message.as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["after recreation", "before recreation"])
+        );
     }
 
     #[test]
@@ -1410,13 +2196,18 @@ mod tests {
         assert!(lanes.iter().any(|lane| {
             lane.identity
                 == NvtxLaneIdentity::Thread {
+                    source_domain_id: 2,
                     thread_id: 7,
                     depth: 1,
                 }
                 && lane.ranges[0].color == "#40201080"
         }));
         assert!(lanes.iter().any(|lane| {
-            lane.identity == NvtxLaneIdentity::Marks && lane.marks[0].timestamp == seconds(250)
+            lane.identity
+                == NvtxLaneIdentity::Marks {
+                    source_domain_id: 2,
+                }
+                && lane.marks[0].timestamp == seconds(250)
         }));
     }
 
@@ -1515,6 +2306,7 @@ mod tests {
         let values = [
             serde_json::to_value(NvtxCatalogDomain {
                 domain_id,
+                source_domain_ids: vec![domain_id],
                 name: "domain".to_owned(),
                 color: "#000000ff".to_owned(),
                 threads: vec![],
@@ -1524,6 +2316,7 @@ mod tests {
             .expect("catalog domain serializes"),
             serde_json::to_value(NvtxDomainLaneGroup {
                 domain_id,
+                source_domain_ids: vec![domain_id],
                 name: "domain".to_owned(),
                 color: "#000000ff".to_owned(),
                 lanes: vec![],
@@ -1532,6 +2325,7 @@ mod tests {
             serde_json::to_value(NvtxRangeItem {
                 message: "range".to_owned(),
                 domain_id,
+                source_domain_id: domain_id,
                 domain_name: "domain".to_owned(),
                 category_id: None,
                 category_name: None,
@@ -1550,6 +2344,7 @@ mod tests {
             serde_json::to_value(NvtxMarkItem {
                 message: "mark".to_owned(),
                 domain_id,
+                source_domain_id: domain_id,
                 domain_name: "domain".to_owned(),
                 category_id: None,
                 category_name: None,
@@ -1560,6 +2355,7 @@ mod tests {
             serde_json::to_value(NvtxRangeStatistics {
                 message: "range".to_owned(),
                 domain_id,
+                source_domain_ids: vec![domain_id],
                 domain_name: "domain".to_owned(),
                 category_id: None,
                 category_name: None,
@@ -1576,7 +2372,22 @@ mod tests {
 
         for value in values {
             assert_eq!(value["domain_id"], "18446744073709551615");
+            if value.get("source_domain_id").is_some() {
+                assert_eq!(value["source_domain_id"], "18446744073709551615");
+            }
+            if value.get("source_domain_ids").is_some() {
+                assert_eq!(
+                    value["source_domain_ids"],
+                    serde_json::json!(["18446744073709551615"])
+                );
+            }
         }
+
+        let lane = serde_json::to_value(NvtxLaneIdentity::Process {
+            source_domain_id: domain_id,
+        })
+        .expect("lane identity serializes");
+        assert_eq!(lane["source_domain_id"], "18446744073709551615");
     }
 
     #[test]
@@ -1598,6 +2409,12 @@ mod tests {
         ] {
             assert!(declaration.contains("domain_id: string"));
         }
+        assert!(NvtxCatalogDomain::decl(&config).contains("source_domain_ids: string[]"));
+        assert!(NvtxDomainLaneGroup::decl(&config).contains("source_domain_ids: string[]"));
+        assert!(NvtxLaneIdentity::decl(&config).contains("source_domain_id: string"));
+        assert!(NvtxRangeItem::decl(&config).contains("source_domain_id: string"));
+        assert!(NvtxMarkItem::decl(&config).contains("source_domain_id: string"));
+        assert!(NvtxRangeStatistics::decl(&config).contains("source_domain_ids: string[]"));
         let anomalies = NvtxCatalogAnomalies::decl(&config);
         for field in [
             "orphan_range_ends",

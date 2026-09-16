@@ -212,12 +212,21 @@ function MarkDetailRow({ name, value }: { name: string; value: string }) {
 
 function CompactCountRow({ mark }: { mark: ActiveMark }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <ColorSwatch color={mark.color} />
-      <DataText className="min-w-0 flex-1 break-words">{mark.label}</DataText>
-      {mark.stateName && (
-        <DataText className="ml-auto shrink-0 text-muted-foreground">{mark.stateName}</DataText>
-      )}
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <ColorSwatch color={mark.color} />
+        <DataText className="min-w-0 flex-1 break-words">{mark.label}</DataText>
+        {mark.stateName && (
+          <DataText className="ml-auto shrink-0 text-muted-foreground">{mark.stateName}</DataText>
+        )}
+      </div>
+      {mark.attributes?.map(attr => (
+        <MarkDetailRow
+          key={attr.key}
+          name={attr.key}
+          value={formatAttributeValue(attr.key, attr.value)}
+        />
+      ))}
     </div>
   );
 }

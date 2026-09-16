@@ -55,6 +55,12 @@ export function nvtxMarksRowId(domainId: string): string {
   return `${MARKS_PREFIX}${domainId}`;
 }
 
+function compareDecimalIds(left: string, right: string): number {
+  const leftId = BigInt(left);
+  const rightId = BigInt(right);
+  return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+}
+
 export function isThreadIdentity(
   identity: NvtxLaneIdentity
 ): identity is Extract<NvtxLaneIdentity, { kind: 'thread' }> {
@@ -134,13 +140,22 @@ export function indexNvtxLanes(viewport: NvtxViewportResponse | null): Map<strin
         lanes.push(lane);
         byThread.set(lane.identity.thread_id, lanes);
       } else if (lane.identity.kind === 'process') {
-        lanesByRowId.set(nvtxProcessRowId(domain.domain_id), [lane]);
+        const rowId = nvtxProcessRowId(domain.domain_id);
+        lanesByRowId.set(rowId, [...(lanesByRowId.get(rowId) ?? []), lane]);
       } else if (lane.identity.kind === 'marks') {
-        lanesByRowId.set(nvtxMarksRowId(domain.domain_id), [lane]);
+        const rowId = nvtxMarksRowId(domain.domain_id);
+        lanesByRowId.set(rowId, [...(lanesByRowId.get(rowId) ?? []), lane]);
       }
     }
     for (const [threadId, lanes] of byThread) {
       lanes.sort((left, right) => {
+        const sourceOrder = compareDecimalIds(
+          left.identity.source_domain_id,
+          right.identity.source_domain_id
+        );
+        if (sourceOrder !== 0) {
+          return sourceOrder;
+        }
         const leftDepth = isThreadIdentity(left.identity) ? left.identity.depth : 0;
         const rightDepth = isThreadIdentity(right.identity) ? right.identity.depth : 0;
         return leftDepth - rightDepth;
@@ -192,7 +207,7 @@ function nvtxItemSearchLabel(item: NvtxTreeItem): string {
     return `${item.id} NVTX`;
   }
   if (entity.nvtxKind === 'domain') {
-    return `${item.id} ${entity.domain.domain_id} ${entity.domain.name}`;
+    return `${item.id} ${entity.domain.domain_id} ${entity.domain.source_domain_ids.join(' ')} ${entity.domain.name}`;
   }
   if (entity.nvtxKind === 'thread') {
     return `${item.id} ${entity.domain.name} ${entity.thread.thread_id} ${entity.thread.name}`;
@@ -417,11 +432,15 @@ function countLabel(count: number, singular: string, plural: string): string {
 /** Compact name + count row for pixel-merged bars. */
 export function nvtxToSummaryMark(datum: NvtxGanttDatum): ActiveMark {
   const count = datum.mergedCount ?? 1;
+  const sourceAttributes = [
+    stringAttr('source domain ID', datum.mark?.source_domain_id ?? datum.range!.source_domain_id),
+  ];
   if (datum.mark) {
     return {
       label: 'Consolidated block',
       stateName: countLabel(count, 'mark', 'marks'),
       color: rgbHex(datum.mark.color),
+      attributes: sourceAttributes,
       compact: true,
     };
   }
@@ -430,6 +449,7 @@ export function nvtxToSummaryMark(datum: NvtxGanttDatum): ActiveMark {
     label: 'Consolidated block',
     stateName: countLabel(count, 'range', 'ranges'),
     color: rgbHex(range.color),
+    attributes: sourceAttributes,
     compact: true,
   };
 }
@@ -441,10 +461,14 @@ function nvtxToSummaryMarks(datum: NvtxGanttDatum): ActiveMark[] {
   }
   const isMark = datum.mark != null;
   const color = rgbHex(datum.mark?.color ?? datum.range?.color ?? '');
+  const attributes = [
+    stringAttr('source domain ID', datum.mark?.source_domain_id ?? datum.range!.source_domain_id),
+  ];
   return typeCounts.map(({ label, count }) => ({
     label,
     stateName: countLabel(count, isMark ? 'mark' : 'range', isMark ? 'marks' : 'ranges'),
     color,
+    attributes,
     compact: true,
   }));
 }
@@ -507,6 +531,7 @@ export function nvtxToActiveMark(datum: NvtxGanttDatum): ActiveMark {
       color: rgbHex(datum.mark.color),
       attributes: [
         stringAttr('kind', nvtxKindLabel('mark')),
+        stringAttr('source domain ID', datum.mark.source_domain_id),
         stringAttr('category', datum.mark.category_name ?? 'Uncategorized'),
       ],
     };
@@ -532,6 +557,7 @@ export function nvtxToActiveMark(datum: NvtxGanttDatum): ActiveMark {
       ),
       stringAttr('kind', nvtxKindLabel(range.kind)),
       stringAttr('domain', range.domain_name),
+      stringAttr('source domain ID', range.source_domain_id),
       stringAttr('category', range.category_name ?? 'Uncategorized'),
       ...threadAttributes,
     ],

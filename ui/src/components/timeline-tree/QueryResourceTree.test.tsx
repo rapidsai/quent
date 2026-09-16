@@ -398,10 +398,14 @@ describe('QueryResourceTree — NVTX filters', () => {
       domains: [
         {
           domain_id: '1',
-          name: 'Domain 1',
+          source_domain_ids: ['1', '2'],
+          name: 'CCCL',
           color: '#76b900ff',
           threads: [],
-          categories: [{ category_id: 7, name: 'Compute' }],
+          categories: [
+            { category_id: 7, name: 'Compute' },
+            { category_id: 8, name: '<category 8 has conflicting names: Decode | Encode>' },
+          ],
           has_uncategorized: true,
         },
       ],
@@ -426,6 +430,7 @@ describe('QueryResourceTree — NVTX filters', () => {
     expect(categorySelector?.options).toEqual([
       { value: '__all__', label: 'All' },
       { value: '7', label: 'Compute' },
+      { value: '8', label: '<category 8 has conflicting names: Decode | Encode>' },
       { value: '__uncategorized__', label: 'Uncategorized' },
     ]);
     act(() => categorySelector?.onChange('nvtx-category-1', '7'));
@@ -439,6 +444,10 @@ describe('QueryResourceTree — NVTX filters', () => {
     });
 
     const domainSelector = capturedInlineSelectors.find(selector => selector.id === 'nvtx-domain');
+    expect(domainSelector?.options).toEqual([
+      { value: '__all__', label: 'All' },
+      { value: '1', label: 'CCCL' },
+    ]);
     capturedInlineSelectors = [];
     act(() => domainSelector?.onChange('nvtx-domain', '1'));
 
@@ -449,11 +458,60 @@ describe('QueryResourceTree — NVTX filters', () => {
     );
   });
 
+  it('qualifies duplicate domain names with their raw sources', () => {
+    const catalog = {
+      domains: [
+        {
+          domain_id: '0',
+          source_domain_ids: ['0'],
+          name: 'default domain',
+          color: '#76b900ff',
+          threads: [],
+          categories: [],
+          has_uncategorized: true,
+        },
+        {
+          domain_id: '9',
+          source_domain_ids: ['9'],
+          name: 'default domain',
+          color: '#2563ebff',
+          threads: [],
+          categories: [],
+          has_uncategorized: true,
+        },
+      ],
+    } as unknown as NvtxCatalog;
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.useNvtxStream).mockReturnValue({
+      contextId: 'context-1',
+      catalog,
+      viewport: null,
+      isLoading: false,
+    });
+
+    const { getByText } = renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    expect(
+      capturedInlineSelectors.find(selector => selector.id === 'nvtx-domain')?.options
+    ).toEqual([
+      { value: '__all__', label: 'All' },
+      { value: '0', label: 'default domain · source 0' },
+      { value: '9', label: 'default domain · source 9' },
+    ]);
+    expect(getByText('default domain · source 0')).toBeInTheDocument();
+    expect(getByText('default domain · source 9')).toBeInTheDocument();
+  });
+
   it('applies the shared text search to NVTX rows', async () => {
     const catalog = {
       domains: [
         {
           domain_id: '1',
+          source_domain_ids: ['1'],
           name: 'Domain 1',
           color: '#76b900ff',
           threads: [{ thread_id: 7, name: 'worker 7' }],
@@ -703,6 +761,7 @@ describe('QueryResourceTree — resource filtering', () => {
         domains: [
           {
             domain_id: '1',
+            source_domain_ids: ['1'],
             name: 'Domain 1',
             color: '#76b900ff',
             threads: [{ thread_id: 7, name: 'worker 7' }],

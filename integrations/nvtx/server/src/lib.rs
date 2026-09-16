@@ -283,6 +283,7 @@ pub fn routes(importer: Box<NvtxImporterFn>) -> Router {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::fmt::Display;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -328,6 +329,55 @@ mod tests {
                     range_id: 9,
                 }),
             ),
+        ]
+    }
+
+    fn grouped_range_events(context_id: Uuid) -> Vec<Event<NvtxEventEntity>> {
+        let range = |domain, message: &str| {
+            Event::new(
+                context_id,
+                QUERY_START,
+                NvtxEventEntity(NvtxEvent::RangeStart {
+                    domain,
+                    range_id: 9,
+                    attributes: NvtxEventAttributes {
+                        message: Some(NvtxMessage::String(message.to_owned())),
+                        ..Default::default()
+                    },
+                }),
+            )
+        };
+        let range_end = |domain| {
+            Event::new(
+                context_id,
+                RANGE_END,
+                NvtxEventEntity(NvtxEvent::RangeEnd {
+                    domain,
+                    range_id: 9,
+                }),
+            )
+        };
+        vec![
+            Event::new(
+                context_id,
+                QUERY_START,
+                NvtxEventEntity(NvtxEvent::DomainCreate {
+                    domain: 5,
+                    name: "CCCL".to_owned(),
+                }),
+            ),
+            Event::new(
+                context_id,
+                QUERY_START,
+                NvtxEventEntity(NvtxEvent::DomainCreate {
+                    domain: 172,
+                    name: "CCCL".to_owned(),
+                }),
+            ),
+            range(5, "work from 5"),
+            range(172, "work from 172"),
+            range_end(5),
+            range_end(172),
         ]
     }
 
@@ -445,6 +495,70 @@ mod tests {
             loads.load(Ordering::SeqCst),
             1,
             "one reconstruction per context"
+        );
+    }
+
+    #[tokio::test]
+    async fn grouped_domain_contract_survives_http_round_trip() {
+        let context_id = Uuid::from_u128(10);
+        let app = routes(Box::new(move |requested_context_id| {
+            Ok((requested_context_id == context_id)
+                .then(|| grouped_range_events(requested_context_id)))
+        }));
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(catalog_uri(context_id, QUERY_START))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let catalog_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(catalog_json["domains"].as_array().unwrap().len(), 1);
+        assert_eq!(catalog_json["domains"][0]["domain_id"], "5");
+        assert_eq!(
+            catalog_json["domains"][0]["source_domain_ids"],
+            serde_json::json!(["5", "172"])
+        );
+
+        let request = NvtxViewportRequest {
+            viewport: nvtx_ui::NvtxViewportWindow {
+                start: 0.0,
+                end: 1.0,
+            },
+            selections: vec![nvtx_ui::NvtxDomainSelection {
+                domain_id: 5,
+                category_ids: vec![],
+                include_uncategorized: true,
+            }],
+        };
+        let response = app
+            .oneshot(
+                Request::post(viewport_uri(context_id))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let viewport: NvtxViewportResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(viewport.domains.len(), 1);
+        assert_eq!(viewport.domains[0].domain_id, 5);
+        assert_eq!(viewport.domains[0].source_domain_ids, vec![5, 172]);
+        assert_eq!(
+            viewport.domains[0]
+                .lanes
+                .iter()
+                .flat_map(|lane| lane.ranges.iter())
+                .map(|range| range.source_domain_id)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([5, 172])
         );
     }
 

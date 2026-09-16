@@ -21,10 +21,12 @@ function nvtxDomain(
   domainId: string,
   name: string,
   threadId: number,
-  threadName: string
+  threadName: string,
+  sourceDomainIds: string[] = [domainId]
 ): NvtxCatalog['domains'][number] {
   return {
     domain_id: domainId,
+    source_domain_ids: sourceDomainIds,
     name,
     color: '#000000ff',
     threads: [{ thread_id: threadId, name: threadName }],
@@ -92,20 +94,21 @@ describe('NVTX resource tree', () => {
       domains: [
         {
           domain_id: '3',
+          source_domain_ids: ['3'],
           name: 'CCCL',
           color: '#000000ff',
           lanes: [
             {
               id: 'process',
               label: 'Process ranges',
-              identity: { kind: 'process' },
+              identity: { kind: 'process', source_domain_id: '3' },
               ranges: [],
               marks: [],
             },
             {
               id: 'marks',
               label: 'Marks',
-              identity: { kind: 'marks' },
+              identity: { kind: 'marks', source_domain_id: '3' },
               ranges: [],
               marks: [],
             },
@@ -127,6 +130,70 @@ describe('NVTX resource tree', () => {
       'worker 3',
       'Process ranges',
       'Marks',
+    ]);
+  });
+
+  it('keeps every raw-source lane under one logical domain row', () => {
+    const groupedDomain = nvtxDomain('5', 'CCCL', 42, 'worker', ['5', '172']);
+    const groupedCatalog = { domains: [groupedDomain] } satisfies Pick<NvtxCatalog, 'domains'>;
+    const lane = (
+      id: string,
+      identity: NvtxViewportResponse['domains'][number]['lanes'][number]['identity']
+    ) => ({ id, label: id, identity, ranges: [], marks: [] });
+    const viewport = {
+      viewport: { start: 0, end: 1 },
+      domains: [
+        {
+          domain_id: '5',
+          source_domain_ids: ['5', '172'],
+          name: 'CCCL',
+          color: '#000000ff',
+          lanes: [
+            lane('thread-172', {
+              kind: 'thread',
+              source_domain_id: '172',
+              thread_id: 42,
+              depth: 0,
+            }),
+            lane('thread-5-depth-1', {
+              kind: 'thread',
+              source_domain_id: '5',
+              thread_id: 42,
+              depth: 1,
+            }),
+            lane('thread-5-depth-0', {
+              kind: 'thread',
+              source_domain_id: '5',
+              thread_id: 42,
+              depth: 0,
+            }),
+            lane('process-5', { kind: 'process', source_domain_id: '5' }),
+            lane('process-172', { kind: 'process', source_domain_id: '172' }),
+            lane('marks-5', { kind: 'marks', source_domain_id: '5' }),
+            lane('marks-172', { kind: 'marks', source_domain_id: '172' }),
+          ],
+        },
+      ],
+      statistics: [],
+    } satisfies NvtxViewportResponse;
+
+    const lanesByRowId = indexNvtxLanes(viewport);
+    const tree = buildNvtxTree(groupedCatalog, new Set(lanesByRowId.keys()), null);
+
+    expect(tree?.children).toHaveLength(1);
+    expect(tree?.children?.[0]?.id).toBe(nvtxDomainRowId('5'));
+    expect(lanesByRowId.get(nvtxThreadRowId('5', 42))?.map(item => item.id)).toEqual([
+      'thread-5-depth-0',
+      'thread-5-depth-1',
+      'thread-172',
+    ]);
+    expect(lanesByRowId.get(nvtxProcessRowId('5'))?.map(item => item.id)).toEqual([
+      'process-5',
+      'process-172',
+    ]);
+    expect(lanesByRowId.get(nvtxMarksRowId('5'))?.map(item => item.id)).toEqual([
+      'marks-5',
+      'marks-172',
     ]);
   });
 

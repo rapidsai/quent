@@ -74,6 +74,7 @@ function rangeDatum(message: string, depth: number, startMs = 0): NvtxGanttDatum
   const range: NvtxRangeItem = {
     message,
     domain_id: 'domain-1',
+    source_domain_id: '5',
     domain_name: 'Domain 1',
     category_id: null,
     category_name: null,
@@ -95,6 +96,7 @@ function markDatum(message: string, timestampMs = 0): NvtxGanttDatum {
   const mark: NvtxMarkItem = {
     message,
     domain_id: 'domain-1',
+    source_domain_id: '5',
     domain_name: 'Domain 1',
     category_id: null,
     category_name: null,
@@ -104,11 +106,11 @@ function markDatum(message: string, timestampMs = 0): NvtxGanttDatum {
   return { value: [timestampMs, timestampMs, 0], mark };
 }
 
-function threadLane(depth: number, ranges: NvtxRangeItem[] = []): NvtxLane {
+function threadLane(depth: number, ranges: NvtxRangeItem[] = [], sourceDomainId = '5'): NvtxLane {
   return {
-    id: `thread-42-depth-${depth}`,
+    id: `source-${sourceDomainId}-thread-42-depth-${depth}`,
     label: `worker 42 depth ${depth}`,
-    identity: { kind: 'thread', thread_id: 42, depth },
+    identity: { kind: 'thread', source_domain_id: sourceDomainId, thread_id: 42, depth },
     ranges,
     marks: [],
   };
@@ -131,6 +133,18 @@ describe('NVTX Gantt lanes', () => {
   it('returns no chart lanes when the thread row is empty', () => {
     expect(nvtxLanesToGanttData([threadLane(0), threadLane(1)])).toEqual([]);
   });
+
+  it('keeps overlapping raw-source lanes on separate chart rows', () => {
+    const data = nvtxLanesToGanttData([
+      threadLane(0, [rangeDatum('source 5', 0).range!], '5'),
+      threadLane(0, [rangeDatum('source 172', 0).range!], '172'),
+    ]);
+
+    expect(data.map(datum => [datum.range?.message, datum.value[2]])).toEqual([
+      ['source 5', 0],
+      ['source 172', 1],
+    ]);
+  });
 });
 
 describe('NVTX Gantt tooltip', () => {
@@ -150,6 +164,17 @@ describe('NVTX Gantt tooltip', () => {
     expect(tooltip.marks[0]?.attributes).toContainEqual({
       key: 'thread ID',
       value: '42',
+    });
+    expect(tooltip.marks[0]?.attributes).toContainEqual({
+      key: 'source domain ID',
+      value: '5',
+    });
+  });
+
+  it('shows a mark raw-source diagnostic', () => {
+    expect(nvtxTooltipModel([markDatum('checkpoint')]).marks[0]?.attributes).toContainEqual({
+      key: 'source domain ID',
+      value: '5',
     });
   });
 
@@ -171,6 +196,17 @@ describe('NVTX Gantt tooltip', () => {
     });
   });
 
+  it('keeps raw-source diagnostics on generic consolidated summaries', () => {
+    const mergedRange = { ...rangeDatum('range', 0), mergedCount: 8 };
+    const mergedMark = { ...markDatum('mark'), mergedCount: 8 };
+
+    for (const datum of [mergedRange, mergedMark]) {
+      expect(nvtxTooltipModel([datum]).marks[0]?.attributes).toEqual([
+        { key: 'source domain ID', value: '5' },
+      ]);
+    }
+  });
+
   it('aggregates consolidated counts by range type', () => {
     const data = [
       ...Array.from({ length: 3 }, (_, index) => rangeDatum('type A', 0, index)),
@@ -181,8 +217,20 @@ describe('NVTX Gantt tooltip', () => {
     expect(tooltip.summary).toBe('8 ranges');
     expect(tooltip.itemNoun).toEqual({ singular: 'range', plural: 'ranges' });
     expect(tooltip.marks).toEqual([
-      { label: 'type A', stateName: '3 ranges', color: '#76b900', compact: true },
-      { label: 'type B', stateName: '5 ranges', color: '#76b900', compact: true },
+      {
+        label: 'type A',
+        stateName: '3 ranges',
+        color: '#76b900',
+        attributes: [{ key: 'source domain ID', value: '5' }],
+        compact: true,
+      },
+      {
+        label: 'type B',
+        stateName: '5 ranges',
+        color: '#76b900',
+        attributes: [{ key: 'source domain ID', value: '5' }],
+        compact: true,
+      },
     ]);
   });
 
@@ -196,8 +244,20 @@ describe('NVTX Gantt tooltip', () => {
     expect(tooltip.summary).toBe('8 marks');
     expect(tooltip.itemNoun).toEqual({ singular: 'mark', plural: 'marks' });
     expect(tooltip.marks).toEqual([
-      { label: 'type A', stateName: '3 marks', color: '#76b900', compact: true },
-      { label: 'type B', stateName: '5 marks', color: '#76b900', compact: true },
+      {
+        label: 'type A',
+        stateName: '3 marks',
+        color: '#76b900',
+        attributes: [{ key: 'source domain ID', value: '5' }],
+        compact: true,
+      },
+      {
+        label: 'type B',
+        stateName: '5 marks',
+        color: '#76b900',
+        attributes: [{ key: 'source domain ID', value: '5' }],
+        compact: true,
+      },
     ]);
   });
 });

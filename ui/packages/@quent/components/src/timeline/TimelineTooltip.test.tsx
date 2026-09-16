@@ -77,6 +77,21 @@ describe('TooltipContent active marks', () => {
     expect(screen.getByText('sending')).toBeInTheDocument();
   });
 
+  it('renders diagnostics on compact summary rows', () => {
+    renderWithMarks([
+      {
+        label: 'Consolidated block',
+        stateName: '8 ranges',
+        color: '#0000ff',
+        attributes: [{ key: 'source domain ID', value: '172' }],
+        compact: true,
+      },
+    ]);
+
+    expect(screen.getByText('source domain ID')).toBeInTheDocument();
+    expect(screen.getByText('172')).toBeInTheDocument();
+  });
+
   it('renders entity-only content without a timeline total', () => {
     render(
       <EntityTooltipContent

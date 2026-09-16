@@ -31,10 +31,12 @@ const request: NvtxViewportRequest = {
 function nvtxDomain(
   domainId: string,
   categoryIds: number[],
-  hasUncategorized: boolean
+  hasUncategorized: boolean,
+  sourceDomainIds: string[] = [domainId]
 ): NvtxCatalog['domains'][number] {
   return {
     domain_id: domainId,
+    source_domain_ids: sourceDomainIds,
     name: `domain ${domainId}`,
     color: '#000000ff',
     threads: [],
@@ -160,25 +162,33 @@ describe('NVTX client', () => {
       { domain_id: '1', category_ids: [7], include_uncategorized: false },
       { domain_id: '3', category_ids: [], include_uncategorized: true },
     ]);
+
+    const grouped = {
+      domains: [nvtxDomain('5', [7], false, ['5', '172'])],
+    } satisfies Pick<NvtxCatalog, 'domains'>;
+    expect(selectNvtxDomains(grouped, null)).toEqual([
+      { domain_id: '5', category_ids: [7], include_uncategorized: false },
+    ]);
   });
 
   it('preserves relative seconds and decimal-string identifiers from the catalog', async () => {
     stubFetch(
       new Response(
-        '{"trace_start":-0.5,"trace_end":2,"domains":[{"domain_id":"3","name":"d","color":"#000000","threads":[],"categories":[],"has_uncategorized":false}],"anomalies":{"orphan_range_ends":"0","orphan_range_pops":"0","orphan_resource_destroys":"0","reused_range_ids":"0","reused_resource_handles":"0","total":"0","is_faithful":true}}',
+        '{"trace_start":-0.5,"trace_end":2,"domains":[{"domain_id":"3","source_domain_ids":["3","18446744073709551615"],"name":"d","color":"#000000","threads":[],"categories":[],"has_uncategorized":false}],"anomalies":{"orphan_range_ends":"0","orphan_range_pops":"0","orphan_resource_destroys":"0","reused_range_ids":"0","reused_resource_handles":"0","total":"0","is_faithful":true}}',
         { status: 200 }
       )
     );
     const catalog = await fetchNvtxCatalog('context-1', QUERY_START_UNIX_NS);
     expect(catalog?.trace_start).toBe(-0.5);
     expect(catalog?.domains[0].domain_id).toBe('3');
+    expect(catalog?.domains[0].source_domain_ids).toEqual(['3', '18446744073709551615']);
     expect(catalog?.anomalies.total).toBe('0');
   });
 
   it('normalizes even safe u64 statistic counts to bigint', async () => {
     stubFetch(
       new Response(
-        '{"viewport":{"start":-0.25,"end":1.5},"domains":[],"statistics":[{"message":"work","domain_id":"3","domain_name":"d","category_id":null,"category_name":null,"count":1,"observed_count":1,"total_duration":1.25,"avg_duration":1.25,"min_duration":1.25,"max_duration":1.25,"saturated":false}]}',
+        '{"viewport":{"start":-0.25,"end":1.5},"domains":[],"statistics":[{"message":"work","domain_id":"3","source_domain_ids":["3"],"domain_name":"d","category_id":null,"category_name":null,"count":1,"observed_count":1,"total_duration":1.25,"avg_duration":1.25,"min_duration":1.25,"max_duration":1.25,"saturated":false}]}',
         { status: 200 }
       )
     );
