@@ -48,7 +48,7 @@ export const OperatorAccordion = ({
         </DataText>
         {operator.workerLabel && (
           <DataText
-            className="min-w-0 shrink truncate text-[10px] text-muted-foreground"
+            className="min-w-0 max-w-[35%] shrink truncate text-[10px] text-muted-foreground"
             title={`Worker: ${operator.workerLabel}`}
           >
             {operator.workerLabel}
