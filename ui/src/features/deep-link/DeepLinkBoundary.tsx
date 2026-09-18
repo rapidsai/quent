@@ -213,12 +213,16 @@ export function DeepLinkBoundary({
     }
 
     const fields = readDeepLinkFields(decoded.value);
+    // intakeRoute is captured once via useRef(...).current at mount and never
+    // reassigned, so reading it during render carries no tearing risk.
+    /* eslint-disable react-hooks/refs */
     if (
       fields.route &&
       (fields.route.engineId !== intakeRoute.engineId ||
         fields.route.queryId !== intakeRoute.queryId ||
         fields.route.tab !== intakeRoute.activeTab)
     ) {
+      /* eslint-enable react-hooks/refs */
       return {
         initialExpandedResourceIds: null,
         initialZoomRange: null,
@@ -369,6 +373,7 @@ export function DeepLinkBoundary({
         `${url.pathname}${url.search}${url.hash}`
       );
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration-complete flag; cannot be derived during render
     setIsHydrated(true);
   }, [
     durationSeconds,

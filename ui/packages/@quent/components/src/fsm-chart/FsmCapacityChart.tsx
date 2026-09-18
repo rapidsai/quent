@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { CapacityDecl, FsmTransition, QuantitySpec } from '@quent/utils';
 import { bigintToChartNumber, formatBytes, formatQuantity } from '@quent/utils';
 import { echarts } from '../lib/echarts';
@@ -137,12 +137,6 @@ export function FsmCapacityChart({
 
     return { resources, stateLabels };
   }, [transitions, resourceLabel, quantitySpecs, getCapacityDecl, defaultCapacityPredicate]);
-
-  // Reset selections when the entity changes
-  useEffect(() => {
-    setSelectedResourceId(null);
-    setSelectedCapacityName(null);
-  }, [transitions]);
 
   // Resolve active resource
   const activeResource =

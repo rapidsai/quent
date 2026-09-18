@@ -301,6 +301,7 @@ export function PivotedStatTable<TRow>({
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- merges against previously committed order, which render-time derivation can't see
     setTableStatOrder(prev => {
       if (prev.length === 0) {
         return resolvedVisibleStats;

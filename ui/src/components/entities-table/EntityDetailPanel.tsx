@@ -165,6 +165,7 @@ export function EntityDetailPanel({
       </div>
 
       <FsmCapacityChart
+        key={fsm.id}
         transitions={fsm.transitions}
         isDark={theme === THEME_DARK}
         resourceLabel={resourceLabel}

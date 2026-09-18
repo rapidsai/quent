@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useAtom } from 'jotai';
 import { useEntities, useEntityList } from '@quent/client';
 import {
@@ -81,6 +81,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     [setTableState]
   );
   const filtersRef = useRef(filters);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   filtersRef.current = filters;
   // Clamp only when the fetched usage bound narrows.
   useEffect(() => {
@@ -104,17 +105,14 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     [entities.operators]
   );
   const operatorIdsKey = [...operatorIds].sort().join('\0');
-  const previousOperatorIdsKey = useRef(operatorIdsKey);
   // Reset pagination/selection whenever the operator filter changes, regardless of whether
   // it came from this toolbar or another crossfiltered view (DAG, operator swimlanes, etc).
-  useEffect(() => {
-    if (previousOperatorIdsKey.current === operatorIdsKey) {
-      return;
-    }
-    previousOperatorIdsKey.current = operatorIdsKey;
+  const [prevOperatorIdsKey, setPrevOperatorIdsKey] = useState(operatorIdsKey);
+  if (operatorIdsKey !== prevOperatorIdsKey) {
+    setPrevOperatorIdsKey(operatorIdsKey);
     setPage(0);
     setSelected(null);
-  }, [operatorIdsKey, setPage, setSelected]);
+  }
 
   const updateFilters = useCallback(
     (patch: Partial<EntityFilters>, options?: { preserveSelection?: boolean }) => {

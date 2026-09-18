@@ -85,6 +85,7 @@ reviews:
         - Prefer package-root imports (`@quent/components`, `@quent/client`, …) across package boundaries; use the `@/` alias only in app-shell `ui/src/` (not inside `@quent/*` packages).
         - noUncheckedIndexedAccess is off: watch unguarded indexed access into trace/event arrays.
         - Effects with async work, timers, subscriptions, or DOM/chart listeners must discard stale results and fully clean up on dependency changes, disablement, and unmount. Rendering `null` does not unmount a component.
+        - Where possible, to fix the `react-hooks/set-state-in-effect` warning, a keyed inner component is the preferred solution. If there is no visible effect then an eslint ignore comment is fine. If there is a visible flicker (ask for reviewer confirmation), then the prev-state-in-render pattern (see `DAGNodeInfoPanel.tsx`) can be used but should be commented.
         - Check hook dependency arrays; flag any `any`.
         - Components PascalCase one-per-file, hooks `useXxx.ts`; tests colocated as `*.test.tsx` (Vitest + Testing Library + MSW).
         - Preserve accessibility semantics: use native interactive elements, label controls, provide keyboard behavior, and use scoped row/column headers for data tables.

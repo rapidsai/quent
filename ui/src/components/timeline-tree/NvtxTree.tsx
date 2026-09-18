@@ -152,7 +152,7 @@ interface UseNvtxTreeModelProps extends NvtxTreeProps {
 }
 
 // QueryResourceTree reuses the model to combine multiple trees in one table.
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function useNvtxTreeModel({
   engineId,
   queryBundle,

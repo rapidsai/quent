@@ -51,8 +51,10 @@ export function useChartConnect({
 }: UseChartConnectOptions): UseChartConnectResult {
   const getZoomRange = useGetZoomRange();
   const durationSecondsRef = useRef(durationSeconds);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   durationSecondsRef.current = durationSeconds;
   const onReadyRef = useRef(onReady);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   onReadyRef.current = onReady;
 
   const { handleChartReady: handleResize, instanceRef } = useChartResize();

@@ -117,7 +117,9 @@ export function ResourceTimeline({
     operatorIds,
   });
   const operatorTimelineData = useTimelineData(operatorCacheKey);
-  // Retain overlay data for the same operator set while its atom is reseeded.
+  // Retain overlay data for the same operator set while its atom is reseeded,
+  // so the chart keeps showing the last data instead of flashing empty.
+  /* eslint-disable react-hooks/refs */
   const lastOverlayRef = useRef<RetainedOverlayData | null>(null);
   if (operatorTimelineData !== undefined) {
     lastOverlayRef.current = { cacheKey: operatorCacheKey, data: operatorTimelineData };
@@ -130,6 +132,7 @@ export function ResourceTimeline({
     operatorCacheKey,
     hasOperatorFilter
   );
+  /* eslint-enable react-hooks/refs */
 
   const {
     data: fetchedData,

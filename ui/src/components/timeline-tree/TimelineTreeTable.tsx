@@ -62,7 +62,7 @@ function indexTree(
 }
 
 // Standalone and combined tree containers share identical timeline setup.
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function useTimelineTreeSetup(
   queryBundle: QueryBundle<EntityRef>,
   initialZoomRange?: ZoomRange

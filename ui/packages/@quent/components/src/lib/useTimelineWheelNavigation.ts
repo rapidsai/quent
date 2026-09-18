@@ -19,6 +19,7 @@ function getDataZoomState(instance: EChartsType): DataZoomComponentOption | unde
  */
 export function useTimelineWheelNavigation(minZoomSpanPct: number) {
   const minZoomSpanPctRef = useRef(minZoomSpanPct);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   minZoomSpanPctRef.current = minZoomSpanPct;
   const cleanupRef = useRef<(() => void) | null>(null);
 

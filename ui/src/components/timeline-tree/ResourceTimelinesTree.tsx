@@ -73,7 +73,7 @@ interface UseResourceTimelinesTreeModelProps extends ResourceTimelinesTreeProps 
 }
 
 // QueryResourceTree reuses the model to combine multiple trees in one table.
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function useResourceTimelinesTreeModel({
   engineId,
   queryBundle,
