@@ -166,6 +166,7 @@ export function useResourceTimelinesTreeModel({
     rootItem,
     subRows,
   ]);
+  const firstResourceTimelineId = trees[0]?.id ?? null;
 
   const { expandedIds, handleExpandChange } = useExpandedIds(
     seedRootExpanded ? rootItem.id : undefined
@@ -298,10 +299,20 @@ export function useResourceTimelinesTreeModel({
           selectedFsmTypes={selectedFsmTypes}
           durationSeconds={durationSeconds}
           isDark={isDark}
+          showPlayheadIndicator={item.id === firstResourceTimelineId}
         />
       );
     },
-    [durationSeconds, engineId, isDark, queryBundle, selectedFsmTypes, selectedTypes, subRows]
+    [
+      durationSeconds,
+      engineId,
+      firstResourceTimelineId,
+      isDark,
+      queryBundle,
+      selectedFsmTypes,
+      selectedTypes,
+      subRows,
+    ]
   );
 
   return {

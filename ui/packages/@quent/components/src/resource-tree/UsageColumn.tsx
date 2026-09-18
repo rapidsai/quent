@@ -17,6 +17,7 @@ type UsageColumnProps = {
   durationSeconds: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
+  showPlayheadIndicator?: boolean;
 };
 
 /** Table column cell that renders a per-resource timeline. */
@@ -28,6 +29,7 @@ export function UsageColumn({
   selectedFsmTypes,
   durationSeconds,
   isDark,
+  showPlayheadIndicator = false,
 }: UsageColumnProps): React.ReactNode {
   const entity = item?.entity ?? {};
   const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
@@ -68,6 +70,7 @@ export function UsageColumn({
         quantitySpecs={queryBundle.quantity_specs}
         fsmTypes={queryBundle.entities.fsm_types}
         isDark={isDark}
+        showPlayheadIndicator={showPlayheadIndicator}
       />
     </div>
   );
