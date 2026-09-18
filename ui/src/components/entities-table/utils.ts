@@ -12,6 +12,7 @@ import type {
   SortDir,
   Worker,
 } from '@quent/utils';
+import { workerDisplayName } from '@quent/utils';
 import type { EntityFilters, EntityTableRow } from './types';
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -177,7 +178,7 @@ export function resourceLocationDescription(
     visited.add(groupId);
     const worker = workers[groupId];
     if (worker) {
-      return `Worker: ${worker.instance_name ?? worker.id}`;
+      return `Worker: ${workerDisplayName(worker)}`;
     }
     groupId = resourceGroups[groupId]?.parent_group_id ?? null;
   }

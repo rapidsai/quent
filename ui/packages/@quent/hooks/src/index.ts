@@ -128,6 +128,7 @@ export {
   resolveDataFlowMeasure,
   resolveDataFlowLabelMeasure,
   resolveDataFlowDimensions,
+  aggregateDataFlowOperatorFrames,
   formatDataFlowValue,
   formatDataFlowValueCompact,
   fitDataFlowSegmentLabel,

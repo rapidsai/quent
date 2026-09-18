@@ -3,6 +3,7 @@
 
 import type { StatValue } from './dagTypes';
 import type { Operator, Plan, Worker } from './types';
+import { workerDisplayName } from './worker';
 
 export interface OperatorSelection {
   readonly label: string;
@@ -49,7 +50,7 @@ export function operatorLocationDescription(
     return undefined;
   }
   const planLabel = plan.instance_name ?? plan.id;
-  const workerLabel = worker ? (worker.instance_name ?? worker.id) : undefined;
+  const workerLabel = worker ? workerDisplayName(worker) : undefined;
   return workerLabel ? `Plan: ${planLabel} · Worker: ${workerLabel}` : `Plan: ${planLabel}`;
 }
 
@@ -59,5 +60,5 @@ export function operatorWorkerLabel(
   workers: Record<string, Worker>
 ): string | undefined {
   const { worker } = resolveOperatorWorker(operator, plans, workers);
-  return worker ? (worker.instance_name ?? worker.id) : undefined;
+  return worker ? workerDisplayName(worker) : undefined;
 }

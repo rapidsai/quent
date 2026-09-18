@@ -3,7 +3,12 @@
 
 import { describe, it, expect } from 'vitest';
 import type { QueryBundle, EntityRef, Plan, Operator, Port, PlanTree, Worker } from '@quent/utils';
-import { validateQueryBundle, getTreeData, getPlanDAG } from './query-bundle-transformer';
+import {
+  getPlanDAG,
+  getSelectedOperatorCountsByPlan,
+  getTreeData,
+  validateQueryBundle,
+} from './query-bundle-transformer';
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -140,6 +145,17 @@ describe('getTreeData', () => {
     expect(getTreeData(bundle)[0]!.workerId).toBe('worker-7');
   });
 
+  it('sets workerName from the referenced worker entity', () => {
+    const bundle = makeBundle(
+      { p1: makePlan('p1') },
+      {
+        planTree: makePlanTree('p1', 'worker-7'),
+        workers: { 'worker-7': makeWorker('worker-7', 'GPU Worker 7') },
+      }
+    );
+    expect(getTreeData(bundle)[0]!.workerName).toBe('GPU Worker 7');
+  });
+
   it('sets workerId to undefined when plan_tree.worker is null', () => {
     const bundle = makeBundle({ p1: makePlan('p1') }, { planTree: makePlanTree('p1', null) });
     expect(getTreeData(bundle)[0]!.workerId).toBeUndefined();
@@ -185,6 +201,36 @@ describe('getTreeData', () => {
     expect(child.name).toBe('Query Plan: p2');
     expect(child.workerId).toBe('worker-2');
     expect(child.planType).toBe('Merge');
+  });
+});
+
+// ---- getSelectedOperatorCountsByPlan --------------------------------------
+
+describe('getSelectedOperatorCountsByPlan', () => {
+  it('counts selected operators by their owning plan', () => {
+    const bundle = makeBundle(
+      { p1: makePlan('p1'), p2: makePlan('p2') },
+      {
+        operators: {
+          'op-1': makeOperator('op-1', { planId: 'p1' }),
+          'op-2': makeOperator('op-2', { planId: 'p1' }),
+          'op-3': makeOperator('op-3', { planId: 'p2' }),
+          unassigned: makeOperator('unassigned'),
+        },
+      }
+    );
+
+    expect(
+      getSelectedOperatorCountsByPlan(
+        bundle,
+        new Set(['op-1', 'op-2', 'op-3', 'unassigned', 'missing'])
+      )
+    ).toEqual(
+      new Map([
+        ['p1', 2],
+        ['p2', 1],
+      ])
+    );
   });
 });
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { QueryEntities } from '~quent/types/QueryEntities';
-import type { StatValue } from '@quent/utils';
+import { workerDisplayName, type StatValue } from '@quent/utils';
 import { parseCustomStatistics } from '@quent/components';
 import type { OperatorTableRow } from './types';
 
@@ -31,7 +31,7 @@ export function buildOperatorRows(
 
   for (const plan of plans) {
     const worker = plan.worker_id ? entities.workers[plan.worker_id] : undefined;
-    const workerPart = worker?.instance_name ?? plan.worker_id ?? '-';
+    const workerPart = worker ? workerDisplayName(worker) : (plan.worker_id ?? '-');
     const planPart = plan.instance_name ?? plan.id;
     const partitionLabel = `${workerPart} / ${planPart}`;
     const partitionId = `${plan.worker_id ?? '-'}:${plan.id}`;
