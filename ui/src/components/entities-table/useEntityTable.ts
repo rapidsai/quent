@@ -322,7 +322,6 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
       isError: query.isError,
       isLoading: query.isLoading,
       requestPending,
-      fsmTypes: entities.fsm_types,
     },
     selection: {
       selected,

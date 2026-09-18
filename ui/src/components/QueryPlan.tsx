@@ -80,9 +80,9 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   );
   useDataFlowSync({ response: dataFlowResponse, queryBundle });
 
-  useDagNodeColoring(dagData.nodes, computeNodeColoring, isDark);
+  useDagNodeColoring(dagData.nodes, computeNodeColoring);
   useDagEdgeWidthConfig(dagData.edges, computeEdgeWidthConfig);
-  useDagEdgeColoring(dagData.edges, computeEdgeColoring, isDark);
+  useDagEdgeColoring(dagData.edges, computeEdgeColoring);
   const operatorStatFields = useOperatorStatFields(dagData.nodes, parseCustomStatistics);
   const portStatFields = usePortStatFields(dagData.edges);
 
@@ -247,7 +247,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               </Suspense>
             </div>
             <DagPlayhead />
-            <DAGNodeInfoPanel isDark={isDark} quantitySpecs={queryBundle.quantity_specs} />
+            <DAGNodeInfoPanel quantitySpecs={queryBundle.quantity_specs} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

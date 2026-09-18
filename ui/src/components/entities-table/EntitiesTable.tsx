@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo } from 'react';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -9,8 +8,7 @@ import {
   QueryToolbar,
 } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
-import { createFsmTypeColorFn } from '@quent/utils';
-import { useTheme, THEME_DARK, THEME_LIGHT } from '@/contexts/ThemeContext';
+import { COLOR_REGISTRY_KEYS, useColorResolver } from '@quent/hooks';
 import { EntityDetailPanel } from './EntityDetailPanel';
 import { EntityResults } from './EntityResults';
 import { EntitiesToolbar } from './EntitiesToolbar';
@@ -24,12 +22,8 @@ interface EntitiesTableProps {
 
 export function EntitiesTable(props: EntitiesTableProps) {
   const table = useEntityTable(props);
-  const { theme } = useTheme();
-  const isDark = theme === THEME_DARK;
-  const stateColorFn = useMemo(
-    () => createFsmTypeColorFn(table.query.fsmTypes, isDark ? THEME_DARK : THEME_LIGHT),
-    [table.query.fsmTypes, isDark]
-  );
+  const stateColorFn = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
+
   return (
     <div className="flex flex-col h-full">
       <QueryToolbar />

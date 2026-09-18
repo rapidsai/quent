@@ -222,7 +222,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         </div>
       )}
 
-      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} isDark={isDark} />}
+      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} />}
 
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />

@@ -3,14 +3,7 @@
 
 import { useMemo, useEffect } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import type {
-  DAGNode,
-  DAGEdge,
-  NodeColoring,
-  EdgeWidthConfig,
-  EdgeColoring,
-  PaletteTheme,
-} from '@quent/utils';
+import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from '@quent/utils';
 import {
   selectedColorField,
   nodeColoringAtom,
@@ -21,30 +14,17 @@ import {
 } from '../atoms/dagControls';
 
 // Computation functions injected to avoid circular dep with @quent/components
-type ComputeNodeColoringFn = (
-  nodes: DAGNode[],
-  field: string | null,
-  theme: PaletteTheme
-) => NodeColoring;
+type ComputeNodeColoringFn = (nodes: DAGNode[], field: string | null) => NodeColoring;
 type ComputeEdgeWidthConfigFn = (edges: DAGEdge[], field: string | null) => EdgeWidthConfig;
-type ComputeEdgeColoringFn = (
-  edges: DAGEdge[],
-  field: string | null,
-  theme: PaletteTheme
-) => EdgeColoring;
+type ComputeEdgeColoringFn = (edges: DAGEdge[], field: string | null) => EdgeColoring;
 type ParseCustomStatisticsFn = (rawNode: unknown) => Array<{ key: string }>;
 
-export function useDagNodeColoring(
-  nodes: DAGNode[],
-  computeNodeColoring: ComputeNodeColoringFn,
-  isDark: boolean
-) {
+export function useDagNodeColoring(nodes: DAGNode[], computeNodeColoring: ComputeNodeColoringFn) {
   const selectedField = useAtomValue(selectedColorField);
   const setNodeColoring = useSetAtom(nodeColoringAtom);
-  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
   const coloring = useMemo(
-    () => computeNodeColoring(nodes, selectedField, paletteTheme),
-    [nodes, selectedField, paletteTheme, computeNodeColoring]
+    () => computeNodeColoring(nodes, selectedField),
+    [nodes, selectedField, computeNodeColoring]
   );
   useEffect(() => {
     setNodeColoring(coloring);
@@ -66,17 +46,12 @@ export function useDagEdgeWidthConfig(
   }, [config, setEdgeWidthConfig]);
 }
 
-export function useDagEdgeColoring(
-  edges: DAGEdge[],
-  computeEdgeColoring: ComputeEdgeColoringFn,
-  isDark: boolean
-) {
+export function useDagEdgeColoring(edges: DAGEdge[], computeEdgeColoring: ComputeEdgeColoringFn) {
   const selectedField = useAtomValue(selectedEdgeColorFieldAtom);
   const setEdgeColoring = useSetAtom(edgeColoringAtom);
-  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
   const coloring = useMemo(
-    () => computeEdgeColoring(edges, selectedField, paletteTheme),
-    [edges, selectedField, paletteTheme, computeEdgeColoring]
+    () => computeEdgeColoring(edges, selectedField),
+    [edges, selectedField, computeEdgeColoring]
   );
   useEffect(() => {
     setEdgeColoring(coloring);

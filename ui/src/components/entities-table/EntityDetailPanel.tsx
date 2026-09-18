@@ -4,14 +4,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { DataText, FsmCapacityChart, SegmentedBar, thinScrollbarClass } from '@quent/components';
-import {
-  cn,
-  formatDuration,
-  formatDurationForWindow,
-  getColorForKey,
-  isBytesStat,
-} from '@quent/utils';
+import { cn, formatDuration, formatDurationForWindow, isBytesStat } from '@quent/utils';
 import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
+import { COLOR_REGISTRY_KEYS, useColorResolver } from '@quent/hooks';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { ResourceUsageList } from './ResourceUsageList';
 import { TransitionAttributes } from './TransitionAttributes';
@@ -32,7 +27,8 @@ export function EntityDetailPanel({
   queryBundle,
 }: EntityDetailPanelProps) {
   const { theme } = useTheme();
-  const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
+  const registryStateColor = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
+  const resolveStateColor = stateColorFn ?? registryStateColor;
   const [copied, setCopied] = useState(false);
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -86,7 +82,7 @@ export function EntityDetailPanel({
     dominantState = {
       name: maxName,
       pct: (maxMs / totalSpanMs) * 100,
-      color: stateColorFn ? stateColorFn(maxName) : getColorForKey(maxName, paletteTheme),
+      color: resolveStateColor(maxName),
     };
   }
 
@@ -145,7 +141,7 @@ export function EntityDetailPanel({
             showLabels={false}
             showTooltips
             segments={[...stateTimeMs.entries()].map(([name, ms]) => {
-              const color = stateColorFn ? stateColorFn(name) : getColorForKey(name, paletteTheme);
+              const color = resolveStateColor(name);
               const pct = (ms / totalSpanMs) * 100;
               return {
                 id: name,
@@ -182,9 +178,7 @@ export function EntityDetailPanel({
           const durationMs = durations[index] ?? null;
           const isBottleneck =
             durationMs != null && totalSpanMs > 0 && durationMs / totalSpanMs > 0.5;
-          const stateColor = stateColorFn
-            ? stateColorFn(transition.name)
-            : getColorForKey(transition.name, paletteTheme);
+          const stateColor = resolveStateColor(transition.name);
           const pct =
             durationMs != null && totalSpanMs > 0
               ? Math.min(100, (durationMs / totalSpanMs) * 100)

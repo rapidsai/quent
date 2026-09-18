@@ -6,7 +6,7 @@ import { EChartsReactCore } from '../lib/echartsReactCore';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useZoomRange } from '@quent/hooks';
+import { COLOR_REGISTRY_KEYS, useColorResolver, useZoomRange } from '@quent/hooks';
 import { formatDuration } from '@quent/utils';
 import type { ZoomRange } from '@quent/utils';
 import {
@@ -19,7 +19,6 @@ import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineEchartsTheme } from './timelineEchartsTheme';
-import type { PaletteTheme } from '@quent/utils';
 import { Opts } from 'echarts-for-react/lib/types';
 import { PlayheadLine } from './PlayheadLine';
 import { TimelinePointerArea } from './TimelinePointerArea';
@@ -57,14 +56,16 @@ export function TimelineController({
   isDark,
 }: TimelineControllerProps) {
   const { themeName, controllerGridBackgroundColor } = useTimelineEchartsTheme(isDark);
-  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
+  const colorCapacity = useColorResolver(COLOR_REGISTRY_KEYS.CAPACITIES);
+  const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
 
   const { timestamps, seriesData } = useMemo(() => {
     if (timelineData) {
       const { timestamps: ts, series } = buildBinnedTimelineSeries(
         timelineData.data,
         timelineData.config,
-        paletteTheme
+        colorCapacity,
+        colorFsmState
       );
       const entries = Object.entries(series);
       const values = entries.length > 0 ? entries[0][1].values : null;
@@ -75,7 +76,7 @@ export function TimelineController({
       const ts = Array.from({ length: numBins }, (_, i) => i * binDurationMs);
       return { timestamps: ts, seriesData: null };
     }
-  }, [timelineData, durationSeconds, paletteTheme]);
+  }, [timelineData, durationSeconds, colorCapacity, colorFsmState]);
 
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 

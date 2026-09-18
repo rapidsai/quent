@@ -9,14 +9,12 @@ export const OperatorDataFlowBlock = ({
   operator,
   meta,
   frame,
-  isDark,
   isOpen,
   onOpenChange,
 }: {
   operator: SelectedOperatorGroupData;
   meta: DataFlowMeta;
   frame: DataFlowFrame;
-  isDark: boolean;
 } & OperatorDisclosureState) => (
   <OperatorAccordion
     operator={operator}
@@ -27,7 +25,6 @@ export const OperatorDataFlowBlock = ({
       meta={meta}
       frame={frame}
       operatorFrame={frame.perOperator.get(operator.nodeId)}
-      isDark={isDark}
     />
     {operator.relatedOperators?.map(related => (
       <div key={related.nodeId} className="mt-1.5 border-t pt-1.5">
@@ -40,7 +37,6 @@ export const OperatorDataFlowBlock = ({
             meta={meta}
             frame={frame}
             operatorFrame={frame.perOperator.get(related.nodeId)}
-            isDark={isDark}
           />
         </OperatorAccordion>
       </div>

@@ -8,38 +8,44 @@ export { getFsmTypeName, getResourceTypeName } from './timeline';
 
 // Color utilities
 export {
-  PALETTES,
-  getColorForKey,
-  assignColors,
-  getColorByIndex,
+  COLOR_PALETTES,
   normalizeDeterministicColorKey,
   getDeterministicColor,
+  getDeterministicColorFromPalette,
   buildDeterministicColorMap,
+  extendDeterministicColorMap,
   createDeterministicColorResolver,
   withOpacity,
-  resetColorAssignments,
-  darkenColor,
-  getActivePalette,
-  setActivePalette,
-  getPalette,
   BLACK,
   WHITE,
   isLightColor,
-  createCapacitiesColorFn,
-  createFsmTypeColorFn,
-  createDataFlowStateColorFn,
   CONTINUOUS_PALETTES,
   continuousColor,
   getLegendGradientStops,
 } from './colors';
 export type {
-  PaletteName,
+  ColorPalette,
   PaletteTheme,
-  ChartColor,
   ContinuousPaletteName,
   DeterministicColorKey,
   DeterministicColorResolver,
 } from './colors';
+export {
+  COLOR_REGISTRY_KEYS,
+  createColorRegistry,
+  createColorRegistryEntry,
+  createRegistryColorResolver,
+  getColorRegistryPalettes,
+} from './colorRegistry';
+export type {
+  ColorMap,
+  ColorRegistry,
+  ColorRegistryEntry,
+  ColorRegistryKey,
+  ColorRegistryPalettes,
+  ColorRegistryValue,
+  ColorResolver,
+} from './colorRegistry';
 
 // Formatter utilities
 export {

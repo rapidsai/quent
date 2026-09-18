@@ -11,6 +11,8 @@ import {
   useReturnedTimelineNumBins,
   useSelectedOperatorIds,
   useZeroUtilizationResourceIds,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
 import { type FiniteStateMachine, type FsmTypeDecl, MAX_TIMELINE_BINS } from '@quent/utils';
 import {
@@ -31,7 +33,7 @@ type LongEntitiesRowProps = {
   /** The resource this row's entities are scoped to. */
   resourceId: string;
   durationSeconds: number;
-  fsmTypes: { [key in string]?: FsmTypeDecl };
+  fsmTypes?: { [key in string]?: FsmTypeDecl };
   isDark: boolean;
   /** Defaults to all states; resource scope keeps states used on this row's resource. */
   fsmStateScope?: 'all' | 'resource';
@@ -50,13 +52,13 @@ export function LongEntitiesRow({
   queryId,
   resourceId,
   durationSeconds,
-  fsmTypes,
   isDark,
   fsmStateScope = 'resource',
   onEntitySelect,
   selectedEntityId,
   onBackgroundClick,
 }: LongEntitiesRowProps) {
+  const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
   const selectedOperatorIds = useSelectedOperatorIds();
   const debouncedZoomRange = useDebouncedZoomRange();
   const bulkInitialized = useBulkInitialized();
@@ -115,11 +117,10 @@ export function LongEntitiesRow({
     () =>
       buildLongEntityEntries(
         entities,
-        fsmTypes,
-        isDark ? 'dark' : 'light',
+        colorFsmState,
         fsmStateScope === 'resource' ? new Set([resourceId]) : null
       ),
-    [entities, fsmStateScope, fsmTypes, isDark, resourceId]
+    [colorFsmState, entities, fsmStateScope, resourceId]
   );
   const totalEntities = data?.total ?? entities.length;
   const hasMoreEntities = entities.length < totalEntities;

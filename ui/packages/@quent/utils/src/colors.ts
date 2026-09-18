@@ -5,99 +5,49 @@
  * Centralized color palette and mapping utilities for charts and visualizations.
  */
 
-import type { FsmTypeDecl } from './types';
+export type PaletteTheme = 'light' | 'dark';
+export type ColorPalette = readonly string[];
 
-/**
- * Available color palettes for charts.
- */
-export const PALETTES = {
-  /** Wong colorblind-friendly palette - optimized for accessibility */
-  wong: [
-    '#0072B2', // Blue
-    '#E69F00', // Orange
-    '#009E73', // Teal
-    '#F0E442', // Yellow
-    '#56B4E9', // Sky Blue
-    '#D55E00', // Vermillion
-    '#CC79A7', // Pink
+export const COLOR_PALETTES = {
+  deterministic: [
+    '#3b82f6',
+    '#a855f7',
+    '#22c55e',
+    '#f97316',
+    '#ef4444',
+    '#4f46e5',
+    '#f59e0b',
+    '#14b8a6',
+    '#06b6d4',
+    '#8b5cf6',
+    '#ec4899',
+    '#10b981',
   ],
-  /** Default ECharts palette */
-  echarts: [
-    '#5470c6', // Blue
-    '#91cc75', // Green
-    '#fac858', // Yellow
-    '#ee6666', // Red
-    '#73c0de', // Light Blue
-    '#3ba272', // Teal
-    '#fc8452', // Orange
-    '#9a60b4', // Purple
-    '#ea7ccc', // Pink
-  ],
-  /** Tol qualitative colorblind-friendly palette */
-  extended: {
-    /** Qualitative palette — light mode */
+  timeline: {
     light: [
-      '#44AA99', // Teal
-      '#CC6677', // Rose
-      '#332288', // Indigo
-      '#DDCC77', // Sand
-      '#AA4499', // Purple
-      '#88CCEE', // Cyan
-      '#882255', // Wine
-      '#88AA55', // Muted Lime
-      '#666666', // Grey
+      '#44AA99',
+      '#CC6677',
+      '#332288',
+      '#DDCC77',
+      '#AA4499',
+      '#88CCEE',
+      '#882255',
+      '#88AA55',
+      '#666666',
     ],
-    /** Qualitative palette — dark mode (muted, lower contrast) */
     dark: [
-      '#3D9485', // Teal
-      '#B85858', // Coral Red
-      '#4A68AA', // Steel Blue
-      '#B8A85E', // Sand
-      '#9466BB', // Violet
-      '#6BA8C8', // Cyan
-      '#B87A44', // Amber
-      '#6E8C44', // Muted Lime
-      '#808080', // Grey
+      '#3D9485',
+      '#B85858',
+      '#4A68AA',
+      '#B8A85E',
+      '#9466BB',
+      '#6BA8C8',
+      '#B87A44',
+      '#6E8C44',
+      '#808080',
     ],
   },
 } as const;
-
-export type PaletteName = keyof typeof PALETTES;
-export type ChartColor = string;
-export type PaletteTheme = 'light' | 'dark';
-type PaletteValue = (typeof PALETTES)[PaletteName];
-
-// Current active palette
-let activePalette: PaletteName = 'extended';
-
-function resolvePalette(palette: PaletteValue, theme: PaletteTheme = 'light'): readonly string[] {
-  if ('light' in palette && 'dark' in palette) {
-    return palette[theme];
-  }
-  return palette;
-}
-
-/**
- * Get the currently active palette.
- */
-export function getActivePalette(theme: PaletteTheme = 'light'): readonly string[] {
-  return resolvePalette(PALETTES[activePalette], theme);
-}
-
-/**
- * Set the active palette by name.
- */
-export function setActivePalette(name: PaletteName): void {
-  activePalette = name;
-  resetColorAssignments();
-}
-
-/**
- * Get palette by name.
- */
-export function getPalette(name: PaletteName, theme: PaletteTheme = 'light'): readonly string[] {
-  return resolvePalette(PALETTES[name], theme);
-}
 
 /**
  * Simple string hash function (djb2 algorithm).
@@ -130,130 +80,10 @@ function pickPaletteIndex(key: string, paletteSize: number, used: Set<number>): 
   return index;
 }
 
-// Cache: key -> palette index
-const colorAssignments = new Map<string, number>();
-// Track which palette indices are taken
-const usedIndices = new Set<number>();
-
-/**
- * Get a deterministic color for a given key.
- * Uses a hash to pick a starting index, then probes forward to avoid
- * collisions so different keys get different colors (until the palette
- * is exhausted, after which duplicates are allowed).
- */
-export function getColorForKey(key: string, theme: PaletteTheme): ChartColor {
-  const palette = getActivePalette(theme);
-
-  if (colorAssignments.has(key)) {
-    return palette[colorAssignments.get(key)!];
+function requireColorPalette(palette: ColorPalette): void {
+  if (palette.length === 0) {
+    throw new Error('Color palettes must contain at least one color');
   }
-
-  const index = pickPaletteIndex(key, palette.length, usedIndices);
-  colorAssignments.set(key, index);
-  usedIndices.add(index);
-  return palette[index];
-}
-
-/**
- * Assign colors to an array of keys in order.
- * Useful for batch assignment to maintain consistent ordering.
- */
-export function assignColors<T extends string>(
-  keys: T[],
-  theme: PaletteTheme
-): Record<T, ChartColor> {
-  const palette = getActivePalette(theme);
-  return Object.fromEntries(
-    keys.map((key, index) => [key, palette[index % palette.length]])
-  ) as Record<T, ChartColor>;
-}
-
-/**
- * Create a capacity->color resolver for timeline capacity series.
- * Multiple capacities use ordered palette assignment; a single capacity uses
- * key-based deterministic coloring to stay stable across timelines.
- */
-export function createCapacitiesColorFn(
-  capacityKeys: string[],
-  theme: PaletteTheme
-): (capacityName: string) => ChartColor {
-  const colorMap =
-    capacityKeys.length > 1
-      ? assignColors(capacityKeys, theme)
-      : Object.fromEntries(
-          capacityKeys.map(capacity => [capacity, getColorForKey(capacity, theme)])
-        );
-
-  return (capacityName: string) => colorMap[capacityName] ?? getColorForKey(capacityName, theme);
-}
-
-/**
- * Get a color by index from the active palette (wraps around).
- */
-export function getColorByIndex(index: number, theme: PaletteTheme): ChartColor {
-  const palette = getActivePalette(theme);
-  return palette[index % palette.length];
-}
-
-export function createFsmTypeColorFn(
-  fsmTypes: { [key in string]?: FsmTypeDecl },
-  theme: PaletteTheme
-): (stateName: string) => ChartColor {
-  const stateIndexMap = buildFsmStateIndexMap(fsmTypes);
-  return (stateName: string) => {
-    const stateIndex = stateIndexMap.get(stateName);
-    return stateIndex != null
-      ? getColorByIndex(stateIndex, theme)
-      : getColorForKey(stateName, theme);
-  };
-}
-
-/**
- * State colors for the data-flow overlay: states declared in the FSM keep
- * their declaration-index palette colors (consistent with the timeline
- * lanes), while synthetic states the analyzer appends (e.g. a working-space
- * series) continue the palette after the declared block — so they can never
- * collide with a declared state's color.
- */
-export function createDataFlowStateColorFn(
-  fsmType: FsmTypeDecl | null | undefined,
-  resolvedStates: readonly string[],
-  theme: PaletteTheme
-): (stateName: string) => ChartColor {
-  const declared = new Map<string, number>();
-  fsmType?.states.forEach((state, index) => declared.set(state.name, index));
-  const appended = new Map<string, number>();
-  for (const state of resolvedStates) {
-    if (!declared.has(state) && !appended.has(state)) {
-      appended.set(state, declared.size + appended.size);
-    }
-  }
-  return (stateName: string) => {
-    const index = declared.get(stateName) ?? appended.get(stateName);
-    return index != null ? getColorByIndex(index, theme) : getColorForKey(stateName, theme);
-  };
-}
-
-/**
- * Build a deterministic state->index lookup from FSM declarations.
- * State index controls palette position so same state names stay consistent.
- */
-function buildFsmStateIndexMap(fsmTypes?: { [key in string]?: FsmTypeDecl }): Map<string, number> {
-  const stateIndexMap = new Map<string, number>();
-  if (!fsmTypes) {
-    return stateIndexMap;
-  }
-
-  for (const decl of Object.values(fsmTypes)) {
-    if (!decl) {
-      continue;
-    }
-    for (let i = 0; i < decl.states.length; i++) {
-      stateIndexMap.set(decl.states[i]!.name, i);
-    }
-  }
-
-  return stateIndexMap;
 }
 
 /**
@@ -270,30 +100,6 @@ export function withOpacity(hex: string, opacity: number): string {
   return `${hex}${alpha}`;
 }
 
-/**
- * Reset all color assignments. Useful for testing or when context changes.
- */
-export function resetColorAssignments(): void {
-  colorAssignments.clear();
-  usedIndices.clear();
-}
-
-/**
- * Darken a hex color by blending it toward black.
- * @param hex - Hex color string (e.g., '#5470c6')
- * @param amount - Blend amount between 0 (no change) and 1 (pure black)
- */
-export function darkenColor(hex: string, amount: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const t = Math.min(1, Math.max(0, amount));
-  const dr = Math.round(r * (1 - t));
-  const dg = Math.round(g * (1 - t));
-  const db = Math.round(b * (1 - t));
-  return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`;
-}
-
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';
 
@@ -308,22 +114,6 @@ export function isLightColor(hex: string): boolean {
   return 0.299 * r + 0.587 * g + 0.114 * b > 0.5;
 }
 
-/** Palette for deterministic categorical keys. */
-const CATEGORICAL_COLOR_PALETTE = [
-  '#3b82f6', // blue-500
-  '#a855f7', // purple-500
-  '#22c55e', // green-500
-  '#f97316', // orange-500
-  '#ef4444', // red-500
-  '#4f46e5', // indigo-600
-  '#f59e0b', // amber-500
-  '#14b8a6', // teal-500
-  '#06b6d4', // cyan-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
-  '#10b981', // emerald-500
-];
-
 export type DeterministicColorKey = string | number | bigint;
 
 export interface DeterministicColorResolver {
@@ -335,23 +125,39 @@ export function normalizeDeterministicColorKey(value: DeterministicColorKey): st
   return String(value).trim().toLowerCase();
 }
 
-export function getDeterministicColor(value: DeterministicColorKey): string {
+export function getDeterministicColorFromPalette(
+  value: DeterministicColorKey,
+  palette: ColorPalette
+): string {
+  requireColorPalette(palette);
   const key = normalizeDeterministicColorKey(value);
-  const index = hashString(key) % CATEGORICAL_COLOR_PALETTE.length;
-  return CATEGORICAL_COLOR_PALETTE[index]!;
+  const index = hashString(key) % palette.length;
+  return palette[index]!;
+}
+
+export function getDeterministicColor(value: DeterministicColorKey): string {
+  return getDeterministicColorFromPalette(value, COLOR_PALETTES.deterministic);
 }
 
 export function buildDeterministicColorMap(
-  values: Iterable<DeterministicColorKey>
+  values: Iterable<DeterministicColorKey>,
+  palette?: ColorPalette
 ): Map<string, string>;
 export function buildDeterministicColorMap<T>(
   values: Iterable<T>,
-  keyOf: (value: T) => DeterministicColorKey
+  keyOf: (value: T) => DeterministicColorKey,
+  palette?: ColorPalette
 ): Map<string, string>;
 export function buildDeterministicColorMap<T>(
   values: Iterable<T>,
-  keyOf?: (value: T) => DeterministicColorKey
+  keyOfOrPalette?: ((value: T) => DeterministicColorKey) | ColorPalette,
+  explicitPalette?: ColorPalette
 ): Map<string, string> {
+  const keyOf = typeof keyOfOrPalette === 'function' ? keyOfOrPalette : undefined;
+  const palette =
+    (typeof keyOfOrPalette === 'function' ? explicitPalette : keyOfOrPalette) ??
+    COLOR_PALETTES.deterministic;
+  requireColorPalette(palette);
   const sorted = [
     ...new Set(
       [...values].map(value =>
@@ -362,19 +168,45 @@ export function buildDeterministicColorMap<T>(
   const used = new Set<number>();
   const map = new Map<string, string>();
   for (const key of sorted) {
-    const index = pickPaletteIndex(key, CATEGORICAL_COLOR_PALETTE.length, used);
+    const index = pickPaletteIndex(key, palette.length, used);
     used.add(index);
-    map.set(key, CATEGORICAL_COLOR_PALETTE[index]!);
+    map.set(key, palette[index]!);
+  }
+  return map;
+}
+
+export function extendDeterministicColorMap(
+  colorMap: ReadonlyMap<string, string>,
+  values: Iterable<DeterministicColorKey>,
+  palette: ColorPalette = COLOR_PALETTES.deterministic
+): Map<string, string> {
+  requireColorPalette(palette);
+  const map = new Map(colorMap);
+  const used = new Set(
+    [...colorMap.values()].map(color => palette.indexOf(color)).filter(index => index >= 0)
+  );
+  const newKeys = [
+    ...new Set([...values].map(value => normalizeDeterministicColorKey(value))),
+  ].sort();
+
+  for (const key of newKeys) {
+    if (map.has(key)) {
+      continue;
+    }
+    const index = pickPaletteIndex(key, palette.length, used);
+    used.add(index);
+    map.set(key, palette[index]!);
   }
   return map;
 }
 
 export function createDeterministicColorResolver(
-  colorMap: ReadonlyMap<string, string>
+  colorMap: ReadonlyMap<string, string>,
+  palette: ColorPalette = COLOR_PALETTES.deterministic
 ): DeterministicColorResolver {
   return ((value: DeterministicColorKey, keyOf?: (value: unknown) => DeterministicColorKey) => {
     const key = normalizeDeterministicColorKey(keyOf ? keyOf(value) : value);
-    return colorMap.get(key) ?? getDeterministicColor(key);
+    return colorMap.get(key) ?? getDeterministicColorFromPalette(key, palette);
   }) as DeterministicColorResolver;
 }
 

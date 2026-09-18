@@ -12,14 +12,10 @@ import {
   useSelectedEdgeColorField,
   useDataFlowEnabled,
   useDataFlowMeta,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
-import {
-  cn,
-  createCapacitiesColorFn,
-  createDataFlowStateColorFn,
-  getLegendGradientStops,
-  type PaletteTheme,
-} from '@quent/utils';
+import { cn, getLegendGradientStops } from '@quent/utils';
 import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
@@ -225,7 +221,8 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
   const [edgeField] = useSelectedEdgeColorField();
   const dataFlowEnabled = useDataFlowEnabled();
   const dataFlowMeta = useDataFlowMeta();
-  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
+  const dataFlowStateColor = useColorResolver(COLOR_REGISTRY_KEYS.DATA_FLOW_STATES);
+  const dataFlowDimensionColor = useColorResolver(COLOR_REGISTRY_KEYS.DATA_FLOW_DIMENSIONS);
 
   // Data-flow overlay legends: FSM states (colored like the timeline view)
   // and the server-declared dimension keys (colored like capacity series).
@@ -233,25 +230,16 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
     if (!dataFlowMeta) {
       return null;
     }
-    const colorFn = createDataFlowStateColorFn(
-      dataFlowMeta.fsmType,
-      dataFlowMeta.stateNames,
-      paletteTheme
-    );
-    return new Map(dataFlowMeta.stateNames.map(state => [state, colorFn(state)]));
-  }, [dataFlowMeta, paletteTheme]);
+    return new Map(dataFlowMeta.stateNames.map(state => [state, dataFlowStateColor(state)]));
+  }, [dataFlowMeta, dataFlowStateColor]);
 
   const dataFlowDimensionLegend = useMemo(() => {
     if (!dataFlowMeta) {
       return null;
     }
     const keys = dataFlowMeta.decl.dimension_keys;
-    const colorFn = createCapacitiesColorFn(
-      keys.map(k => k.key),
-      paletteTheme
-    );
-    return new Map(keys.map(k => [k.display_name, colorFn(k.key)]));
-  }, [dataFlowMeta, paletteTheme]);
+    return new Map(keys.map(k => [k.display_name, dataFlowDimensionColor(k.key)]));
+  }, [dataFlowDimensionColor, dataFlowMeta]);
 
   // Deselected tiers stay listed but greyed-out, so the user can see what
   // the tier filter is currently hiding.

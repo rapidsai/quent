@@ -5,13 +5,10 @@ import { TimelineSeries, TimelineMark } from '../timeline/types';
 import { TreeTableItem } from '../resource-tree/types';
 import {
   formatQuantity,
-  getColorForKey,
-  type PaletteTheme,
   WHITE,
   withOpacity,
-  createCapacitiesColorFn,
-  createFsmTypeColorFn,
   unpackEntityRef,
+  type ColorResolver,
 } from '@quent/utils';
 import type {
   ResourceTimeline,
@@ -20,7 +17,6 @@ import type {
   BinnedSpanSec,
   SingleTimelineResponse,
   FiniteStateMachine,
-  FsmTypeDecl,
   TimelineRequest,
   OperatorFilter,
   TimelineConfig,
@@ -35,9 +31,6 @@ import { LONG_ENTITY_DENSITIES, type LongEntityDensity } from '@quent/hooks';
 import { connect } from './echarts';
 import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
-
-// Suppress unused import warning — getColorForKey is used by consumers of this module
-void getColorForKey;
 
 const LONG_ENTITY_DENSITY_MULTIPLIERS = [100, 10, 1, 0.1, 0.01] as const;
 
@@ -78,10 +71,10 @@ export function getLongEntitiesThreshold(
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  theme: PaletteTheme,
+  colorCapacity: ColorResolver,
+  colorFsmState: ColorResolver,
   resourceTypeDecl?: ResourceTypeDecl,
-  quantitySpecs?: { [key in string]?: QuantitySpec },
-  fsmTypes?: { [key in string]?: FsmTypeDecl }
+  quantitySpecs?: { [key in string]?: QuantitySpec }
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -118,8 +111,6 @@ export function buildBinnedTimelineSeries(
   if ('Binned' in data) {
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
-    const capacityKeys = Object.keys(capacities_values).sort();
-    const colorCapacity = createCapacitiesColorFn(capacityKeys, theme);
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatter(capacity);
       series[capacity] = {
@@ -131,14 +122,13 @@ export function buildBinnedTimelineSeries(
     }
   } else if ('BinnedByState' in data) {
     const { capacities_states_values } = data.BinnedByState;
-    const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
         const formatter = getFormatter(capacityType);
         if (values) {
           series[state] = {
-            color: colorFsm(state),
+            color: colorFsmState(state),
             binDuration: bin_duration,
             formatter,
             values,
@@ -211,9 +201,8 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  theme: PaletteTheme,
+  colorFsmState: ColorResolver,
   resourceIdsForFilter?: Set<string> | null,
-  fsmTypes?: { [key in string]?: FsmTypeDecl },
   /** When provided, marks whose FSM is in this set are highlighted; others are dimmed. */
   overlayFsmIds?: Set<string>,
   overlayLabel?: string
@@ -221,8 +210,6 @@ export function buildTimelineMarks(
   if (longFsms.length === 0) {
     return undefined;
   }
-
-  const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -239,7 +226,7 @@ export function buildTimelineMarks(
         const next = fsm.transitions[i + 1];
         const xStart = transition.timestamp * 1000;
         const xEnd = next.timestamp * 1000;
-        const color = colorFsm(transition.name);
+        const color = colorFsmState(transition.name);
         return {
           label,
           stateName: transition.name,

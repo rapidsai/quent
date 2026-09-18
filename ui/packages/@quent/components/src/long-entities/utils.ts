@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FiniteStateMachine, FsmTypeDecl, PaletteTheme } from '@quent/utils';
-import { createFsmTypeColorFn } from '@quent/utils';
+import type { ColorResolver, FiniteStateMachine } from '@quent/utils';
 import { stackIntervalsIntoRows } from '../gantt-chart/utils';
 import type { LongEntityEntry, LongEntitySegment } from './types';
 
@@ -75,15 +74,12 @@ function buildSegments(
  */
 export function buildLongEntityEntries(
   items: FiniteStateMachine[],
-  fsmTypes: { [key in string]?: FsmTypeDecl } | undefined,
-  theme: PaletteTheme,
+  colorFsmState: ColorResolver,
   resourceIdsForFilter?: ReadonlySet<string> | null
 ): LongEntityEntry[] {
-  const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
-
   const entries: LongEntityEntry[] = [];
   for (const fsm of items) {
-    const segments = buildSegments(fsm, colorFsm, resourceIdsForFilter);
+    const segments = buildSegments(fsm, colorFsmState, resourceIdsForFilter);
     if (segments.length === 0) {
       continue;
     }

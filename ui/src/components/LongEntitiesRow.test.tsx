@@ -11,6 +11,7 @@ import { LongEntitiesRow } from './LongEntitiesRow';
 const mocks = vi.hoisted(() => ({
   bulkInitialized: true,
   buildLongEntityEntries: vi.fn((items: unknown[]) => items),
+  colorFsmState: vi.fn((state: string) => state),
   debouncedZoomRange: { start: 0.2, end: 0.6 },
   getLongEntitiesThreshold: vi.fn(
     (_windowSeconds: number, _numBins: number, density: LongEntityDensity) =>
@@ -36,7 +37,9 @@ vi.mock('@quent/client', () => ({
 }));
 
 vi.mock('@quent/hooks', () => ({
+  COLOR_REGISTRY_KEYS: { FSM_STATES: 'fsm-states' },
   useBulkInitialized: () => mocks.bulkInitialized,
+  useColorResolver: () => mocks.colorFsmState,
   useDebouncedZoomRange: () => mocks.debouncedZoomRange,
   useLongEntityDensity: () => mocks.longEntityDensity,
   useReturnedTimelineIsStale: () => mocks.returnedTimelineIsStale,
@@ -217,8 +220,7 @@ describe('LongEntitiesRow', () => {
 
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
       [],
-      {},
-      'light',
+      mocks.colorFsmState,
       new Set(['resource-1'])
     );
   });
@@ -296,8 +298,7 @@ describe('LongEntitiesRow', () => {
     );
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
       [firstEntity, secondEntity],
-      {},
-      'light',
+      mocks.colorFsmState,
       new Set(['resource-1'])
     );
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
@@ -492,8 +493,7 @@ describe('LongEntitiesRow', () => {
     expect(screen.queryByText('Loading entities…')).not.toBeInTheDocument();
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
       [previousEntity],
-      {},
-      'light',
+      mocks.colorFsmState,
       new Set(['resource-1'])
     );
     expect(screen.queryByRole('button')).not.toBeInTheDocument();

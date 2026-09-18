@@ -6,12 +6,17 @@ import { Provider } from 'jotai';
 import { useMemo, useState, type ReactNode } from 'react';
 import { QueryPlan } from '@/components/QueryPlan';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
-import { COLOR_REGISTRY_KEYS, useHydrateColorRegistry, type ColorRegistry } from '@quent/hooks';
+import { COLOR_REGISTRY_KEYS, useHydrateColorRegistry } from '@quent/hooks';
 import { DeepLinkBoundary } from '@/features/deep-link';
+import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import {
-  buildDeterministicColorMap,
+  createColorRegistry,
+  createColorRegistryEntry,
+  getColorRegistryPalettes,
   unpackEntityRef,
+  type ColorRegistry,
   type EntityRef,
+  type PaletteTheme,
   type QueryBundle,
   type ResourceTree,
 } from '@quent/utils';
@@ -46,23 +51,68 @@ function defaultRootResourceType(queryBundle: QueryBundle<EntityRef> | undefined
 }
 
 function QueryColorRegistry({
-  operatorTypes,
+  queryBundle,
+  paletteTheme,
   children,
 }: {
-  operatorTypes: readonly string[];
+  queryBundle: QueryBundle<EntityRef>;
+  paletteTheme: PaletteTheme;
   children: ReactNode;
 }) {
-  const registry = useMemo<ColorRegistry>(
-    () =>
-      new Map([[COLOR_REGISTRY_KEYS.OPERATOR_TYPES, buildDeterministicColorMap(operatorTypes)]]),
-    [operatorTypes]
-  );
+  const registry = useMemo<ColorRegistry>(() => {
+    const resourceTypes = Object.values(queryBundle.entities.resource_types);
+    const fsmTypes = Object.values(queryBundle.entities.fsm_types);
+    const fsmStates = fsmTypes.flatMap(type => type.states.map(state => state.name));
+    const palettes = getColorRegistryPalettes(paletteTheme);
+
+    return createColorRegistry([
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.OPERATOR_TYPES,
+        queryBundle.unique_operator_names,
+        palettes[COLOR_REGISTRY_KEYS.OPERATOR_TYPES]
+      ),
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.RESOURCE_TYPES,
+        resourceTypes,
+        palettes[COLOR_REGISTRY_KEYS.RESOURCE_TYPES],
+        type => type.name
+      ),
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.FSM_TYPES,
+        fsmTypes,
+        palettes[COLOR_REGISTRY_KEYS.FSM_TYPES],
+        type => type.name
+      ),
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.CAPACITIES,
+        resourceTypes.flatMap(type => type.capacities.map(capacity => capacity.name)),
+        palettes[COLOR_REGISTRY_KEYS.CAPACITIES]
+      ),
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.FSM_STATES,
+        fsmStates,
+        palettes[COLOR_REGISTRY_KEYS.FSM_STATES]
+      ),
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.DATA_FLOW_STATES,
+        [],
+        palettes[COLOR_REGISTRY_KEYS.DATA_FLOW_STATES]
+      ),
+      createColorRegistryEntry(
+        COLOR_REGISTRY_KEYS.DATA_FLOW_DIMENSIONS,
+        [],
+        palettes[COLOR_REGISTRY_KEYS.DATA_FLOW_DIMENSIONS]
+      ),
+    ]);
+  }, [paletteTheme, queryBundle]);
   useHydrateColorRegistry(registry);
   return children;
 }
 
 function ProfileLayout() {
   const { engineId } = Route.useParams();
+  const { theme } = useTheme();
+  const paletteTheme: PaletteTheme = theme === THEME_DARK ? 'dark' : 'light';
 
   // Match the query layout route (covers all /query/$queryId/* children)
   const queryMatch = useMatch({
@@ -145,7 +195,7 @@ function ProfileLayout() {
   return (
     <Provider key={`${engineId}:${queryId ?? ''}:${providerPayload ?? ''}`}>
       {queryBundle ? (
-        <QueryColorRegistry operatorTypes={queryBundle.unique_operator_names}>
+        <QueryColorRegistry queryBundle={queryBundle} paletteTheme={paletteTheme}>
           {content}
         </QueryColorRegistry>
       ) : (

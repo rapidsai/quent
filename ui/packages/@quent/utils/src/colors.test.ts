@@ -1,236 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
-  PALETTES,
-  getPalette,
-  getActivePalette,
-  setActivePalette,
-  getColorForKey,
-  assignColors,
-  createCapacitiesColorFn,
-  getColorByIndex,
-  createFsmTypeColorFn,
-  createDataFlowStateColorFn,
   withOpacity,
-  resetColorAssignments,
-  darkenColor,
   isLightColor,
   getDeterministicColor,
   buildDeterministicColorMap,
+  extendDeterministicColorMap,
   createDeterministicColorResolver,
   continuousColor,
   getLegendGradientStops,
 } from './colors';
-
-// Reset all mutable module state before each test to prevent cross-test bleed.
-beforeEach(() => {
-  setActivePalette('extended'); // restores default
-  resetColorAssignments();
-});
-
-// ---- getPalette ------------------------------------------------------------
-
-describe('getPalette', () => {
-  it('returns the wong palette (flat array, theme-independent)', () => {
-    expect(getPalette('wong')).toBe(PALETTES.wong);
-    expect(getPalette('wong', 'dark')).toBe(PALETTES.wong);
-  });
-
-  it('returns the echarts palette (flat array, theme-independent)', () => {
-    expect(getPalette('echarts')).toBe(PALETTES.echarts);
-  });
-
-  it('returns the extended light palette', () => {
-    expect(getPalette('extended', 'light')).toBe(PALETTES.extended.light);
-  });
-
-  it('returns the extended dark palette', () => {
-    expect(getPalette('extended', 'dark')).toBe(PALETTES.extended.dark);
-  });
-
-  it('defaults theme to light for extended', () => {
-    expect(getPalette('extended')).toBe(getPalette('extended', 'light'));
-  });
-});
-
-// ---- getActivePalette / setActivePalette -----------------------------------
-
-describe('getActivePalette', () => {
-  it('defaults to the extended light palette', () => {
-    expect(getActivePalette('light')).toBe(PALETTES.extended.light);
-  });
-
-  it('defaults theme parameter to light', () => {
-    expect(getActivePalette()).toEqual(getActivePalette('light'));
-  });
-
-  it('returns the extended dark palette when theme is dark', () => {
-    expect(getActivePalette('dark')).toBe(PALETTES.extended.dark);
-  });
-
-  it('reflects a setActivePalette change', () => {
-    setActivePalette('wong');
-    expect(getActivePalette('light')).toBe(PALETTES.wong);
-  });
-
-  it('flat palettes (wong, echarts) ignore theme', () => {
-    setActivePalette('wong');
-    expect(getActivePalette('light')).toEqual(getActivePalette('dark'));
-  });
-});
-
-describe('setActivePalette', () => {
-  it('resets color assignments when switching palettes', () => {
-    const colorBefore = getColorForKey('key', 'light');
-    setActivePalette('wong'); // also resets assignments
-    resetColorAssignments();
-    setActivePalette('extended');
-    resetColorAssignments();
-    // After a full reset, the same key should get its hash-based index again
-    const colorAfter = getColorForKey('key', 'light');
-    expect(colorBefore).toBe(colorAfter);
-  });
-});
-
-// ---- getColorByIndex -------------------------------------------------------
-
-describe('getColorByIndex', () => {
-  it('returns the first palette color at index 0', () => {
-    expect(getColorByIndex(0, 'light')).toBe(PALETTES.extended.light[0]);
-  });
-
-  it('returns the correct color for an arbitrary in-range index', () => {
-    expect(getColorByIndex(2, 'light')).toBe(PALETTES.extended.light[2]);
-  });
-
-  it('wraps around when the index exceeds palette size', () => {
-    const size = PALETTES.extended.light.length;
-    expect(getColorByIndex(size, 'light')).toBe(PALETTES.extended.light[0]);
-    expect(getColorByIndex(size + 1, 'light')).toBe(PALETTES.extended.light[1]);
-  });
-
-  it('uses the dark palette when theme is dark', () => {
-    expect(getColorByIndex(0, 'dark')).toBe(PALETTES.extended.dark[0]);
-  });
-});
-
-// ---- getColorForKey --------------------------------------------------------
-
-describe('getColorForKey', () => {
-  it('returns a hex color string', () => {
-    const color = getColorForKey('my-key', 'light');
-    expect(color).toMatch(/^#[0-9a-fA-F]{6}$/);
-  });
-
-  it('is deterministic: same key always returns the same color', () => {
-    const c1 = getColorForKey('alpha', 'light');
-    const c2 = getColorForKey('alpha', 'light');
-    expect(c1).toBe(c2);
-  });
-
-  it('assigns different colors to different keys (up to palette size)', () => {
-    const palette = getActivePalette('light');
-    const keys = Array.from({ length: palette.length }, (_, i) => `key-${i}`);
-    const colors = keys.map(k => getColorForKey(k, 'light'));
-    const unique = new Set(colors);
-    expect(unique.size).toBe(palette.length);
-  });
-
-  it('caches the assignment so a key added later does not displace an earlier one', () => {
-    const c1 = getColorForKey('first', 'light');
-    getColorForKey('second', 'light');
-    expect(getColorForKey('first', 'light')).toBe(c1);
-  });
-
-  it('uses the dark palette when theme is dark', () => {
-    const color = getColorForKey('k', 'dark');
-    expect(PALETTES.extended.dark).toContain(color);
-  });
-});
-
-// ---- assignColors ----------------------------------------------------------
-
-describe('assignColors', () => {
-  it('assigns palette colors in order to the given keys', () => {
-    const palette = getActivePalette('light');
-    const result = assignColors(['a', 'b', 'c'], 'light');
-    expect(result.a).toBe(palette[0]);
-    expect(result.b).toBe(palette[1]);
-    expect(result.c).toBe(palette[2]);
-  });
-
-  it('wraps around when there are more keys than palette colors', () => {
-    const palette = getActivePalette('light');
-    const size = palette.length;
-    const keys = Array.from({ length: size + 2 }, (_, i) => `k${i}`);
-    const result = assignColors(keys, 'light');
-    expect(result[`k${size}`]).toBe(palette[0]);
-    expect(result[`k${size + 1}`]).toBe(palette[1]);
-  });
-
-  it('returns an empty record for an empty keys array', () => {
-    expect(assignColors([], 'light')).toEqual({});
-  });
-});
-
-// ---- createCapacitiesColorFn -----------------------------------------------
-
-describe('createCapacitiesColorFn', () => {
-  it('uses ordered palette assignment for multiple capacities', () => {
-    const palette = getActivePalette('light');
-    const fn = createCapacitiesColorFn(['cpu', 'mem'], 'light');
-    expect(fn('cpu')).toBe(palette[0]);
-    expect(fn('mem')).toBe(palette[1]);
-  });
-
-  it('uses key-based coloring for a single capacity', () => {
-    const fn = createCapacitiesColorFn(['cpu'], 'light');
-    // getColorForKey is called at construction time; calling it again returns the cached assignment
-    expect(fn('cpu')).toBe(getColorForKey('cpu', 'light'));
-  });
-
-  it('falls back to getColorForKey for unknown capacity names', () => {
-    const fn = createCapacitiesColorFn(['cpu', 'mem'], 'light');
-    const unknown = fn('disk');
-    expect(unknown).toMatch(/^#[0-9a-fA-F]{6}$/);
-  });
-
-  it('returns a color string for an empty capacities array', () => {
-    const fn = createCapacitiesColorFn([], 'light');
-    expect(fn('anything')).toMatch(/^#[0-9a-fA-F]{6}$/);
-  });
-});
-
-// ---- createFsmTypeColorFn --------------------------------------------------
-
-describe('createFsmTypeColorFn', () => {
-  const fsmTypes = {
-    MyFsm: {
-      name: 'MyFsm',
-      states: [{ name: 'idle' }, { name: 'running' }, { name: 'done' }],
-    },
-  };
-
-  it('assigns colors by state index for known states', () => {
-    const fn = createFsmTypeColorFn(fsmTypes, 'light');
-    expect(fn('idle')).toBe(getColorByIndex(0, 'light'));
-    expect(fn('running')).toBe(getColorByIndex(1, 'light'));
-    expect(fn('done')).toBe(getColorByIndex(2, 'light'));
-  });
-
-  it('falls back to getColorForKey for unknown state names', () => {
-    const fn = createFsmTypeColorFn(fsmTypes, 'light');
-    const color = fn('unknown-state');
-    expect(color).toMatch(/^#[0-9a-fA-F]{6}$/);
-  });
-
-  it('works with an empty fsmTypes object', () => {
-    const fn = createFsmTypeColorFn({}, 'light');
-    expect(fn('any-state')).toMatch(/^#[0-9a-fA-F]{6}$/);
-  });
-});
 
 // ---- withOpacity -----------------------------------------------------------
 
@@ -259,36 +40,6 @@ describe('withOpacity', () => {
   it('pads single-digit alpha values to two chars', () => {
     // Math.round(0.02 * 255) = Math.round(5.1) = 5 = 0x05
     expect(withOpacity('#000000', 0.02)).toBe('#00000005');
-  });
-});
-
-// ---- darkenColor -----------------------------------------------------------
-
-describe('darkenColor', () => {
-  it('returns the original color unchanged at amount 0', () => {
-    expect(darkenColor('#ffffff', 0)).toBe('#ffffff');
-  });
-
-  it('returns pure black at amount 1', () => {
-    expect(darkenColor('#ffffff', 1)).toBe('#000000');
-  });
-
-  it('darkens a color by 50%', () => {
-    // #ffffff → r=255, g=255, b=255; *0.5 → 128 = 0x80 each
-    expect(darkenColor('#ffffff', 0.5)).toBe('#808080');
-  });
-
-  it('handles a non-trivial color', () => {
-    // #0072B2 → r=0, g=114=0x72, b=178=0xB2; *0.5 → r=0, g=57=0x39, b=89=0x59
-    expect(darkenColor('#0072B2', 0.5)).toBe('#003959');
-  });
-
-  it('clamps amount above 1 to pure black', () => {
-    expect(darkenColor('#ffffff', 2)).toBe('#000000');
-  });
-
-  it('clamps amount below 0 to the original color', () => {
-    expect(darkenColor('#aabbcc', -1)).toBe('#aabbcc');
   });
 });
 
@@ -367,6 +118,21 @@ describe('deterministic color maps', () => {
     expect(resolveColor('unknown')).toBe(getDeterministicColor('unknown'));
     expect(resolveColor(' Unknown ')).toBe(resolveColor('unknown'));
   });
+
+  it('uses the supplied palette for maps and resolver fallbacks', () => {
+    const palette = ['#111111', '#222222', '#333333'];
+    const map = buildDeterministicColorMap(['known-a', 'known-b'], palette);
+    const resolveColor = createDeterministicColorResolver(map, palette);
+
+    expect([...map.values()].every(color => palette.includes(color))).toBe(true);
+    expect(palette).toContain(resolveColor('unknown'));
+  });
+
+  it('rejects empty palettes', () => {
+    expect(() => buildDeterministicColorMap(['known'], [])).toThrow(
+      'Color palettes must contain at least one color'
+    );
+  });
 });
 
 // ---- buildDeterministicColorMap --------------------------------------------
@@ -402,6 +168,25 @@ describe('buildDeterministicColorMap', () => {
     const m2 = buildDeterministicColorMap(['Scan', 'Join']);
     expect(m1.get('scan')).toBe(m2.get('scan'));
     expect(m1.get('join')).toBe(m2.get('join'));
+  });
+});
+
+describe('extendDeterministicColorMap', () => {
+  it('preserves existing assignments and avoids their colors for new keys', () => {
+    const base = buildDeterministicColorMap(['declared-a', 'declared-b']);
+    const extended = extendDeterministicColorMap(base, ['synthetic']);
+
+    expect(extended.get('declared-a')).toBe(base.get('declared-a'));
+    expect(extended.get('declared-b')).toBe(base.get('declared-b'));
+    expect([...base.values()]).not.toContain(extended.get('synthetic'));
+  });
+
+  it('assigns additional values independently of input order', () => {
+    const base = buildDeterministicColorMap(['declared']);
+
+    expect(extendDeterministicColorMap(base, ['zeta', 'alpha'])).toEqual(
+      extendDeterministicColorMap(base, ['alpha', 'zeta'])
+    );
   });
 });
 
@@ -495,42 +280,5 @@ describe('getLegendGradientStops', () => {
     const light = getLegendGradientStops('blue', false);
     const dark = getLegendGradientStops('blue', true);
     expect(light[0]).not.toBe(dark[0]);
-  });
-});
-
-describe('createDataFlowStateColorFn', () => {
-  const fsmType = {
-    name: 'batch',
-    states: [
-      { name: 'batch_registered', usages: [] },
-      { name: 'batch_queued', usages: [] },
-      { name: 'batch_packaged', usages: [] },
-      { name: 'batch_processing', usages: [] },
-      { name: 'batch_consumed', usages: [] },
-    ],
-    transitions: [],
-  } as never;
-
-  it('gives appended synthetic states colors distinct from every declared state', () => {
-    const resolved = ['batch_queued', 'batch_packaged', 'batch_processing', 'task_working_space'];
-    const colorFn = createDataFlowStateColorFn(fsmType, resolved, 'light');
-    const declaredColors = [
-      'batch_registered',
-      'batch_queued',
-      'batch_packaged',
-      'batch_processing',
-      'batch_consumed',
-    ].map(colorFn);
-    expect(declaredColors).not.toContain(colorFn('task_working_space'));
-  });
-
-  it('keeps declared states on their FSM declaration palette indices', () => {
-    const withSynthetic = createDataFlowStateColorFn(
-      fsmType,
-      ['batch_queued', 'task_working_space'],
-      'light'
-    );
-    const withoutSynthetic = createDataFlowStateColorFn(fsmType, ['batch_queued'], 'light');
-    expect(withSynthetic('batch_queued')).toBe(withoutSynthetic('batch_queued'));
   });
 });

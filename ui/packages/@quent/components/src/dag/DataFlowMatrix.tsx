@@ -3,17 +3,14 @@
 
 import { useMemo } from 'react';
 import {
+  COLOR_REGISTRY_KEYS,
   formatDataFlowValue,
+  useColorResolver,
   type DataFlowFrame,
   type DataFlowMeta,
   type DataFlowOperatorFrame,
 } from '@quent/hooks';
-import {
-  createCapacitiesColorFn,
-  createDataFlowStateColorFn,
-  formatDuration,
-  type PaletteTheme,
-} from '@quent/utils';
+import { formatDuration } from '@quent/utils';
 import { ColorSwatch } from '../ui/color-swatch';
 import { DataText } from '../ui/data-text';
 
@@ -28,14 +25,11 @@ export const DataFlowMatrix = ({
   meta,
   frame,
   operatorFrame,
-  isDark,
 }: {
   meta: DataFlowMeta;
   frame: DataFlowFrame;
   operatorFrame?: DataFlowOperatorFrame;
-  isDark: boolean;
 }) => {
-  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
   const allDimensionKeys = meta.decl.dimension_keys;
   // Keep original decl-order indices — the frame's matrix/byDimension are
   // indexed by declaration order, not by the filtered column order.
@@ -46,18 +40,8 @@ export const DataFlowMatrix = ({
         .filter(({ key }) => meta.dimensionSelection.has(key.key)),
     [allDimensionKeys, meta.dimensionSelection]
   );
-  const stateColor = useMemo(
-    () => createDataFlowStateColorFn(meta.fsmType, meta.stateNames, paletteTheme),
-    [meta, paletteTheme]
-  );
-  const dimensionColor = useMemo(
-    () =>
-      createCapacitiesColorFn(
-        allDimensionKeys.map(k => k.key),
-        paletteTheme
-      ),
-    [allDimensionKeys, paletteTheme]
-  );
+  const stateColor = useColorResolver(COLOR_REGISTRY_KEYS.DATA_FLOW_STATES);
+  const dimensionColor = useColorResolver(COLOR_REGISTRY_KEYS.DATA_FLOW_DIMENSIONS);
 
   const fmt = (value: number) => formatDataFlowValue(value, frame.measure, meta);
   const measureDecl = meta.decl.measures.find(m => m.name === frame.measure);

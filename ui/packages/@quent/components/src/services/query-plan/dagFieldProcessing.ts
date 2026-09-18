@@ -3,12 +3,17 @@
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
 import { parseCustomStatistics } from '../../lib/queryBundle.utils';
-import { getActivePalette, isNumericValue, type PaletteTheme } from '@quent/utils';
+import {
+  buildDeterministicColorMap,
+  createDeterministicColorResolver,
+  isNumericValue,
+  type PaletteTheme,
+} from '@quent/utils';
 
 export function computeNodeColoring(
   nodes: DAGNode[],
   field: string | null,
-  theme: PaletteTheme
+  _theme?: PaletteTheme
 ): NodeColoring {
   if (!field || !nodes.length) {
     return null;
@@ -36,9 +41,9 @@ export function computeNodeColoring(
     };
   }
 
-  const palette = getActivePalette(theme);
   const uniqueValues = [...new Set(entries.map(e => String(e.value)))];
-  const valueColor = new Map(uniqueValues.map((v, i) => [v, palette[i % palette.length]]));
+  const resolveColor = createDeterministicColorResolver(buildDeterministicColorMap(uniqueValues));
+  const valueColor = new Map(uniqueValues.map(value => [value, resolveColor(value)]));
   return {
     type: 'categorical',
     colorMap: new Map(entries.map(e => [e.id, valueColor.get(String(e.value))!])),
@@ -49,7 +54,7 @@ export function computeNodeColoring(
 export function computeEdgeColoring(
   edges: DAGEdge[],
   field: string | null,
-  theme: PaletteTheme
+  _theme?: PaletteTheme
 ): EdgeColoring {
   if (!field || !edges.length) {
     return null;
@@ -77,9 +82,9 @@ export function computeEdgeColoring(
     };
   }
 
-  const palette = getActivePalette(theme);
   const uniqueValues = [...new Set(entries.map(e => String(e.value)))];
-  const valueColor = new Map(uniqueValues.map((v, i) => [v, palette[i % palette.length]]));
+  const resolveColor = createDeterministicColorResolver(buildDeterministicColorMap(uniqueValues));
+  const valueColor = new Map(uniqueValues.map(value => [value, resolveColor(value)]));
   return {
     type: 'categorical',
     colorMap: new Map(entries.map(e => [e.id, valueColor.get(String(e.value))!])),

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { getActivePalette } from '@quent/utils';
 import type { DAGNode, DAGEdge } from '@quent/utils';
 import {
   computeNodeColoring,
@@ -103,19 +102,17 @@ describe('computeNodeColoring', () => {
     expect(result.colorMap.get('n1')).not.toBe(result.colorMap.get('n2'));
   });
 
-  it('assigns palette colors in order of first appearance', () => {
-    const palette = getActivePalette('light');
+  it('assigns colors independently of first appearance', () => {
     const nodes = [
       makeNode('n1', { state: tagged('String', 'alpha') }),
       makeNode('n2', { state: tagged('String', 'beta') }),
     ];
     const result = computeNodeColoring(nodes, 'state', 'light');
-    expect(result?.type).toBe('categorical');
-    if (result?.type !== 'categorical') {
+    const reversed = computeNodeColoring([...nodes].reverse(), 'state', 'dark');
+    if (result?.type !== 'categorical' || reversed?.type !== 'categorical') {
       return;
     }
-    expect(result.categoryMap.get('alpha')).toBe(palette[0]);
-    expect(result.categoryMap.get('beta')).toBe(palette[1]);
+    expect(result.categoryMap).toEqual(reversed.categoryMap);
   });
 
   it('skips nodes that do not have the requested field', () => {

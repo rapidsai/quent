@@ -1,33 +1,105 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { atom, useAtomValue } from 'jotai';
+import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
-import { atomFamily } from 'jotai-family';
-import { createDeterministicColorResolver, type DeterministicColorResolver } from '@quent/utils';
+import { useEffect, useMemo } from 'react';
+import {
+  COLOR_PALETTES,
+  createColorRegistry,
+  extendDeterministicColorMap,
+  getDeterministicColorFromPalette,
+  normalizeDeterministicColorKey,
+  type ColorPalette,
+  type ColorRegistry,
+  type ColorRegistryKey,
+  type DeterministicColorKey,
+  type DeterministicColorResolver,
+} from '@quent/utils';
 
-export const COLOR_REGISTRY_KEYS = {
-  OPERATOR_TYPES: 'operator-types',
-  RESOURCE_TYPES: 'resource-types',
-  FSM_TYPES: 'fsm-types',
-} as const;
+export { COLOR_REGISTRY_KEYS } from '@quent/utils';
+export type { ColorRegistry, ColorRegistryKey } from '@quent/utils';
 
-export type ColorRegistryKey = (typeof COLOR_REGISTRY_KEYS)[keyof typeof COLOR_REGISTRY_KEYS];
-export type ColorRegistry = ReadonlyMap<ColorRegistryKey, ReadonlyMap<string, string>>;
-
-const EMPTY_COLOR_MAP = new Map<string, string>();
-const colorRegistryAtom = atom<ColorRegistry>(new Map());
-const colorResolverAtomFamily = atomFamily((registryKey: ColorRegistryKey) =>
-  atom(get =>
-    createDeterministicColorResolver(get(colorRegistryAtom).get(registryKey) ?? EMPTY_COLOR_MAP)
-  )
+const colorRegistryAtom = atom<ColorRegistry>(createColorRegistry());
+const colorResolverCacheAtom = atom(
+  () => new WeakMap<ColorRegistry, Map<ColorRegistryKey, IncrementalColorResolver>>()
 );
+const EMPTY_ADDITIONAL_VALUES: readonly DeterministicColorKey[] = [];
 
-export function useColorResolver(registryKey: ColorRegistryKey): DeterministicColorResolver {
-  return useAtomValue(colorResolverAtomFamily(registryKey));
+type IncrementalColorResolver = {
+  addValues: (values: Iterable<DeterministicColorKey>) => void;
+  resolveColor: DeterministicColorResolver;
+};
+
+function createIncrementalColorResolver(
+  initialColorMap: ReadonlyMap<string, string>,
+  palette: ColorPalette,
+  assignMissingValues: boolean
+): IncrementalColorResolver {
+  let colorMap = new Map(initialColorMap);
+  const addValues = (values: Iterable<DeterministicColorKey>) => {
+    colorMap = extendDeterministicColorMap(colorMap, values, palette);
+  };
+  const resolveColor = ((
+    value: DeterministicColorKey,
+    keyOf?: (value: unknown) => DeterministicColorKey
+  ) => {
+    const key = normalizeDeterministicColorKey(keyOf ? keyOf(value) : value);
+    const color = colorMap.get(key);
+    if (color !== undefined) {
+      return color;
+    }
+    if (!assignMissingValues) {
+      return getDeterministicColorFromPalette(key, palette);
+    }
+    addValues([key]);
+    return colorMap.get(key)!;
+  }) as DeterministicColorResolver;
+  return { addValues, resolveColor };
+}
+
+function getIncrementalColorResolver(
+  cache: WeakMap<ColorRegistry, Map<ColorRegistryKey, IncrementalColorResolver>>,
+  registry: ColorRegistry,
+  registryKey: ColorRegistryKey
+): IncrementalColorResolver {
+  let registryCache = cache.get(registry);
+  if (!registryCache) {
+    registryCache = new Map();
+    cache.set(registry, registryCache);
+  }
+
+  let resolver = registryCache.get(registryKey);
+  if (!resolver) {
+    const registryValue = registry.get(registryKey);
+    resolver = createIncrementalColorResolver(
+      registryValue?.colorMap ?? new Map(),
+      registryValue?.palette ?? COLOR_PALETTES.deterministic,
+      registryValue !== undefined
+    );
+    registryCache.set(registryKey, resolver);
+  }
+  return resolver;
+}
+
+export function useColorResolver(
+  registryKey: ColorRegistryKey,
+  additionalValues: Iterable<DeterministicColorKey> = EMPTY_ADDITIONAL_VALUES
+): DeterministicColorResolver {
+  const registry = useAtomValue(colorRegistryAtom);
+  const cache = useAtomValue(colorResolverCacheAtom);
+  return useMemo(() => {
+    const resolver = getIncrementalColorResolver(cache, registry, registryKey);
+    resolver.addValues(additionalValues);
+    return resolver.resolveColor;
+  }, [additionalValues, cache, registry, registryKey]);
 }
 
 /** Hydrates complete color maps before descendants read their resolvers. */
 export function useHydrateColorRegistry(registry: ColorRegistry): void {
   useHydrateAtoms([[colorRegistryAtom, registry]]);
+  const setColorRegistry = useSetAtom(colorRegistryAtom);
+  useEffect(() => {
+    setColorRegistry(registry);
+  }, [registry, setColorRegistry]);
 }
