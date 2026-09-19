@@ -10,13 +10,11 @@ use quent_analyzer::{
     fsm::{Fsm, FsmUsages, collection::FsmCollection},
     resource::Usage,
 };
+use quent_query_engine_ui::{EntityListItem, EntityListResponse, QueryEngineFsm};
 use quent_time::{TimeNanoSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs, to_secs};
 use quent_ui::{
     FiniteStateMachine,
-    entities::{
-        request::{EntityListFilter, EntitySortKey, Sort, SortDir},
-        response::{EntityListItem, EntityListResponse},
-    },
+    entities::request::{EntityListFilter, EntitySortKey, Sort, SortDir},
     paginate::PageParams,
 };
 use uuid::Uuid;
@@ -33,11 +31,12 @@ pub struct ListQuery<'a> {
 
 /// List the FSMs matching the scope, window, and filters, ranked and paged.
 ///
-/// `keep` is an extra application predicate for filters outside the generic
-/// contract, e.g. by operator.
-pub fn list_entities<M, P, C>(
+/// `keep` and `operator_id` provide query-engine relationships outside the
+/// generic FSM contract.
+pub fn list_entities<M, P, O, C>(
     model: &M,
     keep: P,
+    operator_id: O,
     to_ui: C,
     query: ListQuery<'_>,
 ) -> AnalyzerResult<EntityListResponse>
@@ -45,6 +44,7 @@ where
     M: FsmCollection,
     M::Fsm: for<'a> FsmUsages<'a>,
     P: Fn(&M::Fsm) -> bool,
+    O: Fn(&M::Fsm) -> Option<Uuid>,
     C: Fn(&M::Fsm, TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine>,
 {
     let ranked = model
@@ -52,7 +52,14 @@ where
         .filter(|f| keep(f))
         .filter_map(|f| entry_matches(f, query.scope, query.window, query.filter).map(|m| (f, m)))
         .collect();
-    finalize(ranked, query.sort, query.page, query.epoch, to_ui)
+    finalize(
+        ranked,
+        query.sort,
+        query.page,
+        query.epoch,
+        operator_id,
+        to_ui,
+    )
 }
 
 /// The ranking metric if the FSM passes the filters, else `None`.
@@ -78,15 +85,17 @@ where
 }
 
 /// Sort the scored candidates, slice the page, and convert to UI FSMs.
-fn finalize<'a, F, C>(
+fn finalize<'a, F, O, C>(
     mut ranked: Vec<(&'a F, TimeNanoSec)>,
     sort: Sort,
     page: Option<PageParams>,
     epoch: TimeUnixNanoSec,
+    operator_id: O,
     to_ui: C,
 ) -> AnalyzerResult<EntityListResponse>
 where
     F: FsmUsages<'a>,
+    O: Fn(&F) -> Option<Uuid>,
     C: Fn(&F, TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine>,
 {
     ranked.sort_by(|(fa, ma), (fb, mb)| {
@@ -116,9 +125,12 @@ where
 
     let items = page_iter
         .map(|(f, usage_duration)| {
-            to_ui(f, epoch).map(|entity| EntityListItem {
+            to_ui(f, epoch).map(|fsm| EntityListItem {
                 usage_duration_s: to_secs(usage_duration),
-                entity,
+                entity: QueryEngineFsm {
+                    fsm,
+                    operator_id: operator_id(f),
+                },
             })
         })
         .collect::<AnalyzerResult<Vec<_>>>()?;

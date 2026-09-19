@@ -16,8 +16,11 @@ vi.mock('@quent/hooks', () => ({
 }));
 
 vi.mock('../timeline/timelineEchartsTheme', () => ({
+  DIMMED_OPACITY: 0.25,
   MARK_AREA_BORDER_OPACITY: 0.8,
   MARK_AREA_FILL_OPACITY: 0.2,
+  ROLLUP_TIMELINE_COLOR_LIGHT: '#AAAAAA',
+  ROLLUP_TIMELINE_COLOR_DARK: '#777777',
   useTimelineEchartsTheme: () => ({ textColor: '#000000' }),
 }));
 

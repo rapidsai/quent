@@ -500,7 +500,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
     fn list_entities(
         &self,
         request: quent_ui::entities::request::EntityListRequest<QueryFilter, OperatorFilter>,
-    ) -> AnalyzerResult<quent_ui::entities::response::EntityListResponse> {
+    ) -> AnalyzerResult<quent_query_engine_ui::EntityListResponse> {
         let query_id = request.app_params.query_id;
         let epoch = self.query_engine_model().query_epoch(query_id)?;
         let entry = request.entry;
@@ -531,6 +531,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     query_operators.contains(&op) && operator_matches(&operator_ids, Some(op))
                 })
             },
+            TaskExt::operator_id,
             TaskExt::try_to_ui_fsm,
             entities::ListQuery {
                 scope: scope.as_ref(),

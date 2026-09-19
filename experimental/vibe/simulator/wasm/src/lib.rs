@@ -224,7 +224,7 @@ impl ServerContract for DemoServer {
         &self,
         engine_id: Uuid,
         request: EntityListRequest<QueryFilter, OperatorFilter>,
-    ) -> Result<quent_ui::entities::response::EntityListResponse, ApiError> {
+    ) -> Result<ui::EntityListResponse, ApiError> {
         self.analyzer(engine_id)?
             .list_entities(request)
             .map_err(Into::into)

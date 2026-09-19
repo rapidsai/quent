@@ -48,6 +48,7 @@ export type { QueryBundle } from '../../../../../generated/ts-bindings/QueryBund
 export type { QueryEntities } from '../../../../../generated/ts-bindings/QueryEntities';
 export type { QueryFilter } from '../../../../../generated/ts-bindings/QueryFilter';
 export type { QueryGroup } from '../../../../../generated/ts-bindings/QueryGroup';
+export type { QueryEngineFsm } from '../../../../../generated/ts-bindings/QueryEngineFsm';
 export type { Resource } from '../../../../../generated/ts-bindings/Resource';
 export type { ResourceGroup } from '../../../../../generated/ts-bindings/ResourceGroup';
 export type { ResourceGroupNode } from '../../../../../generated/ts-bindings/ResourceGroupNode';

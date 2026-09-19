@@ -11,8 +11,8 @@ pub use server::ServerContract;
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
-    Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
-    fsm::FsmTypeDecl, quantity::QuantitySpec,
+    FiniteStateMachine, Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree,
+    ResourceTypeDecl, fsm::FsmTypeDecl, quantity::QuantitySpec,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -59,6 +59,31 @@ pub struct QueryFilter {
 #[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OperatorFilter {
     pub operator_ids: Vec<Uuid>,
+}
+
+/// An FSM with query-engine-specific relationships.
+#[derive(TS, Debug, Clone, Serialize)]
+pub struct QueryEngineFsm {
+    #[serde(flatten)]
+    #[ts(flatten)]
+    pub fsm: FiniteStateMachine,
+    /// The operator that caused this FSM's activity, if known.
+    pub operator_id: Option<Uuid>,
+}
+
+/// An entity and its longest matching resource usage.
+#[derive(TS, Debug, Clone, Serialize)]
+pub struct EntityListItem {
+    pub entity: QueryEngineFsm,
+    pub usage_duration_s: TimeSec,
+}
+
+/// A ranked, paged list of query-engine entities.
+#[derive(TS, Debug, Clone, Serialize)]
+pub struct EntityListResponse {
+    pub items: Vec<EntityListItem>,
+    /// The count of entities matching the filter before paging.
+    pub total: u32,
 }
 
 /// Attributes describing details about the implementation of this Engine

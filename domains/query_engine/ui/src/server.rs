@@ -4,7 +4,7 @@
 //! Typed contract implemented by query-engine API servers.
 
 use quent_ui::{
-    entities::{request::EntityListRequest, response::EntityListResponse},
+    entities::request::EntityListRequest,
     timeline::{
         categorical::CategoricalTimelineRequest,
         request::{BulkTimelineRequest, SingleTimelineRequest},
@@ -14,8 +14,8 @@ use quent_ui::{
 use uuid::Uuid;
 
 use crate::{
-    DataFlowTimelineBinned, Engine, EngineContexts, OperatorFilter, Query, QueryBundle,
-    QueryFilter, QueryGroup,
+    DataFlowTimelineBinned, Engine, EngineContexts, EntityListResponse, OperatorFilter, Query,
+    QueryBundle, QueryFilter, QueryGroup,
 };
 
 /// Query-engine service operations shared by native and browser-hosted servers.

@@ -9,7 +9,7 @@ use quent_events::Event;
 use quent_io_types::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
-    entities::{request::EntityListRequest, response::EntityListResponse},
+    entities::request::EntityListRequest,
     timeline::{
         categorical::CategoricalTimelineRequest,
         request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
@@ -69,7 +69,7 @@ pub trait UiAnalyzer {
     fn list_entities(
         &self,
         request: EntityListRequest<ui::QueryFilter, ui::OperatorFilter>,
-    ) -> AnalyzerResult<EntityListResponse>;
+    ) -> AnalyzerResult<ui::EntityListResponse>;
 
     /// Return a set of resource timelines in bulk.
     fn bulk_resource_timeline(

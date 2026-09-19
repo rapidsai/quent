@@ -14,6 +14,7 @@
 use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 use quent_query_engine_analyzer::ui::{QuentViewer, UiAnalyzer};
+use quent_query_engine_ui::EntityListResponse;
 use quent_query_engine_ui::{OperatorFilter, QueryFilter};
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_fixed as fixed;
@@ -24,7 +25,6 @@ use quent_ui::entities::request::{
     EntityListEntry, EntityListFilter, EntityListRequest, EntityScope, EntitySortKey, Sort,
     SortDir, TimeWindow,
 };
-use quent_ui::entities::response::EntityListResponse;
 use quent_ui::paginate::PageParams;
 use uuid::Uuid;
 
@@ -150,7 +150,7 @@ fn request(
 }
 
 fn ids(resp: &EntityListResponse) -> Vec<Uuid> {
-    resp.items.iter().map(|item| item.entity.id).collect()
+    resp.items.iter().map(|item| item.entity.fsm.id).collect()
 }
 
 #[test]

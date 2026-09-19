@@ -7,9 +7,10 @@ use std::path::Path;
 
 use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use quent_query_engine_ui::{
-    DataFlowTimelineBinned, EngineContexts, EntityRef, OperatorFilter, QueryBundle, QueryFilter,
+    DataFlowTimelineBinned, EngineContexts, EntityListResponse, EntityRef, OperatorFilter,
+    QueryBundle, QueryFilter,
 };
-use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
+use quent_ui::entities::request::EntityListRequest;
 use quent_ui::timeline::{
     categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},

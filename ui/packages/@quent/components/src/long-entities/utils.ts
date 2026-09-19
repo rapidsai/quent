@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FiniteStateMachine, FsmTypeDecl, PaletteTheme } from '@quent/utils';
+import type {
+  FiniteStateMachine,
+  FsmTypeDecl,
+  PaletteTheme,
+  QueryEngineFsm,
+} from '@quent/utils';
 import { createFsmTypeColorFn } from '@quent/utils';
 import { stackIntervalsIntoRows } from '../gantt-chart/utils';
 import type { LongEntityEntry, LongEntitySegment } from './types';
@@ -74,12 +79,14 @@ function buildSegments(
  * greedy first-fit packing shared with the operator Gantt.
  */
 export function buildLongEntityEntries(
-  items: FiniteStateMachine[],
+  items: QueryEngineFsm[],
   fsmTypes: { [key in string]?: FsmTypeDecl } | undefined,
   theme: PaletteTheme,
-  resourceIdsForFilter?: ReadonlySet<string> | null
+  resourceIdsForFilter?: ReadonlySet<string> | null,
+  selectedOperatorIds?: ReadonlySet<string> | null
 ): LongEntityEntry[] {
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
+  const hasOperatorFilter = (selectedOperatorIds?.size ?? 0) > 0;
 
   const entries: LongEntityEntry[] = [];
   for (const fsm of items) {
@@ -97,10 +104,19 @@ export function buildLongEntityEntries(
       endMs,
       rowIndex: 0,
       segments,
+      ...(hasOperatorFilter && {
+        isDimmed: fsm.operator_id == null || !selectedOperatorIds!.has(fsm.operator_id),
+      }),
     });
   }
 
-  return stackIntervalsIntoRows(entries);
+  // With an operator filter active, pack entities matching the filter first so
+  // they claim the topmost swimlanes
+  const packingOrder = hasOperatorFilter
+    ? [...entries].sort((a, b) => Number(!!a.isDimmed) - Number(!!b.isDimmed))
+    : entries;
+
+  return stackIntervalsIntoRows(packingOrder);
 }
 
 /** Return every entity state whose half-open segment contains the timestamp. */

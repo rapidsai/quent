@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import type { FiniteStateMachine, FsmTransition } from '@quent/utils';
+import type { FsmTransition, QueryEngineFsm } from '@quent/utils';
 import { buildLongEntityEntries, getLongEntitySegmentsAtTimestamp } from './utils';
 
 function transition(
@@ -23,12 +23,13 @@ function transition(
 function makeFsm(
   id: string,
   transitions: FsmTransition[],
-  overrides: Partial<FiniteStateMachine> = {}
-): FiniteStateMachine {
+  overrides: Partial<QueryEngineFsm> = {}
+): QueryEngineFsm {
   return {
     id,
     type_name: 'task',
     instance_name: '',
+    operator_id: null,
     transitions,
     ...overrides,
   };
@@ -165,6 +166,23 @@ describe('buildLongEntityEntries', () => {
     const b = makeFsm('b', [transition('s', 2), transition('exit', 8)]);
     const entries = buildLongEntityEntries([a, b], {}, 'light');
     expect(new Set(entries.map(e => e.rowIndex)).size).toBe(2);
+  });
+
+  it('packs operator-filter-matching entities onto the topmost rows', () => {
+    // Three overlapping entities, each needing its own row. "b" matches the
+    // operator filter but appears last in input order; it should still be
+    // packed onto row 0 ahead of the dimmed "a" and "c".
+    const a = makeFsm('a', [transition('s', 0), transition('exit', 10)], { operator_id: 'op-2' });
+    const b = makeFsm('b', [transition('s', 0), transition('exit', 10)], { operator_id: 'op-1' });
+    const c = makeFsm('c', [transition('s', 0), transition('exit', 10)]);
+
+    const entries = buildLongEntityEntries([a, b, c], {}, 'light', null, new Set(['op-1']));
+
+    const byId = Object.fromEntries(entries.map(e => [e.entityId, e]));
+    expect(byId.b).toMatchObject({ rowIndex: 0, isDimmed: false });
+    expect(byId.a.rowIndex).toBeGreaterThan(0);
+    expect(byId.c).toMatchObject({ isDimmed: true });
+    expect(byId.c.rowIndex).toBeGreaterThan(0);
   });
 });
 

@@ -9,7 +9,7 @@ use axum::{
 
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_ui::{self as ui, ServerContract};
-use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
+use quent_ui::entities::request::EntityListRequest;
 use quent_ui::timeline::{
     categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
@@ -298,7 +298,7 @@ async fn entities<A>(
     State(state): State<ServiceState<A>>,
     Path(engine_id): Path<Uuid>,
     Json(request): Json<EntityListRequest<ui::QueryFilter, ui::OperatorFilter>>,
-) -> ServerResult<Json<EntityListResponse>>
+) -> ServerResult<Json<ui::EntityListResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {

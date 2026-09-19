@@ -7,7 +7,7 @@ use quent_query_engine_analyzer::{
 };
 use quent_query_engine_ui::{self as ui, ServerContract};
 use quent_ui::{
-    entities::{request::EntityListRequest, response::EntityListResponse},
+    entities::request::EntityListRequest,
     timeline::{
         categorical::CategoricalTimelineRequest,
         request::{BulkTimelineRequest, SingleTimelineRequest},
@@ -135,7 +135,7 @@ where
         &self,
         engine_id: Uuid,
         request: EntityListRequest<ui::QueryFilter, ui::OperatorFilter>,
-    ) -> ServerResult<EntityListResponse> {
+    ) -> ServerResult<ui::EntityListResponse> {
         let analyzer = self.analyzers.get(engine_id).await?;
         analyzer.list_entities(request).map_err(Into::into)
     }
