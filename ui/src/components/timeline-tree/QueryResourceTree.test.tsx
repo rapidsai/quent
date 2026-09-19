@@ -437,7 +437,8 @@ describe('QueryResourceTree — NVTX filters', () => {
 
     await waitFor(() => {
       const calls = vi.mocked(clientApi.useNvtxStream).mock.calls;
-      expect(calls[calls.length - 1]?.[3]?.categoryFilters?.get('1')).toEqual({
+      const liveCall = [...calls].reverse().find(call => call[3]?.categoryFilters != null);
+      expect(liveCall?.[3]?.categoryFilters?.get('1')).toEqual({
         categoryId: 7,
         includeUncategorized: false,
       });
@@ -520,11 +521,32 @@ describe('QueryResourceTree — NVTX filters', () => {
         },
       ],
     } as unknown as NvtxCatalog;
+    const viewport = {
+      viewport: { start: 0, end: DURATION_S },
+      domains: [
+        {
+          domain_id: '1',
+          source_domain_ids: ['1'],
+          name: 'Domain 1',
+          color: '#76b900ff',
+          lanes: [
+            {
+              id: 'thread-7',
+              label: 'worker 7',
+              identity: { kind: 'thread', source_domain_id: '1', thread_id: 7, depth: 0 },
+              ranges: [],
+              marks: [],
+            },
+          ],
+        },
+      ],
+      statistics: [],
+    } as unknown as NonNullable<ReturnType<typeof clientApi.useNvtxStream>['viewport']>;
     vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
     vi.mocked(clientApi.useNvtxStream).mockReturnValue({
       contextId: 'context-1',
       catalog,
-      viewport: null,
+      viewport,
       isLoading: false,
     });
     const store = createStore();

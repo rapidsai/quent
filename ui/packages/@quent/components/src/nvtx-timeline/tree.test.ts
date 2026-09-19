@@ -39,9 +39,11 @@ const catalog = {
   domains: [nvtxDomain('1', 'libcudf', 101, 'worker 1'), nvtxDomain('3', 'CCCL', 303, 'worker 3')],
 } satisfies Pick<NvtxCatalog, 'domains'>;
 
+const allCatalogLaneRowIds = new Set([nvtxThreadRowId('1', 101), nvtxThreadRowId('3', 303)]);
+
 describe('NVTX resource tree', () => {
   it('keeps the selected domain header above its lanes', () => {
-    const tree = buildNvtxTree(catalog, new Set(), '3');
+    const tree = buildNvtxTree(catalog, new Set([nvtxThreadRowId('3', 303)]), '3');
 
     expect(tree?.children).toEqual([
       expect.objectContaining({
@@ -69,7 +71,7 @@ describe('NVTX resource tree', () => {
   });
 
   it('keeps each domain in a sub-tree when showing all domains', () => {
-    const tree = buildNvtxTree(catalog, new Set(), null);
+    const tree = buildNvtxTree(catalog, allCatalogLaneRowIds, null);
 
     expect(tree?.children).toEqual([
       expect.objectContaining({
@@ -88,6 +90,19 @@ describe('NVTX resource tree', () => {
     expect(nvtxLaneLabel(domainRow.children![0]!.entity)).toBe('worker 3');
   });
 
+  it('hides thread lanes with no data anywhere in the full-duration lane row ids', () => {
+    const tree = buildNvtxTree(catalog, new Set([nvtxThreadRowId('1', 101)]), null);
+
+    expect(tree?.children?.map(item => item.id)).toEqual([
+      nvtxDomainRowId('1'),
+      nvtxDomainRowId('3'),
+    ]);
+    expect(tree?.children?.[0]?.children?.map(item => item.id)).toEqual([
+      nvtxThreadRowId('1', 101),
+    ]);
+    expect(tree?.children?.[1]?.children).toBeUndefined();
+  });
+
   it('appends process and marks lanes after thread rows', () => {
     const viewport = {
       viewport: { start: 0, end: 1 },
@@ -98,6 +113,13 @@ describe('NVTX resource tree', () => {
           name: 'CCCL',
           color: '#000000ff',
           lanes: [
+            {
+              id: 'thread',
+              label: 'worker 3',
+              identity: { kind: 'thread', source_domain_id: '3', thread_id: 303, depth: 0 },
+              ranges: [],
+              marks: [],
+            },
             {
               id: 'process',
               label: 'Process ranges',
@@ -198,7 +220,7 @@ describe('NVTX resource tree', () => {
   });
 
   it('filters labels while retaining the path to direct matches', () => {
-    const tree = buildNvtxTree(catalog, new Set(), null)!;
+    const tree = buildNvtxTree(catalog, allCatalogLaneRowIds, null)!;
     const result = filterNvtxTree(tree, 'worker 3');
 
     expect(result.matchCount).toBe(1);
@@ -212,7 +234,7 @@ describe('NVTX resource tree', () => {
   });
 
   it('preserves the original tree for whitespace-only searches', () => {
-    const tree = buildNvtxTree(catalog, new Set(), null)!;
+    const tree = buildNvtxTree(catalog, allCatalogLaneRowIds, null)!;
     const result = filterNvtxTree(tree, ' \t ');
 
     expect(result.filteredTree).toBe(tree);
@@ -222,7 +244,7 @@ describe('NVTX resource tree', () => {
   });
 
   it('supports comma-separated OR groups and space-separated AND terms', () => {
-    const tree = buildNvtxTree(catalog, new Set(), null)!;
+    const tree = buildNvtxTree(catalog, allCatalogLaneRowIds, null)!;
     const result = filterNvtxTree(tree, 'libcudf missing, CCCL worker');
 
     expect(result.directMatchIds).toEqual(new Set([nvtxThreadRowId('3', 303)]));

@@ -76,7 +76,11 @@ function treeItem(
   return { id, type, entity, ...(children?.length ? { children } : {}) };
 }
 
-/** Domain sub-trees for the visible domains; headers stay so category filters have a row. */
+/**
+ * Domain sub-trees for the visible domains; headers stay so category filters have a row.
+ * `laneRowIds` should come from a full-duration viewport fetch so a lane's visibility
+ * doesn't flicker in and out as the user zooms/scrubs.
+ */
 export function buildNvtxTree(
   catalog: Pick<NvtxCatalog, 'domains'>,
   laneRowIds: ReadonlySet<string>,
@@ -89,13 +93,15 @@ export function buildNvtxTree(
     return null;
   }
   const domainLanes = visibleDomains.map(domain => {
-    const threadRows = domain.threads.map(thread =>
-      treeItem(nvtxThreadRowId(domain.domain_id, thread.thread_id), NVTX_LANE_ROW_TYPE, {
-        nvtxKind: 'thread',
-        domain,
-        thread,
-      })
-    );
+    const threadRows = domain.threads
+      .filter(thread => laneRowIds.has(nvtxThreadRowId(domain.domain_id, thread.thread_id)))
+      .map(thread =>
+        treeItem(nvtxThreadRowId(domain.domain_id, thread.thread_id), NVTX_LANE_ROW_TYPE, {
+          nvtxKind: 'thread',
+          domain,
+          thread,
+        })
+      );
     const extraRows: NvtxTreeItem[] = [];
     if (laneRowIds.has(nvtxProcessRowId(domain.domain_id))) {
       extraRows.push(

@@ -193,6 +193,13 @@ export function useNvtxTreeModel({
       categoryFilters: nvtxCategoryFilters,
     }
   );
+  const fullDurationWindow = useMemo(() => ({ start: 0, end: durationSeconds }), [durationSeconds]);
+  const { viewport: fullDurationViewport } = useNvtxStream(
+    engineId,
+    queryBundle.start_time_unix_ns,
+    fullDurationWindow,
+    { staleTime: Infinity }
+  );
 
   useEffect(() => {
     if (!catalog || seededExpansion.current) {
@@ -245,7 +252,14 @@ export function useNvtxTreeModel({
   ]);
 
   const lanesByRowId = useMemo(() => indexNvtxLanes(viewport), [viewport]);
-  const laneRowIdsKey = useMemo(() => [...lanesByRowId.keys()].sort().join('\0'), [lanesByRowId]);
+  const fullDurationLanesByRowId = useMemo(
+    () => indexNvtxLanes(fullDurationViewport),
+    [fullDurationViewport]
+  );
+  const laneRowIdsKey = useMemo(
+    () => [...fullDurationLanesByRowId.keys()].sort().join('\0'),
+    [fullDurationLanesByRowId]
+  );
   const laneRowIds = useMemo(
     () => new Set(laneRowIdsKey ? laneRowIdsKey.split('\0') : []),
     [laneRowIdsKey]
