@@ -355,9 +355,9 @@ export function PivotedStatTable<TRow>({
           max = v;
         }
       }
-      return { name: statName, values, min, max };
+      return { name: statName, values, min, max, aggMode: isAggregating ? aggMode : 'sum' };
     },
-    [statsByItem]
+    [statsByItem, isAggregating, aggMode]
   );
 
   const pivotedRows = useMemo(

@@ -23,6 +23,8 @@ import {
   effectiveHoveredStatAtom,
   hoveredStatAtom,
   dagDisplayedNodeIdsAtom,
+  dagNodeGroupsAtom,
+  dagAggregatedHeatmapRangeAtom,
 } from '../atoms/dagControls';
 
 export function useSelectedColorField() {
@@ -98,4 +100,12 @@ export function useSetHoveredStat() {
 
 export function useSetDagDisplayedNodeIds() {
   return useSetAtom(dagDisplayedNodeIdsAtom);
+}
+
+export function useSetDagNodeGroups() {
+  return useSetAtom(dagNodeGroupsAtom);
+}
+
+export function useDagAggregatedHeatmapRange() {
+  return useAtomValue(dagAggregatedHeatmapRangeAtom);
 }
