@@ -20,7 +20,7 @@ db = ["archive", "dep:reqwest", "dep:serde", "dep:uuid", "dep:dotenvy"]
 backon = "1"
 cargo-manifest = "0.21"
 clap = { version = "4.5.58", features = ["derive", "env"] }
-dirs = "6"
+dirs = "7"
 dotenvy = { version = "0.15", optional = true }
 flate2 = { version = "1", optional = true }
 gix-url = "0.36"
