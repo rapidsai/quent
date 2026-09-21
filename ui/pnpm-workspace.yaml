@@ -9,12 +9,12 @@ packages:
 
 catalog:
   '@tanstack/react-query': ^5.102.8
-  '@tanstack/react-router': ^1.170.32
+  '@tanstack/react-router': ^1.170.33
   '@tanstack/react-table': ^9.2.4
   '@tanstack/react-virtual': ^3.14.10
   '@types/react': ^19.2.18
-  '@types/react-dom': ^19.2.5
-  '@xyflow/react': ^12.11.5
+  '@types/react-dom': ^19.2.7
+  '@xyflow/react': ^12.11.6
   clsx: ^2.1.1
   echarts: ^6.1.0
   echarts-for-react: ^3.0.6
@@ -23,7 +23,7 @@ catalog:
   react: ^19.2.8
   react-dom: ^19.2.8
   tailwind-merge: ^3.6.0
-  tsdown: ^0.22.14
+  tsdown: ^0.23.0
   typescript: ^6.0.3
 
 allowBuilds:
