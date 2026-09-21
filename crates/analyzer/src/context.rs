@@ -84,8 +84,11 @@ where
     let mut index = ContextIndex::default();
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
+        match std::fs::metadata(entry.path()) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
         }
         let context_dir = entry.path();
         let Some(context_id) = context_dir
@@ -144,6 +147,31 @@ mod tests {
 
         let index = index_contexts(temp.path(), |actual_context_dir| -> std::io::Result<_> {
             assert_eq!(actual_context_dir, context_dir);
+            Ok(ContextInventory {
+                analysis_target_ids: BTreeSet::from([analysis_target_id]),
+            })
+        })
+        .unwrap();
+
+        assert_eq!(
+            index.contexts_of_analysis_target(analysis_target_id),
+            vec![context_id.into()]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn indexes_symlinked_context_directories() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let analysis_target_id = Uuid::from_u128(1);
+        let context_id = Uuid::from_u128(2);
+        let context_dir = source.path().join("context");
+        std::fs::create_dir(&context_dir).unwrap();
+        std::os::unix::fs::symlink(&context_dir, temp.path().join(context_id.to_string())).unwrap();
+
+        let index = index_contexts(temp.path(), |actual_context_dir| -> std::io::Result<_> {
+            assert_eq!(std::fs::canonicalize(actual_context_dir)?, context_dir);
             Ok(ContextInventory {
                 analysis_target_ids: BTreeSet::from([analysis_target_id]),
             })
