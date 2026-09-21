@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_dynamic_attributes::DynamicValue;
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 #[cfg(not(target_arch = "wasm32"))]
@@ -11,10 +10,11 @@ use quent_query_engine_analyzer::{
     WorkerEntity, entities, ui::UiAnalyzer,
 };
 use quent_query_engine_ui::{
-    DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
+    DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
 };
 use quent_ui::{
-    FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
+    FiniteStateMachine, Resource, ResourceGroup, ResourceGroupNode, ResourceTree,
+    convert_resource_tree,
     quantity::{CapacityKind, QuantitySpec},
     timeline::{
         categorical::{
@@ -37,9 +37,12 @@ use std::collections::HashMap as StdHashMap;
 use std::sync::Arc;
 use tracing::debug;
 
+#[cfg(not(target_arch = "wasm32"))]
+use quent_analyzer::context::ContextInventory;
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
-    fsm::{FsmTypeDeclaration, FsmUsages, Transition},
+    AnalyzerError, AnalyzerResult, Entity, RefTreeEntity, Span,
+    fsm::{FsmUsages, Transition},
+    ref_tree::RefTreeCollection,
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
     },
@@ -51,20 +54,21 @@ use quent_analyzer::{
         },
     },
 };
+use quent_dynamic_attributes::DynamicValue;
 #[cfg(not(target_arch = "wasm32"))]
-use quent_simulator_instrumentation::Simulator;
-use quent_simulator_instrumentation::SimulatorEvent;
-use quent_simulator_ui::EntityRef;
+use quent_simulator_store::Simulator;
+use quent_simulator_store::{self as schema, SimulatorEvent};
+#[cfg(not(target_arch = "wasm32"))]
+use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
+use quent_ui::fsm::FsmTypeDeclaration;
 use uuid::Uuid;
 
-use crate::{
-    model::{SimulatorModel, SimulatorModelBuilder},
-    task::{Task, TaskExt},
-};
+pub use crate::boilerplate::{Task, TaskExt};
+use crate::model::{SimulatorModel, SimulatorModelBuilder};
 
+mod boilerplate;
 pub mod model;
-pub mod task;
 pub mod view;
 
 /// Data-flow measure counting tasks residing in each (state, location) cell.
@@ -106,8 +110,7 @@ const SECOND_OPERATOR_STATISTICS: &[&str] = &[
 ];
 /// Data-flow dimension key for states that hold no memory resource.
 const DIMENSION_NONE: &str = "none";
-/// Type name of stdlib memory resources as recorded by the model.
-const MEMORY_TYPE_NAME: &str = "memory";
+const MEMORY_TYPE_NAMES: &[&str] = &["host_memory", "gpu_memory"];
 
 fn operator_statistic_quantity(name: &str) -> Option<&'static str> {
     BYTE_OPERATOR_STATISTICS
@@ -156,13 +159,68 @@ pub struct Viewer;
 impl QuentViewer for Viewer {
     type Analyzer = SimulatorUiAnalyzer;
 
+    fn context_inventory(dir: &std::path::Path) -> quent_io::ImporterResult<ContextInventory> {
+        let (context_id, root) = context_location(dir)?;
+        let store = Store::<Simulator>::new(root);
+        let engine_ids = store
+            .entity_events::<schema::Engine>(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .map(|event| event.map(|event| event.id))
+            .collect::<Result<HashSet<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
+        let worker_analysis_target_ids = store
+            .entity_events::<schema::Worker>(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .filter_map(|event| match event {
+                Ok(Event {
+                    data:
+                        schema::WorkerEvent::Init {
+                            parent_engine_id, ..
+                        },
+                    ..
+                }) => Some(Ok(parent_engine_id.target)),
+                Ok(_) => None,
+                Err(error) => Some(Err(error)),
+            })
+            .collect::<Result<HashSet<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
+
+        Ok(ContextInventory {
+            analysis_target_ids: engine_ids
+                .into_iter()
+                .chain(worker_analysis_target_ids)
+                .collect(),
+        })
+    }
+
     fn import_events(
         dir: &std::path::Path,
-    ) -> quent_model::io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
-        let events =
-            Simulator::import_events(dir)?.collect::<quent_model::io::ImporterResult<Vec<_>>>()?;
+    ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+        let (context_id, root) = context_location(dir)?;
+        let events = Store::<Simulator>::new(root)
+            .events(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
         Ok(Box::new(events.into_iter()))
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn context_location(dir: &std::path::Path) -> quent_io::ImporterResult<(Uuid, &std::path::Path)> {
+    let invalid_path = || {
+        quent_io::ImporterError::other(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("context directory must end in a UUID: {}", dir.display()),
+        ))
+    };
+    let context_id = dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| Uuid::parse_str(name).ok())
+        .ok_or_else(invalid_path)?;
+    let root = dir.parent().ok_or_else(invalid_path)?;
+    Ok((context_id, root))
 }
 
 struct PlainBuilderSlot<'a> {
@@ -197,25 +255,27 @@ struct PerStateEntry<'a> {
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
-    type EntityRef = EntityRef;
 
     fn extract_engine(
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
-        use quent_query_engine_model::engine::EngineEvent;
         for event in events {
-            if let SimulatorEvent::Engine(EngineEvent::Init(init)) = event.data {
+            if let SimulatorEvent::Engine(schema::EngineEvent::Init {
+                implementation,
+                instance_name,
+            }) = event.data
+            {
                 return Ok(quent_query_engine_ui::Engine {
                     id: engine_id,
                     start_time_unix_ns: Some(event.timestamp),
                     duration_s: None,
-                    instance_name: init.instance_name,
-                    implementation: Some(
-                        quent_query_engine_ui::EngineImplementationAttributes::from(
-                            &init.implementation,
-                        ),
-                    ),
+                    instance_name,
+                    implementation: Some(quent_query_engine_ui::EngineImplementationAttributes {
+                        name: implementation.name,
+                        version: implementation.version,
+                        custom_attributes: implementation.custom_attributes.0,
+                    }),
                 });
             }
         }
@@ -238,25 +298,31 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             builder.try_build()?
         };
 
-        let qe = &model.query_engine;
         tracing::info!(
-            workers = qe.workers.len(),
-            query_groups = qe.query_groups.len(),
-            queries = qe.queries.len(),
-            plans = qe.plans.len(),
-            operators = qe.operators.len(),
-            ports = qe.ports.len(),
-            resources = model.arbitrary_resources.resources.len(),
-            resource_groups = model.arbitrary_resources.resource_groups.len(),
-            resource_types = model.arbitrary_resources.resource_types.len(),
-            resource_group_types = model.resource_group_types.len(),
+            engines = 1,
+            query_groups = model.query_groups.len(),
+            workers = model.workers.len(),
+            plans = model.plans.len(),
+            operators = model.operators.len(),
+            ports = model.ports.len(),
+            task_executors = model.task_executors.len(),
+            networks = model.networks.len(),
+            gpus = model.gpus.len(),
+            host_memories = model.host_memories.len(),
+            storages = model.storages.len(),
+            gpu_memories = model.gpu_memories.len(),
+            task_executor_threads = model.task_executor_threads.len(),
+            storage_channels = model.storage_channels.len(),
+            pcie_channels = model.pcie_channels.len(),
+            network_channels = model.network_channels.len(),
+            queries = model.queries.len(),
             tasks = model.tasks.len(),
         );
 
         Ok(Self { model })
     }
 
-    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle<EntityRef>> {
+    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle> {
         debug!("constructing view");
         // TODO(johanpel): A query view could be cached in an analyzer so
         // subsequent calls into the analyzer for that query could benefit from
@@ -317,28 +383,71 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         debug!("converting simulator model entities");
         let resources = self
             .model
-            .arbitrary_resources
             .resources()
-            .map(|res| (res.id(), res.into()))
-            .collect();
+            .map(|resource| {
+                let parent_id = self
+                    .model
+                    .ref_tree_entity(resource.id())?
+                    .parent_id()
+                    .ok_or_else(|| {
+                        AnalyzerError::Validation(format!(
+                            "resource {} is the Reference Tree root",
+                            resource.id()
+                        ))
+                    })?;
+                Ok((
+                    resource.id(),
+                    Resource::from_analyzed(
+                        resource,
+                        self.model
+                            .resource_instance_name(resource.id())
+                            .unwrap_or_default(),
+                        parent_id,
+                    ),
+                ))
+            })
+            .collect::<AnalyzerResult<_>>()?;
         let resource_types = self
             .model
-            .arbitrary_resources
             .resource_types
             .iter()
             .map(|(k, v)| (k.clone(), v.into()))
             .collect();
         let resource_groups = self
             .model
-            .arbitrary_resources
-            .resource_groups()
-            .map(|res| (res.id(), res.into()))
+            .task_executors
+            .values()
+            .map(|entity| entity as &dyn RefTreeEntity)
+            .chain(
+                self.model
+                    .networks
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.model
+                    .gpus
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .map(|group| {
+                (
+                    group.id(),
+                    ResourceGroup::from_analyzed(
+                        group,
+                        self.model
+                            .resource_scope_instance_name(group.id())
+                            .unwrap_or_default(),
+                        group.parent_id(),
+                    ),
+                )
+            })
             .collect();
         let resource_group_types = self
             .model
             .resource_group_types
             .iter()
-            .map(|(k, v)| (k.clone(), v.into()))
+            .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
 
         let task_decl = Task::fsm_type_declaration();
@@ -364,8 +473,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         debug!("deriving resource tree");
         let engine = view.engine()?;
-        let resource_tree =
-            convert_resource_tree(view.resource_tree()?, &view)?.unwrap_or_else(|| {
+        let resource_tree = convert_resource_tree(ResourceTreeNode::try_new(&view)?, &view)?
+            .unwrap_or_else(|| {
                 ResourceTree::ResourceGroup(ResourceGroupNode {
                     id: EntityRef::Engine(engine.id()),
                     children: vec![],
@@ -422,6 +531,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     query_operators.contains(&op) && operator_matches(&operator_ids, Some(op))
                 })
             },
+            TaskExt::try_to_ui_fsm,
             entities::ListQuery {
                 scope: scope.as_ref(),
                 window,
@@ -497,11 +607,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 let resource_type = self.model.resource_type(&req.resource_type_name)?;
                 let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
 
-                // Build the resource tree for this group
-                let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
-                // Collect all leaf resource IDs of the requested type in the tree
+                let resource_tree = ResourceTreeNode::try_new(&self.model)?;
+                let tree = resource_tree
+                    .find(req.resource_group_id)
+                    .ok_or(AnalyzerError::InvalidId(req.resource_group_id))?;
+                // Collect all resource IDs of the requested type in the tree.
                 let resource_ids: HashSet<Uuid> = tree
-                    .iter_leaf_ids()
+                    .iter_resource_ids()
                     .filter(|&id| {
                         self.model
                             .resource(id)
@@ -571,7 +683,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let view = self.model.query_view(request.app_params.query_id)?;
         // Prepare resource tree, we'll re-use this as it is potentially
         // expensive to build for every entry.
-        let resource_tree = view.resource_tree()?;
+        let resource_tree = ResourceTreeNode::try_new(&view)?;
 
         // Prepare builders, resource id filters, and operator filters, one for
         // each bulk entry. After populating this, we'll build a reverse index,
@@ -726,7 +838,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
         let view = self.model.query_view(request.app_params.query_id)?;
-        let resource_tree = view.resource_tree()?;
+        let resource_tree = ResourceTreeNode::try_new(&view)?;
 
         let n_configs = request.configs.len();
 
@@ -929,18 +1041,21 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // The dimension of the distribution is where a task's data resides:
         // the instance name of the memory-typed resource its state uses, or
         // `DIMENSION_NONE` for states that hold no memory.
-        let memory_names: HashMap<Uuid, &str> = self
+        let memory_names: HashMap<Uuid, String> = self
             .model
-            .arbitrary_resources
             .resources()
-            .filter(|r| r.type_name() == MEMORY_TYPE_NAME)
-            .map(|r| (r.id(), r.instance_name()))
+            .filter(|resource| MEMORY_TYPE_NAMES.contains(&resource.type_name()))
+            .filter_map(|resource| {
+                self.model
+                    .resource_instance_name(resource.id())
+                    .map(|name| (resource.id(), name.to_owned()))
+            })
             .collect();
 
         // The no-memory sentinel must never collide with a real resource
         // name; grow it until it is unique among memory instance names.
         let mut none_key = DIMENSION_NONE.to_owned();
-        while memory_names.values().any(|name| *name == none_key) {
+        while memory_names.values().any(|name| name == &none_key) {
             none_key.push('_');
         }
         // Dimension keys actually observed for this query's tasks; the decl
@@ -965,11 +1080,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 };
                 let state = from.name();
                 let memory_usage = from
-                    .usages
+                    .usages()
                     .iter()
                     .find(|u| memory_names.contains_key(&u.resource_id));
                 let dimension =
-                    memory_usage.map_or(none_key.as_str(), |u| memory_names[&u.resource_id]);
+                    memory_usage.map_or(none_key.as_str(), |u| &memory_names[&u.resource_id]);
                 if want_tasks {
                     present_dimensions.insert(dimension);
                     for &series in series_ids {
@@ -990,7 +1105,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         .map(|u| {
                             u.capacities
                                 .iter()
-                                .filter(|c| c.name == "capacity_bytes")
+                                .filter(|capacity| capacity.name == "bytes")
                                 .filter_map(|c| c.value)
                                 .sum()
                         })
@@ -1134,7 +1249,7 @@ impl SimulatorUiAnalyzer {
                     .find(rg.resource_group_id)
                     .ok_or(AnalyzerError::InvalidId(rg.resource_group_id))?;
                 let resource_ids: HashSet<Uuid> = subtree
-                    .iter_leaf_ids()
+                    .iter_resource_ids()
                     .filter(|&id| {
                         self.model
                             .resource(id)

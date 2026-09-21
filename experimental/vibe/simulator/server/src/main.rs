@@ -5,15 +5,20 @@ use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
 use nvtx_server::{import_context_events, routes as nvtx_routes};
+use quent_analyzer::context::index_contexts;
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
+use quent_query_engine_analyzer::ui::QuentViewer;
 use quent_query_engine_server::{
-    analyzer_cache::index_query_engines, analyzer_service_router_with_routes, collector_service,
-    initialize_tracing,
+    analyzer_service_router_with_routes, collector_service, initialize_tracing,
 };
-use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::{Simulator, SimulatorContext};
+use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
+use quent_simulator_instrumentation as instrumentation;
+use quent_simulator_store::Simulator;
+use quent_store::event::{ModelEventStore, filesystem::Store};
 use tokio::net::TcpListener;
+
+type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
 mod defaults {
     /// Default collector socket address to listen on.
@@ -116,15 +121,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Index the exported contexts by engine instance: each engine's telemetry is
     // the engine's own context plus its workers' contexts.
-    let lister = move || index_query_engines(&lister_output_dir);
+    let lister = move || {
+        index_contexts(&lister_output_dir, |context_dir| {
+            Ok(Viewer::context_inventory(context_dir)?)
+        })
+    };
 
     // Reconstruct one context's umbrella event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
     let importer = move |context_id| {
-        let dir = importer_output_dir.join(format!("{context_id}"));
-        let events =
-            Simulator::import_events(&dir)?.collect::<quent_io::ImporterResult<Vec<_>>>()?;
+        let events = Store::<Simulator>::new(&importer_output_dir)
+            .events(context_id)
+            .map_err(quent_io::ImporterError::other)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(quent_io::ImporterError::other)?;
         Ok::<Box<dyn Iterator<Item = _>>, quent_query_engine_server::error::ServerError>(Box::new(
             events.into_iter(),
         ))

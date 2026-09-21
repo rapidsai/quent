@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-
 use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
 use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
@@ -11,6 +9,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 pub mod entities;
+pub mod fsm;
 pub mod paginate;
 pub mod quantity;
 pub mod timeline;
@@ -60,24 +59,18 @@ pub struct Resource {
     pub parent_group_id: Uuid,
 }
 
-impl<T: a::resource::Resource> From<&T> for Resource {
-    fn from(value: &T) -> Self {
+impl Resource {
+    /// Creates a UI resource with presentation data derived by the application analyzer.
+    pub fn from_analyzed(
+        value: &(impl a::resource::Resource + ?Sized),
+        instance_name: impl Into<String>,
+        parent_group_id: Uuid,
+    ) -> Self {
         Self {
             id: value.id(),
-            instance_name: value.instance_name().to_owned(),
+            instance_name: instance_name.into(),
             type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id().to_owned(),
-        }
-    }
-}
-
-impl From<&dyn a::resource::Resource> for Resource {
-    fn from(value: &dyn a::resource::Resource) -> Self {
-        Self {
-            id: value.id(),
-            instance_name: value.instance_name().to_owned(),
-            type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id().to_owned(),
+            parent_group_id,
         }
     }
 }
@@ -89,18 +82,8 @@ pub struct ResourceGroupTypeDecl {
     pub name: String,
     /// The type names of the entities that used Resource of this group.
     pub used_by_entity_types: Vec<String>,
-    /// The type names of the leaf Resources in this group or its children.
+    /// The resource type names in this group or its descendants.
     pub contains_resource_types: Vec<String>,
-}
-
-impl From<&a::resource::ResourceGroupTypeDecl> for ResourceGroupTypeDecl {
-    fn from(value: &a::resource::ResourceGroupTypeDecl) -> Self {
-        Self {
-            name: value.name.clone(),
-            used_by_entity_types: value.used_by_entity_types.iter().cloned().collect(),
-            contains_resource_types: value.contains_resource_types.iter().cloned().collect(),
-        }
-    }
 }
 
 /// A Group of [`Resource`]s.
@@ -119,13 +102,18 @@ pub struct ResourceGroup {
     pub parent_group_id: Option<Uuid>,
 }
 
-impl From<&dyn a::resource::ResourceGroup> for ResourceGroup {
-    fn from(value: &dyn a::resource::ResourceGroup) -> Self {
+impl ResourceGroup {
+    /// Creates a UI resource group from an analyzed Reference Tree entity.
+    pub fn from_analyzed(
+        value: &(impl Entity + ?Sized),
+        instance_name: impl Into<String>,
+        parent_group_id: Option<Uuid>,
+    ) -> Self {
         Self {
             id: value.id(),
-            instance_name: value.instance_name().to_owned(),
+            instance_name: instance_name.into(),
             type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id(),
+            parent_group_id,
         }
     }
 }
@@ -152,30 +140,35 @@ where
     M: Model,
     <M as Model>::EntityIdType: TS + Serialize,
 {
-    match node {
-        ResourceTreeNode::ResourceGroup(id, children) => {
-            let entity_ref = model.try_entity_ref(id)?;
-            let children: Vec<ResourceTree<<M as Model>::EntityIdType>> = children
-                .into_iter()
-                .map(|child| convert_resource_tree(child, model))
-                .collect::<AnalyzerResult<Vec<Option<ResourceTree<<M as Model>::EntityIdType>>>>>()?
-                .into_iter()
-                .flatten()
-                .collect();
-            if !children.is_empty() {
-                Ok(Some(ResourceTree::ResourceGroup(ResourceGroupNode {
-                    id: entity_ref,
-                    children,
-                })))
-            } else {
-                Ok(None)
-            }
+    let ResourceTreeNode {
+        entity_id,
+        is_resource,
+        children,
+    } = node;
+    let entity_ref = model.try_entity_ref(entity_id)?;
+    if is_resource {
+        if !children.is_empty() {
+            return Err(a::AnalyzerError::Validation(
+                "legacy UI resource tree cannot represent a resource with children".to_owned(),
+            ));
         }
-        ResourceTreeNode::Resource(id) => {
-            // Try query engine entities first, otherwise it's a simulator resource
-            let entity_ref = model.try_entity_ref(id)?;
-            Ok(Some(ResourceTree::Resource(entity_ref)))
-        }
+        return Ok(Some(ResourceTree::Resource(entity_ref)));
+    }
+
+    let children: Vec<ResourceTree<<M as Model>::EntityIdType>> = children
+        .into_iter()
+        .map(|child| convert_resource_tree(child, model))
+        .collect::<AnalyzerResult<Vec<Option<ResourceTree<<M as Model>::EntityIdType>>>>>()?
+        .into_iter()
+        .flatten()
+        .collect();
+    if children.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(ResourceTree::ResourceGroup(ResourceGroupNode {
+            id: entity_ref,
+            children,
+        })))
     }
 }
 
@@ -195,7 +188,7 @@ impl From<&a::fsm::runtime::RtFsmStateUsage> for FsmUsage {
             capacities: value
                 .capacities
                 .iter()
-                .map(|c| (c.name.to_string(), c.value))
+                .map(|capacity| (capacity.name.to_string(), capacity.value))
                 .collect(),
         }
     }
@@ -227,7 +220,7 @@ impl FsmTransition {
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
             attributes: value.attributes.clone(),
-            derived_attributes: vec![],
+            derived_attributes: Vec::new(),
         })
     }
 }
@@ -257,60 +250,8 @@ impl FiniteStateMachine {
             transitions: value
                 .transitions()
                 .iter()
-                .map(|t| FsmTransition::try_from_rt(t, epoch))
+                .map(|transition| FsmTransition::try_from_rt(transition, epoch))
                 .collect::<Result<Vec<_>, _>>()?,
-        })
-    }
-
-    /// Build from any application FSM via the [`FsmUsages`](a::fsm::FsmUsages)
-    /// interface.
-    ///
-    /// Usages are grouped onto their state's transition by state name, which is
-    /// unique within an FSM.
-    pub fn try_from_fsm<'a, F>(
-        fsm: &'a F,
-        epoch: TimeUnixNanoSec,
-    ) -> Result<Self, quent_time::TimeError>
-    where
-        F: a::fsm::FsmUsages<'a>,
-    {
-        use a::fsm::Transition;
-        use a::resource::Usage;
-        use quent_time::Timestamp;
-
-        let mut usages_by_state: HashMap<String, Vec<FsmUsage>> = HashMap::new();
-        for (state_name, usage) in fsm.usages_with_state_names() {
-            usages_by_state
-                .entry(state_name.to_owned())
-                .or_default()
-                .push(FsmUsage {
-                    resource: usage.resource_id(),
-                    capacities: usage
-                        .capacities()
-                        .map(|c| (c.name.to_string(), c.value))
-                        .collect(),
-                });
-        }
-
-        // 0..=len covers every transition including the exit transition.
-        let transitions = (0..=fsm.len())
-            .filter_map(|i| fsm.transition(i))
-            .map(|t| {
-                Ok(FsmTransition {
-                    name: t.name().to_owned(),
-                    usages: usages_by_state.remove(t.name()).unwrap_or_default(),
-                    timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
-                    attributes: t.attributes(),
-                    derived_attributes: vec![],
-                })
-            })
-            .collect::<Result<Vec<_>, quent_time::TimeError>>()?;
-
-        Ok(Self {
-            id: fsm.id(),
-            type_name: fsm.type_name().to_owned(),
-            instance_name: fsm.instance_name().to_owned(),
-            transitions,
         })
     }
 }

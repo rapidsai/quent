@@ -15,17 +15,26 @@ the topology.
 
 ## Instrumentation API
 
-Entering a state emits its generated event. The generated Rust API represents
-the current FSM state in the handle's type. Each transition consumes that
-handle and returns a handle for the target state. Only transitions allowed from
-the current state are available as methods, so an invalid transition does not
-compile. This pattern is called typestate.
+Entering a state emits its generated event. The generated API represents the
+current FSM state in the handle's type. Each transition consumes that handle
+and returns a handle for the target state. Only transitions allowed from the
+current state are available to the compiler or type checker. This pattern is
+called typestate.
 
-The comments after each call show how the handle's type changes after every
-transition.
+The Rust and C++ examples show the state-specific handle types directly. The
+generated Python type stubs expose the same transition constraints to type
+checkers and editors.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/finite-state-machine/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/finite-state-machine/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/finite-state-machine/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/finite-state-machine/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -57,3 +66,13 @@ transition.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/finite-state-machine/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/finite-state-machine/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/finite-state-machine/main.py

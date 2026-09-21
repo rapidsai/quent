@@ -8,7 +8,7 @@ import { useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 
-function SelectedNode() {
+function SelectedNode({ onExpandedChange }: { onExpandedChange?: (expanded: boolean) => void }) {
   const updateOperatorSelection = useOperatorSelectionActions();
 
   useEffect(() => {
@@ -40,7 +40,7 @@ function SelectedNode() {
     });
   }, [updateOperatorSelection]);
 
-  return <DAGNodeInfoPanel />;
+  return <DAGNodeInfoPanel onExpandedChange={onExpandedChange} />;
 }
 
 function SameNameOnDifferentWorkers() {
@@ -155,6 +155,22 @@ function TwoSelectedNodes() {
 }
 
 describe('DAGNodeInfoPanel', () => {
+  it('reports expansion changes to its layout container', async () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <Provider>
+        <SelectedNode onExpandedChange={onExpandedChange} />
+      </Provider>
+    );
+
+    await screen.findByTestId('operator-details-title');
+    expect(onExpandedChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle operator details' }));
+
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false);
+  });
+
   it('shows statistics for every related child operator', async () => {
     render(
       <Provider>

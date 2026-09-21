@@ -35,22 +35,24 @@ pub struct ListQuery<'a> {
 ///
 /// `keep` is an extra application predicate for filters outside the generic
 /// contract, e.g. by operator.
-pub fn list_entities<M, P>(
+pub fn list_entities<M, P, C>(
     model: &M,
     keep: P,
+    to_ui: C,
     query: ListQuery<'_>,
 ) -> AnalyzerResult<EntityListResponse>
 where
     M: FsmCollection,
     M::Fsm: for<'a> FsmUsages<'a>,
     P: Fn(&M::Fsm) -> bool,
+    C: Fn(&M::Fsm, TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine>,
 {
     let ranked = model
         .fsms()
         .filter(|f| keep(f))
         .filter_map(|f| entry_matches(f, query.scope, query.window, query.filter).map(|m| (f, m)))
         .collect();
-    finalize(ranked, query.sort, query.page, query.epoch)
+    finalize(ranked, query.sort, query.page, query.epoch, to_ui)
 }
 
 /// The ranking metric if the FSM passes the filters, else `None`.
@@ -76,14 +78,16 @@ where
 }
 
 /// Sort the scored candidates, slice the page, and convert to UI FSMs.
-fn finalize<'a, F>(
+fn finalize<'a, F, C>(
     mut ranked: Vec<(&'a F, TimeNanoSec)>,
     sort: Sort,
     page: Option<PageParams>,
     epoch: TimeUnixNanoSec,
+    to_ui: C,
 ) -> AnalyzerResult<EntityListResponse>
 where
     F: FsmUsages<'a>,
+    C: Fn(&F, TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine>,
 {
     ranked.sort_by(|(fa, ma), (fb, mb)| {
         let by_key = match sort.key {
@@ -112,12 +116,12 @@ where
 
     let items = page_iter
         .map(|(f, usage_duration)| {
-            FiniteStateMachine::try_from_fsm(f, epoch).map(|entity| EntityListItem {
+            to_ui(f, epoch).map(|entity| EntityListItem {
                 usage_duration_s: to_secs(usage_duration),
                 entity,
             })
         })
-        .collect::<Result<Vec<_>, quent_time::TimeError>>()?;
+        .collect::<AnalyzerResult<Vec<_>>>()?;
 
     Ok(EntityListResponse { items, total })
 }

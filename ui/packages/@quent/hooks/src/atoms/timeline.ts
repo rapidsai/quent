@@ -47,7 +47,7 @@ export const LONG_ENTITY_DENSITIES = [1, 2, 3, 4, 5] as const;
 export type LongEntityDensity = (typeof LONG_ENTITY_DENSITIES)[number];
 
 /** Controls the minimum usage threshold for entities shown in timeline rows. */
-export const longEntityDensityAtom = atom<LongEntityDensity>(3);
+export const longEntityDensityAtom = atom<LongEntityDensity>(4);
 
 /**
  * Pointer-level hover state used to drive an app-rendered timeline tooltip.

@@ -46,7 +46,15 @@ programming language. Options, lists, records, and references remain typed.
 types are determined at runtime.
 
 ```rust
-{{#include ../../../../../crates/yaml/examples/event-data/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/event-data/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../experimental/vibe/codegen/cpp/example/tutorial/event-data/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../experimental/vibe/codegen/python/example/tutorial/event-data/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -78,3 +86,13 @@ types are determined at runtime.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/event-data/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/event-data/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/event-data/main.py

@@ -13,12 +13,19 @@ when any kind of entity is a valid target.
 
 ## Instrumentation API
 
-Every entity handle can produce a type-erased reference. Here,
-`as_any_entity_ref` produces a reference to the `Worker` instance for the
-task's `started` event.
+Every entity handle exposes its identity as a type-erased reference. Here, the
+task's `started` event receives a reference to the `Worker` instance.
 
 ```rust
-{{#include ../../../../../crates/yaml/examples/untyped-entity-references/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/untyped-entity-references/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../experimental/vibe/codegen/cpp/example/tutorial/untyped-entity-references/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../experimental/vibe/codegen/python/example/tutorial/untyped-entity-references/main.py:4:}}
 ```
 
 When an attribute must target a particular entity type, the
@@ -54,3 +61,13 @@ that restriction to the generated API.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/untyped-entity-references/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/untyped-entity-references/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/untyped-entity-references/main.py

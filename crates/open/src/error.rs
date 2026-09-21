@@ -46,7 +46,7 @@ pub enum OpenError {
     #[error("could not resolve a cache directory for viewer builds")]
     NoCacheDir,
 
-    /// Spawning a child process (cargo, the viewer binary) failed.
+    /// Spawning a required child process failed.
     #[error("failed to spawn {what}: {source}")]
     Spawn {
         what: String,
@@ -57,6 +57,10 @@ pub enum OpenError {
     /// Building the generated viewer crate failed (non-zero `cargo build`).
     #[error("building the viewer failed (cargo exited with {status})")]
     Build { status: String },
+
+    /// Inspecting a pinned source revision failed.
+    #[error("failed to {operation} ({status})")]
+    Revision { operation: String, status: String },
 
     /// The viewer exited or never reported its URL before serving.
     #[error("the viewer exited unexpectedly (status {status})")]

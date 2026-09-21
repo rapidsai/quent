@@ -2,8 +2,8 @@
 
 The Finite-State Machine semantic module defines an entity lifecycle as states
 and allowed transitions. The parser validates the topology and derives event
-cardinality from it. The generated Rust instrumentation API uses that topology
-to enforce transition order.
+cardinality from it. The generated instrumentation APIs use that topology to
+enforce transition order.
 
 For example, a task might move from `queued` to `running`, then to either
 `completed` or `failed`. Making that lifecycle part of the schema gives analysis

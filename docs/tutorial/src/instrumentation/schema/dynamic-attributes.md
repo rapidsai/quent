@@ -21,16 +21,22 @@ the individual keys that the containers will hold.
 ## Instrumentation API
 
 ```rust
-{{#include ../../../../../crates/yaml/examples/dynamic-attributes/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/dynamic-attributes/src/main.rs:9:}}
 ```
 
-The generic `add` method converts each supported Rust value into its dynamic
-representation. The application adds a string and an integer to the `started`
-event, then a boolean and an integer to the `ended` event. Each value retains
-its runtime type; integer suffixes such as `_u64` select the intended type. Use
-`DynamicNull` for a key with no value:
-`attributes.add("key", instrumentation::DynamicNull)`. Null values do not retain
-an intended value type.
+```cpp
+{{#include ../../../../../experimental/vibe/codegen/cpp/example/tutorial/dynamic-attributes/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../experimental/vibe/codegen/python/example/tutorial/dynamic-attributes/main.py:4:}}
+```
+
+The application adds a string and an integer to the `started` event, then a
+boolean and an integer to the `ended` event. Each value retains its runtime
+type. The target-language API provides wrappers or conversions for selecting an
+exact numeric type. Dynamic attributes also support null values, which do not
+retain an intended value type.
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
@@ -61,3 +67,13 @@ an intended value type.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/dynamic-attributes/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/dynamic-attributes/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/dynamic-attributes/main.py

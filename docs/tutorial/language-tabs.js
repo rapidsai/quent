@@ -47,26 +47,35 @@
     saveLanguage(language);
   };
 
-  const findRustExample = (heading) => {
+  const findLanguageExamples = (heading) => {
+    const languageExamples = {};
     let element = heading.nextElementSibling;
     while (element && element.tagName !== "H2") {
-      if (element.tagName === "PRE" && element.querySelector("code.language-rust")) {
-        return element;
+      if (element.tagName === "PRE") {
+        languages.forEach(({ id }) => {
+          const code = element.querySelector(`code.language-${id}`);
+          if (!languageExamples[id] && code) {
+            languageExamples[id] = element;
+          }
+        });
       }
       element = element.nextElementSibling;
     }
-    return null;
+    return languageExamples;
   };
 
   document.querySelectorAll("h2#instrumentation-api").forEach((heading, index) => {
-    const rustExample = findRustExample(heading);
-    if (!rustExample) {
+    const languageExamples = findLanguageExamples(heading);
+    if (!languageExamples.rust) {
       return;
     }
 
     const container = document.createElement("div");
     container.className = "language-example";
-    rustExample.parentNode.insertBefore(container, rustExample);
+    languageExamples.rust.parentNode.insertBefore(
+      container,
+      languageExamples.rust,
+    );
 
     const tabList = document.createElement("div");
     tabList.className = "language-tabs";
@@ -116,8 +125,8 @@
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-labelledby", tabId);
 
-      if (id === "rust") {
-        panel.append(rustExample);
+      if (languageExamples[id]) {
+        panel.append(languageExamples[id]);
       } else {
         const placeholder = document.createElement("p");
         placeholder.className = "language-placeholder";

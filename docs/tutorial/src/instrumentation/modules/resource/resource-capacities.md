@@ -17,7 +17,15 @@ field.
 The task's reference to `Memory` carries the quantity it claims.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/resource-capacity/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/resource-capacity/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/resource-capacity/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/resource-capacity/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -49,3 +57,13 @@ The task's reference to `Memory` carries the quantity it claims.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/resource-capacity/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/resource-capacity/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/resource-capacity/main.py

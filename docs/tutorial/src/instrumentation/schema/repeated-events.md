@@ -15,7 +15,15 @@ The same `Task` handle emits `progress` more than once. Repeating `started` or
 `ended` on that handle would return an error.
 
 ```rust
-{{#include ../../../../../crates/yaml/examples/repeated-events/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/repeated-events/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../experimental/vibe/codegen/cpp/example/tutorial/repeated-events/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../experimental/vibe/codegen/python/example/tutorial/repeated-events/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -47,3 +55,13 @@ The same `Task` handle emits `progress` more than once. Repeating `started` or
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/repeated-events/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/repeated-events/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/repeated-events/main.py

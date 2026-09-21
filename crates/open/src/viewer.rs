@@ -17,6 +17,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::task::JoinSet;
 
+use crate::compatibility::WrapperCompatibility;
 use crate::error::{OpenError, Result};
 use crate::spec::ViewerSpec;
 use crate::wrapper::{self, ADDR_ENV, ROOT_ENV, WRAPPER_PACKAGE};
@@ -90,40 +91,16 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
     println!("building: {label}");
 
     let crate_dir = build_dir(&spec)?;
-    let mut io_package = wrapper::IO_PACKAGE;
-    let mut nvtx_routes = wrapper::NvtxRoutes::Enabled;
-    let bin = loop {
-        wrapper::generate(&spec, &crate_dir, io_package, nvtx_routes)?;
-        match cargo_build(&crate_dir).await {
-            Ok(bin) => break bin,
-            Err(error)
-                if nvtx_routes == wrapper::NvtxRoutes::Enabled
-                    && missing_package(&error, wrapper::NVTX_SERVER_PACKAGE) =>
-            {
-                println!(
-                    "note: pinned quent has no `{}` package; retrying without NVTX routes",
-                    wrapper::NVTX_SERVER_PACKAGE
-                );
-                nvtx_routes = wrapper::NvtxRoutes::Disabled;
-            }
-            // The pinned quent revision predates both the `quent-exporter` →
-            // `quent-io` rename and the NVTX routes. Switch both capabilities
-            // before retrying, regardless of which missing package Cargo reports first.
-            Err(error)
-                if io_package == wrapper::IO_PACKAGE
-                    && missing_package(&error, wrapper::IO_PACKAGE) =>
-            {
-                println!(
-                    "note: pinned quent has no `{}` package; retrying with `{}` and without NVTX routes",
-                    wrapper::IO_PACKAGE,
-                    wrapper::LEGACY_IO_PACKAGE
-                );
-                io_package = wrapper::LEGACY_IO_PACKAGE;
-                nvtx_routes = wrapper::NvtxRoutes::Disabled;
-            }
-            Err(error) => return Err(error),
-        }
-    };
+    let compatibility =
+        WrapperCompatibility::resolve(&crate_dir.join("revision.git"), &spec).await?;
+    wrapper::generate(
+        &spec,
+        &crate_dir,
+        compatibility.io_package,
+        compatibility.has_nvtx_routes,
+        compatibility.context_indexing,
+    )?;
+    let bin = cargo_build(&crate_dir).await?;
     Ok(BuiltViewer {
         bin,
         crate_dir,
@@ -145,19 +122,6 @@ async fn serve_one(viewer: BuiltViewer, open_browser: bool, host: IpAddr) -> Res
     // Best-effort cleanup of this run's staged root; keep the cached build.
     let _ = std::fs::remove_dir_all(&output_root);
     result
-}
-
-/// Whether a build failed because the pinned quent revision has no `package` —
-/// i.e. it sits on the other side of the `quent-exporter` → `quent-io` rename.
-/// Matched on cargo's resolution error, which [`cargo_build`] folds into
-/// [`OpenError::Build`].
-fn missing_package(error: &OpenError, package: &str) -> bool {
-    match error {
-        OpenError::Build { status } => {
-            status.contains(&format!("no matching package named `{package}` found"))
-        }
-        _ => false,
-    }
 }
 
 /// Cache dir for this viewer's generated crate/build, keyed by
@@ -192,6 +156,9 @@ async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
         ])
         .current_dir(crate_dir)
         .env("CARGO_TARGET_DIR", crate_dir.join("target"))
+        // Use the same Git client and SSH credentials that resolved revision
+        // compatibility before this build.
+        .env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
         // Don't leak the db-mode API token into the untrusted build (cargo, build
         // scripts, pnpm). Keep in sync with the `db` subcommand's `--token` env.
         .env_remove("QUENT_OPEN_TOKEN")
@@ -400,31 +367,6 @@ async fn wait_until_ready(addr: SocketAddr) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn missing_package_matches_only_cargo_resolution_errors() {
-        // Cargo's resolution error for a quent revision predating `quent-io`.
-        let missing = OpenError::Build {
-            status: "exit status: 101\n\
-                     error: no matching package named `quent-io` found\n\
-                     location searched: Git repository https://example.com/quent\n\
-                     required by package `quent-open-viewer v0.0.0`"
-                .into(),
-        };
-        assert!(missing_package(&missing, wrapper::IO_PACKAGE));
-        // Only the package the wrapper actually asked for triggers the fallback.
-        assert!(!missing_package(&missing, wrapper::LEGACY_IO_PACKAGE));
-
-        // Other build failures and non-build errors must not trigger the fallback.
-        let compile_error = OpenError::Build {
-            status: "error[E0308]: mismatched types".into(),
-        };
-        assert!(!missing_package(&compile_error, wrapper::IO_PACKAGE));
-        assert!(!missing_package(
-            &OpenError::NoCacheDir,
-            wrapper::IO_PACKAGE
-        ));
-    }
-
     /// Compatibility gate, run explicitly in CI (the `open-compat` job in
     /// `rust.yml`): the quent-open being built must still open artifacts
     /// exported by an older quent. A sidecar pins the quent revision it was
@@ -434,14 +376,14 @@ mod tests {
     /// The sidecar is synthesized as an older quent wrote it for the in-repo
     /// simulator model, pinning `QUENT_OPEN_COMPAT_COMMIT` (in CI: the PR's
     /// base commit, or the parent of the pushed commit). Everything after that
-    /// is the production path: sidecar → discovery → spec → wrapper generation
-    /// → `cargo build`, including the legacy `quent-exporter` retry.
+    /// is the production path: sidecar → discovery → spec → revision capability
+    /// detection → wrapper generation → `cargo build`.
     ///
     /// A failure means this tree breaks `quent open` for existing artifacts
     /// (e.g. it renames a crate or feature the wrapper depends on, or changes
     /// an API the generated `main.rs` calls). Ship a compatibility path in the
-    /// same PR — like the [`LEGACY_IO_PACKAGE`](wrapper::LEGACY_IO_PACKAGE)
-    /// retry in [`build_one`] — rather than merging the breakage.
+    /// same PR by defining a revision boundary and compatibility path rather than
+    /// using build failures to detect the pinned API.
     #[tokio::test]
     #[ignore = "fetches pinned git sources and compiles a full viewer; run explicitly (see rust.yml)"]
     async fn opens_artifacts_built_by_a_previous_quent_commit() {

@@ -174,9 +174,8 @@ mod tests {
             runtime::{RtFsm, RtFsmStateUsage, RtFsmTransition},
         },
         resource::{
-            CapacityDecl, ResourceCapacities, Using,
-            collection::{InMemoryResourcesBuilder, ResourceCollection},
-            runtime::{RtResource, RtResourceTransition},
+            CapacityDecl, Using,
+            collection::{ResourceCollection, test_support::TestResources},
             tree::ResourceTreeNode,
         },
     };
@@ -187,31 +186,35 @@ mod tests {
 
     const ROOT_RESOURCE_ID: Uuid = Uuid::from_u64_pair(0, 1);
 
-    // Populate the builder with a root group and a memory resource with
-    // Init(0) -> Operating(0, 1000 bytes) -> Finalizing(1000) -> Exit(1000).
-    fn build_root_and_memory(builder: &mut InMemoryResourcesBuilder, resource_id: Uuid) {
-        builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
-        builder.insert_memory_resource("test");
-        let bld = builder.try_builder(resource_id).unwrap();
-        bld.push(RtResourceTransition::Init(0));
-        bld.set_type_name("test".to_owned());
-        bld.set_instance_name(Some("test_inst".to_owned()));
-        bld.set_parent_group_id(ROOT_RESOURCE_ID);
-        bld.push(RtResourceTransition::Operating(
-            0,
-            ResourceCapacities(vec![CapacityValue::new("capacity_bytes", 1000)]),
+    fn build_root_and_memory(resources: &mut TestResources, resource_id: Uuid) {
+        resources.insert_type(ResourceTypeDecl::new(
+            "test",
+            [CapacityDecl::new_occupancy("capacity_bytes")],
         ));
-        bld.push(RtResourceTransition::Finalizing(1000));
-        bld.push(RtResourceTransition::Exit(1000));
+        resources.insert_resource(resource_id, "test");
+    }
+
+    fn resource_scope_tree(resource_ids: impl IntoIterator<Item = Uuid>) -> ResourceTreeNode {
+        ResourceTreeNode {
+            entity_id: ROOT_RESOURCE_ID,
+            is_resource: false,
+            children: resource_ids
+                .into_iter()
+                .map(|entity_id| ResourceTreeNode {
+                    entity_id,
+                    is_resource: true,
+                    children: Vec::new(),
+                })
+                .collect(),
+        }
     }
 
     #[test]
     fn test_resource_timeline_aggregated() {
         let resource_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
+        let mut resources = TestResources::default();
         build_root_and_memory(&mut resources, resource_id);
-        let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm>::new();
 
@@ -228,6 +231,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "using".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("capacity_bytes", 250)],
@@ -237,6 +241,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 1,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -286,15 +291,14 @@ mod tests {
     }
 
     #[test]
-    fn test_resource_group_timeline_aggregated() {
+    fn test_resource_scope_timeline_aggregated() {
         // Declare and use two memory resources of the same type
         let resource_a_id = Uuid::now_v7();
         let resource_b_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
+        let mut resources = TestResources::default();
         build_root_and_memory(&mut resources, resource_a_id);
         build_root_and_memory(&mut resources, resource_b_id);
-        let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm>::new();
 
@@ -311,6 +315,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "using".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
@@ -324,6 +329,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 1,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -334,9 +340,8 @@ mod tests {
             );
         }
 
-        let group_resources = ResourceTreeNode::try_new(&resources, ROOT_RESOURCE_ID)
-            .unwrap()
-            .iter_leaf_refs(&resources)
+        let scoped_resource_ids = resource_scope_tree([resource_a_id, resource_b_id])
+            .iter_resource_refs(&resources)
             .filter_map(|maybe_resource| {
                 maybe_resource
                     .ok()
@@ -357,7 +362,7 @@ mod tests {
         builder
             .try_extend(
                 fsms.usages()
-                    .filter(|u| group_resources.contains(&u.resource_id())),
+                    .filter(|u| scoped_resource_ids.contains(&u.resource_id())),
             )
             .unwrap();
         let timeline = builder.build();
@@ -378,9 +383,7 @@ mod tests {
     fn test_resource_timeline_aggregated_multi_capacity() {
         let resource_id = Uuid::now_v7();
 
-        let mut builder = InMemoryResourcesBuilder::default();
-        builder.push_group_raw(ROOT_RESOURCE_ID, "test", "test", None);
-        let mut resources = builder.try_build().unwrap();
+        let mut resources = TestResources::default();
 
         let mut fsms = InMemoryFsms::<RtFsm>::new();
 
@@ -392,13 +395,7 @@ mod tests {
                 CapacityDecl::new_occupancy("b"),
             ][..],
         ));
-        resources.insert_resource(RtResource {
-            id: resource_id,
-            instance_name: "test".into(),
-            type_name: "test".into(),
-            parent_group_id: ROOT_RESOURCE_ID,
-            transitions: vec![],
-        });
+        resources.insert_resource(resource_id, "test");
 
         // Spawn 2 FSMs using both capacities
         for i in 0..2 {
@@ -411,6 +408,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "using".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 &[CapacityValue::new("a", 250), CapacityValue::new("b", 1)]
@@ -421,6 +419,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 1,
                             usages: vec![],
                             timestamp: 1000 - i * 250,
                             attributes: vec![],
@@ -480,9 +479,8 @@ mod tests {
     fn test_resource_timeline_aggregated_multi_state() {
         let resource_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
+        let mut resources = TestResources::default();
         build_root_and_memory(&mut resources, resource_id);
-        let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm>::new();
 
@@ -499,6 +497,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "state_a".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("capacity_bytes", 250)],
@@ -508,6 +507,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "state_b".into(),
+                            sequence: 1,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("capacity_bytes", 42)],
@@ -517,6 +517,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 2,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -596,14 +597,13 @@ mod tests {
     }
 
     #[test]
-    fn test_resource_timeline_group_aggregated_multi_state() {
+    fn test_resource_scope_timeline_aggregated_multi_state() {
         let resource_a_id = Uuid::now_v7();
         let resource_b_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
+        let mut resources = TestResources::default();
         build_root_and_memory(&mut resources, resource_a_id);
         build_root_and_memory(&mut resources, resource_b_id);
-        let resources = resources.try_build().unwrap();
 
         let mut fsms = InMemoryFsms::<RtFsm>::new();
 
@@ -620,6 +620,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "state_a".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
@@ -633,6 +634,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "state_b".into(),
+                            sequence: 1,
                             usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
@@ -646,6 +648,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 2,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -662,9 +665,8 @@ mod tests {
         )
         .unwrap();
 
-        let group_resources = ResourceTreeNode::try_new(&resources, ROOT_RESOURCE_ID)
-            .unwrap()
-            .iter_leaf_refs(&resources)
+        let scoped_resource_ids = resource_scope_tree([resource_a_id, resource_b_id])
+            .iter_resource_refs(&resources)
             .filter_map(|maybe_resource| {
                 maybe_resource
                     .ok()
@@ -680,7 +682,7 @@ mod tests {
         .unwrap();
         for fsm in fsms.fsms() {
             for (state_name, usage) in fsm.usages_with_state_names() {
-                if group_resources.contains(&usage.resource_id()) {
+                if scoped_resource_ids.contains(&usage.resource_id()) {
                     builder.try_push(state_name, &usage).unwrap();
                 }
             }
@@ -729,9 +731,8 @@ mod tests {
     fn test_long_entities_outside_window_excluded() {
         let resource_id = Uuid::now_v7();
 
-        let mut resources = InMemoryResourcesBuilder::default();
+        let mut resources = TestResources::default();
         build_root_and_memory(&mut resources, resource_id);
-        let resources = resources.try_build().unwrap();
 
         // Config window: [1000, 2000], threshold: 100 ns (all spans below exceed it)
         let config = BinnedSpan::try_new(
@@ -753,6 +754,7 @@ mod tests {
                 [
                     RtFsmTransition {
                         name: "using".into(),
+                        sequence: 0,
                         usages: vec![RtFsmStateUsage::new(
                             resource_id,
                             [CapacityValue::new("capacity_bytes", 1)],
@@ -762,6 +764,7 @@ mod tests {
                     },
                     RtFsmTransition {
                         name: "exit".into(),
+                        sequence: 1,
                         usages: vec![],
                         timestamp: end,
                         attributes: vec![],

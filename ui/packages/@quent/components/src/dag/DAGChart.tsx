@@ -268,6 +268,8 @@ interface DAGProps {
   selectedNodeIds?: string[];
   /** Called when node selection changes. */
   onSelectionChange?: (nodeIds: string[]) => void;
+  /** Called when the empty chart background is clicked. */
+  onBackgroundClick?: () => void;
   /** Complete operator hierarchy used to split grouped selections. */
   operators?: readonly Operator[];
 }
@@ -296,6 +298,7 @@ const FlowLayout = ({
   operators,
   selectedNodeIds: controlledSelectedNodeIds,
   onSelectionChange,
+  onBackgroundClick,
 }: {
   data: DAGData;
   containerRef: RefObject<HTMLDivElement | null>;
@@ -303,6 +306,7 @@ const FlowLayout = ({
   operators?: readonly Operator[];
   selectedNodeIds?: string[];
   onSelectionChange?: (nodeIds: string[]) => void;
+  onBackgroundClick?: () => void;
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -488,7 +492,8 @@ const FlowLayout = ({
   const handlePaneClick = useCallback(() => {
     updateOperatorSelection({ type: 'clear' });
     onSelectionChange?.([]);
-  }, [onSelectionChange, updateOperatorSelection]);
+    onBackgroundClick?.();
+  }, [onBackgroundClick, onSelectionChange, updateOperatorSelection]);
 
   // Re-fit view when the react-flow container is resized, but only if the user
   // hasn't interacted with the chart (to maintain any focus states applied)
@@ -580,6 +585,7 @@ export const DAGChart = ({
   operators,
   selectedNodeIds,
   onSelectionChange,
+  onBackgroundClick,
 }: DAGProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   return (
@@ -592,6 +598,7 @@ export const DAGChart = ({
           operators={operators}
           selectedNodeIds={selectedNodeIds}
           onSelectionChange={onSelectionChange}
+          onBackgroundClick={onBackgroundClick}
         />
       </ReactFlowProvider>
     </div>

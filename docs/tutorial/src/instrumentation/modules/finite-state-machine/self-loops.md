@@ -18,7 +18,15 @@ the indirect cycle through `paused` and back to `running` before entering
 `completed` once.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/fsm-self-loop/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/fsm-self-loop/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/fsm-self-loop/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/fsm-self-loop/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -50,3 +58,13 @@ the indirect cycle through `paused` and back to `running` before entering
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/fsm-self-loop/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/fsm-self-loop/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/fsm-self-loop/main.py

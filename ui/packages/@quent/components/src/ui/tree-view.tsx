@@ -9,7 +9,9 @@ import { cn } from '@quent/utils';
 
 const treeVariants = cva('group px-2 rounded-sm transition-all duration-150 hover:bg-secondary/70');
 
-const treeNodeVariants = cva('group px-2 rounded-sm transition-all duration-150');
+const treeNodeVariants = cva(
+  'group px-2 rounded-sm transition-all duration-150 hover:bg-secondary/70'
+);
 
 const selectedTreeVariants = cva('bg-secondary/70 text-foreground font-medium');
 
@@ -51,6 +53,8 @@ type TreeProps<T extends TreeDataItem = TreeDataItem> = React.HTMLAttributes<HTM
   onDocumentDrag?: (sourceItem: T, targetItem: T) => void;
   renderItem?: (params: TreeRenderItemParams<T>) => React.ReactNode;
   onItemHover?: (item: T | null) => void;
+  collapsible?: boolean;
+  compact?: boolean;
 };
 
 /** Recursive tree view with drag-and-drop, selection, and custom rendering support. */
@@ -66,6 +70,8 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
   onDocumentDrag,
   renderItem,
   onItemHover,
+  collapsible = true,
+  compact = false,
   ...props
 }: TreeProps<T>) {
   const [uncontrolledSelectedItemId, setUncontrolledSelectedItemId] = React.useState<
@@ -144,6 +150,8 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
         draggedItem={draggedItem}
         renderItem={renderItem}
         onItemHover={onItemHover}
+        collapsible={collapsible}
+        compact={compact}
         level={0}
         {...props}
       />
@@ -178,6 +186,8 @@ function TreeItem<T extends TreeDataItem = TreeDataItem>({
   draggedItem,
   renderItem,
   onItemHover,
+  collapsible,
+  compact,
   level,
   ...props
 }: TreeItemProps<T>) {
@@ -206,6 +216,8 @@ function TreeItem<T extends TreeDataItem = TreeDataItem>({
                 draggedItem={draggedItem}
                 renderItem={renderItem}
                 onItemHover={onItemHover}
+                collapsible={collapsible}
+                compact={compact}
               />
             ) : (
               <TreeLeaf
@@ -219,6 +231,7 @@ function TreeItem<T extends TreeDataItem = TreeDataItem>({
                 draggedItem={draggedItem}
                 renderItem={renderItem}
                 onItemHover={onItemHover}
+                compact={compact}
               />
             )}
           </li>
@@ -242,6 +255,8 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
   draggedItem,
   renderItem,
   onItemHover,
+  collapsible = true,
+  compact,
   level = 0,
 }: {
   item: T;
@@ -255,13 +270,15 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
   draggedItem: T | null;
   renderItem?: (params: TreeRenderItemParams<T>) => React.ReactNode;
   onItemHover?: (item: T | null) => void;
+  collapsible?: boolean;
+  compact?: boolean;
   level?: number;
 }) {
   const [value, setValue] = React.useState(expandedItemIds.includes(item.id) ? [item.id] : []);
   const [isDragOver, setIsDragOver] = React.useState(false);
   const hasChildren = !!item.children?.length;
   const isSelected = selectedItemId === item.id;
-  const isOpen = value.includes(item.id);
+  const isOpen = !collapsible || value.includes(item.id);
 
   const onDragStart = (e: React.DragEvent) => {
     if (!item.draggable) {
@@ -289,15 +306,66 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
     handleDrop?.(item);
   };
 
-  return (
-    <AccordionPrimitive.Root type="multiple" value={value} onValueChange={s => setValue(s)}>
-      <AccordionPrimitive.Item value={item.id}>
-        <AccordionTrigger
+  const nodeContent = (
+    <div
+      className="flex items-center flex-1"
+      onClick={e => {
+        e.stopPropagation();
+        handleSelectChange(item);
+        item.onClick?.();
+      }}
+    >
+      {renderItem ? (
+        renderItem({
+          item,
+          level,
+          isLeaf: false,
+          isSelected,
+          isOpen,
+          hasChildren,
+        })
+      ) : (
+        <>
+          <TreeIcon item={item} isSelected={isSelected} isOpen={isOpen} default={defaultNodeIcon} />
+          <span className="text-sm truncate">{item.name}</span>
+          <TreeActions isSelected={isSelected}>{item.actions}</TreeActions>
+        </>
+      )}
+    </div>
+  );
+  const childTree = (
+    <TreeItem
+      data={item.children ? (item.children as T[]) : item}
+      selectedItemId={selectedItemId}
+      handleSelectChange={handleSelectChange}
+      expandedItemIds={expandedItemIds}
+      defaultLeafIcon={defaultLeafIcon}
+      defaultNodeIcon={defaultNodeIcon}
+      handleDragStart={handleDragStart}
+      handleDrop={handleDrop}
+      draggedItem={draggedItem}
+      renderItem={renderItem}
+      onItemHover={onItemHover}
+      collapsible={collapsible}
+      compact={compact}
+      level={level + 1}
+    />
+  );
+  const nodeClassName = cn(
+    treeNodeVariants(),
+    compact && 'py-1',
+    isSelected && selectedTreeVariants(),
+    isDragOver && dragOverVariants(),
+    item.className
+  );
+
+  if (!collapsible) {
+    return (
+      <>
+        <div
           className={cn(
-            treeNodeVariants(),
-            isSelected && selectedTreeVariants(),
-            isDragOver && dragOverVariants(),
-            item.className
+            'flex flex-1 w-full items-center py-0.5 transition-all cursor-pointer',
+            nodeClassName
           )}
           draggable={!!item.draggable}
           onDragStart={onDragStart}
@@ -307,52 +375,30 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
           onMouseEnter={onItemHover ? () => onItemHover(item) : undefined}
           onMouseLeave={onItemHover ? () => onItemHover(null) : undefined}
         >
-          <div
-            className="flex items-center flex-1"
-            onClick={e => {
-              e.stopPropagation();
-              handleSelectChange(item);
-              item.onClick?.();
-            }}
-          >
-            {renderItem ? (
-              renderItem({
-                item,
-                level,
-                isLeaf: false,
-                isSelected,
-                isOpen,
-                hasChildren,
-              })
-            ) : (
-              <>
-                <TreeIcon
-                  item={item}
-                  isSelected={isSelected}
-                  isOpen={isOpen}
-                  default={defaultNodeIcon}
-                />
-                <span className="text-sm truncate">{item.name}</span>
-                <TreeActions isSelected={isSelected}>{item.actions}</TreeActions>
-              </>
-            )}
-          </div>
+          {nodeContent}
+        </div>
+        <div className="ml-4 pl-1 border-l border-border/70">{childTree}</div>
+      </>
+    );
+  }
+
+  return (
+    <AccordionPrimitive.Root type="multiple" value={value} onValueChange={setValue}>
+      <AccordionPrimitive.Item value={item.id}>
+        <AccordionTrigger
+          className={nodeClassName}
+          draggable={!!item.draggable}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          onMouseEnter={onItemHover ? () => onItemHover(item) : undefined}
+          onMouseLeave={onItemHover ? () => onItemHover(null) : undefined}
+        >
+          {nodeContent}
         </AccordionTrigger>
         <AccordionContent className="ml-4 pl-1 border-l border-border/70">
-          <TreeItem
-            data={item.children ? (item.children as T[]) : item}
-            selectedItemId={selectedItemId}
-            handleSelectChange={handleSelectChange}
-            expandedItemIds={expandedItemIds}
-            defaultLeafIcon={defaultLeafIcon}
-            defaultNodeIcon={defaultNodeIcon}
-            handleDragStart={handleDragStart}
-            handleDrop={handleDrop}
-            draggedItem={draggedItem}
-            renderItem={renderItem}
-            onItemHover={onItemHover}
-            level={level + 1}
-          />
+          {childTree}
         </AccordionContent>
       </AccordionPrimitive.Item>
     </AccordionPrimitive.Root>
@@ -371,6 +417,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
   draggedItem,
   renderItem,
   onItemHover,
+  compact,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
   item: T;
@@ -383,6 +430,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
   draggedItem: T | null;
   renderItem?: (params: TreeRenderItemParams<T>) => React.ReactNode;
   onItemHover?: (item: T | null) => void;
+  compact?: boolean;
 }) {
   const [isDragOver, setIsDragOver] = React.useState(false);
   const isSelected = selectedItemId === item.id;
@@ -421,6 +469,7 @@ function TreeLeaf<T extends TreeDataItem = TreeDataItem>({
       className={cn(
         'ml-5 flex text-left items-center py-1 cursor-pointer before:right-1',
         treeVariants(),
+        compact && 'py-1',
         className,
         isSelected && selectedTreeVariants(),
         isDragOver && dragOverVariants(),

@@ -12,11 +12,19 @@ declared type. Here, the task's `started` event records which `Worker` runs it.
 
 ## Instrumentation API
 
-An entity handle produces a typed reference with `as_entity_ref`. The generated
-`started` method only accepts a reference targeting `Worker`.
+The generated `started` method only accepts the target-language representation
+of a reference to a `Worker`.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/entity-references/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/entity-references/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/entity-references/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/entity-references/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -48,3 +56,13 @@ An entity handle produces a typed reference with `as_entity_ref`. The generated
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/entity-references/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/entity-references/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/entity-references/main.py

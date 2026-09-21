@@ -19,17 +19,12 @@
 use std::collections::HashSet;
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
-    fsm::Fsm,
-    resource::{ResourceGroup, Using},
+    AnalyzerError, AnalyzerResult, Entity, Model, Span, fsm::Fsm, resource::Using,
 };
-use quent_query_engine_model::plan::{Edge, PlanParent};
 use quent_query_engine_ui as qe_ui;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
-// Storage implementations
-pub mod plain;
 pub mod plan_tree;
 
 // UI related mods
@@ -37,36 +32,37 @@ pub mod entities;
 pub mod ui;
 
 /// Read-only analyzer API for an engine entity.
-pub trait EngineEntity: Entity + Span + ResourceGroup {
+pub trait EngineEntity: Entity + Span {
     fn to_ui(&self) -> AnalyzerResult<qe_ui::Engine>;
 }
 
 /// Read-only analyzer API for a worker entity.
-pub trait WorkerEntity: Entity + Span + ResourceGroup {
+pub trait WorkerEntity: Entity + Span {
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Worker;
 }
 
 /// Read-only analyzer API for a query-group entity.
-pub trait QueryGroupEntity: Entity + ResourceGroup {
+pub trait QueryGroupEntity: Entity {
     fn to_ui(&self) -> qe_ui::QueryGroup;
 }
 
 /// Read-only analyzer API for a query entity.
-pub trait QueryEntity: Fsm + Using + ResourceGroup {
+pub trait QueryEntity: Fsm + Using {
     fn query_group_id(&self) -> Option<Uuid>;
     fn to_ui(&self) -> AnalyzerResult<qe_ui::Query>;
 }
 
 /// Read-only analyzer API for a plan entity.
-pub trait PlanEntity: Entity + ResourceGroup {
-    fn parent(&self) -> Option<&PlanParent>;
+pub trait PlanEntity: Entity {
+    fn parent_query_id(&self) -> Option<Uuid>;
+    fn parent_plan_id(&self) -> Option<Uuid>;
     fn worker_id(&self) -> Option<Uuid>;
-    fn edges(&self) -> &[Edge];
+    fn edges(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_;
     fn to_ui(&self) -> qe_ui::Plan;
 }
 
 /// Read-only analyzer API for an operator entity.
-pub trait OperatorEntity: Entity + ResourceGroup {
+pub trait OperatorEntity: Entity {
     fn plan_id(&self) -> Option<Uuid>;
     fn parent_operator_ids(&self) -> impl ExactSizeIterator<Item = Uuid> + '_;
     fn active_span(&self) -> Option<SpanUnixNanoSec>;
@@ -81,7 +77,7 @@ pub trait OperatorEntityMut: OperatorEntity {
 }
 
 /// Read-only analyzer API for a port entity.
-pub trait PortEntity: Entity + ResourceGroup {
+pub trait PortEntity: Entity {
     fn operator_id(&self) -> Option<Uuid>;
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Port;
 }

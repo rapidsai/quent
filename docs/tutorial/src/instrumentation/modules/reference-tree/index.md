@@ -34,7 +34,15 @@ The parent entity's handle provides the reference. The additional hierarchy
 meaning belongs to the model and its constraints.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/scoped-references/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/scoped-references/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/scoped-references/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/scoped-references/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -66,3 +74,13 @@ meaning belongs to the model and its constraints.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/scoped-references/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/scoped-references/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/scoped-references/main.py

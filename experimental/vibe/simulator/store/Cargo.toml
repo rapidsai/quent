@@ -1,0 +1,31 @@
+[package]
+name = "quent-simulator-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["filesystem"]
+
+# Enables model-wide loading from every supported filesystem event format.
+#
+# Without it, event types remain available but filesystem loading and its codec
+# dependencies are omitted. The native demo generator uses this feature to
+# produce a Postcard event bundle; the browser/WASM demo fetches that bundle and
+# decodes its events directly in memory.
+filesystem = [
+    "quent-store/io-msgpack",
+    "quent-store/io-ndjson",
+    "quent-store/io-postcard",
+]
+
+[dependencies]
+quent-analyzer = { path = "../../../../crates/analyzer" }
+quent-events = { workspace = true, features = ["serde"] }
+quent-store = { path = "../../../../crates/store", default-features = false }
+serde = { workspace = true, features = ["derive"] }
+smallvec.workspace = true
+
+[build-dependencies]
+quent-store-build = { path = "../../../../crates/store-build" }
+quent-yaml = { path = "../../../../crates/yaml" }

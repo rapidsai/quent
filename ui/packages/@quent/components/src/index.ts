@@ -111,6 +111,8 @@ export { RangeSliderField } from './ui/range-slider-field';
 export type { RangeSliderFieldProps } from './ui/range-slider-field';
 export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
+export { TreeSelect } from './ui/tree-select';
+export type { TreeSelectProps } from './ui/tree-select';
 export { TreeTable } from './ui/tree-table';
 export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
 export { Badge, badgeVariants } from './ui/badge';
@@ -229,6 +231,7 @@ export { ResourceTimeline } from './timeline/ResourceTimeline';
 // ─── DAG components ───────────────────────────────────────────────────────────
 export { DAGChart } from './dag/DAGChart';
 export { DAGControls } from './dag/DAGControls';
+export { DAGSettingsPopover } from './dag/DAGSettingsPopover';
 export { DAGLegend } from './dag/DAGLegend';
 export { DAGNodeInfoPanel } from './dag/DAGNodeInfoPanel';
 export { DagPlayhead } from './dag/DagPlayhead';

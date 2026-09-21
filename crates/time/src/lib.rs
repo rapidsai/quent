@@ -146,19 +146,27 @@ impl<T> OrderedCollector<T>
 where
     T: OrderKey,
 {
-    pub fn push(&mut self, item: T) {
-        if let Some(last) = self.0.last()
-            && last.order_key() <= item.order_key()
-        {
-            self.0.push(item);
-        } else {
-            // `<=` (upper bound): late arrivals land after ties, matching the fast path.
-            // `<` (lower bound) would insert before ties, reversing arrival order.
-            let key = item.order_key();
-            let pos = self
-                .0
-                .partition_point(|existing| existing.order_key() <= key);
-            self.0.insert(pos, item);
+    /// Inserts an item and reports whether its key was already present.
+    pub fn push(&mut self, item: T) -> bool {
+        let key = item.order_key();
+        match self.0.last().map(|last| last.order_key().cmp(&key)) {
+            Some(std::cmp::Ordering::Less) | None => {
+                self.0.push(item);
+                false
+            }
+            Some(std::cmp::Ordering::Equal) => {
+                self.0.push(item);
+                true
+            }
+            Some(std::cmp::Ordering::Greater) => {
+                // Upper-bound insertion keeps equal keys in arrival order.
+                let pos = self
+                    .0
+                    .partition_point(|existing| existing.order_key() <= key);
+                let equal_key = pos > 0 && self.0[pos - 1].order_key() == key;
+                self.0.insert(pos, item);
+                equal_key
+            }
         }
     }
 
@@ -173,7 +181,7 @@ where
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for transition in iter {
-            self.push(transition)
+            self.push(transition);
         }
     }
 }
@@ -222,8 +230,15 @@ mod collector_tests {
 
     #[test]
     fn equal_keys_keep_arrival_order_on_the_fast_path() {
+        let mut collector = OrderedCollector::default();
+        assert!(!collector.push(Tagged(10, "first")));
+        assert!(collector.push(Tagged(10, "second")));
         assert_eq!(
-            collect([Tagged(10, "first"), Tagged(10, "second")]),
+            collector
+                .into_inner()
+                .into_iter()
+                .map(|Tagged(key, tag)| (key, tag))
+                .collect::<Vec<_>>(),
             [(10, "first"), (10, "second")]
         );
     }
@@ -232,12 +247,16 @@ mod collector_tests {
     #[test]
     fn equal_keys_keep_arrival_order_on_the_slow_path() {
         // Key 20 triggers the slow path for the subsequent second item at key 10.
+        let mut collector = OrderedCollector::default();
+        assert!(!collector.push(Tagged(10, "first")));
+        assert!(!collector.push(Tagged(20, "later")));
+        assert!(collector.push(Tagged(10, "second")));
         assert_eq!(
-            collect([
-                Tagged(10, "first"),
-                Tagged(20, "later"),
-                Tagged(10, "second"),
-            ]),
+            collector
+                .into_inner()
+                .into_iter()
+                .map(|Tagged(key, tag)| (key, tag))
+                .collect::<Vec<_>>(),
             [(10, "first"), (10, "second"), (20, "later")]
         );
     }

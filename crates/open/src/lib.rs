@@ -6,8 +6,8 @@
 //! Given a context directory, read `model.qmi`, generate a viewer crate pinned
 //! to the recorded quent/analyzer commits, build and serve it, and open a browser.
 //!
-//! The first viewer build fetches git sources and compiles the embedded UI,
-//! invoking `pnpm`/`node`; these must be on `PATH`.
+//! The first viewer build fetches git sources and compiles the embedded UI.
+//! `git`, `pnpm`, and `node` must be on `PATH`.
 //!
 //! # Library: custom loaders
 //!
@@ -50,9 +50,11 @@
 
 #[cfg(feature = "archive")]
 mod archive;
+mod compatibility;
 #[cfg(feature = "db")]
 mod db;
 mod error;
+mod revision;
 mod spec;
 mod trust;
 mod viewer;

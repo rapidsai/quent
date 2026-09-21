@@ -15,11 +15,18 @@ unit resource is claimed as a whole.
 
 ## Instrumentation API
 
-`as_entity_ref_with` attaches the generated usage record to the scoped thread
-reference.
+The generated API attaches the usage record to the scoped thread reference.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/unit-resource/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/unit-resource/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/unit-resource/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/unit-resource/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -51,3 +58,13 @@ reference.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/unit-resource/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/unit-resource/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/unit-resource/main.py

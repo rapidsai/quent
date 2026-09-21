@@ -10,6 +10,7 @@ import { COLOR_REGISTRY_KEYS, useHydrateColorRegistry, type ColorRegistry } from
 import { DeepLinkBoundary } from '@/features/deep-link';
 import {
   buildDeterministicColorMap,
+  unpackEntityRef,
   type EntityRef,
   type QueryBundle,
   type ResourceTree,
@@ -20,7 +21,7 @@ export const Route = createFileRoute('/profile/engine/$engineId')({
 });
 
 function entityRefId(ref: EntityRef): string {
-  return Object.values(ref)[0]!;
+  return unpackEntityRef(ref).id;
 }
 
 function firstResourceId(tree: ResourceTree<EntityRef>): string | null {

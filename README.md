@@ -30,27 +30,23 @@ Quent then turns the _schema_ into a dedicated _instrumentation library_. This
 instrumentation library not only has a type-safe API but also uses a statically
 typed export path for maximum performance.
 
-Quent also generates a work-in-progress (WIP), statically typed _analysis
-library_ that provides the means
-to query stored events for various purposes. This includes not only the means to
-look up events by attribute values but also the means to convert events into
-something semantically enriched, leveraging _mods_.
+The intended architecture also includes a statically typed _analysis library_
+generated from the schema. This library is a work in progress and is not
+currently available. It will support querying stored events by attribute values
+and enriching those events with semantics provided by what we call _semantic
+modules_.
 
 <p align="center">
 <img src="docs/figures/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
 </p>
 
-Mods (short for "semantic modules") are curated vertical slices of Quent’s
-stack. Each mod can contribute semantics around basic schema elements (e.g. on
-events or attributes), and potentially add support for those semantics in
-instrumentation or analysis code generation. These mods can also include curated
-visualizations for user interfaces, querying events through CLIs or MCP
-endpoints to support agent-in-the-loop optimization efforts, and more.
-
-By leveraging mods in an application-specific schema, you and your coding agents
-provide the last bit of glue to mix and match mod components to
-ultimately produce a dedicated performance analysis tool in which you can
-quickly explore the dynamic behavior of your program.
+[Semantic modules](#semantic-modules) are curated vertical slices of Quent’s
+stack. Each semantic module can contribute semantics around basic schema
+elements (e.g. on events or attributes), and potentially add support for those
+semantics in instrumentation or analysis code generation. Semantic modules can
+also include curated visualizations for user interfaces, querying events through
+CLIs or MCP endpoints to support agent-in-the-loop optimization efforts, and
+more.
 
 Quent is currently developed around the use case of accelerated data-processing
 engines. An elaborate example of how Quent is used to produce a domain-specific
@@ -130,6 +126,178 @@ At the same time, Quent is already used or being evaluated in pioneering engines
 such as the GPU-accelerated [SiriusDB](https://www.sirius-db.com/) and [cuDF
 Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
 
+## Semantic modules
+
+Semantic modules are already composable parts of Quent's architecture and the
+primary mechanism by which the framework intends to evolve features. New
+semantic modules can expand its capabilities without requiring corresponding
+changes to the core framework or breaking existing module compositions.
+
+Quent assumes coding agents will become a common way to assemble
+application-specific tooling. For now, this avoids the need for elaborate
+extension mechanisms that encode every possible composition. Developers can
+provide ordinary glue code, either directly or with an agent, to combine
+semantic modules into a dedicated performance analysis tool.
+
+Using an agent is optional. The same interfaces and artifacts are intended to
+remain understandable, reviewable, and usable by developers working without
+one. Semantic modules keep this flexible composition coherent. Each module
+defines specific telemetry concepts and rules. Its associated instrumentation,
+analysis, and visualization components use those same definitions. The intended
+architecture preserves these definitions through end-to-end static typing, from
+the schema to generated instrumentation and analysis code. Invalid uses can then
+be rejected early, giving both developers and agents consistent constraints
+throughout the stack.
+
+The repository currently includes semantic modules useful across a wide variety
+of applications.
+
+- [`quent-fsm`](crates/fsm/): describes the potential sequences of events by
+  modeling entities as finite-state machines.
+  - Through this semantic module, the instrumentation library can be generated
+    such that invalid transitions are already rejected at compile time, and/or
+    an analysis library can validate whether FSM transition events followed the
+    described topology.
+- [`quent-resource`](crates/resource/): defines resources such as memories,
+  channels, and processing elements, and how other entities can use them.
+  - Through this semantic module, an analysis library can provide functionality
+    that checks whether resources were saturated above some threshold for a
+    certain duration, or it can generate data for a resource utilization
+    timeline visualization.
+- [`quent-ref-target`](crates/ref-target/): constrains references to other
+  entities to be of a certain type.
+- [`quent-ref-tree`](crates/ref-tree/): allows forming hierarchies of
+  event-emitting entities to, e.g., provide the canonical path of performance
+  analysis exploration through all event data from a UI.
+
+Semantic modules can address application- or domain-specific concerns. For
+example, applications like query engines often capture their computational path
+via directed acyclic graphs. By capturing rules for how a schema should
+represent vertices and edges, and how data flow across edges can be captured,
+an analysis component can quickly find all associated events, and a UI component
+can visually render the graph and data flowing across edges over time as shown
+in the example above.
+
+Quent does not currently provide a mechanism for plugging third-party semantic
+modules yet. A plugin mechanism may allow externally authored semantic modules
+in the future.
+
+## Quick example
+
+### Schema definition
+
+At the surface, writing a Quent schema is similar to defining attributes of
+structured logs. While it can do so, it is a bit more than that. A Quent schema
+is said to capture the "application event model" because, it tells you what
+events exist and, especially by leveraging semantic modules, you model the
+(expected) behavior of entities in your application at the event/attribute
+level.
+
+Examples of entities include an object whose lifecycle you want to track, a span
+of code of a function that you want to time, an asynchronous task traveling
+through its executor, a memory pool dealing out allocations, basically anything
+that you could emit some useful event for.
+
+Quent's YAML-based source format is one way to capture your application event
+model:
+
+```yaml
+quent: alpha # Version of Quent's YAML-based DSL
+model: Hello # Name of the model
+
+entities:
+  # Model the entire program as an entity.
+  App:
+    events:
+      # We want to know when the program started ...
+      started:
+        attributes:
+          # ... and what its arguments were
+          args: { list: string }
+```
+
+### Generating an instrumentation library
+
+After you finish modeling your application's events, a
+[Cargo build script](crates/instrumentation-build/example/build.rs) can use
+`quent-yaml` to parse and validate a YAML source before
+`quent-instrumentation-build` generates a typed Rust instrumentation library in
+Cargo's `OUT_DIR`.
+
+While Quent's core (generated) libraries are written in Rust, please see the
+[cross-language integration section](#cross-language-integration) for how to
+generate Python or C++ wrappers.
+
+### Instrumenting an application
+
+After generating the instrumentation library, include the generated source and
+emit the schema's events:
+
+```rust
+// Include the generated code
+include!(concat!(env!("OUT_DIR"), "/hello.rs"));
+
+// Spawn a context (named after the model, see YAML) with a runtime for event
+// exporting:
+let context = HelloContext::try_new(None)?;
+
+// Every entity type gets its own export pipeline, called an "observer":
+let obs = context.app_observer();
+
+// Every entity instance has an associated handle dealt out by the observer:
+let app = obs.handle();
+
+// Emit an event.
+app.started(std::env::args().collect())?;
+```
+
+### Applying semantic modules
+
+Semantic modules can apply sets of rules to schemas that add guarantees and
+specialized semantics. This ultimately helps ensure that events can be properly
+interpreted during analysis and that the outcome can be properly visualized (or
+otherwise utilized).
+
+Quent's YAML-based source format provides syntactic sugar for applying semantic
+modules to a schema. It currently covers typed references, hierarchical scoped
+references, FSMs, and resources with capacities, bounds, and usages. For
+example, every FSM has exactly one initial state, every transition target must
+be declared, and a state with no `to` transitions is final:
+
+```yaml
+quent: alpha
+model: hello
+
+fsms:
+  App:
+    states:
+      started:
+        initial: true
+        to: [ended]
+      ended:
+        attributes:
+          success: bool
+```
+
+## Cross-language integration
+
+Quent generates one canonical Rust instrumentation library. When needed,
+additional code generators can provide bindings over that implementation. This
+keeps event behavior and exporter integration consistent across languages
+without maintaining separate language-specific SDKs. The experimental
+generators currently support C++ and Python:
+
+- [`quent-schema-codegen-cpp`](experimental/vibe/codegen/cpp/) generates C++
+  bindings with CXX.
+- [`quent-schema-codegen-python`](experimental/vibe/codegen/python/) generates
+  Python bindings and type stubs with PyO3.
+
+## More information
+
+- [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
+- [Development guide](DEVELOPMENT.md)
+- [Contributing guide](CONTRIBUTING.md)
+
 ## Roadmap
 
 - Schema capture
@@ -162,7 +330,7 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
   - [ ] DuckDB
   - [ ] DuckDB Quack
   - ...
-- Semantic Modules (Mods)
+- Semantic modules
   - [x] Typed and scoped references
   - [x] Finite-State-Machines
     - UI
@@ -185,281 +353,6 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
 - Tutorials
   - Instrumentation
     - [x] Rust
-    - [ ] C++
-    - [ ] Python
+    - [x] C++
+    - [x] Python
   - [ ] Analysis
-
-## Mods
-
-Built-in mods include things useful for a wide variety of applications:
-
-- [`quent-fsm`](crates/fsm/): describes the potential sequences of events by
-  modeling entities as finite-state machines.
-  - Through this mod, the instrumentation library can be generated
-    such that invalid transitions are already rejected at compile time, and/or
-    an analysis library can validate whether FSM transition events followed the
-    described topology.
-- [`quent-resource`](crates/resource/): defines resources such as memories,
-  channels, and processing elements, and how other entities can use them.
-  - Through this mod, an analysis library can provide functionality
-    that checks whether resources were saturated above some threshold for a
-    certain duration, or it can generate data for a resource utilization
-    timeline visualization.
-- [`quent-ref-target`](crates/ref-target/): constrains references to other
-  entities to be of a certain type.
-- [`quent-ref-tree`](crates/ref-tree/): allows forming hierarchies of
-  event-emitting entities to, e.g., provide the canonical path of performance
-  analysis exploration through all event data from a UI.
-
-Mods can be self-authored to provide components around application- or
-domain-specific concerns. For example, applications like query engines often
-capture their computational path via directed acyclic graphs. By capturing rules
-for how a schema should represent vertices and edges, and how data flow across
-edges can be captured, an analysis component can quickly find all associated
-events, and an UI component can visually render the graph and data flowing
-across edges over time as shown in the example above.
-
-## Quick example
-
-### Schema definition
-
-At the surface, writing a Quent schema is similar to defining attributes of
-structured logs. While it can do so, it is a bit more than that. A Quent schema
-is said to capture the "application event model" because, it tells you what
-events exist and, especially by leveraging mods, you model the behavior of
-entities in your application.
-
-Examples of entities include an object whose lifecycle you want to track, a span
-of code of a function that you want to time, an asynchronous task traveling
-through its executor, a memory pool dealing out allocations, basically anything
-that you could emit some useful event for.
-
-Quent's YAML-based source format is one way to capture your application event
-model:
-
-```yaml
-quent: alpha # Version of Quent's YAML-based DSL
-model: Hello # Name of the model
-
-entities:
-  # Model the entire program as an entity.
-  App:
-    events:
-      # We want to know when the program started ...
-      started:
-        attributes:
-          # ... and what its arguments were
-          args: { list: string }
-```
-
-### Generating an instrumentation library
-
-After you finish modeling your application's events, a Cargo build script can
-use `quent-yaml` to parse and validate a YAML source before
-`quent-instrumentation-build` generates a typed Rust instrumentation library in
-Cargo's `OUT_DIR`.
-
-While Quent's core (generated) libraries are written in Rust, please see the
-[cross-language integration section](#cross-language-integration) for how to
-generate Python or C++ wrappers.
-
-### Instrumenting an application
-
-After generating the instrumentation library, include the generated source and
-emit the schema's events:
-
-```rust
-// Include the generated code
-include!(concat!(env!("OUT_DIR"), "/hello.rs"));
-
-// Spawn a context (named after the model, see YAML) with a runtime for event
-// exporting:
-let context = HelloContext::try_new(None)?;
-
-// Every entity type gets its own export pipeline, called an "observer":
-let obs = context.app_observer();
-
-// Every entity instance has an associated handle dealt out by the observer:
-let app = obs.handle();
-
-// Emit an event.
-app.started(std::env::args().collect())?;
-```
-
-### Applying mods
-
-Mods can apply sets of rules to schemas that add guarantees and specialized
-semantics. This ultimately helps ensure that events can be properly interpreted
-during analysis and that the outcome can be properly visualized (or otherwise
-utilized).
-
-Quent's YAML-based source format provides built-in syntax for FSMs. Every FSM
-has exactly one initial state, every transition target must be declared, and a
-state with no `to` transitions is final:
-
-```yaml
-quent: alpha
-model: hello
-
-fsms:
-  App:
-    states:
-      started:
-        initial: true
-        to: [ended]
-      ended:
-        attributes:
-          success: bool
-```
-
-> TODO:
->
-> - Add a succinct example of an FSM mod's effect on instrumentation (typestate
->   pattern API), analysis (invalid transition detection), visualization, and
->   other components.
-> - Add a succinct example of self-authoring a simple attribute-convention mod.
-
-## Cross-language integration
-
-Quent generates one canonical Rust instrumentation library. When needed,
-additional code generators can provide C++ or Python bindings over that
-implementation. This keeps event behavior and exporter integration consistent
-across languages without maintaining separate language-specific SDKs.
-
-- [C++ integration example](examples/legacy/cpp-integration/)
-- [Python integration example](examples/legacy/python-integration/)
-
-## More advanced examples
-
-To give a more illustrative example of some built-in mod features, the example
-below shows an application event model for a contrived distributed application
-whose entities use the [`quent-fsm`](crates/fsm/),
-[`quent-resource`](crates/resource/), and
-[`quent-ref-tree`](crates/ref-tree/) mods:
-
-```yaml
-quent: alpha
-model: distributed_worker
-
-entities:
-  Cluster:
-    events:
-      started: {}
-
-  Worker:
-    events:
-      started:
-        attributes:
-          cluster: { scope-ref: Cluster }
-          host: string
-
-  ThreadPool:
-    events:
-      created:
-        attributes:
-          worker: { scope-ref: Worker }
-
-  Thread:
-    resource: true
-    events:
-      registered:
-        attributes:
-          pool: { scope-ref: ThreadPool }
-
-  Memory:
-    resource:
-      bytes: { kind: occupancy, known-bounds: true }
-    events:
-      registered:
-        attributes:
-          worker: { scope-ref: Worker }
-          capacity: { sets-resource-bounds: true }
-
-  Channel:
-    resource:
-      bytes: { kind: rate }
-    events:
-      connected:
-        attributes:
-          source: { scope-ref: Worker }
-          target: { ref: Worker }
-
-fsms:
-  Task:
-    states:
-      allocating:
-        initial: true
-        attributes:
-          worker: { scope-ref: Worker }
-          memory: { uses: Memory }
-        to: [computing]
-      computing:
-        attributes:
-          memory: { uses: Memory }
-          thread: { uses: Thread }
-        to: [sending, finished]
-      sending:
-        attributes:
-          channel: { uses: Channel }
-        to: [finished]
-      finished: {}
-```
-
-Quent can also represent traditional telemetry signals, e.g. (simplified):
-
-```yaml
-quent: alpha
-model: telemetry
-
-entities:
-  Log:
-    events:
-      info:
-        multi: true
-        attributes:
-          message: string
-      warn:
-        multi: true
-        attributes:
-          message: string
-      error:
-        multi: true
-        attributes:
-          message: string
-
-  Metric:
-    events:
-      sample:
-        multi: true
-        attributes:
-          value: f64
-
-fsms:
-  OtelSpan: # like OTel tracing spans
-    states:
-      open:
-        initial: true
-        to: [closed]
-        attributes:
-          name: string
-      closed: {}
-
-  TracingSpan: # like the Rust "tracing" crate spans
-    states:
-      entered:
-        initial: true
-        to: [exited, closed]
-        attributes:
-          name: string
-      exited:
-        to: [entered, closed]
-      closed: {}
-```
-
-## More information
-
-- [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
-- [Development guide](DEVELOPMENT.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Legacy documentation](docs/legacy/) — outdated and may not match current
-  APIs.

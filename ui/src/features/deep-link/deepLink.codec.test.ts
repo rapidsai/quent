@@ -200,13 +200,13 @@ describe('deep-link state validation', () => {
       }).resources?.expandedRowIds
     ).toEqual([RESOURCE_A_ID, RESOURCE_B_ID, NVTX_SECTION_ID]);
     expect(
-      DeepLinkStateV3Schema.safeParse({
+      DeepLinkStateV3Schema.validate({
         route: state.route,
         timeline: { zoomRange: { start: 20, end: 10 } },
-      }).success
+      })
     ).toBe(false);
     expect(
-      DeepLinkStateV3Schema.safeParse({
+      DeepLinkStateV3Schema.validate({
         route: state.route,
         timeline: state.timeline,
         resources: {
@@ -215,16 +215,16 @@ describe('deep-link state validation', () => {
             (_, index) => `resource-${index}`
           ),
         },
-      }).success
+      })
     ).toBe(false);
     expect(
-      DeepLinkStateV3Schema.safeParse({
+      DeepLinkStateV3Schema.validate({
         route: state.route,
         timeline: state.timeline,
         resources: {
           resourceFilter: { search: 'x'.repeat(MAX_RESOURCE_FILTER_QUERY_LENGTH + 1) },
         },
-      }).success
+      })
     ).toBe(false);
     expect(
       DeepLinkStateV3Schema.safeParse({
@@ -259,14 +259,12 @@ describe('deep-link state validation', () => {
         expandedResourceIds: [RESOURCE_B_ID, NVTX_SECTION_ID, RESOURCE_A_ID, RESOURCE_B_ID],
       }).expandedResourceIds
     ).toEqual([RESOURCE_A_ID, RESOURCE_B_ID, NVTX_SECTION_ID]);
-    expect(DeepLinkStateV1Schema.safeParse({ zoomRange: { start: 20, end: 10 } }).success).toBe(
-      false
-    );
+    expect(DeepLinkStateV1Schema.validate({ zoomRange: { start: 20, end: 10 } })).toBe(false);
     expect(
-      DeepLinkStateV1Schema.safeParse({
+      DeepLinkStateV1Schema.validate({
         zoomRange: { start: 1, end: 2 },
         expandedResourceIds: [''],
-      }).success
+      })
     ).toBe(false);
   });
 
@@ -274,21 +272,17 @@ describe('deep-link state validation', () => {
     const base = { route: state.route, timeline: state.timeline };
     for (const palette of Object.keys(CONTINUOUS_PALETTES)) {
       expect(
-        DeepLinkStateV3Schema.safeParse({
+        DeepLinkStateV3Schema.validate({
           ...base,
           dag: { nodeColorPalette: palette, edgeColorPalette: palette },
-        }).success
+        })
       ).toBe(true);
     }
     for (const nodeLabelField of Object.values(NODE_LABEL_FIELD)) {
-      expect(DeepLinkStateV3Schema.safeParse({ ...base, dag: { nodeLabelField } }).success).toBe(
-        true
-      );
+      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { nodeLabelField } })).toBe(true);
     }
     for (const layoutDirection of Object.values(DAG_LAYOUT_DIRECTION)) {
-      expect(DeepLinkStateV3Schema.safeParse({ ...base, dag: { layoutDirection } }).success).toBe(
-        true
-      );
+      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { layoutDirection } })).toBe(true);
     }
     expect(OperatorGroupSchema.options).toEqual([...OPERATOR_TABLE_INDEX_ORDER]);
   });

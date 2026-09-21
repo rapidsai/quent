@@ -6,9 +6,8 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-quent-analyzer = { path = "../../../crates/analyzer", features = ["ts"] }
+quent-analyzer = { path = "../../../crates/analyzer" }
 quent-dynamic-attributes = { path = "../../../crates/dynamic-attributes", features = ["ts"] }
-quent-query-engine-model = { path = "../model" }
 quent-time = { path = "../../../crates/time", features = ["ts"] }
 quent-ui = { path = "../../../crates/ui" }
 serde.workspace = true

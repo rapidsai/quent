@@ -55,10 +55,14 @@ pub struct Options {
     /// Additional derives applied to every generated record struct.
     pub record_derives: &'static [&'static str],
 
-    /// Generate a model-wide umbrella event and model-wide filesystem loading support.
-    ///
-    /// The consuming crate must enable at least one `quent-store` `io-*` feature.
+    /// Generate a model-wide umbrella event.
     pub umbrella_event: bool,
+
+    /// Generate model-wide filesystem loading support.
+    ///
+    /// [`Self::umbrella_event`] must also be enabled. The consuming crate must enable at least one
+    /// `quent-store` `io-*` feature.
+    pub filesystem: bool,
 
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
@@ -73,7 +77,8 @@ impl Default for Options {
             debug: true,
             event_derives: Default::default(),
             record_derives: Default::default(),
-            umbrella_event: false,
+            umbrella_event: true,
+            filesystem: true,
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
         }
@@ -83,6 +88,8 @@ impl Default for Options {
 /// An error from generating stored-event retrieval source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
+    #[error("filesystem loading requires umbrella-event generation")]
+    FilesystemRequiresUmbrellaEvent,
     #[error(transparent)]
     EventModel(#[from] quent_instrumentation_build::GenerateError),
     #[error("generated stored-event retrieval code did not form a valid Rust file")]
@@ -103,7 +110,8 @@ pub struct GenerateInfo {
 ///
 /// # Errors
 ///
-/// Returns an error when the schema cannot be generated or the output cannot be written.
+/// Returns an error when the options are inconsistent, the schema cannot be generated, or the
+/// output cannot be written.
 pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
     let warnings = quent_instrumentation_build::validate_schema(schema)?;
     let file_name = opts
@@ -119,8 +127,13 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns an error when event generation fails or the combined output is not valid Rust.
+/// Returns an error when the options are inconsistent, event generation fails, or the combined
+/// output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    if opts.filesystem && !opts.umbrella_event {
+        return Err(GenerateError::FilesystemRequiresUmbrellaEvent);
+    }
+
     let event_opts = quent_instrumentation_build::Options {
         instrumentation: false,
         debug: opts.debug,
@@ -135,7 +148,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
 
     let model = quent_instrumentation_build::generated_model_path(schema);
-    let stored_model = if opts.umbrella_event {
+    let stored_model = if opts.filesystem {
         let streams = schema.entities().map(|entity| {
             let event = quent_instrumentation_build::generated_entity_event_path(entity);
             quote! {
@@ -197,17 +210,48 @@ mod tests {
             .unwrap();
 
         let default_source = generate_str(&schema, &Options::default()).unwrap();
-        let opts = Options {
-            umbrella_event: true,
-            ..Options::default()
-        };
-        let umbrella_source = generate_str(&schema, &opts).unwrap();
 
         assert!(default_source.contains("event::StoredEntity<Demo> for foo::Query"));
         assert!(default_source.contains("event::StoredEntity<Demo> for foo::nested::Task"));
-        assert!(!default_source.contains("filesystem::Model for Demo"));
-        assert!(umbrella_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
-        assert_eq!(umbrella_source.matches("import_event_files::<").count(), 2);
+        assert!(default_source.contains("pub enum DemoEvent"));
+        assert!(default_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
+        assert_eq!(default_source.matches("import_event_files::<").count(), 2);
+
+        let entity_events_source = generate_str(
+            &schema,
+            &Options {
+                umbrella_event: false,
+                filesystem: false,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert!(!entity_events_source.contains("pub enum DemoEvent"));
+        assert!(!entity_events_source.contains("filesystem::Model for Demo"));
+
+        let events_only_source = generate_str(
+            &schema,
+            &Options {
+                umbrella_event: true,
+                filesystem: false,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert!(events_only_source.contains("pub enum DemoEvent"));
+        assert!(!events_only_source.contains("filesystem::Model for Demo"));
+
+        assert!(matches!(
+            generate_str(
+                &schema,
+                &Options {
+                    umbrella_event: false,
+                    filesystem: true,
+                    ..Options::default()
+                }
+            ),
+            Err(GenerateError::FilesystemRequiresUmbrellaEvent)
+        ));
     }
 
     #[test]

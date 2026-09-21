@@ -68,8 +68,7 @@ pub struct ResourceTimelineRequest<TimelineParams> {
 pub struct ResourceGroupTimelineRequest<TimelineParams> {
     /// The ID of the resource group
     pub resource_group_id: Uuid,
-    /// The type name of the leaf resources for which to produce the timeline
-    /// for this group.
+    /// The type name of the resources for which to produce the timeline.
     pub resource_type_name: String,
     /// If set, fully include entities that have usages exceeding this amount of
     /// time in seconds.

@@ -5,6 +5,7 @@
 - [Instrumentation](instrumentation/index.md)
   - [Schema](instrumentation/schema/index.md)
     - [Minimal model](instrumentation/schema/minimal-model.md)
+    - [Where are the events?](instrumentation/schema/where-are-the-events.md)
     - [Event data](instrumentation/schema/event-data.md)
     - [Dynamic attributes](instrumentation/schema/dynamic-attributes.md)
     - [Repeated events](instrumentation/schema/repeated-events.md)

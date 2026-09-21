@@ -20,7 +20,15 @@ The memory entity publishes its current bound. The task separately records how
 much of that capacity it claims.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/bounded-resource/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/bounded-resource/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/bounded-resource/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/bounded-resource/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -52,3 +60,13 @@ much of that capacity it claims.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
+
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/bounded-resource/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/bounded-resource/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/bounded-resource/main.py
