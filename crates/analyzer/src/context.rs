@@ -83,14 +83,10 @@ where
 {
     let mut index = ContextIndex::default();
     for entry in std::fs::read_dir(root)? {
-        let entry = entry?;
-        match std::fs::metadata(entry.path()) {
-            Ok(metadata) if metadata.is_dir() => {}
-            Ok(_) => continue,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
+        let context_dir = entry?.path();
+        if !context_dir.is_dir() {
+            continue;
         }
-        let context_dir = entry.path();
         let Some(context_id) = context_dir
             .file_name()
             .and_then(|name| name.to_str())
@@ -168,10 +164,11 @@ mod tests {
         let context_id = Uuid::from_u128(2);
         let context_dir = source.path().join("context");
         std::fs::create_dir(&context_dir).unwrap();
-        std::os::unix::fs::symlink(&context_dir, temp.path().join(context_id.to_string())).unwrap();
+        let linked_context_dir = temp.path().join(context_id.to_string());
+        std::os::unix::fs::symlink(&context_dir, &linked_context_dir).unwrap();
 
         let index = index_contexts(temp.path(), |actual_context_dir| -> std::io::Result<_> {
-            assert_eq!(std::fs::canonicalize(actual_context_dir)?, context_dir);
+            assert_eq!(actual_context_dir, linked_context_dir);
             Ok(ContextInventory {
                 analysis_target_ids: BTreeSet::from([analysis_target_id]),
             })
