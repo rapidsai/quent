@@ -3,7 +3,7 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{ContextExporter, ContextInner, InstrumentedEntity, Observer, Uuid};
+use crate::{ContextExporter, ContextInner, ContextOptions, InstrumentedEntity, Observer, Uuid};
 
 /// Provides typed access to an entity observer in a generated model.
 ///
@@ -55,7 +55,20 @@ impl<M: quent_events::Model + InstrumentedModel> Context<M> {
         M: crate::build_info::ModelSource + ObserverBuilder<P>,
         P: ContextExporter,
     {
-        Self::try_with_id(Uuid::now_v7(), provider)
+        Self::try_new_with_options(provider, ContextOptions::default())
+    }
+
+    /// Creates a context with runtime `options` and builds every entity's
+    /// exporter pipeline.
+    pub fn try_new_with_options<P>(
+        provider: P,
+        options: ContextOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource + ObserverBuilder<P>,
+        P: ContextExporter,
+    {
+        Self::try_with_id_and_options(Uuid::now_v7(), provider, options)
     }
 
     /// Creates a context with the supplied ID.
@@ -64,10 +77,23 @@ impl<M: quent_events::Model + InstrumentedModel> Context<M> {
         M: crate::build_info::ModelSource + ObserverBuilder<P>,
         P: ContextExporter,
     {
+        Self::try_with_id_and_options(id, provider, ContextOptions::default())
+    }
+
+    /// Creates a context with the supplied ID and runtime `options`.
+    pub fn try_with_id_and_options<P>(
+        id: Uuid,
+        provider: P,
+        options: ContextOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource + ObserverBuilder<P>,
+        P: ContextExporter,
+    {
         let inner = if provider.is_noop() {
             ContextInner::noop(id)
         } else {
-            ContextInner::try_new(id)?
+            ContextInner::try_new_with_options(id, options)?
         };
         provider.prepare_context(id, M::model_info());
         let observers = M::build_observers(&inner, &provider)?;

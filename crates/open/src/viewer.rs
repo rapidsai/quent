@@ -97,7 +97,7 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
         &spec,
         &crate_dir,
         compatibility.io_package,
-        compatibility.has_nvtx_routes,
+        compatibility.viewer,
         compatibility.context_indexing,
     )?;
     let bin = cargo_build(&crate_dir).await?;
@@ -393,11 +393,30 @@ mod tests {
         let remote = std::env::var("QUENT_OPEN_COMPAT_REMOTE")
             .unwrap_or_else(|_| "https://github.com/rapidsai/quent".to_string());
 
+        // Keep the NVTX-specific historical wrapper covered even when CI's
+        // previous revision has already moved to model-owned composition.
+        const LEGACY_NVTX_COMMIT: &str = "c52caf41cd4c521de2d02999ed1fd5b8d1847926";
+        let mut commits = vec![commit, LEGACY_NVTX_COMMIT.to_owned()];
+        commits.dedup();
+        for commit in commits {
+            build_pinned_artifact(&remote, &commit).await;
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "fetches pinned git sources and compiles a full viewer; run explicitly"]
+    async fn opens_artifacts_at_the_model_viewer_boundary() {
+        let remote = std::env::var("QUENT_OPEN_COMPAT_REMOTE")
+            .unwrap_or_else(|_| "https://github.com/rapidsai/quent".to_string());
+        build_pinned_artifact(&remote, crate::compatibility::MODEL_VIEWER_BOUNDARY).await;
+    }
+
+    async fn build_pinned_artifact(remote: &str, commit: &str) {
         // The sidecar an older quent wrote for the in-repo simulator model:
         // quent and the model share the quent repository, pinned to `commit`.
         let pin = quent_build_info::BuildInfo {
-            commit: Some(commit),
-            remote: Some(remote),
+            commit: Some(commit.to_owned()),
+            remote: Some(remote.to_owned()),
             ..quent_build_info::BuildInfo::unknown()
         };
         let mut model = quent_build_info::ModelInfo::unknown();
@@ -419,6 +438,21 @@ mod tests {
             &quent_build_info::ArtifactInfo::read_sidecar(&contexts[0]).unwrap(),
         )
         .unwrap();
+
+        let compatibility = WrapperCompatibility::resolve(&tmp.path().join("revision.git"), &spec)
+            .await
+            .unwrap();
+        if commit == crate::compatibility::MODEL_VIEWER_BOUNDARY {
+            assert_eq!(
+                compatibility.viewer,
+                crate::compatibility::ViewerContract::Model
+            );
+        } else if commit == "c52caf41cd4c521de2d02999ed1fd5b8d1847926" {
+            assert_eq!(
+                compatibility.viewer,
+                crate::compatibility::ViewerContract::Legacy { nvtx: true }
+            );
+        }
 
         let viewer = build_one(ViewerGroup { spec, contexts })
             .await

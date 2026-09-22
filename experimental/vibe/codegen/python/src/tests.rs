@@ -9,6 +9,18 @@ use crate::{Exporters, GenerateError, Options, emit, emit_stubs};
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
+const NVTX_PROCESS: &str = r#"
+quent: alpha
+model: NvtxBridge
+entities:
+  Process:
+    nvtx: true
+    events:
+      started:
+        attributes:
+          process: { os: process }
+"#;
+
 #[test]
 fn generates_schema_driven_bridge_and_stubs() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
@@ -35,6 +47,7 @@ fn generates_schema_driven_bridge_and_stubs() {
             .content
             .contains("#[pyo3(signature = (options = None))]")
     );
+    assert!(!bridge.content.contains("pub enum PySourceCapture"));
     assert!(bridge.content.contains("cast::<PyMapping>()"));
     assert!(!bridge.content.contains("cast::<PyDict>()"));
     for constructor in [
@@ -133,6 +146,7 @@ fn generates_schema_driven_bridge_and_stubs() {
             .contains("options: ExporterOptions | None = None")
     );
     assert!(stubs[0].content.contains("def closed(self) -> bool"));
+    assert!(!stubs[0].content.contains("class SourceCapture:"));
     assert!(!stubs[0].content.contains("def none()"));
 
     let initial_thread = class_body(&stubs[0].content, "ThreadHandle");
@@ -142,6 +156,84 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(idle_thread.contains("def active(self) -> ThreadActiveHandle"));
     assert!(idle_thread.contains("def exit(self) -> ThreadExitHandle"));
     assert!(!idle_thread.contains("def idle(self"));
+}
+
+#[test]
+fn keeps_private_nvtx_stream_out_of_python_api() {
+    let schema = parse_from_str(NVTX_PROCESS, None).unwrap().schema;
+    let options = Options {
+        exporters: Exporters {
+            ndjson: true,
+            ..Exporters::default()
+        },
+        ..Options::default()
+    };
+    let bridge = emit(&schema, &options).unwrap().remove(0);
+
+    assert!(bridge.content.contains("pub struct PyProcessHandle"));
+    assert!(bridge.content.contains("pub fn started"));
+    assert!(bridge.content.contains("native_id"));
+    assert!(
+        bridge
+            .content
+            .contains("HandleError::OnceAlreadyEmitted { .. }")
+    );
+    assert!(
+        bridge
+            .content
+            .contains("HandleError::SourceActivation { .. }")
+    );
+    assert!(
+        bridge
+            .content
+            .contains("EventAlreadyEmittedError::new_err(message)")
+    );
+    assert!(
+        bridge
+            .content
+            .contains("SourceActivationError::new_err(message)")
+    );
+    assert!(bridge.content.contains(".map_err(__handle_error)"));
+    assert!(bridge.content.contains("\"SourceActivationError\""));
+    assert!(bridge.content.contains("pub enum PySourceCapture"));
+    assert!(bridge.content.contains("PySourceCapture::Enabled"));
+    assert!(bridge.content.contains("PySourceCapture::Disabled"));
+    assert!(bridge.content.contains("ContextOptions::default()"));
+    assert!(
+        bridge
+            .content
+            .contains(".with_source_capture(source_capture)")
+    );
+    assert!(bridge.content.contains("try_new_with_options"));
+    assert!(
+        bridge
+            .content
+            .contains("source_capture = PySourceCapture::Enabled")
+    );
+    assert!(
+        bridge
+            .content
+            .contains("module.add_class::<PySourceCapture>()?")
+    );
+    assert!(!bridge.content.contains("PyNvtxEventObserver"));
+    assert!(!bridge.content.contains("PyNvtxEventHandle"));
+    assert!(!bridge.content.contains("nvtx_event_observer"));
+
+    let stubs = emit_stubs(&schema, &options).unwrap();
+    let stubs = &stubs[0].content;
+    assert!(stubs.contains("class ProcessObserver:"));
+    assert!(stubs.contains("class ProcessHandle:"));
+    assert!(stubs.contains("class EventAlreadyEmittedError(QuentError):"));
+    assert!(stubs.contains("class SourceActivationError(QuentError):"));
+    assert!(stubs.contains("class SourceCapture:"));
+    assert!(stubs.contains("Enabled: SourceCapture"));
+    assert!(stubs.contains("Disabled: SourceCapture"));
+    assert!(stubs.contains("source_capture: SourceCapture = SourceCapture.Enabled"));
+    assert!(stubs.contains("def started("));
+    assert!(stubs.contains("native_id: int"));
+    assert!(!stubs.contains("class NvtxEventObserver:"));
+    assert!(!stubs.contains("class NvtxEventHandle:"));
+    assert!(!stubs.contains("def nvtx_event_observer("));
 }
 
 fn class_body<'a>(stubs: &'a str, name: &str) -> &'a str {

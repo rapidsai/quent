@@ -11,15 +11,14 @@
 //! (0.75s). `MEMORY_W0` is used by 8 tasks, `MEMORY_W1` by 4. Because the spans
 //! are equal, results are ordered by the UUID tiebreaker.
 
-use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
-use quent_query_engine_analyzer::ui::{QuentViewer, UiAnalyzer};
+use quent_query_engine_analyzer::ui::{ContextEvent, QuentViewer, UiAnalyzer};
 use quent_query_engine_ui::{OperatorFilter, QueryFilter};
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_fixed as fixed;
 use quent_simulator_instrumentation as instrumentation;
-use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_simulator_store::Simulator;
+use quent_store::event::filesystem::Store;
 use quent_ui::entities::request::{
     EntityListEntry, EntityListFilter, EntityListRequest, EntityScope, EntitySortKey, Sort,
     SortDir, TimeWindow,
@@ -67,27 +66,42 @@ const ALL_TASKS_RANKED: [Uuid; 12] = [
 /// Emits the fixed scenario and builds an analyzer from its stored events.
 fn fixed_analyzer() -> SimulatorUiAnalyzer {
     let output = tempfile::tempdir().unwrap();
-    let ctx = SimulatorContext::try_new(ExporterOptions::FileSystem(
-        FileSystemExporterOptions::new(FileSystemFormat::Ndjson, output.path().to_path_buf()),
-    ))
+    let ctx = SimulatorContext::try_new_with_options(
+        ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            output.path().to_path_buf(),
+        )),
+        instrumentation::ContextOptions::default()
+            .with_source_capture(instrumentation::SourceCapture::Disabled),
+    )
     .unwrap();
     let context_id = ctx.id();
     fixed::emit(&ctx);
     drop(ctx);
     let events = Store::<Simulator>::new(output.path())
-        .events(context_id)
+        .load_context(context_id)
         .unwrap()
-        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
-        .unwrap();
-    SimulatorUiAnalyzer::try_new(fixed::ENGINE, events.into_iter()).unwrap()
+        .into_events();
+    SimulatorUiAnalyzer::try_new_from_contexts(
+        fixed::ENGINE,
+        events
+            .into_iter()
+            .map(|event| ContextEvent::new(context_id.into(), event)),
+    )
+    .unwrap()
 }
 
 #[test]
 fn indexes_engine_and_workers_from_schema_streams() {
     let output = tempfile::tempdir().unwrap();
-    let ctx = SimulatorContext::try_new(ExporterOptions::FileSystem(
-        FileSystemExporterOptions::new(FileSystemFormat::Ndjson, output.path().to_path_buf()),
-    ))
+    let ctx = SimulatorContext::try_new_with_options(
+        ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            output.path().to_path_buf(),
+        )),
+        instrumentation::ContextOptions::default()
+            .with_source_capture(instrumentation::SourceCapture::Disabled),
+    )
     .unwrap();
     let context_id = ctx.id();
     fixed::emit(&ctx);

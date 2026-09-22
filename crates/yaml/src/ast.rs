@@ -80,6 +80,8 @@ pub(crate) struct Entity {
 
     // Built-in extension AST nodes.
     #[serde(default)]
+    pub(crate) nvtx: bool,
+    #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
 }
 

@@ -69,6 +69,21 @@ impl ContextIndex {
             .map(|contexts| contexts.iter().copied().collect())
             .unwrap_or_default()
     }
+
+    /// Returns every analysis target whose telemetry includes `context_id`.
+    ///
+    /// The result is sorted so a consumer that only needs one representative
+    /// aggregate analyzer can select deterministically.
+    pub fn analysis_targets_of_context(&self, context_id: ContextId) -> Vec<Uuid> {
+        self.contexts_by_analysis_target
+            .iter()
+            .filter_map(|(&target_id, contexts)| {
+                contexts.contains(&context_id).then_some(target_id)
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
 }
 
 /// Builds an index from inventories of UUID-named context directories.
@@ -128,6 +143,40 @@ mod tests {
         assert_eq!(
             index.contexts_of_analysis_target(analysis_target_id),
             vec![target_context.into(), child_context.into()]
+        );
+        assert_eq!(
+            index.analysis_targets_of_context(target_context.into()),
+            vec![analysis_target_id]
+        );
+    }
+
+    #[test]
+    fn reverse_lookup_is_sorted_and_omits_unrelated_targets() {
+        let context_id = ContextId::from(Uuid::from_u128(9));
+        let mut index = ContextIndex::default();
+        for target_id in [Uuid::from_u128(3), Uuid::from_u128(1)] {
+            index.add_inventory(
+                context_id,
+                ContextInventory {
+                    analysis_target_ids: BTreeSet::from([target_id]),
+                },
+            );
+        }
+        index.add_inventory(
+            Uuid::from_u128(10).into(),
+            ContextInventory {
+                analysis_target_ids: BTreeSet::from([Uuid::from_u128(2)]),
+            },
+        );
+
+        assert_eq!(
+            index.analysis_targets_of_context(context_id),
+            vec![Uuid::from_u128(1), Uuid::from_u128(3)]
+        );
+        assert!(
+            index
+                .analysis_targets_of_context(Uuid::from_u128(11).into())
+                .is_empty()
         );
     }
 

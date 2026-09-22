@@ -26,6 +26,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Generate `DemoEvent`, which lets one typed callback receive events
         // from every entity in the model.
         umbrella_event: true,
+        // Keep the example portable by default; the opt-in feature compiles
+        // and exercises the Linux-64 private capture adapter.
+        nvtx_capture: std::env::var_os("CARGO_FEATURE_NVTX_CAPTURE").is_some(),
         ..Options::default()
     };
     let GenerateInfo { path, warnings } = generate(&parsed.schema, &opts)?;

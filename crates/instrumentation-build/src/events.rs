@@ -33,10 +33,20 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
     } else {
         quote! { ::quent_events }
     };
+    // Live NVTX capture is an implementation detail of an opted-in process.
+    // The event enum stays public for umbrella dispatch, while hiding the
+    // marker prevents callers outside the instrumentation crate from asking a
+    // context for its raw NVTX observer. Stored-event markers remain public.
+    let marker_visibility =
+        if opts.instrumentation && entity.path() == &nvtx_schema::nvtx_event_path() {
+            quote! { pub(crate) }
+        } else {
+            quote! { pub }
+        };
     quote! {
         #[doc = #marker_doc]
         #[derive(Debug, Clone, Copy)]
-        pub struct #marker;
+        #marker_visibility struct #marker;
 
         impl #runtime::EntityEvent for #event {
             const NAME: &'static str = #stream_name;

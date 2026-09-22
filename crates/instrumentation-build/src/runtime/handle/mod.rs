@@ -11,6 +11,7 @@ use quote::quote;
 use super::{event_ident, marker_ident};
 use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::data_type::map_data_type;
+use crate::nvtx::CaptureConfig;
 use crate::{GenerateError, Options};
 
 mod fsm;
@@ -32,18 +33,23 @@ pub(super) fn fsm_handle_type(schema: &Schema) -> TokenStream {
 pub(super) fn entity_handle(
     entity: &Entity,
     opts: &Options,
+    activation: Option<&CaptureConfig>,
 ) -> Result<GeneratedHandle, GenerateError> {
     if let Some(handle) = fsm::entity_handle(entity, opts)? {
         return Ok(handle);
     }
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
     Ok(GeneratedHandle {
-        tokens: ordinary_handle(entity, opts)?,
+        tokens: ordinary_handle(entity, opts, activation)?,
         associated_type: quote! { #handle_ty<Self> },
     })
 }
 
-fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
+fn ordinary_handle(
+    entity: &Entity,
+    opts: &Options,
+    activation: Option<&CaptureConfig>,
+) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
@@ -81,6 +87,9 @@ fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, Gener
             let params = event_params(entity, event, opts, None)?;
             let fields = event_fields(event, None);
             let construct = event_construct(&event_ty, &variant, &fields);
+            let activation_field = activation
+                .filter(|capture| &capture.process_event == event.name())
+                .map(|capture| raw_ident(to_case(&capture.process_field, Case::Snake)));
 
             Ok(match event.cardinality() {
                 Cardinality::Once => {
@@ -94,13 +103,27 @@ fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, Gener
                          for this instance.",
                         event.name()
                     );
+                    let emit = if let Some(process_field) = &activation_field {
+                        quote! {
+                            let __quent_native_process_id = #process_field.native_id;
+                            self.inner.emit_once_and_activate::<#bit>(
+                                #event_name,
+                                __quent_native_process_id,
+                                #construct,
+                            )
+                        }
+                    } else {
+                        quote! {
+                            self.inner.emit_once::<#bit>(#event_name, #construct)
+                        }
+                    };
                     quote! {
                         #docs
                         pub fn #method(
                             &mut self,
                             #(#params),*
                         ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
-                            self.inner.emit_once::<#bit>(#event_name, #construct)
+                            #emit
                         }
 
                         #[doc = #emitted_doc]
@@ -109,16 +132,18 @@ fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, Gener
                         }
                     }
                 }
-                Cardinality::Multi => quote! {
-                    #docs
-                    pub fn #method(
-                        &self,
-                        #(#params),*
-                    ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
-                        self.inner.emit(#construct);
-                        ::core::result::Result::Ok(())
+                Cardinality::Multi => {
+                    quote! {
+                        #docs
+                        pub fn #method(
+                            &self,
+                            #(#params),*
+                        ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                            self.inner.emit(#construct);
+                            ::core::result::Result::Ok(())
+                        }
                     }
-                },
+                }
             })
         })
         .collect::<Result<Vec<_>, GenerateError>>()?;

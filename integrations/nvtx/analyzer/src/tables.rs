@@ -6,8 +6,8 @@
 //! NVTX captures every name as a raw integer handle, and the registration giving
 //! a handle meaning may appear anywhere in the stream — including after the
 //! events using it. Resolution therefore needs a prior scan over the whole
-//! stream, and that scan is order-independent so a forward reference resolves
-//! exactly as a backward one does.
+//! stream, so forward references resolve like backward ones. Repeated name
+//! registrations use the last value in stable timestamp order.
 //!
 //! Two keying rules matter most, because getting either wrong produces
 //! plausible-but-wrong labels rather than an error:
@@ -26,11 +26,9 @@ use std::collections::BTreeSet;
 
 use rustc_hash::FxHashMap as HashMap;
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
-use quent_events::Event;
 use quent_time::TimeUnixNanoSec;
 
+use crate::input::{NvtxAttributesView, NvtxEventView, NvtxMessageView};
 use crate::span::{NvtxCategory, NvtxDomain, NvtxThread, category_id};
 
 /// Label for the NVTX default (NULL) domain when nothing names it.
@@ -111,84 +109,86 @@ pub(crate) struct ResolutionTables {
 impl ResolutionTables {
     /// Scan the whole stream and build every lookup table (pass 1).
     ///
-    /// Order-independent by construction, which is what makes a `RegisterString`
-    /// that arrives *after* the range using its handle resolve correctly.
-    pub(crate) fn build(events: &[Event<NvtxEventEntity>]) -> Self {
+    /// The complete scan resolves registrations after their use. Input must
+    /// already be stably timestamp-ordered for last-registration-wins names.
+    pub(crate) fn build<'a>(
+        events: impl IntoIterator<Item = (TimeUnixNanoSec, NvtxEventView<'a>)>,
+    ) -> Self {
         let mut tables = Self::default();
-        for event in events {
-            tables.observe(event.timestamp, &event.data.0);
+        for (timestamp, event) in events {
+            tables.observe(timestamp, event);
         }
         tables
     }
 
     /// Fold one event into the tables.
-    fn observe(&mut self, timestamp: TimeUnixNanoSec, event: &NvtxEvent) {
+    fn observe(&mut self, timestamp: TimeUnixNanoSec, event: NvtxEventView<'_>) {
         match event {
-            NvtxEvent::RangePush {
+            NvtxEventView::RangePush {
                 domain,
                 thread_id,
                 attributes,
             } => {
-                self.see_domain(*domain, timestamp);
-                self.threads_seen.insert(*thread_id);
-                self.see_attributes(*domain, attributes);
+                self.see_domain(domain, timestamp);
+                self.threads_seen.insert(thread_id);
+                self.see_attributes(domain, attributes);
             }
-            NvtxEvent::RangePop { domain, thread_id } => {
-                self.see_domain(*domain, timestamp);
-                self.threads_seen.insert(*thread_id);
+            NvtxEventView::RangePop { domain, thread_id } => {
+                self.see_domain(domain, timestamp);
+                self.threads_seen.insert(thread_id);
             }
-            NvtxEvent::RangeStart {
+            NvtxEventView::RangeStart {
                 domain, attributes, ..
             }
-            | NvtxEvent::Mark { domain, attributes } => {
-                self.see_domain(*domain, timestamp);
-                self.see_attributes(*domain, attributes);
+            | NvtxEventView::Mark { domain, attributes } => {
+                self.see_domain(domain, timestamp);
+                self.see_attributes(domain, attributes);
             }
-            NvtxEvent::RangeEnd { domain, .. } => self.see_domain(*domain, timestamp),
-            NvtxEvent::DomainCreate { domain, name } => {
-                let lifespan = self.lifespan(*domain, timestamp);
+            NvtxEventView::RangeEnd { domain, .. } => self.see_domain(domain, timestamp),
+            NvtxEventView::DomainCreate { domain, name } => {
+                let lifespan = self.lifespan(domain, timestamp);
                 // `min` rather than assignment: a stream that somehow repeats a
                 // creation still folds to one deterministic answer.
                 lifespan.created = Some(lifespan.created.unwrap_or(timestamp).min(timestamp));
-                self.domain_names.insert(*domain, name.clone());
+                self.domain_names.insert(domain, name.to_owned());
             }
-            NvtxEvent::DomainDestroy { domain } => {
-                let lifespan = self.lifespan(*domain, timestamp);
+            NvtxEventView::DomainDestroy { domain } => {
+                let lifespan = self.lifespan(domain, timestamp);
                 lifespan.destroyed = Some(lifespan.destroyed.unwrap_or(timestamp).max(timestamp));
             }
-            NvtxEvent::RegisterString {
+            NvtxEventView::RegisterString {
                 domain,
                 handle,
                 string,
             } => {
-                self.see_domain(*domain, timestamp);
+                self.see_domain(domain, timestamp);
                 // Keyed by `(domain, handle)`: the same handle value in another
                 // domain is a different string.
                 self.registered_strings
-                    .insert((*domain, *handle), string.clone());
+                    .insert((domain, handle), string.to_owned());
             }
-            NvtxEvent::NameCategory {
+            NvtxEventView::NameCategory {
                 domain,
                 category,
                 name,
             } => {
-                self.see_domain(*domain, timestamp);
+                self.see_domain(domain, timestamp);
                 // Naming the "no category" sentinel is meaningless, so it never
                 // enters the tables or the model view.
-                if let Some(category) = category_id(*category) {
-                    self.categories_seen.insert((*domain, category));
+                if let Some(category) = category_id(category) {
+                    self.categories_seen.insert((domain, category));
                     self.category_names
-                        .insert((*domain, category), name.clone());
+                        .insert((domain, category), name.to_owned());
                 }
             }
-            NvtxEvent::NameThread { thread_id, name } => {
-                self.threads_seen.insert(*thread_id);
-                self.thread_names.insert(*thread_id, name.clone());
+            NvtxEventView::NameThread { thread_id, name } => {
+                self.threads_seen.insert(thread_id);
+                self.thread_names.insert(thread_id, name.to_owned());
             }
-            NvtxEvent::ResourceCreate { domain, .. } => self.see_domain(*domain, timestamp),
+            NvtxEventView::ResourceCreate { domain, .. } => self.see_domain(domain, timestamp),
             // `ResourceDestroy` carries neither a domain nor a message, so it
             // contributes nothing to resolution.
-            NvtxEvent::ResourceDestroy { .. } => {}
+            NvtxEventView::ResourceDestroy { .. } => {}
         }
     }
 
@@ -212,7 +212,7 @@ impl ResolutionTables {
     }
 
     /// Record the category an event referenced, if it referenced one.
-    fn see_attributes(&mut self, domain: u64, attributes: &NvtxEventAttributes) {
+    fn see_attributes(&mut self, domain: u64, attributes: NvtxAttributesView<'_>) {
         if let Some(category) = category_id(attributes.category) {
             self.categories_seen.insert((domain, category));
         }
@@ -222,14 +222,18 @@ impl ResolutionTables {
     ///
     /// Registered handles resolve against `domain`; an unregistered handle falls
     /// back to a placeholder that surfaces the raw handle rather than failing.
-    pub(crate) fn resolve_message(&self, domain: u64, message: &Option<NvtxMessage>) -> String {
+    pub(crate) fn resolve_message(
+        &self,
+        domain: u64,
+        message: Option<NvtxMessageView<'_>>,
+    ) -> String {
         match message {
-            Some(NvtxMessage::String(text)) => text.clone(),
-            Some(NvtxMessage::RegisteredHandle(handle)) => self
+            Some(NvtxMessageView::String(text)) => text.to_owned(),
+            Some(NvtxMessageView::RegisteredHandle(handle)) => self
                 .registered_strings
-                .get(&(domain, *handle))
+                .get(&(domain, handle))
                 .cloned()
-                .unwrap_or_else(|| unregistered_string_name(*handle)),
+                .unwrap_or_else(|| unregistered_string_name(handle)),
             None => UNNAMED_MESSAGE.to_owned(),
         }
     }

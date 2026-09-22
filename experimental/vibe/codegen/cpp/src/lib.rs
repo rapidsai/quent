@@ -15,7 +15,7 @@ use convert_case::Case;
 use quent_constraints::{Report, validate};
 use quent_fsm::{Fsm, FsmConstraint};
 use quent_ref_target::RefTargetConstraint;
-use quent_schema::Schema;
+use quent_schema::{Entity, Schema};
 use quote::quote;
 
 /// Configuration for CXX bridge generation.
@@ -126,7 +126,7 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
         dynamic_attributes::file(options, &runtime, &dynamic)?,
         context_file(schema, options, &instrumentation, &runtime, &io)?,
     ];
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         files.push(entity_file(
             schema,
             entity,
@@ -147,7 +147,30 @@ fn validate_schema(schema: &Schema) -> Result<(), GenerateError> {
     } = validate::<(RefTargetConstraint, FsmConstraint)>(schema);
     base_constraints.map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
     ref_targets.map_err(|error| GenerateError::InvalidReferenceTarget(error.to_string()))?;
-    fsms.map_err(|error| GenerateError::InvalidSchema(error.to_string()))
+    fsms.map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
+    nvtx_schema::validated_bindings(schema)
+        .map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
+    Ok(())
+}
+
+/// Iterate over entities that belong in the language-facing API.
+///
+/// The canonical NVTX stream is generated for internal capture. Its validated
+/// binding identifies the private marker without relying on its display name.
+pub(crate) fn public_entities(schema: &Schema) -> impl Iterator<Item = &Entity> {
+    let private_entity = nvtx_schema::validated_bindings(schema)
+        .expect("schema was validated before generation")
+        .map(|bindings| bindings.entity.path().clone());
+    schema
+        .entities()
+        .filter(move |entity| private_entity.as_ref() != Some(entity.path()))
+}
+
+/// Whether this schema contains the validated private NVTX capture source.
+pub(crate) fn has_nvtx_source(schema: &Schema) -> bool {
+    nvtx_schema::validated_bindings(schema)
+        .expect("schema was validated before generation")
+        .is_some()
 }
 
 fn validate_options(options: &Options) -> Result<(), GenerateError> {
@@ -189,6 +212,7 @@ fn validate_options(options: &Options) -> Result<(), GenerateError> {
 }
 
 fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
+    let has_nvtx_source = has_nvtx_source(schema);
     let mut file_names = ["uuid", "dynamic_attributes", "context"]
         .into_iter()
         .map(str::to_owned)
@@ -205,13 +229,13 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         }
     }
 
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         reserve_name(&mut file_names, path_snake(entity.path()))?;
         reserve_name(&mut context_methods, path_snake(entity.path()))?;
 
         let entity_name = path_pascal(entity.path());
         if entity.path().namespace().is_empty()
-            && [
+            && ([
                 "Uuid",
                 "EntityId",
                 "Handle",
@@ -221,6 +245,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
                 "Context",
             ]
             .contains(&entity_name.as_str())
+                || (has_nvtx_source && entity_name == "SourceCapture"))
         {
             return Err(GenerateError::NameCollision { name: entity_name });
         }
@@ -415,6 +440,7 @@ fn context_file(
     runtime: &syn::Path,
     io: &syn::Path,
 ) -> Result<GeneratedFile, GenerateError> {
+    let has_nvtx_source = has_nvtx_source(schema);
     let model = model_path(instrumentation, schema.name());
     let context_ty = quote! { #instrumentation::Context<#model> };
     let detail_namespace = format!("{}::detail", options.namespace);
@@ -444,6 +470,11 @@ fn context_file(
             "        #[Self = \"ExporterOptions\"] fn collector(address: String) -> Result<Box<ExporterOptions>>;\n",
         );
     }
+    let source_capture_declaration = if has_nvtx_source {
+        ", source_capture: bool"
+    } else {
+        ""
+    };
     let ffi = format!(
         r#"#[cxx::bridge(namespace = "{namespace}")]
 pub mod ffi {{
@@ -456,7 +487,7 @@ pub mod ffi {{
     extern "Rust" {{
         type ExporterOptions;
 {exporter_declarations}        type Context;
-        fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;
+        fn create_context(options: Box<ExporterOptions>{source_capture_declaration}) -> Result<Box<Context>>;
         fn id(self: &Context) -> UUID;
     }}
 }}
@@ -467,8 +498,32 @@ pub mod ffi {{
         .any()
         .then(|| quote! { Options(#io::ExporterOptions), });
     let option_match = options.exporters.any().then(|| {
-        quote! { ExporterKind::Options(options) => <#context_ty>::try_new(options), }
+        if has_nvtx_source {
+            quote! {
+                ExporterKind::Options(options) =>
+                    <#context_ty>::try_new_with_options(options, context_options),
+            }
+        } else {
+            quote! { ExporterKind::Options(options) => <#context_ty>::try_new(options), }
+        }
     });
+    let source_capture_parameter = has_nvtx_source.then(|| quote! { , source_capture: bool });
+    let context_options = has_nvtx_source.then(|| {
+        quote! {
+            let source_capture = if source_capture {
+                #runtime::SourceCapture::Enabled
+            } else {
+                #runtime::SourceCapture::Disabled
+            };
+            let context_options = #runtime::ContextOptions::default()
+                .with_source_capture(source_capture);
+        }
+    });
+    let noop_context = if has_nvtx_source {
+        quote! { <#context_ty>::try_new_with_options(#runtime::Noop, context_options) }
+    } else {
+        quote! { <#context_ty>::try_new(#runtime::Noop) }
+    };
     let mut exporter_methods = Vec::new();
     if options.exporters.ndjson {
         exporter_methods.push(quote! {
@@ -537,9 +592,13 @@ pub mod ffi {{
             type Kind = cxx::kind::Opaque;
         }
 
-        pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
+        pub fn create_context(
+            options: Box<ExporterOptions>
+            #source_capture_parameter
+        ) -> Result<Box<Context>, String> {
+            #context_options
             let inner = match options.inner {
-                ExporterKind::Noop => <#context_ty>::try_new(#runtime::Noop),
+                ExporterKind::Noop => #noop_context,
                 #option_match
             }.map_err(|error| error.to_string())?;
             Ok(Box::new(Context { inner }))

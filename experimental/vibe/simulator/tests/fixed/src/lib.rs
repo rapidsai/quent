@@ -26,6 +26,7 @@ type SimulatorContext = instr::Context<instr::Simulator>;
 
 // Top-level entities
 pub const ENGINE: Uuid = uuid!("00000000-0000-0000-0000-000000000001");
+pub const RUNTIME_PROCESS: Uuid = uuid!("00000000-0000-0000-0000-00000000003e");
 pub const QUERY_GROUP: Uuid = uuid!("00000000-0000-0000-0000-000000000003");
 pub const QUERY: Uuid = uuid!("00000000-0000-0000-0000-000000000004");
 
@@ -124,6 +125,9 @@ fn entity_ref<E>(id: Uuid) -> instr::EntityRef<E> {
 
 pub fn emit(ctx: &SimulatorContext) {
     let mut engine = ctx.observer::<instr::Engine>().handle_with_id(ENGINE);
+    let mut runtime_process = ctx
+        .observer::<instr::RuntimeProcess>()
+        .handle_with_id(RUNTIME_PROCESS);
     let mut worker_w0 = ctx.observer::<instr::Worker>().handle_with_id(WORKER_0);
     let mut worker_w1 = ctx.observer::<instr::Worker>().handle_with_id(WORKER_1);
 
@@ -139,6 +143,15 @@ pub fn emit(ctx: &SimulatorContext) {
                     custom_attributes: Default::default(),
                 },
                 Some("test-engine".into()),
+            )
+            .unwrap()
+    );
+    ts!(
+        0,
+        runtime_process
+            .started(
+                instr::quent::os::Process { native_id: 4242 },
+                entity_ref(ENGINE),
             )
             .unwrap()
     );
@@ -260,6 +273,7 @@ pub fn emit(ctx: &SimulatorContext) {
 
     ts!(6_900_000_000, worker_w1.exit().unwrap());
     ts!(6_900_000_000, worker_w0.exit().unwrap());
+    ts!(6_950_000_000, runtime_process.exit().unwrap());
     ts!(7_000_000_000, engine.exit().unwrap());
 }
 

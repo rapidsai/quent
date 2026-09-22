@@ -22,7 +22,7 @@ mod sidecar;
 #[cfg(feature = "io-collector")]
 #[doc(hidden)]
 pub use collector::{CollectorRouter, CollectorSink, deserialize_event, serialize_event};
-pub use context::ContextInner;
+pub use context::{ContextInner, ContextOptions, SourceCapture};
 pub use entity::{InstrumentedEntity, Observer};
 pub use fsm_handle::{FsmEvent, FsmHandleInner};
 pub use handle::{HandleError, HandleInner};

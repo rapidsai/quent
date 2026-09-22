@@ -3,9 +3,10 @@
 
 //! Hand-written, framework-free reconstruction core for captured NVTX events.
 //!
-//! Turns a stream of verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s — carried in
-//! Quent's [`Event`](quent_events::Event) envelope — into an in-memory
-//! [`NvtxModel`] of plain [`NvtxSpan`]s.
+//! Turns captured NVTX fields exposed through [`NvtxEventData`] into an
+//! in-memory [`NvtxModel`] of plain [`NvtxSpan`]s. The native
+//! [`NvtxEvent`](nvtx_events::NvtxEvent) vocabulary implements the same access
+//! contract as application event types; messages are borrowed during analysis.
 //!
 //! A capture is a partial observation: it watches a process that was already
 //! running and keeps running afterwards. Incomplete pairs are therefore ordinary
@@ -26,18 +27,26 @@
 //! representable at all.
 
 mod anomalies;
+mod input;
 mod model;
 mod ranges;
 mod resource;
+mod source;
 mod span;
 mod stats;
 mod tables;
 
 pub use anomalies::ReconstructionAnomalies;
+pub use input::{
+    NvtxAttributesData, NvtxAttributesView, NvtxEventData, NvtxEventView, NvtxMessageData,
+    NvtxMessageView, NvtxProcessBindingData,
+};
 pub use model::{NvtxModel, NvtxModelBuilder};
+pub use source::{NvtxSource, NvtxSourceError, NvtxSourcesBuilder};
 pub use span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
 pub use stats::{RangeStats, StatsKey};
 
 // Re-exported so consumers can read span attributes without depending on the
 // vocabulary crate directly. Carried verbatim, exactly as captured.
-pub use nvtx_events::{NvtxColor, NvtxPayload};
+pub use nvtx_events::{NvtxColor, NvtxPayload, NvtxPayloadValue};
+pub use uuid::Uuid;

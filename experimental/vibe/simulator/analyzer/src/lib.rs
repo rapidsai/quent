@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_events::Event;
+use quent_events::{EntityEvent, Event};
 pub use quent_query_engine_analyzer::QueryEngineModel;
 #[cfg(not(target_arch = "wasm32"))]
-use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
+use quent_query_engine_analyzer::ui::{ImportedContext, QuentViewer, ViewerContext};
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
-    WorkerEntity, entities, ui::UiAnalyzer,
+    WorkerEntity, entities,
+    ui::{ContextEvent, ContextStreamAvailability, UiAnalyzer},
 };
 use quent_query_engine_ui::{
     DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
@@ -59,7 +60,10 @@ use quent_dynamic_attributes::DynamicValue;
 use quent_simulator_store::Simulator;
 use quent_simulator_store::{self as schema, SimulatorEvent};
 #[cfg(not(target_arch = "wasm32"))]
-use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
+use quent_store::event::{
+    EntityEventStore,
+    filesystem::{LoadedContext, Store, StreamAvailability},
+};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use quent_ui::fsm::FsmTypeDeclaration;
 use uuid::Uuid;
@@ -147,6 +151,83 @@ fn quantity_specs() -> StdHashMap<String, QuantitySpec> {
 
 pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
+    nvtx_streams: HashMap<Uuid, ContextStreamAvailability>,
+    empty_nvtx_model: nvtx_analyzer::NvtxModel,
+}
+
+impl SimulatorUiAnalyzer {
+    fn try_new_from_context_events(
+        engine_id: Uuid,
+        events: impl Iterator<Item = ContextEvent<SimulatorEvent>>,
+    ) -> AnalyzerResult<Self> {
+        let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
+        let mut nvtx_streams = HashMap::default();
+        {
+            let _span = tracing::info_span!("ingest").entered();
+            for event in events {
+                let context_id = event.context_id().into_uuid();
+                if let Some(availability) = event
+                    .metadata()
+                    .stream_availability(<schema::NvtxEventEvent as EntityEvent>::NAME)
+                    && let Some(previous) = nvtx_streams.insert(context_id, availability)
+                    && previous != availability
+                {
+                    return Err(AnalyzerError::Validation(format!(
+                        "context {context_id} has conflicting NVTX stream availability"
+                    )));
+                }
+
+                if matches!(event.event().data, SimulatorEvent::NvtxEvent(_)) {
+                    match nvtx_streams.get(&context_id) {
+                        Some(ContextStreamAvailability::Populated) | None => {
+                            nvtx_streams.insert(context_id, ContextStreamAvailability::Populated);
+                        }
+                        Some(availability) => {
+                            return Err(AnalyzerError::Validation(format!(
+                                "context {context_id} contains NVTX events but its stream is {availability:?}"
+                            )));
+                        }
+                    }
+                }
+
+                builder.try_push_from_context(context_id.into(), event.into_event())?;
+            }
+        }
+        let model = {
+            let _span = tracing::info_span!("build").entered();
+            builder.try_build()?
+        };
+
+        tracing::info!(
+            engines = 1,
+            runtime_processes = model.runtime_processes.len(),
+            runtime_threads = model.runtime_threads.len(),
+            nvtx_sources = model.nvtx_sources().len(),
+            query_groups = model.query_groups.len(),
+            workers = model.workers.len(),
+            plans = model.plans.len(),
+            operators = model.operators.len(),
+            ports = model.ports.len(),
+            task_executors = model.task_executors.len(),
+            networks = model.networks.len(),
+            gpus = model.gpus.len(),
+            host_memories = model.host_memories.len(),
+            storages = model.storages.len(),
+            gpu_memories = model.gpu_memories.len(),
+            task_executor_threads = model.task_executor_threads.len(),
+            storage_channels = model.storage_channels.len(),
+            pcie_channels = model.pcie_channels.len(),
+            network_channels = model.network_channels.len(),
+            queries = model.queries.len(),
+            tasks = model.tasks.len(),
+        );
+
+        Ok(Self {
+            model,
+            nvtx_streams,
+            empty_nvtx_model: nvtx_analyzer::NvtxModel::default(),
+        })
+    }
 }
 
 /// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
@@ -195,14 +276,25 @@ impl QuentViewer for Viewer {
 
     fn import_events(
         dir: &std::path::Path,
-    ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+    ) -> quent_io::ImporterResult<ViewerContext<Self::Analyzer>> {
         let (context_id, root) = context_location(dir)?;
-        let events = Store::<Simulator>::new(root)
-            .events(context_id)
-            .map_err(quent_io::ImporterError::other)?
-            .collect::<Result<Vec<_>, _>>()
+        let context = Store::<Simulator>::new(root)
+            .load_context(context_id)
             .map_err(quent_io::ImporterError::other)?;
-        Ok(Box::new(events.into_iter()))
+        let metadata = loaded_context_metadata(&context);
+        Ok(ImportedContext::new(
+            Box::new(context.into_events().into_iter()),
+            metadata,
+        ))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl quent_query_engine_server::QuentViewerServer for Viewer {
+    fn additional_routes(
+        analyzers: quent_query_engine_server::analyzer_cache::AnalyzerCache<Self::Analyzer>,
+    ) -> quent_query_engine_server::ViewerRoutes {
+        nvtx_server::routes_from_analyzers(analyzers, SimulatorUiAnalyzer::nvtx_model)
     }
 }
 
@@ -221,6 +313,24 @@ fn context_location(dir: &std::path::Path) -> quent_io::ImporterResult<(Uuid, &s
         .ok_or_else(invalid_path)?;
     let root = dir.parent().ok_or_else(invalid_path)?;
     Ok((context_id, root))
+}
+
+/// Translate common store inventory into metadata retained by shared analysis.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn loaded_context_metadata(
+    context: &LoadedContext<Simulator>,
+) -> quent_query_engine_analyzer::ui::ContextMetadata {
+    let availability =
+        match context.stream_availability(<schema::NvtxEventEvent as EntityEvent>::NAME) {
+            StreamAvailability::Undeclared => ContextStreamAvailability::Undeclared,
+            StreamAvailability::Missing => ContextStreamAvailability::Missing,
+            StreamAvailability::Empty => ContextStreamAvailability::Empty,
+            StreamAvailability::Populated => ContextStreamAvailability::Populated,
+        };
+    quent_query_engine_analyzer::ui::ContextMetadata::new([(
+        <schema::NvtxEventEvent as EntityEvent>::NAME.to_owned(),
+        availability,
+    )])
 }
 
 struct PlainBuilderSlot<'a> {
@@ -286,40 +396,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<Self> {
-        let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
-        {
-            let _span = tracing::info_span!("ingest").entered();
-            for event in events {
-                builder.try_push(event)?;
-            }
-        }
-        let model = {
-            let _span = tracing::info_span!("build").entered();
-            builder.try_build()?
-        };
+        Self::try_new_from_context_events(
+            engine_id,
+            events.map(|event| ContextEvent::new(Uuid::nil().into(), event)),
+        )
+    }
 
-        tracing::info!(
-            engines = 1,
-            query_groups = model.query_groups.len(),
-            workers = model.workers.len(),
-            plans = model.plans.len(),
-            operators = model.operators.len(),
-            ports = model.ports.len(),
-            task_executors = model.task_executors.len(),
-            networks = model.networks.len(),
-            gpus = model.gpus.len(),
-            host_memories = model.host_memories.len(),
-            storages = model.storages.len(),
-            gpu_memories = model.gpu_memories.len(),
-            task_executor_threads = model.task_executor_threads.len(),
-            storage_channels = model.storage_channels.len(),
-            pcie_channels = model.pcie_channels.len(),
-            network_channels = model.network_channels.len(),
-            queries = model.queries.len(),
-            tasks = model.tasks.len(),
-        );
-
-        Ok(Self { model })
+    fn try_new_from_contexts(
+        engine_id: Uuid,
+        events: impl Iterator<Item = ContextEvent<SimulatorEvent>>,
+    ) -> AnalyzerResult<Self> {
+        Self::try_new_from_context_events(engine_id, events)
     }
 
     fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle> {
@@ -1198,6 +1285,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 }
 
 impl SimulatorUiAnalyzer {
+    /// Return the unambiguous NVTX model reconstructed for `context_id`.
+    pub fn nvtx_model(&self, context_id: Uuid) -> Option<&nvtx_analyzer::NvtxModel> {
+        self.model.nvtx_model(context_id).or_else(|| {
+            matches!(
+                self.nvtx_streams.get(&context_id),
+                Some(ContextStreamAvailability::Empty)
+            )
+            .then_some(&self.empty_nvtx_model)
+        })
+    }
+
     /// Return an iterator over all tasks, filtered by time window and operator ids.
     fn entities_filtered(
         &self,

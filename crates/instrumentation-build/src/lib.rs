@@ -49,6 +49,7 @@ mod data_type;
 mod events;
 mod model;
 mod namespace;
+mod nvtx;
 mod records;
 mod runtime;
 
@@ -57,6 +58,9 @@ use std::path::PathBuf;
 use convert_case::Case;
 use quent_constraints::{BaseConstraintsError, Report};
 use quent_fsm::{FsmConstraint, FsmError};
+use quent_os::{OsConstraint, OsError};
+use quent_ref_target::{RefTargetConstraint, RefTargetError};
+use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::{Entity, Path, Schema};
 use quote::quote;
 
@@ -104,6 +108,15 @@ pub struct Options {
     /// Requires [`Self::serde`]. The generated crate must expose a `collector`
     /// feature that enables `quent-instrumentation/io-collector`.
     pub collector_sink: bool,
+
+    /// Install live NVTX capture when the schema contains the canonical NVTX
+    /// extension.
+    ///
+    /// This is disabled by default. Enabling it requires live instrumentation
+    /// and a generated-crate dependency on `nvtx-injection`. Live capture is
+    /// supported on 64-bit Linux; schema generation and stored-event analysis
+    /// remain portable while this option is disabled.
+    pub nvtx_capture: bool,
 }
 
 impl Default for Options {
@@ -119,6 +132,7 @@ impl Default for Options {
             umbrella_event: false,
             analyzer_package: None,
             collector_sink: false,
+            nvtx_capture: false,
         }
     }
 }
@@ -140,6 +154,14 @@ pub enum GenerateError {
     InvalidSchema(#[from] BaseConstraintsError),
     #[error("fsm validation failed: {0}")]
     InvalidFsm(#[from] FsmError),
+    #[error("OS schema validation failed: {0}")]
+    InvalidOs(#[from] OsError),
+    #[error("reference target validation failed: {0}")]
+    InvalidRefTarget(#[from] RefTargetError),
+    #[error("reference tree validation failed: {0}")]
+    InvalidRefTree(#[from] RefTreeError),
+    #[error("NVTX schema validation failed: {0}")]
+    InvalidNvtx(#[from] nvtx_schema::NvtxError),
     #[error("invalid derive path {derive:?}")]
     InvalidDerive {
         /// The offending derive entry.
@@ -168,6 +190,15 @@ pub enum GenerateError {
     },
     #[error("`collector_sink` requires serde generation")]
     CollectorSinkRequiresSerde,
+    #[error("`nvtx_capture` requires instrumentation generation")]
+    NvtxCaptureRequiresInstrumentation,
+    #[error(
+        "NVTX live capture process `{entity}` is an FSM; live capture requires an ordinary entity handle so its identity event can return a capture error"
+    )]
+    NvtxCaptureFsmProcessUnsupported {
+        /// The bound OS-process entity.
+        entity: Path,
+    },
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
     #[error("failed to write generated file")]
@@ -187,11 +218,21 @@ pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
         base_constraints,
         unregistered_constraints,
         results,
-    } = quent_constraints::validate::<(FsmConstraint,)>(schema);
+    } = quent_constraints::validate::<(
+        RefTargetConstraint,
+        RefTreeConstraint,
+        FsmConstraint,
+        OsConstraint,
+        nvtx_schema::NvtxConstraint,
+    )>(schema);
 
     base_constraints?;
-    let (fsm,) = results;
+    let (ref_target, ref_tree, fsm, os, nvtx) = results;
+    ref_target?;
+    ref_tree?;
     fsm?;
+    os?;
+    nvtx?;
     Ok(unregistered_constraints)
 }
 
@@ -241,6 +282,10 @@ fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, G
     if opts.collector_sink && !opts.serde {
         return Err(GenerateError::CollectorSinkRequiresSerde);
     }
+    // Resolve capture even for event-only generation so an explicitly
+    // incompatible option combination fails instead of silently emitting a
+    // platform guard with no live instrumentation adapter.
+    let _ = nvtx::capture_config(schema, opts)?;
     let namespaces = namespace::Namespace::root(schema);
 
     let reexports = if opts.instrumentation {
@@ -250,13 +295,16 @@ fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, G
     };
     let entity_types = opts.instrumentation.then(|| runtime::entity_types(schema));
     let types = generate_namespace(schema, opts, &namespaces)?;
+    let nvtx_bindings = nvtx::generate_bindings(schema, opts)?;
     let observable = opts
         .instrumentation
-        .then(|| runtime::generate_model(schema, &namespaces, opts.collector_sink));
+        .then(|| runtime::generate_model(schema, &namespaces, opts))
+        .transpose()?;
     let file = syn::parse2::<syn::File>(quote! {
         #reexports
         #entity_types
         #types
+        #nvtx_bindings
         #observable
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;

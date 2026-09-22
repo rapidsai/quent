@@ -10,16 +10,15 @@
 //! `sending` state from +500ms. Computing holds 256 bytes of the worker's
 //! "memory" resource; allocating and sending hold no memory.
 
-use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
-use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_analyzer::ui::{ContextEvent, UiAnalyzer};
 use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::QueryFilter;
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_fixed as fixed;
 use quent_simulator_instrumentation as instrumentation;
-use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_simulator_store::Simulator;
+use quent_store::event::filesystem::Store;
 use quent_ui::timeline::{categorical::CategoricalTimelineRequest, request::TimelineConfig};
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
@@ -27,19 +26,29 @@ type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 /// Emits the fixed scenario and builds an analyzer from its stored events.
 fn fixed_analyzer() -> SimulatorUiAnalyzer {
     let output = tempfile::tempdir().unwrap();
-    let ctx = SimulatorContext::try_new(ExporterOptions::FileSystem(
-        FileSystemExporterOptions::new(FileSystemFormat::Ndjson, output.path().to_path_buf()),
-    ))
+    let ctx = SimulatorContext::try_new_with_options(
+        ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            output.path().to_path_buf(),
+        )),
+        instrumentation::ContextOptions::default()
+            .with_source_capture(instrumentation::SourceCapture::Disabled),
+    )
     .unwrap();
     let context_id = ctx.id();
     fixed::emit(&ctx);
     drop(ctx);
     let events = Store::<Simulator>::new(output.path())
-        .events(context_id)
+        .load_context(context_id)
         .unwrap()
-        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
-        .unwrap();
-    SimulatorUiAnalyzer::try_new(fixed::ENGINE, events.into_iter()).unwrap()
+        .into_events();
+    SimulatorUiAnalyzer::try_new_from_contexts(
+        fixed::ENGINE,
+        events
+            .into_iter()
+            .map(|event| ContextEvent::new(context_id.into(), event)),
+    )
+    .unwrap()
 }
 
 /// A whole-query request: 7 one-second bins over the 0–7s window.

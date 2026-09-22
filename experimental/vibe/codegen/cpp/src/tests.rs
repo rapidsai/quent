@@ -12,6 +12,18 @@ use crate::{
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
+const NVTX_PROCESS: &str = r#"
+quent: alpha
+model: NvtxBridge
+entities:
+  Process:
+    nvtx: true
+    events:
+      started:
+        attributes:
+          process: { os: process }
+"#;
+
 #[test]
 fn generates_schema_driven_bridge() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
@@ -74,6 +86,7 @@ fn generates_schema_driven_bridge() {
     assert!(facade.content.contains("struct QueueUsageRef {"));
     assert!(facade.content.contains("declaration_emitted() const"));
     assert!(facade.content.contains("static Context ndjson"));
+    assert!(!facade.content.contains("SourceCapture"));
     for value_type in [
         "std::nullptr_t",
         "std::uint8_t value",
@@ -168,6 +181,82 @@ fn generates_schema_driven_bridge() {
         assert!(!file.content.contains("crate::bridge"));
         syn::parse_file(&file.content).unwrap_or_else(|error| panic!("{}: {error}", file.name));
     }
+}
+
+#[test]
+fn keeps_private_nvtx_stream_out_of_cpp_api() {
+    let schema = parse_from_str(NVTX_PROCESS, None).unwrap().schema;
+    let files = emit(
+        &schema,
+        &Options {
+            exporters: Exporters {
+                ndjson: true,
+                ..Exporters::default()
+            },
+            ..Options::default()
+        },
+    )
+    .unwrap();
+
+    assert!(files.iter().any(|file| file.name == "process.rs"));
+    assert!(!files.iter().any(|file| file.name == "nvtx_event.rs"));
+
+    let process = files.iter().find(|file| file.name == "process.rs").unwrap();
+    assert!(process.content.contains("pub struct ProcessHandle"));
+    assert!(process.content.contains("pub fn started"));
+    assert!(
+        process
+            .content
+            .contains("fn started(self: &mut ProcessHandle, data: Started) -> Result<()>;")
+    );
+    assert!(process.content.contains("-> Result<(), String>"));
+    assert!(
+        process
+            .content
+            .contains(".map_err(|error| error.to_string())")
+    );
+
+    let context = files.iter().find(|file| file.name == "context.rs").unwrap();
+    assert!(
+        context
+            .content
+            .contains("source_capture: bool) -> Result<Box<Context>>")
+    );
+    assert!(context.content.contains("ContextOptions::default()"));
+    assert!(
+        context
+            .content
+            .contains(".with_source_capture(source_capture)")
+    );
+    assert!(context.content.contains("SourceCapture::Enabled"));
+    assert!(context.content.contains("SourceCapture::Disabled"));
+    assert!(context.content.contains("try_new_with_options"));
+
+    let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
+    assert!(
+        facade
+            .content
+            .contains("enum class SourceCapture { Enabled, Disabled };")
+    );
+    assert!(
+        facade.content.contains(
+            "static Context none(SourceCapture source_capture = SourceCapture::Enabled);"
+        )
+    );
+    assert!(facade.content.contains(
+        "static Context ndjson(std::string output_dir, SourceCapture source_capture = SourceCapture::Enabled);"
+    ));
+    assert!(
+        facade
+            .content
+            .contains("source_capture == SourceCapture::Enabled")
+    );
+    assert!(facade.content.contains("class ProcessObserver final"));
+    assert!(facade.content.contains("void started("));
+    assert!(facade.content.contains("native_id"));
+    assert!(!facade.content.contains("NvtxEventObserver"));
+    assert!(!facade.content.contains("Handle<::quent::NvtxEvent>"));
+    assert!(!facade.content.contains("nvtx_event_observer"));
 }
 
 #[test]

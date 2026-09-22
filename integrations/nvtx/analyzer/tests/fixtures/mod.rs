@@ -13,7 +13,6 @@
 #![allow(dead_code)]
 
 use nvtx_analyzer::{NvtxModel, NvtxSpan, SpanId};
-use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
 use quent_time::TimeUnixNanoSec;
@@ -66,8 +65,8 @@ pub fn stream_id() -> Uuid {
 }
 
 /// Wrap a raw [`NvtxEvent`] in the entity envelope at an exact timestamp.
-pub fn at(timestamp: TimeUnixNanoSec, event: NvtxEvent) -> Event<NvtxEventEntity> {
-    Event::new(stream_id(), timestamp, NvtxEventEntity(event))
+pub fn at(timestamp: TimeUnixNanoSec, event: NvtxEvent) -> Event<NvtxEvent> {
+    Event::new(stream_id(), timestamp, event)
 }
 
 /// Attributes carrying only an immediate string message.
@@ -84,7 +83,7 @@ pub fn range_start(
     domain: u64,
     range_id: u64,
     text: &str,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::RangeStart {
@@ -96,7 +95,7 @@ pub fn range_start(
 }
 
 /// A `nvtxDomainRangeEnd` closing the process-wide range `range_id`.
-pub fn range_end(timestamp: TimeUnixNanoSec, domain: u64, range_id: u64) -> Event<NvtxEventEntity> {
+pub fn range_end(timestamp: TimeUnixNanoSec, domain: u64, range_id: u64) -> Event<NvtxEvent> {
     at(timestamp, NvtxEvent::RangeEnd { domain, range_id })
 }
 
@@ -108,7 +107,7 @@ pub fn range_push(
     domain: u64,
     thread_id: u32,
     text: &str,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::RangePush {
@@ -120,11 +119,7 @@ pub fn range_push(
 }
 
 /// A `nvtxDomainRangePop` closing the innermost push on `thread_id`.
-pub fn range_pop(
-    timestamp: TimeUnixNanoSec,
-    domain: u64,
-    thread_id: u32,
-) -> Event<NvtxEventEntity> {
+pub fn range_pop(timestamp: TimeUnixNanoSec, domain: u64, thread_id: u32) -> Event<NvtxEvent> {
     at(timestamp, NvtxEvent::RangePop { domain, thread_id })
 }
 
@@ -136,7 +131,7 @@ pub fn range_push_in_category(
     thread_id: u32,
     category: u32,
     text: &str,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::RangePush {
@@ -161,7 +156,7 @@ pub fn resource_create(
     identifier_type: i32,
     identifier: u64,
     text: &str,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::ResourceCreate {
@@ -178,13 +173,13 @@ pub fn resource_create(
 ///
 /// Takes no domain because the NVTX event carries none — which is why the
 /// analyzer must match on the handle alone.
-pub fn resource_destroy(timestamp: TimeUnixNanoSec, handle: u64) -> Event<NvtxEventEntity> {
+pub fn resource_destroy(timestamp: TimeUnixNanoSec, handle: u64) -> Event<NvtxEvent> {
     at(timestamp, NvtxEvent::ResourceDestroy { handle })
 }
 
 /// A `nvtxDomainMarkEx` instant, which also lets a fixture set the trace end
 /// without opening a range.
-pub fn mark(timestamp: TimeUnixNanoSec, domain: u64, text: &str) -> Event<NvtxEventEntity> {
+pub fn mark(timestamp: TimeUnixNanoSec, domain: u64, text: &str) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::Mark {

@@ -15,6 +15,8 @@ pub mod error;
 pub mod fsm;
 pub mod ref_tree;
 pub mod resource;
+#[cfg(feature = "service")]
+pub mod service;
 pub mod timeline;
 
 pub type AnalyzerResult<T> = std::result::Result<T, AnalyzerError>;

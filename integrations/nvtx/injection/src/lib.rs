@@ -6,9 +6,11 @@
 //! On attach, NVTX calls the exported [`InitializeInjectionNvtx2`] entry, which
 //! installs the CORE/CORE2 callback tables one-shot. Push/pop calls are
 //! converted to verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s and handed to a
-//! sink-agnostic `Fn(NvtxEvent)` hook installed via [`install_hook`]. This
-//! crate depends on nothing
-//! product-specific except `nvtx-events`, so it stays separable/upstreamable.
+//! sink-agnostic `Fn(NvtxEvent)` hook. Direct consumers install that hook via
+//! [`install_hook`]. Generated instrumentation uses the hidden, binding-aware
+//! [`register_source`] adapter; the current production backend delegates it to
+//! the same one-shot hook. This crate depends on nothing product-specific
+//! except `nvtx-events`, so it stays separable/upstreamable.
 //!
 //! # Attach modes
 //!
@@ -66,5 +68,6 @@ mod convert;
 mod init;
 
 pub use init::{
-    InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2, install_hook,
+    InstallHookError, SourceBinding, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
+    install_hook, register_source,
 };

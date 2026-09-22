@@ -3,6 +3,7 @@
 
 //! Filesystem-backed event storage.
 
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
@@ -49,6 +50,51 @@ pub enum Error {
         #[source]
         source: quent_io::ImporterError,
     },
+}
+
+/// Availability of a stream after a context has been loaded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StreamAvailability {
+    /// The model schema does not declare this stream.
+    Undeclared,
+    /// The schema declares it, but no stream directory is available.
+    Missing,
+    /// The stream directory exists and contains no decoded events.
+    Empty,
+    /// At least one event was decoded from the stream.
+    Populated,
+}
+
+/// One validated context's decoded model events and stream availability.
+///
+/// Events retain file/stream traversal order, which is not necessarily timestamp
+/// order. Analysis can borrow these events to share one load across consumers.
+pub struct LoadedContext<M: ModelEvents> {
+    id: Uuid,
+    events: Vec<Event<M::UmbrellaEvent>>,
+    streams: BTreeMap<&'static str, StreamAvailability>,
+}
+
+impl<M: ModelEvents> LoadedContext<M> {
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn events(&self) -> &[Event<M::UmbrellaEvent>] {
+        &self.events
+    }
+
+    pub fn into_events(self) -> Vec<Event<M::UmbrellaEvent>> {
+        self.events
+    }
+
+    /// Look up a schema stream name, including streams that were not captured.
+    pub fn stream_availability(&self, entity: &str) -> StreamAvailability {
+        self.streams
+            .get(entity)
+            .copied()
+            .unwrap_or(StreamAvailability::Undeclared)
+    }
 }
 
 /// Associates a generated model with its filesystem entity-event streams.
@@ -135,10 +181,8 @@ where
 
     fn load_entity_events(&self, context_id: Uuid) -> Result<EventIterator<E::Event, Error>> {
         let context = self.context(context_id)?;
-        Ok(import_files::<E::Event>(event_files(
-            &context,
-            E::Event::NAME,
-        )?))
+        Ok(load_entity_stream::<E::Event>(&context)?
+            .unwrap_or_else(|| Box::new(std::iter::empty())))
     }
 }
 
@@ -157,10 +201,48 @@ where
         let context = self.context(context_id)?;
         let mut streams = Vec::new();
         for descriptor in M::event_streams() {
-            let files = event_files(&context, descriptor.entity)?;
-            streams.push((descriptor.import)(files)?);
+            if let Some(files) = event_files(&context, descriptor.entity)? {
+                streams.push((descriptor.import)(files)?);
+            }
         }
         Ok(Box::new(streams.into_iter().flatten()))
+    }
+}
+
+impl<M> Store<M>
+where
+    M: EventModel + Model + 'static,
+{
+    /// Load every declared stream once, retaining missing-versus-empty state.
+    ///
+    /// Validates context/model identity before opening any event files. Returns
+    /// an error if any stream fails to decode; no partial context is published.
+    pub fn load_context(&self, context_id: Uuid) -> Result<LoadedContext<M>> {
+        let context = self.context(context_id)?;
+        let mut events = Vec::new();
+        let mut streams = BTreeMap::new();
+        for descriptor in M::event_streams() {
+            let availability = match event_files(&context, descriptor.entity)? {
+                None => StreamAvailability::Missing,
+                Some(files) => {
+                    let start = events.len();
+                    for event in (descriptor.import)(files)? {
+                        events.push(event?);
+                    }
+                    if events.len() == start {
+                        StreamAvailability::Empty
+                    } else {
+                        StreamAvailability::Populated
+                    }
+                }
+            };
+            streams.insert(descriptor.entity, availability);
+        }
+        Ok(LoadedContext {
+            id: context_id,
+            events,
+            streams,
+        })
     }
 }
 
@@ -200,6 +282,21 @@ where
     }
 }
 
+/// Load one typed stream from a context directory using each file's format.
+///
+/// `None` means the stream directory is missing or is not a directory. A present
+/// directory yields an iterator, even if empty. Files are visited in path order;
+/// recognized formats with disabled features and I/O failures remain errors.
+///
+/// This lower-level entrypoint does not validate model metadata. Generated
+/// models use [`Store`], which performs that validation.
+fn load_entity_stream<T>(context: &Path) -> Result<Option<EventIterator<T, Error>>>
+where
+    T: EntityEvent + DeserializeOwned + 'static,
+{
+    Ok(event_files(context, T::NAME)?.map(import_files::<T>))
+}
+
 /// Imports event files in their supplied order and yields importer failures as iterator items.
 fn import_files<T>(files: Vec<EventFile>) -> EventIterator<T, Error>
 where
@@ -231,14 +328,14 @@ where
 
 /// Returns recognized event files for `entity` in path order.
 ///
-/// A missing or non-directory entity path produces an empty list. A recognized format whose
+/// A missing or non-directory entity path produces `None`. A recognized format whose
 /// feature is disabled produces an error.
-fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
+fn event_files(context: &Path, entity: &str) -> Result<Option<Vec<EventFile>>> {
     let directory = context.join(entity);
     match std::fs::metadata(&directory) {
         Ok(metadata) if metadata.is_dir() => {}
-        Ok(_) => return Ok(Vec::new()),
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Ok(_) => return Ok(None),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(source) => {
             return Err(Error::Io {
                 operation: "inspect event directory",
@@ -300,7 +397,7 @@ fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
             }
         }
     }
-    Ok(files)
+    Ok(Some(files))
 }
 
 fn format_feature(extension: &str) -> Option<&'static str> {
@@ -364,6 +461,7 @@ mod tests {
 
         let paths = event_files(root.path(), "Alpha")
             .unwrap()
+            .unwrap()
             .into_iter()
             .map(|file| file.path.file_name().unwrap().to_owned())
             .collect::<Vec<_>>();
@@ -413,5 +511,176 @@ mod tests {
             Some(Err(Error::Importer { path: error_path, .. })) if error_path == path
         ));
         assert!(events.next().is_none());
+    }
+
+    #[cfg(feature = "io-ndjson")]
+    mod context_loading {
+        use quent_events::Entity;
+        use serde::{Deserialize, Serialize};
+
+        use super::*;
+
+        #[derive(Debug, Deserialize, Serialize)]
+        pub(super) struct Sample {
+            sequence: u32,
+        }
+
+        impl EntityEvent for Sample {
+            const NAME: &'static str = "Alpha";
+        }
+
+        struct Alpha;
+        impl Entity for Alpha {
+            type Event = Sample;
+        }
+        impl StoredEntity<TestModel> for Alpha {}
+
+        impl ModelEvents for TestModel {
+            type UmbrellaEvent = Sample;
+        }
+
+        impl Model for TestModel {
+            fn event_streams() -> &'static [EventStream<Self>] {
+                static STREAMS: &[EventStream<TestModel>] = &[
+                    EventStream::new("Alpha", import_event_files::<TestModel, Sample>),
+                    EventStream::new("Empty", import_event_files::<TestModel, Sample>),
+                    EventStream::new("ZeroBytes", import_event_files::<TestModel, Sample>),
+                    EventStream::new("Missing", import_event_files::<TestModel, Sample>),
+                ];
+                STREAMS
+            }
+        }
+
+        fn context(root: &Path, id: Uuid, name: &str) -> PathBuf {
+            let path = root.join(id.to_string());
+            fs::create_dir_all(&path).unwrap();
+            let mut model = ModelInfo::unknown();
+            model.name = name.to_owned();
+            ArtifactInfo::new(model).write_sidecar(&path).unwrap();
+            path
+        }
+
+        fn sample(id: Uuid, timestamp: u64, sequence: u32) -> String {
+            format!(r#"{{"id":"{id}","timestamp":{timestamp},"data":{{"sequence":{sequence}}}}}"#)
+                + "\n"
+        }
+
+        #[test]
+        fn loaded_context_distinguishes_all_stream_states_and_keeps_envelopes() {
+            let root = tempfile::tempdir().unwrap();
+            let id = Uuid::from_u128(11);
+            let entity = Uuid::from_u128(99);
+            let dir = context(root.path(), id, TestModel::NAME);
+            for name in ["Alpha", "Empty", "ZeroBytes"] {
+                fs::create_dir(dir.join(name)).unwrap();
+            }
+            fs::write(dir.join("ZeroBytes/events.ndjson"), b"").unwrap();
+            fs::write(dir.join("Alpha/a.ndjson"), sample(entity, 30, 1)).unwrap();
+            fs::write(dir.join("Alpha/b.ndjson"), sample(entity, 10, 2)).unwrap();
+            // A file on disk is not a declaration in the model's schema.
+            fs::create_dir(dir.join("Undeclared")).unwrap();
+            fs::write(
+                dir.join("Undeclared/events.ndjson"),
+                b"not part of this model\n",
+            )
+            .unwrap();
+
+            let store = Store::<TestModel>::new(root.path());
+            let loaded = store.load_context(id).unwrap();
+            assert_eq!(loaded.id(), id);
+            assert_eq!(
+                loaded.stream_availability("Alpha"),
+                StreamAvailability::Populated
+            );
+            assert_eq!(
+                loaded.stream_availability("Empty"),
+                StreamAvailability::Empty
+            );
+            assert_eq!(
+                loaded.stream_availability("ZeroBytes"),
+                StreamAvailability::Empty
+            );
+            assert_eq!(
+                loaded.stream_availability("Missing"),
+                StreamAvailability::Missing
+            );
+            assert_eq!(
+                loaded.stream_availability("Undeclared"),
+                StreamAvailability::Undeclared
+            );
+            let values = |events: Vec<Event<Sample>>| {
+                events
+                    .into_iter()
+                    .map(|event| (event.id, event.timestamp, event.data.sequence))
+                    .collect::<Vec<_>>()
+            };
+            let expected = vec![(entity, 30, 1), (entity, 10, 2)];
+            assert_eq!(
+                values(store.events(id).unwrap().collect::<Result<_>>().unwrap()),
+                expected
+            );
+            assert_eq!(
+                values(
+                    store
+                        .entity_events::<Alpha>(id)
+                        .unwrap()
+                        .collect::<Result<_>>()
+                        .unwrap()
+                ),
+                expected
+            );
+            assert_eq!(values(loaded.into_events()), expected);
+        }
+
+        #[test]
+        fn invalid_models_and_broken_streams_never_return_partial_contexts() {
+            let root = tempfile::tempdir().unwrap();
+            let id = Uuid::from_u128(12);
+            let dir = context(root.path(), id, "WrongModel");
+            fs::create_dir(dir.join("Alpha")).unwrap();
+            fs::write(dir.join("Alpha/a.ndjson"), sample(id, 1, 1)).unwrap();
+            fs::write(dir.join("Alpha/b.ndjson"), b"invalid event\n").unwrap();
+            let store = Store::<TestModel>::new(root.path());
+            assert!(matches!(
+                store.load_context(id),
+                Err(Error::ModelMismatch { .. })
+            ));
+            context(root.path(), id, TestModel::NAME);
+            assert!(matches!(
+                store.load_context(id),
+                Err(Error::Importer { .. })
+            ));
+            fs::write(dir.join("Alpha/b.ndjson"), sample(id, 2, 2)).unwrap();
+            assert_eq!(store.load_context(id).unwrap().events().len(), 2);
+            assert!(matches!(
+                store.load_context(Uuid::nil()),
+                Err(Error::ContextNotFound(_))
+            ));
+        }
+
+        #[test]
+        fn typed_stream_loader_preserves_missing_empty_and_decode_errors() {
+            let dir = tempfile::tempdir().unwrap();
+            assert!(load_entity_stream::<Sample>(dir.path()).unwrap().is_none());
+            fs::write(dir.path().join("Alpha"), b"not a directory").unwrap();
+            assert!(load_entity_stream::<Sample>(dir.path()).unwrap().is_none());
+            fs::remove_file(dir.path().join("Alpha")).unwrap();
+            fs::create_dir(dir.path().join("Alpha")).unwrap();
+            assert!(
+                load_entity_stream::<Sample>(dir.path())
+                    .unwrap()
+                    .unwrap()
+                    .next()
+                    .is_none()
+            );
+            fs::write(dir.path().join("Alpha/events.ndjson"), b"invalid event\n").unwrap();
+            assert!(matches!(
+                load_entity_stream::<Sample>(dir.path())
+                    .unwrap()
+                    .unwrap()
+                    .next(),
+                Some(Err(Error::Importer { .. }))
+            ));
+        }
     }
 }

@@ -18,6 +18,23 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::HandleError;
+
+/// Deferred side effect run after one generated event has been queued.
+///
+/// Generated source uses this only for private source activation. Keeping the
+/// callback on the observer lets every handle for the selected entity share
+/// the same configuration without retaining an owning observer in the source
+/// hook itself.
+type EmitActivation = Box<dyn Fn(Uuid) -> Result<(), HandleError> + Send + Sync + 'static>;
+
+#[derive(Debug, thiserror::Error)]
+#[error("private source belongs to native process {supplied}, but this process is {current}")]
+struct NativeProcessMismatch {
+    supplied: u32,
+    current: u32,
+}
+
 /// Wrapper around an optional channel sender.
 ///
 /// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
@@ -69,6 +86,10 @@ impl<T> EventSender<T> {
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
         self.send(Event::new_now(id, event.into()));
     }
+
+    fn is_active(&self) -> bool {
+        self.tx.is_some()
+    }
 }
 
 /// Backs an entity observer with event forwarding and exporter lifecycle management.
@@ -82,6 +103,8 @@ impl<T> EventSender<T> {
 #[doc(hidden)]
 pub struct ObserverInner<T> {
     events_sender: EventSender<T>,
+    emit_activation: Option<EmitActivation>,
+    source_capture_enabled: bool,
     cancellation_token: CancellationToken,
     forwarder_handle: Option<JoinHandle<()>>,
     /// The runtime this pipeline's forwarder runs on; `None` for a no-op
@@ -98,6 +121,8 @@ impl<T> ObserverInner<T> {
     pub fn noop() -> Self {
         Self {
             events_sender: EventSender::noop(),
+            emit_activation: None,
+            source_capture_enabled: false,
             cancellation_token: CancellationToken::new(),
             forwarder_handle: None,
             runtime: None,
@@ -122,6 +147,64 @@ impl<T> ObserverInner<T> {
     /// an error via `tracing`, then further ones are suppressed).
     pub fn sender(&self) -> EventSender<T> {
         self.events_sender.clone()
+    }
+
+    /// Configure a side effect to run after a generated handle queues its
+    /// designated activation event.
+    ///
+    /// No-op observers intentionally discard `activation`. Replay and
+    /// collector forwarding call [`Self::send`] directly and therefore never
+    /// invoke it.
+    #[doc(hidden)]
+    pub fn with_emit_activation(
+        mut self,
+        activation: impl Fn(Uuid) -> Result<(), HandleError> + Send + Sync + 'static,
+    ) -> Self {
+        if self.events_sender.is_active() && self.source_capture_enabled {
+            self.emit_activation = Some(Box::new(activation));
+        }
+        self
+    }
+
+    pub(crate) fn validate_native_process_id(
+        &self,
+        native_process_id: u32,
+    ) -> Result<(), HandleError> {
+        if self.emit_activation.is_none() || native_process_id == std::process::id() {
+            return Ok(());
+        }
+        Err(HandleError::source_activation(NativeProcessMismatch {
+            supplied: native_process_id,
+            current: std::process::id(),
+        }))
+    }
+
+    pub(crate) fn activate_after_emit(&self, id: Uuid) -> Result<(), HandleError> {
+        match &self.emit_activation {
+            Some(activation) => activation(id),
+            None => Ok(()),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn active_for_test(
+        source_capture_enabled: bool,
+    ) -> (Self, tokio::sync::mpsc::UnboundedReceiver<Event<T>>) {
+        let (tx, rx) = unbounded_channel();
+        (
+            Self {
+                events_sender: EventSender {
+                    tx: Some(tx),
+                    disable_error_log: Arc::new(AtomicBool::new(false)),
+                },
+                emit_activation: None,
+                source_capture_enabled,
+                cancellation_token: CancellationToken::new(),
+                forwarder_handle: None,
+                runtime: None,
+            },
+            rx,
+        )
     }
 }
 
@@ -148,6 +231,7 @@ impl<T> Drop for ObserverInner<T> {
 pub(crate) fn spawn_forwarder<T>(
     runtime: &Runtime,
     mut exporter: Box<dyn Exporter<T>>,
+    source_capture_enabled: bool,
 ) -> ObserverInner<T>
 where
     T: Send + EntityEvent + 'static,
@@ -205,6 +289,8 @@ where
             tx: Some(events_sender),
             disable_error_log: Arc::new(AtomicBool::new(false)),
         },
+        emit_activation: None,
+        source_capture_enabled,
         cancellation_token,
         forwarder_handle: Some(forwarder_handle),
         runtime: Some(runtime.clone()),

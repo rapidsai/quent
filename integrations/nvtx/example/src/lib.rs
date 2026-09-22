@@ -16,9 +16,18 @@
 use std::ffi::CString;
 use std::sync::{Arc, Barrier};
 
-use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{ContextInner, EventCallback};
+use quent_instrumentation::{Context, ContextExporter, ObserverBuilder};
 use uuid::Uuid;
+
+pub mod instrumentation {
+    include!(concat!(env!("OUT_DIR"), "/instrumentation.rs"));
+}
+
+pub mod store {
+    include!(concat!(env!("OUT_DIR"), "/store.rs"));
+}
+
+use instrumentation::{NvtxDemo, Process};
 
 /// Capture the NVTX events produced by the fixed annotation sequence into
 /// `exporter`.
@@ -26,10 +35,11 @@ use uuid::Uuid;
 /// Builds a Quent context and event pipeline on `exporter`, installs the injection
 /// hook (one-shot per process) to forward each event, runs the annotations, and
 /// drops the pipeline to flush.
-pub fn run_capture(
-    session: Uuid,
-    exporter: EventCallback<NvtxEventEntity>,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_capture<P>(session: Uuid, exporter: P) -> Result<(), Box<dyn std::error::Error>>
+where
+    P: ContextExporter,
+    NvtxDemo: ObserverBuilder<P>,
+{
     run_capture_n_threads(1, session, exporter)
 }
 
@@ -38,23 +48,26 @@ pub fn run_capture(
 ///
 /// A [`Barrier`] synchronizes all threads before their first NVTX call so their
 /// push/pop events are interleaved in real time rather than serialised.
-pub fn run_capture_n_threads(
+pub fn run_capture_n_threads<P>(
     n: usize,
     session: Uuid,
-    exporter: EventCallback<NvtxEventEntity>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let context = ContextInner::try_new(session)?;
-    let pipeline =
-        context.block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })?;
-
-    // Forward each captured event into the pipeline, before the first NVTX call.
-    let sender = pipeline.sender();
-    nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
+    exporter: P,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    P: ContextExporter,
+    NvtxDemo: ObserverBuilder<P>,
+{
+    let context = Context::<NvtxDemo>::try_with_id(session, exporter)?;
+    let mut process = context.observer::<Process>().handle();
+    process.started(instrumentation::quent::os::Process {
+        native_id: std::process::id(),
+    })?;
 
     annotated_work_n_threads(n);
 
-    // Dropping the pipeline drains and flushes the exporter.
-    drop(pipeline);
+    // Releasing the last owners drains every generated exporter.
+    drop(process);
+    drop(context);
     Ok(())
 }
 

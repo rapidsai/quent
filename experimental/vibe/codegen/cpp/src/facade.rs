@@ -9,7 +9,7 @@ use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, Cardinality, DataType, Entity, Event, Field, Path, Schema};
 
 use crate::common::{cxx_safe, path_pascal, path_snake, to_case};
-use crate::{GenerateError, GeneratedFile, Options};
+use crate::{GenerateError, GeneratedFile, Options, has_nvtx_source, public_entities};
 
 pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, GenerateError> {
     let mut output = String::from("#pragma once\n");
@@ -19,7 +19,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, 
             options.crate_name, options.bridge_path, file
         ));
     }
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         output.push_str(&format!(
             "#include \"{}/{}/{}.rs.h\"\n",
             options.crate_name,
@@ -471,7 +471,7 @@ fn emit_type_dependencies(
 }
 
 fn emit_event_payloads(schema: &Schema, options: &Options, output: &mut String) {
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         let namespace = public_entity_namespace(entity, options);
         output.push_str(&format!("namespace {namespace} {{\n"));
         for event in entity.events() {
@@ -499,7 +499,7 @@ fn emit_event_payloads(schema: &Schema, options: &Options, output: &mut String) 
 fn emit_conversion_declarations(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
     output.push_str(&format!("namespace {namespace}::facade_detail {{\n"));
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         let prefix = path_snake(entity.path());
         let raw_namespace = raw_entity_namespace(entity, options);
         for path in used_records(schema, entity) {
@@ -525,7 +525,7 @@ fn emit_conversion_declarations(schema: &Schema, options: &Options, output: &mut
 }
 
 fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String) {
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         let namespace = public_entity_namespace(entity, options);
         let parent_namespace = public_entity_parent_namespace(entity, options);
         let name = path_pascal(entity.path());
@@ -555,30 +555,54 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
 
 fn emit_context_declaration(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
+    let has_nvtx_source = has_nvtx_source(schema);
+    let source_capture = if has_nvtx_source {
+        "SourceCapture source_capture = SourceCapture::Enabled"
+    } else {
+        ""
+    };
+    let source_capture_suffix = if source_capture.is_empty() {
+        String::new()
+    } else {
+        format!(", {source_capture}")
+    };
+    let source_capture_enum = if has_nvtx_source {
+        "enum class SourceCapture { Enabled, Disabled };\n\n"
+    } else {
+        ""
+    };
     output.push_str(&format!(
         r#"namespace {namespace} {{
-class Context final {{
+{source_capture_enum}class Context final {{
  public:
   Context(Context&&) = default;
   Context& operator=(Context&&) = default;
 
-  static Context none();
+  static Context none({source_capture});
 "#
     ));
     if options.exporters.ndjson {
-        output.push_str("  static Context ndjson(std::string output_dir);\n");
+        output.push_str(&format!(
+            "  static Context ndjson(std::string output_dir{source_capture_suffix});\n"
+        ));
     }
     if options.exporters.msgpack {
-        output.push_str("  static Context msgpack(std::string output_dir);\n");
+        output.push_str(&format!(
+            "  static Context msgpack(std::string output_dir{source_capture_suffix});\n"
+        ));
     }
     if options.exporters.postcard {
-        output.push_str("  static Context postcard(std::string output_dir);\n");
+        output.push_str(&format!(
+            "  static Context postcard(std::string output_dir{source_capture_suffix});\n"
+        ));
     }
     if options.exporters.collector {
-        output.push_str("  static Context collector(std::string address);\n");
+        output.push_str(&format!(
+            "  static Context collector(std::string address{source_capture_suffix});\n"
+        ));
     }
     output.push_str("\n  Uuid id() const { return inner_->id(); }\n");
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         let observer = format!(
             "::{}::{}Observer",
             public_entity_namespace(entity, options),
@@ -604,7 +628,7 @@ class Context final {{
 fn emit_conversions(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
     output.push_str(&format!("namespace {namespace}::facade_detail {{\n"));
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         let prefix = path_snake(entity.path());
         let raw_namespace = raw_entity_namespace(entity, options);
         for path in used_records(schema, entity) {
@@ -666,7 +690,7 @@ fn emit_conversions(schema: &Schema, options: &Options, output: &mut String) {
 
 fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
     let base_namespace = &options.namespace;
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         if let Some(fsm) = Fsm::try_from_entity(entity).ok().flatten() {
             emit_fsm_handles(entity, &fsm, options, output);
             continue;
@@ -849,34 +873,58 @@ fn public_event_fields<'a>(entity: &Entity, event: &'a Event) -> impl Iterator<I
 
 fn emit_context_methods(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
+    let has_nvtx_source = has_nvtx_source(schema);
+    let source_capture_parameter = if has_nvtx_source {
+        "SourceCapture source_capture"
+    } else {
+        ""
+    };
+    let source_capture_parameter_suffix = if has_nvtx_source {
+        ", SourceCapture source_capture"
+    } else {
+        ""
+    };
+    let source_capture_argument = if has_nvtx_source {
+        ", source_capture == SourceCapture::Enabled"
+    } else {
+        ""
+    };
     output.push_str(&format!(
         r#"namespace {namespace} {{
-inline Context Context::none() {{
-  return Context(detail::create_context(detail::ExporterOptions::none()));
+inline Context Context::none({source_capture_parameter}) {{
+  return Context(detail::create_context(detail::ExporterOptions::none(){source_capture_argument}));
 }}
 "#
     ));
     if options.exporters.ndjson {
-        output.push_str(
-            "inline Context Context::ndjson(std::string output_dir) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::ndjson(::rust::String(std::move(output_dir)))));\n}\n",
-        );
+        output.push_str(&format!(
+            "inline Context Context::ndjson(std::string output_dir{}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::ndjson(::rust::String(std::move(output_dir))){}));\n}}\n",
+            source_capture_parameter_suffix,
+            source_capture_argument,
+        ));
     }
     if options.exporters.msgpack {
-        output.push_str(
-            "inline Context Context::msgpack(std::string output_dir) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::msgpack(::rust::String(std::move(output_dir)))));\n}\n",
-        );
+        output.push_str(&format!(
+            "inline Context Context::msgpack(std::string output_dir{}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::msgpack(::rust::String(std::move(output_dir))){}));\n}}\n",
+            source_capture_parameter_suffix,
+            source_capture_argument,
+        ));
     }
     if options.exporters.postcard {
-        output.push_str(
-            "inline Context Context::postcard(std::string output_dir) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::postcard(::rust::String(std::move(output_dir)))));\n}\n",
-        );
+        output.push_str(&format!(
+            "inline Context Context::postcard(std::string output_dir{}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::postcard(::rust::String(std::move(output_dir))){}));\n}}\n",
+            source_capture_parameter_suffix,
+            source_capture_argument,
+        ));
     }
     if options.exporters.collector {
-        output.push_str(
-            "inline Context Context::collector(std::string address) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::collector(::rust::String(std::move(address)))));\n}\n",
-        );
+        output.push_str(&format!(
+            "inline Context Context::collector(std::string address{}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::collector(::rust::String(std::move(address))){}));\n}}\n",
+            source_capture_parameter_suffix,
+            source_capture_argument,
+        ));
     }
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         let public_namespace = public_entity_namespace(entity, options);
         let raw_namespace = raw_entity_namespace(entity, options);
         let name = path_pascal(entity.path());
@@ -1051,7 +1099,7 @@ fn reference_types(schema: &Schema) -> BTreeMap<String, (DataType, Annotations)>
             collect_reference_types(field.ty(), &mut output);
         }
     }
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         for event in entity.events() {
             for field in event.fields() {
                 collect_reference_types(field.ty(), &mut output);

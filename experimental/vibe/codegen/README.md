@@ -11,6 +11,20 @@ pixi run maturin develop --uv \
 pixi run pytest experimental/vibe/codegen/python/test
 ```
 
+The Linux 64-bit C++ and Python live-capture fixtures use the same minimal
+generated instrumentation crate intended for every language binding. They
+check source activation errors, retrying a once event, static NVTX injection,
+and NDJSON stream ordering with real mark and push/pop calls:
+
+```sh
+pixi run cargo test \
+  --manifest-path experimental/vibe/codegen/Cargo.toml \
+  -p quent-codegen-cpp-nvtx-test
+pixi run maturin develop --uv \
+  -m experimental/vibe/codegen/python/test/nvtx/bridge/Cargo.toml
+pixi run pytest experimental/vibe/codegen/python/test/nvtx
+```
+
 The target-language examples under `cpp/example/readme` and
 `python/example/readme` define the intended public API. Both examples bind
 directly to the schema-generated instrumentation in `examples/readme` and

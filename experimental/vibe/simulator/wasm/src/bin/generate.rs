@@ -5,11 +5,10 @@
 
 use std::path::PathBuf;
 
-use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 use quent_simulator_instrumentation as instrumentation;
-use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_simulator_store::Simulator;
+use quent_store::event::filesystem::Store;
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
@@ -27,8 +26,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context_id = context.id();
     quent_simulator::simulate(context, Default::default());
     let events = Store::<Simulator>::new(event_dir.path())
-        .events(context_id)?
-        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()?;
+        .load_context(context_id)?
+        .into_events();
     if let Some(parent) = output
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())

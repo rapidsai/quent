@@ -13,6 +13,10 @@ quent-simulator-instrumentation = { path = "../../instrumentation" }
 uuid = { workspace = true }
 
 [dev-dependencies]
+nvtx-ui = { path = "../../../../../integrations/nvtx/ui" }
+serde_json.workspace = true
+axum = "0.8.7"
+quent-analyzer = { path = "../../../../../crates/analyzer" }
 quent-events = { workspace = true }
 quent-instrumentation = { path = "../../../../../crates/instrumentation" }
 quent-simulator = { path = "../../application" }
@@ -20,6 +24,9 @@ quent-simulator-analyzer = { path = "../../analyzer" }
 quent-simulator-store = { path = "../../store" }
 quent-store = { path = "../../../../../crates/store", features = ["io-ndjson"] }
 quent-query-engine-analyzer = { path = "../../../../../domains/query_engine/analyzer" }
+quent-query-engine-server = { path = "../../../../../domains/query_engine/server" }
 quent-query-engine-ui = { path = "../../../../../domains/query_engine/ui" }
 quent-ui = { path = "../../../../../crates/ui" }
 tempfile = "3"
+tokio = { workspace = true, features = ["rt"] }
+tower = { version = "0.5", features = ["util"] }

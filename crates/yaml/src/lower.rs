@@ -94,7 +94,7 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
         ))
         .build();
     match schema {
-        Ok(schema) => Some(schema),
+        Ok(schema) => extensions.elaborate_schema(schema, sink),
         Err(error) => {
             schema_builder_diagnostics(&error, sink);
             None

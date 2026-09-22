@@ -15,10 +15,11 @@
 
 use rustc_hash::FxHashMap as HashMap;
 
-use nvtx_events::{NvtxColor, NvtxEventAttributes, NvtxPayload};
+use nvtx_events::{NvtxColor, NvtxPayload};
 use quent_time::TimeUnixNanoSec;
 use tracing::{debug, warn};
 
+use crate::input::NvtxAttributesView;
 use crate::span::{NvtxSpan, SpanId, SpanKind, category_id};
 
 /// An open range of either kind, awaiting whatever closes it.
@@ -30,9 +31,9 @@ use crate::span::{NvtxSpan, SpanId, SpanKind, category_id};
 struct OpenRange {
     domain: u64,
     name: String,
-    /// Only the attributes a span keeps. Retaining the whole
-    /// `NvtxEventAttributes` would hold its `message` alive for as long as the
-    /// range stays open, and the message is dead once `name` is resolved.
+    /// Only the attributes a span keeps. Retaining input attributes would keep
+    /// the borrowed message alive for as long as the range stays open, and the
+    /// message is no longer needed once `name` is resolved.
     category: Option<u32>,
     color: Option<NvtxColor>,
     payload: Option<NvtxPayload>,
@@ -43,7 +44,7 @@ impl OpenRange {
     fn new(
         domain: u64,
         name: String,
-        attributes: NvtxEventAttributes,
+        attributes: NvtxAttributesView<'_>,
         start: TimeUnixNanoSec,
     ) -> Self {
         Self {
@@ -97,7 +98,7 @@ impl StartEndRanges {
         range_id: u64,
         domain: u64,
         name: String,
-        attributes: NvtxEventAttributes,
+        attributes: NvtxAttributesView<'_>,
         start: TimeUnixNanoSec,
     ) -> Option<NvtxSpan> {
         let open = OpenRange::new(domain, name, attributes, start);
@@ -196,7 +197,7 @@ impl PushPopRanges {
         thread_id: u32,
         domain: u64,
         name: String,
-        attributes: NvtxEventAttributes,
+        attributes: NvtxAttributesView<'_>,
         start: TimeUnixNanoSec,
     ) {
         self.stacks

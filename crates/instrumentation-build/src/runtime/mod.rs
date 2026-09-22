@@ -24,7 +24,11 @@ pub(crate) fn entity_runtime_types(
     entity: &Entity,
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
-    let handle = handle::entity_handle(entity, opts)?;
+    let capture = crate::nvtx::capture_config(schema, opts)?;
+    let activation = capture
+        .as_ref()
+        .filter(|capture| &capture.process == entity.path());
+    let handle = handle::entity_handle(entity, opts, activation)?;
     let entity_impl = entity_impl(schema, entity, &handle.associated_type);
     let handle = handle.tokens;
     Ok(quote! {
@@ -36,9 +40,9 @@ pub(crate) fn entity_runtime_types(
 pub(crate) fn generate_model(
     schema: &Schema,
     namespaces: &crate::namespace::Namespace<'_>,
-    collector_sink: bool,
-) -> TokenStream {
-    context::schema_model(schema, namespaces, collector_sink)
+    opts: &Options,
+) -> Result<TokenStream, GenerateError> {
+    context::schema_model(schema, namespaces, opts)
 }
 
 pub(crate) fn observer_storage(
@@ -110,8 +114,9 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct,
-            DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
+            AnyEntity, Context, ContextOptions, DynamicAttribute, DynamicAttributes, DynamicList,
+            DynamicStruct, DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop,
+            Observer, SourceCapture, Uuid,
         };
     }
 }
@@ -199,7 +204,7 @@ mod tests {
         let entity_types = entity_runtime_types(&s, entity, &Options::default()).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
         let generated_model = crate::model::generate(&s, &namespaces, &Options::default()).unwrap();
-        let model = generate_model(&s, &namespaces, false);
+        let model = generate_model(&s, &namespaces, &Options::default()).unwrap();
         let src = pretty(quote! {
             #event_types
             #entity_types
@@ -244,7 +249,7 @@ mod tests {
             .unwrap();
         let namespaces = crate::namespace::Namespace::root(&schema);
 
-        let src = pretty(generate_model(&schema, &namespaces, false));
+        let src = pretty(generate_model(&schema, &namespaces, &Options::default()).unwrap());
 
         assert!(src.contains("P: ::quent_instrumentation::ExporterProvider<foo::QueryEvent>"));
         assert!(

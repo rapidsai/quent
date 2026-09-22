@@ -72,3 +72,14 @@ Observers and handles retain their scoped telemetry runtime independently of
 shutdown waits until the last observer or handle is destroyed. Once-cardinality
 events on non-FSM entities expose `<event>_emitted()` predicates on their
 handles.
+
+Schemas with an `nvtx: true` process expose source capture on `Context` while
+keeping the generated NVTX stream private. The Linux 64-bit integration test
+drives the public C++ process API and real NVTX calls through the generated
+NDJSON exporter:
+
+```sh
+pixi run cargo test \
+  --manifest-path experimental/vibe/codegen/Cargo.toml \
+  -p quent-codegen-cpp-nvtx-test
+```

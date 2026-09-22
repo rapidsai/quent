@@ -20,4 +20,5 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
 tempfile = "3"

@@ -80,8 +80,7 @@ mod tests {
     #[test]
     #[cfg(feature = "msgpack")]
     fn rejects_mixed_context_formats() {
-        let context =
-            context_with_streams(&[("EngineEvent", "ndjson"), ("NvtxEventEntity", "msgpack")]);
+        let context = context_with_streams(&[("EngineEvent", "ndjson"), ("NvtxEvent", "msgpack")]);
         let detected = Format::detect(&context);
         std::fs::remove_dir_all(context).unwrap();
 

@@ -22,6 +22,43 @@ use uuid::Uuid;
 
 type SimulatorContext = instr::Context<instr::Simulator>;
 
+#[cfg(target_os = "linux")]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    // SAFETY: `gettid` takes no arguments and returns the caller's kernel task ID.
+    let native_id = unsafe { libc::syscall(libc::SYS_gettid) };
+    if native_id < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(native_id as u64)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    let mut native_id = 0;
+    // SAFETY: A null thread selects the caller, and `native_id` is writable.
+    let result = unsafe { libc::pthread_threadid_np(0, &mut native_id) };
+    if result == 0 {
+        Ok(native_id)
+    } else {
+        Err(std::io::Error::from_raw_os_error(result))
+    }
+}
+
+#[cfg(windows)]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    // SAFETY: `GetCurrentThreadId` has no preconditions.
+    Ok(unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() }.into())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "native thread IDs are unsupported on this platform",
+    ))
+}
+
 const ENGINE_ID: Uuid = Uuid::from_u128(0x01a07b4c86ab797197c124879c41910e);
 const QUERY_ID_BASE: u128 = 0x01a07b4c86ab797197c128ffb10dde0d;
 
@@ -255,6 +292,7 @@ struct WorkItem<'a> {
 struct PlanExecution<'a> {
     context: &'a SimulatorContext,
     engine: &'a Engine,
+    runtime_process_id: Uuid,
     logical_plan: &'a Plan<Logical>,
     num_tasks: usize,
     result_rows: &'a AtomicU64,
@@ -946,6 +984,8 @@ impl Worker {
         thread: Uuid,
     ) -> Vec<Batch> {
         let operator = work.operator;
+        #[cfg(all(target_os = "linux", target_pointer_width = "64"))]
+        let _nvtx_range = nvtx::LocalRange::new(nvtx::Str::from_str_lossy(&operator.name()));
         let mut task = TaskHandle::Queueing(context.observer::<instr::Task>().handle().queueing(
             format!("task-{}", work.task_index),
             operator.handle.as_entity_ref(),
@@ -1291,6 +1331,7 @@ impl Worker {
         let PlanExecution {
             context,
             engine,
+            runtime_process_id,
             logical_plan,
             num_tasks,
             result_rows,
@@ -1325,6 +1366,17 @@ impl Worker {
                 let phases = &phases;
                 let selective_joins = &selective_joins;
                 scope.spawn(move || {
+                    let mut runtime_thread = context.observer::<instr::RuntimeThread>().handle();
+                    runtime_thread
+                        .started(
+                            instr::quent::os::Thread {
+                                native_id: current_native_thread_id()
+                                    .expect("the simulator requires native thread IDs"),
+                            },
+                            instr::EntityRef::new(runtime_process_id, ()),
+                            instr::EntityRef::new(thread, ()),
+                        )
+                        .unwrap();
                     let mut partitions: Vec<_> = (thread_index..num_tasks)
                         .step_by(self.threads.len())
                         .map(|task_index| (task_index, HashMap::new()))
@@ -1356,6 +1408,7 @@ impl Worker {
                         }
                         phase_barrier.wait();
                     }
+                    runtime_thread.exit().unwrap();
                 });
             }
         });
@@ -1585,6 +1638,16 @@ fn simulate_with_engine_id(context: SimulatorContext, config: SimulationConfig, 
         config.num_threads,
         config.num_gpus,
     );
+    let mut runtime_process = context.observer::<instr::RuntimeProcess>().handle();
+    runtime_process
+        .started(
+            instr::quent::os::Process {
+                native_id: std::process::id(),
+            },
+            engine.handle.as_entity_ref(),
+        )
+        .unwrap();
+    let runtime_process_id = runtime_process.uuid();
 
     for query_group_index in 0..config.num_query_groups {
         let mut query_group = context.observer::<instr::QueryGroup>().handle();
@@ -1628,6 +1691,7 @@ fn simulate_with_engine_id(context: SimulatorContext, config: SimulationConfig, 
                         worker.execute_logical_plan(PlanExecution {
                             context,
                             engine,
+                            runtime_process_id,
                             logical_plan: l_plan,
                             num_tasks: config.num_tasks,
                             result_rows,
@@ -1641,6 +1705,7 @@ fn simulate_with_engine_id(context: SimulatorContext, config: SimulationConfig, 
         }
     }
 
+    runtime_process.exit().unwrap();
     engine.shut_down(&context);
 
     drop((engine, context));

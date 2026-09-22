@@ -5,11 +5,16 @@ edition = "2024"
 publish = false
 
 [dependencies]
+nvtx-analyzer = { path = "../../../integrations/nvtx/analyzer" }
 quent-events = { path = "../../events", features = ["serde"] }
 quent-instrumentation-build-example = { path = "../../instrumentation-build/example" }
 quent-store = { path = "../../store" }
 serde = { version = "1", features = ["derive"] }
 tempfile = "3"
+
+[dev-dependencies]
+quent-analyzer = { path = "../../analyzer", features = ["service"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [build-dependencies]
 quent-store-build = { path = ".." }

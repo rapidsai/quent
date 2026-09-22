@@ -287,7 +287,7 @@ fn trace_bounds_are_not_the_span_extremes() {
 
 #[test]
 fn trace_bounds_of_an_empty_capture() {
-    let model = NvtxModelBuilder::build(vec![]);
+    let model = NvtxModelBuilder::build_from(std::iter::empty::<(u64, nvtx_events::NvtxEvent)>());
     assert_eq!(model.trace_start(), 0);
     assert_eq!(model.trace_end(), 0);
 }

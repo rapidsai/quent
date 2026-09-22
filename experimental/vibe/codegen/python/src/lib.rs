@@ -18,7 +18,7 @@ use proc_macro2::{Span, TokenStream};
 use quent_constraints::{Report, validate};
 use quent_fsm::{Fsm, FsmConstraint, SEQUENCE_FIELD_NAME};
 use quent_ref_target::RefTargetConstraint;
-use quent_schema::{Cardinality, Schema};
+use quent_schema::{Cardinality, Entity, Schema};
 use quote::{format_ident, quote};
 
 pub use quent_schema;
@@ -111,8 +111,7 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
     let dynamic = parse_path(&options.dynamic_attributes_path)?;
     let helpers = helpers(options, &runtime, &dynamic);
     let context = context(schema, options, &instrumentation, &runtime, &io);
-    let entities = schema
-        .entities()
+    let entities = public_entities(schema)
         .map(|entity| entity_bindings(schema, entity, &instrumentation, &runtime))
         .collect::<Result<Vec<_>, _>>()?;
     let module = module_registration(schema, options);
@@ -147,7 +146,30 @@ fn validate_schema(schema: &Schema) -> Result<(), GenerateError> {
     } = validate::<(RefTargetConstraint, FsmConstraint)>(schema);
     base_constraints.map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
     ref_targets.map_err(|error| GenerateError::InvalidReferenceTarget(error.to_string()))?;
-    fsms.map_err(|error| GenerateError::InvalidSchema(error.to_string()))
+    fsms.map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
+    nvtx_schema::validated_bindings(schema)
+        .map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
+    Ok(())
+}
+
+/// Iterate over entities that belong in the language-facing API.
+///
+/// The canonical NVTX stream is generated for internal capture. Its validated
+/// binding identifies the private marker without relying on its display name.
+pub(crate) fn public_entities(schema: &Schema) -> impl Iterator<Item = &Entity> {
+    let private_entity = nvtx_schema::validated_bindings(schema)
+        .expect("schema was validated before generation")
+        .map(|bindings| bindings.entity.path().clone());
+    schema
+        .entities()
+        .filter(move |entity| private_entity.as_ref() != Some(entity.path()))
+}
+
+/// Whether this schema contains the validated private NVTX capture source.
+pub(crate) fn has_nvtx_source(schema: &Schema) -> bool {
+    nvtx_schema::validated_bindings(schema)
+        .expect("schema was validated before generation")
+        .is_some()
 }
 
 fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
@@ -165,6 +187,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         "PathLike",
         "QuentError",
         "Sequence",
+        "SourceActivationError",
         "TypeAlias",
         "TypedDict",
         "uuid",
@@ -172,6 +195,9 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     .into_iter()
     .map(str::to_owned)
     .collect::<std::collections::BTreeSet<_>>();
+    if has_nvtx_source(schema) {
+        names.insert("SourceCapture".to_owned());
+    }
     let mut references = std::collections::BTreeMap::<String, String>::new();
     for record in schema.records() {
         reserve_name(&mut names, format!("{}Dict", path_pascal(record.path())))?;
@@ -181,7 +207,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
             collect_reference_names(field.ty(), &mut references)?;
         }
     }
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         for name in [
             format!("{}Observer", path_pascal(entity.path())),
             format!("{}Handle", path_pascal(entity.path())),
@@ -256,7 +282,7 @@ fn validate_types(schema: &Schema) -> Result<(), GenerateError> {
             )?;
         }
     }
-    for entity in schema.entities() {
+    for entity in public_entities(schema) {
         for event in entity.events() {
             for field in event.fields() {
                 validate_type(
@@ -367,8 +393,21 @@ fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> Token
 
         pyo3::create_exception!(#module, QuentError, pyo3::exceptions::PyException);
         pyo3::create_exception!(#module, EventAlreadyEmittedError, QuentError);
+        pyo3::create_exception!(#module, SourceActivationError, QuentError);
         pyo3::create_exception!(#module, ContextClosedError, QuentError);
         pyo3::create_exception!(#module, HandleConsumedError, QuentError);
+
+        fn __handle_error(error: #runtime::HandleError) -> PyErr {
+            let message = error.to_string();
+            match error {
+                #runtime::HandleError::OnceAlreadyEmitted { .. } => {
+                    EventAlreadyEmittedError::new_err(message)
+                }
+                #runtime::HandleError::SourceActivation { .. } => {
+                    SourceActivationError::new_err(message)
+                }
+            }
+        }
 
         fn __python_uuid(py: Python<'_>, value: #runtime::Uuid) -> PyResult<Py<PyAny>> {
             Ok(py.import("uuid")?
@@ -609,10 +648,11 @@ fn context(
     runtime: &syn::Path,
     io: &syn::Path,
 ) -> TokenStream {
+    let has_nvtx_source = has_nvtx_source(schema);
     let model = model_path(instrumentation, schema.name());
     let context_ty = quote! { #instrumentation::Context<#model> };
     let module_name = &options.module_name;
-    let observer_methods = schema.entities().map(|entity| {
+    let observer_methods = public_entities(schema).map(|entity| {
         let method = raw_ident(py_safe(&format!("{}_observer", path_snake(entity.path()))));
         let observer = format_ident!("Py{}Observer", path_pascal(entity.path()));
         let entity_ty = rust_path(instrumentation, entity.path(), "");
@@ -632,8 +672,52 @@ fn context(
         .any()
         .then(|| quote! { Options(#io::ExporterOptions), });
     let option_match = options.exporters.any().then(|| {
-        quote! { Some(ExporterKind::Options(options)) => <#context_ty>::try_new(options.clone()), }
+        if has_nvtx_source {
+            quote! {
+                Some(ExporterKind::Options(options)) =>
+                    <#context_ty>::try_new_with_options(options.clone(), context_options),
+            }
+        } else {
+            quote! {
+                Some(ExporterKind::Options(options)) => <#context_ty>::try_new(options.clone()),
+            }
+        }
     });
+    let source_capture_type = has_nvtx_source.then(|| {
+        quote! {
+            /// Controls whether this context activates private live-capture sources.
+            #[pyclass(name = "SourceCapture", eq, from_py_object)]
+            #[derive(Clone, Copy, PartialEq, Eq)]
+            pub enum PySourceCapture {
+                Enabled,
+                Disabled,
+            }
+        }
+    });
+    let constructor_signature = if has_nvtx_source {
+        quote! {
+            #[pyo3(signature = (options = None, *, source_capture = PySourceCapture::Enabled))]
+        }
+    } else {
+        quote! { #[pyo3(signature = (options = None))] }
+    };
+    let source_capture_parameter =
+        has_nvtx_source.then(|| quote! { , source_capture: PySourceCapture });
+    let context_options = has_nvtx_source.then(|| {
+        quote! {
+            let source_capture = match source_capture {
+                PySourceCapture::Enabled => #runtime::SourceCapture::Enabled,
+                PySourceCapture::Disabled => #runtime::SourceCapture::Disabled,
+            };
+            let context_options = #runtime::ContextOptions::default()
+                .with_source_capture(source_capture);
+        }
+    });
+    let noop_context = if has_nvtx_source {
+        quote! { <#context_ty>::try_new_with_options(#runtime::Noop, context_options) }
+    } else {
+        quote! { <#context_ty>::try_new(#runtime::Noop) }
+    };
     let mut exporter_methods = Vec::new();
     if options.exporters.ndjson {
         exporter_methods.push(quote! {
@@ -692,6 +776,8 @@ fn context(
         }
     });
     quote! {
+        #source_capture_type
+
         #[allow(dead_code)]
         enum ExporterKind { Noop, #option_variant }
 
@@ -712,10 +798,14 @@ fn context(
         #[pymethods]
         impl PyContext {
             #[new]
-            #[pyo3(signature = (options=None))]
-            pub fn new(options: Option<PyRef<'_, PyExporterOptions>>) -> PyResult<Self> {
+            #constructor_signature
+            pub fn new(
+                options: Option<PyRef<'_, PyExporterOptions>>
+                #source_capture_parameter
+            ) -> PyResult<Self> {
+                #context_options
                 let result = match options.as_deref().map(|options| &options.inner) {
-                    None | Some(ExporterKind::Noop) => <#context_ty>::try_new(#runtime::Noop),
+                    None | Some(ExporterKind::Noop) => #noop_context,
                     #option_match
                 };
                 let inner = result.map_err(|error| {
@@ -814,7 +904,7 @@ fn entity_bindings(
                     pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
                         #(#bindings)*
                         self.inner.#model_method(#(#args),*)
-                            .map_err(|error| EventAlreadyEmittedError::new_err(error.to_string()))
+                            .map_err(__handle_error)
                     }
                 },
                 Cardinality::Multi => quote! {
@@ -1100,10 +1190,9 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
         .next()
         .unwrap_or(&options.module_name);
     let export_name = syn::LitStr::new(export_name, Span::call_site());
-    let observers = schema
-        .entities()
+    let observers = public_entities(schema)
         .map(|entity| format_ident!("Py{}Observer", path_pascal(entity.path())));
-    let handles = schema.entities().flat_map(|entity| {
+    let handles = public_entities(schema).flat_map(|entity| {
         let mut handles = vec![format_ident!("Py{}Handle", path_pascal(entity.path()))];
         if Fsm::try_from_entity(entity)
             .expect("schema was validated")
@@ -1117,6 +1206,9 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
         }
         handles
     });
+    let source_capture = has_nvtx_source(schema).then(|| {
+        quote! { module.add_class::<PySourceCapture>()?; }
+    });
     quote! {
         #[pymodule(name = #export_name)]
         pub fn #rust_name(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1124,6 +1216,10 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add(
                 "EventAlreadyEmittedError",
                 module.py().get_type::<EventAlreadyEmittedError>(),
+            )?;
+            module.add(
+                "SourceActivationError",
+                module.py().get_type::<SourceActivationError>(),
             )?;
             module.add(
                 "ContextClosedError",
@@ -1137,6 +1233,7 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add_function(wrap_pyfunction!(nil_uuid, module)?)?;
             module.add_class::<PyDynamicValue>()?;
             module.add_class::<PyExporterOptions>()?;
+            #source_capture
             module.add_class::<PyContext>()?;
             #(module.add_class::<#observers>()?;)*
             #(module.add_class::<#handles>()?;)*

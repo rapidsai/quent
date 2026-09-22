@@ -5,8 +5,10 @@ use std::collections::{BTreeSet, hash_map::Entry};
 
 use rustc_hash::FxHashMap as HashMap;
 
+use nvtx_analyzer::{NvtxSource, NvtxSourcesBuilder, NvtxSpan};
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity,
+    context::ContextId,
     fsm::collection::FsmCollection,
     ref_tree::RefTreeCollection,
     resource::{Resource, ResourceTypeDecl, Usage, Using, collection::ResourceCollection},
@@ -16,7 +18,7 @@ use quent_query_engine_analyzer::{
     OperatorEntityMut, QueryEngineModel, QueryEngineModelMut, plan_tree::PlanTree,
 };
 use quent_query_engine_ui::EntityRef;
-use quent_simulator_store::SimulatorEvent;
+use quent_simulator_store::{self as schema, SimulatorEvent};
 use quent_ui::ResourceGroupTypeDecl;
 use uuid::Uuid;
 
@@ -24,8 +26,9 @@ pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, QueryGroup, Wo
 
 use crate::{
     boilerplate::{
-        Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel, QueryBuilder, Storage,
-        StorageChannel, Task, TaskBuilder, TaskExecutor, TaskExecutorThread, TaskExt,
+        Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel, QueryBuilder,
+        RuntimeProcess, RuntimeThread, Storage, StorageChannel, Task, TaskBuilder, TaskExecutor,
+        TaskExecutorThread, TaskExt,
     },
     view::SimulatorModelQueryView,
 };
@@ -83,6 +86,8 @@ fn derive_resource_scope_types(
 pub struct SimulatorModel {
     pub(crate) engine: Engine,
     pub(crate) workers: HashMap<Uuid, Worker>,
+    pub(crate) runtime_processes: HashMap<Uuid, RuntimeProcess>,
+    pub(crate) runtime_threads: HashMap<Uuid, RuntimeThread>,
     pub(crate) query_groups: HashMap<Uuid, QueryGroup>,
     pub(crate) queries: HashMap<Uuid, Query>,
     pub(crate) plans: HashMap<Uuid, Plan>,
@@ -101,6 +106,7 @@ pub struct SimulatorModel {
     pub(crate) gpus: HashMap<Uuid, Gpu>,
     pub(crate) tasks: HashMap<Uuid, Task>,
     pub(crate) resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
+    nvtx_sources: Vec<NvtxSource>,
 }
 
 impl Model for SimulatorModel {
@@ -111,6 +117,20 @@ impl Model for SimulatorModel {
             Ok(EntityRef::Engine(entity_id))
         } else if self.workers.contains_key(&entity_id) {
             Ok(EntityRef::Worker(entity_id))
+        } else if let Some(entity) = self
+            .runtime_processes
+            .get(&entity_id)
+            .map(|entity| entity as &dyn Entity)
+            .or_else(|| {
+                self.runtime_threads
+                    .get(&entity_id)
+                    .map(|entity| entity as &dyn Entity)
+            })
+        {
+            Ok(EntityRef::Application {
+                type_name: entity.type_name().to_owned(),
+                id: entity_id,
+            })
         } else if self.query_groups.contains_key(&entity_id) {
             Ok(EntityRef::QueryGroup(entity_id))
         } else if self.queries.contains_key(&entity_id) {
@@ -214,6 +234,60 @@ impl QueryEngineModelMut for SimulatorModel {
 }
 
 impl SimulatorModel {
+    /// Independently reconstructed NVTX sources, retaining their context,
+    /// process binding, and stream identity.
+    pub fn nvtx_sources(&self) -> &[NvtxSource] {
+        &self.nvtx_sources
+    }
+
+    /// Return the sole NVTX source for one context.
+    ///
+    /// The existing HTTP surface addresses contexts rather than process/stream
+    /// pairs. Refuse an ambiguous context instead of merging source-local NVTX
+    /// handles. A future source selector can expose every entry directly.
+    pub fn nvtx_model(&self, context_id: Uuid) -> Option<&nvtx_analyzer::NvtxModel> {
+        let mut sources = self
+            .nvtx_sources
+            .iter()
+            .filter(|source| source.context_id() == context_id);
+        let source = sources.next()?;
+        sources.next().is_none().then(|| source.model())
+    }
+
+    /// Resolve one per-thread NVTX span to its simulated task-executor slot.
+    ///
+    /// A match must agree on context, bound runtime process, widened native
+    /// thread ID, and the runtime thread's observed lifetime. Ambiguous or
+    /// unmatched spans remain available in the NVTX model and return `None`.
+    pub fn task_executor_thread_for_nvtx_span(
+        &self,
+        source: &NvtxSource,
+        span: &NvtxSpan,
+    ) -> Option<Uuid> {
+        let native_id = u64::from(span.kind.thread_id()?);
+        let process = self.runtime_processes.get(&source.process_id())?;
+        if process.context_id().into_uuid() != source.context_id() || process.native_id().is_none()
+        {
+            return None;
+        }
+
+        let mut matches = self.runtime_threads.values().filter(|runtime_thread| {
+            runtime_thread.context_id().into_uuid() == source.context_id()
+                && runtime_thread.process_id() == Some(source.process_id())
+                && runtime_thread.native_id() == Some(native_id)
+                && runtime_thread.contains(span.start)
+                && span
+                    .end
+                    .is_none_or(|timestamp| runtime_thread.contains(timestamp))
+        });
+        let logical_thread_id = matches.next()?.logical_thread_id()?;
+        if matches.next().is_some() || !self.task_executor_threads.contains_key(&logical_thread_id)
+        {
+            return None;
+        }
+        Some(logical_thread_id)
+    }
+
     pub(crate) fn query_view(&self, query_id: Uuid) -> AnalyzerResult<SimulatorModelQueryView<'_>> {
         SimulatorModelQueryView::try_new(self, query_id)
     }
@@ -343,6 +417,16 @@ impl RefTreeCollection for SimulatorModel {
     fn ref_tree_entities(&self) -> impl Iterator<Item = &dyn RefTreeEntity> {
         std::iter::once(&self.engine as &dyn RefTreeEntity)
             .chain(
+                self.runtime_processes
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.runtime_threads
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
                 self.workers
                     .values()
                     .map(|entity| entity as &dyn RefTreeEntity),
@@ -432,6 +516,10 @@ impl RefTreeCollection for SimulatorModel {
     fn ref_tree_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn RefTreeEntity> {
         if self.engine.id() == entity_id {
             Ok(&self.engine)
+        } else if let Some(entity) = self.runtime_processes.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.runtime_threads.get(&entity_id) {
+            Ok(entity)
         } else if let Some(entity) = self.workers.get(&entity_id) {
             Ok(entity)
         } else if let Some(entity) = self.query_groups.get(&entity_id) {
@@ -496,6 +584,9 @@ impl Using for SimulatorModel {
 pub struct SimulatorModelBuilder {
     engine_id: Uuid,
     engine: Option<Engine>,
+    runtime_processes: HashMap<Uuid, RuntimeProcess>,
+    runtime_threads: HashMap<Uuid, RuntimeThread>,
+    nvtx_sources: NvtxSourcesBuilder<schema::NvtxEventEvent>,
     workers: HashMap<Uuid, Worker>,
     query_groups: HashMap<Uuid, QueryGroup>,
     queries: HashMap<Uuid, QueryBuilder>,
@@ -525,6 +616,9 @@ impl SimulatorModelBuilder {
         Ok(Self {
             engine_id,
             engine: None,
+            runtime_processes: HashMap::default(),
+            runtime_threads: HashMap::default(),
+            nvtx_sources: NvtxSourcesBuilder::new(),
             workers: HashMap::default(),
             query_groups: HashMap::default(),
             queries: HashMap::default(),
@@ -545,7 +639,11 @@ impl SimulatorModelBuilder {
         })
     }
 
-    pub(crate) fn try_push(&mut self, event: Event<SimulatorEvent>) -> AnalyzerResult<()> {
+    pub(crate) fn try_push_from_context(
+        &mut self,
+        context_id: ContextId,
+        event: Event<SimulatorEvent>,
+    ) -> AnalyzerResult<()> {
         let Event {
             id,
             timestamp,
@@ -573,6 +671,16 @@ impl SimulatorModelBuilder {
                 } else {
                     self.engine = Some(Engine::try_from_event(event)?);
                     Ok(())
+                }
+            }
+            SimulatorEvent::RuntimeProcess(event) => {
+                let event = Event::new(id, timestamp, event);
+                match self.runtime_processes.entry(id) {
+                    Entry::Occupied(entry) => entry.into_mut().push(context_id, event),
+                    Entry::Vacant(entry) => {
+                        entry.insert(RuntimeProcess::try_from_event(context_id, event)?);
+                        Ok(())
+                    }
                 }
             }
             SimulatorEvent::Worker(event) => {
@@ -686,6 +794,16 @@ impl SimulatorModelBuilder {
                     Ok(())
                 }
             }
+            SimulatorEvent::RuntimeThread(event) => {
+                let event = Event::new(id, timestamp, event);
+                match self.runtime_threads.entry(id) {
+                    Entry::Occupied(entry) => entry.into_mut().push(context_id, event),
+                    Entry::Vacant(entry) => {
+                        entry.insert(RuntimeThread::try_from_event(context_id, event)?);
+                        Ok(())
+                    }
+                }
+            }
             SimulatorEvent::PcieChannel(event) => {
                 let event = Event::new(id, timestamp, event);
                 if let Some(resource) = self.pcie_channels.get_mut(&id) {
@@ -734,6 +852,11 @@ impl SimulatorModelBuilder {
                     Ok(())
                 }
             }
+            SimulatorEvent::NvtxEvent(event) => {
+                self.nvtx_sources
+                    .push(context_id.into_uuid(), Event::new(id, timestamp, event));
+                Ok(())
+            }
         }
     }
 
@@ -759,8 +882,14 @@ impl SimulatorModelBuilder {
         .map(|declaration| (declaration.name.clone(), declaration))
         .collect();
 
+        let nvtx_sources = self
+            .nvtx_sources
+            .build()
+            .map_err(|error| AnalyzerError::Validation(error.to_string()))?;
         let mut model = SimulatorModel {
             engine,
+            runtime_processes: self.runtime_processes,
+            runtime_threads: self.runtime_threads,
             workers: self.workers,
             query_groups: self.query_groups,
             queries,
@@ -780,6 +909,7 @@ impl SimulatorModelBuilder {
             gpus: self.gpus,
             tasks: HashMap::default(),
             resource_group_types: HashMap::default(),
+            nvtx_sources,
         };
 
         for (task_id, task_builder) in self.tasks.into_iter() {
@@ -815,7 +945,12 @@ impl SimulatorModelBuilder {
 
 #[cfg(test)]
 mod tests {
-    use quent_simulator_store::TaskEvent;
+    use nvtx_analyzer::SpanKind;
+    use quent_simulator_store::{
+        EngineEvent, EngineImplementationAttributes, NvtxEventEvent, RuntimeProcessEvent,
+        RuntimeThreadEvent, TaskEvent, TaskExecutorEvent, TaskExecutorThreadEvent, WorkerEvent,
+        quent::{nvtx::Attributes, os},
+    };
 
     use super::*;
 
@@ -824,12 +959,353 @@ mod tests {
         let mut builder = SimulatorModelBuilder::try_new(Uuid::from_u128(1)).unwrap();
 
         assert!(matches!(
-            builder.try_push(Event::new(
-                Uuid::nil(),
-                0,
-                SimulatorEvent::Task(TaskEvent::Exit { seq: 0 }),
-            )),
+            builder.try_push_from_context(
+                ContextId::from(Uuid::nil()),
+                Event::new(
+                    Uuid::nil(),
+                    0,
+                    SimulatorEvent::Task(TaskEvent::Exit { seq: 0 }),
+                ),
+            ),
             Err(AnalyzerError::Validation(_))
         ));
+    }
+
+    fn push(
+        builder: &mut SimulatorModelBuilder,
+        context_id: Uuid,
+        id: Uuid,
+        timestamp: u64,
+        data: SimulatorEvent,
+    ) {
+        builder
+            .try_push_from_context(ContextId::from(context_id), Event::new(id, timestamp, data))
+            .unwrap();
+    }
+
+    fn attributes() -> Attributes {
+        Attributes {
+            category: 0,
+            color: None,
+            message: None,
+            payload: None,
+        }
+    }
+
+    struct RuntimeIds {
+        process: Uuid,
+        worker: Uuid,
+        executor: Uuid,
+        logical_thread: Uuid,
+        runtime_thread: Uuid,
+        stream: Uuid,
+    }
+
+    fn emit_runtime(
+        builder: &mut SimulatorModelBuilder,
+        context_id: Uuid,
+        engine_id: Uuid,
+        base: u128,
+        native_process_id: u32,
+        native_thread_id: u64,
+        lifetime: std::ops::Range<u64>,
+    ) -> RuntimeIds {
+        let start = lifetime.start;
+        let end = lifetime.end;
+        let ids = RuntimeIds {
+            process: Uuid::from_u128(base),
+            worker: Uuid::from_u128(base + 1),
+            executor: Uuid::from_u128(base + 2),
+            logical_thread: Uuid::from_u128(base + 3),
+            runtime_thread: Uuid::from_u128(base + 4),
+            stream: Uuid::from_u128(base + 5),
+        };
+        push(
+            builder,
+            context_id,
+            ids.process,
+            start - 2,
+            SimulatorEvent::RuntimeProcess(RuntimeProcessEvent::Started {
+                process: os::Process {
+                    native_id: native_process_id,
+                },
+                engine_id: quent_events::EntityRef::new(engine_id, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.worker,
+            start - 2,
+            SimulatorEvent::Worker(WorkerEvent::Init {
+                parent_engine_id: quent_events::EntityRef::new(engine_id, ()),
+                instance_name: "worker".to_owned(),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.executor,
+            start - 2,
+            SimulatorEvent::TaskExecutor(TaskExecutorEvent::Declaration {
+                instance_name: "executor".to_owned(),
+                worker_id: quent_events::EntityRef::new(ids.worker, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.logical_thread,
+            start - 2,
+            SimulatorEvent::TaskExecutorThread(TaskExecutorThreadEvent::Declaration {
+                instance_name: "logical thread".to_owned(),
+                task_executor_id: quent_events::EntityRef::new(ids.executor, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.runtime_thread,
+            start,
+            SimulatorEvent::RuntimeThread(RuntimeThreadEvent::Started {
+                thread: os::Thread {
+                    native_id: native_thread_id,
+                },
+                process_id: quent_events::EntityRef::new(ids.process, ()),
+                logical_thread_id: quent_events::EntityRef::new(ids.logical_thread, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.runtime_thread,
+            end,
+            SimulatorEvent::RuntimeThread(RuntimeThreadEvent::Exit),
+        );
+        push(
+            builder,
+            context_id,
+            ids.stream,
+            start,
+            SimulatorEvent::NvtxEvent(NvtxEventEvent::Initialized {
+                process: quent_events::EntityRef::new(ids.process, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.stream,
+            start + 1,
+            SimulatorEvent::NvtxEvent(NvtxEventEvent::RangePush {
+                domain: 0,
+                thread_id: u32::try_from(native_thread_id).unwrap(),
+                attributes: attributes(),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            ids.stream,
+            end - 1,
+            SimulatorEvent::NvtxEvent(NvtxEventEvent::RangePop {
+                domain: 0,
+                thread_id: u32::try_from(native_thread_id).unwrap(),
+            }),
+        );
+        ids
+    }
+
+    fn emit_additional_runtime_thread(
+        builder: &mut SimulatorModelBuilder,
+        context_id: Uuid,
+        process_id: Uuid,
+        base: u128,
+        native_thread_id: u64,
+        start: u64,
+        end: u64,
+    ) -> Uuid {
+        let engine_id = builder.engine_id;
+        let worker = Uuid::from_u128(base);
+        let executor = Uuid::from_u128(base + 1);
+        let logical_thread = Uuid::from_u128(base + 2);
+        let runtime_thread = Uuid::from_u128(base + 3);
+        push(
+            builder,
+            context_id,
+            worker,
+            start - 2,
+            SimulatorEvent::Worker(WorkerEvent::Init {
+                parent_engine_id: quent_events::EntityRef::new(engine_id, ()),
+                instance_name: "worker".to_owned(),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            executor,
+            start - 2,
+            SimulatorEvent::TaskExecutor(TaskExecutorEvent::Declaration {
+                instance_name: "executor".to_owned(),
+                worker_id: quent_events::EntityRef::new(worker, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            logical_thread,
+            start - 2,
+            SimulatorEvent::TaskExecutorThread(TaskExecutorThreadEvent::Declaration {
+                instance_name: "logical thread".to_owned(),
+                task_executor_id: quent_events::EntityRef::new(executor, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            runtime_thread,
+            start,
+            SimulatorEvent::RuntimeThread(RuntimeThreadEvent::Started {
+                thread: os::Thread {
+                    native_id: native_thread_id,
+                },
+                process_id: quent_events::EntityRef::new(process_id, ()),
+                logical_thread_id: quent_events::EntityRef::new(logical_thread, ()),
+            }),
+        );
+        push(
+            builder,
+            context_id,
+            runtime_thread,
+            end,
+            SimulatorEvent::RuntimeThread(RuntimeThreadEvent::Exit),
+        );
+        logical_thread
+    }
+
+    fn push_pop_span(thread_id: u32, start: u64, end: u64) -> NvtxSpan {
+        NvtxSpan {
+            domain: 0,
+            name: "work".to_owned(),
+            category: None,
+            color: None,
+            payload: None,
+            start,
+            end: Some(end),
+            kind: SpanKind::PushPop {
+                thread_id,
+                parent: None,
+            },
+        }
+    }
+
+    #[test]
+    fn correlates_generated_nvtx_with_native_thread_lifetimes_per_context() {
+        let engine_id = Uuid::from_u128(1);
+        let first_context = Uuid::from_u128(2);
+        let second_context = Uuid::from_u128(3);
+        let mut builder = SimulatorModelBuilder::try_new(engine_id).unwrap();
+        push(
+            &mut builder,
+            first_context,
+            engine_id,
+            0,
+            SimulatorEvent::Engine(EngineEvent::Init {
+                implementation: EngineImplementationAttributes {
+                    name: Some("simulator".to_owned()),
+                    version: None,
+                    custom_attributes: Default::default(),
+                },
+                instance_name: None,
+            }),
+        );
+
+        // The two processes and threads deliberately reuse their native IDs.
+        // Context and process entity identity keep the source-local streams apart.
+        let first = emit_runtime(&mut builder, first_context, engine_id, 10, 42, 7, 10..20);
+        let second = emit_runtime(&mut builder, second_context, engine_id, 30, 42, 7, 10..20);
+
+        let model = builder.try_build().unwrap();
+        assert_eq!(model.nvtx_sources().len(), 2);
+        let correlated: Vec<_> = model
+            .nvtx_sources()
+            .iter()
+            .map(|source| {
+                let span = &source.model().spans()[0];
+                assert!(matches!(span.kind, SpanKind::PushPop { thread_id: 7, .. }));
+                (
+                    source.context_id(),
+                    model.task_executor_thread_for_nvtx_span(source, span),
+                )
+            })
+            .collect();
+        assert_eq!(
+            correlated,
+            vec![
+                (first_context, Some(first.logical_thread)),
+                (second_context, Some(second.logical_thread)),
+            ]
+        );
+    }
+
+    #[test]
+    fn uses_lifetimes_for_reused_native_thread_ids_and_rejects_ambiguity() {
+        let engine_id = Uuid::from_u128(1);
+        let context_id = Uuid::from_u128(2);
+        let mut builder = SimulatorModelBuilder::try_new(engine_id).unwrap();
+        push(
+            &mut builder,
+            context_id,
+            engine_id,
+            0,
+            SimulatorEvent::Engine(EngineEvent::Init {
+                implementation: EngineImplementationAttributes {
+                    name: Some("simulator".to_owned()),
+                    version: None,
+                    custom_attributes: Default::default(),
+                },
+                instance_name: None,
+            }),
+        );
+        let first = emit_runtime(&mut builder, context_id, engine_id, 10, 42, 7, 10..20);
+        let reused =
+            emit_additional_runtime_thread(&mut builder, context_id, first.process, 30, 7, 30, 40);
+
+        let model = builder.try_build().unwrap();
+        let source = &model.nvtx_sources()[0];
+        assert_eq!(
+            model.task_executor_thread_for_nvtx_span(source, &push_pop_span(7, 31, 39)),
+            Some(reused)
+        );
+        assert_eq!(
+            model.task_executor_thread_for_nvtx_span(source, &push_pop_span(7, 21, 29)),
+            None
+        );
+
+        let mut builder = SimulatorModelBuilder::try_new(engine_id).unwrap();
+        push(
+            &mut builder,
+            context_id,
+            engine_id,
+            0,
+            SimulatorEvent::Engine(EngineEvent::Init {
+                implementation: EngineImplementationAttributes {
+                    name: Some("simulator".to_owned()),
+                    version: None,
+                    custom_attributes: Default::default(),
+                },
+                instance_name: None,
+            }),
+        );
+        let first = emit_runtime(&mut builder, context_id, engine_id, 50, 42, 7, 10..20);
+        emit_additional_runtime_thread(&mut builder, context_id, first.process, 70, 7, 30, 40);
+        emit_additional_runtime_thread(&mut builder, context_id, first.process, 90, 7, 32, 38);
+        let model = builder.try_build().unwrap();
+        assert_eq!(
+            model.task_executor_thread_for_nvtx_span(
+                &model.nvtx_sources()[0],
+                &push_pop_span(7, 33, 37),
+            ),
+            None
+        );
     }
 }
