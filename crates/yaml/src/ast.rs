@@ -15,6 +15,7 @@ use indexmap::IndexMap;
 use serde::Deserialize;
 
 use crate::extensions::{
+    dag::{DagEntityDecl, DagRelationField},
     fsm::FsmSpec,
     os::OsType,
     reference::{RefForm, ScopeForm},
@@ -81,6 +82,8 @@ pub(crate) struct Entity {
     // Built-in extension AST nodes.
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+    #[serde(default)]
+    pub(crate) dag: Option<DagEntityDecl>,
 }
 
 /// An entity event.
@@ -111,6 +114,8 @@ pub(crate) enum Field {
     // Built-in extension AST nodes.
     /// An attribute carrying a resource's bounds.
     ResourceBounds(ResourceBoundsField),
+    /// A targeted DAG topology reference.
+    DagRelation(DagRelationField),
 }
 
 /// The mapping form of a field: a type plus annotations.

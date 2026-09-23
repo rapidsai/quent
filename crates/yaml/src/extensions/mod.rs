@@ -13,6 +13,7 @@
 //! merges the returned schema values.
 
 use quent_constraints::{Constraint, validate};
+use quent_dag::{DagConstraint, DagRole};
 use quent_fsm::FsmConstraint;
 use quent_os::OsConstraint;
 use quent_ref_target::RefTargetConstraint;
@@ -24,6 +25,7 @@ use quent_schema::{DataType, Entity, Field, Identifier, Path, Record, Schema};
 use crate::ast::{self, AnnotationMap, Model, TypeExpr};
 use crate::diag::{Diagnostic, Diagnostics};
 
+pub(crate) mod dag;
 pub(crate) mod fsm;
 pub(crate) mod os;
 pub(crate) mod reference;
@@ -108,7 +110,17 @@ impl Elaborator {
         path: &str,
         sink: &mut Diagnostics,
     ) -> EntityElaboration {
-        self.elaborate_entity_resource(name, id, entity.resource.as_ref(), annotations, path, sink)
+        let mut elaboration = self.elaborate_entity_resource(
+            name,
+            id,
+            entity.resource.as_ref(),
+            annotations,
+            path,
+            sink,
+        );
+        elaboration.annotations =
+            dag::attach_entity_role(elaboration.annotations, entity.dag.as_ref());
+        elaboration
     }
 
     pub(super) fn elaborate_entity_resource(
@@ -144,27 +156,33 @@ impl Elaborator {
         path: &str,
         sink: &mut Diagnostics,
     ) -> FieldElaboration {
-        let ast::Field::ResourceBounds(marker) = field else {
-            return FieldElaboration::NotHandled;
+        let field = match field {
+            ast::Field::DagRelation(relation) => {
+                dag::elaborate_field(id.clone(), relation, path, sink)
+            }
+            ast::Field::ResourceBounds(marker) => {
+                let FieldContext::Event(context) = context else {
+                    sink.error(
+                        path,
+                        "`sets-resource-bounds` is only valid in a resource event attribute",
+                        None,
+                    );
+                    return FieldElaboration::Rejected;
+                };
+                if !marker.sets_resource_bounds {
+                    sink.error(path, "`sets-resource-bounds` must be `true`", None);
+                    return FieldElaboration::Rejected;
+                }
+                resource::bounds_field(
+                    id.clone(),
+                    context.resource_bounds_record.as_ref(),
+                    path,
+                    sink,
+                )
+            }
+            _ => return FieldElaboration::NotHandled,
         };
-        let FieldContext::Event(context) = context else {
-            sink.error(
-                path,
-                "`sets-resource-bounds` is only valid in a resource event attribute",
-                None,
-            );
-            return FieldElaboration::Rejected;
-        };
-        if !marker.sets_resource_bounds {
-            sink.error(path, "`sets-resource-bounds` must be `true`", None);
-            return FieldElaboration::Rejected;
-        }
-        match resource::bounds_field(
-            id.clone(),
-            context.resource_bounds_record.as_ref(),
-            path,
-            sink,
-        ) {
+        match field {
             Some(field) => FieldElaboration::Handled(Box::new(field)),
             None => FieldElaboration::Rejected,
         }
@@ -204,6 +222,8 @@ impl Elaborator {
         for (name, value) in annotations {
             let error = if name == FsmConstraint::NAME {
                 Some("the FSM constraint is set from an `fsms:` block, not written directly")
+            } else if name == DagRole::NAME {
+                Some("the DAG constraint is set from a `dag:` declaration, not written directly")
             } else if name == Resource::NAME {
                 Some(
                     "the resource constraint is set from a `resource:` block, not written directly",
@@ -228,6 +248,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         FsmConstraint,
         ResourceConstraint,
         OsConstraint,
+        DagConstraint,
     )>(schema);
     if let Err(error) = report.base_constraints {
         for entity in error.entities_without_events {
@@ -252,13 +273,14 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         }
     }
 
-    let (ref_target, ref_tree, fsm, resource, os) = report.results;
+    let (ref_target, ref_tree, fsm, resource, os, dag) = report.results;
     for result in [
         ref_target.map_err(|error| error.to_string()),
         ref_tree.map_err(|error| error.to_string()),
         fsm.map_err(|error| error.to_string()),
         resource.map_err(|error| error.to_string()),
         os.map_err(|error| error.to_string()),
+        dag.map_err(|error| error.to_string()),
     ] {
         if let Err(error) = result {
             sink.error("", error, None);

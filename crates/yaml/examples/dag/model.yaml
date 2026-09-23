@@ -1,0 +1,28 @@
+quent: alpha
+model: query_plan
+
+entities:
+  Plan:
+    dag: true
+    events:
+      created: {}
+
+  Operator:
+    dag: vertex
+    events:
+      declared:
+        attributes:
+          plan:
+            dag: { in: Plan }
+
+  PlanEdge:
+    dag: edge
+    events:
+      connected:
+        attributes:
+          plan:
+            dag: { in: Plan }
+          source:
+            dag: { source: Operator }
+          target:
+            dag: { target: Operator }

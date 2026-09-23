@@ -10,6 +10,7 @@ changes to the core framework.
 
 For example, the [Finite-State Machine](finite-state-machine/index.md) mod
 describes the allowed order of an entity's events, while the
+[Directed Acyclic Graph](dag/index.md) mod describes graph topology and the
 [Resource](resource/index.md) mod describes capacity and usage. An Application
 Event Schema can combine mods to express the behavior relevant to that
 application.

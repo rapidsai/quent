@@ -11,6 +11,7 @@ use serde::Deserialize;
 use crate::ast::{AnnotationMap, Field};
 use crate::diag::Diagnostics;
 use crate::extensions::Elaborator;
+use crate::extensions::dag::{self, DagEntityDecl};
 use crate::extensions::resource::ResourceDecl;
 use crate::lower::{annotations_builder, build_or_diagnose, event_fields, ident, type_decl_ident};
 
@@ -32,6 +33,8 @@ pub(crate) struct FsmSpec {
     // Fields contributed by composed extensions.
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+    #[serde(default)]
+    pub(crate) dag: Option<DagEntityDecl>,
 }
 
 /// One state of an FSM.
@@ -80,6 +83,7 @@ pub(crate) fn elaborate(
         sink,
     );
     anns = entity_elaboration.annotations;
+    anns = dag::attach_entity_role(anns, spec.dag.as_ref());
     let records = entity_elaboration.records;
     let event_context = entity_elaboration.event_context;
 

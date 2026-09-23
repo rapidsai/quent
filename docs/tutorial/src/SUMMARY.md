@@ -23,4 +23,5 @@
       - [Resource capacities](instrumentation/modules/resource/resource-capacities.md)
       - [Bounded resources](instrumentation/modules/resource/bounded-resources.md)
     - [Combining modules](instrumentation/modules/combining/index.md)
+    - [Directed Acyclic Graph](instrumentation/modules/dag/index.md)
 - [Analysis](analysis/index.md)

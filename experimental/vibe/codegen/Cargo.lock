@@ -561,6 +561,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-dag"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-schema",
+ "rustc-hash",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-demo-cpp-bridge"
 version = "0.0.0"
 dependencies = [
@@ -822,6 +833,26 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-bounded-resource-python-bridge"
+version = "0.0.0"
+dependencies = [
+ "pyo3",
+ "quent-codegen-tutorial-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+]
+
+[[package]]
+name = "quent-tutorial-dag-cpp-bridge"
+version = "0.0.0"
+dependencies = [
+ "cxx",
+ "quent-codegen-tutorial-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+]
+
+[[package]]
+name = "quent-tutorial-dag-python-bridge"
 version = "0.0.0"
 dependencies = [
  "pyo3",
@@ -1116,6 +1147,7 @@ version = "0.1.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
+ "quent-dag",
  "quent-fsm",
  "quent-os",
  "quent-ref-target",

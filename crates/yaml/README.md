@@ -317,3 +317,46 @@ The [instrumentation-build model](../instrumentation-build/example/model.yaml)
 combines records, references, FSMs, and event attributes in one larger example.
 Its [Rust program](../instrumentation-build/example/src/main.rs) configures an
 exporter and uses the generated instrumentation API.
+
+## Directed acyclic graphs
+
+A DAG uses entity types for the graph, its vertices, and its directed edges.
+Each vertex and edge records its containing DAG through a typed reference. Each
+edge also records typed source and target vertex references.
+
+- [YAML model](examples/dag/model.yaml)
+- [Instrumentation API usage](examples/dag/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin dag
+```
+
+An entity's `dag` declaration assigns its graph role:
+
+| YAML | Meaning |
+| --- | --- |
+| `dag: true` | DAG entity |
+| `dag: false` | No DAG role; equivalent to omitting `dag` |
+| `dag: vertex` | Vertex entity |
+| `dag: edge` | Directed-edge entity |
+
+These declarations are accepted on ordinary entities and FSM entities. On an
+FSM, topology fields are state attributes.
+
+Vertex and edge events declare topology through fields whose `dag` mappings
+also create targeted entity references:
+
+| YAML | Meaning |
+| --- | --- |
+| `dag: { in: Plan }` | Reference to the containing `Plan` DAG |
+| `dag: { source: Operator }` | Reference to the edge's source `Operator` vertex |
+| `dag: { target: Operator }` | Reference to the edge's target `Operator` vertex |
+
+Every vertex and edge must declare exactly one field with `dag: { in: ... }` in
+a once-event. A directed edge must declare exactly one `source` and one `target`
+relation in that same event. Both endpoint types must be vertices belonging to
+the same DAG type as the edge. These are schema-level checks; instance
+membership and acyclicity must be validated after emitted events are
+reconstructed.

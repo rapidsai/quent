@@ -48,6 +48,7 @@ members = [
     "experimental/vibe/simulator/tests/fixed",
     # Unused preliminary crates of https://github.com/rapidsai/quent/issues/191
     "crates/constraints",
+    "crates/dag",
     "crates/schema",
     "crates/ref-target",
     "crates/ref-tree",

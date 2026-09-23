@@ -46,6 +46,10 @@ name = "scoped-references"
 path = "scoped-references/src/main.rs"
 
 [[bin]]
+name = "dag"
+path = "dag/src/main.rs"
+
+[[bin]]
 name = "finite-state-machine"
 path = "finite-state-machine/src/main.rs"
 
