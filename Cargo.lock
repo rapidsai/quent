@@ -2641,6 +2641,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-codegen"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quent-yaml",
+ "semver",
+ "serde",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "quent-collector"
 version = "0.1.0"
 dependencies = [
