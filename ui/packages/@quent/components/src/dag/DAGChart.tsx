@@ -38,6 +38,7 @@ import {
   useSelectedEdgeColorField,
   useEffectiveHighlightedNodeIds,
   useSetDagDisplayedNodeIds,
+  useSetDagNodeGroups,
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
   useDataFlowMeta,
@@ -314,6 +315,7 @@ const FlowLayout = ({
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
   const setDagDisplayedNodeIds = useSetDagDisplayedNodeIds();
+  const setDagNodeGroups = useSetDagNodeGroups();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
   const dataFlowEnabled = useDataFlowEnabled();
@@ -371,15 +373,31 @@ const FlowLayout = ({
     updateOperatorSelection({ type: 'hydrate', selections: resolved.selections });
   }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
 
-  // Publish the set of operator IDs visible in this DAG so other consumers
-  // (effective highlight/heatmap atoms) can decide whether a hover-driven
-  // dim is meaningful for what's currently on screen.
+  // Publish the set of operator IDs visible in this DAG, and each node's
+  // related operator IDs, so other consumers (effective highlight/heatmap
+  // atoms) can decide whether a hover-driven dim/color is meaningful for
+  // what's currently on screen. A logical-plan node has no stat value of its
+  // own — only one aggregated from its related physical operators — so both
+  // the displayed-ids set and the group map need to account for it.
   useEffect(() => {
-    setDagDisplayedNodeIds(new Set(data.nodes.map(n => n.id)));
+    const ids = new Set<string>();
+    const groups = new Map<string, readonly string[]>();
+    for (const node of data.nodes) {
+      ids.add(node.id);
+      const relatedOperatorIds = node.metadata?.relatedOperatorIds;
+      const related = Array.isArray(relatedOperatorIds) ? (relatedOperatorIds as string[]) : [];
+      groups.set(node.id, related);
+      for (const relatedId of related) {
+        ids.add(relatedId);
+      }
+    }
+    setDagDisplayedNodeIds(ids);
+    setDagNodeGroups(groups);
     return () => {
       setDagDisplayedNodeIds(new Set());
+      setDagNodeGroups(new Map());
     };
-  }, [data.nodes, setDagDisplayedNodeIds]);
+  }, [data.nodes, setDagDisplayedNodeIds, setDagNodeGroups]);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {

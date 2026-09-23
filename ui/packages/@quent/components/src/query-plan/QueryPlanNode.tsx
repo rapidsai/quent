@@ -22,9 +22,11 @@ import {
   useNodeColorPalette,
   useEffectiveHighlightedNodeIds,
   useEffectiveHoveredStat,
+  useDagHeatmapRange,
   useSetHighlightedNodeIds,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
+  resolveHoveredStatValue,
 } from '@quent/hooks';
 import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
@@ -84,6 +86,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const setHighlightState = useSetHighlightedNodeIds();
   const highlightState = useEffectiveHighlightedNodeIds();
   const hoveredStat = useEffectiveHoveredStat();
+  const dagHeatmapRange = useDagHeatmapRange();
   const [nodePalette] = useNodeColorPalette();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const isDark = data.isDark ?? false;
@@ -129,21 +132,31 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const bgColor =
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
 
-  const heatmapColor = useMemo(() => {
+  const resolvedHoveredValue = useMemo(() => {
     if (!hoveredStat) {
       return undefined;
     }
-    const v = hoveredStat.values.get(operatorId);
-    if (v === undefined) {
+    return resolveHoveredStatValue(hoveredStat, operatorId, data.metadata?.relatedOperatorIds);
+  }, [hoveredStat, operatorId, data.metadata?.relatedOperatorIds]);
+
+  const heatmapColor = useMemo(() => {
+    if (!hoveredStat || !resolvedHoveredValue) {
       return undefined;
     }
-    const range = hoveredStat.max - hoveredStat.min;
-    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    // Normalize against every currently-displayed node's resolved value
+    // (direct or aggregated) so a plain operator and a node grouping a
+    // nested subplan are colored on the same scale. Falls back to the
+    // table's own range only in the brief window before the DAG has
+    // reported what it shows.
+    const { min, max } = dagHeatmapRange ?? hoveredStat;
+    const range = max - min;
+    const t = range > 0 ? (resolvedHoveredValue.value - min) / range : 0.5;
     return continuousColor(t, nodePalette, isDark);
-  }, [hoveredStat, operatorId, nodePalette, isDark]);
+  }, [hoveredStat, resolvedHoveredValue, dagHeatmapRange, nodePalette, isDark]);
 
   const opacityClass = getNodeOpacityClass({
-    hoveredStatValues: hoveredStat?.values,
+    isHoveredStatActive: hoveredStat !== null,
+    hasHoveredValue: resolvedHoveredValue !== undefined,
     highlightedNodeIds: highlightState.ids,
     operatorId,
     isDimmed,

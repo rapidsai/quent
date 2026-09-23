@@ -12,9 +12,11 @@ import type {
   NodeLabelField,
   DagLayoutDirection,
   SelectedOperatorGroupData,
+  AggMode,
 } from '@quent/utils';
 import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
+import { resolveHoveredStatValue } from '../dag/hoveredStatValue';
 
 /**
  * Stat-driven hover info shared between the pivot table and the DAG. Defined
@@ -27,6 +29,8 @@ export interface HoveredStatInfo {
   values: Map<string, number>;
   min: number;
   max: number;
+  /** How to combine related items' values for a node with no entry of its own. */
+  aggMode: AggMode;
 }
 
 export interface HighlightedNodeIdsState {
@@ -116,6 +120,45 @@ export const effectiveHoveredStatAtom = atom<HoveredStatInfo | null>(get => {
     return stat;
   }
   return null;
+});
+
+/** Node id → related operator ids for nodes that group other operators (e.g. a logical node). */
+export const dagNodeGroupsAtom = atom<ReadonlyMap<string, readonly string[]>>(new Map());
+
+export interface HeatmapRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * Value range for coloring every displayed node, built from each node's
+ * resolved value (direct or aggregated) so plain and grouped nodes share one
+ * color scale. `null` when no stat is hovered or nothing resolves.
+ */
+export const dagHeatmapRangeAtom = atom<HeatmapRange | null>(get => {
+  const stat = get(effectiveHoveredStatAtom);
+  if (!stat) {
+    return null;
+  }
+  const groups = get(dagNodeGroupsAtom);
+  let min = Infinity;
+  let max = -Infinity;
+  for (const [nodeId, relatedOperatorIds] of groups) {
+    const resolved = resolveHoveredStatValue(stat, nodeId, relatedOperatorIds);
+    if (!resolved) {
+      continue;
+    }
+    if (resolved.value < min) {
+      min = resolved.value;
+    }
+    if (resolved.value > max) {
+      max = resolved.value;
+    }
+  }
+  if (min === Infinity) {
+    return null;
+  }
+  return { min, max };
 });
 
 /** Field to color each DAG node by */
