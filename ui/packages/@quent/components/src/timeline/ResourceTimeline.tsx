@@ -58,6 +58,7 @@ type ResourceTimelineProps = {
   fsmTypes?: { [key in string]?: FsmTypeDecl };
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
+  showPlayheadIndicator?: boolean;
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -83,6 +84,7 @@ export function ResourceTimeline({
   quantitySpecs,
   fsmTypes,
   isDark,
+  showPlayheadIndicator = false,
 }: ResourceTimelineProps) {
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
   const deferredReady = useDeferredReady();
@@ -313,7 +315,7 @@ export function ResourceTimeline({
           <TimelineTooltipPortal ownerId={ownerId} series={series} timestamps={timestamps ?? []} />
         )}
       </Suspense>
-      <PlayheadLine instance={chartInstance} />
+      <PlayheadLine instance={chartInstance} draggable showIndicator={showPlayheadIndicator} />
     </div>
   );
 }

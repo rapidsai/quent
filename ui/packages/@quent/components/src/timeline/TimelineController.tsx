@@ -6,8 +6,15 @@ import { EChartsReactCore } from '../lib/echartsReactCore';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useZoomRange } from '@quent/hooks';
-import { formatDuration } from '@quent/utils';
+import {
+  usePlayheadLineTimeMs,
+  usePlayheadTimeS,
+  useSetDataFlowIsPlaying,
+  useSetPlayheadLineTimeMs,
+  useSetPlayheadTimeS,
+  useZoomRange,
+} from '@quent/hooks';
+import { clamp, formatDuration } from '@quent/utils';
 import type { ZoomRange } from '@quent/utils';
 import {
   buildBinnedTimelineSeries,
@@ -314,6 +321,48 @@ export function TimelineController({
   const [chartInstance, setChartInstance] = useState<EChartsInstance | null>(null);
 
   const zoomRange = useZoomRange();
+  const playheadTimeS = usePlayheadTimeS();
+  const playheadLineTimeMs = usePlayheadLineTimeMs();
+  const setPlayheadTimeS = useSetPlayheadTimeS();
+  const setPlayheadLineTimeMs = useSetPlayheadLineTimeMs();
+  const setIsPlaying = useSetDataFlowIsPlaying();
+  useEffect(() => {
+    const viewportStartS = Math.min(zoomRange.start, zoomRange.end);
+    const viewportEndS = Math.max(zoomRange.start, zoomRange.end);
+    let wasClamped = false;
+
+    if (playheadTimeS != null) {
+      const nextPlayheadTimeS = clamp(playheadTimeS, viewportStartS, viewportEndS);
+      if (nextPlayheadTimeS !== playheadTimeS) {
+        setPlayheadTimeS(nextPlayheadTimeS);
+        wasClamped = true;
+      }
+    }
+
+    if (playheadLineTimeMs != null) {
+      const nextPlayheadLineTimeMs = clamp(
+        playheadLineTimeMs,
+        viewportStartS * 1000,
+        viewportEndS * 1000
+      );
+      if (nextPlayheadLineTimeMs !== playheadLineTimeMs) {
+        setPlayheadLineTimeMs(nextPlayheadLineTimeMs);
+        wasClamped = true;
+      }
+    }
+
+    if (wasClamped) {
+      setIsPlaying(false);
+    }
+  }, [
+    playheadLineTimeMs,
+    playheadTimeS,
+    setIsPlaying,
+    setPlayheadLineTimeMs,
+    setPlayheadTimeS,
+    zoomRange.end,
+    zoomRange.start,
+  ]);
   const pointerRange = useMemo(
     () =>
       durationSeconds > 0
@@ -375,7 +424,7 @@ export function TimelineController({
         opts={opts}
         autoResize={false}
       />
-      <PlayheadLine instance={chartInstance} />
+      <PlayheadLine instance={chartInstance} draggable showIndicator />
     </TimelinePointerArea>
   );
 }
