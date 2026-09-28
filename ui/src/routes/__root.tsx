@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createRootRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
+import {
+  createRootRoute,
+  Link,
+  Outlet,
+  useRouterState,
+  type ErrorComponentProps,
+} from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -67,8 +73,9 @@ function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
   );
 }
 
-function RootErrorComponent({ error }: { error: Error }) {
-  const message = error.message || 'An unexpected error occurred.';
+function RootErrorComponent({ error }: ErrorComponentProps) {
+  const message =
+    error instanceof Error && error.message ? error.message : 'An unexpected error occurred.';
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-64 gap-4 p-8 text-center">
       <div className="space-y-1">
