@@ -43,10 +43,15 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 2. Injection claims NVTX's callback tables — our `extern "C"` functions become
    NVTX's implementation of the subscribed calls.
 3. Each callback converts the raw NVTX ABI struct into a verbatim `NvtxEvent`
-   and dispatches it to the installed hook.
+   and dispatches it to the installed hook while capture is active.
 4. The application's hook forwards each event (wrapped in `NvtxEventEntity`)
    into its `Observer`. Handles, ids, and nesting levels are synthesized so the
-   app still behaves correctly.
+   app still behaves correctly — including before the hook is installed and
+   after capture is disabled, so handles an app caches early stay valid.
+5. The successful capture owner calls `disable_capture` before dropping its
+   pipeline. Callback pointers stay installed, but subsequent events are no
+   longer dispatched, and callbacks tolerate destroyed TLS during late process
+   cleanup.
 
 ## Using it
 
@@ -68,9 +73,16 @@ nvtx::mark(c"startup");
 let range = nvtx::Range::new(c"phase-1");
 drop(range); // end the range before flushing
 
-// 4. Flush by dropping the observer.
+// 4. The successful owner disables capture before flushing the observer.
+nvtx_injection::disable_capture();
 drop(observer);
 ```
+
+In an owning context, put `disable_capture` in its cleanup before the pipeline
+is dropped. The bundled example wraps its pipeline in a private owner whose
+`Drop` does this, including during unwinding. A failed `install_hook` caller
+must not disable the successful owner's capture. Installation remains one-shot.
+Shutdown does not wait for callbacks already running.
 
 `static-injection` is requested in the manifest:
 
@@ -102,6 +114,13 @@ subprocess, no files:
 ```sh
 pixi run cargo test -p nvtx-example
 ```
+
+The tests also check owner cleanup and failed duplicate registration.
+`example/tests/shutdown.rs` runs capture on a subprocess's main thread, then
+emits CORE and CORE2 push/pop calls from an `atexit` handler after Rust TLS
+destruction.
+It checks stderr as well as the exit status, since contained TLS panics can
+still exit successfully. These tests require no GPU.
 
 ## Captured surface
 

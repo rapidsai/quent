@@ -11,6 +11,11 @@ publish = false
 name = "nvtx_capture"
 path = "src/main.rs"
 
+[[test]]
+name = "shutdown"
+# Run capture on the main thread, then let glibc perform real process cleanup.
+harness = false
+
 [dependencies]
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
 nvtx-bridge = { path = "../bridge" }

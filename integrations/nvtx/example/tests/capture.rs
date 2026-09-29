@@ -46,7 +46,17 @@ fn captures_core_nvtx_kinds() {
 
     nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
 
+    // After the owner disables capture, NVTX still returns faithful nesting
+    // levels to the app, but nothing more reaches the exporter.
+    let captured = collected.lock().unwrap().len();
+    // SAFETY: the message is a valid C string, and NVTX is still installed.
+    unsafe {
+        assert_eq!(nvtx::sys::ffi::nvtxRangePushA(c"after capture".as_ptr()), 0);
+        assert_eq!(nvtx::sys::ffi::nvtxRangePop(), 0);
+    }
+
     let events = collected.lock().unwrap();
+    assert_eq!(events.len(), captured);
     assert!(!events.is_empty(), "no NVTX events captured");
 
     let present: HashSet<&str> = events.iter().map(kind_name).collect();

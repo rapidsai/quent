@@ -7,7 +7,7 @@
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use nvtx_events::NvtxEvent;
 use thiserror::Error;
@@ -32,6 +32,13 @@ use nvtx_sys::ffi::{
 type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
 
 static HOOK: OnceLock<Hook> = OnceLock::new();
+
+// Ordinary static storage outlives both the capture owner and Rust TLS, so
+// `dispatch` can consult it from late process-cleanup callbacks.
+static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+// NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
+const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
 
 /// Monotonic source of the NVTX handles/ids the injection layer synthesizes and
 /// hands back to the application: domain, registered-string, and resource handles
@@ -86,32 +93,40 @@ thread_local! {
 /// The 0-based nesting level of a `DomainRangePushEx` on this thread for
 /// `domain`, then increment the open-range depth. Returns the level of the
 /// range being started (NVTX `nvtxDomainRangePushEx` return semantics).
+///
+/// Returns `NVTX_NO_PUSH_POP_TRACKING` once this thread's TLS is destroyed,
+/// e.g. for NVTX emitted from a global destructor during process exit.
 pub(crate) fn range_push_level(domain: u64) -> c_int {
-    RANGE_DEPTH.with(|depth| {
-        let mut map = depth.borrow_mut();
-        let level = map.entry(domain).or_insert(0);
-        let started = *level;
-        *level += 1;
-        started
-    })
+    RANGE_DEPTH
+        .try_with(|depth| {
+            let mut map = depth.borrow_mut();
+            let level = map.entry(domain).or_insert(0);
+            let started = *level;
+            *level += 1;
+            started
+        })
+        .unwrap_or(NVTX_NO_PUSH_POP_TRACKING)
 }
 
 /// Decrement this thread's open-range depth for `domain` and return the 0-based
 /// level of the range being ended (NVTX `nvtxDomainRangePop` return semantics).
-/// An unbalanced pop saturates at level `0`.
+/// An unbalanced pop saturates at level `0`. Returns `NVTX_NO_PUSH_POP_TRACKING`
+/// once this thread's TLS is destroyed.
 pub(crate) fn range_pop_level(domain: u64) -> c_int {
-    RANGE_DEPTH.with(|depth| {
-        let mut map = depth.borrow_mut();
-        let level = map.entry(domain).or_insert(0);
-        *level = (*level - 1).max(0);
-        let result = *level;
-        // Drop the entry once this domain's stack is empty so the map tracks
-        // only domains with currently-open ranges, not every domain ever seen.
-        if result == 0 {
-            map.remove(&domain);
-        }
-        result
-    })
+    RANGE_DEPTH
+        .try_with(|depth| {
+            let mut map = depth.borrow_mut();
+            let level = map.entry(domain).or_insert(0);
+            *level = (*level - 1).max(0);
+            let result = *level;
+            // Drop the entry once this domain's stack is empty so the map tracks
+            // only domains with currently-open ranges, not every domain ever seen.
+            if result == 0 {
+                map.remove(&domain);
+            }
+            result
+        })
+        .unwrap_or(NVTX_NO_PUSH_POP_TRACKING)
 }
 
 /// Error returned by [`install_hook`].
@@ -127,6 +142,8 @@ pub enum InstallHookError {
 /// The hook receives every converted [`NvtxEvent`]. It is stored in a
 /// [`OnceLock`], so it can be installed exactly once per process — matching the
 /// one-shot nature of NVTX injection.
+/// Capture is enabled only after installation succeeds. The successful owner
+/// must call [`disable_capture`] during cleanup, before dropping its pipeline.
 ///
 /// # Errors
 /// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
@@ -135,12 +152,31 @@ where
     F: Fn(NvtxEvent) + Send + Sync + 'static,
 {
     HOOK.set(Box::new(hook))
-        .map_err(|_| InstallHookError::AlreadyInstalled)
+        .map_err(|_| InstallHookError::AlreadyInstalled)?;
+    CAPTURE_ACTIVE.store(true, Ordering::Release);
+    Ok(())
 }
 
-/// Dispatch a converted event to the installed hook, if any. Events that arrive
-/// before a hook is installed are dropped.
+/// Stop accepting NVTX events before the capture owner drops its pipeline.
+///
+/// Only the owner whose [`install_hook`] call succeeded should call this.
+/// Callback pointers and the one-shot hook remain installed: callbacks keep
+/// synthesizing handles, ids, and nesting levels for the app, but no longer
+/// dispatch events to the hook. This does not wait for callbacks already
+/// running, and capture cannot be restarted.
+pub fn disable_capture() {
+    CAPTURE_ACTIVE.store(false, Ordering::Release);
+}
+
+/// Dispatch a converted event to the installed hook while capture is active.
+/// Events that arrive before [`install_hook`] or after [`disable_capture`] are
+/// dropped.
 pub(crate) fn dispatch(event: NvtxEvent) {
+    // Checked before any TLS access so late process-cleanup callbacks never
+    // reach the hook or the owner's (possibly dropped) pipeline.
+    if !CAPTURE_ACTIVE.load(Ordering::Acquire) {
+        return;
+    }
     // Guard against hook-induced re-entry: if the hook (or code it calls) emits
     // NVTX, it would recurse into this synchronous dispatch path and overflow
     // the stack, bypassing the callbacks' panic barriers. Drop nested events.

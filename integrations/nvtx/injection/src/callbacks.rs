@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The `extern "C"` NVTX callbacks installed into the CORE2 function table.
+//! The `extern "C"` NVTX callbacks installed into the CORE/CORE2 function tables.
 //!
 //! Each callback does the minimum on the app thread — convert to a verbatim
-//! [`NvtxEvent`] and hand it to the installed hook — with two invariants:
+//! [`NvtxEvent`] and hand it to the installed hook — with three invariants:
 //!
-//! * The entire body is wrapped in [`std::panic::catch_unwind`]; a Rust panic
+//! * Handles, ids, and nesting levels are synthesized whether or not capture is
+//!   active, so values the app caches before install or after shutdown stay
+//!   valid; only dispatch is gated (see [`init::disable_capture`]).
+//! * Fallible work is wrapped in [`std::panic::catch_unwind`]; a Rust panic
 //!   must never unwind into NVTX's C caller (UB → app crash).
 //! * No allocation-heavy work, locking, or serialization happens here beyond the
 //!   message copy-in required for safety; serialization lives on the
@@ -357,4 +360,120 @@ pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const wchar_
         let name = unsafe { convert::copy_wchar_pub(name) };
         init::dispatch(nvtx_events::NvtxEvent::NameThread { thread_id, name });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+
+    use nvtx_events::NvtxEvent;
+
+    use super::*;
+
+    /// Exercise every subscribed CORE/CORE2 callback, including all return kinds.
+    /// Return values must not depend on whether capture is active.
+    fn exercise_callbacks() {
+        let name = c"capture".as_ptr();
+        let wide = [b'w' as wchar_t, 0];
+        let attr = std::ptr::null();
+
+        let domain = on_domain_create_a(name);
+        assert!(!domain.is_null());
+        assert!(!on_domain_register_string_a(domain, name).is_null());
+        on_domain_name_category_a(domain, 1, name);
+        on_domain_mark_ex(domain, attr);
+        let range = on_domain_range_start_ex(domain, attr);
+        assert_ne!(range, 0);
+        on_domain_range_end(domain, range);
+        assert_eq!(on_domain_range_push_ex(domain, attr), 0);
+        assert_eq!(on_domain_range_pop(domain), 0);
+        let resource = on_domain_resource_create(domain, std::ptr::null_mut());
+        assert!(!resource.is_null());
+        on_domain_resource_destroy(resource);
+        on_domain_destroy(domain);
+
+        on_mark_ex(attr);
+        on_mark_a(name);
+        on_mark_w(wide.as_ptr());
+        let ranges = [
+            on_range_start_ex(attr),
+            on_range_start_a(name),
+            on_range_start_w(wide.as_ptr()),
+        ];
+        for range in ranges {
+            assert_ne!(range, 0);
+            on_range_end(range);
+        }
+        assert_eq!(on_range_push_ex(attr), 0);
+        assert_eq!(on_range_push_a(name), 1);
+        assert_eq!(on_range_push_w(wide.as_ptr()), 2);
+        assert_eq!(on_range_pop(), 2);
+        assert_eq!(on_range_pop(), 1);
+        assert_eq!(on_range_pop(), 0);
+        on_name_category_a(1, name);
+        on_name_category_w(1, wide.as_ptr());
+        on_name_os_thread_a(1, name);
+        on_name_os_thread_w(1, wide.as_ptr());
+    }
+
+    // One test owns the process-global one-shot hook for this test binary.
+    #[test]
+    fn callbacks_capture_only_between_install_and_disable() {
+        exercise_callbacks();
+        // A domain handle and an open range created before install must stay
+        // valid once capture starts: apps cache handles, and nesting levels
+        // count ranges opened before the hook.
+        let early_domain = on_domain_create_a(c"early".as_ptr());
+        assert!(!early_domain.is_null());
+        assert_eq!(on_range_push_a(c"outer".as_ptr()), 0);
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let last_mark_domain = Arc::new(AtomicU64::new(0));
+        let panic_next = Arc::new(AtomicBool::new(false));
+        init::install_hook({
+            let calls = Arc::clone(&calls);
+            let last_mark_domain = Arc::clone(&last_mark_domain);
+            let panic_next = Arc::clone(&panic_next);
+            move |event| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                if let NvtxEvent::Mark { domain, .. } = event {
+                    last_mark_domain.store(domain, Ordering::Relaxed);
+                }
+                // Hook-induced NVTX must still be dropped by the reentry guard.
+                on_mark_a(c"nested".as_ptr());
+                assert!(!panic_next.swap(false, Ordering::Relaxed), "hook panic");
+            }
+        })
+        .unwrap();
+
+        on_domain_mark_ex(early_domain, std::ptr::null());
+        assert_eq!(
+            last_mark_domain.load(Ordering::Relaxed),
+            early_domain as usize as u64
+        );
+        assert_eq!(on_range_push_a(c"inner".as_ptr()), 1);
+        assert_eq!(on_range_pop(), 1);
+        assert_eq!(on_range_pop(), 0);
+        assert_eq!(calls.load(Ordering::Relaxed), 4);
+
+        exercise_callbacks();
+        assert_eq!(calls.load(Ordering::Relaxed), 34);
+        assert!(init::install_hook(|_| unreachable!()).is_err());
+        on_mark_a(c"still capturing".as_ptr());
+        assert_eq!(calls.load(Ordering::Relaxed), 35);
+
+        panic_next.store(true, Ordering::Relaxed);
+        assert_eq!(on_range_push_a(c"panic contained".as_ptr()), 0);
+        assert_eq!(on_range_pop(), 0);
+        assert_eq!(calls.load(Ordering::Relaxed), 37);
+
+        init::disable_capture();
+        exercise_callbacks();
+        assert_eq!(calls.load(Ordering::Relaxed), 37);
+        // Shutdown does not release the one-shot hook or permit reactivation.
+        assert!(init::install_hook(|_| unreachable!()).is_err());
+        exercise_callbacks();
+        assert_eq!(calls.load(Ordering::Relaxed), 37);
+    }
 }

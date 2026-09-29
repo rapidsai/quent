@@ -17,8 +17,20 @@ use std::ffi::CString;
 use std::sync::{Arc, Barrier};
 
 use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{ContextInner, EventCallback};
+use quent_instrumentation::{ContextInner, EventCallback, ObserverInner};
 use uuid::Uuid;
+
+/// Created only after successful hook installation. `Drop` disables capture
+/// before Rust drops the pipeline field, including when annotated work panics.
+struct Capture {
+    _pipeline: ObserverInner<NvtxEventEntity>,
+}
+
+impl Drop for Capture {
+    fn drop(&mut self) {
+        nvtx_injection::disable_capture();
+    }
+}
 
 /// Capture the NVTX events produced by the fixed annotation sequence into
 /// `exporter`.
@@ -50,11 +62,14 @@ pub fn run_capture_n_threads(
     // Forward each captured event into the pipeline, before the first NVTX call.
     let sender = pipeline.sender();
     nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
+    let capture = Capture {
+        _pipeline: pipeline,
+    };
 
     annotated_work_n_threads(n);
 
-    // Dropping the pipeline drains and flushes the exporter.
-    drop(pipeline);
+    // Disable capture before the pipeline drains and flushes the exporter.
+    drop(capture);
     Ok(())
 }
 
