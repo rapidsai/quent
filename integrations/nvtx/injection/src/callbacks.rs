@@ -442,8 +442,8 @@ pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const wchar_
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+    use std::sync::{Arc, mpsc};
     use std::time::Duration;
 
     use nvtx_events::NvtxEvent;
@@ -559,29 +559,24 @@ mod tests {
         assert_eq!(on_range_pop(), 0);
         assert_eq!(calls.load(Ordering::Relaxed), 37);
 
-        // Dropping the guard waits for a hook call already running on another
-        // thread, so the owner can drop the hook's sink right after.
+        // Dropping the guard disables capture without waiting for a hook that
+        // is still running on another thread.
         block_next.store(true, Ordering::Relaxed);
         let in_flight = std::thread::spawn(|| on_mark_a(c"in flight".as_ptr()));
         while !entered.load(Ordering::Acquire) {
             std::thread::yield_now();
         }
-        let dropped = Arc::new(AtomicBool::new(false));
-        let dropper = std::thread::spawn({
-            let dropped = Arc::clone(&dropped);
-            move || {
-                drop(guard);
-                dropped.store(true, Ordering::Release);
-            }
+        let (dropped_tx, dropped_rx) = mpsc::channel();
+        let dropper = std::thread::spawn(move || {
+            drop(guard);
+            dropped_tx.send(()).unwrap();
         });
-        std::thread::sleep(Duration::from_millis(50));
-        assert!(
-            !dropped.load(Ordering::Acquire),
-            "guard drop returned while the hook was still running"
-        );
+        let dropped = dropped_rx.recv_timeout(Duration::from_secs(10));
+        // Unblock and join both threads even if guard drop unexpectedly waited.
         release.store(true, Ordering::Release);
         dropper.join().unwrap();
         in_flight.join().unwrap();
+        dropped.expect("guard drop waited for a running hook");
         assert_eq!(calls.load(Ordering::Relaxed), 38);
 
         exercise_callbacks();

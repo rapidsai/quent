@@ -7,7 +7,7 @@
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use nvtx_events::NvtxEvent;
 use thiserror::Error;
@@ -35,6 +35,7 @@ static HOOK: OnceLock<Hook> = OnceLock::new();
 
 // Ordinary static storage outlives both the capture owner and Rust TLS, so
 // `dispatch` can consult it from late process-cleanup callbacks.
+// `HOOK`'s OnceLock publishes the hook; this flag only controls capture admission.
 static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
@@ -151,7 +152,7 @@ pub enum InstallHookError {
 /// let sender = pipeline.sender();
 /// let _capture = nvtx_injection::install_hook(move |event| sender.emit(event))?;
 /// // ... annotated work ...
-/// // `_capture` drops first (capture off, in-flight hooks drained), then `pipeline`.
+/// // `_capture` drops first (capture off), then `pipeline`.
 /// ```
 ///
 /// # Errors
@@ -163,21 +164,21 @@ where
 {
     HOOK.set(Box::new(hook))
         .map_err(|_| InstallHookError::AlreadyInstalled)?;
-    CAPTURE_ACTIVE.store(true, Ordering::SeqCst);
+    CAPTURE_ACTIVE.store(true, Ordering::Relaxed);
     Ok(CaptureGuard { _private: () })
 }
 
 /// Ownership of the active NVTX capture, returned by a successful
 /// [`install_hook`].
 ///
-/// Dropping the guard stops dispatching events to the hook and then waits until
-/// no thread is still running it, so the hook's sink can be dropped safely
-/// right after. Callback pointers and the one-shot hook remain installed:
-/// callbacks keep synthesizing handles, ids, and nesting levels for the app.
-/// Capture cannot be restarted.
+/// Dropping the guard disables capture without waiting for callbacks that have
+/// already passed the dispatch check. Those callbacks may still invoke the hook
+/// after the guard is dropped. Stop and join NVTX-producing threads before
+/// ending capture if every event must reach the sink.
 ///
-/// The hook must not block on the thread that drops the guard. A guard dropped
-/// from inside the hook does not wait for that hook call itself.
+/// Callback pointers and the one-shot hook remain installed: callbacks keep
+/// synthesizing handles, ids, and nesting levels for the app. Capture cannot be
+/// restarted.
 ///
 /// If the guard is never dropped (`std::mem::forget`, `std::process::exit`),
 /// capture stays active until the process ends.
@@ -189,17 +190,9 @@ pub struct CaptureGuard {
 
 impl Drop for CaptureGuard {
     fn drop(&mut self) {
-        CAPTURE_ACTIVE.store(false, Ordering::SeqCst);
-        let own = usize::from(IN_DISPATCH.with(std::cell::Cell::get));
-        while IN_FLIGHT.load(Ordering::SeqCst) > own {
-            std::thread::yield_now();
-        }
+        CAPTURE_ACTIVE.store(false, Ordering::Relaxed);
     }
 }
-
-/// Number of threads currently past the capture check in [`dispatch`].
-/// [`CaptureGuard`]'s `Drop` waits for this to drain.
-static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {
     /// Whether this thread is inside [`dispatch`]. Const-initialized and
@@ -209,19 +202,17 @@ thread_local! {
 
 /// Whether callbacks should build an event for capture.
 ///
-/// This is an early-out hint; [`dispatch`] rechecks after registering the call
-/// with the in-flight counter to handle capture ending during conversion.
+/// [`dispatch`] rechecks this flag because capture can end during conversion.
 #[inline]
 pub(crate) fn capture_active() -> bool {
     CAPTURE_ACTIVE.load(Ordering::Relaxed)
 }
 
 /// Dispatch a converted event to the installed hook while capture is active.
-/// Events that arrive before [`install_hook`] or after the [`CaptureGuard`] is
-/// dropped are discarded.
+/// A call that passes the capture check may still invoke the hook after the
+/// [`CaptureGuard`] is dropped.
 pub(crate) fn dispatch(event: NvtxEvent) {
-    // Cheap early exit without counter traffic, e.g. before install or during
-    // late process cleanup. The SeqCst re-check below is authoritative.
+    // Recheck after conversion and before accessing TLS or the hook.
     if !capture_active() {
         return;
     }
@@ -231,22 +222,15 @@ pub(crate) fn dispatch(event: NvtxEvent) {
     if IN_DISPATCH.with(|g| g.replace(true)) {
         return;
     }
-    IN_FLIGHT.fetch_add(1, Ordering::SeqCst);
-    // RAII exit so the flag and count are released even if the hook unwinds.
+    // RAII exit so the reentry flag is cleared even if the hook unwinds.
     struct Exit;
     impl Drop for Exit {
         fn drop(&mut self) {
-            IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
             IN_DISPATCH.with(|g| g.set(false));
         }
     }
     let _exit = Exit;
 
-    // Pairs with `CaptureGuard::drop`: in the SeqCst total order, either its
-    // wait observes our increment, or this load observes capture disabled.
-    if !CAPTURE_ACTIVE.load(Ordering::SeqCst) {
-        return;
-    }
     if let Some(hook) = HOOK.get() {
         hook(event);
     }

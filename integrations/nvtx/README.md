@@ -48,10 +48,9 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    into its `Observer`. Handles, ids, and nesting levels are synthesized so the
    app still behaves correctly — including before the hook is installed and
    after capture is disabled, so handles an app caches early stay valid.
-5. `install_hook` returns a `CaptureGuard`. Dropping it stops dispatch and
-   waits for hook calls already running, so the pipeline can be dropped right
-   after. Callback pointers stay installed, and callbacks tolerate destroyed TLS
-   during late process cleanup.
+5. `install_hook` returns a `CaptureGuard`. Dropping it disables capture without
+   waiting for hook calls already in progress. Callback pointers stay installed,
+   and callbacks tolerate destroyed TLS during late process cleanup.
 
 ## Using it
 
@@ -84,6 +83,11 @@ as above, so that on an early return or panic the guard still drops first
 (locals drop in reverse order; struct fields drop in declaration order, so there
 the guard field must come first). Installation is one-shot: a failed caller gets
 no guard and cannot end the owner's capture, and capture cannot be restarted.
+
+Stop and join NVTX-producing threads before ending capture if all events must
+be flushed. Callbacks that already passed the dispatch check can still invoke
+the hook after the guard is dropped. Events racing with observer shutdown may
+be discarded or log a send error.
 
 `static-injection` is requested in the manifest:
 

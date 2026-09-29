@@ -54,7 +54,7 @@ pub fn run_capture_n_threads(
 
     annotated_work_n_threads(n);
 
-    // End capture and wait out in-flight hooks, then drain and flush the exporter.
+    // All annotated work has finished; disable capture, then flush the exporter.
     drop(capture);
     drop(pipeline);
     Ok(())
