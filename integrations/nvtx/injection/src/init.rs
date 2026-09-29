@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The NVTX injection entry point, one-shot table fill, and the sink-agnostic
-//! hook installation surface.
+//! hook registration surfaces. Direct users install a process-global hook;
+//! generated instrumentation registers the logical source binding through an
+//! adapter that currently installs that same one-shot hook.
 
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
@@ -32,6 +34,23 @@ use nvtx_sys::ffi::{
 type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
 
 static HOOK: OnceLock<Hook> = OnceLock::new();
+
+/// Identifies the generated source whose events a capture hook receives.
+///
+/// The current injection backend remains process-global and one-shot. Generated
+/// instrumentation supplies this binding through [`register_source`] so a
+/// routing backend can distinguish logical sources without changing the
+/// generated capture contract.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct SourceBinding {
+    /// Instrumentation context that owns the source.
+    pub context_id: uuid::Uuid,
+    /// Process entity instance that activated the source.
+    pub process_id: uuid::Uuid,
+    /// NVTX stream entity instance emitted by the source.
+    pub stream_id: uuid::Uuid,
+}
 
 /// Monotonic source of the NVTX handles/ids the injection layer synthesizes and
 /// hands back to the application: domain, registered-string, and resource handles
@@ -136,6 +155,24 @@ where
 {
     HOOK.set(Box::new(hook))
         .map_err(|_| InstallHookError::AlreadyInstalled)
+}
+
+/// Register a generated capture source and its bound event hook.
+///
+/// This adapter gives generated instrumentation a binding-aware contract while
+/// preserving the production backend's existing process-global, one-shot
+/// behavior. A future router can use `binding` to select among logical sinks;
+/// the current backend delegates directly to [`install_hook`].
+///
+/// # Errors
+/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
+#[doc(hidden)]
+pub fn register_source<F>(binding: SourceBinding, hook: F) -> Result<(), InstallHookError>
+where
+    F: Fn(NvtxEvent) + Send + Sync + 'static,
+{
+    let _ = binding;
+    install_hook(hook)
 }
 
 /// Dispatch a converted event to the installed hook, if any. Events that arrive

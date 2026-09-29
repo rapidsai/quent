@@ -35,6 +35,16 @@ entities:
           instance_name: { option: string }
       exit: {}
 
+  RuntimeProcess:
+    doc: A native process contributing telemetry to the simulated engine.
+    nvtx: true
+    events:
+      started:
+        attributes:
+          process: { os: process }
+          engine_id: { scope-ref: Engine }
+      exit: {}
+
   QueryGroup:
     doc: A group of queries submitted to an engine.
     events:
@@ -149,6 +159,16 @@ entities:
         attributes:
           instance_name: string
           task_executor_id: { scope-ref: TaskExecutor }
+
+  RuntimeThread:
+    doc: One native thread lifetime executing work for a simulated thread slot.
+    events:
+      started:
+        attributes:
+          thread: { os: thread }
+          process_id: { scope-ref: RuntimeProcess }
+          logical_thread_id: { ref: TaskExecutorThread }
+      exit: {}
 
   StorageChannel:
     doc: A worker-local channel transferring bytes between storage and host memory.

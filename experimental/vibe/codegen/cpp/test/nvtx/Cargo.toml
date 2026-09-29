@@ -1,0 +1,25 @@
+[package]
+name = "quent-codegen-cpp-nvtx-test"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+cxx = "1"
+quent-codegen-nvtx-test-instrumentation = { path = "../../../test/nvtx/instrumentation" }
+quent-dynamic-attributes = { path = "../../../../../../crates/dynamic-attributes" }
+quent-instrumentation = {
+    path = "../../../../../../crates/instrumentation",
+    features = ["io-ndjson"],
+}
+quent-io = {
+    path = "../../../../../../crates/io",
+    default-features = false,
+    features = ["ndjson"],
+}
+serde_json = "1"
+
+[build-dependencies]
+cxx-build = "1"
+quent-schema-codegen-cpp = { path = "../.." }
+quent-yaml = { path = "../../../../../../crates/yaml" }

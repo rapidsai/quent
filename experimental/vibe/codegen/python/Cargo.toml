@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 convert_case.workspace = true
+nvtx-schema.workspace = true
 prettyplease.workspace = true
 proc-macro2.workspace = true
 quent-constraints.workspace = true

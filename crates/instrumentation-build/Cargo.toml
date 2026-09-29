@@ -6,11 +6,14 @@ publish.workspace = true
 
 [dependencies]
 convert_case = "0.12"
+nvtx-schema = { path = "../../integrations/nvtx/schema" }
 prettyplease.workspace = true
 proc-macro2 = "1"
 quent-constraints = { path = "../constraints" }
 quent-fsm = { path = "../fsm" }
+quent-os = { path = "../os" }
 quent-ref-target = { path = "../ref-target" }
+quent-ref-tree = { path = "../ref-tree" }
 quent-schema = { path = "../schema" }
 quote = "1"
 syn.workspace = true

@@ -22,7 +22,10 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let ctx = match args.exporter.into_options() {
-        Some(provider) => SimulatorContext::try_new(provider)?,
+        Some(provider) => SimulatorContext::try_new_with_options(
+            provider,
+            instr::ContextOptions::default().with_source_capture(instr::SourceCapture::Disabled),
+        )?,
         None => SimulatorContext::try_new(instr::Noop)?,
     };
     emit(&ctx);

@@ -12,6 +12,36 @@ use tokio::runtime::{Handle, Runtime as TokioRuntime};
 use tracing::debug;
 use uuid::Uuid;
 
+/// Whether a context may activate private live-capture sources.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SourceCapture {
+    /// Activate sources configured by the generated instrumentation model.
+    #[default]
+    Enabled,
+    /// Keep configured sources detached while continuing to export ordinary
+    /// events.
+    Disabled,
+}
+
+/// Runtime options for one generated instrumentation context.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ContextOptions {
+    source_capture: SourceCapture,
+}
+
+impl ContextOptions {
+    /// Set whether private live-capture sources may be activated in this
+    /// context.
+    pub const fn with_source_capture(mut self, source_capture: SourceCapture) -> Self {
+        self.source_capture = source_capture;
+        self
+    }
+
+    fn source_capture_enabled(self) -> bool {
+        self.source_capture == SourceCapture::Enabled
+    }
+}
+
 /// The runtime an active context's observers run on.
 #[derive(Clone)]
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
@@ -78,22 +108,36 @@ pub struct ContextInner {
     id: Uuid,
     /// The asynchronous runtime used by active observers.
     runtime: Option<Runtime>,
+    source_capture_enabled: bool,
 }
 
 impl ContextInner {
     /// Construct an active context adopting `id`, with a runtime for its
     /// observers' forwarders.
     pub fn try_new(id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::try_new_with_options(id, ContextOptions::default())
+    }
+
+    /// Construct an active context adopting `id` and `options`.
+    pub fn try_new_with_options(
+        id: Uuid,
+        options: ContextOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             id,
             runtime: Some(resolve_runtime()?),
+            source_capture_enabled: options.source_capture_enabled(),
         })
     }
 
     /// Construct a no-op context: observers built from it discard events.
     pub fn noop(id: Uuid) -> Self {
         debug!("using noop context");
-        Self { id, runtime: None }
+        Self {
+            id,
+            runtime: None,
+            source_capture_enabled: false,
+        }
     }
 
     /// Return the universally unique identifier of this context.
@@ -148,7 +192,11 @@ impl ContextInner {
             return Ok(ObserverInner::noop());
         };
         let exporter = provider.create_exporter(self.id).await?;
-        Ok(spawn_forwarder(runtime, exporter))
+        Ok(spawn_forwarder(
+            runtime,
+            exporter,
+            self.source_capture_enabled,
+        ))
     }
 }
 
@@ -196,5 +244,6 @@ mod tests {
     fn noop_context_has_no_runtime() {
         let ctx = ContextInner::noop(Uuid::now_v7());
         assert!(ctx.runtime.is_none());
+        assert!(!ctx.source_capture_enabled);
     }
 }

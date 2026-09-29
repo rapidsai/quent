@@ -32,42 +32,79 @@ const NVTX_ROUTES_BOUNDARY: &str = "f40e69c2d4405c765c6270221e2a58e58ef704a6";
 /// Introduced after [commit `cee18e0`](https://github.com/rapidsai/quent/commit/cee18e047c5407dc91b8d9e6e150892444775bd1).
 const CONTEXT_INVENTORY_PREDECESSOR: &str = "cee18e047c5407dc91b8d9e6e150892444775bd1";
 
-pub(crate) fn nvtx_code(enabled: bool) -> NvtxCode {
-    if enabled {
-        NvtxCode {
-            imports: quote! {
-                use quent_query_engine_server::analyzer_service_router_with_routes;
-                use nvtx_server::{import_context_events, routes as nvtx_routes};
-            },
-            setup: quote! {
-                let nvtx_root = root.clone();
-                let nvtx_importer = move |id: uuid::Uuid| {
-                    import_context_events(&nvtx_root, id)
-                };
-            },
-            router: quote! {
-                analyzer_service_router_with_routes::<Analyzer>(
-                    Box::new(importer),
-                    Box::new(lister),
-                    None,
-                    nvtx_routes(Box::new(nvtx_importer)),
-                )
-            },
+/// Published commits providing model-owned viewer composition.
+///
+/// These are containing commits, not predecessors on main: unrelated mainline
+/// changes must continue to use the historical wrapper. Preserve every SHA for
+/// branch-pinned artifacts. If merged by squash, add the upstream merge SHA as
+/// another containing boundary instead of replacing the existing ones.
+pub(crate) const MODEL_VIEWER_BOUNDARIES: &[&str] = &[
+    "a183943254961fa1ead4dca59bc1cbade6f24558",
+    "d6ede5675840718f6cc3899a1f54742e7d58b4ce",
+    "ddb6776a1a242fa71bd3db5fc5265a909390c74f",
+    "4e83ebedad9e7e44195ef5d2d9a3e16bf7b885b9",
+    "03700cf7b07fe8bcd51ada1b6b75ed0d19ec263f",
+];
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ViewerContract {
+    Legacy { nvtx: bool },
+    Model,
+}
+
+impl ViewerContract {
+    pub(crate) fn needs_nvtx_dependency(self) -> bool {
+        self == Self::Legacy { nvtx: true }
+    }
+
+    pub(crate) fn code(self) -> ViewerCode {
+        if self == Self::Model {
+            return ViewerCode {
+                imports: quote! {
+                    use quent_query_engine_server::model_viewer_router;
+                },
+                setup: quote! {},
+                router: quote! {
+                    model_viewer_router::<Viewer>(Box::new(importer), Box::new(lister), None)
+                },
+            };
         }
-    } else {
-        NvtxCode {
-            imports: quote! {
-                use quent_query_engine_server::analyzer_service_router;
-            },
-            setup: quote! {},
-            router: quote! {
-                analyzer_service_router::<Analyzer>(Box::new(importer), Box::new(lister), None)
-            },
+        if self.needs_nvtx_dependency() {
+            ViewerCode {
+                imports: quote! {
+                    use quent_query_engine_server::analyzer_service_router_with_routes;
+                    use nvtx_server::{import_context_events, routes as nvtx_routes};
+                },
+                setup: quote! {
+                    let nvtx_root = root.clone();
+                    let nvtx_importer = move |id: uuid::Uuid| {
+                        import_context_events(&nvtx_root, id)
+                    };
+                },
+                router: quote! {
+                    analyzer_service_router_with_routes::<Analyzer>(
+                        Box::new(importer),
+                        Box::new(lister),
+                        None,
+                        nvtx_routes(Box::new(nvtx_importer)),
+                    )
+                },
+            }
+        } else {
+            ViewerCode {
+                imports: quote! {
+                    use quent_query_engine_server::analyzer_service_router;
+                },
+                setup: quote! {},
+                router: quote! {
+                    analyzer_service_router::<Analyzer>(Box::new(importer), Box::new(lister), None)
+                },
+            }
         }
     }
 }
 
-pub(crate) struct NvtxCode {
+pub(crate) struct ViewerCode {
     pub(crate) imports: TokenStream,
     pub(crate) setup: TokenStream,
     pub(crate) router: TokenStream,
@@ -116,7 +153,7 @@ pub(crate) struct ContextIndexingCode {
 }
 
 pub(crate) struct WrapperCompatibility {
-    pub(crate) has_nvtx_routes: bool,
+    pub(crate) viewer: ViewerContract,
     pub(crate) io_package: &'static str,
     pub(crate) context_indexing: ContextIndexing,
 }
@@ -124,7 +161,20 @@ pub(crate) struct WrapperCompatibility {
 impl WrapperCompatibility {
     pub(crate) async fn resolve(repository: &Path, spec: &ViewerSpec) -> Result<Self> {
         let revision = revision::PinnedRevision::fetch(repository, &spec.quent).await?;
-        let has_nvtx_routes = revision.contains(NVTX_ROUTES_BOUNDARY).await?;
+        let mut model_viewer = false;
+        for boundary in MODEL_VIEWER_BOUNDARIES {
+            if revision.contains(boundary).await? {
+                model_viewer = true;
+                break;
+            }
+        }
+        let viewer = if model_viewer {
+            ViewerContract::Model
+        } else {
+            ViewerContract::Legacy {
+                nvtx: revision.contains(NVTX_ROUTES_BOUNDARY).await?,
+            }
+        };
         let io_package = if revision.contains(IO_PACKAGE_BOUNDARY).await? {
             IO_PACKAGE
         } else {
@@ -139,7 +189,7 @@ impl WrapperCompatibility {
             ContextIndexing::QueryEngines
         };
         Ok(Self {
-            has_nvtx_routes,
+            viewer,
             io_package,
             context_indexing,
         })

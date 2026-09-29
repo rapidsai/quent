@@ -13,16 +13,25 @@ path = "src/main.rs"
 
 [dependencies]
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
-nvtx-bridge = { path = "../bridge" }
+nvtx-analyzer = { path = "../analyzer" }
+nvtx-events = { path = "../events" }
+quent-events.workspace = true
+quent-store = { path = "../../../crates/store", features = ["io-ndjson"] }
+serde = { workspace = true, features = ["derive"] }
 libc = "0.2"
 # `io-callback` selects the callback exporter used to print (bin) and collect
 # (test) captured events.
 quent-instrumentation = { path = "../../../crates/instrumentation", features = [
     "io-callback",
+    "io-ndjson",
 ] }
 uuid = { workspace = true }
 nvtx = { workspace = true }
 
 [dev-dependencies]
-# The test matches on `NvtxEvent` variants to assert coverage.
-nvtx-events = { path = "../events" }
+tempfile = "3"
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../../crates/instrumentation-build" }
+quent-store-build = { path = "../../../crates/store-build" }
+quent-yaml = { path = "../../../crates/yaml" }

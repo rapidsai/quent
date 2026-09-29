@@ -18,6 +18,7 @@ nvtx-events = { path = "../events" }
 # `tools` exposes NVTX's callback-subscription and injection ABI.
 nvtx-sys = { workspace = true, features = ["tools"] }
 thiserror = { workspace = true }
+uuid = { workspace = true }
 
 [build-dependencies]
 # Only Quent's own build script needs this direct `cc` dependency, for the

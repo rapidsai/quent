@@ -1,0 +1,24 @@
+[package]
+name = "quent-codegen-nvtx-test-instrumentation"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+nvtx-analyzer = { path = "../../../../../../integrations/nvtx/analyzer" }
+nvtx-events = { path = "../../../../../../integrations/nvtx/events" }
+quent-instrumentation = {
+    path = "../../../../../../crates/instrumentation",
+    features = ["io-ndjson"],
+}
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
+nvtx-injection = {
+    path = "../../../../../../integrations/nvtx/injection",
+    features = ["static-injection"],
+}
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../../../../../crates/instrumentation-build" }
+quent-yaml = { path = "../../../../../../crates/yaml" }

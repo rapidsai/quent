@@ -22,6 +22,7 @@ records:
 entities:
   Server:
     doc: A server that accepts connections.
+    nvtx: true
     events:
       booted:
         attributes:

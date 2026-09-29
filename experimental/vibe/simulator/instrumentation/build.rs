@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
+use std::{env, path::Path};
 
 use quent_instrumentation_build::{Options, generate};
 
@@ -21,6 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             serde: true,
             analyzer_package: Some("quent-simulator-analyzer".to_owned()),
             collector_sink: true,
+            nvtx_capture: env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux")
+                && env::var("CARGO_CFG_TARGET_POINTER_WIDTH").as_deref() == Ok("64"),
             ..Options::default()
         },
     )?;

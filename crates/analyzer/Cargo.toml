@@ -4,14 +4,21 @@ version.workspace = true
 edition.workspace =  true
 publish.workspace = true
 
+[features]
+default = []
+service = ["dep:moka", "dep:tokio"]
+
 [dependencies]
+moka = { version = "0.12.13", features = ["future"], optional = true }
 quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-events = { path = "../events" }
 quent-time = { path = "../time" }
 rustc-hash.workspace = true
 smallvec = { workspace = true, features = ["serde"] }
 thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"], optional = true }
 uuid.workspace=true
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt"] }

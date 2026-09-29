@@ -11,6 +11,7 @@ on:
       - "**/Cargo.lock"
       - "**/pyproject.toml"
       - "crates/yaml/examples/**/*.yaml"
+      - "experimental/vibe/codegen/**/*.yaml"
       - "pixi.toml"
       - ".github/workflows/python.yml"
   pull_request:
@@ -22,6 +23,7 @@ on:
       - "**/Cargo.lock"
       - "**/pyproject.toml"
       - "crates/yaml/examples/**/*.yaml"
+      - "experimental/vibe/codegen/**/*.yaml"
       - "pixi.toml"
       - ".github/workflows/python.yml"
 
@@ -56,6 +58,7 @@ jobs:
       - name: Build schema codegen Python tests
         run: |
           pixi run maturin develop --uv -m experimental/vibe/codegen/python/test/bridge/Cargo.toml
+          pixi run maturin develop --uv -m experimental/vibe/codegen/python/test/nvtx/bridge/Cargo.toml
       - name: Run schema codegen Python tests
         run: |
           pixi run pytest -v experimental/vibe/codegen/python/test/
