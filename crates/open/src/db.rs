@@ -101,30 +101,21 @@ impl DbLoader {
             return Ok(id);
         }
         let url = self.endpoint("api/benchmark-runs/");
-        let mut offset: i64 = 0;
-        loop {
-            let page: Paged<BenchmarkRunSummary> = self
-                .get_json(
-                    client,
-                    &url,
-                    &[("limit", "100"), ("offset", &offset.to_string())],
-                )
-                .await?;
-            // `run_id` is a UUID; compare case-insensitively so a differently-cased
-            // spelling still matches.
-            if let Some(found) = page
-                .items
-                .iter()
-                .find(|r| r.run_id.eq_ignore_ascii_case(&self.run))
-            {
-                return Ok(found.id);
-            }
-            offset += page.items.len() as i64;
-            if page.items.is_empty() || offset >= page.count {
-                return Err(OpenError::RunNotFound {
-                    run: self.run.clone(),
-                });
-            }
+        let page: Paged<BenchmarkRunSummary> = self
+            .get_json(client, &url, &[("run_id", &self.run)])
+            .await?;
+        // `run_id` is a UUID; compare case-insensitively so a differently-cased
+        // spelling still matches.
+        if let Some(found) = page
+            .items
+            .iter()
+            .find(|r| r.run_id.eq_ignore_ascii_case(&self.run))
+        {
+            return Ok(found.id);
+        } else {
+            return Err(OpenError::RunNotFound {
+                run: self.run.clone(),
+            });
         }
     }
 
