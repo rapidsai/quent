@@ -48,10 +48,10 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    into its `Observer`. Handles, ids, and nesting levels are synthesized so the
    app still behaves correctly — including before the hook is installed and
    after capture is disabled, so handles an app caches early stay valid.
-5. The successful capture owner calls `disable_capture` before dropping its
-   pipeline. Callback pointers stay installed, but subsequent events are no
-   longer dispatched, and callbacks tolerate destroyed TLS during late process
-   cleanup.
+5. `install_hook` returns a `CaptureGuard`. Dropping it stops dispatch and
+   waits for hook calls already running, so the pipeline can be dropped right
+   after. Callback pointers stay installed, and callbacks tolerate destroyed TLS
+   during late process cleanup.
 
 ## Using it
 
@@ -66,23 +66,24 @@ let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).awa
 
 // 2. Forward captured NVTX events into it, before the first NVTX call.
 let sender = observer.sender();
-nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
+let capture = nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
 
 // 3. Ordinary app code, annotated with NVIDIA's NVTX Rust API.
 nvtx::mark(c"startup");
 let range = nvtx::Range::new(c"phase-1");
 drop(range); // end the range before flushing
 
-// 4. The successful owner disables capture before flushing the observer.
-nvtx_injection::disable_capture();
+// 4. End capture, then flush the observer.
+drop(capture);
 drop(observer);
 ```
 
-In an owning context, put `disable_capture` in its cleanup before the pipeline
-is dropped. The bundled example wraps its pipeline in a private owner whose
-`Drop` does this, including during unwinding. A failed `install_hook` caller
-must not disable the successful owner's capture. Installation remains one-shot.
-Shutdown does not wait for callbacks already running.
+Capture lasts exactly as long as the guard. Bind it to a named variable:
+`let _ = install_hook(..)` drops it immediately. Declare it after the observer,
+as above, so that on an early return or panic the guard still drops first
+(locals drop in reverse order; struct fields drop in declaration order, so there
+the guard field must come first). Installation is one-shot: a failed caller gets
+no guard and cannot end the owner's capture, and capture cannot be restarted.
 
 `static-injection` is requested in the manifest:
 
@@ -115,7 +116,8 @@ subprocess, no files:
 pixi run cargo test -p nvtx-example
 ```
 
-The tests also check owner cleanup and failed duplicate registration.
+The tests also check failed duplicate registration and dropping the guard from
+inside the hook.
 `example/tests/shutdown.rs` runs capture on a subprocess's main thread, then
 emits CORE and CORE2 push/pop calls from an `atexit` handler after Rust TLS
 destruction.

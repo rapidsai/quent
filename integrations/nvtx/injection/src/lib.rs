@@ -66,6 +66,6 @@ mod convert;
 mod init;
 
 pub use init::{
-    InstallHookError, disable_capture, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
+    CaptureGuard, InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
     install_hook,
 };

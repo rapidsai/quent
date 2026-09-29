@@ -8,7 +8,7 @@
 //!
 //! * Handles, ids, and nesting levels are synthesized whether or not capture is
 //!   active, so values the app caches before install or after shutdown stay
-//!   valid; only dispatch is gated (see [`init::disable_capture`]).
+//!   valid; only dispatch is gated (see [`init::CaptureGuard`]).
 //! * Fallible work is wrapped in [`std::panic::catch_unwind`]; a Rust panic
 //!   must never unwind into NVTX's C caller (UB → app crash).
 //! * No allocation-heavy work, locking, or serialization happens here beyond the
@@ -366,6 +366,7 @@ pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const wchar_
 mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+    use std::time::Duration;
 
     use nvtx_events::NvtxEvent;
 
@@ -431,10 +432,16 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let last_mark_domain = Arc::new(AtomicU64::new(0));
         let panic_next = Arc::new(AtomicBool::new(false));
-        init::install_hook({
+        let block_next = Arc::new(AtomicBool::new(false));
+        let entered = Arc::new(AtomicBool::new(false));
+        let release = Arc::new(AtomicBool::new(false));
+        let guard = init::install_hook({
             let calls = Arc::clone(&calls);
             let last_mark_domain = Arc::clone(&last_mark_domain);
             let panic_next = Arc::clone(&panic_next);
+            let block_next = Arc::clone(&block_next);
+            let entered = Arc::clone(&entered);
+            let release = Arc::clone(&release);
             move |event| {
                 calls.fetch_add(1, Ordering::Relaxed);
                 if let NvtxEvent::Mark { domain, .. } = event {
@@ -443,6 +450,12 @@ mod tests {
                 // Hook-induced NVTX must still be dropped by the reentry guard.
                 on_mark_a(c"nested".as_ptr());
                 assert!(!panic_next.swap(false, Ordering::Relaxed), "hook panic");
+                if block_next.swap(false, Ordering::Relaxed) {
+                    entered.store(true, Ordering::Release);
+                    while !release.load(Ordering::Acquire) {
+                        std::thread::yield_now();
+                    }
+                }
             }
         })
         .unwrap();
@@ -468,12 +481,36 @@ mod tests {
         assert_eq!(on_range_pop(), 0);
         assert_eq!(calls.load(Ordering::Relaxed), 37);
 
-        init::disable_capture();
+        // Dropping the guard waits for a hook call already running on another
+        // thread, so the owner can drop the hook's sink right after.
+        block_next.store(true, Ordering::Relaxed);
+        let in_flight = std::thread::spawn(|| on_mark_a(c"in flight".as_ptr()));
+        while !entered.load(Ordering::Acquire) {
+            std::thread::yield_now();
+        }
+        let dropped = Arc::new(AtomicBool::new(false));
+        let dropper = std::thread::spawn({
+            let dropped = Arc::clone(&dropped);
+            move || {
+                drop(guard);
+                dropped.store(true, Ordering::Release);
+            }
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(
+            !dropped.load(Ordering::Acquire),
+            "guard drop returned while the hook was still running"
+        );
+        release.store(true, Ordering::Release);
+        dropper.join().unwrap();
+        in_flight.join().unwrap();
+        assert_eq!(calls.load(Ordering::Relaxed), 38);
+
         exercise_callbacks();
-        assert_eq!(calls.load(Ordering::Relaxed), 37);
+        assert_eq!(calls.load(Ordering::Relaxed), 38);
         // Shutdown does not release the one-shot hook or permit reactivation.
         assert!(init::install_hook(|_| unreachable!()).is_err());
         exercise_callbacks();
-        assert_eq!(calls.load(Ordering::Relaxed), 37);
+        assert_eq!(calls.load(Ordering::Relaxed), 38);
     }
 }

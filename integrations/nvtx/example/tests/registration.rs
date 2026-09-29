@@ -12,7 +12,7 @@ use uuid::Uuid;
 #[test]
 fn failed_capture_does_not_disable_existing_owner() {
     let calls = Arc::new(AtomicUsize::new(0));
-    nvtx_injection::install_hook({
+    let capture = nvtx_injection::install_hook({
         let calls = Arc::clone(&calls);
         move |_| {
             calls.fetch_add(1, Ordering::Relaxed);
@@ -27,7 +27,7 @@ fn failed_capture_does_not_disable_existing_owner() {
 
     nvtx::mark(c"after duplicate");
     assert_eq!(calls.load(Ordering::Relaxed), 2);
-    nvtx_injection::disable_capture();
+    drop(capture);
     nvtx::mark(c"after shutdown");
     assert_eq!(calls.load(Ordering::Relaxed), 2);
 }

@@ -7,7 +7,7 @@
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use nvtx_events::NvtxEvent;
 use thiserror::Error;
@@ -142,59 +142,102 @@ pub enum InstallHookError {
 /// The hook receives every converted [`NvtxEvent`]. It is stored in a
 /// [`OnceLock`], so it can be installed exactly once per process — matching the
 /// one-shot nature of NVTX injection.
-/// Capture is enabled only after installation succeeds. The successful owner
-/// must call [`disable_capture`] during cleanup, before dropping its pipeline.
+///
+/// Capture is active until the returned [`CaptureGuard`] is dropped. Create the
+/// hook's sink first and bind the guard after it, so the guard drops first:
+///
+/// ```ignore
+/// let pipeline = /* the sink the hook forwards into */;
+/// let sender = pipeline.sender();
+/// let _capture = nvtx_injection::install_hook(move |event| sender.emit(event))?;
+/// // ... annotated work ...
+/// // `_capture` drops first (capture off, in-flight hooks drained), then `pipeline`.
+/// ```
 ///
 /// # Errors
-/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
-pub fn install_hook<F>(hook: F) -> Result<(), InstallHookError>
+/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set. A
+/// failed caller receives no guard, so it cannot end another owner's capture.
+pub fn install_hook<F>(hook: F) -> Result<CaptureGuard, InstallHookError>
 where
     F: Fn(NvtxEvent) + Send + Sync + 'static,
 {
     HOOK.set(Box::new(hook))
         .map_err(|_| InstallHookError::AlreadyInstalled)?;
-    CAPTURE_ACTIVE.store(true, Ordering::Release);
-    Ok(())
+    CAPTURE_ACTIVE.store(true, Ordering::SeqCst);
+    Ok(CaptureGuard { _private: () })
 }
 
-/// Stop accepting NVTX events before the capture owner drops its pipeline.
+/// Ownership of the active NVTX capture, returned by a successful
+/// [`install_hook`].
 ///
-/// Only the owner whose [`install_hook`] call succeeded should call this.
-/// Callback pointers and the one-shot hook remain installed: callbacks keep
-/// synthesizing handles, ids, and nesting levels for the app, but no longer
-/// dispatch events to the hook. This does not wait for callbacks already
-/// running, and capture cannot be restarted.
-pub fn disable_capture() {
-    CAPTURE_ACTIVE.store(false, Ordering::Release);
+/// Dropping the guard stops dispatching events to the hook and then waits until
+/// no thread is still running it, so the hook's sink can be dropped safely
+/// right after. Callback pointers and the one-shot hook remain installed:
+/// callbacks keep synthesizing handles, ids, and nesting levels for the app.
+/// Capture cannot be restarted.
+///
+/// The hook must not block on the thread that drops the guard. A guard dropped
+/// from inside the hook does not wait for that hook call itself.
+///
+/// If the guard is never dropped (`std::mem::forget`, `std::process::exit`),
+/// capture stays active until the process ends.
+#[must_use = "capture stops as soon as the guard is dropped; bind it to a named variable"]
+#[derive(Debug)]
+pub struct CaptureGuard {
+    _private: (),
+}
+
+impl Drop for CaptureGuard {
+    fn drop(&mut self) {
+        CAPTURE_ACTIVE.store(false, Ordering::SeqCst);
+        let own = usize::from(IN_DISPATCH.with(std::cell::Cell::get));
+        while IN_FLIGHT.load(Ordering::SeqCst) > own {
+            std::thread::yield_now();
+        }
+    }
+}
+
+/// Number of threads currently past the capture check in [`dispatch`].
+/// [`CaptureGuard`]'s `Drop` waits for this to drain.
+static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    /// Whether this thread is inside [`dispatch`]. Const-initialized and
+    /// drop-free, so it stays accessible during late process cleanup.
+    static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Dispatch a converted event to the installed hook while capture is active.
-/// Events that arrive before [`install_hook`] or after [`disable_capture`] are
-/// dropped.
+/// Events that arrive before [`install_hook`] or after the [`CaptureGuard`] is
+/// dropped are discarded.
 pub(crate) fn dispatch(event: NvtxEvent) {
-    // Checked before any TLS access so late process-cleanup callbacks never
-    // reach the hook or the owner's (possibly dropped) pipeline.
-    if !CAPTURE_ACTIVE.load(Ordering::Acquire) {
+    // Cheap early exit without counter traffic, e.g. before install or during
+    // late process cleanup. The SeqCst re-check below is authoritative.
+    if !CAPTURE_ACTIVE.load(Ordering::Relaxed) {
         return;
     }
     // Guard against hook-induced re-entry: if the hook (or code it calls) emits
     // NVTX, it would recurse into this synchronous dispatch path and overflow
     // the stack, bypassing the callbacks' panic barriers. Drop nested events.
-    // The RAII reset clears the flag even if the hook unwinds.
-    thread_local! {
-        static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    }
     if IN_DISPATCH.with(|g| g.replace(true)) {
         return;
     }
-    struct Reset;
-    impl Drop for Reset {
+    IN_FLIGHT.fetch_add(1, Ordering::SeqCst);
+    // RAII exit so the flag and count are released even if the hook unwinds.
+    struct Exit;
+    impl Drop for Exit {
         fn drop(&mut self) {
+            IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
             IN_DISPATCH.with(|g| g.set(false));
         }
     }
-    let _reset = Reset;
+    let _exit = Exit;
 
+    // Pairs with `CaptureGuard::drop`: in the SeqCst total order, either its
+    // wait observes our increment, or this load observes capture disabled.
+    if !CAPTURE_ACTIVE.load(Ordering::SeqCst) {
+        return;
+    }
     if let Some(hook) = HOOK.get() {
         hook(event);
     }
