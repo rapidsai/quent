@@ -94,8 +94,8 @@ impl DbLoader {
     }
 
     /// Resolve the requested run to its integer primary key. An integer is used
-    /// directly; otherwise the value is treated as a `run_id` UUID and matched by
-    /// paging the run list (the API has no uuid filter, so this is a linear scan).
+    /// directly; otherwise the value is treated as a `run_id` UUID and matched
+    /// using the run_id query parameter.
     async fn resolve_run(&self, client: &Client) -> Result<i64> {
         if let Ok(id) = self.run.parse::<i64>() {
             return Ok(id);
