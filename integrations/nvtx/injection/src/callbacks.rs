@@ -8,7 +8,7 @@
 //!
 //! * Handles, ids, and nesting levels are synthesized whether or not capture is
 //!   active, so values the app caches before install or after shutdown stay
-//!   valid; only dispatch is gated (see [`init::CaptureGuard`]).
+//!   valid; event conversion and dispatch are gated (see [`init::CaptureGuard`]).
 //! * Fallible work is wrapped in [`std::panic::catch_unwind`]; a Rust panic
 //!   must never unwind into NVTX's C caller (UB → app crash).
 //! * No allocation-heavy work, locking, or serialization happens here beyond the
@@ -39,6 +39,9 @@ pub(crate) extern "C" fn on_domain_range_push_ex(
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(domain);
+        if !init::capture_active() {
+            return;
+        }
         // The OS thread id is read on the app thread so the push pairs with its
         // pop on the same thread; only used to build the event, so reading it
         // inside the guard is enough (it need not survive a panic).
@@ -60,6 +63,9 @@ pub(crate) extern "C" fn on_domain_range_pop(domain: nvtxDomainHandle_t) -> c_in
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_pop_level(domain);
+        if !init::capture_active() {
+            return;
+        }
         let thread_id = init::current_thread_id();
         init::dispatch(convert::range_pop(domain, thread_id));
     }));
@@ -72,6 +78,9 @@ pub(crate) extern "C" fn on_domain_mark_ex(
     attr: *const nvtxEventAttributes_t,
 ) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::mark(domain as usize as u64, attr) };
@@ -91,6 +100,9 @@ pub(crate) extern "C" fn on_domain_range_start_ex(
 ) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::range_start(domain as usize as u64, range_id, attr) };
@@ -102,6 +114,9 @@ pub(crate) extern "C" fn on_domain_range_start_ex(
 /// CORE2 `DomainRangeEnd` subscriber.
 pub(crate) extern "C" fn on_domain_range_end(domain: nvtxDomainHandle_t, range_id: nvtxRangeId_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         init::dispatch(convert::range_end(domain as usize as u64, range_id));
     });
 }
@@ -110,6 +125,9 @@ pub(crate) extern "C" fn on_domain_range_end(domain: nvtxDomainHandle_t, range_i
 pub(crate) extern "C" fn on_domain_create_a(name: *const c_char) -> nvtxDomainHandle_t {
     let handle = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `name` (if non-null) is valid for this call; it
         // is copied into an owned String inside `convert::domain_create`.
         let event = unsafe { convert::domain_create(handle, name) };
@@ -121,6 +139,9 @@ pub(crate) extern "C" fn on_domain_create_a(name: *const c_char) -> nvtxDomainHa
 /// CORE2 `DomainDestroy` subscriber.
 pub(crate) extern "C" fn on_domain_destroy(domain: nvtxDomainHandle_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         init::dispatch(convert::domain_destroy(domain as usize as u64));
     });
 }
@@ -133,6 +154,9 @@ pub(crate) extern "C" fn on_domain_register_string_a(
 ) -> nvtxStringHandle_t {
     let handle = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `string` (if non-null) is valid for this call;
         // it is copied into an owned String inside `convert::register_string`.
         let event = unsafe { convert::register_string(domain as usize as u64, handle, string) };
@@ -148,6 +172,9 @@ pub(crate) extern "C" fn on_domain_name_category_a(
     name: *const c_char,
 ) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `name` (if non-null) is valid for this call.
         let event = unsafe { convert::name_category(domain as usize as u64, category, name) };
         init::dispatch(event);
@@ -157,6 +184,9 @@ pub(crate) extern "C" fn on_domain_name_category_a(
 /// CORE `NameOsThreadA` subscriber (non-domain thread naming).
 pub(crate) extern "C" fn on_name_os_thread_a(thread_id: u32, name: *const c_char) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `name` (if non-null) is valid for this call.
         let event = unsafe { convert::name_thread(thread_id, name) };
         init::dispatch(event);
@@ -171,6 +201,9 @@ pub(crate) extern "C" fn on_domain_resource_create(
 ) -> nvtxResourceHandle_t {
     let handle = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::resource_create(domain as usize as u64, handle, attr) };
@@ -182,6 +215,9 @@ pub(crate) extern "C" fn on_domain_resource_create(
 /// CORE2 `DomainResourceDestroy` subscriber.
 pub(crate) extern "C" fn on_domain_resource_destroy(resource: nvtxResourceHandle_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         init::dispatch(convert::resource_destroy(resource as usize as u64));
     });
 }
@@ -198,6 +234,9 @@ pub(crate) extern "C" fn on_domain_resource_destroy(resource: nvtxResourceHandle
 /// CORE `MarkEx` subscriber (default-domain instantaneous marker).
 pub(crate) extern "C" fn on_mark_ex(attr: *const nvtxEventAttributes_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::mark(0, attr) };
@@ -208,6 +247,9 @@ pub(crate) extern "C" fn on_mark_ex(attr: *const nvtxEventAttributes_t) {
 /// CORE `MarkA` subscriber (default-domain marker with an immediate string).
 pub(crate) extern "C" fn on_mark_a(message: *const c_char) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `message` (if non-null) is valid for this call.
         let event = unsafe { convert::mark_a(message) };
         init::dispatch(event);
@@ -218,6 +260,9 @@ pub(crate) extern "C" fn on_mark_a(message: *const c_char) {
 pub(crate) extern "C" fn on_range_start_ex(attr: *const nvtxEventAttributes_t) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
         let event = unsafe { convert::range_start(0, range_id, attr) };
@@ -230,6 +275,9 @@ pub(crate) extern "C" fn on_range_start_ex(attr: *const nvtxEventAttributes_t) -
 pub(crate) extern "C" fn on_range_start_a(message: *const c_char) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `message` (if non-null) is valid for this call.
         let event = unsafe { convert::range_start_a(range_id, message) };
         init::dispatch(event);
@@ -240,6 +288,9 @@ pub(crate) extern "C" fn on_range_start_a(message: *const c_char) -> nvtxRangeId
 /// CORE `RangeEnd` subscriber (default domain).
 pub(crate) extern "C" fn on_range_end(range_id: nvtxRangeId_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         init::dispatch(convert::range_end(0, range_id));
     });
 }
@@ -250,6 +301,9 @@ pub(crate) extern "C" fn on_range_push_ex(attr: *const nvtxEventAttributes_t) ->
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
+        if !init::capture_active() {
+            return;
+        }
         let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
@@ -264,6 +318,9 @@ pub(crate) extern "C" fn on_range_push_a(message: *const c_char) -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
+        if !init::capture_active() {
+            return;
+        }
         let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `message` (if non-null) is valid for this call.
         let event = unsafe { convert::range_push_a(message, thread_id) };
@@ -277,6 +334,9 @@ pub(crate) extern "C" fn on_range_pop() -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_pop_level(0);
+        if !init::capture_active() {
+            return;
+        }
         let thread_id = init::current_thread_id();
         init::dispatch(convert::range_pop(0, thread_id));
     }));
@@ -286,6 +346,9 @@ pub(crate) extern "C" fn on_range_pop() -> c_int {
 /// CORE `NameCategoryA` subscriber (default-domain category naming).
 pub(crate) extern "C" fn on_name_category_a(category: u32, name: *const c_char) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `name` (if non-null) is valid for this call.
         let event = unsafe { convert::name_category(0, category, name) };
         init::dispatch(event);
@@ -303,6 +366,9 @@ pub(crate) extern "C" fn on_name_category_a(category: u32, name: *const c_char) 
 /// CORE `MarkW` subscriber — wide-char instantaneous marker on the default domain.
 pub(crate) extern "C" fn on_mark_w(message: *const wchar_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call; copy_wchar copies before returning.
         let event = unsafe { convert::mark_w(message) };
@@ -315,6 +381,9 @@ pub(crate) extern "C" fn on_mark_w(message: *const wchar_t) {
 pub(crate) extern "C" fn on_range_start_w(message: *const wchar_t) -> nvtxRangeId_t {
     let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call.
         let event = unsafe { convert::range_start_w(range_id, message) };
@@ -329,6 +398,9 @@ pub(crate) extern "C" fn on_range_push_w(message: *const wchar_t) -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_push_level(0);
+        if !init::capture_active() {
+            return;
+        }
         let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call.
@@ -341,6 +413,9 @@ pub(crate) extern "C" fn on_range_push_w(message: *const wchar_t) -> c_int {
 /// CORE `NameCategoryW` subscriber — wide-char category name on the default domain.
 pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const wchar_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
         // wchar_t array for this call.
         let name = unsafe { convert::copy_wchar_pub(name) };
@@ -355,6 +430,9 @@ pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const wchar_t)
 /// CORE `NameOsThreadW` subscriber — wide-char thread name.
 pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const wchar_t) {
     let _ = std::panic::catch_unwind(|| {
+        if !init::capture_active() {
+            return;
+        }
         // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
         // wchar_t array for this call.
         let name = unsafe { convert::copy_wchar_pub(name) };

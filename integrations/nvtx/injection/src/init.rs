@@ -207,13 +207,22 @@ thread_local! {
     static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// Whether callbacks should build an event for capture.
+///
+/// This is an early-out hint; [`dispatch`] rechecks after registering the call
+/// with the in-flight counter to handle capture ending during conversion.
+#[inline]
+pub(crate) fn capture_active() -> bool {
+    CAPTURE_ACTIVE.load(Ordering::Relaxed)
+}
+
 /// Dispatch a converted event to the installed hook while capture is active.
 /// Events that arrive before [`install_hook`] or after the [`CaptureGuard`] is
 /// dropped are discarded.
 pub(crate) fn dispatch(event: NvtxEvent) {
     // Cheap early exit without counter traffic, e.g. before install or during
     // late process cleanup. The SeqCst re-check below is authoritative.
-    if !CAPTURE_ACTIVE.load(Ordering::Relaxed) {
+    if !capture_active() {
         return;
     }
     // Guard against hook-induced re-entry: if the hook (or code it calls) emits
