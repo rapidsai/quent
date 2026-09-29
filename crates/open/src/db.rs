@@ -111,11 +111,11 @@ impl DbLoader {
             .iter()
             .find(|r| r.run_id.eq_ignore_ascii_case(&self.run))
         {
-            return Ok(found.id);
+            Ok(found.id)
         } else {
-            return Err(OpenError::RunNotFound {
+            Err(OpenError::RunNotFound {
                 run: self.run.clone(),
-            });
+            })
         }
     }
 
