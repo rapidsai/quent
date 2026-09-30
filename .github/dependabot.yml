@@ -26,6 +26,7 @@ updates:
     directories:
       - "/ui"
       - "/crates/schema/ts"
+      - "/experimental/vibe/ui"
     groups:
       npm:
         applies-to: version-updates
@@ -44,6 +45,8 @@ updates:
       default-days: 14
     directories:
       - "/"
+      - "/experimental/vibe/codegen"
+      - "/experimental/vibe/ui/yaml-wasm"
     groups:
       cargo:
         applies-to: version-updates
