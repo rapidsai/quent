@@ -17,7 +17,7 @@ use std::ffi::CString;
 use std::sync::{Arc, Barrier};
 
 use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{ContextInner, EventCallback};
+use quent_instrumentation::{ContextInner, ExporterProvider};
 use uuid::Uuid;
 
 /// Capture the NVTX events produced by the fixed annotation sequence into
@@ -26,10 +26,10 @@ use uuid::Uuid;
 /// Builds a Quent context and event pipeline on `exporter`, installs the injection
 /// hook (one-shot per process) to forward each event, runs the annotations, and
 /// drops the pipeline to flush.
-pub fn run_capture(
-    session: Uuid,
-    exporter: EventCallback<NvtxEventEntity>,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_capture<P>(session: Uuid, exporter: P) -> Result<(), Box<dyn std::error::Error>>
+where
+    P: ExporterProvider<NvtxEventEntity>,
+{
     run_capture_n_threads(1, session, exporter)
 }
 
@@ -38,11 +38,14 @@ pub fn run_capture(
 ///
 /// A [`Barrier`] synchronizes all threads before their first NVTX call so their
 /// push/pop events are interleaved in real time rather than serialised.
-pub fn run_capture_n_threads(
+pub fn run_capture_n_threads<P>(
     n: usize,
     session: Uuid,
-    exporter: EventCallback<NvtxEventEntity>,
-) -> Result<(), Box<dyn std::error::Error>> {
+    exporter: P,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    P: ExporterProvider<NvtxEventEntity>,
+{
     let context = ContextInner::try_new(session)?;
     let pipeline =
         context.block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })?;

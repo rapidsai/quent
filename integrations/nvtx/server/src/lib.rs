@@ -5,6 +5,7 @@
 
 use std::error::Error;
 use std::fmt;
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,14 +15,14 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use moka::{future::Cache as AsyncCache, sync::Cache as SyncCache};
+use moka::sync::Cache as SyncCache;
 use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
-use quent_events::{Event, EventPayload};
-use quent_io::filesystem::{self, Format};
-use quent_io::{ImporterOptions, ImporterProvider};
-use tokio::sync::Semaphore;
+use quent_analyzer::context::ContextId;
+use quent_analyzer::service::{AnalysisCache, AnalysisError, BlockingTasks};
+use quent_events::Event;
+use quent_store::event::filesystem::load_entity_stream;
 use uuid::Uuid;
 
 const MAX_BODY_BYTES: usize = 64 * 1024;
@@ -62,28 +63,8 @@ pub fn import_context_events(
     context_id: Uuid,
 ) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> {
     let context_dir = root.join(context_id.to_string());
-    let stream_dir = context_dir.join(<NvtxEventEntity as EventPayload>::NAME);
-    if !stream_dir.is_dir() {
-        return Ok(None);
-    }
-    let mut stream_entries = std::fs::read_dir(&stream_dir).map_err(NvtxImporterError::new)?;
-    match stream_entries.next() {
-        None => return Ok(Some(Vec::new())),
-        Some(Err(error)) => return Err(NvtxImporterError::new(error)),
-        Some(Ok(_)) => {}
-    }
-    let format = Format::detect(&context_dir)
-        .ok_or_else(|| NvtxImporterError::new("unable to detect context stream format"))?;
-    let importer = <ImporterOptions as ImporterProvider<NvtxEventEntity>>::create_importer(
-        &ImporterOptions::FileSystem(filesystem::importer::Options {
-            format,
-            path: stream_dir,
-        }),
-    )
-    .map_err(NvtxImporterError::new)?;
-    importer
-        .collect::<quent_io::ImporterResult<Vec<_>>>()
-        .map(Some)
+    load_entity_stream::<NvtxEventEntity>(&context_dir)
+        .and_then(|events| events.map(Iterator::collect).transpose())
         .map_err(NvtxImporterError::new)
 }
 
@@ -110,78 +91,39 @@ impl CachedNvtx {
     }
 }
 
-/// Applies backpressure before scheduling expensive NVTX work on Tokio's
-/// blocking pool.
-#[derive(Clone)]
-struct NvtxTaskLimiter {
-    permits: Arc<Semaphore>,
-}
-
-impl NvtxTaskLimiter {
-    fn new(max_concurrency: usize) -> Self {
-        Self {
-            permits: Arc::new(Semaphore::new(max_concurrency)),
-        }
-    }
-
-    /// Wait for capacity, then retain that capacity until the blocking task exits.
-    async fn run<T>(&self, task: impl FnOnce() -> T + Send + 'static) -> Result<T, NvtxServerError>
-    where
-        T: Send + 'static,
-    {
-        let permit = Arc::clone(&self.permits)
-            .acquire_owned()
-            .await
-            .map_err(|error| NvtxServerError::Internal(error.to_string()))?;
-        tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            task()
-        })
-        .await
-        .map_err(|error| NvtxServerError::Internal(error.to_string()))
-    }
-}
-
 #[derive(Clone)]
 struct NvtxModelCache {
-    models: AsyncCache<Uuid, Arc<CachedNvtx>>,
+    models: AnalysisCache<ContextId, CachedNvtx, NvtxServerError>,
     importer: Arc<NvtxImporterFn>,
-    tasks: NvtxTaskLimiter,
+    tasks: BlockingTasks,
 }
 
 impl NvtxModelCache {
     fn new(importer: Box<NvtxImporterFn>) -> Self {
+        let tasks = BlockingTasks::new(
+            NonZeroUsize::new(MAX_CONCURRENT_MODEL_TASKS).expect("nonzero task limit"),
+        );
         Self {
-            models: AsyncCache::builder()
-                .max_capacity(128)
-                .time_to_idle(Duration::from_hours(24))
-                .build(),
+            models: AnalysisCache::new(128, Duration::from_hours(24), tasks.clone()),
             importer: Arc::from(importer),
-            tasks: NvtxTaskLimiter::new(MAX_CONCURRENT_MODEL_TASKS),
+            tasks,
         }
     }
 
     /// Load and reconstruct one context, coalescing concurrent misses by ID.
     async fn get(&self, context_id: Uuid) -> Result<Arc<CachedNvtx>, NvtxServerError> {
         let importer = Arc::clone(&self.importer);
-        let tasks = self.tasks.clone();
         self.models
-            .entry(context_id)
-            .or_try_insert_with(async move {
-                tasks
-                    .run(move || match importer(context_id) {
-                        Ok(Some(events)) => {
-                            let model = NvtxModelBuilder::build(events);
-                            Ok(Arc::new(CachedNvtx::new(model)))
-                        }
-                        Ok(None) => Err(NvtxServerError::NotFound),
-                        Err(error) => Err(NvtxServerError::Internal(error.to_string())),
-                    })
-                    .await?
+            .get_with(context_id.into(), move || match importer(context_id) {
+                Ok(Some(events)) => Ok(CachedNvtx::new(NvtxModelBuilder::build(events))),
+                Ok(None) => Err(NvtxServerError::NotFound),
+                Err(error) => Err(NvtxServerError::Internal(error.to_string())),
             })
             .await
-            .map(|entry| entry.into_value())
-            .map_err(|error: Arc<NvtxServerError>| (*error).clone())
+            .map_err(|error| match &*error {
+                AnalysisError::Load(error) => error.clone(),
+                AnalysisError::Task(error) => NvtxServerError::Internal(error.to_string()),
+            })
     }
 }
 
@@ -195,6 +137,12 @@ enum NvtxServerError {
     BadRequest(String),
     NotFound,
     Internal(String),
+}
+
+impl From<quent_analyzer::service::TaskError> for NvtxServerError {
+    fn from(error: quent_analyzer::service::TaskError) -> Self {
+        Self::Internal(error.to_string())
+    }
 }
 
 impl IntoResponse for NvtxServerError {
@@ -290,6 +238,8 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::http::Request;
     use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+    use quent_events::EventPayload;
+    use quent_io::{ExporterProvider, FileSystemExporterOptions, FileSystemFormat};
     use tempfile::tempdir;
     use tower::ServiceExt;
 
@@ -381,9 +331,126 @@ mod tests {
         ]
     }
 
+    async fn export_events(
+        root: &Path,
+        context_id: Uuid,
+        format: FileSystemFormat,
+        events: Vec<Event<NvtxEventEntity>>,
+    ) {
+        let mut exporter = FileSystemExporterOptions::new(format, root.to_owned())
+            .create_exporter(context_id)
+            .await
+            .unwrap();
+        for event in events {
+            exporter.push(event).await.unwrap();
+        }
+        exporter.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn common_export_store_and_analysis_handle_multiple_files_formats_and_contexts() {
+        let root = tempdir().unwrap();
+        let first = Uuid::from_u128(100);
+        let second = Uuid::from_u128(101);
+        let mut events = range_events(first).into_iter();
+        export_events(
+            root.path(),
+            first,
+            FileSystemFormat::Ndjson,
+            vec![events.next().unwrap()],
+        )
+        .await;
+        export_events(
+            root.path(),
+            first,
+            FileSystemFormat::Msgpack,
+            vec![events.next().unwrap()],
+        )
+        .await;
+        for format in [FileSystemFormat::Postcard, FileSystemFormat::Ndjson] {
+            export_events(
+                root.path(),
+                first,
+                format,
+                vec![Event::new(
+                    first,
+                    QUERY_START,
+                    NvtxEventEntity(NvtxEvent::Mark {
+                        domain: 4,
+                        attributes: NvtxEventAttributes::default(),
+                    }),
+                )],
+            )
+            .await;
+        }
+        let mut other = range_events(second);
+        let NvtxEvent::RangeStart { attributes, .. } = &mut other[0].data.0 else {
+            panic!()
+        };
+        attributes.message = Some(NvtxMessage::String("other context".into()));
+        export_events(root.path(), second, FileSystemFormat::Postcard, other).await;
+        assert_eq!(
+            import_context_events(root.path(), first)
+                .unwrap()
+                .unwrap()
+                .len(),
+            4
+        );
+        assert_eq!(
+            import_context_events(root.path(), second)
+                .unwrap()
+                .unwrap()
+                .len(),
+            2
+        );
+
+        let imports = Arc::new(AtomicUsize::new(0));
+        let import_count = Arc::clone(&imports);
+        let output = root.path().to_owned();
+        let app = routes(Box::new(move |id| {
+            import_count.fetch_add(1, Ordering::SeqCst);
+            import_context_events(&output, id)
+        }));
+        for (id, expected_name) in [(first, "work"), (second, "other context"), (first, "work")] {
+            let request = NvtxViewportRequest {
+                viewport: nvtx_ui::NvtxViewportWindow {
+                    start: 0.0,
+                    end: 1.0,
+                },
+                selections: vec![nvtx_ui::NvtxDomainSelection {
+                    domain_id: 4,
+                    category_ids: vec![],
+                    include_uncategorized: true,
+                }],
+            };
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post(viewport_uri(id))
+                        .header("content-type", "application/json")
+                        .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let viewport: NvtxViewportResponse = serde_json::from_slice(&body).unwrap();
+            assert_eq!(viewport.statistics.len(), 1);
+            assert_eq!(viewport.statistics[0].message, expected_name);
+            assert_eq!(viewport.statistics[0].count, 1);
+            assert_eq!(viewport.statistics[0].total_duration, 1.0);
+        }
+        assert_eq!(
+            imports.load(Ordering::SeqCst),
+            2,
+            "one load/analysis per context"
+        );
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn model_work_runs_off_the_async_executor() {
-        let limiter = NvtxTaskLimiter::new(1);
+        let limiter = BlockingTasks::new(NonZeroUsize::new(1).unwrap());
         let executor_thread = std::thread::current().id();
         let model_thread = limiter.run(|| std::thread::current().id()).await.unwrap();
 
@@ -392,7 +459,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn model_work_waits_for_capacity_before_entering_the_blocking_pool() {
-        let limiter = NvtxTaskLimiter::new(1);
+        let limiter = BlockingTasks::new(NonZeroUsize::new(1).unwrap());
         let (first_started_tx, first_started_rx) = tokio::sync::oneshot::channel();
         let (release_first_tx, release_first_rx) = std::sync::mpsc::channel();
         let first_limiter = limiter.clone();

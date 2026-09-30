@@ -12,11 +12,11 @@
 use std::collections::BTreeMap;
 
 use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::NvtxEvent;
 use quent_events::Event;
-use quent_time::{OrderedCollector, TimeUnixNanoSec};
+use quent_time::TimeUnixNanoSec;
 
 use crate::anomalies::ReconstructionAnomalies;
+use crate::input::{NvtxEventData, NvtxEventView};
 use crate::ranges::{PushPopRanges, StartEndRanges};
 use crate::resource::Resources;
 use crate::span::{
@@ -177,14 +177,56 @@ impl NvtxModelBuilder {
     /// anywhere in the stream. Incomplete pairs are represented rather than
     /// dropped or guessed — see the crate docs for what each case yields.
     pub fn build(events: impl IntoIterator<Item = Event<NvtxEventEntity>>) -> NvtxModel {
+        Self::build_from(
+            events
+                .into_iter()
+                .map(|event| (event.timestamp, event.data.0)),
+        )
+    }
+
+    /// Reconstruct from native or application-specific event data.
+    ///
+    /// Each item pairs the envelope's timestamp with an owned or borrowed
+    /// payload implementing [`NvtxEventData`]. Borrowing lets callers retain
+    /// stored events without cloning their strings or converting them into the
+    /// native vocabulary. Only result data is owned by the returned model.
+    ///
+    /// The caller must select one source within one context before calling:
+    /// NVTX range, domain, string, resource, and thread IDs are source-local.
+    /// This function neither combines sources nor chooses one by PID. Envelope
+    /// timestamps are explicit and must share one clock, in Unix nanoseconds.
+    ///
+    /// Events are stably ordered by timestamp. Equal timestamps keep input
+    /// order, including the last registration used for name resolution.
+    ///
+    /// ```
+    /// use nvtx_analyzer::NvtxModelBuilder;
+    /// use nvtx_events::NvtxEvent;
+    ///
+    /// let events = [(42, NvtxEvent::NameThread {
+    ///     thread_id: 7,
+    ///     name: "worker".to_owned(),
+    /// })];
+    /// let model = NvtxModelBuilder::build_from(
+    ///     events.iter().map(|(timestamp, data)| (*timestamp, data)),
+    /// );
+    /// assert_eq!(model.thread_name(7), "worker");
+    /// assert_eq!(model.trace_end(), 42);
+    /// ```
+    pub fn build_from<T: NvtxEventData>(
+        events: impl IntoIterator<Item = (TimeUnixNanoSec, T)>,
+    ) -> NvtxModel {
         // Pass 1a — materialize in timestamp order. Equal timestamps keep
-        // arrival order, so replay is deterministic.
-        let mut collector = OrderedCollector::default();
-        collector.extend(events);
-        let ordered = collector.into_inner();
+        // arrival order, so replay is deterministic. Sorting once also avoids
+        // quadratic insertion when stored events arrive in reverse order.
+        let mut ordered: Vec<_> = events.into_iter().collect();
+        ordered.sort_by_key(|(timestamp, _)| *timestamp);
 
         // Pass 1b — learn every name in the stream before resolving any of them.
-        let tables = ResolutionTables::build(&ordered);
+        let tables =
+            ResolutionTables::build(ordered.iter().filter_map(|(timestamp, data)| {
+                data.nvtx_event().map(|event| (*timestamp, event))
+            }));
 
         // Pass 2 — replay.
         let mut ranges = StartEndRanges::default();
@@ -201,19 +243,22 @@ impl NvtxModelBuilder {
         // before the span does.
         let mut slots: Vec<Option<NvtxSpan>> = Vec::new();
 
-        for event in ordered {
-            trace_start = Some(trace_start.map_or(event.timestamp, |at| at.min(event.timestamp)));
-            trace_end = trace_end.max(event.timestamp);
+        for (timestamp, data) in ordered {
+            trace_start = Some(trace_start.map_or(timestamp, |at| at.min(timestamp)));
+            trace_end = trace_end.max(timestamp);
 
-            match event.data.0 {
-                NvtxEvent::RangeStart {
+            let Some(event) = data.nvtx_event() else {
+                continue;
+            };
+
+            match event {
+                NvtxEventView::RangeStart {
                     domain,
                     range_id,
                     attributes,
                 } => {
-                    let name = tables.resolve_message(domain, &attributes.message);
-                    if let Some(span) =
-                        ranges.start(range_id, domain, name, attributes, event.timestamp)
+                    let name = tables.resolve_message(domain, attributes.message);
+                    if let Some(span) = ranges.start(range_id, domain, name, attributes, timestamp)
                     {
                         // A span came back only because this start displaced one
                         // still open under the same id.
@@ -223,37 +268,35 @@ impl NvtxModelBuilder {
                 }
                 // The domain on a `RangeEnd` is redundant: `range_id` is
                 // process-globally unique, so it alone identifies the range.
-                NvtxEvent::RangeEnd { range_id, .. } => {
-                    match ranges.end(range_id, event.timestamp) {
-                        Some(span) => slots.push(Some(span)),
-                        None => anomalies.orphan_range_ends += 1,
-                    }
-                }
-                NvtxEvent::RangePush {
+                NvtxEventView::RangeEnd { range_id, .. } => match ranges.end(range_id, timestamp) {
+                    Some(span) => slots.push(Some(span)),
+                    None => anomalies.orphan_range_ends += 1,
+                },
+                NvtxEventView::RangePush {
                     domain,
                     thread_id,
                     attributes,
                 } => {
-                    let name = tables.resolve_message(domain, &attributes.message);
+                    let name = tables.resolve_message(domain, attributes.message);
                     let id = SpanId(slots.len());
                     slots.push(None);
-                    pushes.push(id, thread_id, domain, name, attributes, event.timestamp);
+                    pushes.push(id, thread_id, domain, name, attributes, timestamp);
                 }
-                NvtxEvent::RangePop { domain, thread_id } => {
-                    match pushes.pop(thread_id, domain, event.timestamp) {
+                NvtxEventView::RangePop { domain, thread_id } => {
+                    match pushes.pop(thread_id, domain, timestamp) {
                         Some((id, span)) => fill(&mut slots, id, span),
                         None => anomalies.orphan_range_pops += 1,
                     }
                 }
-                NvtxEvent::Mark { domain, attributes } => marks.push(NvtxMark {
+                NvtxEventView::Mark { domain, attributes } => marks.push(NvtxMark {
                     domain,
-                    name: tables.resolve_message(domain, &attributes.message),
+                    name: tables.resolve_message(domain, attributes.message),
                     category: category_id(attributes.category),
                     color: attributes.color,
                     payload: attributes.payload,
-                    timestamp: event.timestamp,
+                    timestamp,
                 }),
-                NvtxEvent::ResourceCreate {
+                NvtxEventView::ResourceCreate {
                     domain,
                     handle,
                     identifier_type,
@@ -263,9 +306,9 @@ impl NvtxModelBuilder {
                     identifier: _,
                     message,
                 } => {
-                    let name = tables.resolve_message(domain, &message);
+                    let name = tables.resolve_message(domain, message);
                     if let Some(span) =
-                        resources.create(handle, domain, name, identifier_type, event.timestamp)
+                        resources.create(handle, domain, name, identifier_type, timestamp)
                     {
                         // As above: only a displaced lifespan returns a span.
                         anomalies.reused_resource_handles += 1;
@@ -274,21 +317,21 @@ impl NvtxModelBuilder {
                 }
                 // Matched on `handle` alone — the event carries no domain, so
                 // there is nothing else to key on.
-                NvtxEvent::ResourceDestroy { handle } => {
-                    match resources.destroy(handle, event.timestamp) {
+                NvtxEventView::ResourceDestroy { handle } => {
+                    match resources.destroy(handle, timestamp) {
                         Some(span) => slots.push(Some(span)),
                         None => anomalies.orphan_resource_destroys += 1,
                     }
                 }
                 // Consumed by pass 1; they only advance the trace end here.
                 // Listed explicitly rather than caught by `_`, so a new
-                // `NvtxEvent` variant fails to compile instead of being
+                // `NvtxEventView` variant fails to compile instead of being
                 // silently discarded.
-                NvtxEvent::DomainCreate { .. }
-                | NvtxEvent::DomainDestroy { .. }
-                | NvtxEvent::RegisterString { .. }
-                | NvtxEvent::NameCategory { .. }
-                | NvtxEvent::NameThread { .. } => {}
+                NvtxEventView::DomainCreate { .. }
+                | NvtxEventView::DomainDestroy { .. }
+                | NvtxEventView::RegisterString { .. }
+                | NvtxEventView::NameCategory { .. }
+                | NvtxEventView::NameThread { .. } => {}
             }
         }
 

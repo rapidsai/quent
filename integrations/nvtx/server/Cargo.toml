@@ -13,18 +13,20 @@ real-capture-tests = ["nvtx-analyzer/real-capture-tests"]
 
 [dependencies]
 axum = { version = "0.8.7" }
-moka = { version = "0.12.13", features = ["future", "sync"] }
+moka = { version = "0.12.13", features = ["sync"] }
+quent-analyzer = { path = "../../../crates/analyzer", features = ["service"] }
 nvtx-analyzer = { path = "../analyzer" }
 nvtx-bridge = { path = "../bridge" }
 nvtx-ui = { path = "../ui" }
 quent-events = { path = "../../../crates/events" }
-quent-io = { path = "../../../crates/io" }
+quent-store = { path = "../../../crates/store" }
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"] }
 tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+quent-io = { path = "../../../crates/io" }
 nvtx-events = { path = "../events" }
 serde_json.workspace = true
 tempfile = "3"
