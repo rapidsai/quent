@@ -1,0 +1,19 @@
+[package]
+name = "quent-bench-rust-quent"
+version.workspace = true
+edition.workspace = true
+publish = false
+build = "build.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+quent-bench-rust-common = { path = "../common" }
+quent-bench-types = { path = "../../../types" }
+quent-instrumentation = { path = "../../../../crates/instrumentation", features = ["io-ndjson", "io-msgpack", "io-postcard"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile = "3"
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../../../crates/instrumentation-build" }
+quent-yaml = { path = "../../../../crates/yaml" }

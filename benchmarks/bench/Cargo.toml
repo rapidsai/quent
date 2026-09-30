@@ -1,0 +1,15 @@
+[package]
+name = "quent-bench"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+chrono = "0.4.45"
+clap = { version = "4.5", features = ["derive"] }
+comfy-table = "8.0.1"
+quent-bench-types = { path = "../types" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+statrs = { version = "0.19.1", default-features = false, features = ["std"] }
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }

@@ -1,0 +1,10 @@
+[package]
+name = "quent-bench-types"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+strum = { version = "0.28", features = ["derive"] }

@@ -7,13 +7,6 @@ all-features = true
 # The lint level for security vulnerabilities.
 version = 2
 ignore = [
-    # quick-xml DoS advisories (quadratic duplicate-attribute parse; unbounded
-    # namespace allocation). Only reachable as a dev/bench dependency (pprof ->
-    # inferno flamegraphs, pinned to quick-xml 0.26), parsing developer-generated
-    # data, not untrusted input or shipped artifacts. Drop once pprof/inferno bump
-    # to quick-xml >= 0.41.
-    "RUSTSEC-2026-0194",
-    "RUSTSEC-2026-0195",
     # smartstring is unmaintained and has no safe upgrade. It is pulled in only
     # by ts-rs's TypeScript formatting toolchain (dprint -> SWC), not by shipped
     # runtime code. Drop once ts-rs/dprint migrate to a maintained string crate.

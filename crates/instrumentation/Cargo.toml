@@ -38,19 +38,12 @@ uuid = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [dev-dependencies]
-criterion = { version = "0.8", features = ["html_reports"] }
 http.workspace = true
-pprof = { version = "0.15", features = ["flamegraph"] }
 quent-collector = { path = "../collector/server" }
 quent-collector-proto = { path = "../collector/proto" }
 quent-events = { path = "../events", features = ["serde"] }
 quent-io = { path = "../io", features = ["ndjson"] }
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3"
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true
-
-[[bench]]
-name = "event_emit"
-harness = false
