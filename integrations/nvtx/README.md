@@ -79,15 +79,16 @@ drop(capture);
 Capture lasts exactly as long as the guard. Bind it to a named variable:
 `let _ = install_hook(..)` drops it immediately. Declare it after the context,
 as above, so that on an early return or panic the guard releases the observer
-first (locals drop in reverse order; struct fields drop in declaration order,
-so there the guard field must come first). Installation is one-shot: a failed caller gets
-no guard and cannot end the owner's capture, and capture cannot be restarted.
+first (locals drop in reverse order; struct fields drop in declaration order, so
+there the guard field must come first). Installation is one-shot: a failed
+caller gets no guard and cannot end the owner's capture, and capture cannot be
+restarted.
 
-Stop and join NVTX-producing threads before ending capture if all events must
-be flushed. Callbacks that already acquired the hook can still invoke it after
-the guard is dropped. They retain the hook and its observer until they finish, which can
-delay exporter flushing beyond guard drop. Later callbacks cannot acquire the
-removed hook.
+Stop and join NVTX-producing threads before ending capture if all events must be
+flushed. Callbacks that already acquired the hook can still invoke it after the
+guard is dropped. They retain the hook and its observer until they finish, which
+can delay exporter flushing beyond guard drop. Later callbacks cannot acquire
+the removed hook.
 
 `static-injection` is requested in the manifest:
 
