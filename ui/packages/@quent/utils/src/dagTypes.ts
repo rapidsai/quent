@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { DynamicValue } from './types/index';
-
 // Pure-data types for DAG coloring, width configuration, and node/edge shapes.
 // These are kept in @quent/utils to avoid circular dependencies between
 // @quent/hooks (which holds DAG atoms) and @quent/components (which holds DAG rendering).
@@ -61,7 +59,25 @@ export const DAG_LAYOUT_DIRECTION = {
 
 export type DagLayoutDirection = (typeof DAG_LAYOUT_DIRECTION)[keyof typeof DAG_LAYOUT_DIRECTION];
 
-export type StatValue = DynamicValue | null;
+/** A parsed struct keeps its identity even when it contains no fields. */
+export interface StatStruct {
+  kind: 'struct';
+  fields: Statistic[];
+}
+
+export interface Statistic {
+  key: string;
+  value: StatValue;
+  quantity?: string;
+}
+
+export type StatValue = string | number | bigint | boolean | null | StatStruct | StatValue[];
+
+export function isStatStruct(value: StatValue): value is StatStruct {
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && value.kind === 'struct'
+  );
+}
 
 export interface DAGNode {
   id: string;

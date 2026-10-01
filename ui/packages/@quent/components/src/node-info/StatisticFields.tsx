@@ -1,0 +1,112 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import {
+  formatStatWithQuantity,
+  isStatStruct,
+  type QuantitySpec,
+  type Statistic,
+  type StatValue,
+} from '@quent/utils';
+
+type Quantities = { [key: string]: QuantitySpec | undefined };
+
+function Value({
+  name,
+  value,
+  quantity,
+  quantitySpecs,
+  depth,
+}: {
+  name: string;
+  value: StatValue;
+  quantity?: string;
+  quantitySpecs?: Quantities;
+  depth: number;
+}) {
+  if (isStatStruct(value))
+    return (
+      <StatisticFields statistics={value.fields} quantitySpecs={quantitySpecs} depth={depth} />
+    );
+  if (Array.isArray(value)) {
+    return value.length ? (
+      <ol className="space-y-1" aria-label={`${name} values`}>
+        {value.map((item, index) => (
+          <li key={index} className="break-words whitespace-pre-wrap">
+            <Value
+              name={name}
+              value={item}
+              quantity={quantity}
+              quantitySpecs={quantitySpecs}
+              depth={depth}
+            />
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <span className="text-muted-foreground">Empty list</span>
+    );
+  }
+  return (
+    <span className="break-words whitespace-pre-wrap">
+      {value == null
+        ? '—'
+        : typeof value === 'number' || typeof value === 'bigint'
+          ? formatStatWithQuantity(value, name, quantity ? quantitySpecs?.[quantity] : undefined)
+          : String(value)}
+    </span>
+  );
+}
+
+/** Render producer-owned section names and field order without semantic classification. */
+export function StatisticFields({
+  statistics,
+  quantitySpecs,
+  depth = 0,
+}: {
+  statistics: readonly Statistic[];
+  quantitySpecs?: Quantities;
+  depth?: number;
+}) {
+  if (!statistics.length) return <p className="text-xs text-muted-foreground">No fields</p>;
+  return (
+    <div className="space-y-1 text-xs">
+      {statistics.map(({ key, value, quantity }, index) =>
+        isStatStruct(value) ? (
+          <section key={index} aria-label={key} className="mt-3 border-t pt-2 first:mt-1">
+            <div
+              role="heading"
+              aria-level={Math.min(6, depth + 4)}
+              className="mb-1.5 break-words font-semibold"
+            >
+              {key}
+            </div>
+            <div className="border-l pl-3">
+              <StatisticFields
+                statistics={value.fields}
+                quantitySpecs={quantitySpecs}
+                depth={depth + 1}
+              />
+            </div>
+          </section>
+        ) : (
+          <dl
+            key={index}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-start gap-x-4 py-0.5"
+          >
+            <dt className="break-words">{key.replace(/_/g, ' ')}</dt>
+            <dd className="min-w-0 text-muted-foreground">
+              <Value
+                name={key}
+                value={value}
+                quantity={quantity}
+                quantitySpecs={quantitySpecs}
+                depth={depth + 1}
+              />
+            </dd>
+          </dl>
+        )
+      )}
+    </div>
+  );
+}
