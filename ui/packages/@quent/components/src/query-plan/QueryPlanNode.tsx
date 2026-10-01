@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { flattenStatistics, statisticFieldName } from '@quent/utils';
+import { useInspectedPipe } from '@quent/hooks';
 import { memo, useState, useMemo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
@@ -84,6 +86,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   // still sees DAG hovers; reads come from the effective atom so the chart
   // doesn't dim when nothing visible would be highlighted.
   const setHighlightState = useSetHighlightedNodeIds();
+  const inspectedPipe = useInspectedPipe();
   const highlightState = useEffectiveHighlightedNodeIds();
   const hoveredStat = useEffectiveHoveredStat();
   const dagHeatmapRange = useDagHeatmapRange();
@@ -95,11 +98,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
-  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(
-    operatorId,
-    isDark,
-    data.metadata?.relatedOperatorIds
-  );
+  const {
+    fieldColor,
+    isDimmed,
+    isSelected: operatorIsSelected,
+    colorField,
+  } = useNodeColoring(operatorId, isDark, data.metadata?.relatedOperatorIds);
+  const isSelected = inspectedPipe ? false : operatorIsSelected;
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
 
   const resolvedLabel = useMemo(() => {
@@ -112,15 +117,17 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return data.label;
   }, [nodeLabelField, data]);
 
-  const colorFieldStat = colorField ? statistics.find(s => s.key === colorField) : null;
+  const colorFieldStat = colorField
+    ? flattenStatistics(statistics).find(s => s.key === colorField)
+    : null;
   const colorFieldValue = colorFieldStat?.value ?? null;
   const formattedColorFieldValue =
     colorFieldValue === null
       ? null
-      : typeof colorFieldValue === 'number'
+      : typeof colorFieldValue === 'number' || typeof colorFieldValue === 'bigint'
         ? formatStatWithQuantity(
             colorFieldValue,
-            colorField!,
+            statisticFieldName(colorField!),
             colorFieldStat?.quantity && quantitySpecs
               ? quantitySpecs[colorFieldStat.quantity]
               : undefined
@@ -155,6 +162,10 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   }, [hoveredStat, resolvedHoveredValue, dagHeatmapRange, nodePalette, isDark]);
 
   const opacityClass = getNodeOpacityClass({
+    pipeEndpoints: inspectedPipe
+      ? new Set([inspectedPipe.source, inspectedPipe.target])
+      : undefined,
+    primaryOperatorId: highlightState.primaryOperatorId,
     isHoveredStatActive: hoveredStat !== null,
     hasHoveredValue: resolvedHoveredValue !== undefined,
     highlightedNodeIds: highlightState.ids,

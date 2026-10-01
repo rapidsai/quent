@@ -133,3 +133,5 @@ export {
   statisticFieldName,
   normalizeEdgeWidth,
 } from './statisticFields';
+
+export type { PipeRef } from './dagTypes';

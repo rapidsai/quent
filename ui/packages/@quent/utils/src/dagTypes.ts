@@ -105,3 +105,8 @@ export interface DAGEdge {
   targetPortStats?: Statistic[];
   portStats?: Array<{ key: string; value: StatValue }>; // from source port
 }
+
+export interface PipeRef {
+  sourcePortId: string;
+  targetPortId: string;
+}

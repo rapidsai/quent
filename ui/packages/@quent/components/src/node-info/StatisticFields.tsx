@@ -24,10 +24,11 @@ function Value({
   quantitySpecs?: Quantities;
   depth: number;
 }) {
-  if (isStatStruct(value))
+  if (isStatStruct(value)) {
     return (
       <StatisticFields statistics={value.fields} quantitySpecs={quantitySpecs} depth={depth} />
     );
+  }
   if (Array.isArray(value)) {
     return value.length ? (
       <ol className="space-y-1" aria-label={`${name} values`}>
@@ -68,7 +69,9 @@ export function StatisticFields({
   quantitySpecs?: Quantities;
   depth?: number;
 }) {
-  if (!statistics.length) return <p className="text-xs text-muted-foreground">No fields</p>;
+  if (!statistics.length) {
+    return <p className="text-xs text-muted-foreground">No fields</p>;
+  }
   return (
     <div className="space-y-1 text-xs">
       {statistics.map(({ key, value, quantity }, index) =>
@@ -94,7 +97,7 @@ export function StatisticFields({
             key={index}
             className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-start gap-x-4 py-0.5"
           >
-            <dt className="break-words">{key.replace(/_/g, ' ')}</dt>
+            <dt className="break-words">{key.replace(/_/g, ' ')}:</dt>
             <dd className="min-w-0 text-muted-foreground">
               <Value
                 name={key}

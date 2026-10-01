@@ -339,26 +339,37 @@ function unwrapStruct(fields: unknown): StatValue {
 }
 
 function unwrapList(val: unknown): StatValue {
-  if (Array.isArray(val)) return val.map(unwrapTaggedValue);
+  if (Array.isArray(val)) {
+    return val.map(unwrapTaggedValue);
+  }
   if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
-    if (Array.isArray(obj.Struct)) return obj.Struct.map(unwrapStruct);
-    if (Array.isArray(obj.List)) return obj.List.map(unwrapList);
-    if (Object.keys(obj).length === 1) return unwrapList(Object.values(obj)[0]);
+    if (Array.isArray(obj.Struct)) {
+      return obj.Struct.map(unwrapStruct);
+    }
+    if (Array.isArray(obj.List)) {
+      return obj.List.map(unwrapList);
+    }
+    if (Object.keys(obj).length === 1) {
+      return unwrapList(Object.values(obj)[0]);
+    }
   }
   return unwrapTaggedValue(val);
 }
 
 /** Preserve struct/list identity and producer order while unwrapping Rust enum tags. */
 export function unwrapTaggedValue(val: unknown): StatValue {
-  if (val == null) return null;
+  if (val == null) {
+    return null;
+  }
   if (
     typeof val === 'string' ||
     typeof val === 'number' ||
     typeof val === 'bigint' ||
     typeof val === 'boolean'
-  )
+  ) {
     return val;
+  }
   if (Array.isArray(val)) {
     return val.length > 0 && val.every(isAttribute)
       ? unwrapStruct(val)
@@ -366,14 +377,22 @@ export function unwrapTaggedValue(val: unknown): StatValue {
   }
   if (typeof val === 'object') {
     const obj = val as Record<string, unknown>;
-    if (obj.kind === 'struct' && Array.isArray(obj.fields)) return unwrapStruct(obj.fields);
+    if (obj.kind === 'struct' && Array.isArray(obj.fields)) {
+      return unwrapStruct(obj.fields);
+    }
     if ('Struct' in obj && Object.keys(obj).length === 1) {
       return unwrapStruct(obj.Struct);
     }
     // A list of structs carries a Struct tag inside the outer List tag.
-    if ('List' in obj && Object.keys(obj).length === 1) return unwrapList(obj.List);
-    if (isAttribute(val)) return `${val.key}: ${formatAttributeValue(val.key, val.value)}`;
-    if (Object.keys(obj).length === 1) return unwrapTaggedValue(Object.values(obj)[0]);
+    if ('List' in obj && Object.keys(obj).length === 1) {
+      return unwrapList(obj.List);
+    }
+    if (isAttribute(val)) {
+      return `${val.key}: ${formatAttributeValue(val.key, val.value)}`;
+    }
+    if (Object.keys(obj).length === 1) {
+      return unwrapTaggedValue(Object.values(obj)[0]);
+    }
     return JSON.stringify(val);
   }
   return String(val);

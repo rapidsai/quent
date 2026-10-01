@@ -27,8 +27,9 @@ function decodeField(field: string): FieldPath {
             Number.isInteger(part[1]) &&
             part[1] >= 0
         )
-      )
+      ) {
         return parsed;
+      }
     } catch {
       /* Invalid external selection is displayed literally. */
     }
@@ -57,15 +58,21 @@ export function flattenStatistics(
     const occurrence = occurrences.get(statistic.key) ?? 0;
     occurrences.set(statistic.key, occurrence + 1);
     const path: FieldPath = [...parent, [statistic.key, occurrence]];
-    if (isStatStruct(statistic.value)) return flattenStatistics(statistic.value.fields, path);
-    if (Array.isArray(statistic.value)) return [];
+    if (isStatStruct(statistic.value)) {
+      return flattenStatistics(statistic.value.fields, path);
+    }
+    if (Array.isArray(statistic.value)) {
+      return [];
+    }
     return [{ ...statistic, key: fieldKey(path) }];
   });
 }
 
 /** Widths encode nonnegative volume on a logarithmic scale over the full displayed DAG. */
 export function normalizeEdgeWidth(value: number, min: number, max: number): number {
-  if (max <= min) return 0.5;
+  if (max <= min) {
+    return 0.5;
+  }
   const clamped = Math.min(max, Math.max(min, value));
   return (Math.log1p(clamped) - Math.log1p(min)) / (Math.log1p(max) - Math.log1p(min));
 }

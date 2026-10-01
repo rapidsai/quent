@@ -27,3 +27,15 @@ describe('shouldDimEdgeFromInteraction', () => {
     ).toBe(false);
   });
 });
+
+it('pipe inspection overrides stale selection and endpoint hover without undimming parallel pipes', () => {
+  const common = {
+    sourceId: 's',
+    targetId: 't',
+    selectedNodeIds: new Set(['s']),
+    highlightedNodeIds: new Set(['t']),
+    inspectedEdgeId: 'one',
+  };
+  expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'one' })).toBe(false);
+  expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'two' })).toBe(true);
+});

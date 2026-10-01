@@ -287,3 +287,28 @@ describe('deep-link state validation', () => {
     expect(OperatorGroupSchema.options).toEqual([...OPERATOR_TABLE_INDEX_ORDER]);
   });
 });
+
+it('round trips structural pipe inspection independently of operator selection and nested metric paths', () => {
+  const shared: DeepLinkStateV3 = {
+    ...state,
+    selection: {
+      planId: 'p',
+      operatorNodeIds: ['old'],
+      pipe: { sourcePortId: 'out-2', targetPortId: 'in-2' },
+    },
+    dag: { edgeWidthField: '[["Volume",0],["bytes",0]]' },
+  };
+  const encoded = encodeDeepLinkState(shared);
+  expect(encoded.ok).toBe(true);
+  if (!encoded.ok) {
+    return;
+  }
+  const decoded = decodeDeepLinkState(encoded.value);
+  expect(decoded.ok).toBe(true);
+  if (!decoded.ok) {
+    return;
+  }
+  const restored = DeepLinkStateV3Schema.parse(decoded.value.data);
+  expect(restored.selection).toEqual(shared.selection);
+  expect(restored.dag?.edgeWidthField).toBe(shared.dag?.edgeWidthField);
+});

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { PipeRef } from '@quent/utils';
+import { inspectedPipeRefAtom } from '../atoms/pipeInspection';
 import { useCallback } from 'react';
 import { useStore } from 'jotai';
 import type { SortingState } from '@tanstack/react-table';
@@ -74,6 +76,7 @@ export interface SerializableViewState {
   selection: {
     planId: string;
     operatorNodeIds: string[];
+    pipe?: PipeRef;
   };
   dag: SerializableDagControls;
   dataFlow: SerializableDataFlowState;
@@ -84,6 +87,7 @@ export interface HydratableViewState {
   selection?: {
     planId?: string;
     operatorNodeIds?: readonly string[];
+    pipe?: PipeRef;
   };
   dag?: Partial<SerializableDagControls>;
   dataFlow?: Partial<SerializableDataFlowState>;
@@ -113,6 +117,7 @@ export function useSerializableViewState({
       selection: {
         planId: store.get(selectedPlanIdAtom),
         operatorNodeIds: [...store.get(selectedOperatorIdsAtom)].sort(),
+        ...(store.get(inspectedPipeRefAtom) ? { pipe: store.get(inspectedPipeRefAtom)! } : {}),
       },
       dag: {
         nodeColorField: store.get(selectedColorField),
@@ -165,6 +170,9 @@ export function useSerializableViewState({
         });
       }
 
+      if (state.selection?.pipe) {
+        store.set(inspectedPipeRefAtom, state.selection.pipe);
+      }
       const dag = state.dag;
       if (dag?.nodeColorField !== undefined) {
         store.set(selectedColorField, dag.nodeColorField);

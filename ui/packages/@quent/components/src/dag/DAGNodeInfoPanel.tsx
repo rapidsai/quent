@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useInspectedPipe } from '@quent/hooks';
+import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
@@ -29,22 +31,27 @@ export const DAGNodeInfoPanel = ({
   onExpandedChange?: (expanded: boolean) => void;
   onPreferredHeightChange?: (height: number) => void;
 }) => {
+  const inspectedPipe = useInspectedPipe();
   const selectedOperators = useSelectedOperatorsData();
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(
+    inspectedPipe !== null || selectedOperators.length > 0
+  );
   const [activeTab, setActiveTab] = useState('stats');
   const [closedOperatorIds, setClosedOperatorIds] = useState<Set<string>>(() => new Set());
   const headerRef = useRef<HTMLDivElement>(null);
   const tabsListRef = useRef<HTMLDivElement>(null);
   const statsContentRef = useRef<HTMLDivElement>(null);
   const dataFlowContentRef = useRef<HTMLDivElement>(null);
-  const hasSelection = selectedOperators.length > 0;
+  const hasSelection = inspectedPipe !== null || selectedOperators.length > 0;
   const showHeaders = selectedOperators.length > 1;
   const selectedOperator = selectedOperators[0];
-  const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
+  const selectedOperatorIdsKey = inspectedPipe
+    ? inspectedPipe.id
+    : selectedOperators.map(operator => operator.nodeId).join('\0');
   const updateExpanded = useCallback(
     (expanded: boolean) => {
       setIsExpanded(expanded);
@@ -53,7 +60,7 @@ export const DAGNodeInfoPanel = ({
     [onExpandedChange]
   );
 
-  const showDataFlowTab = dataFlowEnabled && dataFlowMeta != null;
+  const showDataFlowTab = !inspectedPipe && dataFlowEnabled && dataFlowMeta != null;
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
   const setOperatorOpen = (id: string, open: boolean) => {
     setClosedOperatorIds(prev => {
@@ -88,6 +95,9 @@ export const DAGNodeInfoPanel = ({
   if (selectedOperatorIdsKey !== prevSelectedOperatorIdsKey) {
     setPrevSelectedOperatorIdsKey(selectedOperatorIdsKey);
     setClosedOperatorIds(new Set());
+    if (inspectedPipe) {
+      updateExpanded(true);
+    }
   }
 
   // Jump to the data-flow tab as soon as it becomes available during playback
@@ -108,16 +118,20 @@ export const DAGNodeInfoPanel = ({
 
   const statsContent = hasSelection ? (
     <div ref={statsContentRef} className="flex flex-col gap-1 pr-2 pt-1.5">
-      {selectedOperators.map((operator, index) => (
-        <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
-          <OperatorDetailsBlock
-            operator={operator}
-            quantitySpecs={quantitySpecs}
-            isOpen={isOperatorOpen}
-            onOpenChange={setOperatorOpen}
-          />
-        </div>
-      ))}
+      {inspectedPipe ? (
+        <PipeDetailsBlock pipe={inspectedPipe} />
+      ) : (
+        selectedOperators.map((operator, index) => (
+          <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
+            <OperatorDetailsBlock
+              operator={operator}
+              quantitySpecs={quantitySpecs}
+              isOpen={isOperatorOpen}
+              onOpenChange={setOperatorOpen}
+            />
+          </div>
+        ))
+      )}
     </div>
   ) : null;
 
@@ -199,9 +213,9 @@ export const DAGNodeInfoPanel = ({
       >
         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">
-            Operator Details
+            {inspectedPipe ? 'Pipe Details' : 'Operator Details'}
           </span>
-          {selectedOperator && (
+          {!inspectedPipe && selectedOperator && (
             <>
               <span className="text-muted-foreground text-xs flex-shrink-0">·</span>
               <div
@@ -230,7 +244,7 @@ export const DAGNodeInfoPanel = ({
           onClick={() => updateExpanded(!isExpanded)}
           disabled={!hasSelection}
           className="ml-2 rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
-          aria-label="Toggle operator details"
+          aria-label={inspectedPipe ? 'Toggle pipe details' : 'Toggle operator details'}
         >
           {isExpanded ? (
             <ChevronDown className="h-3 w-3 text-muted-foreground" />

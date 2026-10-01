@@ -56,10 +56,10 @@ describe('OperatorStatFields', () => {
       within(probe)
         .getAllByRole('term')
         .map(t => t.textContent)
-    ).toEqual(['last', 'first']);
+    ).toEqual(['last:', 'first:']);
     expect(screen.getByText('Ready')).toBeVisible();
     expect(screen.getByText('Completed')).toBeVisible();
-    expect(screen.getByText('execution status')).toBeVisible();
+    expect(screen.getByText('execution status:')).toBeVisible();
     expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
   });
 
@@ -100,4 +100,42 @@ describe('OperatorStatFields', () => {
         .map(dd => dd.textContent)
     ).toEqual(['3', '4']);
   });
+});
+
+it('shows producer-defined decomposition from declaration attributes before terminal statistics', () => {
+  render(
+    <OperatorStatFields
+      operator={{
+        nodeId: 'one',
+        label: 'Fused',
+        operationType: 'fused',
+        attributes: [
+          {
+            key: 'Fused decomposition',
+            value: {
+              kind: 'struct',
+              fields: [
+                {
+                  key: 'Projection',
+                  value: {
+                    kind: 'struct',
+                    fields: [{ key: 'expression', value: 'price * discount' }],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        statistics: [
+          { key: 'Execution', value: { kind: 'struct', fields: [{ key: 'tasks', value: 2 }] } },
+        ],
+      }}
+    />
+  );
+  expect(screen.getAllByRole('heading').map(h => h.textContent)).toEqual([
+    'Fused decomposition',
+    'Projection',
+    'Execution',
+  ]);
+  expect(screen.getByText('price * discount')).toBeVisible();
 });

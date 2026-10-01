@@ -19,6 +19,9 @@ export const OperatorStatFields = ({
         {operator.nodeId}
       </dd>
     </dl>
-    <StatisticFields statistics={operator.statistics} quantitySpecs={quantitySpecs} />
+    <StatisticFields
+      statistics={[...(operator.attributes ?? []), ...operator.statistics]}
+      quantitySpecs={quantitySpecs}
+    />
   </>
 );

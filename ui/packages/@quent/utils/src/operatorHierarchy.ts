@@ -26,6 +26,10 @@ function getSelectedOperatorData(operator: Operator): SelectedOperatorData {
     nodeId: operator.id,
     label: getOperatorDisplayLabel(operator),
     operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
+    attributes: (operator.custom_attributes ?? []).map(({ key, value }) => ({
+      key,
+      value: unwrapTaggedValue(value),
+    })),
     statistics: (operator.statistics?.custom_statistics ?? []).map(statistic => ({
       key: statistic.key,
       value: statistic.value != null ? unwrapTaggedValue(statistic.value) : null,

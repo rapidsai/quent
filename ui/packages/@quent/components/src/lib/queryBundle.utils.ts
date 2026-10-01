@@ -44,3 +44,12 @@ export function parsePortStatistics(rawPort: unknown): Array<{ key: string; valu
     ({ key, value }) => ({ key, value: value == null ? null : unwrapTaggedValue(value) })
   );
 }
+
+export function parseOperatorAttributes(
+  rawNode: unknown
+): Array<{ key: string; value: StatValue }> {
+  return ((rawNode as Operator)?.custom_attributes ?? []).map(({ key, value }) => ({
+    key,
+    value: unwrapTaggedValue(value),
+  }));
+}
