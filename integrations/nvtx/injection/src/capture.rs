@@ -1,7 +1,43 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Capture hook ownership and dispatch.
+//! Routes NVTX events to a user hook and releases the hook when capture ends.
+//! Callbacks already running keep the hook alive until they finish.
+//!
+//! # Mechanism
+//!
+//! A process that needs NVTX events to be injected into a Rust consumer calls
+//! [`install_hook`] with a callback that forwards events to that consumer. The
+//! process-wide [`HOOK`] static stores the callback in [`HookState`] behind a
+//! [`Mutex`]. When a thread first captures an event, it creates a [`ThreadHook`]
+//! that `HookState` owns through an [`Arc`]. The thread keeps a [`CachedHook`]
+//! containing a [`Weak`] reference to that handle. For each event, [`dispatch`]
+//! upgrades this reference to an `Arc`, keeping the callback and its captured
+//! resources alive until the call finishes.
+//!
+//! Dropping [`CaptureGuard`] disables capture and drops [`HookState`]. Each
+//! `CachedHook` keeps its `Weak`, but it can no longer be upgraded once the last
+//! `Arc` is dropped. A callback already running keeps its `Arc` until it returns.
+//! Nested NVTX calls do not invoke the hook again.
+//!
+//! When a thread exits, dropping its `CachedHook` removes its `ThreadHook` from
+//! `HookState` if capture is still active. A `CachedHook` alone cannot keep the
+//! hook's resources alive. [`install_hook`] can succeed only once per process.
+//!
+//! # Why this mechanism
+//!
+//! A hook kept in static storage forever would also keep its observer and exporter
+//! alive. A strong reference in each thread's cache would let idle threads delay
+//! their release after capture ends.
+//!
+//! Locking one shared hook slot for every event makes producer threads compete
+//! for the same lock. Cloning one shared `Arc` on every event also makes them
+//! update the same reference count. Separate `ThreadHook` handles let each thread
+//! update its own reference count during dispatch.
+//!
+//! Holding a lock while calling the hook, or waiting for all callbacks during
+//! guard drop, could deadlock when the hook drops its own [`CaptureGuard`].
+//! Temporary strong references let those callbacks finish without either wait.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
@@ -12,6 +48,7 @@ use thiserror::Error;
 /// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
 type Hook = Arc<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
 
+/// Owns the installed hook and producer registrations until capture ends.
 struct HookState {
     hook: Hook,
     threads: Vec<Arc<ThreadHook>>,
@@ -24,8 +61,11 @@ struct ThreadHook {
     hook: Hook,
 }
 
+/// Process-wide capture state that permits one installation and subsequent removal.
 static HOOK: OnceLock<Mutex<Option<HookState>>> = OnceLock::new();
 
+/// A thread's hook registration that does not keep capture resources alive.
+/// Dropping it unregisters the thread.
 struct CachedHook {
     hook: Weak<ThreadHook>,
 }
@@ -46,11 +86,15 @@ impl Drop for CachedHook {
 }
 
 thread_local! {
+    /// Hook registration scoped to the calling thread's lifetime.
     static CACHED_HOOK: std::cell::OnceCell<Option<CachedHook>> = const {
         std::cell::OnceCell::new()
     };
 }
 
+/// Acquire a hook handle that retains its captured resources until released.
+///
+/// Returns `None` if no hook is available. Supports calls after TLS teardown.
 fn acquire_hook() -> Option<Arc<ThreadHook>> {
     CACHED_HOOK
         .try_with(|cache| {
