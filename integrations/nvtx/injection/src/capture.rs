@@ -83,7 +83,7 @@ fn acquire_hook() -> Option<Arc<ThreadHook>> {
 }
 
 // Ordinary static storage outlives both the capture owner and Rust TLS, so
-// `dispatch` can consult it from late process-cleanup callbacks.
+// callbacks can consult it during late process cleanup.
 // The hook slot controls dispatch admission; this flag avoids event conversion.
 static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -167,7 +167,7 @@ thread_local! {
 
 /// Whether callbacks should build an event for capture.
 ///
-/// [`dispatch`] rechecks this flag because capture can end during conversion.
+/// Hook acquisition in [`dispatch`] handles capture ending during conversion.
 #[inline]
 pub(crate) fn capture_active() -> bool {
     CAPTURE_ACTIVE.load(Ordering::Relaxed)
@@ -177,10 +177,6 @@ pub(crate) fn capture_active() -> bool {
 /// A call that acquires the hook may still invoke it after the
 /// [`CaptureGuard`] is dropped.
 pub(crate) fn dispatch(event: NvtxEvent) {
-    // Recheck after conversion and before accessing TLS or the hook.
-    if !capture_active() {
-        return;
-    }
     // Guard against hook-induced re-entry: if the hook (or code it calls) emits
     // NVTX, it would recurse into this synchronous dispatch path and overflow
     // the stack, bypassing the callbacks' panic barriers. Drop nested events.

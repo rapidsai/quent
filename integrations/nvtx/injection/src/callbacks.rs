@@ -546,7 +546,31 @@ mod tests {
         assert_eq!(on_range_pop(), 0);
         assert_eq!(calls.load(Ordering::Relaxed), 37);
 
+        // A new producer can pass the conversion gate before shutdown and
+        // reach dispatch only after the hook has been removed.
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+        let delayed = std::thread::spawn(move || {
+            assert!(capture::capture_active());
+            let event = NvtxEvent::RangeEnd {
+                domain: 0,
+                range_id: 1,
+            };
+            ready_tx.send(()).unwrap();
+            resume_rx.recv().unwrap();
+            capture::dispatch(event);
+        });
+        ready_rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap();
         drop(guard);
+        resume_tx.send(()).unwrap();
+        delayed.join().unwrap();
+        // The same race must also be safe for a producer with a cached handle.
+        capture::dispatch(NvtxEvent::RangeEnd {
+            domain: 0,
+            range_id: 1,
+        });
 
         exercise_callbacks();
         assert_eq!(calls.load(Ordering::Relaxed), 37);
