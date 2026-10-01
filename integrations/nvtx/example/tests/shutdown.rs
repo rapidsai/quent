@@ -51,6 +51,7 @@ fn main() {
         assert_eq!(unsafe { libc::atexit(late_nvtx) }, 0);
 
         let calls = Arc::new(AtomicUsize::new(0));
+        let weak_calls = Arc::downgrade(&calls);
         let sink = EventCallback::new({
             let calls = Arc::clone(&calls);
             move |_| {
@@ -61,6 +62,12 @@ fn main() {
         // thread. Its push/pop initializes the injection library's RANGE_DEPTH.
         nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
         assert_eq!(calls.load(Ordering::Relaxed), 6);
+        drop(calls);
+        assert!(
+            weak_calls.upgrade().is_none(),
+            "capture retained the exporter"
+        );
+        assert!(nvtx_injection::install_hook(|_| unreachable!()).is_err());
         return;
     }
 

@@ -48,8 +48,9 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    into its `Observer`. Handles, ids, and nesting levels are synthesized so the
    app still behaves correctly — including before the hook is installed and
    after capture is disabled, so handles an app caches early stay valid.
-5. `install_hook` returns a `CaptureGuard`. Dropping it disables capture without
-   waiting for hook calls already in progress. Callback pointers stay installed,
+5. `install_hook` returns a `CaptureGuard`. Dropping it disables capture and
+   removes the hook without waiting for hook calls already in progress.
+   Callback pointers stay installed,
    and callbacks tolerate destroyed TLS during late process cleanup.
 
 ## Using it
@@ -61,11 +62,15 @@ install the hook:
 // 1. The app owns its Quent context and picks the exporter.
 let ctx = Context::try_new(session)?;
 let options = FileSystemExporterOptions::new(FileSystemFormat::Ndjson, out_dir);
-let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).await })?;
+let observer = std::sync::Arc::new(
+    ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).await })?,
+);
 
 // 2. Forward captured NVTX events into it, before the first NVTX call.
-let sender = observer.sender();
-let capture = nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
+let capture = nvtx_injection::install_hook({
+    let observer = observer.clone();
+    move |event| observer.emit(session, event)
+})?;
 
 // 3. Ordinary app code, annotated with NVIDIA's NVTX Rust API.
 nvtx::mark(c"startup");
@@ -85,9 +90,10 @@ the guard field must come first). Installation is one-shot: a failed caller gets
 no guard and cannot end the owner's capture, and capture cannot be restarted.
 
 Stop and join NVTX-producing threads before ending capture if all events must
-be flushed. Callbacks that already passed the dispatch check can still invoke
-the hook after the guard is dropped. Events racing with observer shutdown may
-be discarded or log a send error.
+be flushed. Callbacks that already acquired the hook can still invoke it after
+the guard is dropped. They retain the hook and its observer until they finish, which can
+delay exporter flushing beyond guard drop. Later callbacks cannot acquire the
+removed hook.
 
 `static-injection` is requested in the manifest:
 

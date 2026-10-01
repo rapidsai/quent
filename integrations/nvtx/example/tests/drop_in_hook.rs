@@ -23,6 +23,8 @@ fn guard_dropped_inside_hook_does_not_deadlock() {
     })
     .unwrap();
     *slot.lock().unwrap() = Some(capture);
+    let weak_slot = Arc::downgrade(&slot);
+    drop(slot);
 
     // Run on another thread so a deadlock fails the test instead of hanging it.
     let (done, finished) = mpsc::channel();
@@ -37,4 +39,9 @@ fn guard_dropped_inside_hook_does_not_deadlock() {
 
     nvtx::mark(c"after shutdown");
     assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(
+        weak_slot.upgrade().is_none(),
+        "hook retained the guard slot"
+    );
+    assert!(nvtx_injection::install_hook(|_| unreachable!()).is_err());
 }

@@ -508,6 +508,7 @@ mod tests {
         assert_eq!(on_range_push_a(c"outer".as_ptr()), 0);
 
         let calls = Arc::new(AtomicUsize::new(0));
+        let weak_calls = Arc::downgrade(&calls);
         let last_mark_domain = Arc::new(AtomicU64::new(0));
         let panic_next = Arc::new(AtomicBool::new(false));
         let block_next = Arc::new(AtomicBool::new(false));
@@ -572,6 +573,11 @@ mod tests {
             dropped_tx.send(()).unwrap();
         });
         let dropped = dropped_rx.recv_timeout(Duration::from_secs(10));
+        if dropped.is_ok() {
+            exercise_callbacks();
+            assert_eq!(calls.load(Ordering::Relaxed), 38);
+            assert_eq!(Arc::strong_count(&calls), 2, "in-flight hook was released");
+        }
         // Unblock and join both threads even if guard drop unexpectedly waited.
         release.store(true, Ordering::Release);
         dropper.join().unwrap();
@@ -581,9 +587,11 @@ mod tests {
 
         exercise_callbacks();
         assert_eq!(calls.load(Ordering::Relaxed), 38);
-        // Shutdown does not release the one-shot hook or permit reactivation.
+        // Removing the hook does not permit reactivation.
         assert!(init::install_hook(|_| unreachable!()).is_err());
         exercise_callbacks();
         assert_eq!(calls.load(Ordering::Relaxed), 38);
+        drop(calls);
+        assert!(weak_calls.upgrade().is_none(), "shutdown retained the hook");
     }
 }

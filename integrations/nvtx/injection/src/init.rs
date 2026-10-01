@@ -6,8 +6,8 @@
 
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use nvtx_events::NvtxEvent;
 use thiserror::Error;
@@ -29,13 +29,13 @@ use nvtx_sys::ffi::{
 };
 
 /// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
-type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
+type Hook = Arc<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
 
-static HOOK: OnceLock<Hook> = OnceLock::new();
+static HOOK: OnceLock<Mutex<Option<Hook>>> = OnceLock::new();
 
 // Ordinary static storage outlives both the capture owner and Rust TLS, so
 // `dispatch` can consult it from late process-cleanup callbacks.
-// `HOOK`'s OnceLock publishes the hook; this flag only controls capture admission.
+// The hook slot controls dispatch admission; this flag avoids event conversion.
 static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
@@ -140,9 +140,8 @@ pub enum InstallHookError {
 
 /// Install the process-global, sink-agnostic capture hook.
 ///
-/// The hook receives every converted [`NvtxEvent`]. It is stored in a
-/// [`OnceLock`], so it can be installed exactly once per process — matching the
-/// one-shot nature of NVTX injection.
+/// The hook receives converted [`NvtxEvent`]s while capture is active.
+/// Installation is one-shot per process, even after capture ends.
 ///
 /// Capture is active until the returned [`CaptureGuard`] is dropped. Create the
 /// hook's sink first and bind the guard after it, so the guard drops first:
@@ -152,7 +151,7 @@ pub enum InstallHookError {
 /// let sender = pipeline.sender();
 /// let _capture = nvtx_injection::install_hook(move |event| sender.emit(event))?;
 /// // ... annotated work ...
-/// // `_capture` drops first (capture off), then `pipeline`.
+/// // `_capture` drops first (capture off and hook removed), then `pipeline`.
 /// ```
 ///
 /// # Errors
@@ -162,7 +161,7 @@ pub fn install_hook<F>(hook: F) -> Result<CaptureGuard, InstallHookError>
 where
     F: Fn(NvtxEvent) + Send + Sync + 'static,
 {
-    HOOK.set(Box::new(hook))
+    HOOK.set(Mutex::new(Some(Arc::new(hook))))
         .map_err(|_| InstallHookError::AlreadyInstalled)?;
     CAPTURE_ACTIVE.store(true, Ordering::Relaxed);
     Ok(CaptureGuard { _private: () })
@@ -171,12 +170,13 @@ where
 /// Ownership of the active NVTX capture, returned by a successful
 /// [`install_hook`].
 ///
-/// Dropping the guard disables capture without waiting for callbacks that have
-/// already passed the dispatch check. Those callbacks may still invoke the hook
-/// after the guard is dropped. Stop and join NVTX-producing threads before
-/// ending capture if every event must reach the sink.
+/// Dropping the guard disables capture and removes the hook without waiting for
+/// callbacks that already acquired it. Those callbacks may still invoke the hook
+/// and retain its captured resources until they finish. Stop and join
+/// NVTX-producing threads before ending capture if the sink must flush by then.
+/// The guard may be dropped from inside the hook.
 ///
-/// Callback pointers and the one-shot hook remain installed: callbacks keep
+/// Callback pointers remain installed: callbacks keep
 /// synthesizing handles, ids, and nesting levels for the app. Capture cannot be
 /// restarted.
 ///
@@ -191,6 +191,10 @@ pub struct CaptureGuard {
 impl Drop for CaptureGuard {
     fn drop(&mut self) {
         CAPTURE_ACTIVE.store(false, Ordering::Relaxed);
+        let hook = HOOK.get().and_then(|slot| slot.lock().unwrap().take());
+        // Captured resources can run user code on drop, including NVTX callbacks.
+        // Release them outside the slot lock, just as for hook invocation.
+        drop(hook);
     }
 }
 
@@ -209,7 +213,7 @@ pub(crate) fn capture_active() -> bool {
 }
 
 /// Dispatch a converted event to the installed hook while capture is active.
-/// A call that passes the capture check may still invoke the hook after the
+/// A call that acquires the hook may still invoke it after the
 /// [`CaptureGuard`] is dropped.
 pub(crate) fn dispatch(event: NvtxEvent) {
     // Recheck after conversion and before accessing TLS or the hook.
@@ -231,7 +235,8 @@ pub(crate) fn dispatch(event: NvtxEvent) {
     }
     let _exit = Exit;
 
-    if let Some(hook) = HOOK.get() {
+    let hook = HOOK.get().and_then(|slot| slot.lock().unwrap().clone());
+    if let Some(hook) = hook {
         hook(event);
     }
 }
