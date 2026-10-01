@@ -17,7 +17,7 @@ function makeOperator(id: string, label: string, parentOperatorIds: string[] = [
     parent_operator_ids: parentOperatorIds,
     instance_name: label,
     operator_type_name: null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   };

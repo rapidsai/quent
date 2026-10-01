@@ -69,12 +69,11 @@ function makeOperator(custom_statistics: Record<string, unknown> | undefined) {
     statistics:
       custom_statistics !== undefined
         ? {
-            custom_statistics: Object.fromEntries(
-              Object.entries(custom_statistics).map(([key, value]) => [
-                key,
-                { value, quantity: null },
-              ])
-            ),
+            custom_statistics: Object.entries(custom_statistics).map(([key, value]) => ({
+              key,
+              value,
+              quantity: null,
+            })),
           }
         : undefined,
   };
@@ -103,9 +102,7 @@ describe('parseCustomStatistics', () => {
   it('preserves a quantity key', () => {
     const op = {
       statistics: {
-        custom_statistics: {
-          bytes: { value: makeTagged('UInt64', 1024), quantity: 'bytes' },
-        },
+        custom_statistics: [{ key: 'bytes', value: makeTagged('UInt64', 1024), quantity: 'bytes' }],
       },
     };
     expect(parseCustomStatistics(op)).toEqual([{ key: 'bytes', value: 1024, quantity: 'bytes' }]);
@@ -165,7 +162,15 @@ describe('parseCustomStatistics', () => {
 
 function makePort(custom_statistics: Record<string, unknown> | undefined) {
   return {
-    statistics: custom_statistics !== undefined ? { custom_statistics } : undefined,
+    statistics:
+      custom_statistics !== undefined
+        ? {
+            custom_statistics: Object.entries(custom_statistics).map(([key, value]) => ({
+              key,
+              value,
+            })),
+          }
+        : undefined,
   };
 }
 
@@ -211,4 +216,22 @@ describe('parsePortStatistics', () => {
     expect(result.map(r => r.key)).toContain('rows');
     expect(result.map(r => r.key)).toContain('bytes');
   });
+});
+
+it('preserves producer order and repeated statistic names', () => {
+  const custom_statistics = [
+    { key: 'z', value: { U64: 3 }, quantity: null },
+    { key: 'a', value: { U64: 1 }, quantity: null },
+    { key: 'z', value: { U64: 4 }, quantity: null },
+  ];
+  expect(parseCustomStatistics({ statistics: { custom_statistics } })).toEqual([
+    { key: 'z', value: 3 },
+    { key: 'a', value: 1 },
+    { key: 'z', value: 4 },
+  ]);
+  expect(parsePortStatistics({ statistics: { custom_statistics } })).toEqual([
+    { key: 'z', value: 3 },
+    { key: 'a', value: 1 },
+    { key: 'z', value: 4 },
+  ]);
 });

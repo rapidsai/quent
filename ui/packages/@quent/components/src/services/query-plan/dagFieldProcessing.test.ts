@@ -12,11 +12,13 @@ import {
 
 // ---- Helpers ---------------------------------------------------------------
 
-/** Build a DAGNode whose rawNode carries the given custom_statistics map. */
+/** Build a DAGNode whose rawNode carries the given ordered custom_statistics. */
 function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
-  const customStatistics = Object.fromEntries(
-    Object.entries(stats).map(([key, value]) => [key, { value, quantity: null }])
-  );
+  const customStatistics = Object.entries(stats).map(([key, value]) => ({
+    key,
+    value,
+    quantity: null,
+  }));
   return {
     id,
     label: id,

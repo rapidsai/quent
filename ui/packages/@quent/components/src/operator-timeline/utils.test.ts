@@ -24,7 +24,7 @@ function makeOp(overrides: Partial<Operator> = {}): Operator {
     parent_operator_ids: [],
     instance_name: null,
     operator_type_name: null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
     ...overrides,

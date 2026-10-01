@@ -30,34 +30,17 @@ export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEnti
 export function parseCustomStatistics(
   rawNode: unknown
 ): Array<{ key: string; value: StatValue; quantity?: string }> {
-  const statistics = (rawNode as Operator)?.statistics?.custom_statistics;
-  if (!statistics) {
-    return [];
-  }
-
-  return Object.entries(statistics).map(([key, statistic]) => {
-    const { value, quantity } = statistic;
-    return {
+  return ((rawNode as Operator)?.statistics?.custom_statistics ?? []).map(
+    ({ key, value, quantity }) => ({
       key,
-      value: value ? unwrapTaggedValue(value) : null,
-      ...(quantity !== null ? { quantity } : {}),
-    };
-  });
+      value: value == null ? null : unwrapTaggedValue(value),
+      ...(quantity != null ? { quantity } : {}),
+    })
+  );
 }
 
 export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {
-  const port = rawPort as Record<string, unknown> | undefined;
-  const statistics = port?.statistics as
-    { custom_statistics?: Record<string, unknown> } | undefined;
-  const custom = statistics?.custom_statistics;
-  if (!custom) {
-    return [];
-  }
-
-  return Object.entries(custom).map(([key, tagged]) => ({
-    key,
-    value: tagged
-      ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0])
-      : null,
-  }));
+  return ((rawPort as import('@quent/utils').Port)?.statistics?.custom_statistics ?? []).map(
+    ({ key, value }) => ({ key, value: value == null ? null : unwrapTaggedValue(value) })
+  );
 }

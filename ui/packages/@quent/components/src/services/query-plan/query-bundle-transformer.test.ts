@@ -50,7 +50,7 @@ function makeOperator(
     parent_operator_ids: opts.parentOperatorIds ?? [],
     instance_name: opts.instanceName ?? null,
     operator_type_name: opts.typeName ?? null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   };

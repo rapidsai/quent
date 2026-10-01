@@ -353,7 +353,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     statistics.custom_statistics =
                         std::mem::take(&mut statistics.custom_statistics)
                             .into_iter()
-                            .map(|(name, mut statistic)| {
+                            .map(|mut statistic| {
+                                let name = statistic.key.clone();
                                 let name = if let Some(value) =
                                     scale_operator_statistic(&name, &statistic.value)
                                 {
@@ -365,7 +366,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                                         operator_statistic_quantity(&name).map(str::to_owned);
                                     name
                                 };
-                                (name, statistic)
+                                statistic.key = name;
+                                statistic
                             })
                             .collect();
                 }
