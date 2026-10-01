@@ -62,31 +62,25 @@ install the hook:
 // 1. The app owns its Quent context and picks the exporter.
 let ctx = Context::try_new(session)?;
 let options = FileSystemExporterOptions::new(FileSystemFormat::Ndjson, out_dir);
-let observer = std::sync::Arc::new(
-    ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).await })?,
-);
+let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).await })?;
 
 // 2. Forward captured NVTX events into it, before the first NVTX call.
-let capture = nvtx_injection::install_hook({
-    let observer = observer.clone();
-    move |event| observer.emit(session, event)
-})?;
+let capture = nvtx_injection::install_hook(move |event| observer.emit(session, event))?;
 
 // 3. Ordinary app code, annotated with NVIDIA's NVTX Rust API.
 nvtx::mark(c"startup");
 let range = nvtx::Range::new(c"phase-1");
 drop(range); // end the range before flushing
 
-// 4. End capture, then flush the observer.
+// 4. End capture and release the hook-owned observer to flush.
 drop(capture);
-drop(observer);
 ```
 
 Capture lasts exactly as long as the guard. Bind it to a named variable:
-`let _ = install_hook(..)` drops it immediately. Declare it after the observer,
-as above, so that on an early return or panic the guard still drops first
-(locals drop in reverse order; struct fields drop in declaration order, so there
-the guard field must come first). Installation is one-shot: a failed caller gets
+`let _ = install_hook(..)` drops it immediately. Declare it after the context,
+as above, so that on an early return or panic the guard releases the observer
+first (locals drop in reverse order; struct fields drop in declaration order,
+so there the guard field must come first). Installation is one-shot: a failed caller gets
 no guard and cannot end the owner's capture, and capture cannot be restarted.
 
 Stop and join NVTX-producing threads before ending capture if all events must

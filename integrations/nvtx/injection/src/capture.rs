@@ -1,0 +1,205 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Capture hook ownership and dispatch.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
+
+use nvtx_events::NvtxEvent;
+use thiserror::Error;
+
+/// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
+type Hook = Arc<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
+
+struct HookState {
+    hook: Hook,
+    threads: Vec<Arc<ThreadHook>>,
+}
+
+// Each producer updates only its own handle's reference count. Keep handles on
+// separate cache lines even if the allocator places them next to each other.
+#[repr(align(64))]
+struct ThreadHook {
+    hook: Hook,
+}
+
+static HOOK: OnceLock<Mutex<Option<HookState>>> = OnceLock::new();
+
+struct CachedHook {
+    hook: Weak<ThreadHook>,
+}
+
+impl Drop for CachedHook {
+    fn drop(&mut self) {
+        let removed = HOOK.get().and_then(|slot| {
+            let mut state = slot.lock().unwrap();
+            let state = state.as_mut()?;
+            let index = state
+                .threads
+                .iter()
+                .position(|hook| Arc::as_ptr(hook) == self.hook.as_ptr())?;
+            Some(state.threads.swap_remove(index))
+        });
+        drop(removed);
+    }
+}
+
+thread_local! {
+    static CACHED_HOOK: std::cell::OnceCell<Option<CachedHook>> = const {
+        std::cell::OnceCell::new()
+    };
+}
+
+fn acquire_hook() -> Option<Arc<ThreadHook>> {
+    CACHED_HOOK
+        .try_with(|cache| {
+            cache
+                .get_or_init(|| {
+                    let mut state = HOOK.get()?.lock().unwrap();
+                    let state = state.as_mut()?;
+                    let hook = Arc::new(ThreadHook {
+                        hook: Arc::clone(&state.hook),
+                    });
+                    let cache = CachedHook {
+                        hook: Arc::downgrade(&hook),
+                    };
+                    state.threads.push(hook);
+                    Some(cache)
+                })
+                .as_ref()?
+                .hook
+                .upgrade()
+        })
+        .unwrap_or_else(|_| {
+            // Late process cleanup can emit NVTX after this thread's cache has
+            // been destroyed. It still needs capture if the guard remains alive.
+            let state = HOOK.get()?.lock().unwrap();
+            let state = state.as_ref()?;
+            Some(Arc::new(ThreadHook {
+                hook: Arc::clone(&state.hook),
+            }))
+        })
+}
+
+// Ordinary static storage outlives both the capture owner and Rust TLS, so
+// `dispatch` can consult it from late process-cleanup callbacks.
+// The hook slot controls dispatch admission; this flag avoids event conversion.
+static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Error returned by [`install_hook`].
+#[derive(Debug, Error)]
+pub enum InstallHookError {
+    /// A hook was already installed; installation is one-shot per process.
+    #[error("an NVTX capture hook is already installed (install_hook is one-shot per process)")]
+    AlreadyInstalled,
+}
+
+/// Install the process-global, sink-agnostic capture hook.
+///
+/// The hook receives converted [`NvtxEvent`]s while capture is active.
+/// Installation is one-shot per process, even after capture ends. The first
+/// captured event on each thread allocates a dispatch handle.
+///
+/// Capture is active until the returned [`CaptureGuard`] is dropped. The hook
+/// can own its sink directly:
+///
+/// ```ignore
+/// let pipeline = /* the sink the hook forwards into */;
+/// let _capture = nvtx_injection::install_hook(move |event| pipeline.emit(event))?;
+/// // ... annotated work ...
+/// // `_capture` disables capture and releases the hook and its sink.
+/// ```
+///
+/// # Errors
+/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set. A
+/// failed caller receives no guard, so it cannot end another owner's capture.
+pub fn install_hook<F>(hook: F) -> Result<CaptureGuard, InstallHookError>
+where
+    F: Fn(NvtxEvent) + Send + Sync + 'static,
+{
+    HOOK.set(Mutex::new(Some(HookState {
+        hook: Arc::new(hook),
+        threads: Vec::new(),
+    })))
+    .map_err(|_| InstallHookError::AlreadyInstalled)?;
+    CAPTURE_ACTIVE.store(true, Ordering::Relaxed);
+    Ok(CaptureGuard { _private: () })
+}
+
+/// Ownership of the active NVTX capture, returned by a successful
+/// [`install_hook`].
+///
+/// Dropping the guard disables capture and removes the hook without waiting for
+/// callbacks that already acquired it. Those callbacks may still invoke the hook
+/// and retain its captured resources until they finish. Stop and join
+/// NVTX-producing threads before ending capture if the sink must flush by then.
+/// The guard may be dropped from inside the hook. Removal takes `O(t)` work for
+/// `t` live producer threads, excluding destruction of captured resources.
+///
+/// Callback pointers remain installed: callbacks keep
+/// synthesizing handles, ids, and nesting levels for the app. Capture cannot be
+/// restarted.
+///
+/// If the guard is never dropped (`std::mem::forget`, `std::process::exit`),
+/// capture stays active until the process ends.
+#[must_use = "capture stops as soon as the guard is dropped; bind it to a named variable"]
+#[derive(Debug)]
+pub struct CaptureGuard {
+    _private: (),
+}
+
+impl Drop for CaptureGuard {
+    fn drop(&mut self) {
+        CAPTURE_ACTIVE.store(false, Ordering::Relaxed);
+        let hook = HOOK.get().and_then(|slot| slot.lock().unwrap().take());
+        // Captured resources can run user code on drop, including NVTX callbacks.
+        // Release them outside the slot lock, just as for hook invocation.
+        drop(hook);
+    }
+}
+
+thread_local! {
+    /// Whether this thread is inside [`dispatch`]. Const-initialized and
+    /// drop-free, so it stays accessible during late process cleanup.
+    static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether callbacks should build an event for capture.
+///
+/// [`dispatch`] rechecks this flag because capture can end during conversion.
+#[inline]
+pub(crate) fn capture_active() -> bool {
+    CAPTURE_ACTIVE.load(Ordering::Relaxed)
+}
+
+/// Dispatch a converted event to the installed hook while capture is active.
+/// A call that acquires the hook may still invoke it after the
+/// [`CaptureGuard`] is dropped.
+pub(crate) fn dispatch(event: NvtxEvent) {
+    // Recheck after conversion and before accessing TLS or the hook.
+    if !capture_active() {
+        return;
+    }
+    // Guard against hook-induced re-entry: if the hook (or code it calls) emits
+    // NVTX, it would recurse into this synchronous dispatch path and overflow
+    // the stack, bypassing the callbacks' panic barriers. Drop nested events.
+    if IN_DISPATCH.with(|g| g.replace(true)) {
+        return;
+    }
+    // RAII exit so the reentry flag is cleared even if the hook unwinds.
+    struct Exit;
+    impl Drop for Exit {
+        fn drop(&mut self) {
+            IN_DISPATCH.with(|g| g.set(false));
+        }
+    }
+    let _exit = Exit;
+
+    // Only this thread can upgrade its cached handle. Reentry is suppressed,
+    // so removal drops the last idle owner; an acquired handle lasts only until
+    // this invocation returns. Idle TLS caches hold no captured resources.
+    if let Some(hook) = acquire_hook() {
+        (hook.hook)(event);
+    }
+}

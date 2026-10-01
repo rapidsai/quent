@@ -62,10 +62,9 @@ const _: () = {
     assert!(offset_of!(ffi::NvtxExportTableCallbacks, GetModuleFunctionTable) == 8);
 };
 mod callbacks;
+mod capture;
 mod convert;
 mod init;
 
-pub use init::{
-    CaptureGuard, InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
-    install_hook,
-};
+pub use capture::{CaptureGuard, InstallHookError, install_hook};
+pub use init::initialize_injection_nvtx2 as InitializeInjectionNvtx2;
