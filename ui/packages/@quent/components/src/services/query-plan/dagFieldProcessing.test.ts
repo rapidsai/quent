@@ -303,3 +303,29 @@ describe('computeEdgeWidthConfig', () => {
     expect(result!.values.has('e2')).toBe(false);
   });
 });
+
+it('scales width from the selected nested path without conflating another bytes field', () => {
+  const edges = [
+    makeEdge('one', [
+      { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 0 }] } },
+      { key: 'Work', value: { kind: 'struct', fields: [{ key: 'bytes', value: 99 }] } },
+    ]),
+    makeEdge('two', [
+      { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 1024 }] } },
+    ]),
+  ];
+  const field = '[ ["Volume",0], ["bytes",0] ]'.replace(/ /g, '');
+  const result = computeEdgeWidthConfig(edges, field);
+  expect(result?.min).toBe(0);
+  expect(result?.max).toBe(1024);
+  expect(result?.values.get('one')).toBe(0);
+});
+it('excludes negative, nonfinite and missing volume without treating missing as zero', () => {
+  const edges = [
+    makeEdge('negative', [{ key: 'bytes', value: -1 }]),
+    makeEdge('infinite', [{ key: 'bytes', value: Infinity }]),
+    makeEdge('missing'),
+    makeEdge('zero', [{ key: 'bytes', value: 0 }]),
+  ];
+  expect([...computeEdgeWidthConfig(edges, 'bytes')!.values]).toEqual([['zero', 0]]);
+});

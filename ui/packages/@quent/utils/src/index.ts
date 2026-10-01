@@ -126,3 +126,10 @@ export function workerIdFromOperatorTimelineRowId(id: string): string | null {
 
 export { isStatStruct } from './dagTypes';
 export type { Statistic, StatStruct } from './dagTypes';
+
+export {
+  flattenStatistics,
+  statisticFieldLabel,
+  statisticFieldName,
+  normalizeEdgeWidth,
+} from './statisticFields';

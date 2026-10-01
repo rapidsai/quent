@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useEffect } from 'react';
+import { flattenStatistics, type Statistic } from '@quent/utils';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type {
   DAGNode,
@@ -32,7 +33,7 @@ type ComputeEdgeColoringFn = (
   field: string | null,
   theme: PaletteTheme
 ) => EdgeColoring;
-type ParseCustomStatisticsFn = (rawNode: unknown) => Array<{ key: string }>;
+type ParseCustomStatisticsFn = (rawNode: unknown) => Statistic[];
 
 export function useDagNodeColoring(
   nodes: DAGNode[],
@@ -89,7 +90,11 @@ export function useOperatorStatFields(
 ): string[] {
   return useMemo(
     () => [
-      ...new Set(nodes.flatMap(n => parseCustomStatistics(n.metadata?.rawNode).map(s => s.key))),
+      ...new Set(
+        nodes.flatMap(n =>
+          flattenStatistics(parseCustomStatistics(n.metadata?.rawNode)).map(s => s.key)
+        )
+      ),
     ],
     [nodes, parseCustomStatistics]
   );
@@ -97,7 +102,7 @@ export function useOperatorStatFields(
 
 export function usePortStatFields(edges: DAGEdge[]): string[] {
   return useMemo(
-    () => [...new Set(edges.flatMap(e => (e.portStats ?? []).map(s => s.key)))],
+    () => [...new Set(edges.flatMap(e => flattenStatistics(e.portStats ?? []).map(s => s.key)))],
     [edges]
   );
 }

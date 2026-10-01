@@ -1,3 +1,4 @@
+import { normalizeEdgeWidth, statisticFieldName } from '@quent/utils';
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -64,7 +65,7 @@ import {
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
 const EDGE_STROKE_WIDTH_MIN = 2;
-const EDGE_STROKE_WIDTH_RANGE = 10; // stroke = MIN + t * RANGE → [2, 12] px
+const EDGE_STROKE_WIDTH_RANGE = 23; // stroke = MIN + t * RANGE → [2, 25] px
 const EDGE_DIMMED_OPACITY = 0.25;
 const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
@@ -108,10 +109,7 @@ const VariableWidthEdge = ({
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t =
-        edgeWidthConfig.max > edgeWidthConfig.min
-          ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
-          : FALLBACK_NORMALIZED_T;
+      const t = normalizeEdgeWidth(v, edgeWidthConfig.min, edgeWidthConfig.max);
       strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
@@ -153,7 +151,7 @@ const VariableWidthEdge = ({
     if (edgeColoring.type === 'continuous') {
       const v = edgeColoring.values.get(id);
       if (v !== undefined) {
-        edgeLabelValue = inferFieldFormatter(edgeColorField ?? '')(v);
+        edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeColorField ?? ''))(v);
       }
     } else {
       const v = edgeColoring.labelMap.get(id);
@@ -164,7 +162,7 @@ const VariableWidthEdge = ({
   } else if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      edgeLabelValue = inferFieldFormatter(edgeWidthField ?? '')(v);
+      edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeWidthField ?? ''))(v);
     }
   }
 

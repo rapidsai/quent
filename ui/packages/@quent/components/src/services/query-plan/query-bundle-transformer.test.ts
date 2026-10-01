@@ -623,3 +623,39 @@ describe('getPlanDAG', () => {
     expect(logicalNode.metadata!.relatedOperatorIds).toEqual(['physical']);
   });
 });
+
+it('hydrates sending and receiving port evidence separately for parallel pipes', () => {
+  const source = makeOperator('op1');
+  const target = makeOperator('op2');
+  const port1 = makePort('port1', 'op1');
+  const port2 = makePort('port2', 'op2');
+  port1.statistics = {
+    custom_statistics: [{ key: 'Volume', value: [{ key: 'bytes', value: 100 }] }],
+  };
+  port2.statistics = {
+    custom_statistics: [{ key: 'Volume', value: [{ key: 'bytes', value: 80 }] }],
+  };
+  const port3 = makePort('port3', 'op1');
+  const port4 = makePort('port4', 'op2');
+  const plan = makePlan('p1', {
+    edges: [
+      { source: 'port1', target: 'port2' },
+      { source: 'port3', target: 'port4' },
+    ],
+  });
+  const bundle = makeBundle(
+    { p1: plan },
+    { operators: { op1: source, op2: target }, ports: { port1, port2, port3, port4 } }
+  );
+  const { edges } = getPlanDAG(bundle, 'p1');
+  expect(edges.map(e => [e.sourcePortId, e.targetPortId])).toEqual([
+    ['port1', 'port2'],
+    ['port3', 'port4'],
+  ]);
+  expect(edges[0].portStats).toEqual([
+    { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 100 }] } },
+  ]);
+  expect(edges[0].targetPortStats).toEqual([
+    { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 80 }] } },
+  ]);
+});
