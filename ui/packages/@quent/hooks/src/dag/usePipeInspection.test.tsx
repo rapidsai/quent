@@ -4,7 +4,11 @@
 import { createStore, Provider } from 'jotai';
 import { act, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { inspectedPipeAtom, inspectedPipeRefAtom } from '../atoms/pipeInspection';
+import {
+  hoveredPipeIdAtom,
+  inspectedPipeAtom,
+  inspectedPipeRefAtom,
+} from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
 import { useSyncDisplayedPipes } from './usePipeInspection';
 import type { DAGEdge } from '@quent/utils';
@@ -77,4 +81,23 @@ describe('pipe inspection', () => {
     );
     expect(store.get(inspectedPipeRefAtom)).toBeNull();
   });
+});
+
+it('clears a transient edge highlight on plan changes and unmount', () => {
+  const store = createStore();
+  const view = render(
+    <Provider store={store}>
+      <Sync edges={[one]} />
+    </Provider>
+  );
+  act(() => store.set(hoveredPipeIdAtom, one.id));
+  view.rerender(
+    <Provider store={store}>
+      <Sync edges={[two]} />
+    </Provider>
+  );
+  expect(store.get(hoveredPipeIdAtom)).toBeNull();
+  act(() => store.set(hoveredPipeIdAtom, two.id));
+  view.unmount();
+  expect(store.get(hoveredPipeIdAtom)).toBeNull();
 });

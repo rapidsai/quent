@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
-import type { DAGEdge, PipeRef } from '@quent/utils';
+import type { DAGEdge, DAGNode, PipeRef } from '@quent/utils';
 
 /** Inspection identity is independent of the canonical operator filter. */
 export const inspectedPipeRefAtom = atom<PipeRef | null>(null);
+export const hoveredPipeIdAtom = atom<string | null>(null);
+export const displayedDagNodesAtom = atom<readonly DAGNode[]>([]);
 export const displayedPipesAtom = atom<readonly DAGEdge[]>([]);
 export const inspectedPipeAtom = atom(get => {
   const ref = get(inspectedPipeRefAtom);
