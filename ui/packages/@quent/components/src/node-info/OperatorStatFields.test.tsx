@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { createStore, Provider } from 'jotai';
+import {
+  displayedPipesAtom,
+  hoveredPipeIdAtom,
+  inspectedPipeRefAtom,
+} from '../../../hooks/src/atoms/pipeInspection';
 import { describe, expect, it } from 'vitest';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { OperatorStatFields } from './OperatorStatFields';
@@ -140,4 +146,71 @@ it('shows producer-defined decomposition from declaration attributes before term
     'Execution',
   ]);
   expect(screen.getByText('price * discount')).toBeVisible();
+});
+
+it('links port groups by structural role, including click, keyboard, and hover cleanup', () => {
+  const store = createStore();
+  store.set(displayedPipesAtom, [
+    {
+      id: 'left-edge',
+      source: 'scan',
+      target: 'join',
+      sourcePortId: 'out',
+      targetPortId: 'left-in',
+      targetPortName: 'input_0',
+    },
+  ]);
+  const { unmount } = render(
+    <Provider store={store}>
+      <OperatorStatFields
+        operator={{
+          nodeId: 'join',
+          label: 'Join',
+          operationType: 'join',
+          statistics: [
+            {
+              key: 'Inputs',
+              value: {
+                kind: 'struct',
+                fields: [
+                  {
+                    key: 'Left',
+                    value: {
+                      kind: 'struct',
+                      fields: [{ key: 'structural_role', value: 'input_0' }],
+                    },
+                  },
+                  {
+                    key: 'Right',
+                    value: {
+                      kind: 'struct',
+                      fields: [{ key: 'structural_role', value: 'input_1' }],
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }}
+      />
+    </Provider>
+  );
+  const left = screen.getByRole('button', { name: 'Inspect inputs Left pipe' });
+  expect(
+    screen.queryByRole('button', { name: 'Inspect inputs Right pipe' })
+  ).not.toBeInTheDocument();
+  fireEvent.mouseEnter(left);
+  expect(store.get(hoveredPipeIdAtom)).toBe('left-edge');
+  fireEvent.mouseLeave(left);
+  expect(store.get(hoveredPipeIdAtom)).toBeNull();
+  fireEvent.focus(left);
+  expect(store.get(hoveredPipeIdAtom)).toBe('left-edge');
+  fireEvent.keyDown(left, { key: 'Enter' });
+  expect(store.get(inspectedPipeRefAtom)).toEqual({ sourcePortId: 'out', targetPortId: 'left-in' });
+  expect(store.get(hoveredPipeIdAtom)).toBeNull();
+  fireEvent.click(left);
+  expect(store.get(inspectedPipeRefAtom)).toEqual({ sourcePortId: 'out', targetPortId: 'left-in' });
+  fireEvent.mouseEnter(left);
+  unmount();
+  expect(store.get(hoveredPipeIdAtom)).toBeNull();
 });

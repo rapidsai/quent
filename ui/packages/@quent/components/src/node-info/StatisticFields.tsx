@@ -9,6 +9,13 @@ import {
   type StatValue,
 } from '@quent/utils';
 
+export interface StatisticSectionAction {
+  label: string;
+  enter: () => void;
+  leave: () => void;
+  activate: () => void;
+}
+type SectionActions = ReadonlyMap<string, StatisticSectionAction>;
 type Quantities = { [key: string]: QuantitySpec | undefined };
 
 function Value({
@@ -64,19 +71,46 @@ export function StatisticFields({
   statistics,
   quantitySpecs,
   depth = 0,
+  path = [],
+  sectionActions,
 }: {
   statistics: readonly Statistic[];
   quantitySpecs?: Quantities;
   depth?: number;
+  path?: readonly string[];
+  sectionActions?: SectionActions;
 }) {
   if (!statistics.length) {
     return <p className="text-xs text-muted-foreground">No fields</p>;
   }
   return (
     <div className="space-y-0.5 text-xs leading-snug">
-      {statistics.map(({ key, value, quantity }, index) =>
-        isStatStruct(value) ? (
-          <section key={index} aria-label={key} className="mt-2 border-t pt-1 first:mt-0.5">
+      {statistics.map(({ key, value, quantity }, index) => {
+        const nextPath = [...path, key];
+        const action = sectionActions?.get(JSON.stringify(nextPath));
+        return isStatStruct(value) ? (
+          <section
+            key={index}
+            aria-label={action?.label ?? key}
+            role={action ? 'button' : undefined}
+            tabIndex={action ? 0 : undefined}
+            onMouseEnter={action?.enter}
+            onMouseLeave={action?.leave}
+            onFocus={action?.enter}
+            onBlur={action?.leave}
+            onClick={action?.activate}
+            onKeyDown={
+              action
+                ? event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      action.activate();
+                    }
+                  }
+                : undefined
+            }
+            className={`mt-2 border-t pt-1 first:mt-0.5 ${action ? 'cursor-pointer rounded-sm hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary' : ''}`}
+          >
             <div
               role="heading"
               aria-level={Math.min(6, depth + 4)}
@@ -89,6 +123,8 @@ export function StatisticFields({
                 statistics={value.fields}
                 quantitySpecs={quantitySpecs}
                 depth={depth + 1}
+                path={nextPath}
+                sectionActions={sectionActions}
               />
             </div>
           </section>
@@ -108,8 +144,8 @@ export function StatisticFields({
               />
             </dd>
           </dl>
-        )
-      )}
+        );
+      })}
     </div>
   );
 }
