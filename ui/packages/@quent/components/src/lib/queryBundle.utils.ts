@@ -31,7 +31,7 @@ export function parseCustomStatistics(
   rawNode: unknown
 ): Array<{ key: string; value: StatValue; quantity?: string }> {
   return ((rawNode as Operator)?.statistics?.custom_statistics ?? []).map(
-    ({ key, value, quantity }) => ({
+    ({ value: { key, value }, quantity }) => ({
       key,
       value: value == null ? null : unwrapTaggedValue(value),
       ...(quantity != null ? { quantity } : {}),

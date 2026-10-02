@@ -70,8 +70,7 @@ function makeOperator(custom_statistics: Record<string, unknown> | undefined) {
       custom_statistics !== undefined
         ? {
             custom_statistics: Object.entries(custom_statistics).map(([key, value]) => ({
-              key,
-              value,
+              value: { key, value },
               quantity: null,
             })),
           }
@@ -102,7 +101,9 @@ describe('parseCustomStatistics', () => {
   it('preserves a quantity key', () => {
     const op = {
       statistics: {
-        custom_statistics: [{ key: 'bytes', value: makeTagged('UInt64', 1024), quantity: 'bytes' }],
+        custom_statistics: [
+          { value: { key: 'bytes', value: makeTagged('UInt64', 1024) }, quantity: 'bytes' },
+        ],
       },
     };
     expect(parseCustomStatistics(op)).toEqual([{ key: 'bytes', value: 1024, quantity: 'bytes' }]);
@@ -220,11 +221,17 @@ describe('parsePortStatistics', () => {
 
 it('preserves producer order and repeated statistic names', () => {
   const custom_statistics = [
-    { key: 'z', value: { U64: 3 }, quantity: null },
-    { key: 'a', value: { U64: 1 }, quantity: null },
-    { key: 'z', value: { U64: 4 }, quantity: null },
+    { key: 'z', value: { U64: 3 } },
+    { key: 'a', value: { U64: 1 } },
+    { key: 'z', value: { U64: 4 } },
   ];
-  expect(parseCustomStatistics({ statistics: { custom_statistics } })).toEqual([
+  expect(
+    parseCustomStatistics({
+      statistics: {
+        custom_statistics: custom_statistics.map(value => ({ value, quantity: null })),
+      },
+    })
+  ).toEqual([
     { key: 'z', value: 3 },
     { key: 'a', value: 1 },
     { key: 'z', value: 4 },

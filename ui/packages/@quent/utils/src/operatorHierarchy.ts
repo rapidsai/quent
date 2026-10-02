@@ -31,8 +31,8 @@ function getSelectedOperatorData(operator: Operator): SelectedOperatorData {
       value: unwrapTaggedValue(value),
     })),
     statistics: (operator.statistics?.custom_statistics ?? []).map(statistic => ({
-      key: statistic.key,
-      value: statistic.value != null ? unwrapTaggedValue(statistic.value) : null,
+      key: statistic.value.key,
+      value: unwrapTaggedValue(statistic.value.value),
       ...(statistic.quantity !== null ? { quantity: statistic.quantity } : {}),
     })),
   };

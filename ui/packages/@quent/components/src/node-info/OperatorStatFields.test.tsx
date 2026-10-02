@@ -13,7 +13,9 @@ function show(attributes: unknown[]) {
         nodeId: 'actor-1',
         label: 'Join',
         operationType: 'join',
-        statistics: parseCustomStatistics({ statistics: { custom_statistics: attributes } }),
+        statistics: parseCustomStatistics({
+          statistics: { custom_statistics: attributes.map(value => ({ value, quantity: null })) },
+        }),
       }}
     />
   );

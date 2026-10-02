@@ -119,8 +119,7 @@ impl OperatorEntity for Operator {
                     custom_statistics: statistics
                         .iter()
                         .map(|attribute| query_engine_ui::OperatorStatistic {
-                            key: attribute.key.clone(),
-                            value: attribute.value.clone(),
+                            value: attribute.clone(),
                             quantity: None,
                         })
                         .collect(),
@@ -172,7 +171,7 @@ mod tests {
         assert_eq!(
             statistics
                 .iter()
-                .map(|s| s.key.as_str())
+                .map(|s| s.value.key.as_str())
                 .collect::<Vec<_>>(),
             vec!["z", "Work", "z"]
         );
@@ -181,7 +180,7 @@ mod tests {
                 .iter()
                 .map(|s| s.value.clone())
                 .collect::<Vec<_>>(),
-            fields.iter().map(|a| a.value.clone()).collect::<Vec<_>>()
+            fields
         );
     }
 }

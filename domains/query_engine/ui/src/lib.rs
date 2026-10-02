@@ -8,7 +8,7 @@ pub use data_flow::DataFlowTimelineBinned;
 mod server;
 pub use server::ServerContract;
 
-use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
     FiniteStateMachine, Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree,
@@ -210,10 +210,8 @@ pub struct Plan {
 
 #[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistic {
-    /// Producer-defined name, retained in display order.
-    pub key: String,
-    /// The value of this statistic.
-    pub value: Option<DynamicValue>,
+    /// The producer-defined name and optional value of this statistic.
+    pub value: DynamicAttribute,
     /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
     /// to display this statistic.
     pub quantity: Option<String>,

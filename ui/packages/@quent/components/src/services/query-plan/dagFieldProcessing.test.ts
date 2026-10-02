@@ -15,8 +15,7 @@ import {
 /** Build a DAGNode whose rawNode carries the given ordered custom_statistics. */
 function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
   const customStatistics = Object.entries(stats).map(([key, value]) => ({
-    key,
-    value,
+    value: { key, value },
     quantity: null,
   }));
   return {
