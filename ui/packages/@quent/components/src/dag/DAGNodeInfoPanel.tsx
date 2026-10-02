@@ -52,13 +52,10 @@ export const DAGNodeInfoPanel = ({
   const selectedOperatorIdsKey = inspectedPipe
     ? inspectedPipe.id
     : selectedOperators.map(operator => operator.nodeId).join('\0');
-  const updateExpanded = useCallback(
-    (expanded: boolean) => {
-      setIsExpanded(expanded);
-      onExpandedChange?.(expanded);
-    },
-    [onExpandedChange]
-  );
+  // Notify the containing resizable panel after committing local expansion state.
+  useLayoutEffect(() => {
+    onExpandedChange?.(isExpanded);
+  }, [isExpanded, onExpandedChange]);
 
   const showDataFlowTab = !inspectedPipe && dataFlowEnabled && dataFlowMeta != null;
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
@@ -83,7 +80,7 @@ export const DAGNodeInfoPanel = ({
   const [prevHasSelection, setPrevHasSelection] = useState(hasSelection);
   if (hasSelection !== prevHasSelection) {
     setPrevHasSelection(hasSelection);
-    updateExpanded(hasSelection);
+    setIsExpanded(hasSelection);
     if (!hasSelection) {
       setActiveTab('stats');
     }
@@ -96,7 +93,7 @@ export const DAGNodeInfoPanel = ({
     setPrevSelectedOperatorIdsKey(selectedOperatorIdsKey);
     setClosedOperatorIds(new Set());
     if (inspectedPipe) {
-      updateExpanded(true);
+      setIsExpanded(true);
     }
   }
 
@@ -241,7 +238,7 @@ export const DAGNodeInfoPanel = ({
           )}
         </div>
         <button
-          onClick={() => updateExpanded(!isExpanded)}
+          onClick={() => setIsExpanded(!isExpanded)}
           disabled={!hasSelection}
           className="ml-2 rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
           aria-label={inspectedPipe ? 'Toggle pipe details' : 'Toggle operator details'}

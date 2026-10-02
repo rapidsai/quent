@@ -73,14 +73,14 @@ export function StatisticFields({
     return <p className="text-xs text-muted-foreground">No fields</p>;
   }
   return (
-    <div className="space-y-1 text-xs">
+    <div className="space-y-0.5 text-xs leading-snug">
       {statistics.map(({ key, value, quantity }, index) =>
         isStatStruct(value) ? (
-          <section key={index} aria-label={key} className="mt-3 border-t pt-2 first:mt-1">
+          <section key={index} aria-label={key} className="mt-2 border-t pt-1 first:mt-0.5">
             <div
               role="heading"
               aria-level={Math.min(6, depth + 4)}
-              className="mb-1.5 break-words font-semibold"
+              className="mb-1 break-words font-semibold"
             >
               {key}
             </div>
@@ -95,7 +95,7 @@ export function StatisticFields({
         ) : (
           <dl
             key={index}
-            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-start gap-x-4 py-0.5"
+            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-start gap-x-4 py-0"
           >
             <dt className="break-words">{key.replace(/_/g, ' ')}:</dt>
             <dd className="min-w-0 text-muted-foreground">
