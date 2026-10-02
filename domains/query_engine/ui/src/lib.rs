@@ -8,7 +8,7 @@ pub use data_flow::DataFlowTimelineBinned;
 mod server;
 pub use server::ServerContract;
 
-use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
     FiniteStateMachine, Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree,
@@ -210,8 +210,8 @@ pub struct Plan {
 
 #[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistic {
-    /// The value of this statistic.
-    pub value: Option<DynamicValue>,
+    /// The producer-defined name and optional value of this statistic.
+    pub value: DynamicAttribute,
     /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
     /// to display this statistic.
     pub quantity: Option<String>,
@@ -219,8 +219,8 @@ pub struct OperatorStatistic {
 
 #[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistics {
-    /// Custom statistics.
-    pub custom_statistics: HashMap<String, OperatorStatistic>,
+    /// Producer-defined statistics in display order.
+    pub custom_statistics: Vec<OperatorStatistic>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -238,7 +238,7 @@ pub struct Operator {
     pub operator_type_name: Option<String>,
 
     /// The dynamic attributes of this [`Operator`].
-    pub custom_attributes: HashMap<String, Option<DynamicValue>>,
+    pub custom_attributes: Vec<DynamicAttribute>,
     /// The statistics of this [`Operator`].
     ///
     /// These are attributes that are typically gathered after the work
@@ -257,8 +257,8 @@ pub struct Operator {
 
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
-    /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
+    /// Producer-defined statistics in display order.
+    pub custom_statistics: Vec<DynamicAttribute>,
 }
 
 #[derive(TS, Debug, Serialize)]

@@ -123,3 +123,15 @@ export function workerIdFromOperatorTimelineRowId(id: string): string | null {
     ? id.slice(OPERATOR_TIMELINE_ROW_ID_PREFIX.length)
     : null;
 }
+
+export { isStatStruct } from './dagTypes';
+export type { Statistic, StatStruct } from './dagTypes';
+
+export {
+  flattenStatistics,
+  statisticFieldLabel,
+  statisticFieldName,
+  normalizeEdgeWidth,
+} from './statisticFields';
+
+export type { PipeRef } from './dagTypes';

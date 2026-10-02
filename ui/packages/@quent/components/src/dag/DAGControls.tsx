@@ -21,6 +21,7 @@ import {
   resolveDataFlowMeasure,
 } from '@quent/hooks';
 import {
+  statisticFieldLabel,
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
   type NodeLabelField,
@@ -69,8 +70,14 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const setDataFlowLabelMeasure = useSetDataFlowLabelMeasure();
   const setDataFlowSelectedDimensions = useSetDataFlowSelectedDimensions();
 
-  const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({ value: f }));
-  const portOptions: SelectFieldOption[] = portStatFields.map(f => ({ value: f }));
+  const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({
+    value: f,
+    label: statisticFieldLabel(f),
+  }));
+  const portOptions: SelectFieldOption[] = portStatFields.map(f => ({
+    value: f,
+    label: statisticFieldLabel(f),
+  }));
 
   const measureOptions: SelectFieldOption[] = (dataFlowMeta?.decl.measures ?? []).map(m => ({
     value: m.name,
