@@ -162,7 +162,10 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   await expect(target.locator('.shadow-glow')).toBeVisible();
   await expect(source.locator('.shadow-glow')).toHaveCount(0);
 
-  await target.click();
+  await page.getByRole('region', { name: 'Receiving port' }).click();
+  await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
+  await expect(target.locator('.shadow-glow')).toBeVisible();
+  await expect(source.locator('.shadow-glow')).toHaveCount(0);
   const input = page
     .getByRole('button', {
       name: `Inspect inputs ${ports[targetPortId].instance_name} pipe`,
@@ -192,4 +195,13 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
     .poll(async () => (await details.boundingBox())!.height)
     .toBeGreaterThan(box.height * 0.7);
   await page.screenshot({ path: '/tmp/quent-linked-details.png', fullPage: true });
+  const sendingOperator = page
+    .getByRole('region', { name: 'Sending port' })
+    .getByRole('button', { name: /^Show .* operator details$/ });
+  await sendingOperator.focus();
+  await expect(source.locator('.shadow-glow')).toBeVisible();
+  await sendingOperator.press('Enter');
+  await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
+  await expect(source.locator('.shadow-glow')).toBeVisible();
+  await expect(target.locator('.shadow-glow')).toHaveCount(0);
 });

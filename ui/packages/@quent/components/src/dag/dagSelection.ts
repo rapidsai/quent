@@ -46,16 +46,20 @@ function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
   };
 }
 
-export function resolveSelectedOperatorsFromNodes(
-  nodes: readonly DAGNode[],
-  selectedOperatorIds: ReadonlySet<string>
-): ResolvedOperatorSelections {
-  const candidates = nodes.map(node => ({
+export function operatorSelectionFromNode(node: DAGNode): ResolvedOperatorSelection {
+  return {
     selectionId: node.id,
     label: node.label,
     operatorIds: getOperatorIds(node),
     selectedData: getSelectedOperatorData(node),
-  }));
+  };
+}
+
+export function resolveSelectedOperatorsFromNodes(
+  nodes: readonly DAGNode[],
+  selectedOperatorIds: ReadonlySet<string>
+): ResolvedOperatorSelections {
+  const candidates = nodes.map(operatorSelectionFromNode);
 
   return resolveOperatorSelectionCandidates(candidates, selectedOperatorIds);
 }
