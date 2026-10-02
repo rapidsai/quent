@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
-import { parseCustomStatistics } from '../../lib/queryBundle.utils';
+import { resolveOperatorStat } from '../../lib/queryBundle.utils';
 import { getActivePalette, isNumericValue, type PaletteTheme } from '@quent/utils';
 
 export function computeNodeColoring(
@@ -15,7 +15,11 @@ export function computeNodeColoring(
   }
 
   const entries = nodes.flatMap(node => {
-    const stat = parseCustomStatistics(node.metadata?.rawNode).find(s => s.key === field);
+    const stat = resolveOperatorStat(
+      node.metadata?.rawNode,
+      node.metadata?.relatedOperators as unknown[] | undefined,
+      field
+    );
     if (stat?.value == null) {
       return [];
     }

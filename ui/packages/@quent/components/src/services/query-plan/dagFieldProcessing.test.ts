@@ -301,3 +301,53 @@ describe('computeEdgeWidthConfig', () => {
     expect(result!.values.has('e2')).toBe(false);
   });
 });
+
+// ---- computeNodeColoring: nodes that group related operators ---------------
+
+function makeGroupNode(id: string, related: Array<Record<string, unknown>>): DAGNode {
+  const node = makeNode(id);
+  return {
+    ...node,
+    metadata: {
+      ...node.metadata,
+      relatedOperatorIds: related.map((_, i) => `${id}-r${i}`),
+      relatedOperators: related.map(stats => ({
+        statistics: {
+          custom_statistics: Object.fromEntries(
+            Object.entries(stats).map(([key, value]) => [key, { value, quantity: null }])
+          ),
+        },
+      })),
+    },
+  };
+}
+
+describe('computeNodeColoring with related operators', () => {
+  it('sums related operator values for a node with no stat of its own', () => {
+    const nodes = [
+      makeNode('plain', { rows: tagged('UInt64', 3) }),
+      makeGroupNode('group', [{ rows: tagged('UInt64', 4) }, { rows: tagged('UInt64', 6) }]),
+    ];
+    const result = computeNodeColoring(nodes, 'rows', 'light');
+    expect(result).toMatchObject({ type: 'continuous', min: 3, max: 10 });
+    expect((result as { values: Map<string, number> }).values.get('group')).toBe(10);
+  });
+
+  it('prefers a node’s own value over aggregating related operators', () => {
+    const group = makeGroupNode('group', [{ rows: tagged('UInt64', 50) }]);
+    const node = {
+      ...group,
+      metadata: {
+        ...group.metadata,
+        rawNode: makeNode('group', { rows: tagged('UInt64', 7) }).metadata!.rawNode,
+      },
+    };
+    const result = computeNodeColoring([node], 'rows', 'light');
+    expect((result as { values: Map<string, number> }).values.get('group')).toBe(7);
+  });
+
+  it('does not aggregate non-numeric related values', () => {
+    const nodes = [makeGroupNode('group', [{ kind: tagged('String', 'a') }])];
+    expect(computeNodeColoring(nodes, 'kind', 'light')).toBeNull();
+  });
+});

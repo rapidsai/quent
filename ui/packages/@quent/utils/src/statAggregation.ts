@@ -86,3 +86,41 @@ export function getAggregateValue(
       return aggregates.sum;
   }
 }
+
+/**
+ * Aggregates values with `mode` and returns the result as a plain number, or
+ * `undefined` when there are no values or the mode has no result (e.g. sample
+ * standard deviation of a single value). Shared by every place that derives a
+ * grouped node's value from its related operators.
+ */
+export function aggregateToNumber(
+  values: Iterable<number | bigint>,
+  mode: AggMode
+): number | undefined {
+  const aggregates = aggregateNumericValues(values);
+  if (!aggregates) {
+    return undefined;
+  }
+  const value = getAggregateValue(aggregates, mode);
+  return value === null ? undefined : Number(value);
+}
+
+export type GroupedValue<D> =
+  { value: D; source: 'direct' } | { value: number; source: 'aggregated' };
+
+/**
+ * The one rule for a node that may group other operators: its own value wins;
+ * otherwise its value is the numeric related values aggregated with `mode`.
+ * Callers only differ in where they read the values from.
+ */
+export function resolveGroupedValue<D>(
+  direct: D | null | undefined,
+  related: Iterable<number | bigint>,
+  mode: AggMode
+): GroupedValue<D> | undefined {
+  if (direct !== undefined && direct !== null) {
+    return { value: direct, source: 'direct' };
+  }
+  const value = aggregateToNumber(related, mode);
+  return value === undefined ? undefined : { value, source: 'aggregated' };
+}

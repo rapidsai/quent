@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import { aggregateNumericValues, getAggregateValue } from './statAggregation';
+import {
+  aggregateNumericValues,
+  aggregateToNumber,
+  getAggregateValue,
+  resolveGroupedValue,
+} from './statAggregation';
 
 describe('aggregateNumericValues', () => {
   it('computes number aggregates with sample standard deviation', () => {
@@ -56,5 +61,44 @@ describe('getAggregateValue', () => {
     ['stdev', 2],
   ] as const)('selects the %s aggregate', (mode, expected) => {
     expect(getAggregateValue(aggregates, mode)).toBe(expected);
+  });
+});
+
+describe('aggregateToNumber', () => {
+  it('aggregates values with the requested mode as a plain number', () => {
+    expect(aggregateToNumber([2, 4n, 6], 'sum')).toBe(12);
+    expect(aggregateToNumber([2, 4, 6], 'mean')).toBe(4);
+    expect(aggregateToNumber([2n, 6n], 'max')).toBe(6);
+  });
+
+  it('returns undefined for no values', () => {
+    expect(aggregateToNumber([], 'sum')).toBeUndefined();
+  });
+
+  it('returns undefined when the mode has no value (stdev of one item)', () => {
+    expect(aggregateToNumber([5], 'stdev')).toBeUndefined();
+  });
+});
+
+describe('resolveGroupedValue', () => {
+  it('prefers the direct value and ignores related values', () => {
+    expect(resolveGroupedValue(5, [10, 20], 'sum')).toEqual({ value: 5, source: 'direct' });
+  });
+
+  it('keeps a non-numeric direct value as-is', () => {
+    expect(resolveGroupedValue('scan', [1], 'sum')).toEqual({ value: 'scan', source: 'direct' });
+  });
+
+  it('aggregates related values when there is no direct value', () => {
+    expect(resolveGroupedValue(undefined, [4, 6n], 'sum')).toEqual({
+      value: 10,
+      source: 'aggregated',
+    });
+    expect(resolveGroupedValue(null, [2, 4], 'mean')).toEqual({ value: 3, source: 'aggregated' });
+  });
+
+  it('returns undefined with no direct value and nothing to aggregate', () => {
+    expect(resolveGroupedValue(undefined, [], 'sum')).toBeUndefined();
+    expect(resolveGroupedValue(undefined, [5], 'stdev')).toBeUndefined();
   });
 });

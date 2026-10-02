@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { EntityRefKey, unwrapTaggedValue } from '@quent/utils';
+import {
+  EntityRefKey,
+  isNumericValue,
+  resolveGroupedValue,
+  unwrapTaggedValue,
+  type AggMode,
+} from '@quent/utils';
 import { QueryEntities, Operator } from '@quent/utils';
 import { StatValue } from '../services/query-plan/types';
 
@@ -43,6 +49,44 @@ export function parseCustomStatistics(
       ...(quantity !== null ? { quantity } : {}),
     };
   });
+}
+
+export interface ResolvedOperatorStat {
+  value: StatValue;
+  /** 'aggregated' when derived from related operators rather than the node's own statistic. */
+  source: 'direct' | 'aggregated';
+  quantity?: string;
+}
+
+/**
+ * Resolves a node's value for a statistic. A node's own statistic wins; a
+ * node that groups other operators (e.g. a logical-plan node) has none, so
+ * its numeric value is aggregated from the related operators with `aggMode`
+ * (the same rule the pivot table column hover uses). Non-numeric statistics
+ * are never aggregated.
+ */
+export function resolveOperatorStat(
+  rawNode: unknown,
+  relatedOperators: readonly unknown[] | undefined,
+  field: string,
+  aggMode: AggMode = 'sum'
+): ResolvedOperatorStat | undefined {
+  const own = parseCustomStatistics(rawNode).find(s => s.key === field);
+  const related = (relatedOperators ?? []).flatMap(operator => {
+    const stat = parseCustomStatistics(operator).find(s => s.key === field);
+    return stat?.value != null && isNumericValue(stat.value) ? [stat] : [];
+  });
+  const resolved = resolveGroupedValue(
+    own?.value,
+    related.map(s => s.value as number | bigint),
+    aggMode
+  );
+  if (!resolved) {
+    return undefined;
+  }
+  const quantity =
+    resolved.source === 'direct' ? own?.quantity : related.find(s => s.quantity)?.quantity;
+  return { ...resolved, ...(quantity ? { quantity } : {}) };
 }
 
 export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {

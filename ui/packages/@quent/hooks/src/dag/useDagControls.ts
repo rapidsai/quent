@@ -32,7 +32,7 @@ type ComputeEdgeColoringFn = (
   field: string | null,
   theme: PaletteTheme
 ) => EdgeColoring;
-type ParseCustomStatisticsFn = (rawNode: unknown) => Array<{ key: string }>;
+type ParseCustomStatisticsFn = (rawNode: unknown) => Array<{ key: string; value?: unknown }>;
 
 export function useDagNodeColoring(
   nodes: DAGNode[],
@@ -89,7 +89,23 @@ export function useOperatorStatFields(
 ): string[] {
   return useMemo(
     () => [
-      ...new Set(nodes.flatMap(n => parseCustomStatistics(n.metadata?.rawNode).map(s => s.key))),
+      ...new Set(
+        nodes.flatMap(n => {
+          const own = parseCustomStatistics(n.metadata?.rawNode).map(s => s.key);
+          // Nodes that group operators (logical-plan nodes) get a value by
+          // aggregating their related operators, which only works for numbers,
+          // so only numeric related stats are offered.
+          const related = Array.isArray(n.metadata?.relatedOperators)
+            ? (n.metadata.relatedOperators as unknown[])
+            : [];
+          const aggregatable = related.flatMap(raw =>
+            parseCustomStatistics(raw)
+              .filter(s => typeof s.value === 'number' || typeof s.value === 'bigint')
+              .map(s => s.key)
+          );
+          return [...own, ...aggregatable];
+        })
+      ),
     ],
     [nodes, parseCustomStatistics]
   );
