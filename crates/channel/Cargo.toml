@@ -1,0 +1,19 @@
+[package]
+name = "quent-channel"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+rtrb.workspace = true
+
+[dev-dependencies]
+crossbeam-channel = "0.5"
+flume = { version = "0.12", default-features = false }
+kanal = "0.1.1"
+loom = "0.7"
+tokio = { workspace = true, features = ["sync"] }
+
+[[bench]]
+name = "channel"
+harness = false

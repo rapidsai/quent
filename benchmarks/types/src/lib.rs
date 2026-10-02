@@ -93,6 +93,7 @@ pub enum Language {
 pub enum Implementation {
     EmptyLoopRs,
     Quent,
+    QuentSpsc,
 }
 
 /// Selects the explicit attributes of each benchmark event.

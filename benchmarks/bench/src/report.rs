@@ -199,6 +199,7 @@ fn implementation_color(implementation: Implementation) -> Color {
     match implementation {
         Implementation::EmptyLoopRs => Color::Yellow,
         Implementation::Quent => Color::Green,
+        Implementation::QuentSpsc => Color::Blue,
     }
 }
 

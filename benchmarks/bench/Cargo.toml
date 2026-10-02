@@ -13,3 +13,4 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 statrs = { version = "0.19.1", default-features = false, features = ["std"] }
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+tempfile = "3"
