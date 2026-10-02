@@ -1,0 +1,29 @@
+{
+  "name": "quent-bench-plot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": { "node": ">=24.11.0", "pnpm": ">=11.19.0" },
+  "scripts": {
+    "dev": "vite",
+    "serve": "node scripts/site.mjs serve",
+    "build": "node scripts/site.mjs build",
+    "build:single": "node scripts/site.mjs build-single",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0",
+    "svelte": "^5.56.8"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "daisyui": "^5.7.4",
+    "tailwindcss": "^4.3.3",
+    "svelte-check": "^4.7.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.5"
+  }
+}

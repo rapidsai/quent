@@ -17,14 +17,14 @@ overlap. It prints a summary table and writes a JSON report.
 | Argument               | Default          | Meaning                                                                                 |
 | ---------------------- | ---------------- | --------------------------------------------------------------------------------------- |
 | `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list. Other frameworks are WIP.             |
-| `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                              |
+| `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                               |
 | `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
 | `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
 | `--num-batches`        | `1000`           | Measured batches per thread.                                                            |
-| `--batch-size`         | `20`             | Calls or empty-loop iterations per thread in each batch.                               |
+| `--batch-size`         | `20`             | Calls or empty-loop iterations per thread in each batch.                                |
 | `--num-warmup-batches` | `10`             | Untimed batches before measurement.                                                     |
 | `--batch-pause-us`     | `10`             | Minimum per-thread busy wait between batches, in microseconds. Set to `0` for no pause. |
-| `--no-preflight-call`  | Off              | Skip one untimed call or empty-loop iteration per thread.                              |
+| `--no-preflight-call`  | Off              | Skip one untimed call or empty-loop iteration per thread.                               |
 | `--output PATH`        | Generated file   | JSON report path.                                                                       |
 
 The default report path is
@@ -119,3 +119,31 @@ result is not subtracted from event measurements.
 `quent-bench` applies the same measurement protocol across languages. Matching
 that protocol with separate frameworks such as Criterion, Google Benchmark, and
 pyperf would be harder.
+
+## Plot reports
+
+From the repository root, install the plot page dependencies once and start the
+development server:
+
+```sh
+pixi run pnpm --dir experimental/vibe/bench-plot install --frozen-lockfile
+pixi run pnpm --dir experimental/vibe/bench-plot dev
+```
+
+Open the URL printed by Vite. The page uses the newest report in
+`benchmarks/results` and updates when a new report appears.
+
+To build and serve a static snapshot:
+
+```sh
+pixi run pnpm --dir experimental/vibe/bench-plot build
+cd benchmarks/results/site && python -m http.server 8000
+```
+
+To create one self-contained HTML file that opens directly in a browser:
+
+```sh
+pixi run pnpm --dir experimental/vibe/bench-plot build:single
+```
+
+The file is written to `benchmarks/results/benchmark-plot.html`.

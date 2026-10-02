@@ -1,0 +1,34 @@
+{
+  "system": {
+    "captured_at_unix_seconds": 1760000000,
+    "os": "linux",
+    "architecture": "x86_64",
+    "cpu_model": "Fixture CPU",
+    "available_cpu_count": 4,
+    "build_profile": "release",
+    "git_commit": "0000000000000000000000000000000000000000",
+    "git_dirty": false,
+    "rustc_version": "rustc fixture"
+  },
+  "cases": [
+    {
+      "implementation": "quent",
+      "exporter": "noop",
+      "event_shape": "empty",
+      "threads": 1,
+      "num_batches": 5,
+      "batch_size": 2,
+      "num_warmup_batches": 1,
+      "batch_pause_interval_us": 10,
+      "preflight_call": true,
+      "thread_batch_elapsed_ns": [[2, 4, 6, 8, 20]],
+      "average_ns_per_iteration": 4,
+      "batch_statistics": {
+        "standard_deviation_ns_per_iteration": 3.5355339059,
+        "p50_ns_per_iteration": 3,
+        "p95_ns_per_iteration": 10,
+        "p99_ns_per_iteration": 10
+      }
+    }
+  ]
+}
