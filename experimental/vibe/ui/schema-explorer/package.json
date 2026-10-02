@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm wasm:build && vite",
     "build": "pnpm wasm:build && vite build",
+    "precheck": "pnpm --filter @quent/schema-viewer build",
     "check": "pnpm wasm:build && svelte-check --workspace ./src --tsconfig ../tsconfig.json --config ../vite.config.ts && tsc --noEmit",
     "lint": "eslint --config ../eslint.config.js \"src/**/*.ts\" vite.config.ts",
     "wasm:build": "sh scripts/build-yaml-wasm.sh",
