@@ -46,7 +46,7 @@ fn captures_core_nvtx_kinds() {
 
     nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
 
-    // After the owner disables capture, NVTX still returns faithful nesting
+    // After the capture worker shuts down, NVTX still returns faithful nesting
     // levels to the app, but nothing more reaches the exporter.
     let captured = collected.lock().unwrap().len();
     // SAFETY: the message is a valid C string, and NVTX is still installed.

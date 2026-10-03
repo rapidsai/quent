@@ -30,8 +30,8 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 | Crate | Path | Role |
 |-------|------|------|
 | `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
-| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, converts each call into a verbatim `NvtxEvent`, and hands it to a sink-agnostic `Fn(NvtxEvent)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The **bridge**: `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
+| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies each call into an owned `RawEvent`, and hands it to a sink-agnostic hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
+| `nvtx-bridge` | `bridge/` | The **bridge**: decodes owned records into `NvtxEventEntity` events on the capture worker and forwards them through Quent's ordinary observer API. |
 | `nvtx-example` | `example/` | A runnable, self-verifying example. |
 
 ## How capture works
@@ -42,52 +42,52 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    injection **in-process** at the first NVTX call.
 2. Injection claims NVTX's callback tables — our `extern "C"` functions become
    NVTX's implementation of the subscribed calls.
-3. Each callback converts the raw NVTX ABI struct into a verbatim `NvtxEvent`
-   and dispatches it to the installed hook while capture is active.
-4. The application's hook forwards each event (wrapped in `NvtxEventEntity`)
-   into its `Observer`. Handles, ids, and nesting levels are synthesized so the
-   app still behaves correctly — including before the hook is installed and
-   after capture is disabled, so handles an app caches early stay valid.
-5. `install_hook` returns a `CaptureGuard`. Dropping it disables capture without
-   waiting for hook calls already in progress. Callback pointers stay installed,
-   and callbacks tolerate destroyed TLS during late process cleanup.
+3. Each callback copies caller-owned strings and initialized attribute fields
+   into a `RawEvent` once a hook is installed. No caller pointers escape.
+4. The hook queues owned records with their capture timestamps. An `NvtxCapture`
+   worker drains the queue, decodes strings and numeric payloads, and builds
+   `NvtxEvent` values to forward through an ordinary observer. NVTX handles and
+   range nesting are maintained on the emitting thread.
+5. Dropping `NvtxCapture` closes the queue, drains completed sends, joins the
+   worker, and releases the observer to flush its exporter. The permanent hook
+   owns only a queue sender. Late events are discarded, including calls during
+   process cleanup after Rust TLS destruction.
 
 ## Using it
 
-The app owns the pipeline; wiring capture is two steps — build an observer, then
-install the hook:
+Create an observer and transfer it to the capture utility before emitting NVTX:
 
 ```rust
-// 1. The app owns its Quent context and picks the exporter.
-let ctx = Context::try_new(session)?;
-let options = FileSystemExporterOptions::new(FileSystemFormat::Ndjson, out_dir);
-let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(options).await })?;
+let ctx = ContextInner::try_new(session)?;
+let observer = ctx.block_on(async {
+    ctx.observer::<NvtxEventEntity>(&exporter).await
+})?;
+let capture = nvtx_bridge::NvtxCapture::new(session, observer)?;
 
-// 2. Forward captured NVTX events into it, before the first NVTX call.
-let sender = observer.sender();
-let capture = nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
-
-// 3. Ordinary app code, annotated with NVIDIA's NVTX Rust API.
 nvtx::mark(c"startup");
 let range = nvtx::Range::new(c"phase-1");
-drop(range); // end the range before flushing
+drop(range);
 
-// 4. End capture, then flush the observer.
+// Drain, join, and flush before releasing the context.
 drop(capture);
-drop(observer);
+drop(ctx);
 ```
 
-Capture lasts exactly as long as the guard. Bind it to a named variable:
-`let _ = install_hook(..)` drops it immediately. Declare it after the observer,
-as above, so that on an early return or panic the guard still drops first
-(locals drop in reverse order; struct fields drop in declaration order, so there
-the guard field must come first). Installation is one-shot: a failed caller gets
-no guard and cannot end the owner's capture, and capture cannot be restarted.
+The queue uses a separate SPSC producer for each emitting thread. Ordinary
+sends do not upgrade a weak observer reference or wake the worker. The worker
+polls every millisecond when idle. NVTX strings and pointer-backed attributes
+must still be copied before the callback returns. Capture timestamps and NVTX
+thread IDs are preserved through deferred forwarding.
 
-Stop and join NVTX-producing threads before ending capture if all events must
-be flushed. Callbacks that already passed the dispatch check can still invoke
-the hook after the guard is dropped. Events racing with observer shutdown may
-be discarded or log a send error.
+Stop and join producers before dropping capture to ensure all their events are
+flushed. Completed sends are drained, but sends racing with shutdown may be
+lost. Late sends can temporarily succeed in the queue without being exported.
+The observer API and instrumentation transport are unchanged. Installation is
+one-shot even after capture is dropped.
+
+The queue is provided by `quent-channel`. Quent's current entity handles
+timestamp at emission, so this utility owns an observer
+and entity ID to forward events with their original timestamps.
 
 `static-injection` is requested in the manifest:
 
@@ -120,8 +120,8 @@ subprocess, no files:
 pixi run cargo test -p nvtx-example
 ```
 
-The tests also check failed duplicate registration and dropping the guard from
-inside the hook.
+The tests also check failed duplicate registration, dropping the observer owner
+inside the hook, and concurrent queue shutdown with completed-send flushing.
 `example/tests/shutdown.rs` runs capture on a subprocess's main thread, then
 emits CORE and CORE2 push/pop calls from an `atexit` handler after Rust TLS
 destruction.
@@ -134,10 +134,10 @@ Both NVTX ASCII surfaces: **domain-scoped (CORE2)** — mark, range
 start/end/push/pop, domain/register-string/name-category/resource — and the
 **classic default domain (CORE)** on domain `0`, plus OS thread naming.
 
-Default-domain wide-char (`*W`) variants are converted to owned UTF-8 strings
-and captured while preserving nesting and synthesized IDs. Domain-scoped
-wide-name calls (`DomainCreateW`, `DomainRegisterStringW`, and
-`DomainNameCategoryW`) are not yet subscribed.
+Default-domain wide-char (`*W`) variants are copied as owned code units and
+decoded to UTF-8 by the bridge worker. Nesting and synthesized IDs are
+preserved. Domain-scoped wide-name calls (`DomainCreateW`,
+`DomainRegisterStringW`, and `DomainNameCategoryW`) are not yet subscribed.
 
 ## NVTX injection bindings
 

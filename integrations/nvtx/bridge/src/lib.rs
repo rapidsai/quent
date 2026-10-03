@@ -4,16 +4,19 @@
 //! The thin bridge that lets captured NVTX events flow through Quent's typed
 //! event pipeline.
 //!
-//! It is one adapter: [`NvtxEventEntity`], a newtype over [`NvtxEvent`]
-//! implementing Quent's [`EventPayload`]. The orphan rule forbids that impl in
-//! either of *their* crates — the events crate stays Quent-agnostic for
-//! upstreaming — so it lives here.
+//! [`NvtxCapture`] queues owned NVTX records and forwards them through an ordinary
+//! Quent observer on a worker thread. [`NvtxEventEntity`] adapts the records to
+//! Quent's [`EventPayload`] contract.
 //!
 //! See `integrations/nvtx/example` for a complete, runnable capture.
 
 use nvtx_events::NvtxEvent;
 use quent_events::EventPayload;
 use serde::{Deserialize, Serialize};
+
+mod capture;
+mod convert;
+pub use capture::{CaptureError, NvtxCapture};
 
 /// A `#[serde(transparent)]` newtype over [`NvtxEvent`] implementing
 /// [`EventPayload`], naming the `"NvtxEvent"` entity stream. Transparent, so its

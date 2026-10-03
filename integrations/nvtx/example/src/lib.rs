@@ -16,7 +16,7 @@
 use std::ffi::CString;
 use std::sync::{Arc, Barrier};
 
-use nvtx_bridge::NvtxEventEntity;
+use nvtx_bridge::{NvtxCapture, NvtxEventEntity};
 use quent_instrumentation::{ContextInner, EventCallback};
 use uuid::Uuid;
 
@@ -44,19 +44,14 @@ pub fn run_capture_n_threads(
     exporter: EventCallback<NvtxEventEntity>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let context = ContextInner::try_new(session)?;
-    let pipeline =
+    let observer =
         context.block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })?;
-
-    // Forward each captured event into the pipeline, before the first NVTX call.
-    // Bound after `pipeline`, so it drops first — also when annotated work panics.
-    let sender = pipeline.sender();
-    let capture = nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
+    let capture = NvtxCapture::new(session, observer)?;
 
     annotated_work_n_threads(n);
 
-    // All annotated work has finished; disable capture, then flush the exporter.
+    // Join the forwarding worker and flush before releasing the context.
     drop(capture);
-    drop(pipeline);
     Ok(())
 }
 

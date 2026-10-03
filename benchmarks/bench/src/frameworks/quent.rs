@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, path::PathBuf, process::Command};
+use std::{
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use clap::ValueEnum;
 
@@ -34,10 +38,40 @@ impl Exporter {
     }
 }
 
+/// Selects the channel used by Quent benchmark cases.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum Channel {
+    Tokio,
+    Spsc,
+}
+
+impl Channel {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Tokio => "quent",
+            Self::Spsc => "quent-spsc",
+        }
+    }
+
+    fn features(self) -> &'static [&'static str] {
+        match self {
+            Self::Tokio => &[],
+            Self::Spsc => &["channel-spsc"],
+        }
+    }
+}
+
 /// Selects the Quent-specific parameters.
 #[derive(clap::Args)]
 #[group(skip)]
 pub(crate) struct Args {
+    #[arg(
+        long = "quent-channel",
+        value_enum,
+        value_delimiter = ',',
+        default_value = "tokio,spsc"
+    )]
+    channel: Vec<Channel>,
     #[arg(
         long = "quent-exporter",
         value_enum,
@@ -47,23 +81,47 @@ pub(crate) struct Args {
     exporter: Vec<Exporter>,
 }
 
+impl Args {
+    pub(crate) fn build_count(&self) -> usize {
+        self.channel.len()
+    }
+}
+
 /// Defines one case for each requested exporter, event shape, and thread count.
 pub(crate) fn cases(
     shared: &SharedArgs,
     options: &Args,
+    binaries: &Path,
     progress: &mut BuildProgress,
 ) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
-    let executable = rust::binary("quent-bench-rust-quent", progress)?;
     let mut cases = Vec::new();
-    for exporter in &options.exporter {
-        for event_shape in &shared.event_shape {
-            for threads in &shared.threads {
-                cases.push(Box::new(QuentCase {
-                    executable: executable.clone(),
-                    exporter: *exporter,
-                    event_shape: *event_shape,
-                    threads: *threads,
-                }) as Box<dyn CaseRunner>);
+    for channel in &options.channel {
+        let label = format!("quent-bench-rust-{}", channel.label());
+        let executable = rust::binary_with_features(
+            "quent-bench-rust-quent",
+            &label,
+            channel.features(),
+            progress,
+        )?;
+        // Cargo uses the same output path for both feature builds. Keep a
+        // private copy of each binary until all cases have finished.
+        let saved = binaries.join(format!(
+            "{}{}",
+            channel.label(),
+            std::env::consts::EXE_SUFFIX
+        ));
+        std::fs::copy(executable, &saved)?;
+        for exporter in &options.exporter {
+            for event_shape in &shared.event_shape {
+                for threads in &shared.threads {
+                    cases.push(Box::new(QuentCase {
+                        executable: saved.clone(),
+                        channel: *channel,
+                        exporter: *exporter,
+                        event_shape: *event_shape,
+                        threads: *threads,
+                    }) as Box<dyn CaseRunner>);
+                }
             }
         }
     }
@@ -72,6 +130,7 @@ pub(crate) fn cases(
 
 struct QuentCase {
     executable: PathBuf,
+    channel: Channel,
     exporter: Exporter,
     event_shape: quent_bench_types::EventShape,
     threads: NonZeroUsize,
@@ -80,7 +139,8 @@ struct QuentCase {
 impl CaseRunner for QuentCase {
     fn label(&self) -> String {
         format!(
-            "quent, {}, {}, threads={}",
+            "{}, {}, {}, threads={}",
+            self.channel.label(),
             self.exporter.as_str(),
             self.event_shape.as_ref(),
             self.threads

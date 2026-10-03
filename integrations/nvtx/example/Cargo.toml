@@ -29,5 +29,6 @@ uuid = { workspace = true }
 nvtx = { workspace = true }
 
 [dev-dependencies]
+quent-time = { path = "../../../crates/time" }
 # The test matches on `NvtxEvent` variants to assert coverage.
 nvtx-events = { path = "../events" }

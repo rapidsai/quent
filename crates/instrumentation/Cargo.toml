@@ -7,6 +7,7 @@ publish.workspace = true
 [features]
 default = []
 clock-quanta = ["quent-time/clock-quanta"]
+channel-spsc = ["dep:quent-channel", "tokio/time"]
 serde = [
     "dep:serde",
     "quent-events/serde",
@@ -24,6 +25,7 @@ io-collector = ["dep:quent-collector-client", "quent-io/collector", "serde"]
 async-trait.workspace = true
 quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
+quent-channel = { path = "../channel", optional = true }
 quent-collector-client = { workspace = true, optional = true }
 quent-events = { path = "../events", default-features = false }
 quent-io = { path = "../io", default-features = false }

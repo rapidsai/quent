@@ -59,6 +59,9 @@ jobs:
       - run: pixi run cargo fmt --all -- --check
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
+      - run: pixi run cargo clippy -p quent-instrumentation --all-targets --locked -- -D warnings
+      - run: pixi run cargo test -p quent-instrumentation --locked
+      - run: pixi run cargo test -p quent-channel --test loom --locked
       - run: pixi run cargo test -p quent-store --no-default-features --features io-ndjson --locked
       - run: pixi run cargo build --workspace --all-features --locked --release
       - run: pixi run cargo run -p quent-instrumentation-build-example --locked
@@ -124,3 +127,13 @@ jobs:
         with:
           cache: true
       - run: pixi run cargo deny check
+
+  channel-miri:
+    name: quent-channel Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install nightly --profile minimal --component miri --component rust-src
+      - run: cargo +nightly miri test -p quent-channel --test miri --locked

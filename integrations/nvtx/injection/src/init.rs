@@ -1,16 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The NVTX injection entry point, one-shot table fill, and the sink-agnostic
-//! hook installation surface.
+//! NVTX callback installation and synthetic handles and range levels.
 
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-
-use nvtx_events::NvtxEvent;
-use thiserror::Error;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::callbacks;
 use nvtx_sys::ffi::{
@@ -27,16 +22,6 @@ use nvtx_sys::ffi::{
     nvtxRangePushA_impl_fntype, nvtxRangePushEx_impl_fntype, nvtxRangePushW_impl_fntype,
     nvtxRangeStartA_impl_fntype, nvtxRangeStartEx_impl_fntype, nvtxRangeStartW_impl_fntype,
 };
-
-/// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
-type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
-
-static HOOK: OnceLock<Hook> = OnceLock::new();
-
-// Ordinary static storage outlives both the capture owner and Rust TLS, so
-// `dispatch` can consult it from late process-cleanup callbacks.
-// `HOOK`'s OnceLock publishes the hook; this flag only controls capture admission.
-static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
 const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
@@ -55,7 +40,7 @@ pub(crate) fn next_handle() -> u64 {
 }
 
 /// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
-/// (captured as [`NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
+/// (captured as [`nvtx_events::NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
 /// resolve against a named thread. Read on the app thread from inside a callback.
 ///
 /// The value is computed once per thread and cached in a thread-local so the
@@ -130,112 +115,6 @@ pub(crate) fn range_pop_level(domain: u64) -> c_int {
         .unwrap_or(NVTX_NO_PUSH_POP_TRACKING)
 }
 
-/// Error returned by [`install_hook`].
-#[derive(Debug, Error)]
-pub enum InstallHookError {
-    /// A hook was already installed; installation is one-shot per process.
-    #[error("an NVTX capture hook is already installed (install_hook is one-shot per process)")]
-    AlreadyInstalled,
-}
-
-/// Install the process-global, sink-agnostic capture hook.
-///
-/// The hook receives every converted [`NvtxEvent`]. It is stored in a
-/// [`OnceLock`], so it can be installed exactly once per process — matching the
-/// one-shot nature of NVTX injection.
-///
-/// Capture is active until the returned [`CaptureGuard`] is dropped. Create the
-/// hook's sink first and bind the guard after it, so the guard drops first:
-///
-/// ```ignore
-/// let pipeline = /* the sink the hook forwards into */;
-/// let sender = pipeline.sender();
-/// let _capture = nvtx_injection::install_hook(move |event| sender.emit(event))?;
-/// // ... annotated work ...
-/// // `_capture` drops first (capture off), then `pipeline`.
-/// ```
-///
-/// # Errors
-/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set. A
-/// failed caller receives no guard, so it cannot end another owner's capture.
-pub fn install_hook<F>(hook: F) -> Result<CaptureGuard, InstallHookError>
-where
-    F: Fn(NvtxEvent) + Send + Sync + 'static,
-{
-    HOOK.set(Box::new(hook))
-        .map_err(|_| InstallHookError::AlreadyInstalled)?;
-    CAPTURE_ACTIVE.store(true, Ordering::Relaxed);
-    Ok(CaptureGuard { _private: () })
-}
-
-/// Ownership of the active NVTX capture, returned by a successful
-/// [`install_hook`].
-///
-/// Dropping the guard disables capture without waiting for callbacks that have
-/// already passed the dispatch check. Those callbacks may still invoke the hook
-/// after the guard is dropped. Stop and join NVTX-producing threads before
-/// ending capture if every event must reach the sink.
-///
-/// Callback pointers and the one-shot hook remain installed: callbacks keep
-/// synthesizing handles, ids, and nesting levels for the app. Capture cannot be
-/// restarted.
-///
-/// If the guard is never dropped (`std::mem::forget`, `std::process::exit`),
-/// capture stays active until the process ends.
-#[must_use = "capture stops as soon as the guard is dropped; bind it to a named variable"]
-#[derive(Debug)]
-pub struct CaptureGuard {
-    _private: (),
-}
-
-impl Drop for CaptureGuard {
-    fn drop(&mut self) {
-        CAPTURE_ACTIVE.store(false, Ordering::Relaxed);
-    }
-}
-
-thread_local! {
-    /// Whether this thread is inside [`dispatch`]. Const-initialized and
-    /// drop-free, so it stays accessible during late process cleanup.
-    static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// Whether callbacks should build an event for capture.
-///
-/// [`dispatch`] rechecks this flag because capture can end during conversion.
-#[inline]
-pub(crate) fn capture_active() -> bool {
-    CAPTURE_ACTIVE.load(Ordering::Relaxed)
-}
-
-/// Dispatch a converted event to the installed hook while capture is active.
-/// A call that passes the capture check may still invoke the hook after the
-/// [`CaptureGuard`] is dropped.
-pub(crate) fn dispatch(event: NvtxEvent) {
-    // Recheck after conversion and before accessing TLS or the hook.
-    if !capture_active() {
-        return;
-    }
-    // Guard against hook-induced re-entry: if the hook (or code it calls) emits
-    // NVTX, it would recurse into this synchronous dispatch path and overflow
-    // the stack, bypassing the callbacks' panic barriers. Drop nested events.
-    if IN_DISPATCH.with(|g| g.replace(true)) {
-        return;
-    }
-    // RAII exit so the reentry flag is cleared even if the hook unwinds.
-    struct Exit;
-    impl Drop for Exit {
-        fn drop(&mut self) {
-            IN_DISPATCH.with(|g| g.set(false));
-        }
-    }
-    let _exit = Exit;
-
-    if let Some(hook) = HOOK.get() {
-        hook(event);
-    }
-}
-
 /// NVTX injection entry point.
 ///
 /// NVTX loads this cdylib via `NVTX_INJECTION64_PATH` and calls this **once per
@@ -245,7 +124,7 @@ pub(crate) fn dispatch(event: NvtxEvent) {
 /// export-table accessor. We must therefore install callbacks into *every*
 /// caller's tables, not just the first: a later image left uninstalled has its
 /// NVTX functions turned into silent no-ops by NVTX, dropping its events. All
-/// state is constructed under [`OnceLock`]s — never in a `#[ctor]` — to avoid
+/// capture state is constructed under [`std::sync::OnceLock`]s — never in a `#[ctor]` — to avoid
 /// static-init-order hazards. Returns `1` on success per the NVTX ABI.
 ///
 /// # Safety

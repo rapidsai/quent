@@ -3,8 +3,8 @@
 
 //! Verbatim, application-agnostic NVTX event vocabulary.
 //!
-//! Every downstream NVTX crate speaks this shared contract: the injection cdylib
-//! produces [`NvtxEvent`]s and the bridge forwards them to a consumer. Events are
+//! Every downstream NVTX crate speaks this shared contract: the bridge converts
+//! owned injection records into [`NvtxEvent`]s and forwards them to a consumer. Events are
 //! captured **verbatim** — every handle (domain / category / resource /
 //! registered-string id) is a raw integer, and no name resolution or payload
 //! decoding happens at capture time. Handles are resolved from the event stream

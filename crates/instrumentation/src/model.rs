@@ -43,6 +43,10 @@ pub trait ObserverBuilder<P>: InstrumentedModel {
 }
 
 /// Instrumentation context for a generated model.
+///
+/// Dropping the context shuts down an entity pipeline only after its last
+/// observer or handle is also dropped. Transport-specific shutdown guarantees
+/// are documented in `PERFORMANCE.md`.
 pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
     inner: ContextInner,

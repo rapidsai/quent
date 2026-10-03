@@ -5,6 +5,9 @@ edition.workspace = true
 publish = false
 build = "build.rs"
 
+[features]
+channel-spsc = ["quent-instrumentation/channel-spsc"]
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 quent-bench-rust-common = { path = "../common" }
