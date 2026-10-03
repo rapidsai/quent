@@ -82,7 +82,7 @@ pub trait CombinedEventModel {
 
 /// The event data emitted by entities.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Event<P> {
     /// The ID of the entity producing this event.
     pub id: Uuid,

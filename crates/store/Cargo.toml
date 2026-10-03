@@ -14,10 +14,14 @@ io-postcard = ["quent-io/postcard"]
 quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
+quent-time = { path = "../time" }
+rustc-hash.workspace = true
 serde.workspace = true
+smallvec.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+quent-instrumentation = { path = "../instrumentation", features = ["io-ndjson"] }
 tempfile = "3"
