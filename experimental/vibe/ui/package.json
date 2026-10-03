@@ -23,7 +23,7 @@
     "@eslint/js": "catalog:",
     "eslint": "catalog:",
     "globals": "catalog:",
-    "prettier": "3.9.6",
+    "prettier": "3.9.8",
     "typescript-eslint": "catalog:"
   }
 }
