@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
   setPlayheadLineTimeMs: vi.fn(),
 }));
 
-vi.mock('@quent/hooks', () => ({
+vi.mock('@quent/hooks', async importOriginal => ({
+  ...(await importOriginal<typeof import('@quent/hooks')>()),
+  useColorResolver: () => () => '#123456',
   useZoomRange: () => mocks.zoomRange,
   usePlayheadTimeS: () => mocks.playheadTimeS,
   usePlayheadLineTimeMs: () => mocks.playheadLineTimeMs,

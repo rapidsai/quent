@@ -1,28 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  createRootRoute,
-  Link,
-  Outlet,
-  useRouterState,
-  type ErrorComponentProps,
-} from '@tanstack/react-router';
+import { createRootRoute, Link, Outlet, type ErrorComponentProps } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NavBarNavigator } from '@/components/NavBarNavigator';
 import { Button, Toaster } from '@quent/components';
-import {
-  NavigationMenu,
-  NavigationMenuList,
-  NavigationMenuItem,
-  NavigationMenuLink,
-} from '@quent/components';
-import { cn } from '@quent/utils';
-import { DeepLinkNavSlot } from '@/features/deep-link';
 
-function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
+function AppNav() {
   const logoUrl = `${import.meta.env.BASE_URL}logo.svg`;
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
@@ -47,25 +33,6 @@ function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
           <NavBarNavigator />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <NavigationMenu>
-            <NavigationMenuList>
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className={cn(
-                      highlightProfile && 'bg-accent text-accent-foreground font-semibold'
-                    )}
-                  >
-                    <Link to="/profile">Profile</Link>
-                  </Button>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-              <DeepLinkNavSlot />
-            </NavigationMenuList>
-          </NavigationMenu>
           <ThemeToggle />
         </div>
       </div>
@@ -106,14 +73,11 @@ function RootNotFoundComponent() {
 }
 
 function RootComponent() {
-  const routerState = useRouterState();
-  const isProfileActive = routerState.location.pathname.startsWith('/profile');
-
   return (
     <>
       <ThemeProvider>
         <div className="min-h-screen flex flex-col bg-background">
-          <AppNav highlightProfile={isProfileActive} />
+          <AppNav />
           <main className="flex-1 w-full">
             <Outlet />
           </main>

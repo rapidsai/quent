@@ -90,7 +90,6 @@ test('logical operator selection stays synchronized across views and can be clea
     FINAL_AGGREGATE_ID,
     PARTIAL_AGGREGATE_W1_ID,
   ]);
-  await expect(page.getByTestId('operator-details-title')).toContainText('Aggregate');
   await expect(page.getByTestId(`operator-accordion-${LOGICAL_AGGREGATE_ID}`)).toBeVisible();
   await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toBeVisible();
   await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
@@ -125,12 +124,13 @@ test('logical operator selection stays synchronized across views and can be clea
   await expect(page.getByRole('button', { name: 'Remove PartialAggregate' })).toBeVisible();
   await expectSelectedGanttOperators(page, [FINAL_AGGREGATE_ID, PARTIAL_AGGREGATE_W1_ID]);
   await expect(page.getByTestId(`operator-accordion-${LOGICAL_AGGREGATE_ID}`)).toHaveCount(0);
-  await expect(page.getByTestId('operator-details-title')).toContainText('FinalAggregate');
-  await expect(page.getByTestId('operator-details-title')).toContainText('PartialAggregate');
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
+  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W1_ID}`)).toBeVisible();
 
-  await page.getByRole('button', { name: 'Clear all operator filters' }).click();
-  await expect(page.getByRole('button', { name: 'Clear all operator filters' })).toHaveCount(0);
-  await expect(page.getByTestId('operator-details-title')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Clear all filters' }).click();
+  await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W1_ID}`)).toHaveCount(0);
   await expectSelectedGanttOperators(page, []);
 
   await openEntityOperatorSelect(page);
@@ -145,7 +145,7 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
 }) => {
   const errors = await openTimeline(page);
   await openOperatorGanttCharts(page);
-  await expect(page.getByRole('button', { name: 'Clear all operator filters' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
 
   const worker0Chart = page.getByRole('group', {
     name: /Operator Gantt chart:.*FinalAggregate/,
@@ -156,8 +156,8 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
   await expectSelectedGanttOperators(page, [PARTIAL_AGGREGATE_W0_ID, FINAL_AGGREGATE_ID]);
   await expect(dagNode(page, PARTIAL_AGGREGATE_W0_ID).locator('.border-2')).toBeVisible();
   await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toBeVisible();
-  await expect(page.getByTestId('operator-details-title')).toContainText('PartialAggregate');
-  await expect(page.getByTestId('operator-details-title')).toContainText('FinalAggregate');
+  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toBeVisible();
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
 
   await openEntityOperatorSelect(page);
   const partialAggregate = operatorOption(page, 'PartialAggregate', 'Worker: worker-0');
@@ -169,17 +169,46 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
   await expect(partialAggregate).toHaveAttribute('aria-selected', 'false');
   await expect(dagNode(page, PARTIAL_AGGREGATE_W0_ID).locator('.border-2')).toHaveCount(0);
   await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toBeVisible();
-  await expect(page.getByTestId('operator-details-title')).not.toContainText('PartialAggregate');
-  await expect(page.getByTestId('operator-details-title')).toContainText('FinalAggregate');
+  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
 
   await finalAggregate.click();
   await expect(finalAggregate).toHaveAttribute('aria-selected', 'false');
   await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toHaveCount(0);
-  await expect(page.getByTestId('operator-details-title')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Clear all operator filters' })).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
 
   await page.getByRole('link', { name: 'Timeline' }).click();
   await expectSelectedGanttOperators(page, []);
   await page.waitForLoadState('networkidle');
+  await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
+});
+
+test('Clear stays visible and clickable when the operator chip is wider than the filter bar', async ({
+  page,
+}) => {
+  const errors = await openTimeline(page);
+  await dagNode(page, LOGICAL_AGGREGATE_ID).click();
+  await expect(page.getByRole('button', { name: 'Remove Aggregate' })).toBeVisible();
+
+  // A narrow window gives the same result as a very long operator label.
+  await page.setViewportSize({ width: 300, height: 900 });
+
+  const clear = page.getByRole('button', { name: 'Clear all filters' });
+  const filterList = page.locator('[data-fit="trailing"]').locator('..');
+  await expect
+    .poll(async () => {
+      const clearBox = await clear.boundingBox();
+      const listBox = await filterList.boundingBox();
+      return (
+        clearBox !== null &&
+        listBox !== null &&
+        clearBox.x + clearBox.width <= listBox.x + listBox.width + 0.5
+      );
+    })
+    .toBe(true);
+
+  await clear.click();
+  await expect(clear).toHaveCount(0);
   await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
 });

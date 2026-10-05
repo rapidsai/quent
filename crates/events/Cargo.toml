@@ -6,11 +6,12 @@ publish.workspace = true
 
 [features]
 default = []
+clock-quanta = ["quent-time/clock-quanta"]
 serde = ["dep:serde", "quent-dynamic-attributes/serde", "uuid/serde"]
 
 [dependencies]
 quent-build-info = { path = "../build-info", default-features = false }
 quent-dynamic-attributes.workspace = true
-quent-time = { path = "../time" }
+quent-time = { path = "../time", default-features = false }
 uuid.workspace = true
 serde = { workspace = true, optional = true }

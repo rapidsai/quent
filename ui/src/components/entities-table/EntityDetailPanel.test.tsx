@@ -6,6 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
 import { EntityDetailPanel } from './EntityDetailPanel';
 
+const mocks = vi.hoisted(() => ({
+  stateColor: vi.fn(() => '#ff0000'),
+}));
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -20,6 +24,14 @@ vi.mock('@quent/components', async importOriginal => {
   return {
     ...actual,
     FsmCapacityChart: () => <div data-testid="fsm-capacity-chart" />,
+  };
+});
+
+vi.mock('@quent/hooks', async importOriginal => {
+  const actual = await importOriginal<typeof import('@quent/hooks')>();
+  return {
+    ...actual,
+    useColorResolver: () => mocks.stateColor,
   };
 });
 
@@ -152,14 +164,14 @@ describe('EntityDetailPanel', () => {
       expect(screen.queryByText('Dominant state')).not.toBeInTheDocument();
     });
 
-    it('uses stateColorFn to color the dominant state when provided', () => {
-      const stateColorFn = vi.fn().mockReturnValue('#ff0000');
+    it('uses the registry resolver to color the dominant state', () => {
       const fsm: FiniteStateMachine = {
         ...BASE_FSM,
         transitions: [makeTransition('running', 0), makeTransition('done', 1)],
       };
-      render(<EntityDetailPanel {...DEFAULT_PROPS} fsm={fsm} stateColorFn={stateColorFn} />);
-      expect(stateColorFn).toHaveBeenCalledWith('running');
+      mocks.stateColor.mockClear();
+      render(<EntityDetailPanel {...DEFAULT_PROPS} fsm={fsm} />);
+      expect(mocks.stateColor).toHaveBeenCalledWith('running');
     });
 
     it('accumulates time correctly for repeated states', () => {

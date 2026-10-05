@@ -11,6 +11,7 @@ import { LongEntitiesRow } from './LongEntitiesRow';
 const mocks = vi.hoisted(() => ({
   bulkInitialized: true,
   buildLongEntityEntries: vi.fn((items: unknown[]) => items),
+  colorFsmState: vi.fn((state: string) => state),
   debouncedZoomRange: { start: 0.2, end: 0.6 },
   getLongEntitiesThreshold: vi.fn(
     (_windowSeconds: number, _numBins: number, density: LongEntityDensity) =>
@@ -36,7 +37,9 @@ vi.mock('@quent/client', () => ({
 }));
 
 vi.mock('@quent/hooks', () => ({
+  COLOR_REGISTRY_KEYS: { FSM_STATES: 'fsm-states' },
   useBulkInitialized: () => mocks.bulkInitialized,
+  useColorResolver: () => mocks.colorFsmState,
   useDebouncedZoomRange: () => mocks.debouncedZoomRange,
   useLongEntityDensity: () => mocks.longEntityDensity,
   useReturnedTimelineIsStale: () => mocks.returnedTimelineIsStale,
@@ -82,7 +85,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -113,7 +115,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -133,7 +134,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -160,7 +160,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -185,7 +184,6 @@ describe('LongEntitiesRow', () => {
       queryId: 'query-1',
       resourceId: 'resource-1',
       durationSeconds: 1,
-      fsmTypes: {},
       isDark: false,
     };
     const { rerender } = render(<LongEntitiesRow {...props} />);
@@ -209,7 +207,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
         fsmStateScope="resource"
       />
@@ -217,8 +214,7 @@ describe('LongEntitiesRow', () => {
 
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
       [],
-      {},
-      'light',
+      mocks.colorFsmState,
       new Set(['resource-1']),
       new Set(['operator-1'])
     );
@@ -237,7 +233,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -261,7 +256,6 @@ describe('LongEntitiesRow', () => {
       queryId: 'query-1',
       resourceId: 'resource-1',
       durationSeconds: 1,
-      fsmTypes: {},
       isDark: false,
     };
     const { rerender } = render(<LongEntitiesRow {...props} />);
@@ -297,8 +291,7 @@ describe('LongEntitiesRow', () => {
     );
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
       [firstEntity, secondEntity],
-      {},
-      'light',
+      mocks.colorFsmState,
       new Set(['resource-1']),
       new Set(['operator-1'])
     );
@@ -318,7 +311,6 @@ describe('LongEntitiesRow', () => {
       queryId: 'query-1',
       resourceId: 'resource-1',
       durationSeconds: 1,
-      fsmTypes: {},
       isDark: false,
     };
     const { rerender } = render(<LongEntitiesRow {...props} />);
@@ -358,7 +350,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -375,7 +366,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -394,7 +384,6 @@ describe('LongEntitiesRow', () => {
       queryId: 'query-1',
       resourceId: 'resource-1',
       durationSeconds: 1,
-      fsmTypes: {},
       isDark: false,
     };
     const { rerender } = render(<LongEntitiesRow {...props} />);
@@ -436,7 +425,6 @@ describe('LongEntitiesRow', () => {
       queryId: 'query-1',
       resourceId: 'resource-1',
       durationSeconds: 1,
-      fsmTypes: {},
       isDark: false,
     };
     const { rerender } = render(<LongEntitiesRow {...props} />);
@@ -486,7 +474,6 @@ describe('LongEntitiesRow', () => {
         queryId="query-1"
         resourceId="resource-1"
         durationSeconds={1}
-        fsmTypes={{}}
         isDark={false}
       />
     );
@@ -494,8 +481,7 @@ describe('LongEntitiesRow', () => {
     expect(screen.queryByText('Loading entities…')).not.toBeInTheDocument();
     expect(mocks.buildLongEntityEntries).toHaveBeenLastCalledWith(
       [previousEntity],
-      {},
-      'light',
+      mocks.colorFsmState,
       new Set(['resource-1']),
       new Set(['operator-1'])
     );

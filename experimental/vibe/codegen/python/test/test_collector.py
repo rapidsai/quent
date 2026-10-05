@@ -4,6 +4,7 @@
 from pathlib import Path
 import socket
 import threading
+import time
 import uuid
 
 import pytest
@@ -55,7 +56,10 @@ def test_collector_server_rejects_invalid_startup(tmp_path: Path) -> None:
         assert collector.address.startswith("http://collector.example:")
 
 
-def test_collector_close_waits_for_active_source(tmp_path: Path) -> None:
+@pytest.mark.parametrize("timeout", [None, 5.0])
+def test_collector_close_waits_for_active_source(
+    tmp_path: Path, timeout: float | None
+) -> None:
     collector = quent.start_collector(quent.ExporterOptions.ndjson(tmp_path))
     context = quent.Context(quent.ExporterOptions.collector(collector.address))
     cluster = context.cluster_observer().handle()
@@ -67,7 +71,7 @@ def test_collector_close_waits_for_active_source(tmp_path: Path) -> None:
 
     def stop_collector() -> None:
         started.set()
-        collector.close()
+        collector.close(timeout=timeout)
         stopped.set()
 
     thread = threading.Thread(target=stop_collector, daemon=True)
@@ -79,3 +83,30 @@ def test_collector_close_waits_for_active_source(tmp_path: Path) -> None:
     assert stopped.wait(5)
     thread.join()
     assert any((tmp_path / str(source_id)).rglob("*.ndjson"))
+
+
+def test_collector_close_with_timeout_stops_active_source(tmp_path: Path) -> None:
+    collector = quent.start_collector(quent.ExporterOptions.ndjson(tmp_path))
+    context = quent.Context(quent.ExporterOptions.collector(collector.address))
+    cluster = context.cluster_observer().handle()
+    cluster.declaration(instance_name="active")
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="collector shutdown timed out"):
+        collector.close(timeout=0.05)
+    assert time.monotonic() - started < 2
+    assert collector.closed
+    collector.close(timeout=0)
+    collector.close()
+    context.close()
+    del cluster, context
+
+
+def test_collector_close_with_timeout_validates_timeout(tmp_path: Path) -> None:
+    collector = quent.start_collector(quent.ExporterOptions.ndjson(tmp_path))
+    for timeout in (-1, float("nan"), float("inf"), 1e30):
+        with pytest.raises(ValueError, match="timeout must be"):
+            collector.close(timeout=timeout)
+        assert not collector.closed
+    collector.close(timeout=5)
+    assert collector.closed

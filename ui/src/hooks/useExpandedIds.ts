@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtomValueRawSync, useSetAtom } from 'jotai';
 import { expandedIdsAtom } from '@/atoms/resourceTree';
 
 interface ExpandableTreeItem {
@@ -47,7 +47,8 @@ export function useAutoExpandMatchingAncestors(
 
 /* getter/setter for tracking expanded IDs in the resource tree */
 export function useExpandedIds(initialId?: string) {
-  const [expandedIds, setExpandedIds] = useAtom(expandedIdsAtom);
+  const expandedIds = useAtomValueRawSync(expandedIdsAtom);
+  const setExpandedIds = useSetAtom(expandedIdsAtom);
 
   // Seed with the initial id only when the atom is empty so that
   // navigating away and back keeps the user's expansion intact.

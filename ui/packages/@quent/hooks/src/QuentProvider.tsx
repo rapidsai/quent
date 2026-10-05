@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, setApiBaseUrl } from '@quent/client';
+import { ColorRegistryProvider } from './colors/colorRegistry';
 
 type JotaiStore = ReturnType<typeof createStore>;
 
@@ -82,7 +83,9 @@ export function QuentProvider({
 
   return (
     <JotaiProvider store={store}>
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <ColorRegistryProvider>{children}</ColorRegistryProvider>
+      </QueryClientProvider>
     </JotaiProvider>
   );
 }

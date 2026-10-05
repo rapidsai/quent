@@ -143,7 +143,7 @@ describe('OperatorGanttChart', () => {
     expect(screen.getByTestId('selected-operators')).toHaveTextContent(JSON.stringify(['right']));
     expect(screen.queryByRole('button', { name: 'Remove parent' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove right' })).toBeInTheDocument();
-    expect(screen.getByTestId('operator-details-title')).toHaveTextContent('right');
-    expect(screen.getByTestId('operator-details-title')).not.toHaveTextContent('parent');
+    expect(screen.getByTestId('operator-accordion-right')).toBeInTheDocument();
+    expect(screen.queryByTestId('operator-accordion-parent')).not.toBeInTheDocument();
   });
 });

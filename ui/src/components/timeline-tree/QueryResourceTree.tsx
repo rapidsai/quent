@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useMemo, useState } from 'react';
-import { createFsmTypeColorFn } from '@quent/utils';
 import type { EntityRef, FiniteStateMachine, QueryBundle, ZoomRange } from '@quent/utils';
 import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
-import { THEME_DARK, THEME_LIGHT } from '@/contexts/ThemeContext';
 import { useNvtxTreeModel } from './NvtxTree';
 import { createLongEntitiesTimelineSubRow, createOperatorGanttTimelineSubRow } from './sub-rows';
 import {
@@ -41,10 +39,6 @@ export function QueryResourceTree({
   );
   const closeDrawer = useCallback(() => setDrawerFsm(null), []);
 
-  const stateColorFn = useMemo(
-    () => createFsmTypeColorFn(entities.fsm_types, isDark ? THEME_DARK : THEME_LIGHT),
-    [entities.fsm_types, isDark]
-  );
   const resourceLabel = useCallback(
     (id: string) => {
       const resource = entities.resources[id];
@@ -126,7 +120,6 @@ export function QueryResourceTree({
         resourceLabel={resourceLabel}
         operatorLabel={operatorLabel}
         onClose={closeDrawer}
-        stateColorFn={stateColorFn}
         queryBundle={queryBundle}
       />
     </TimelineTreeTable>

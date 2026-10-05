@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { getActivePalette } from '@quent/utils';
 import type { DAGNode, DAGEdge } from '@quent/utils';
 import {
   computeNodeColoring,
@@ -41,21 +40,21 @@ function tagged(variant: string, value: unknown) {
 describe('computeNodeColoring', () => {
   it('returns null when field is null', () => {
     const nodes = [makeNode('n1', { rows: tagged('UInt64', 10) })];
-    expect(computeNodeColoring(nodes, null, 'light')).toBeNull();
+    expect(computeNodeColoring(nodes, null)).toBeNull();
   });
 
   it('returns null when nodes array is empty', () => {
-    expect(computeNodeColoring([], 'rows', 'light')).toBeNull();
+    expect(computeNodeColoring([], 'rows')).toBeNull();
   });
 
   it('returns null when no node has the requested field', () => {
     const nodes = [makeNode('n1', { bytes: tagged('UInt64', 100) })];
-    expect(computeNodeColoring(nodes, 'rows', 'light')).toBeNull();
+    expect(computeNodeColoring(nodes, 'rows')).toBeNull();
   });
 
   it('returns null when all matching stat values are null', () => {
     const nodes = [makeNode('n1', { rows: null })];
-    expect(computeNodeColoring(nodes, 'rows', 'light')).toBeNull();
+    expect(computeNodeColoring(nodes, 'rows')).toBeNull();
   });
 
   it('returns continuous coloring for numeric values', () => {
@@ -64,7 +63,7 @@ describe('computeNodeColoring', () => {
       makeNode('n2', { rows: tagged('UInt64', 50) }),
       makeNode('n3', { rows: tagged('UInt64', 20) }),
     ];
-    const result = computeNodeColoring(nodes, 'rows', 'light');
+    const result = computeNodeColoring(nodes, 'rows');
     expect(result?.type).toBe('continuous');
     if (result?.type !== 'continuous') {
       return;
@@ -78,7 +77,7 @@ describe('computeNodeColoring', () => {
 
   it('returns continuous coloring with equal min/max for a single node', () => {
     const nodes = [makeNode('n1', { rows: tagged('UInt64', 7) })];
-    const result = computeNodeColoring(nodes, 'rows', 'light');
+    const result = computeNodeColoring(nodes, 'rows');
     expect(result?.type).toBe('continuous');
     if (result?.type !== 'continuous') {
       return;
@@ -93,7 +92,7 @@ describe('computeNodeColoring', () => {
       makeNode('n2', { state: tagged('String', 'idle') }),
       makeNode('n3', { state: tagged('String', 'active') }),
     ];
-    const result = computeNodeColoring(nodes, 'state', 'light');
+    const result = computeNodeColoring(nodes, 'state');
     expect(result?.type).toBe('categorical');
     if (result?.type !== 'categorical') {
       return;
@@ -103,19 +102,17 @@ describe('computeNodeColoring', () => {
     expect(result.colorMap.get('n1')).not.toBe(result.colorMap.get('n2'));
   });
 
-  it('assigns palette colors in order of first appearance', () => {
-    const palette = getActivePalette('light');
+  it('assigns colors independently of first appearance', () => {
     const nodes = [
       makeNode('n1', { state: tagged('String', 'alpha') }),
       makeNode('n2', { state: tagged('String', 'beta') }),
     ];
-    const result = computeNodeColoring(nodes, 'state', 'light');
-    expect(result?.type).toBe('categorical');
-    if (result?.type !== 'categorical') {
+    const result = computeNodeColoring(nodes, 'state');
+    const reversed = computeNodeColoring([...nodes].reverse(), 'state');
+    if (result?.type !== 'categorical' || reversed?.type !== 'categorical') {
       return;
     }
-    expect(result.categoryMap.get('alpha')).toBe(palette[0]);
-    expect(result.categoryMap.get('beta')).toBe(palette[1]);
+    expect(result.categoryMap).toEqual(reversed.categoryMap);
   });
 
   it('skips nodes that do not have the requested field', () => {
@@ -123,7 +120,7 @@ describe('computeNodeColoring', () => {
       makeNode('n1', { rows: tagged('UInt64', 10) }),
       makeNode('n2', {}), // no 'rows' stat
     ];
-    const result = computeNodeColoring(nodes, 'rows', 'light');
+    const result = computeNodeColoring(nodes, 'rows');
     expect(result?.type).toBe('continuous');
     if (result?.type !== 'continuous') {
       return;
@@ -138,21 +135,21 @@ describe('computeNodeColoring', () => {
 describe('computeEdgeColoring', () => {
   it('returns null when field is null', () => {
     const edges = [makeEdge('e1', [{ key: 'rows', value: 5 }])];
-    expect(computeEdgeColoring(edges, null, 'light')).toBeNull();
+    expect(computeEdgeColoring(edges, null)).toBeNull();
   });
 
   it('returns null when edges array is empty', () => {
-    expect(computeEdgeColoring([], 'rows', 'light')).toBeNull();
+    expect(computeEdgeColoring([], 'rows')).toBeNull();
   });
 
   it('returns null when no edge has the requested field', () => {
     const edges = [makeEdge('e1', [{ key: 'bytes', value: 100 }])];
-    expect(computeEdgeColoring(edges, 'rows', 'light')).toBeNull();
+    expect(computeEdgeColoring(edges, 'rows')).toBeNull();
   });
 
   it('returns null when all matching stat values are null', () => {
     const edges = [makeEdge('e1', [{ key: 'rows', value: null }])];
-    expect(computeEdgeColoring(edges, 'rows', 'light')).toBeNull();
+    expect(computeEdgeColoring(edges, 'rows')).toBeNull();
   });
 
   it('returns continuous coloring for numeric values', () => {
@@ -160,7 +157,7 @@ describe('computeEdgeColoring', () => {
       makeEdge('e1', [{ key: 'rows', value: 10 }]),
       makeEdge('e2', [{ key: 'rows', value: 40 }]),
     ];
-    const result = computeEdgeColoring(edges, 'rows', 'light');
+    const result = computeEdgeColoring(edges, 'rows');
     expect(result?.type).toBe('continuous');
     if (result?.type !== 'continuous') {
       return;
@@ -177,7 +174,7 @@ describe('computeEdgeColoring', () => {
       makeEdge('e1', [{ key: 'rows', value: 10n }]),
       makeEdge('e2', [{ key: 'rows', value: 40n }]),
     ];
-    const result = computeEdgeColoring(edges, 'rows', 'light');
+    const result = computeEdgeColoring(edges, 'rows');
     expect(result?.type).toBe('continuous');
     if (result?.type !== 'continuous') {
       return;
@@ -194,7 +191,7 @@ describe('computeEdgeColoring', () => {
       makeEdge('e1', [{ key: 'type', value: 'hash' }]),
       makeEdge('e2', [{ key: 'type', value: 'merge' }]),
     ];
-    const result = computeEdgeColoring(edges, 'type', 'light');
+    const result = computeEdgeColoring(edges, 'type');
     expect(result?.type).toBe('categorical');
     if (result?.type !== 'categorical') {
       return;
@@ -209,7 +206,7 @@ describe('computeEdgeColoring', () => {
       makeEdge('e1', [{ key: 'type', value: 'hash' }]),
       makeEdge('e2', [{ key: 'type', value: 'merge' }]),
     ];
-    const result = computeEdgeColoring(edges, 'type', 'light');
+    const result = computeEdgeColoring(edges, 'type');
     expect(result?.type).toBe('categorical');
     if (result?.type !== 'categorical') {
       return;
@@ -223,7 +220,7 @@ describe('computeEdgeColoring', () => {
       makeEdge('e1', [{ key: 'rows', value: 10 }]),
       makeEdge('e2', []), // no portStats for 'rows'
     ];
-    const result = computeEdgeColoring(edges, 'rows', 'light');
+    const result = computeEdgeColoring(edges, 'rows');
     expect(result?.type).toBe('continuous');
     if (result?.type !== 'continuous') {
       return;

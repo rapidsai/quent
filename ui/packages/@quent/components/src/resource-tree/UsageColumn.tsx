@@ -68,7 +68,6 @@ export function UsageColumn({
         resourceTypeName={selectedType}
         resourceTypeDecl={resourceTypeDecl}
         quantitySpecs={queryBundle.quantity_specs}
-        fsmTypes={queryBundle.entities.fsm_types}
         isDark={isDark}
         showPlayheadIndicator={showPlayheadIndicator}
       />

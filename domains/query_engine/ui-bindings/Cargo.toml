@@ -8,4 +8,4 @@ publish.workspace = true
 nvtx-ui = { path = "../../../integrations/nvtx/ui" }
 quent-query-engine-ui = { path = "../ui" }
 quent-ui = { path = "../../../crates/ui" }
-ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl", "format"] }
+ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl"] }

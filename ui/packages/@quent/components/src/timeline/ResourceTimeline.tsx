@@ -12,6 +12,8 @@ import {
   useSelectedOperatorIds,
   useDeferredReady,
   useSetTimelineHover,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineTooltipPortal } from './TimelineTooltipPortal';
@@ -29,14 +31,13 @@ import {
 } from '../lib/timeline.utils';
 import { TimelineSeries } from './types';
 import { EntityTypeKey } from '@quent/utils';
-import { WHITE, withOpacity, type PaletteTheme } from '@quent/utils';
+import { WHITE, withOpacity } from '@quent/utils';
 import type {
   SingleTimelineResponse,
   SingleTimelineRequest,
   QueryFilter,
   OperatorFilter,
   QuantitySpec,
-  FsmTypeDecl,
   ResourceTypeDecl,
 } from '@quent/utils';
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
@@ -55,7 +56,6 @@ type ResourceTimelineProps = {
   preloadedData?: SingleTimelineResponse;
   resourceTypeDecl?: ResourceTypeDecl;
   quantitySpecs?: { [key in string]?: QuantitySpec };
-  fsmTypes?: { [key in string]?: FsmTypeDecl };
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
   showPlayheadIndicator?: boolean;
@@ -82,11 +82,11 @@ export function ResourceTimeline({
   showTooltip = true,
   resourceTypeDecl,
   quantitySpecs,
-  fsmTypes,
   isDark,
   showPlayheadIndicator = false,
 }: ResourceTimelineProps) {
-  const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
+  const colorCapacity = useColorResolver(COLOR_REGISTRY_KEYS.CAPACITIES);
+  const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
   const deferredReady = useDeferredReady();
   const zoomRange = useDebouncedZoomRange();
   const bulkInitialized = useBulkInitialized();
@@ -202,10 +202,10 @@ export function ResourceTimeline({
     const base = buildBinnedTimelineSeries(
       data.data,
       data.config,
-      paletteTheme,
+      colorCapacity,
+      colorFsmState,
       resourceTypeDecl,
-      quantitySpecs,
-      fsmTypes
+      quantitySpecs
     );
 
     if (hasOperatorFilter && operatorLabel) {
@@ -217,10 +217,10 @@ export function ResourceTimeline({
           const opResult = buildBinnedTimelineSeries(
             overlayPreloadedData.data,
             overlayPreloadedData.config,
-            paletteTheme,
+            colorCapacity,
+            colorFsmState,
             resourceTypeDecl,
-            quantitySpecs,
-            fsmTypes
+            quantitySpecs
           );
           return {
             timestamps: base.timestamps,
@@ -248,9 +248,9 @@ export function ResourceTimeline({
     overlayPreloadedData,
     resourceTypeDecl,
     quantitySpecs,
-    fsmTypes,
     operatorLabel,
-    paletteTheme,
+    colorCapacity,
+    colorFsmState,
   ]);
 
   // Bridge the chart's atom-unaware `onHoverChange` callback into the shared

@@ -351,6 +351,7 @@ dependencies = [
  "quent-events",
  "quent-io",
  "quent-io-callback",
+ "quent-time",
  "thiserror",
  "tokio",
  "tokio-util",

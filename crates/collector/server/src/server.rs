@@ -9,6 +9,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::time::Duration;
 
 use quent_collector_client::CollectorSink;
 use tokio::sync::OnceCell;
@@ -77,6 +78,24 @@ impl FlushHandle {
         while *pending != 0 {
             pending = self.0.completed.wait(pending).unwrap();
         }
+    }
+
+    /// Waits for completed source contexts to shut down, returning `false` on timeout.
+    ///
+    /// Call off the server runtime while it remains alive, after serving stops.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the pending-count mutex is poisoned during bookkeeping.
+    pub fn wait_timeout(&self, timeout: Duration) -> bool {
+        let (pending, _) = self
+            .0
+            .completed
+            .wait_timeout_while(self.0.pending.lock().unwrap(), timeout, |pending| {
+                *pending != 0
+            })
+            .unwrap();
+        *pending == 0
     }
 
     /// Drops `context` on a separate thread and includes its shutdown in [`Self::wait`].
@@ -256,5 +275,32 @@ where
             }
         }
         Ok(Response::new(proto::CollectEventResponse {}))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    struct BlockingDrop(Mutex<mpsc::Receiver<()>>);
+
+    impl Drop for BlockingDrop {
+        fn drop(&mut self) {
+            self.0.get_mut().unwrap().recv().unwrap();
+        }
+    }
+
+    #[test]
+    fn flush_wait_timeout_does_not_wait_for_blocked_exporter() {
+        let flush = FlushHandle::default();
+        let (release, blocked) = mpsc::channel();
+        flush.drop_context(Arc::new(OnceCell::new_with(Some(BlockingDrop(
+            Mutex::new(blocked),
+        )))));
+        let completed = flush.wait_timeout(Duration::from_millis(10));
+        release.send(()).unwrap();
+        assert!(!completed);
+        assert!(flush.wait_timeout(Duration::from_secs(5)));
     }
 }

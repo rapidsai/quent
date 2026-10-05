@@ -9,7 +9,7 @@ async-trait.workspace = true
 http.workspace = true
 serde.workspace = true
 quent-collector-client = { path = "../../collector/client" }
-quent-events = { path = "../../events", features = ["serde"]}
+quent-events = { path = "../../events", default-features = false, features = ["serde"]}
 quent-io-types = { path = "../types" }
 thiserror.workspace = true
 uuid.workspace = true

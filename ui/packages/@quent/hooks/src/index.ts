@@ -8,8 +8,8 @@ export type { QuentProviderProps } from './QuentProvider';
 // Query-scoped deterministic color registries
 export {
   COLOR_REGISTRY_KEYS,
+  ColorRegistryProvider,
   useColorResolver,
-  useHydrateColorRegistry,
 } from './colors/colorRegistry';
 export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
 

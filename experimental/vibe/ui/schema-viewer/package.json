@@ -18,7 +18,7 @@
     "**/*.css"
   ],
   "scripts": {
-    "schema:build": "pnpm --dir ../../../../crates/schema/ts build",
+    "schema:build": "pnpm --dir .. bindings",
     "prebuild": "pnpm schema:build",
     "build": "vite build && tsc -p tsconfig.build.json",
     "precheck": "pnpm schema:build",
@@ -46,7 +46,7 @@
     "svelte": "catalog:",
     "svelte-check": "catalog:",
     "typescript": "catalog:",
-    "vite": "8.1.5",
+    "vite": "8.3.0",
     "vitest": "catalog:"
   }
 }

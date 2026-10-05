@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useMemo, useState } from 'react';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { queryBundleQueryOptions } from '@quent/client';
 import { queryClient } from '@/lib/queryClient';
@@ -8,7 +9,8 @@ import type { QueryBundle, EntityRef } from '@quent/utils';
 import { cn } from '@quent/utils';
 import { QueryLoading } from '@/components/QueryLoading';
 import { RouteError } from '@/components/RouteError';
-import { CopyLinkButton, validateDeepLinkSearch } from '@/features/deep-link';
+import { TabActionSlotsContext, type TabActionSlots } from '@/components/TabActionSlots';
+import { validateDeepLinkSearch } from '@/features/deep-link';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')({
   component: QueryLayout,
@@ -33,40 +35,48 @@ const activeTabClass = cn(tabClass, 'text-foreground font-semibold bg-muted shad
 
 function QueryLayout() {
   const { engineId, queryId } = Route.useParams();
+  const [leftSlot, setLeftSlot] = useState<HTMLElement | null>(null);
+  const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null);
+  const slots = useMemo<TabActionSlots>(() => ({ leftSlot, rightSlot }), [leftSlot, rightSlot]);
   return (
-    <div className="flex min-w-0 flex-col h-full w-full">
-      <div className="shrink-0 border-b">
-        <div className="inline-flex h-9 w-full items-center justify-center gap-0 p-1 text-muted-foreground">
-          <Link
-            to="/profile/engine/$engineId/query/$queryId/timeline"
-            params={{ engineId, queryId }}
-            className={tabClass}
-            activeProps={{ className: activeTabClass }}
-          >
-            Timeline
-          </Link>
-          <Link
-            to="/profile/engine/$engineId/query/$queryId/operators"
-            params={{ engineId, queryId }}
-            className={tabClass}
-            activeProps={{ className: activeTabClass }}
-          >
-            Operators
-          </Link>
-          <Link
-            to="/profile/engine/$engineId/query/$queryId/entities"
-            params={{ engineId, queryId }}
-            className={tabClass}
-            activeProps={{ className: activeTabClass }}
-          >
-            Entities
-          </Link>
-          <CopyLinkButton />
+    <TabActionSlotsContext.Provider value={slots}>
+      <div className="flex min-w-0 flex-col h-full w-full">
+        <div className="shrink-0 border-b">
+          <div className="grid h-9 w-full grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-1 text-xs text-muted-foreground">
+            <div ref={setLeftSlot} className="flex min-w-0 items-center gap-1.5" />
+            <div className="flex items-center justify-center">
+              <Link
+                to="/profile/engine/$engineId/query/$queryId/timeline"
+                params={{ engineId, queryId }}
+                className={tabClass}
+                activeProps={{ className: activeTabClass }}
+              >
+                Timeline
+              </Link>
+              <Link
+                to="/profile/engine/$engineId/query/$queryId/operators"
+                params={{ engineId, queryId }}
+                className={tabClass}
+                activeProps={{ className: activeTabClass }}
+              >
+                Operators
+              </Link>
+              <Link
+                to="/profile/engine/$engineId/query/$queryId/entities"
+                params={{ engineId, queryId }}
+                className={tabClass}
+                activeProps={{ className: activeTabClass }}
+              >
+                Entities
+              </Link>
+            </div>
+            <div ref={setRightSlot} className="flex items-center justify-end gap-2" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 min-h-0">
+          <Outlet />
         </div>
       </div>
-      <div className="min-w-0 flex-1 min-h-0">
-        <Outlet />
-      </div>
-    </div>
+    </TabActionSlotsContext.Provider>
   );
 }

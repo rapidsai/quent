@@ -83,7 +83,10 @@ pub struct ContextInner {
 impl ContextInner {
     /// Construct an active context adopting `id`, with a runtime for its
     /// observers' forwarders.
+    ///
+    /// Initializes the timestamp clock, which may block during its first calibration.
     pub fn try_new(id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        quent_time::initialize_clock();
         Ok(Self {
             id,
             runtime: Some(resolve_runtime()?),
@@ -91,7 +94,10 @@ impl ContextInner {
     }
 
     /// Construct a no-op context: observers built from it discard events.
+    ///
+    /// Initializes the timestamp clock, which may block during its first calibration.
     pub fn noop(id: Uuid) -> Self {
+        quent_time::initialize_clock();
         debug!("using noop context");
         Self { id, runtime: None }
     }

@@ -6,6 +6,7 @@ publish.workspace = true
 
 [features]
 default = []
+clock-quanta = ["quent-time/clock-quanta"]
 serde = [
     "dep:serde",
     "quent-events/serde",
@@ -24,9 +25,10 @@ async-trait.workspace = true
 quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
 quent-collector-client = { workspace = true, optional = true }
-quent-events = { path = "../events" }
+quent-events = { path = "../events", default-features = false }
 quent-io = { path = "../io", default-features = false }
 quent-io-callback = { path = "../io/callback", optional = true }
+quent-time = { path = "../time", default-features = false }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "macros"]}
@@ -41,7 +43,7 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 http.workspace = true
 quent-collector = { path = "../collector/server" }
 quent-collector-proto = { path = "../collector/proto" }
-quent-events = { path = "../events", features = ["serde"] }
+quent-events = { path = "../events", default-features = false, features = ["serde"] }
 quent-io = { path = "../io", features = ["ndjson"] }
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3"

@@ -19,7 +19,6 @@ interface EntityDetailDrawerProps {
   resourceLabel: (id: string) => string;
   operatorLabel: (id: string) => string;
   onClose: () => void;
-  stateColorFn?: (name: string) => string;
   queryBundle: QueryBundle<EntityRef>;
 }
 
@@ -28,7 +27,6 @@ export function EntityDetailDrawer({
   resourceLabel,
   operatorLabel,
   onClose,
-  stateColorFn,
   queryBundle,
 }: EntityDetailDrawerProps) {
   return (
@@ -75,7 +73,6 @@ export function EntityDetailDrawer({
               fsm={fsm}
               resourceLabel={resourceLabel}
               operatorLabel={operatorLabel}
-              stateColorFn={stateColorFn}
               queryBundle={queryBundle}
             />
           </div>

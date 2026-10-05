@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Check, Share2 } from 'lucide-react';
 import { Button, toast } from '@quent/components';
-import { DEEP_LINK_NAV_SLOT_ID } from './deepLink.constants';
 import { useDeepLink } from './deepLink.context';
 
 type CopyFeedback =
@@ -17,13 +15,7 @@ type CopyFeedback =
 export function CopyLinkButton() {
   const deepLink = useDeepLink();
   const [feedback, setFeedback] = useState<CopyFeedback>({ kind: 'idle', message: '' });
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const resetTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the DOM, which isn't available during render
-    setPortalTarget(document.getElementById(DEEP_LINK_NAV_SLOT_ID));
-  }, []);
 
   useEffect(
     () => () => {
@@ -68,16 +60,13 @@ export function CopyLinkButton() {
   const statusMessage = feedback.message || intakeMessage || '';
   const title = statusMessage || 'Copy Link';
 
-  if (!portalTarget) {
-    return null;
-  }
-  return createPortal(
+  return (
     <>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="h-9 w-9"
+        className="size-8"
         aria-label="Copy Link"
         title={title}
         disabled={!deepLink || feedback.kind === 'working'}
@@ -88,7 +77,6 @@ export function CopyLinkButton() {
       <span className="sr-only" aria-live="polite">
         {statusMessage}
       </span>
-    </>,
-    portalTarget
+    </>
   );
 }

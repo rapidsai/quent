@@ -43,7 +43,7 @@ applications to define them creates a different wrapper type for each such
 boundary. Consumers would also have to match each enum before doing common
 work.
 
-## Erase the typestate at the boundary
+## Instrumentation API
 
 Calling `into_dynamic()` consumes any typestate handle and returns the common
 `DynamicFsmHandle<Job>` type. The handle stores its current state and exposes

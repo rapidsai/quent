@@ -84,7 +84,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
             "\nclass Collector:\n",
             "    @property\n    def address(self) -> str: ...\n",
             "    @property\n    def closed(self) -> bool: ...\n",
-            "    def close(self) -> None: ...\n",
+            "    def close(self, timeout: float | None = None) -> None: ...\n",
             "    def __enter__(self) -> Collector: ...\n",
             "    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> None: ...\n",
             "\ndef start_collector(output: ExporterOptions, *, bind_address: str = \"127.0.0.1:0\", advertised_host: str | None = None) -> Collector: ...\n",

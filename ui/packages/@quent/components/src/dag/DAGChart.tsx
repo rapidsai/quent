@@ -508,10 +508,8 @@ const FlowLayout = ({
   );
 
   const handlePaneClick = useCallback(() => {
-    updateOperatorSelection({ type: 'clear' });
-    onSelectionChange?.([]);
     onBackgroundClick?.();
-  }, [onBackgroundClick, onSelectionChange, updateOperatorSelection]);
+  }, [onBackgroundClick]);
 
   // Re-fit view when the react-flow container is resized, but only if the user
   // hasn't interacted with the chart (to maintain any focus states applied)
