@@ -133,3 +133,8 @@ export interface DAGEdge {
   statisticFields?: StatisticField[];
   targetStatisticFields?: StatisticField[];
 }
+
+export interface PipeRef {
+  sourcePortId: string;
+  targetPortId: string;
+}

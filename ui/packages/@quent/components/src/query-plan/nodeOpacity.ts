@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export function getNodeOpacityClass({
+  pipeEndpoints,
+  primaryOperatorId,
   isHoveredStatActive,
   hasHoveredValue,
   highlightedNodeIds,
@@ -9,6 +11,8 @@ export function getNodeOpacityClass({
   isDimmed,
   isSelected,
 }: {
+  pipeEndpoints?: ReadonlySet<string>;
+  primaryOperatorId?: string | null;
   /** Whether a stat column is currently being hovered in the pivot table (or DAG). */
   isHoveredStatActive: boolean;
   /**
@@ -22,6 +26,13 @@ export function getNodeOpacityClass({
   isDimmed: boolean;
   isSelected: boolean;
 }): string {
+  if (pipeEndpoints) {
+    const focused =
+      primaryOperatorId && pipeEndpoints.has(primaryOperatorId)
+        ? new Set([primaryOperatorId])
+        : pipeEndpoints;
+    return focused.has(operatorId) ? 'opacity-100' : 'opacity-35';
+  }
   if (isHoveredStatActive) {
     return hasHoveredValue || isSelected ? 'opacity-100' : 'opacity-20';
   }
