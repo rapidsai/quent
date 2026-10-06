@@ -1,0 +1,9 @@
+[package]
+name = "quent-nvtx-multisink-test-backend"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+nvtx-events = { path = "../../../../integrations/nvtx/events" }
+uuid = { workspace = true }

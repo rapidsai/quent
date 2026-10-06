@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The NVTX injection entry point, one-shot table fill, and the sink-agnostic
-//! hook installation surface.
+//! hook registration surfaces. Direct users install a process-global hook;
+//! generated instrumentation registers the logical source binding through an
+//! adapter that currently installs that same one-shot hook.
 
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
@@ -32,6 +34,23 @@ use nvtx_sys::ffi::{
 type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
 
 static HOOK: OnceLock<Hook> = OnceLock::new();
+
+/// Identifies the generated source whose events a capture hook receives.
+///
+/// The current injection backend remains process-global and one-shot. Generated
+/// instrumentation supplies this binding through [`register_source`] so a
+/// routing backend can distinguish logical sources without changing the
+/// generated capture contract.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct SourceBinding {
+    /// Instrumentation context that owns the source.
+    pub context_id: uuid::Uuid,
+    /// Process entity instance that activated the source.
+    pub process_id: uuid::Uuid,
+    /// NVTX stream entity instance emitted by the source.
+    pub stream_id: uuid::Uuid,
+}
 
 // Ordinary static storage outlives both the capture owner and Rust TLS, so
 // `dispatch` can consult it from late process-cleanup callbacks.
@@ -166,6 +185,24 @@ where
         .map_err(|_| InstallHookError::AlreadyInstalled)?;
     CAPTURE_ACTIVE.store(true, Ordering::Relaxed);
     Ok(CaptureGuard { _private: () })
+}
+
+/// Register a generated capture source and its bound event hook.
+///
+/// This adapter preserves the backend's process-global, one-shot behavior.
+/// Generated instrumentation retains the returned guard and drops it before
+/// releasing the source's exporter. A routing backend can use `binding` to
+/// distinguish logical sources.
+///
+/// # Errors
+/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
+#[doc(hidden)]
+pub fn register_source<F>(binding: SourceBinding, hook: F) -> Result<CaptureGuard, InstallHookError>
+where
+    F: Fn(NvtxEvent) + Send + Sync + 'static,
+{
+    let _ = binding;
+    install_hook(hook)
 }
 
 /// Ownership of the active NVTX capture, returned by a successful

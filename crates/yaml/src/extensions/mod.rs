@@ -12,6 +12,7 @@
 //! Core lowering enters the fixed extension set through [`Elaborator`] and
 //! merges the returned schema values.
 
+use nvtx_schema::NvtxConstraint;
 use quent_constraints::{Constraint, validate};
 use quent_fsm::FsmConstraint;
 use quent_log::LogConstraint;
@@ -27,12 +28,14 @@ use crate::diag::{Diagnostic, Diagnostics};
 
 pub(crate) mod fsm;
 pub(crate) mod log;
+pub(crate) mod nvtx;
 pub(crate) mod os;
 pub(crate) mod reference;
 pub(crate) mod resource;
 
 /// Elaborates built-in DSL forms into schema values.
 pub(crate) struct Elaborator {
+    nvtx: nvtx::Elaborator,
     resources: resource::Elaborator,
 }
 
@@ -66,8 +69,18 @@ pub(crate) enum FieldElaboration {
 impl Elaborator {
     pub(crate) fn new(model: &Model, sink: &mut Diagnostics) -> Self {
         Self {
+            nvtx: nvtx::Elaborator::new(model, sink),
             resources: resource::Elaborator::new(model, sink),
         }
+    }
+
+    /// Apply extensions that need to inspect and compose the complete schema.
+    pub(crate) fn elaborate_schema(
+        &self,
+        schema: Schema,
+        sink: &mut Diagnostics,
+    ) -> Option<Schema> {
+        self.nvtx.elaborate(schema, sink)
     }
 
     pub(crate) fn elaborate_model(
@@ -204,6 +217,8 @@ impl Elaborator {
         for (name, value) in annotations {
             let error = if name == FsmConstraint::NAME {
                 Some("the FSM constraint is set from an `fsms:` block, not written directly")
+            } else if name == NvtxConstraint::NAME {
+                Some("the NVTX constraint is set from `nvtx: true`, not written directly")
             } else if name == Resource::NAME {
                 Some(
                     "the resource constraint is set from a `resource:` block, not written directly",
@@ -231,6 +246,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         ResourceConstraint,
         OsConstraint,
         LogConstraint,
+        NvtxConstraint,
     )>(schema);
     if let Err(error) = report.base_constraints {
         for entity in error.entities_without_events {
@@ -255,7 +271,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         }
     }
 
-    let (ref_target, ref_tree, fsm, resource, os, log) = report.results;
+    let (ref_target, ref_tree, fsm, resource, os, log, nvtx) = report.results;
     for result in [
         ref_target.map_err(|error| error.to_string()),
         ref_tree.map_err(|error| error.to_string()),
@@ -263,6 +279,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         resource.map_err(|error| error.to_string()),
         os.map_err(|error| error.to_string()),
         log.map_err(|error| error.to_string()),
+        nvtx.map_err(|error| error.to_string()),
     ] {
         if let Err(error) = result {
             sink.error("", error, None);

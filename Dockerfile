@@ -2,6 +2,11 @@
 
 FROM rust:1.97.0-trixie AS builder
 
+# NVTX generates its native bindings with bindgen during the build.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libclang-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /quent
 
 COPY . .

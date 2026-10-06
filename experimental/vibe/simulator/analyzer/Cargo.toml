@@ -5,6 +5,7 @@ edition.workspace =  true
 publish.workspace = true
 
 [dependencies]
+nvtx-analyzer = { path = "../../../../integrations/nvtx/analyzer" }
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
 quent-events = { path = "../../../../crates/events" }
@@ -18,7 +19,9 @@ tracing.workspace = true
 uuid.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+nvtx-server = { path = "../../../../integrations/nvtx/server" }
 quent-io = { path = "../../../../crates/io", default-features = false }
+quent-query-engine-server = { path = "../../../../domains/query_engine/server" }
 quent-simulator-store = { path = "../store" }
 quent-store = { path = "../../../../crates/store", default-features = false }
 

@@ -11,6 +11,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "crates/yaml/examples/**/*.yaml"
+      - "experimental/vibe/codegen/**/*.yaml"
       - "pixi.toml"
       - ".github/workflows/cpp.yml"
   pull_request:
@@ -22,6 +23,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "crates/yaml/examples/**/*.yaml"
+      - "experimental/vibe/codegen/**/*.yaml"
       - "pixi.toml"
       - ".github/workflows/cpp.yml"
 
@@ -52,7 +54,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - name: Test schema codegen C++
-        run: pixi run cargo test --manifest-path experimental/vibe/codegen/Cargo.toml -p quent-demo-cpp-test -p quent-cpp-list-test
+        run: pixi run cargo test --manifest-path experimental/vibe/codegen/Cargo.toml -p quent-demo-cpp-test -p quent-cpp-list-test -p quent-codegen-cpp-nvtx-test
       - name: Build and run schema codegen C++ tutorials
         run: |
           for manifest in experimental/vibe/codegen/cpp/example/tutorial/*/bridge/Cargo.toml; do

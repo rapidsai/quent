@@ -1,0 +1,9 @@
+quent: alpha
+model: nvtx_demo
+entities:
+  Process:
+    nvtx: true
+    events:
+      started:
+        attributes:
+          process: { os: process }

@@ -6,7 +6,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use quent_instrumentation::EventCallback;
+use nvtx_example::instrumentation::NvtxDemoEvent;
+use quent_instrumentation::{EventCallback, HandleError};
 use uuid::Uuid;
 
 #[test]
@@ -22,8 +23,14 @@ fn failed_capture_does_not_disable_existing_owner() {
     nvtx::mark(c"before duplicate");
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 
-    let result = nvtx_example::run_capture(Uuid::now_v7(), EventCallback::new(|_| {}));
-    assert!(result.unwrap_err().is::<nvtx_injection::InstallHookError>());
+    let result =
+        nvtx_example::run_capture(Uuid::now_v7(), EventCallback::<NvtxDemoEvent>::new(|_| {}));
+    let error = result.unwrap_err().downcast::<HandleError>().unwrap();
+    assert!(matches!(
+        *error,
+        HandleError::SourceActivation { source }
+            if source.is::<nvtx_injection::InstallHookError>()
+    ));
 
     nvtx::mark(c"after duplicate");
     assert_eq!(calls.load(Ordering::Relaxed), 2);

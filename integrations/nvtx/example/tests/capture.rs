@@ -10,14 +10,14 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::NvtxEvent;
+use nvtx_example::instrumentation::{NvtxDemoEvent, NvtxEventEvent as NvtxEvent};
 use quent_instrumentation::EventCallback;
 use uuid::Uuid;
 
 /// The variant name of an [`NvtxEvent`], for coverage assertions.
 fn kind_name(event: &NvtxEvent) -> &'static str {
     match event {
+        NvtxEvent::Initialized { .. } => "Initialized",
         NvtxEvent::RangePush { .. } => "RangePush",
         NvtxEvent::RangePop { .. } => "RangePop",
         NvtxEvent::RangeStart { .. } => "RangeStart",
@@ -39,8 +39,10 @@ fn captures_core_nvtx_kinds() {
     let collected: Arc<Mutex<Vec<NvtxEvent>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = {
         let collected = Arc::clone(&collected);
-        EventCallback::<NvtxEventEntity>::new(move |event| {
-            collected.lock().unwrap().push(event.data.0.clone());
+        EventCallback::<NvtxDemoEvent>::new(move |event| {
+            if let NvtxDemoEvent::NvtxEvent(event) = &event.data {
+                collected.lock().unwrap().push(event.clone());
+            }
         })
     };
 

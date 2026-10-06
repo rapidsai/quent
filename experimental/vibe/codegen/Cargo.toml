@@ -4,8 +4,11 @@ members = [
     "cpp",
     "cpp/test",
     "cpp/test/lists",
+    "cpp/test/nvtx",
     "python",
     "python/test/bridge",
+    "python/test/nvtx/bridge",
+    "test/nvtx/instrumentation",
     "tutorial-build",
     "cpp/example/readme/bridge",
     "cpp/example/tutorial/*/bridge",
@@ -20,6 +23,7 @@ publish = false
 
 [workspace.dependencies]
 convert_case = "0.11"
+nvtx-schema = { path = "../../../integrations/nvtx/schema" }
 prettyplease = "0.3.0"
 proc-macro2 = "1"
 quent-constraints = { path = "../../../crates/constraints" }

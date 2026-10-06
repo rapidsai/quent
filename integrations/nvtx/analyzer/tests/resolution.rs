@@ -8,7 +8,6 @@ mod fixtures;
 
 use fixtures::{at, range_end, range_start};
 use nvtx_analyzer::{NvtxDomain, NvtxModel, NvtxModelBuilder};
-use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
 use quent_time::TimeUnixNanoSec;
@@ -27,7 +26,7 @@ fn registered_start(
     domain: u64,
     range_id: u64,
     handle: u64,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::RangeStart {
@@ -44,7 +43,7 @@ fn register(
     domain: u64,
     handle: u64,
     string: &str,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::RegisterString {
@@ -61,7 +60,7 @@ fn name_category(
     domain: u64,
     category: u32,
     name: &str,
-) -> Event<NvtxEventEntity> {
+) -> Event<NvtxEvent> {
     at(
         timestamp,
         NvtxEvent::NameCategory {
