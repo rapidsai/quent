@@ -11,6 +11,10 @@ quent-store = { path = "../../store" }
 serde = { version = "1", features = ["derive"] }
 tempfile = "3"
 
+[dev-dependencies]
+quent-analyzer = { path = "../../analyzer", features = ["service"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
 [build-dependencies]
 quent-store-build = { path = ".." }
 quent-yaml = { path = "../../yaml" }

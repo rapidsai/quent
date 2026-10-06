@@ -11,11 +11,10 @@
 //! whose `nvtx-sys` dependency runs bindgen and native C compilation.
 #![cfg(feature = "real-capture-tests")]
 
-use std::sync::{Arc, Mutex};
-
 use nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
 use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{Event, EventCallback};
+use quent_instrumentation::{FileSystemExporterOptions, FileSystemFormat};
+use quent_store::event::filesystem::load_entity_stream;
 use uuid::Uuid;
 
 /// The default (NULL) NVTX domain, which is where `nvtx_example` annotates.
@@ -23,27 +22,24 @@ const DEFAULT_DOMAIN: u64 = 0;
 
 #[test]
 fn example_capture_roundtrip() {
-    // Collect the full envelope, not just the inner event: the builder orders by
-    // `timestamp`, so dropping it would make this test prove nothing about the
-    // real capture's ordering.
-    let collected: Arc<Mutex<Vec<Event<NvtxEventEntity>>>> = Arc::new(Mutex::new(Vec::new()));
-    let sink = {
-        let collected = Arc::clone(&collected);
-        EventCallback::<NvtxEventEntity>::new(move |event| {
-            collected.lock().expect("collector poisoned").push(event);
-        })
-    };
+    let output = tempfile::tempdir().expect("temporary capture directory");
+    let context_id = Uuid::now_v7();
+    let exporter =
+        FileSystemExporterOptions::new(FileSystemFormat::Ndjson, output.path().to_path_buf());
 
     // Injection is process-global and one-shot, so this is deliberately a single
     // test doing a single capture — no parallel capture is possible here.
-    nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
+    nvtx_example::run_capture(context_id, exporter).expect("capture");
 
-    // Read through the `Arc` rather than `try_unwrap`ing it: the sink's closure
-    // holds a second clone, and injection is process-global and one-shot, so
-    // nothing guarantees the registry drops the callback before `run_capture`
-    // returns. Unwrapping would make a retained callback fail this test for a
-    // reason unrelated to reconstruction.
-    let events = std::mem::take(&mut *collected.lock().expect("collector poisoned"));
+    // Read the full envelopes back through the same store importer used by the
+    // NVTX server. This covers serialization, per-file format selection, and
+    // timestamp preservation before reconstruction.
+    let context = output.path().join(context_id.to_string());
+    let events = load_entity_stream::<NvtxEventEntity>(&context)
+        .expect("inspect captured stream")
+        .expect("captured NVTX stream")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("import captured events");
     assert!(!events.is_empty(), "no NVTX events captured");
 
     let model = NvtxModelBuilder::build(events);

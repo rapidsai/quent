@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
-use moka::future::Cache;
 use quent_analyzer::context::{ContextId, ContextIndex};
+use quent_analyzer::service::{AnalysisCache, BlockingTasks};
 use quent_events::Event;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_ui as ui;
@@ -43,9 +43,10 @@ pub struct AnalyzerCache<A>
 where
     A: UiAnalyzer,
 {
-    analyzers: Cache<Uuid, Arc<A>>,
+    analyzers: AnalysisCache<Uuid, A, ServerError>,
     importer: Arc<ImporterFn<A>>,
     lister: Arc<ListerFn>,
+    tasks: BlockingTasks,
 }
 
 impl<A> Clone for AnalyzerCache<A>
@@ -57,6 +58,7 @@ where
             analyzers: self.analyzers.clone(),
             importer: Arc::clone(&self.importer),
             lister: Arc::clone(&self.lister),
+            tasks: self.tasks.clone(),
         }
     }
 }
@@ -66,13 +68,12 @@ where
     A: UiAnalyzer + Send + Sync + 'static,
 {
     pub(crate) fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
+        let tasks = BlockingTasks::new(NonZeroUsize::new(4).unwrap());
         Self {
-            analyzers: Cache::builder()
-                .max_capacity(32)
-                .time_to_idle(Duration::from_hours(24))
-                .build(),
+            analyzers: AnalysisCache::new(32, Duration::from_hours(24), tasks.clone()),
             importer: Arc::from(importer),
             lister: Arc::from(lister),
+            tasks,
         }
     }
 
@@ -83,59 +84,55 @@ where
     /// List an engine's contributing contexts without blocking the async executor.
     pub(crate) async fn contexts(&self, engine_id: Uuid) -> ServerResult<ui::EngineContexts> {
         let lister = Arc::clone(&self.lister);
-        tokio::task::spawn_blocking(move || {
-            let index = lister()?;
-            Ok(ui::EngineContexts {
-                engine_id,
-                context_ids: index
-                    .contexts_of_analysis_target(engine_id)
-                    .into_iter()
-                    .map(ContextId::into_uuid)
-                    .collect(),
+        self.tasks
+            .run(move || {
+                let index = lister()?;
+                Ok(ui::EngineContexts {
+                    engine_id,
+                    context_ids: index
+                        .contexts_of_analysis_target(engine_id)
+                        .into_iter()
+                        .map(ContextId::into_uuid)
+                        .collect(),
+                })
             })
-        })
-        .await
-        .map_err(|error| ServerError::Cache(format!("blocking task panicked: {error}")))?
+            .await
+            .map_err(|error| ServerError::Cache(format!("blocking task panicked: {error}")))?
     }
 
     pub(crate) async fn list_with_metadata(&self) -> ServerResult<Vec<ui::Engine>> {
         let lister = Arc::clone(&self.lister);
         let importer = Arc::clone(&self.importer);
-        tokio::task::spawn_blocking(move || {
-            let _span = info_span!("list_with_metadata").entered();
-            let index = lister()?;
-            index
-                .analysis_target_ids()
-                .map(|engine_id| {
-                    let events = chain_context_events::<A>(
-                        &*importer,
-                        &index.contexts_of_analysis_target(engine_id),
-                    )?;
-                    Ok(A::extract_engine(engine_id, events)?)
-                })
-                .collect()
-        })
-        .await
-        .map_err(|e| ServerError::Cache(format!("blocking task panicked: {e}")))?
+        self.tasks
+            .run(move || {
+                let _span = info_span!("list_with_metadata").entered();
+                let index = lister()?;
+                index
+                    .analysis_target_ids()
+                    .map(|engine_id| {
+                        let events = chain_context_events::<A>(
+                            &*importer,
+                            &index.contexts_of_analysis_target(engine_id),
+                        )?;
+                        Ok(A::extract_engine(engine_id, events)?)
+                    })
+                    .collect()
+            })
+            .await
+            .map_err(|e| ServerError::Cache(format!("blocking task panicked: {e}")))?
     }
 
     pub(crate) async fn get(&self, engine_id: Uuid) -> ServerResult<Arc<A>> {
         let lister = Arc::clone(&self.lister);
         let importer = Arc::clone(&self.importer);
         self.analyzers
-            .entry(engine_id)
-            .or_try_insert_with(async {
-                tokio::task::spawn_blocking(move || -> ServerResult<Arc<A>> {
-                    let _span = info_span!("load_engine", %engine_id).entered();
-                    let context_ids = lister()?.contexts_of_analysis_target(engine_id);
-                    let events = chain_context_events::<A>(&*importer, &context_ids)?;
-                    Ok(A::try_new(engine_id, events).map(Arc::new)?)
-                })
-                .await
-                .map_err(|e| ServerError::Cache(format!("blocking task panicked: {e}")))?
+            .get_with(engine_id, move || -> ServerResult<A> {
+                let _span = info_span!("load_engine", %engine_id).entered();
+                let context_ids = lister()?.contexts_of_analysis_target(engine_id);
+                let events = chain_context_events::<A>(&*importer, &context_ids)?;
+                Ok(A::try_new(engine_id, events)?)
             })
             .await
-            .map(|v| v.into_value())
-            .map_err(|e: Arc<ServerError>| ServerError::Cache(format!("{e:?}")))
+            .map_err(|error| ServerError::Cache(error.to_string()))
     }
 }

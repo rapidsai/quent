@@ -1742,8 +1742,10 @@ dependencies = [
  "nvtx-example",
  "quent-events",
  "quent-instrumentation",
+ "quent-store",
  "quent-time",
  "rustc-hash",
+ "tempfile",
  "tracing",
  "uuid",
 ]
@@ -1798,8 +1800,10 @@ dependencies = [
  "nvtx-bridge",
  "nvtx-events",
  "nvtx-ui",
+ "quent-analyzer",
  "quent-events",
  "quent-io",
+ "quent-store",
  "serde",
  "serde_json",
  "tempfile",
@@ -2226,6 +2230,7 @@ dependencies = [
 name = "quent-analyzer"
 version = "0.1.0"
 dependencies = [
+ "moka",
  "quent-dynamic-attributes",
  "quent-events",
  "quent-time",
@@ -2233,6 +2238,7 @@ dependencies = [
  "smallvec",
  "tempfile",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -2887,6 +2893,7 @@ dependencies = [
 name = "quent-store-build-example"
 version = "0.1.0"
 dependencies = [
+ "quent-analyzer",
  "quent-events",
  "quent-instrumentation-build-example",
  "quent-store",
@@ -2894,6 +2901,7 @@ dependencies = [
  "quent-yaml",
  "serde",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]

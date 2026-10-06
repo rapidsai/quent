@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use nvtx::sys::ffi;
+use nvtx_bridge::NvtxEventEntity;
 use quent_instrumentation::EventCallback;
 use uuid::Uuid;
 
@@ -51,7 +52,7 @@ fn main() {
         assert_eq!(unsafe { libc::atexit(late_nvtx) }, 0);
 
         let calls = Arc::new(AtomicUsize::new(0));
-        let sink = EventCallback::new({
+        let sink = EventCallback::<NvtxEventEntity>::new({
             let calls = Arc::clone(&calls);
             move |_| {
                 calls.fetch_add(1, Ordering::Relaxed);

@@ -128,6 +128,14 @@ destruction.
 It checks stderr as well as the exit status, since contained TLS panics can
 still exit successfully. These tests require no GPU.
 
+The analyzer's gated roundtrip sends a real capture through Quent's NDJSON
+filesystem exporter, loads it through `quent-store`, and then runs the shared
+NVTX reconstruction:
+
+```sh
+pixi run cargo test -p nvtx-analyzer --features real-capture-tests --test roundtrip
+```
+
 ## Captured surface
 
 Both NVTX ASCII surfaces: **domain-scoped (CORE2)** — mark, range

@@ -11,7 +11,7 @@ ui = ["dep:mime_guess", "dep:quent-query-engine-ui-bindings", "dep:rust-embed"]
 async-trait.workspace = true
 axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future"] }
-quent-analyzer = { path = "../../../crates/analyzer" }
+quent-analyzer = { path = "../../../crates/analyzer", features = ["service"] }
 quent-collector = { path = "../../../crates/collector/server" }
 quent-collector-proto = { path = "../../../crates/collector/proto" }
 quent-events = { path = "../../../crates/events" }
