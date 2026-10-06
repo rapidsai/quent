@@ -47,12 +47,12 @@ type FlatTreeRow = {
 const rowSurfaceClasses =
   'relative cursor-pointer transition-colors hover:bg-secondary/10 data-[selected=true]:bg-secondary/70';
 
-// Thin left-edge accent bar used to indicate a row's relation to a hovered
+// Small left-edge accent dot used to indicate a row's relation to a hovered
 // query plan operator, without the visual weight of a full row background.
 const RowIndicatorBar = () => (
   <div
     aria-hidden="true"
-    className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-primary"
+    className="absolute left-1 top-1/2 z-20 size-1.5 -translate-y-1/2 rounded-full bg-primary"
   />
 );
 
