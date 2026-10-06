@@ -462,8 +462,7 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   highlightedItemIds?: Set<string>;
   /**
-   * Rows in this set render a left accent bar instead of the full-row
-   * background used by `highlightedItemIds` — a lighter-weight indicator for
+   * Rows in this set render a left accent dot` — a light-weight indicator for
    * relations that update frequently (e.g. hovering a query plan operator).
    */
   indicatorItemIds?: Set<string>;
