@@ -9,19 +9,24 @@ export type PaletteTheme = 'light' | 'dark';
 export type ColorPalette = readonly string[];
 
 export const COLOR_PALETTES = {
+  // Picked so the colors stay as far apart as possible from every other color
+  // (also under red-green color blindness), since we can't know which ones end
+  // up side by side. The worst pair is about 6 apart under color blindness
+  // (OKLab x100); the old palette had pairs that were almost identical.
+  // Neighbors in this list are also far apart, because a clash is resolved by
+  // moving to the next slot.
   deterministic: [
-    '#3b82f6', // Blue
-    '#a855f7', // Purple
-    '#22c55e', // Green
-    '#f97316', // Orange
-    '#ef4444', // Red
-    '#4f46e5', // Indigo
-    '#f59e0b', // Amber
-    '#14b8a6', // Teal
-    '#06b6d4', // Cyan
-    '#8b5cf6', // Violet
-    '#ec4899', // Pink
-    '#10b981', // Emerald
+    '#2c87e2', // Blue
+    '#d6a62e', // Amber
+    '#0c602e', // Forest
+    '#538b00', // Lime
+    '#7c36b3', // Purple
+    '#5bc19d', // Mint
+    '#ac9eeb', // Periwinkle
+    '#079b8b', // Teal
+    '#9d2f70', // Magenta
+    '#bd6c57', // Terracotta
+    '#3162d8', // Royal blue
   ],
   timeline: {
     light: [

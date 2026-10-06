@@ -11,6 +11,7 @@ import {
   createDeterministicColorResolver,
   continuousColor,
   getLegendGradientStops,
+  COLOR_PALETTES,
 } from './colors';
 
 // ---- withOpacity -----------------------------------------------------------
@@ -280,5 +281,85 @@ describe('getLegendGradientStops', () => {
     const light = getLegendGradientStops('blue', false);
     const dark = getLegendGradientStops('blue', true);
     expect(light[0]).not.toBe(dark[0]);
+  });
+});
+
+// ---- palette separation ----------------------------------------------------
+
+type Matrix = readonly [
+  readonly [number, number, number],
+  readonly [number, number, number],
+  readonly [number, number, number],
+];
+
+// Color blindness simulation matrices (Machado et al. 2009, full severity).
+const PROTAN: Matrix = [
+  [0.152286, 1.052583, -0.204868],
+  [0.114503, 0.786281, 0.099216],
+  [-0.003882, -0.048116, 1.051998],
+];
+const DEUTAN: Matrix = [
+  [0.367322, 0.860646, -0.227968],
+  [0.280085, 0.672501, 0.047413],
+  [-0.01182, 0.04294, 0.968881],
+];
+
+function toLinear(hex: string): [number, number, number] {
+  return [1, 3, 5].map(i => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+}
+
+function toOklab([r, g, b]: [number, number, number]): [number, number, number] {
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
+}
+
+function simulate(rgb: [number, number, number], matrix?: Matrix): [number, number, number] {
+  if (!matrix) return rgb;
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
+  return matrix.map(row => clamp(row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2])) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+/** Distance between two colors in OKLab (x100), optionally as seen with color blindness. */
+function colorDistance(a: string, b: string, matrix?: Matrix): number {
+  const [l1, a1, b1] = toOklab(simulate(toLinear(a), matrix));
+  const [l2, a2, b2] = toOklab(simulate(toLinear(b), matrix));
+  return 100 * Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+describe('COLOR_PALETTES.deterministic', () => {
+  const palette = COLOR_PALETTES.deterministic;
+  // No two colors may look alike, with normal vision or red-green color blindness.
+  const MIN_DISTANCE = 5.5;
+
+  it('has no duplicate colors', () => {
+    expect(new Set(palette).size).toBe(palette.length);
+  });
+
+  it.each([
+    ['normal vision', undefined],
+    ['protanopia', PROTAN],
+    ['deuteranopia', DEUTAN],
+  ] as const)('keeps every pair of colors apart under %s', (_name, matrix) => {
+    for (let i = 0; i < palette.length; i++) {
+      for (let j = i + 1; j < palette.length; j++) {
+        expect(
+          colorDistance(palette[i]!, palette[j]!, matrix),
+          `${palette[i]} vs ${palette[j]}`
+        ).toBeGreaterThanOrEqual(MIN_DISTANCE);
+      }
+    }
   });
 });
