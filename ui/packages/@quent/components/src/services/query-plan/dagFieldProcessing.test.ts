@@ -325,7 +325,7 @@ describe('computeNodeColoring with related operators', () => {
       makeNode('plain', { rows: tagged('UInt64', 3) }),
       makeGroupNode('group', [{ rows: tagged('UInt64', 4) }, { rows: tagged('UInt64', 6) }]),
     ];
-    const result = computeNodeColoring(nodes, 'rows', 'light');
+    const result = computeNodeColoring(nodes, 'rows');
     expect(result).toMatchObject({ type: 'continuous', min: 3, max: 10 });
     expect((result as { values: Map<string, number> }).values.get('group')).toBe(10);
   });
@@ -339,12 +339,12 @@ describe('computeNodeColoring with related operators', () => {
         rawNode: makeNode('group', { rows: tagged('UInt64', 7) }).metadata!.rawNode,
       },
     };
-    const result = computeNodeColoring([node], 'rows', 'light');
+    const result = computeNodeColoring([node], 'rows');
     expect((result as { values: Map<string, number> }).values.get('group')).toBe(7);
   });
 
   it('does not aggregate non-numeric related values', () => {
     const nodes = [makeGroupNode('group', [{ kind: tagged('String', 'a') }])];
-    expect(computeNodeColoring(nodes, 'kind', 'light')).toBeNull();
+    expect(computeNodeColoring(nodes, 'kind')).toBeNull();
   });
 });
