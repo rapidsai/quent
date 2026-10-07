@@ -45,7 +45,7 @@ function makeOperator(
     parent_operator_ids: parentOperatorIds,
     instance_name: instanceName,
     operator_type_name: typeName,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   };

@@ -638,10 +638,11 @@ describe('unwrapTaggedValue', () => {
   });
 
   it('unwraps lists and struct entries', () => {
-    expect(unwrapTaggedValue({ List: { U64: [1, 2] } })).toEqual(['1', '2']);
-    expect(unwrapTaggedValue({ Struct: [{ key: 'tier', value: { String: 'GPU' } }] })).toEqual([
-      'tier: GPU',
-    ]);
+    expect(unwrapTaggedValue({ List: { U64: [1, 2] } })).toEqual([1, 2]);
+    expect(unwrapTaggedValue({ Struct: [{ key: 'tier', value: { String: 'GPU' } }] })).toEqual({
+      kind: 'struct',
+      fields: [{ key: 'tier', value: 'GPU' }],
+    });
   });
 
   it('stringifies objects that are not tagged values', () => {
@@ -695,4 +696,38 @@ describe('bytes-rate attribute keys', () => {
     expect(formatAttributeValue('bytes_per_sec', { F64: 2_000_000_000 })).toBe('2.00 GB/s');
     expect(formatAttributeValue('bytes_per_sec', 5_000_000)).toBe('5.00 MB/s');
   });
+});
+
+it('retains deep struct order, repeated names and lists of lists of structs', () => {
+  const value = {
+    List: {
+      List: [
+        {
+          Struct: [
+            [
+              { key: 'z', value: { U64: 0 } },
+              { key: 'a', value: null },
+              { key: 'z', value: { U64: 2 } },
+            ],
+            [],
+          ],
+        },
+        { U64: [3, 4] },
+      ],
+    },
+  };
+  expect(unwrapTaggedValue(value)).toEqual([
+    [
+      {
+        kind: 'struct',
+        fields: [
+          { key: 'z', value: 0 },
+          { key: 'a', value: null },
+          { key: 'z', value: 2 },
+        ],
+      },
+      { kind: 'struct', fields: [] },
+    ],
+    [3, 4],
+  ]);
 });

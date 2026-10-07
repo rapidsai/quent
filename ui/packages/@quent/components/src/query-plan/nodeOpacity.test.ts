@@ -57,3 +57,22 @@ describe('getNodeOpacityClass', () => {
     ).toBe('opacity-20');
   });
 });
+
+it('focuses inspected endpoints and narrows node emphasis on endpoint hover', () => {
+  const common = {
+    pipeEndpoints: new Set(['s', 't']),
+    isHoveredStatActive: true,
+    hasHoveredValue: true,
+    highlightedNodeIds: new Set(['other']),
+    isDimmed: false,
+    isSelected: true,
+  };
+  expect(getNodeOpacityClass({ ...common, operatorId: 'other' })).toBe('opacity-35');
+  expect(getNodeOpacityClass({ ...common, operatorId: 's' })).toBe('opacity-100');
+  expect(getNodeOpacityClass({ ...common, operatorId: 's', primaryOperatorId: 't' })).toBe(
+    'opacity-35'
+  );
+  expect(getNodeOpacityClass({ ...common, operatorId: 't', primaryOperatorId: 't' })).toBe(
+    'opacity-100'
+  );
+});

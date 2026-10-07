@@ -1,16 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  lazy,
-  Suspense,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
@@ -67,13 +58,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const selectedOperatorIds = useSelectedOperatorIds();
   const [dagSettingsOpen, setDagSettingsOpen] = useState(false);
   const [operatorDetailsExpanded, setOperatorDetailsExpanded] = useState(false);
-  const [operatorDetailsPreferredHeight, setOperatorDetailsPreferredHeight] = useState(
-    OPERATOR_DETAILS_DEFAULT_HEIGHT
-  );
-  const [operatorDetailsMaxHeight, setOperatorDetailsMaxHeight] = useState(
-    OPERATOR_DETAILS_DEFAULT_HEIGHT
-  );
-  const operatorDetailsGroupRef = useRef<HTMLDivElement | null>(null);
   const operatorDetailsPanelRef = useRef<PanelImperativeHandle | null>(null);
   const operatorDetailsExpandedHeightRef = useRef(OPERATOR_DETAILS_DEFAULT_HEIGHT);
   const {
@@ -140,40 +124,11 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     const panel = operatorDetailsPanelRef.current;
     if (operatorDetailsExpanded) {
       panel?.expand();
-      panel?.resize(Math.min(operatorDetailsExpandedHeightRef.current, operatorDetailsMaxHeight));
+      panel?.resize(operatorDetailsExpandedHeightRef.current);
     } else {
       panel?.collapse();
     }
-  }, [operatorDetailsExpanded, operatorDetailsMaxHeight]);
-
-  useLayoutEffect(() => {
-    const group = operatorDetailsGroupRef.current;
-    if (!group) {
-      return;
-    }
-    const updateMaxHeight = () => {
-      if (group.clientHeight === 0) {
-        return;
-      }
-      setOperatorDetailsMaxHeight(
-        Math.max(96, Math.min(operatorDetailsPreferredHeight, group.clientHeight * 0.5))
-      );
-    };
-    updateMaxHeight();
-    if (typeof ResizeObserver === 'undefined') {
-      return;
-    }
-    const observer = new ResizeObserver(updateMaxHeight);
-    observer.observe(group);
-    return () => observer.disconnect();
-  }, [operatorDetailsPreferredHeight]);
-
-  useEffect(() => {
-    const panel = operatorDetailsPanelRef.current;
-    if (operatorDetailsExpanded && panel && panel.getSize().inPixels > operatorDetailsMaxHeight) {
-      panel.resize(operatorDetailsMaxHeight);
-    }
-  }, [operatorDetailsExpanded, operatorDetailsMaxHeight]);
+  }, [operatorDetailsExpanded]);
 
   // handle loading and error states
   if (queryBundleLoading) {
@@ -310,12 +265,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         />
       </section>
 
-      <ResizablePanelGroup
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        elementRef={operatorDetailsGroupRef}
-      >
-        <ResizablePanel id="query-plan-dag" minSize="25%">
+      <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+        <ResizablePanel id="query-plan-dag" minSize={48}>
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
             <div className="flex-1 min-h-0">
               <Suspense
@@ -347,7 +298,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           panelRef={operatorDetailsPanelRef}
           defaultSize={OPERATOR_DETAILS_COLLAPSED_HEIGHT}
           minSize={96}
-          maxSize={operatorDetailsMaxHeight}
           collapsible
           collapsedSize={OPERATOR_DETAILS_COLLAPSED_HEIGHT}
           groupResizeBehavior="preserve-pixel-size"
@@ -362,7 +312,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
             quantitySpecs={queryBundle.quantity_specs}
             fillHeight
             onExpandedChange={setOperatorDetailsExpanded}
-            onPreferredHeightChange={setOperatorDetailsPreferredHeight}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

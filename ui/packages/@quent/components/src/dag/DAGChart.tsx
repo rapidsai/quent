@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  useInspectedPipe,
+  useSetInspectedPipe,
+  useSyncDisplayedPipes,
+  useHoveredPipeId,
+} from '@quent/hooks';
+import { normalizeEdgeWidth, statisticFieldName, type DAGEdge } from '@quent/utils';
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -19,6 +26,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useUpdateNodeInternals,
   getSmoothStepPath,
   Position,
   type Node,
@@ -51,7 +59,7 @@ import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNo
 import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
-import { parseCustomStatistics } from '../lib/queryBundle.utils';
+import { parseCustomStatistics, parseOperatorAttributes } from '../lib/queryBundle.utils';
 import {
   continuousColor,
   inferFieldFormatter,
@@ -64,7 +72,7 @@ import {
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
 const EDGE_STROKE_WIDTH_MIN = 2;
-const EDGE_STROKE_WIDTH_RANGE = 10; // stroke = MIN + t * RANGE → [2, 12] px
+const EDGE_STROKE_WIDTH_RANGE = 23; // stroke = MIN + t * RANGE → [2, 25] px
 const EDGE_DIMMED_OPACITY = 0.25;
 const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
@@ -95,6 +103,21 @@ const VariableWidthEdge = ({
   targetPosition,
   data,
 }: VariableWidthEdgeProps) => {
+  const inspectedPipe = useInspectedPipe();
+  const hoveredPipeId = useHoveredPipeId();
+  const setInspectedPipe = useSetInspectedPipe();
+  const pipe = (data as { pipe?: DAGEdge })?.pipe;
+  const isHovered = hoveredPipeId === id;
+  const isEmphasized = isHovered || (hoveredPipeId === null && inspectedPipe?.id === id);
+  const isInspected =
+    pipe != null &&
+    inspectedPipe?.sourcePortId === pipe.sourcePortId &&
+    inspectedPipe?.targetPortId === pipe.targetPortId;
+  const inspect = () => {
+    if (pipe?.sourcePortId && pipe.targetPortId) {
+      setInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
+    }
+  };
   const edgeWidthConfig = useEdgeWidthConfig();
   const edgeColoring = useEdgeColoring();
   const edgePalette = useEdgeColorPalette()[0];
@@ -108,10 +131,7 @@ const VariableWidthEdge = ({
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t =
-        edgeWidthConfig.max > edgeWidthConfig.min
-          ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
-          : FALLBACK_NORMALIZED_T;
+      const t = normalizeEdgeWidth(v, edgeWidthConfig.min, edgeWidthConfig.max);
       strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
@@ -141,19 +161,21 @@ const VariableWidthEdge = ({
   }
 
   const dimFromInteraction = shouldDimEdgeFromInteraction({
+    inspectedEdgeId: hoveredPipeId ?? inspectedPipe?.id,
+    edgeId: id,
     sourceId: source,
     targetId: target,
     selectedNodeIds: selectedOperatorIds,
     highlightedNodeIds,
   });
-  const isEdgeDimmed = edgeDimmed || dimFromInteraction;
+  const isEdgeDimmed = (edgeDimmed && !isEmphasized) || dimFromInteraction;
 
   let edgeLabelValue: string | undefined;
   if (edgeColoring) {
     if (edgeColoring.type === 'continuous') {
       const v = edgeColoring.values.get(id);
       if (v !== undefined) {
-        edgeLabelValue = inferFieldFormatter(edgeColorField ?? '')(v);
+        edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeColorField ?? ''))(v);
       }
     } else {
       const v = edgeColoring.labelMap.get(id);
@@ -164,7 +186,7 @@ const VariableWidthEdge = ({
   } else if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      edgeLabelValue = inferFieldFormatter(edgeWidthField ?? '')(v);
+      edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeWidthField ?? ''))(v);
     }
   }
 
@@ -195,18 +217,46 @@ const VariableWidthEdge = ({
         >
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
-            fill={edgeColor ?? 'currentColor'}
+            fill={isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor')}
             opacity={isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1}
           />
         </marker>
       </defs>
+      {pipe?.sourcePortId && pipe.targetPortId && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={Math.max(16, strokeWidth)}
+          style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+          aria-label={`Inspect pipe ${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
+          aria-pressed={isInspected}
+          onClick={event => {
+            event.stopPropagation();
+            inspect();
+          }}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.stopPropagation();
+              inspect();
+            }
+          }}
+        >
+          <title>{`${pipe.sourcePortName ?? pipe.sourcePortId} → ${pipe.targetPortName ?? pipe.targetPortId}`}</title>
+        </path>
+      )}
       <path
         id={id}
         className="react-flow__edge-path"
         d={edgePath}
         markerEnd={`url(#${markerId})`}
         style={{
-          stroke: edgeColor ?? 'currentColor',
+          pointerEvents: 'none',
+          stroke: isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor'),
+          filter: isEmphasized ? 'drop-shadow(0 0 3px hsl(var(--primary)))' : undefined,
           strokeWidth,
           fill: 'none',
           opacity: isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1,
@@ -282,11 +332,13 @@ function selectedOperatorDataFromFlowNode(
     nodeId: node.id,
     label: node.data.label,
     operationType: node.data.operationType,
+    attributes: parseOperatorAttributes(node.data.metadata?.rawNode),
     statistics: parseCustomStatistics(node.data.metadata?.rawNode),
     relatedOperators: node.data.metadata?.relatedOperators?.map(operator => ({
       nodeId: operator.id,
       label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
       operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
+      attributes: parseOperatorAttributes(operator),
       statistics: parseCustomStatistics(operator),
     })),
   };
@@ -309,9 +361,11 @@ const FlowLayout = ({
   onSelectionChange?: (nodeIds: string[]) => void;
   onBackgroundClick?: () => void;
 }) => {
+  useSyncDisplayedPipes(data.edges, data.nodes);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
   const setDagDisplayedNodeIds = useSetDagDisplayedNodeIds();
@@ -467,7 +521,7 @@ const FlowLayout = ({
       target: edge.target,
       type: 'smoothstep',
       // Pass isDark down to edge components via data
-      data: { isDark },
+      data: { isDark, pipe: edge },
     }));
 
     return { flowNodes, flowEdges };
@@ -526,6 +580,12 @@ const FlowLayout = ({
     observer.observe(container);
     return () => observer.disconnect();
   }, [containerRef, fitView, nodes.length]);
+
+  // Controlled node updates can clear handle bounds while retaining dimensions.
+  // Refresh after each committed node update so unchanged sizes also get handles.
+  useEffect(() => {
+    updateNodeInternals(nodes.map(node => node.id));
+  }, [nodes, updateNodeInternals]);
 
   // Calculate and apply layout
   useLayoutEffect(() => {

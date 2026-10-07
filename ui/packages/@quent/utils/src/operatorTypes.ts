@@ -22,6 +22,7 @@ export interface SelectedOperatorData {
   nodeId: string;
   label: string;
   operationType: string;
+  attributes?: Array<{ key: string; value: StatValue }>;
   statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
   workerLabel?: string;
 }

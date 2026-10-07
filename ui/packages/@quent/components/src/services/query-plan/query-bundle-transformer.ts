@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { parsePortStatistics } from '../../lib/queryBundle.utils';
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import {
@@ -186,6 +187,12 @@ export const getPlanDAG = (
         source: sourceNode.id,
         target: targetNode.id,
         type: 'smoothstep',
+        sourcePortId: edge.source,
+        targetPortId: edge.target,
+        sourcePortName: bundle.entities.ports[edge.source]?.instance_name ?? undefined,
+        targetPortName: bundle.entities.ports[edge.target]?.instance_name ?? undefined,
+        portStats: parsePortStatistics(bundle.entities.ports[edge.source]),
+        targetPortStats: parsePortStatistics(bundle.entities.ports[edge.target]),
       });
     }
   });

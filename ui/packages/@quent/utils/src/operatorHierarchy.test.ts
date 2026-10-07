@@ -17,7 +17,7 @@ function makeOperator(id: string, label: string, parentOperatorIds: string[] = [
     parent_operator_ids: parentOperatorIds,
     instance_name: label,
     operator_type_name: null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   };
@@ -78,18 +78,21 @@ describe('operator hierarchy', () => {
           nodeId: 'logical',
           label: 'Logical',
           operationType: 'operator',
+          attributes: [],
           statistics: [],
           relatedOperators: [
             {
               nodeId: 'left',
               label: 'Left',
               operationType: 'operator',
+              attributes: [],
               statistics: [],
             },
             {
               nodeId: 'right',
               label: 'Right',
               operationType: 'operator',
+              attributes: [],
               statistics: [],
             },
           ],

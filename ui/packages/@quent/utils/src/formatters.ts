@@ -6,7 +6,7 @@
  */
 
 import type { PrefixSystem, QuantitySpec, CapacityKind } from './types/index';
-import type { StatValue } from './dagTypes';
+import { isStatStruct, type StatValue } from './dagTypes';
 
 const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60 * MS_PER_SECOND;
@@ -318,42 +318,84 @@ export function isNumericValue(v: StatValue): v is number | bigint {
   return typeof v === 'number' || typeof v === 'bigint';
 }
 
-function unwrapToString(val: unknown): string {
-  const result = unwrapTaggedValue(val);
-  return Array.isArray(result) ? result.join('\n') : String(result ?? '');
+function isAttribute(value: unknown): value is { key: string; value: unknown } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'key' in value &&
+    typeof value.key === 'string' &&
+    'value' in value
+  );
 }
 
-/**
- * Recursively unwrap a `DynamicValue` to a plain JS value. The Rust `DynamicValue` enum
- * serializes externally tagged (`{"U64": 5}`) while the generated TS type is
- * untagged — handle both shapes, including lists and structs.
- */
-export function unwrapTaggedValue(val: unknown): StatValue {
-  switch (true) {
-    case val === null || val === undefined:
-      return null;
-    case typeof val === 'string' || typeof val === 'number':
-      return val;
-    case typeof val === 'bigint':
-      return val;
-    case Array.isArray(val):
-      return (val as unknown[]).map(unwrapToString);
-    case typeof val === 'object': {
-      const obj = val as Record<string, unknown>;
-      const keys = Object.keys(obj);
-      // DynamicAttribute shape: { key: string, value: DynamicValue }
-      if (keys.length === 2 && 'key' in obj && 'value' in obj) {
-        return `${obj.key}: ${unwrapToString(obj.value)}`;
-      }
-      // Tagged value: { Tag: innerValue }
-      if (keys.length === 1) {
-        return unwrapTaggedValue(Object.values(obj)[0]);
-      }
-      return JSON.stringify(val);
-    }
-    default:
-      return String(val);
+function unwrapStruct(fields: unknown): StatValue {
+  if (!Array.isArray(fields) || !fields.every(isAttribute)) {
+    return JSON.stringify(fields);
   }
+  return {
+    kind: 'struct',
+    fields: fields.map(({ key, value }) => ({ key, value: unwrapTaggedValue(value) })),
+  };
+}
+
+function unwrapList(val: unknown): StatValue {
+  if (Array.isArray(val)) {
+    return val.map(unwrapTaggedValue);
+  }
+  if (typeof val === 'object' && val !== null) {
+    const obj = val as Record<string, unknown>;
+    if (Array.isArray(obj.Struct)) {
+      return obj.Struct.map(unwrapStruct);
+    }
+    if (Array.isArray(obj.List)) {
+      return obj.List.map(unwrapList);
+    }
+    if (Object.keys(obj).length === 1) {
+      return unwrapList(Object.values(obj)[0]);
+    }
+  }
+  return unwrapTaggedValue(val);
+}
+
+/** Preserve struct/list identity and producer order while unwrapping Rust enum tags. */
+export function unwrapTaggedValue(val: unknown): StatValue {
+  if (val == null) {
+    return null;
+  }
+  if (
+    typeof val === 'string' ||
+    typeof val === 'number' ||
+    typeof val === 'bigint' ||
+    typeof val === 'boolean'
+  ) {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.length > 0 && val.every(isAttribute)
+      ? unwrapStruct(val)
+      : val.map(unwrapTaggedValue);
+  }
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    if (obj.kind === 'struct' && Array.isArray(obj.fields)) {
+      return unwrapStruct(obj.fields);
+    }
+    if ('Struct' in obj && Object.keys(obj).length === 1) {
+      return unwrapStruct(obj.Struct);
+    }
+    // A list of structs carries a Struct tag inside the outer List tag.
+    if ('List' in obj && Object.keys(obj).length === 1) {
+      return unwrapList(obj.List);
+    }
+    if (isAttribute(val)) {
+      return `${val.key}: ${formatAttributeValue(val.key, val.value)}`;
+    }
+    if (Object.keys(obj).length === 1) {
+      return unwrapTaggedValue(Object.values(obj)[0]);
+    }
+    return JSON.stringify(val);
+  }
+  return String(val);
 }
 
 /** Bytes-rate statistic names (e.g. bytes_per_sec) — SI-scaled B/s display. */
@@ -379,8 +421,13 @@ export function formatAttributeValue(key: string, value: unknown): string {
     }
     return formatNumber(v);
   }
+  if (isStatStruct(v)) {
+    return v.fields
+      .map(field => `${field.key}: ${formatAttributeValue(field.key, field.value)}`)
+      .join('\n');
+  }
   if (Array.isArray(v)) {
-    return v.join(', ');
+    return v.map(item => formatAttributeValue(key, item)).join(', ');
   }
   return String(v);
 }

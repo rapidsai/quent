@@ -89,6 +89,7 @@ const TimelineSchema = z.object({ zoomRange: ZoomRangeSchema }).strip();
 const SelectionSchema = z
   .object({
     planId: IdSchema.optional(),
+    pipe: z.object({ sourcePortId: IdSchema, targetPortId: IdSchema }).strip().optional(),
     operatorNodeIds: z
       .array(IdSchema)
       .max(MAX_SELECTED_NODE_IDS)

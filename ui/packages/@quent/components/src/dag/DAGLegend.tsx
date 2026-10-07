@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { statisticFieldName, statisticFieldLabel } from '@quent/utils';
 import { useMemo } from 'react';
 import { Panel } from '@xyflow/react';
 import {
@@ -40,11 +41,11 @@ const ContinuousLegend = ({
   isDark,
   formatValue,
 }: ContinuousLegendProps) => {
-  const fmt = formatValue ?? inferFieldFormatter(field);
+  const fmt = formatValue ?? inferFieldFormatter(statisticFieldName(field));
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {field}
+        {statisticFieldLabel(field)}
       </span>
       <div
         className="h-2 w-36 rounded-sm"
@@ -89,7 +90,7 @@ export const CategoricalLegend = ({
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {field}
+        {statisticFieldLabel(field)}
       </span>
       <div className="flex flex-col gap-0.5">
         {entries.map(([label, color]) => {

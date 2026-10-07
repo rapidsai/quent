@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { createStore } from 'jotai';
+import { displayedPipesAtom, inspectedPipeRefAtom } from '../../../hooks/src/atoms/pipeInspection';
 import { useEffect, useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider } from 'jotai';
@@ -314,4 +316,38 @@ describe('DAGNodeInfoPanel', () => {
       'true'
     );
   });
+});
+
+it('shows nested sending and receiving evidence for an inspected pipe without selecting operators', () => {
+  const store = createStore();
+  store.set(displayedPipesAtom, [
+    {
+      id: 'pipe',
+      source: 'scan',
+      target: 'join',
+      sourcePortId: 'out',
+      targetPortId: 'in',
+      portStats: [
+        { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 1024 }] } },
+      ],
+      targetPortStats: [
+        { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 512 }] } },
+      ],
+    },
+  ]);
+  store.set(inspectedPipeRefAtom, { sourcePortId: 'out', targetPortId: 'in' });
+  render(
+    <Provider store={store}>
+      <DAGNodeInfoPanel />
+    </Provider>
+  );
+  expect(screen.getByText('Pipe Details')).toBeVisible();
+  expect(
+    within(screen.getByRole('region', { name: 'Sending port' })).getByText('1.00 KiB')
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole('region', { name: 'Receiving port' })).getByText('512.00 B')
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle pipe details' }));
+  expect(screen.queryByRole('region', { name: 'Sending port' })).not.toBeInTheDocument();
 });

@@ -38,7 +38,7 @@ function makeOperator(id: string, parentOperatorIds: string[] = []): Operator {
     parent_operator_ids: parentOperatorIds,
     instance_name: id,
     operator_type_name: 'test',
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   };

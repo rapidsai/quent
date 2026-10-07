@@ -26,13 +26,15 @@ function getSelectedOperatorData(operator: Operator): SelectedOperatorData {
     nodeId: operator.id,
     label: getOperatorDisplayLabel(operator),
     operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
-    statistics: Object.entries(operator.statistics?.custom_statistics ?? {}).map(
-      ([key, statistic]) => ({
-        key,
-        value: statistic.value ? unwrapTaggedValue(statistic.value) : null,
-        ...(statistic.quantity !== null ? { quantity: statistic.quantity } : {}),
-      })
-    ),
+    attributes: (operator.custom_attributes ?? []).map(({ key, value }) => ({
+      key,
+      value: unwrapTaggedValue(value),
+    })),
+    statistics: (operator.statistics?.custom_statistics ?? []).map(statistic => ({
+      key: statistic.value.key,
+      value: unwrapTaggedValue(statistic.value.value),
+      ...(statistic.quantity !== null ? { quantity: statistic.quantity } : {}),
+    })),
   };
 }
 
