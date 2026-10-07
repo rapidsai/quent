@@ -50,10 +50,7 @@ const rowSurfaceClasses =
 // Thin left-edge accent bar used to indicate a row's relation to a hovered
 // query plan operator
 const RowIndicatorBar = () => (
-  <div
-    aria-hidden="true"
-    className="absolute left-0 inset-y-0 w-[3px] bg-primary"
-  />
+  <div aria-hidden="true" className="absolute left-0 inset-y-0 w-[3px] bg-primary" />
 );
 
 // Tree-table specific AccordionTrigger with level-based positioning.
